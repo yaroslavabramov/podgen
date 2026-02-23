@@ -37,7 +37,7 @@
 
 - [x] LangGraph state definition (PipelineState, IDs only)
 - [x] Graph assembly (graph.py with all nodes and edges)
-- [~] LangGraph checkpointing — graph compiles without checkpointer, resume not functional
+- [x] LangGraph checkpointing — Async Postgres checkpointer wired (`thread_id` persisted per run), resume path uses saved checkpoints
 - [x] Phase 0: Show Configurator (ShowBible generation + presets)
 - [x] Phase 2: Decomposer + Duration Fill Strategy
 - [x] Phase 3.1: Hunter (closed-book retrieval, hybrid RRF)
@@ -85,7 +85,7 @@
 - [ ] End-to-end tests
 - [ ] Token & Cost Governor enforcement (limits exist in config, enforcement partial)
 - [~] Error handling + retry strategies (ingestion DB retries + explicit ShowBible generation errors done; full coverage pending)
-- [~] Generation resume (API endpoint exists, checkpointer not wired)
+- [x] Generation resume (continues from last checkpoint; no full pipeline rerun on retry)
 - [ ] Structured logging + monitoring
 - [ ] Cost tracking (actual vs estimated)
 - [ ] Temp source cleanup tied to generation_run (currently age-based only)
@@ -144,8 +144,11 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P0**: Qdrant client `search()` → `query_points()` (API removed in qdrant-client 1.17+)
 - [x] **P1**: Next.js rewrites don't forward Authorization header on POST → frontend uses direct API calls (`NEXT_PUBLIC_API_URL=http://localhost:8000`)
 
+**Round 14 (resume hardening):**
+- [x] **P0**: Resume now uses LangGraph Postgres checkpointer (`AsyncPostgresSaver`) with persistent `langgraph_thread_id`; retry continues from checkpointed state
+- [x] **P1**: Retry idempotency for run-unique artifacts (`EpisodeManifest`, `Episode`) to prevent unique-constraint crashes on repeated attempts
+
 Deferred (by design):
-- **P1**: Full LangGraph checkpointing (requires production PostgreSQL saver setup)
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority
 - **P2**: Full web cascade (FireCrawl + Playwright) — Jina + httpx sufficient for MVP

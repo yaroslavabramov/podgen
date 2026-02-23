@@ -30,7 +30,11 @@ async def _run_pipeline_async(generation_run_id: str, resume: bool = False):
         if run.status == GenerationStatus.CANCELLED:
             return
 
+        if not run.langgraph_thread_id:
+            run.langgraph_thread_id = str(run.id)
+
         run.status = GenerationStatus.RUNNING
+        run.error_message = None
         run.started_at = datetime.utcnow()
         await db.commit()
 

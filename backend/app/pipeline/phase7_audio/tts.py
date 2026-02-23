@@ -1,9 +1,6 @@
 """Phase 7.1: TTS Generation — convert dialogue to audio."""
-
-import asyncio
 import io
 import logging
-import time
 import uuid
 
 from sqlalchemy import select
@@ -25,7 +22,6 @@ logger = logging.getLogger(__name__)
 async def generate_audio(state: PipelineState) -> dict:
     """LangGraph node: generate TTS audio for all script segments."""
     run_id = state["generation_run_id"]
-    t0 = time.time()
     publish_event(run_id, phase_started("phase7_audio", "Generating podcast audio"))
     update_generation_progress(run_id, "phase7_audio", "tts", 82.0)
 
@@ -105,18 +101,36 @@ async def generate_audio(state: PipelineState) -> dict:
 
         publish_event(run_id, step_completed("phase7_audio", "audio_processing"))
 
-        # Create Episode record
-        episode = Episode(
-            id=uuid.uuid4(),
-            generation_run_id=uuid.UUID(run_id),
-            project_id=uuid.UUID(state["project_id"]),
-            title=state.get("user_prompt", "Podcast Episode")[:500],
-            language=state["language"],
-            duration_seconds=duration_seconds,
-            audio_file_path=object_name,
-            transcript_json=transcript_entries,
+        # Create or update Episode record for this run (idempotent resume/retry).
+        run_uuid = uuid.UUID(run_id)
+        existing_result = await db.execute(
+            select(Episode).where(Episode.generation_run_id == run_uuid)
         )
-        db.add(episode)
+        episode = existing_result.scalar_one_or_none()
+
+        if episode is None:
+            episode = Episode(
+                id=uuid.uuid4(),
+                generation_run_id=run_uuid,
+                project_id=uuid.UUID(state["project_id"]),
+                title=state.get("user_prompt", "Podcast Episode")[:500],
+                language=state["language"],
+                duration_seconds=duration_seconds,
+                audio_file_path=object_name,
+                transcript_json=transcript_entries,
+            )
+            db.add(episode)
+        else:
+            episode.project_id = uuid.UUID(state["project_id"])
+            episode.title = state.get("user_prompt", "Podcast Episode")[:500]
+            episode.language = state["language"]
+            episode.duration_seconds = duration_seconds
+            episode.audio_file_path = object_name
+            episode.transcript_json = transcript_entries
+            # Fresh audio run should not keep stale shownotes/quality from a failed prior attempt.
+            episode.shownotes_json = None
+            episode.quality_metrics = None
+
         await db.commit()
         episode_id = str(episode.id)
 

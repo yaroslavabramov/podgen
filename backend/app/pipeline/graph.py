@@ -1,15 +1,18 @@
 """Main LangGraph pipeline assembly."""
 
 import logging
-import uuid
+from typing import Any
 
+from langgraph.errors import EmptyInputError
 from langgraph.graph import StateGraph, END
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.models.generation_run import GenerationRun
 from app.models.source import Source
 from app.models.content_map import ContentMap
+from app.models.episode import Episode
 from app.pipeline.state import PipelineState
 
 # Phase imports
@@ -108,50 +111,44 @@ def build_graph() -> StateGraph:
     return graph
 
 
-# Compiled graph (singleton)
 _compiled_graph = None
+_checkpointer_schema_ready = False
 
 
-def get_compiled_graph():
-    global _compiled_graph
-    if _compiled_graph is None:
-        graph = build_graph()
-        _compiled_graph = graph.compile()
-    return _compiled_graph
+def get_compiled_graph(checkpointer: Any | None = None):
+    if checkpointer is None:
+        global _compiled_graph
+        if _compiled_graph is None:
+            _compiled_graph = build_graph().compile()
+        return _compiled_graph
+    # Checkpointer holds loop-bound async resources; compile per execution.
+    return build_graph().compile(checkpointer=checkpointer)
 
 
-async def execute_pipeline(run: GenerationRun, db: AsyncSession, resume: bool = False) -> str:
-    """Execute the full pipeline for a generation run. Returns episode_id."""
-    compiled = get_compiled_graph()
+def _checkpoint_conn_string() -> str:
+    if settings.database_url_sync:
+        return settings.database_url_sync
+    return settings.database_url.replace("+asyncpg", "")
 
-    # Build initial state
+
+async def _ensure_checkpointer_schema(checkpointer: Any) -> None:
+    global _checkpointer_schema_ready
+    if _checkpointer_schema_ready:
+        return
+    await checkpointer.setup()
+    _checkpointer_schema_ready = True
+
+
+def _build_initial_state(run: GenerationRun, source_ids: list[str], content_map_id: str) -> PipelineState:
     config = run.config or {}
-
-    # Get source IDs for project
-    result = await db.execute(
-        select(Source.id).where(
-            Source.project_id == run.project_id,
-            Source.is_temporary == False,
-            Source.ingestion_status == "completed",
-        )
-    )
-    source_ids = [str(row[0]) for row in result.fetchall()]
-
-    # Get content map if exists
-    result = await db.execute(
-        select(ContentMap.id).where(ContentMap.project_id == run.project_id).order_by(ContentMap.created_at.desc())
-    )
-    content_map_row = result.first()
-    content_map_id = str(content_map_row[0]) if content_map_row else ""
-
-    initial_state: PipelineState = {
+    return {
         "generation_run_id": str(run.id),
         "project_id": str(run.project_id),
         "user_id": str(run.user_id),
         "user_prompt": config.get("user_prompt", ""),
         "duration_target": config.get("duration_target", 1800),
         "language": config.get("language", "en"),
-        "show_bible_id": str(run.show_bible_id),
+        "show_bible_id": str(run.show_bible_id) if run.show_bible_id else "",
         "source_ids": source_ids,
         "content_map_id": content_map_id,
         "manifest_id": "",
@@ -165,23 +162,86 @@ async def execute_pipeline(run: GenerationRun, db: AsyncSession, resume: bool = 
         "quality_signals": {},
     }
 
-    # Execute graph
-    logger.info("Starting pipeline for generation run %s", run.id)
-    final_state = None
 
-    async for state in compiled.astream(initial_state):
-        final_state = state
-        # Update run progress in DB
-        if isinstance(state, dict):
-            for node_output in state.values():
-                if isinstance(node_output, dict) and node_output.get("current_phase"):
-                    run.current_phase = node_output["current_phase"]
-                    await db.commit()
+async def execute_pipeline(run: GenerationRun, db: AsyncSession, resume: bool = False) -> str:
+    """Execute the full pipeline for a generation run. Returns episode_id."""
+    # Get source IDs for project
+    result = await db.execute(
+        select(Source.id).where(
+            Source.project_id == run.project_id,
+            Source.is_temporary.is_(False),
+            Source.ingestion_status == "completed",
+        )
+    )
+    source_ids = [str(row[0]) for row in result.fetchall()]
+
+    # Get content map if exists
+    result = await db.execute(
+        select(ContentMap.id).where(ContentMap.project_id == run.project_id).order_by(ContentMap.created_at.desc())
+    )
+    content_map_row = result.first()
+    content_map_id = str(content_map_row[0]) if content_map_row else ""
+
+    initial_state = _build_initial_state(run, source_ids, content_map_id)
+    thread_id = run.langgraph_thread_id or str(run.id)
+    run.langgraph_thread_id = thread_id
+    graph_config = {"configurable": {"thread_id": thread_id}}
+
+    logger.info(
+        "Starting pipeline for generation run %s (resume=%s, thread_id=%s)",
+        run.id,
+        resume,
+        thread_id,
+    )
+    await db.commit()
+
+    try:
+        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+    except ImportError as exc:
+        raise RuntimeError(
+            "LangGraph checkpoint backend requires psycopg with libpq support. "
+            "Install `psycopg[binary]` in backend env and restart worker."
+        ) from exc
+
+    async with AsyncPostgresSaver.from_conn_string(_checkpoint_conn_string()) as checkpointer:
+        await _ensure_checkpointer_schema(checkpointer)
+
+        if resume:
+            saved = await checkpointer.aget_tuple(graph_config)
+            if saved is None:
+                raise RuntimeError(
+                    "Resume is unavailable for this run: checkpoint state not found. Start a new generation run."
+                )
+
+        compiled = get_compiled_graph(checkpointer=checkpointer)
+        graph_input = None if resume else initial_state
+        final_state = None
+
+        try:
+            async for state in compiled.astream(graph_input, config=graph_config):
+                final_state = state
+                if isinstance(state, dict):
+                    for node_output in state.values():
+                        if isinstance(node_output, dict) and node_output.get("current_phase"):
+                            run.current_phase = node_output["current_phase"]
+                            await db.commit()
+        except EmptyInputError as exc:
+            if resume:
+                raise RuntimeError(
+                    "Resume is unavailable for this run: no resumable checkpoint. Start a new generation run."
+                ) from exc
+            raise
 
     # Extract episode_id from final state
     if final_state:
         for node_output in final_state.values():
             if isinstance(node_output, dict) and node_output.get("episode_id"):
                 return node_output["episode_id"]
+
+    # Fallback lookup for resumed runs where terminal update payload is absent.
+    episode_result = await db.execute(select(Episode.id).where(Episode.generation_run_id == run.id))
+    episode_row = episode_result.first()
+    if episode_row:
+        return str(episode_row[0])
 
     raise RuntimeError("Pipeline completed but no episode_id produced")

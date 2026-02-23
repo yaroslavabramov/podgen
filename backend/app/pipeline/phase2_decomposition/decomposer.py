@@ -116,14 +116,28 @@ async def decompose(state: PipelineState) -> dict:
         fill_layers = compute_fill_layers(duration_minutes, branch_count, bible_data.get("audience_profile", {}))
         publish_event(run_id, step_completed("phase2_decomposition", "duration_strategy"))
 
-        # Create EpisodeManifest
-        manifest = EpisodeManifest(
-            id=uuid.uuid4(),
-            generation_run_id=uuid.UUID(run_id),
-            research_tree_json=research_tree,
-            duration_fill_layers=fill_layers,
+        # Create or update EpisodeManifest for this run (idempotent resume/retry).
+        run_uuid = uuid.UUID(run_id)
+        existing_result = await db.execute(
+            select(EpisodeManifest).where(EpisodeManifest.generation_run_id == run_uuid)
         )
-        db.add(manifest)
+        manifest = existing_result.scalar_one_or_none()
+
+        if manifest is None:
+            manifest = EpisodeManifest(
+                id=uuid.uuid4(),
+                generation_run_id=run_uuid,
+                research_tree_json=research_tree,
+                duration_fill_layers=fill_layers,
+            )
+            db.add(manifest)
+        else:
+            manifest.research_tree_json = research_tree
+            manifest.duration_fill_layers = fill_layers
+            # Reset downstream planning fields when decomposition reruns.
+            manifest.act_count = None
+            manifest.acts_json = None
+
         await db.commit()
         manifest_id = str(manifest.id)
 

@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api", tags=["generations"])
 async def estimate_generation_cost(project_id: uuid.UUID, data: CostEstimateRequest, user: CurrentUser, db: DB):
     await _verify_project_ownership(project_id, user.id, db)
     source_count = (await db.execute(
-        select(func.count(Source.id)).where(Source.project_id == project_id, Source.is_temporary == False)
+        select(func.count(Source.id)).where(Source.project_id == project_id, Source.is_temporary.is_(False))
     )).scalar() or 0
     return estimate_cost(data.duration_target, source_count)
 
@@ -43,7 +43,7 @@ async def start_generation(project_id: uuid.UUID, data: GenerationCreate, user: 
         result = await db.execute(
             select(ShowBible).where(
                 ShowBible.project_id == project_id,
-                ShowBible.is_preset == False,
+                ShowBible.is_preset.is_(False),
                 ShowBible.generation_run_id.is_(None),
             )
         )
@@ -72,7 +72,7 @@ async def start_generation(project_id: uuid.UUID, data: GenerationCreate, user: 
         result = await db.execute(
             select(ShowBible).where(
                 ShowBible.project_id == project_id,
-                ShowBible.is_preset == False,
+                ShowBible.is_preset.is_(False),
                 ShowBible.generation_run_id.is_(None),
             )
         )
@@ -106,7 +106,7 @@ async def start_generation(project_id: uuid.UUID, data: GenerationCreate, user: 
 
     # Estimate cost
     source_count = (await db.execute(
-        select(func.count(Source.id)).where(Source.project_id == project_id, Source.is_temporary == False)
+        select(func.count(Source.id)).where(Source.project_id == project_id, Source.is_temporary.is_(False))
     )).scalar() or 0
     cost = estimate_cost(data.duration_target, source_count)
 
@@ -186,8 +186,15 @@ async def resume_generation(run_id: uuid.UUID, user: CurrentUser, db: DB):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Generation run not found")
     if run.status != GenerationStatus.FAILED:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Can only resume failed runs")
+    if not run.langgraph_thread_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Resume unavailable for this run (missing checkpoint thread). Start a new generation run.",
+        )
 
     run.status = GenerationStatus.QUEUED
+    run.error_message = None
+    run.completed_at = None
     await db.flush()
     await db.refresh(run)
 
