@@ -55,13 +55,18 @@ async def _deep_ingest_async(source_id: str, generation_run_id: str):
     from app.realtime.events import deep_ingestion_completed
 
     async with async_session_factory() as db:
-        result = await db.execute(select(Source).where(Source.id == uuid.UUID(source_id)))
+        # Atomic claim: SELECT FOR UPDATE SKIP LOCKED prevents two workers
+        # from processing the same source concurrently.
+        result = await db.execute(
+            select(Source)
+            .where(Source.id == uuid.UUID(source_id))
+            .with_for_update(skip_locked=True)
+        )
         source = result.scalar_one_or_none()
         if source is None:
-            return
+            return  # locked by another worker or doesn't exist
 
-        # Guard: skip if already completed (idempotency)
-        if source.ingestion_status == IngestionStatus.COMPLETED:
+        if source.ingestion_status in (IngestionStatus.PROCESSING, IngestionStatus.COMPLETED):
             return
 
         source.ingestion_status = IngestionStatus.PROCESSING
