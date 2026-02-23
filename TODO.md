@@ -115,6 +115,10 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P1**: Run-scoped ShowBible breaks `scalar_one_or_none()` queries → all ShowBible lookups now filter `generation_run_id.is_(None)` to exclude run-scoped copies
 - [x] **P1**: Deep ingestion governor is monotonic counter → now checks Celery `AsyncResult` state, prunes completed tasks, counts only actually running jobs
 
+**Round 4:**
+- [x] **P1**: `show_bible_id` in generation not checked for project ownership → added ownership/preset validation
+- [x] **P1**: Deep ingestion duplicate task risk → `deep_ingest_url` sets PROCESSING immediately; candidate query excludes PROCESSING/COMPLETED sources
+
 Deferred (by design):
 - **P0**: Alembic initial migration — run `alembic revision --autogenerate` when ready to start DB
 - **P1**: Full LangGraph checkpointing (requires production PostgreSQL saver setup)

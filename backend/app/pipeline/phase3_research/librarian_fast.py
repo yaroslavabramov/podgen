@@ -157,6 +157,7 @@ async def research_fast_web(state: PipelineState) -> dict:
     pending_deep = still_running  # prune completed/failed
 
     if deep_active < settings.max_deep_ingestion_concurrent:
+        from app.models.source import IngestionStatus
         async with async_session_factory() as db2:
             deep_result = await db2.execute(
                 select(Source).where(
@@ -164,6 +165,9 @@ async def research_fast_web(state: PipelineState) -> dict:
                     Source.is_temporary == True,
                     Source.fully_ingested == False,
                     Source.generation_run_id == uuid.UUID(state["generation_run_id"]),
+                    # Exclude sources already being processed (prevents duplicate tasks)
+                    Source.ingestion_status != IngestionStatus.PROCESSING,
+                    Source.ingestion_status != IngestionStatus.COMPLETED,
                 )
             )
             deep_candidates = deep_result.scalars().all()

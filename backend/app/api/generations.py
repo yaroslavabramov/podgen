@@ -33,6 +33,9 @@ async def start_generation(project_id: uuid.UUID, data: GenerationCreate, user: 
         show_bible = result.scalar_one_or_none()
         if show_bible is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ShowBible not found")
+        # Verify ownership: must belong to this project or be a global preset
+        if show_bible.project_id is not None and show_bible.project_id != project_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ShowBible does not belong to this project")
         show_bible_id = show_bible.id
     elif data.show_bible_override:
         # Create run-scoped ShowBible based on project's main ShowBible

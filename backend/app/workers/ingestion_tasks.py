@@ -60,6 +60,14 @@ async def _deep_ingest_async(source_id: str, generation_run_id: str):
         if source is None:
             return
 
+        # Guard: skip if already processing or completed (idempotency)
+        if source.ingestion_status in (IngestionStatus.PROCESSING, IngestionStatus.COMPLETED):
+            return
+
+        # Mark PROCESSING immediately to prevent duplicate tasks
+        source.ingestion_status = IngestionStatus.PROCESSING
+        await db.commit()
+
         try:
             from app.ingestion.router import run_ingestion
             await run_ingestion(source, db)
