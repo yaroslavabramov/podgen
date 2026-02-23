@@ -1,7 +1,9 @@
 import ky from "ky";
 
+const apiBase = process.env.NEXT_PUBLIC_API_URL || "/";
+
 export const api = ky.create({
-  prefixUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
+  prefixUrl: apiBase,
   hooks: {
     beforeRequest: [
       (request) => {

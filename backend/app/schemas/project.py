@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -32,8 +33,8 @@ class ProjectResponse(BaseModel):
 
 class ProjectDetailResponse(ProjectResponse):
     """Extended response for GET /api/projects/{id} — includes sources and show_bible."""
-    sources: list = []
-    show_bible: dict | None = None
+    sources: list[dict[str, Any]] = Field(default_factory=list)
+    show_bible: dict[str, Any] | None = None
 
 
 class ProjectListResponse(BaseModel):

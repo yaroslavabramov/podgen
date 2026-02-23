@@ -20,12 +20,13 @@ export function SourceUploader({ projectId, onUploaded }: Props) {
   const [dragOver, setDragOver] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || "";
 
   const uploadFileClassic = async (file: File) => {
     const formData = new FormData();
     formData.append("file", file);
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/projects/${projectId}/sources/upload`,
+      `${apiBase}/api/projects/${projectId}/sources/upload`,
       {
         method: "POST",
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
@@ -52,7 +53,7 @@ export function SourceUploader({ projectId, onUploaded }: Props) {
       }
 
       const upload = new tus.Upload(file, {
-        endpoint: `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/projects/${projectId}/sources/upload/resumable`,
+        endpoint: `${apiBase}/api/projects/${projectId}/sources/upload/resumable`,
         metadata: {
           filename: file.name,
           filetype: file.type || "application/octet-stream",

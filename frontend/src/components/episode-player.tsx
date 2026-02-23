@@ -53,7 +53,7 @@ export function EpisodePlayer({ episodeId, transcript, durationSeconds }: Props)
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || "";
   const playbackUrlApi = `${apiBase}/api/episodes/${episodeId}/audio-url`;
   const transcriptMaxEndMs = transcript.reduce((max, row) => Math.max(max, row.end_ms), 0);
   const estimatedDurationMs = Math.max(durationSeconds * 1000, transcriptMaxEndMs, 1);

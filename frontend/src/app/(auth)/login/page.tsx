@@ -15,12 +15,13 @@ export default function LoginPage() {
   const [name, setName] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
   const router = useRouter();
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || "";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     // For dev: create/login user and store JWT
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/auth/dev-login`, {
+      const res = await fetch(`${apiBase}/api/auth/dev-login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, name: name || email.split("@")[0] }),

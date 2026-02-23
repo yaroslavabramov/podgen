@@ -77,24 +77,43 @@ async def get_project(project_id: uuid.UUID, user: CurrentUser, db: DB):
         select(func.count(Episode.id)).where(Episode.project_id == project.id)
     )).scalar() or 0
 
-    resp = ProjectDetailResponse.model_validate(project)
-    resp.source_count = source_count
-    resp.episode_count = episode_count
-    resp.sources = [
+    response_sources = [
         {
-            "id": str(s.id), "source_type": s.source_type, "title": s.title,
-            "original_url": s.original_url, "ingestion_status": s.ingestion_status,
-            "domain_reliability": s.domain_reliability, "created_at": s.created_at.isoformat(),
+            "id": str(s.id),
+            "source_type": s.source_type,
+            "title": s.title,
+            "original_url": s.original_url,
+            "ingestion_status": s.ingestion_status,
+            "domain_reliability": s.domain_reliability,
+            "created_at": s.created_at.isoformat(),
         }
         for s in sources
     ]
+
+    response_show_bible = None
     if show_bible:
-        resp.show_bible = {
-            "id": str(show_bible.id), "show_style": show_bible.show_style,
-            "tone_and_mood": show_bible.tone_and_mood, "audience_profile": show_bible.audience_profile,
-            "hosts": show_bible.hosts, "format_rules": show_bible.format_rules,
+        response_show_bible = {
+            "id": str(show_bible.id),
+            "show_style": show_bible.show_style,
+            "tone_and_mood": show_bible.tone_and_mood,
+            "audience_profile": show_bible.audience_profile,
+            "hosts": show_bible.hosts,
+            "format_rules": show_bible.format_rules,
         }
-    return resp
+
+    return ProjectDetailResponse(
+        id=project.id,
+        user_id=project.user_id,
+        title=project.title,
+        description=project.description,
+        language=project.language,
+        created_at=project.created_at,
+        updated_at=project.updated_at,
+        source_count=source_count,
+        episode_count=episode_count,
+        sources=response_sources,
+        show_bible=response_show_bible,
+    )
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)
