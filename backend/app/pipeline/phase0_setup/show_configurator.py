@@ -11,6 +11,7 @@ from app.models.show_bible import ShowBible
 from app.models.generation_run import GenerationRun
 from app.pipeline.state import PipelineState
 from app.services.llm import call_sonnet_structured
+from app.pipeline.llm_json import parse_llm_json
 from app.realtime.publisher import publish_event, update_generation_progress
 from app.realtime.events import phase_started, phase_completed, step_started, step_completed
 
@@ -162,12 +163,17 @@ async def generate_show_bible(topic: str, audience_level: str, show_style: str) 
         raise ShowBibleGenerationError(f"ShowBible generation failed during LLM call: {exc}") from exc
 
     try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        logger.error("ShowBible generation returned invalid JSON")
-        raise ShowBibleGenerationError("ShowBible generation returned invalid JSON") from exc
+        parsed = parse_llm_json(raw)
+    except ValueError as exc:
+        logger.error("ShowBible generation parse error. Raw preview: %s", raw[:500])
+        raise ShowBibleGenerationError(f"ShowBible generation returned invalid JSON: {exc}") from exc
 
     if not isinstance(parsed, dict):
+        logger.error(
+            "ShowBible generation returned non-object JSON payload (%s). Raw preview: %s",
+            type(parsed).__name__,
+            raw[:500],
+        )
         raise ShowBibleGenerationError("ShowBible generation returned non-object JSON payload")
 
     try:

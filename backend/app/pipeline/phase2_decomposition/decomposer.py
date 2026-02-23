@@ -14,6 +14,7 @@ from app.models.show_bible import ShowBible
 from app.pipeline.state import PipelineState
 from app.pipeline.phase2_decomposition.duration_strategy import compute_fill_layers
 from app.services.llm import call_sonnet_structured
+from app.pipeline.llm_json import parse_llm_json
 from app.realtime.publisher import publish_event, update_generation_progress
 from app.realtime.events import phase_started, phase_completed, step_started, step_completed, progress
 
@@ -102,10 +103,9 @@ async def decompose(state: PipelineState) -> dict:
         raw = await call_sonnet_structured(
             system=DECOMPOSER_SYSTEM,
             prompt=prompt,
-            max_tokens=4096,
             temperature=0.6,
         )
-        research_tree = json.loads(raw)
+        research_tree = parse_llm_json(raw)
 
         publish_event(run_id, step_completed("phase2_decomposition", "build_tree"))
 

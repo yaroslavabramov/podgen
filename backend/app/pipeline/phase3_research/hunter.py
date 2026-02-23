@@ -13,6 +13,7 @@ from app.models.evidence import EvidenceSpan
 from app.models.source import Source
 from app.pipeline.state import PipelineState
 from app.pipeline.phase3_research.tools import vector_search_tool, keyword_search_tool, get_chunk_content
+from app.pipeline.llm_json import parse_llm_json
 from app.services.llm import call_haiku_structured
 from app.realtime.publisher import publish_event, update_generation_progress
 from app.realtime.events import phase_started, step_started, step_completed, evidence_found, progress
@@ -108,7 +109,7 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                     max_tokens=2048,
                     temperature=0.2,
                 )
-                evidence_items = json.loads(raw)
+                evidence_items = parse_llm_json(raw)
             except Exception:
                 logger.warning("Evidence extraction failed for question %s", q["id"], exc_info=True)
                 continue

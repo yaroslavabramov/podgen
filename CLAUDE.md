@@ -99,10 +99,17 @@ Pipeline nodes → Redis pub/sub → FastAPI WebSocket (`backend/app/api/ws.py`)
 All prefixed `/api/`. Routers in `backend/app/api/`: projects, show_bibles, sources, episodes, generations, ws. Auth via JWT Bearer token (`backend/app/api/deps.py`).
 
 ## LLM Usage
-- **Claude Sonnet 4**: reasoning and writing tasks (decomposer, planners, screenwriter, verifier, auditor)
-- **Claude Haiku**: classification/light tasks (scout, canonicalizer, engagement eval, shownotes)
+- **Claude Sonnet 4** (`claude-sonnet-4-6`): reasoning and writing tasks (decomposer, planners, screenwriter, verifier, auditor)
+- **Claude Haiku** (`claude-haiku-4-5-20251001`): classification/light tasks (scout, canonicalizer, engagement eval, shownotes)
 - **OpenAI text-embedding-3-large**: embeddings (3072 dims)
-- Client helpers in `backend/app/services/llm.py`
+- Client helpers in `backend/app/services/llm.py` — default `max_tokens=16384` for structured calls
+- All pipeline nodes use `parse_llm_json()` from `backend/app/pipeline/llm_json.py` (handles markdown fences, truncated output, empty responses)
+
+## Runtime Notes
+- **Python 3.13+**: requires `audioop-lts` package (pydub dependency, `audioop` removed in 3.13)
+- **qdrant-client 1.17+**: uses `query_points()` not `search()` (old API removed)
+- **Frontend API calls**: go directly to backend (`NEXT_PUBLIC_API_URL=http://localhost:8000`), not through Next.js rewrites (rewrites don't forward Authorization header on POST)
+- **Celery workers** don't auto-reload code — restart worker after code changes
 
 ## Language
 All pipeline artifacts (claims, beat sheets, dialogue) are in the podcast's target language (EN or RU). EvidenceSpan verbatim quotes stay in the source's original language.

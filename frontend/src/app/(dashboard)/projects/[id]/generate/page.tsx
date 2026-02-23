@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "use-intl";
 import Link from "next/link";
+import { HTTPError } from "ky";
 import { api, type CostEstimate } from "@/lib/api";
 import { useGenerationStore } from "@/stores/generation-store";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,10 @@ interface ShowBibleSummary {
   hosts?: Array<{ name?: string }>;
 }
 
+interface GenerationRunStart {
+  id: string;
+}
+
 export default function GeneratePage() {
   const t = useTranslations("generatePage");
   const params = useParams();
@@ -38,8 +43,24 @@ export default function GeneratePage() {
   const [voiceB, setVoiceB] = useState("");
   const [showBibleSummary, setShowBibleSummary] = useState<ShowBibleSummary | null>(null);
   const [launching, setLaunching] = useState(false);
+  const [resuming, setResuming] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const { runId, status, startListening } = useGenerationStore();
+  const { runId, status, startListening, reset } = useGenerationStore();
+
+  const extractApiError = async (error: unknown, fallback: string) => {
+    if (error instanceof HTTPError) {
+      try {
+        const payload = await error.response.clone().json() as { detail?: string };
+        if (payload?.detail) return payload.detail;
+      } catch {
+        // ignore parse failures
+      }
+      return error.message || fallback;
+    }
+    if (error instanceof Error) return error.message || fallback;
+    return fallback;
+  };
 
   useEffect(() => {
     if (!prompt) return;
@@ -91,6 +112,7 @@ export default function GeneratePage() {
 
   const handleGenerate = async () => {
     setLaunching(true);
+    setActionError(null);
     try {
       const run = await api.post(`api/projects/${projectId}/generate`, {
         json: {
@@ -99,12 +121,27 @@ export default function GeneratePage() {
           voice_a_id: voiceA || null,
           voice_b_id: voiceB || null,
         },
-      }).json<{ id: string }>();
+      }).json<GenerationRunStart>();
       startListening(run.id);
     } catch (err) {
       console.error("Failed to start generation:", err);
+      setActionError(await extractApiError(err, t("startFailed")));
     } finally {
       setLaunching(false);
+    }
+  };
+
+  const handleResume = async () => {
+    if (!runId) return;
+    setResuming(true);
+    setActionError(null);
+    try {
+      const run = await api.post(`api/generations/${runId}/resume`).json<GenerationRunStart>();
+      startListening(run.id);
+    } catch (err) {
+      setActionError(await extractApiError(err, t("resumeFailed")));
+    } finally {
+      setResuming(false);
     }
   };
 
@@ -117,6 +154,23 @@ export default function GeneratePage() {
         </header>
         <main className="max-w-4xl mx-auto px-6 py-8">
           <GenerationProgress />
+          {(status === "failed" || status === "completed") && (
+            <Card className="mt-6">
+              <CardContent className="py-4 space-y-3">
+                <div className="flex flex-wrap gap-3">
+                  {status === "failed" && (
+                    <Button type="button" onClick={handleResume} disabled={resuming}>
+                      {resuming ? t("retrying") : t("retryFailedRun")}
+                    </Button>
+                  )}
+                  <Button type="button" variant="outline" onClick={reset}>
+                    {t("startNewRun")}
+                  </Button>
+                </div>
+                {actionError && <p className="text-sm text-destructive">{actionError}</p>}
+              </CardContent>
+            </Card>
+          )}
         </main>
       </div>
     );
@@ -247,6 +301,7 @@ export default function GeneratePage() {
         {cost && <CostEstimateCard cost={cost} />}
 
         <Button
+          type="button"
           size="lg"
           className="w-full"
           onClick={handleGenerate}
@@ -254,6 +309,7 @@ export default function GeneratePage() {
         >
           {launching ? t("starting") : t("startGeneration")}
         </Button>
+        {actionError && <p className="text-sm text-destructive">{actionError}</p>}
       </main>
     </div>
   );

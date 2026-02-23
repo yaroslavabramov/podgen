@@ -67,7 +67,12 @@
     "noShowBible": "ShowBible пока не настроен. Генерацию можно запустить с дефолтами.",
     "editShowBible": "Редактировать ShowBible",
     "startGeneration": "Запустить генерацию",
-    "starting": "Запуск..."
+    "starting": "Запуск...",
+    "startFailed": "Не удалось запустить генерацию",
+    "resumeFailed": "Не удалось перезапустить генерацию",
+    "retrying": "Повторный запуск...",
+    "retryFailedRun": "Повторить упавший запуск",
+    "startNewRun": "Начать новый запуск"
   },
   "costEstimateCard": {
     "title": "Оценка стоимости",
@@ -118,6 +123,8 @@
     "topicPlaceholder": "Тема подкаста",
     "generateWithAi": "Сгенерировать через ИИ",
     "generating": "Генерация...",
+    "generateFailed": "Не удалось сгенерировать Show Bible",
+    "generateTimeout": "Генерация заняла слишком много времени. Повторите попытку.",
     "showConfiguration": "Конфигурация шоу",
     "showStyle": "Стиль шоу",
     "audienceLevel": "Уровень аудитории",

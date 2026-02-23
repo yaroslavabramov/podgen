@@ -11,6 +11,7 @@ from app.workers.worker_db import worker_session_factory as async_session_factor
 from app.models.episode_manifest import EpisodeManifest
 from app.pipeline.state import PipelineState
 from app.services.llm import call_sonnet_structured
+from app.pipeline.llm_json import parse_llm_json
 from app.realtime.publisher import publish_event
 from app.realtime.events import step_started, step_completed, phase_completed, progress
 
@@ -53,7 +54,7 @@ async def integrate_acts(state: PipelineState) -> dict:
 
         try:
             raw = await call_sonnet_structured(system=INTEGRATOR_SYSTEM, prompt=prompt, max_tokens=2048, temperature=0.4)
-            integration = json.loads(raw)
+            integration = parse_llm_json(raw)
 
             # Apply transition notes
             for tr in integration.get("transitions", []):

@@ -140,6 +140,7 @@ podgen/
 │   │   ├── pipeline/               # LangGraph (Фазы 0, 2-7)
 │   │   │   ├── state.py            # PipelineState (IDs only!)
 │   │   │   ├── graph.py            # Main graph assembly
+│   │   │   ├── llm_json.py         # Robust JSON extraction from LLM responses
 │   │   │   │
 │   │   │   ├── phase0_setup/
 │   │   │   │   └── show_configurator.py

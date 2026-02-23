@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useTranslations } from "use-intl";
+import { HTTPError } from "ky";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 interface ShowBible {
@@ -30,6 +30,7 @@ export function ShowBibleEditor({ projectId }: { projectId: string }) {
   const [bible, setBible] = useState<ShowBible | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
   const [showStyle, setShowStyle] = useState("Conversational");
   const [audienceLevel, setAudienceLevel] = useState("casual");
   const [tone, setTone] = useState("light");
@@ -47,13 +48,36 @@ export function ShowBibleEditor({ projectId }: { projectId: string }) {
       .finally(() => setLoading(false));
   }, [projectId]);
 
+  const extractApiError = async (error: unknown, fallback: string) => {
+    if (error instanceof HTTPError) {
+      try {
+        const payload = await error.response.clone().json() as { detail?: string };
+        if (payload?.detail) return payload.detail;
+      } catch {
+        // ignore parse failures and fallback to status text/message
+      }
+      return error.message || fallback;
+    }
+
+    if (error instanceof Error) {
+      if (error.name === "TimeoutError") return t("generateTimeout");
+      return error.message || fallback;
+    }
+
+    return fallback;
+  };
+
   const handleGenerate = async () => {
     setGenerating(true);
+    setGenerateError(null);
     try {
       const data = await api.post(`api/projects/${projectId}/show-bible/generate`, {
         json: { topic, audience_level: audienceLevel, show_style: showStyle },
+        timeout: false,
       }).json<ShowBible>();
       setBible(data);
+    } catch (error) {
+      setGenerateError(await extractApiError(error, t("generateFailed")));
     } finally {
       setGenerating(false);
     }
@@ -92,10 +116,13 @@ export function ShowBibleEditor({ projectId }: { projectId: string }) {
               className="rounded-md border border-border px-3 py-2 text-sm bg-background">
               {SHOW_STYLES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
-            <Button onClick={handleGenerate} disabled={!topic.trim() || generating}>
+            <Button type="button" onClick={handleGenerate} disabled={!topic.trim() || generating}>
               {generating ? t("generating") : t("generateWithAi")}
             </Button>
           </div>
+          {generateError && (
+            <p className="text-sm text-destructive">{generateError}</p>
+          )}
         </CardContent>
       </Card>
 
@@ -156,7 +183,7 @@ export function ShowBibleEditor({ projectId }: { projectId: string }) {
             </div>
           )}
 
-          <Button onClick={handleSave}>{t("saveConfiguration")}</Button>
+          <Button type="button" onClick={handleSave}>{t("saveConfiguration")}</Button>
         </CardContent>
       </Card>
     </div>

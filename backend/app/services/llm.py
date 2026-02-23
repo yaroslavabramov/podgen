@@ -1,7 +1,11 @@
+import logging
+
 import anthropic
 import openai
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 # Singleton clients
 _anthropic_client: anthropic.AsyncAnthropic | None = None
@@ -26,6 +30,10 @@ SONNET_MODEL = "claude-sonnet-4-6"
 HAIKU_MODEL = "claude-haiku-4-5-20251001"
 EMBEDDING_MODEL = "text-embedding-3-large"
 EMBEDDING_DIMENSIONS = 3072
+
+# Default max tokens for structured (JSON) calls — large enough
+# for research trees, episode plans, etc.
+DEFAULT_STRUCTURED_MAX_TOKENS = 16384
 
 
 async def call_sonnet(system: str, prompt: str, max_tokens: int = 4096, temperature: float = 0.7) -> str:
@@ -52,7 +60,7 @@ async def call_haiku(system: str, prompt: str, max_tokens: int = 4096, temperatu
     return response.content[0].text
 
 
-async def call_sonnet_structured(system: str, prompt: str, max_tokens: int = 4096, temperature: float = 0.5) -> str:
+async def call_sonnet_structured(system: str, prompt: str, max_tokens: int = DEFAULT_STRUCTURED_MAX_TOKENS, temperature: float = 0.5) -> str:
     """Call Sonnet expecting JSON output."""
     client = get_anthropic_client()
     response = await client.messages.create(
@@ -62,10 +70,12 @@ async def call_sonnet_structured(system: str, prompt: str, max_tokens: int = 409
         messages=[{"role": "user", "content": prompt}],
         temperature=temperature,
     )
+    if response.stop_reason == "max_tokens":
+        logger.warning("Sonnet structured response truncated at %d tokens", max_tokens)
     return response.content[0].text
 
 
-async def call_haiku_structured(system: str, prompt: str, max_tokens: int = 4096, temperature: float = 0.3) -> str:
+async def call_haiku_structured(system: str, prompt: str, max_tokens: int = DEFAULT_STRUCTURED_MAX_TOKENS, temperature: float = 0.3) -> str:
     """Call Haiku expecting JSON output."""
     client = get_anthropic_client()
     response = await client.messages.create(
@@ -75,6 +85,8 @@ async def call_haiku_structured(system: str, prompt: str, max_tokens: int = 4096
         messages=[{"role": "user", "content": prompt}],
         temperature=temperature,
     )
+    if response.stop_reason == "max_tokens":
+        logger.warning("Haiku structured response truncated at %d tokens", max_tokens)
     return response.content[0].text
 
 

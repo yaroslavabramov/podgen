@@ -13,7 +13,7 @@
 - [x] Docker Compose: postgres, redis, qdrant, minio, api, worker, frontend
 - [x] Database models (User, Project, Source, ShowBible, Chunk, ContentMap, EvidenceSpan, Claim, ClaimEvidence, ConflictBrief, GenerationRun, EpisodeManifest, ScriptSegment, Episode)
 - [x] Alembic config (env.py, alembic.ini)
-- [ ] Alembic initial migration (`alembic revision --autogenerate`)
+- [x] Alembic initial migration (manual rewrite for cyclic FK: generation_runs ↔ show_bibles)
 - [x] FastAPI app factory + Pydantic Settings config
 - [x] Auth: JWT middleware + dev-login endpoint
 - [ ] Auth: OAuth (NextAuth v5) — deferred, dev-login sufficient for now
@@ -60,8 +60,8 @@
 
 ## Этап 5: Audio (Phase 7)
 
-- [x] ElevenLabs TTS integration
-- [x] Audio processing (pydub/ffmpeg, LUFS normalization)
+- [x] ElevenLabs TTS integration (eleven_v3 model)
+- [x] Audio processing (pydub/ffmpeg, LUFS normalization) — requires `audioop-lts` on Python 3.13+
 - [x] Shownotes generator
 - [x] Episode CRUD API + audio streaming
 
@@ -133,8 +133,18 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P2**: Silent ShowBible fallback masked LLM/JSON failures → removed fallback defaults, added strict payload validation + explicit `ShowBibleGenerationError`, API returns `502` on `/show-bible/generate`
 - [x] **P2**: Completed sources retained stale historical errors in `metadata.error` → ingestion now clears `metadata.error` on successful completion
 
+**Rounds 8-13 (runtime fixes):**
+- [x] **P1**: Deep ingestion ENQUEUED status to prevent duplicate Celery dispatch
+- [x] **P1**: `status_changed_at` field on Source for accurate stale detection (was using `created_at`)
+- [x] **P2**: Cleanup cron hourly (was daily, mismatched 1h stale cutoff)
+- [x] **P1**: Library/model updates — `claude-sonnet-4-6`, `eleven_v3`, SDK version bumps
+- [x] **P0**: `audioop-lts` backport for Python 3.13+ (pydub dependency)
+- [x] **P0**: Robust LLM JSON parsing — `parse_llm_json()` utility handles markdown fences, truncated responses, empty output (was bare `json.loads(raw)` in 12 pipeline files)
+- [x] **P0**: `max_tokens` default raised to 16384 for structured LLM calls (decomposer/showrunner output was truncated at 4096)
+- [x] **P0**: Qdrant client `search()` → `query_points()` (API removed in qdrant-client 1.17+)
+- [x] **P1**: Next.js rewrites don't forward Authorization header on POST → frontend uses direct API calls (`NEXT_PUBLIC_API_URL=http://localhost:8000`)
+
 Deferred (by design):
-- **P0**: Alembic initial migration — run `alembic revision --autogenerate` when ready to start DB
 - **P1**: Full LangGraph checkpointing (requires production PostgreSQL saver setup)
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

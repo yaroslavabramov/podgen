@@ -13,6 +13,7 @@ from app.models.claim import Claim
 from app.models.show_bible import ShowBible
 from app.pipeline.state import PipelineState
 from app.services.llm import call_sonnet_structured
+from app.pipeline.llm_json import parse_llm_json
 from app.realtime.publisher import publish_event
 from app.realtime.events import step_started, step_completed, quality_update, phase_completed, progress
 
@@ -96,7 +97,7 @@ async def audit_citations(state: PipelineState) -> dict:
 
             try:
                 raw = await call_sonnet_structured(system=AUDITOR_SYSTEM, prompt=prompt, max_tokens=2048, temperature=0.2)
-                audit = json.loads(raw)
+                audit = parse_llm_json(raw)
             except Exception:
                 logger.warning("Audit failed for segment %s", sid, exc_info=True)
                 segment.audit_status = AuditStatus.PASSED

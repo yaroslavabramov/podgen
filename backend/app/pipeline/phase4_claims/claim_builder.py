@@ -12,6 +12,7 @@ from app.models.evidence import EvidenceSpan
 from app.models.claim import Claim, ClaimEvidence
 from app.pipeline.state import PipelineState
 from app.services.llm import call_sonnet_structured
+from app.pipeline.llm_json import parse_llm_json
 from app.realtime.publisher import publish_event, update_generation_progress
 from app.realtime.events import phase_started, step_started, step_completed, claim_created, progress
 
@@ -96,7 +97,7 @@ async def build_claims(state: PipelineState) -> dict:
                     max_tokens=4096,
                     temperature=0.4,
                 )
-                claims_data = json.loads(raw)
+                claims_data = parse_llm_json(raw)
             except Exception:
                 logger.error("Claim building failed", exc_info=True)
                 continue

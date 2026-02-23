@@ -13,6 +13,7 @@ from app.models.claim import ClaimEvidence
 from app.models.episode_manifest import EpisodeManifest
 from app.pipeline.state import PipelineState
 from app.services.llm import call_sonnet_structured
+from app.pipeline.llm_json import parse_llm_json
 from app.realtime.publisher import publish_event
 from app.realtime.events import act_planned, step_started, step_completed
 
@@ -102,8 +103,8 @@ async def plan_act(state: PipelineState) -> dict:
             })
 
             try:
-                raw = await call_sonnet_structured(system=ACT_PLANNER_SYSTEM, prompt=prompt, max_tokens=4096, temperature=0.5)
-                beat_data = json.loads(raw)
+                raw = await call_sonnet_structured(system=ACT_PLANNER_SYSTEM, prompt=prompt, temperature=0.5)
+                beat_data = parse_llm_json(raw)
                 act["beat_sheet"] = beat_data.get("beat_sheet", [])
             except Exception:
                 logger.error("Act planning failed for act %d", act_num, exc_info=True)

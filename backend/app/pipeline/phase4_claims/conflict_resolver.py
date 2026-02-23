@@ -11,6 +11,7 @@ from app.models.claim import Claim, VerificationLevel
 from app.models.conflict_brief import ConflictBrief
 from app.pipeline.state import PipelineState
 from app.services.llm import call_sonnet_structured
+from app.pipeline.llm_json import parse_llm_json
 from app.realtime.publisher import publish_event
 from app.realtime.events import step_started, step_completed, conflict_detected, phase_completed, progress
 
@@ -67,7 +68,7 @@ async def resolve_conflicts(state: PipelineState) -> dict:
                     max_tokens=1024,
                     temperature=0.4,
                 )
-                data = json.loads(raw)
+                data = parse_llm_json(raw)
 
                 brief = ConflictBrief(
                     id=uuid.uuid4(),

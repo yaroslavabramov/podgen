@@ -67,7 +67,12 @@
     "noShowBible": "No ShowBible configured yet. You can still run generation with defaults.",
     "editShowBible": "Edit ShowBible",
     "startGeneration": "Start Generation",
-    "starting": "Starting..."
+    "starting": "Starting...",
+    "startFailed": "Failed to start generation",
+    "resumeFailed": "Failed to retry generation",
+    "retrying": "Retrying...",
+    "retryFailedRun": "Retry Failed Run",
+    "startNewRun": "Start New Run"
   },
   "costEstimateCard": {
     "title": "Cost Estimate",
@@ -118,6 +123,8 @@
     "topicPlaceholder": "Topic for the podcast",
     "generateWithAi": "Generate with AI",
     "generating": "Generating...",
+    "generateFailed": "Failed to generate Show Bible",
+    "generateTimeout": "Generation took too long. Please try again.",
     "showConfiguration": "Show Configuration",
     "showStyle": "Show Style",
     "audienceLevel": "Audience Level",

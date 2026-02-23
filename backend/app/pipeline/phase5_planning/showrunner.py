@@ -13,6 +13,7 @@ from app.models.claim import Claim, VerificationLevel
 from app.models.conflict_brief import ConflictBrief
 from app.models.episode_manifest import EpisodeManifest
 from app.pipeline.state import PipelineState
+from app.pipeline.llm_json import parse_llm_json
 from app.services.llm import call_sonnet_structured
 from app.realtime.publisher import publish_event, update_generation_progress
 from app.realtime.events import phase_started, step_started, step_completed, progress
@@ -111,8 +112,8 @@ async def plan_episode(state: PipelineState) -> dict:
             "duration_fill_layers": manifest.duration_fill_layers if manifest else [],
         })
 
-        raw = await call_sonnet_structured(system=SHOWRUNNER_SYSTEM, prompt=prompt, max_tokens=4096, temperature=0.5)
-        plan = json.loads(raw)
+        raw = await call_sonnet_structured(system=SHOWRUNNER_SYSTEM, prompt=prompt, temperature=0.5)
+        plan = parse_llm_json(raw)
 
         # Validate: all disputed claims have debate slots
         for act in plan.get("acts", []):

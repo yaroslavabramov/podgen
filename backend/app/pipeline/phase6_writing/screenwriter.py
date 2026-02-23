@@ -13,6 +13,7 @@ from app.models.claim import Claim
 from app.models.evidence import EvidenceSpan
 from app.models.claim import ClaimEvidence
 from app.models.episode_manifest import EpisodeManifest
+from app.pipeline.llm_json import parse_llm_json
 from app.models.script_segment import ScriptSegment
 from app.pipeline.state import PipelineState
 from app.services.llm import call_sonnet_structured
@@ -134,7 +135,7 @@ async def write_screenplay(state: PipelineState) -> dict:
                         max_tokens=4096,
                         temperature=0.7,
                     )
-                    dialogue = json.loads(raw)
+                    dialogue = parse_llm_json(raw)
                 except Exception:
                     logger.error("Screenwriting failed for act %d scene %d", act_num, scene_num, exc_info=True)
                     dialogue = []

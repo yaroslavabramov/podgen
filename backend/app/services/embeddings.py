@@ -78,9 +78,9 @@ async def vector_search(
             must=[FieldCondition(key="source_id", match=MatchAny(any=source_ids))]
         )
 
-    results = client.search(
+    response = client.query_points(
         collection_name=settings.qdrant_collection,
-        query_vector=query_embedding,
+        query=query_embedding,
         query_filter=search_filter,
         limit=top_k,
     )
@@ -92,5 +92,5 @@ async def vector_search(
             "score": hit.score,
             "heading_path": hit.payload.get("heading_path", []),
         }
-        for hit in results
+        for hit in response.points
     ]

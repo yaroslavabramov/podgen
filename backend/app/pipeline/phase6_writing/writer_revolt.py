@@ -10,6 +10,7 @@ from app.workers.worker_db import worker_session_factory as async_session_factor
 from app.models.script_segment import ScriptSegment
 from app.pipeline.state import PipelineState
 from app.services.llm import call_haiku_structured
+from app.pipeline.llm_json import parse_llm_json
 from app.config import settings
 from app.realtime.publisher import publish_event
 from app.realtime.events import step_started, step_completed, writer_revolt
@@ -70,7 +71,7 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
                     max_tokens=1024,
                     temperature=0.2,
                 )
-                evaluation = json.loads(raw)
+                evaluation = parse_llm_json(raw)
             except Exception:
                 continue
 

@@ -14,6 +14,7 @@ from app.pipeline.state import PipelineState
 from app.pipeline.phase3_research.tools import web_search_tool, fetch_page_tool, create_web_evidence
 from app.pipeline.phase3_research.librarian_deep import trigger_deep_ingestion
 from app.services.llm import call_sonnet_structured
+from app.pipeline.llm_json import parse_llm_json
 from app.config import settings
 from app.realtime.publisher import publish_event
 from app.realtime.events import step_started, step_completed, evidence_found, progress
@@ -116,7 +117,7 @@ async def research_fast_web(state: PipelineState) -> dict:
                     max_tokens=2048,
                     temperature=0.3,
                 )
-                evidence_items = json.loads(raw)
+                evidence_items = parse_llm_json(raw)
 
                 for item in evidence_items:
                     if not item.get("verbatim_quote") or not item.get("url"):

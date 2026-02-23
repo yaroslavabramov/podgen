@@ -13,6 +13,7 @@ from app.models.script_segment import ScriptSegment
 from app.models.claim import Claim, ClaimEvidence
 from app.models.evidence import EvidenceSpan
 from app.models.source import Source
+from app.pipeline.llm_json import parse_llm_json
 from app.models.conflict_brief import ConflictBrief
 from app.pipeline.state import PipelineState
 from app.services.llm import call_haiku_structured
@@ -107,7 +108,7 @@ async def build_shownotes(state: PipelineState) -> dict:
 
         try:
             raw = await call_haiku_structured(system=SHOWNOTES_SYSTEM, prompt=prompt, max_tokens=4096, temperature=0.3)
-            shownotes = json.loads(raw)
+            shownotes = parse_llm_json(raw)
         except Exception:
             logger.error("Shownotes generation failed", exc_info=True)
             shownotes = {"sections": []}
