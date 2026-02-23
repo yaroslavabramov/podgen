@@ -1,10 +1,11 @@
+import asyncio
 import uuid
 import base64
 import binascii
 import fcntl
 import json
 import tempfile
-from contextlib import contextmanager
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -24,6 +25,8 @@ TUS_EXPOSE_HEADERS = "Location, Upload-Offset, Upload-Length, Tus-Resumable"
 TUS_UPLOAD_ROOT = Path(tempfile.gettempdir()) / "podgen_tus"
 TUS_META_ROOT = TUS_UPLOAD_ROOT / "meta"
 TUS_FILE_ROOT = TUS_UPLOAD_ROOT / "chunks"
+TUS_LOCK_RETRY_DELAY_SECONDS = 0.05
+TUS_LOCK_WAIT_TIMEOUT_SECONDS = 5.0
 
 
 @router.post("/projects/{project_id}/sources/upload", response_model=SourceResponse, status_code=status.HTTP_201_CREATED)
@@ -146,7 +149,7 @@ async def create_resumable_upload(project_id: uuid.UUID, request: Request, user:
 @router.head("/projects/{project_id}/sources/upload/resumable/{upload_id}")
 async def head_resumable_upload(project_id: uuid.UUID, upload_id: uuid.UUID, user: CurrentUser, db: DB):
     await _verify_project_ownership(project_id, user.id, db)
-    with _tus_upload_lock(upload_id):
+    async with _tus_upload_lock(upload_id):
         meta = _load_tus_meta(upload_id)
         _verify_tus_meta_access(meta, project_id, user.id)
 
@@ -170,7 +173,7 @@ async def patch_resumable_upload(project_id: uuid.UUID, upload_id: uuid.UUID, re
 
     chunk = await request.body()
 
-    with _tus_upload_lock(upload_id):
+    async with _tus_upload_lock(upload_id):
         meta = _load_tus_meta(upload_id)
         _verify_tus_meta_access(meta, project_id, user.id)
 
@@ -317,12 +320,21 @@ def _load_tus_meta(upload_id: uuid.UUID) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-@contextmanager
-def _tus_upload_lock(upload_id: uuid.UUID):
+@asynccontextmanager
+async def _tus_upload_lock(upload_id: uuid.UUID):
     _ensure_tus_dirs()
     lock_path = TUS_META_ROOT / f"{upload_id}.lock"
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + TUS_LOCK_WAIT_TIMEOUT_SECONDS
     with lock_path.open("a+b") as lock_file:
-        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        while True:
+            try:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if loop.time() >= deadline:
+                    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Upload is busy, retry request")
+                await asyncio.sleep(TUS_LOCK_RETRY_DELAY_SECONDS)
         try:
             yield
         finally:

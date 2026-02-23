@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 
-from app.api.deps import CurrentUser, DB
+from app.api.deps import CurrentUser, DB, PLAYBACK_TOKEN_TYPE
 from app.config import settings
 from app.models.episode import Episode
 from app.models.project import Project
@@ -122,6 +122,7 @@ def _stream_episode_audio_response(episode: Episode, episode_id: uuid.UUID) -> S
 def _create_playback_token(user_id: uuid.UUID, episode_id: uuid.UUID) -> str:
     payload = {
         "sub": str(user_id),
+        "token_type": PLAYBACK_TOKEN_TYPE,
         "episode_id": str(episode_id),
         "scope": "episode_audio",
         "exp": datetime.now(timezone.utc) + timedelta(minutes=PLAYBACK_TOKEN_TTL_MINUTES),
@@ -135,6 +136,6 @@ def _decode_playback_token(token: str) -> dict:
     except jwt.PyJWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid playback token")
 
-    if payload.get("scope") != "episode_audio":
+    if payload.get("scope") != "episode_audio" or payload.get("token_type") != PLAYBACK_TOKEN_TYPE:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid playback token")
     return payload

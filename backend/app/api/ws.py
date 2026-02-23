@@ -8,6 +8,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import ACCESS_TOKEN_TYPE
 from app.config import settings
 from app.database import async_session_factory
 from app.models.generation_run import GenerationRun
@@ -20,7 +21,12 @@ async def _verify_ws_token(token: str) -> str | None:
     """Verify JWT and return user_id, or None if invalid."""
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
-        return payload.get("sub")
+        user_id = payload.get("sub")
+        if not isinstance(user_id, str):
+            return None
+        if payload.get("token_type") != ACCESS_TOKEN_TYPE:
+            return None
+        return user_id
     except jwt.PyJWTError:
         return None
 

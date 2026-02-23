@@ -12,6 +12,8 @@ from app.database import get_db
 from app.models.user import User
 
 security = HTTPBearer()
+ACCESS_TOKEN_TYPE = "access"
+PLAYBACK_TOKEN_TYPE = "playback"
 
 
 async def get_current_user(
@@ -21,12 +23,18 @@ async def get_current_user(
     try:
         payload = jwt.decode(credentials.credentials, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
         user_id = payload.get("sub")
-        if user_id is None:
+        token_type = payload.get("token_type")
+        if user_id is None or token_type != ACCESS_TOKEN_TYPE:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
     except jwt.PyJWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
-    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+    try:
+        user_uuid = uuid.UUID(user_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    result = await db.execute(select(User).where(User.id == user_uuid))
     user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
@@ -38,5 +46,5 @@ DB = Annotated[AsyncSession, Depends(get_db)]
 
 
 def create_access_token(user_id: str) -> str:
-    payload = {"sub": user_id}
+    payload = {"sub": user_id, "token_type": ACCESS_TOKEN_TYPE}
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
