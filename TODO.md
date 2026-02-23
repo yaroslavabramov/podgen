@@ -25,6 +25,7 @@
 - [x] PDF ingestion (Marker)
 - [~] Web ingestion (Jina Reader + httpx fallback; FireCrawl/Playwright cascade not implemented)
 - [x] Video/Audio ingestion (Deepgram)
+- [x] Text normalization layer (Unicode NFC, whitespace, PDF hyphenation/boilerplate/page numbers)
 - [x] Structural chunker (structure-first, then normalize)
 - [x] Embeddings service (OpenAI → Qdrant)
 - [x] Canonicalizer (dedup, reliability classification)

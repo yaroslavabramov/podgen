@@ -149,6 +149,15 @@
 
 - Video/Audio → Deepgram + diarization
 
+### **1.1b Text Normalization**
+
+Между extraction и chunking — слой нормализации (`app/ingestion/normalize.py`):
+
+- **Universal:** Unicode NFC, whitespace normalization (NBSP→пробел, collapse множественных пробелов, 3+ newlines→2)
+- **PDF-only:** hyphenation repair (`inter-\nnational` → `international`), page number stripping, boilerplate removal (повторяющиеся строки: headers/footers/copyright)
+
+Raw text сохраняется в MinIO до нормализации (audit trail). Chunker получает уже нормализованный текст.
+
 ### **1.2 Structural chunking**
 
 - логические границы (h2/h3/абзацы)

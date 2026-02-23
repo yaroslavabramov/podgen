@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.ingestion.canonicalizer import canonicalize_sources
 from app.ingestion.chunker import structural_chunk
+from app.ingestion.normalize import normalize_text
 from app.ingestion.pdf import extract_pdf
 from app.ingestion.scout import build_content_map
 from app.ingestion.video import extract_video
@@ -60,6 +61,9 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
     object_name = f"raw_text/{source.project_id}/{source_id}.md"
     upload_text(minio, text, object_name)
     source.raw_text_path = object_name
+
+    # --- 2b. Normalize text (raw preserved in MinIO above) --------------------
+    text = normalize_text(text, source.source_type)
 
     # --- 3. Update source metadata ---------------------------------------------
     if extracted_title and not source.title:

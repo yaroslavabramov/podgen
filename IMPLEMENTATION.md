@@ -132,6 +132,7 @@ podgen/
 │   │   │   ├── pdf.py
 │   │   │   ├── web.py
 │   │   │   ├── video.py
+│   │   │   ├── normalize.py        # Text hygiene: Unicode, whitespace, PDF boilerplate
 │   │   │   ├── chunker.py          # Structure-first, then normalize
 │   │   │   ├── canonicalizer.py
 │   │   │   └── scout.py
@@ -703,11 +704,30 @@ class PipelineState(TypedDict):
 - `Source.metadata` {author, page_count, duration, language, token_count}
 - `Source.ingestion_status` = COMPLETED
 
+#### 1.1b Text Normalization
+
+**Модуль:** `app/ingestion/normalize.py`
+
+**Вход:** raw extracted text (после сохранения в MinIO — оригинал сохранён)
+
+**Процесс:**
+- **Universal (все source types):**
+  - Unicode NFC normalization (предотвращает invisible mismatches при retrieval)
+  - Whitespace normalization: NBSP→пробел, collapse множественных пробелов/табов, 3+ newlines→2, strip trailing spaces
+- **PDF-only:**
+  - Hyphenation repair: `inter-\nnational` → `international` (line-break hyphens из PDF layout)
+  - Page number stripping: standalone числа на отдельных строках (`42`, `— 3 —`)
+  - Boilerplate removal: строки повторяющиеся >3 раз и <120 chars (headers, footers, copyright)
+
+**Выход:** нормализованный текст → передаётся в chunker. `Source.text_preview` тоже берётся из нормализованного текста.
+
+**Важно:** raw text в MinIO (`Source.raw_text_path`) остаётся нетронутым — audit trail.
+
 #### 1.2 Structural Chunking
 
 **Стратегия: structure-first, then normalize.**
 
-**Вход:** raw text из MinIO (по Source.raw_text_path)
+**Вход:** нормализованный текст (после шага 1.1b)
 
 **Процесс:**
 1. **Первый проход — структурное разбиение:**
