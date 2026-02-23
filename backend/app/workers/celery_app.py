@@ -18,7 +18,7 @@ celery_app.conf.update(
     beat_schedule={
         "cleanup-expired-temp-sources": {
             "task": "app.workers.ingestion_tasks.cleanup_expired_temp_sources",
-            "schedule": crontab(hour=3, minute=0),  # Daily at 3 AM UTC
+            "schedule": crontab(minute=0),  # Every hour
         },
     },
 )
