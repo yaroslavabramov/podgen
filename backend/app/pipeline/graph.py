@@ -126,9 +126,7 @@ def get_compiled_graph(checkpointer: Any | None = None):
 
 
 def _checkpoint_conn_string() -> str:
-    if settings.database_url_sync:
-        return settings.database_url_sync
-    return settings.database_url.replace("+asyncpg", "")
+    return settings.database_url_sync_resolved
 
 
 async def _ensure_checkpointer_schema(checkpointer: Any) -> None:

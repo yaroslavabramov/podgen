@@ -1,10 +1,25 @@
 from pydantic_settings import BaseSettings
 
 
+def _strip_sqlalchemy_driver(url: str) -> str:
+    """Convert SQLAlchemy-style URLs to libpq-compatible sync URLs.
+
+    Example:
+    - postgresql+asyncpg://... -> postgresql://...
+    - postgresql://... -> postgresql://...
+    """
+    if "://" not in url:
+        return url
+    scheme, rest = url.split("://", 1)
+    if "+" in scheme:
+        scheme = scheme.split("+", 1)[0]
+    return f"{scheme}://{rest}"
+
+
 class Settings(BaseSettings):
     # Database
     database_url: str = "postgresql+asyncpg://podgen:podgen@localhost:5432/podgen"
-    database_url_sync: str = "postgresql://podgen:podgen@localhost:5432/podgen"
+    database_url_sync: str | None = None
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
@@ -55,6 +70,13 @@ class Settings(BaseSettings):
     # Web security
     web_fetch_timeout: int = 30
     web_max_file_size_mb: int = 50
+
+    @property
+    def database_url_sync_resolved(self) -> str:
+        """Sync URL for psycopg/alembic, aligned with DATABASE_URL by default."""
+        if self.database_url_sync:
+            return _strip_sqlalchemy_driver(self.database_url_sync)
+        return _strip_sqlalchemy_driver(self.database_url)
 
     model_config = {"env_file": ["../.env", ".env"], "env_file_encoding": "utf-8", "extra": "ignore"}
 
