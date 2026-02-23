@@ -122,6 +122,9 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 **Round 5:**
 - [x] **P1**: Race condition between candidate selection and Celery enqueue → status set to PROCESSING atomically in `librarian_fast` before dispatching tasks
 
+**Round 6:**
+- [x] **P1**: Deep ingestion crash-window / stuck PROCESSING → simplified to enqueue-first-then-mark (idempotent worker guards duplicates), added stale PROCESSING cleanup (>1h) to cron
+
 Deferred (by design):
 - **P0**: Alembic initial migration — run `alembic revision --autogenerate` when ready to start DB
 - **P1**: Full LangGraph checkpointing (requires production PostgreSQL saver setup)

@@ -165,31 +165,31 @@ async def research_fast_web(state: PipelineState) -> dict:
                     Source.is_temporary == True,
                     Source.fully_ingested == False,
                     Source.generation_run_id == uuid.UUID(state["generation_run_id"]),
-                    # Exclude sources already being processed (prevents duplicate tasks)
-                    Source.ingestion_status != IngestionStatus.PROCESSING,
-                    Source.ingestion_status != IngestionStatus.COMPLETED,
+                    Source.ingestion_status.not_in([
+                        IngestionStatus.PROCESSING, IngestionStatus.COMPLETED,
+                    ]),
                 )
             )
             deep_candidates = deep_result.scalars().all()
 
-            # Mark selected candidates as PROCESSING atomically before enqueuing,
-            # so the next pass of research_fast_web won't pick them up again.
+            # Enqueue and mark PROCESSING in one pass per source.
+            # Order: enqueue first, then mark. If enqueue fails — source stays
+            # PENDING and will be retried. If process crashes after enqueue but
+            # before mark — worker is idempotent (guards on PROCESSING/COMPLETED
+            # at start) and the duplicate task is harmless. Stale PROCESSING
+            # sources are cleaned up by the periodic cleanup_expired_temp_sources.
             for src in deep_candidates:
                 if deep_active >= settings.max_deep_ingestion_concurrent:
                     break
-                src.ingestion_status = IngestionStatus.PROCESSING
-                deep_active += 1
-            await db2.commit()
+                try:
+                    task_id = trigger_deep_ingestion(str(src.id), run_id)
+                    src.ingestion_status = IngestionStatus.PROCESSING
+                    pending_deep.append(task_id)
+                    deep_active += 1
+                except Exception:
+                    logger.warning("Failed to trigger deep ingestion for source %s", src.id)
 
-        # Now enqueue Celery tasks for the sources we just marked
-        for src in deep_candidates:
-            if src.ingestion_status != IngestionStatus.PROCESSING:
-                continue  # wasn't selected (over concurrency limit)
-            try:
-                task_id = trigger_deep_ingestion(str(src.id), run_id)
-                pending_deep.append(task_id)
-            except Exception:
-                logger.warning("Failed to trigger deep ingestion for source %s", src.id)
+            await db2.commit()
 
     iteration_counts["deep_ingestion_active"] = deep_active
     iteration_counts["fast_web_per_act"] = fast_web_count

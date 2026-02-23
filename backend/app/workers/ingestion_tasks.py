@@ -60,11 +60,10 @@ async def _deep_ingest_async(source_id: str, generation_run_id: str):
         if source is None:
             return
 
-        # Guard: skip if already processing or completed (idempotency)
-        if source.ingestion_status in (IngestionStatus.PROCESSING, IngestionStatus.COMPLETED):
+        # Guard: skip if already completed (idempotency)
+        if source.ingestion_status == IngestionStatus.COMPLETED:
             return
 
-        # Mark PROCESSING immediately to prevent duplicate tasks
         source.ingestion_status = IngestionStatus.PROCESSING
         await db.commit()
 
@@ -93,20 +92,31 @@ def cleanup_expired_temp_sources():
 async def _cleanup_async():
     from sqlalchemy import select, delete
     from app.database import async_session_factory
-    from app.models.source import Source
+    from app.models.source import Source, IngestionStatus
     from app.models.generation_run import GenerationRun, GenerationStatus
 
     cutoff = datetime.utcnow() - timedelta(days=settings.temp_source_ttl_days)
+    stale_cutoff = datetime.utcnow() - timedelta(hours=1)
 
     async with async_session_factory() as db:
-        # Find temp sources whose generation run is completed/failed and past TTL
+        # 1. Reset stale PROCESSING sources (stuck > 1 hour — likely crashed worker)
+        stale_result = await db.execute(
+            select(Source).where(
+                Source.ingestion_status == IngestionStatus.PROCESSING,
+                Source.is_temporary == True,
+                Source.created_at < stale_cutoff,
+            )
+        )
+        for source in stale_result.scalars().all():
+            source.ingestion_status = IngestionStatus.PENDING
+
+        # 2. Delete temp sources whose generation run is done and past TTL
         result = await db.execute(
             select(Source)
             .outerjoin(GenerationRun, Source.generation_run_id == GenerationRun.id)
             .where(
                 Source.is_temporary == True,
                 Source.created_at < cutoff,
-                # Either run is done or source has no run link (orphan)
                 (GenerationRun.id == None) |
                 (GenerationRun.status.in_([GenerationStatus.COMPLETED, GenerationStatus.FAILED, GenerationStatus.CANCELLED]))
             )
@@ -114,4 +124,5 @@ async def _cleanup_async():
         expired = result.scalars().all()
         for source in expired:
             await db.delete(source)
+
         await db.commit()
