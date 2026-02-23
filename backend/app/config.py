@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     web_fetch_timeout: int = 30
     web_max_file_size_mb: int = 50
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    model_config = {"env_file": ["../.env", ".env"], "env_file_encoding": "utf-8", "extra": "ignore"}
 
 
 settings = Settings()

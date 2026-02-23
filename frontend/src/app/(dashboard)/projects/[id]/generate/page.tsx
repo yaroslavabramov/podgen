@@ -1,22 +1,42 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
+import { useTranslations } from "use-intl";
+import Link from "next/link";
 import { api, type CostEstimate } from "@/lib/api";
 import { useGenerationStore } from "@/stores/generation-store";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { GenerationProgress } from "@/components/generation-progress";
+import { CostEstimateCard } from "@/components/cost-estimate-card";
+import { LocaleSwitcher } from "@/components/locale-switcher";
+
+interface VoiceOption {
+  voice_id: string;
+  name: string;
+  category?: string;
+}
+
+interface ShowBibleSummary {
+  show_style: string;
+  tone_and_mood: string;
+  hosts?: Array<{ name?: string }>;
+}
 
 export default function GeneratePage() {
+  const t = useTranslations("generatePage");
   const params = useParams();
-  const router = useRouter();
   const projectId = params.id as string;
 
   const [prompt, setPrompt] = useState("");
   const [duration, setDuration] = useState(1800);
   const [cost, setCost] = useState<CostEstimate | null>(null);
+  const [voices, setVoices] = useState<VoiceOption[]>([]);
+  const [voiceA, setVoiceA] = useState("");
+  const [voiceB, setVoiceB] = useState("");
+  const [showBibleSummary, setShowBibleSummary] = useState<ShowBibleSummary | null>(null);
   const [launching, setLaunching] = useState(false);
 
   const { runId, status, startListening } = useGenerationStore();
@@ -36,11 +56,49 @@ export default function GeneratePage() {
     return () => clearTimeout(timer);
   }, [duration, prompt, projectId]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadGenerationConfig() {
+      const [voicesResult, bibleResult] = await Promise.allSettled([
+        api.get("api/voices").json<VoiceOption[]>(),
+        api.get(`api/projects/${projectId}/show-bible`).json<ShowBibleSummary>(),
+      ]);
+
+      if (cancelled) return;
+
+      if (voicesResult.status === "fulfilled") {
+        const loadedVoices = voicesResult.value;
+        setVoices(loadedVoices);
+        if (loadedVoices.length > 0) {
+          setVoiceA((prev) => prev || loadedVoices[0].voice_id);
+          setVoiceB((prev) => prev || loadedVoices[1]?.voice_id || loadedVoices[0].voice_id);
+        }
+      }
+
+      if (bibleResult.status === "fulfilled") {
+        setShowBibleSummary(bibleResult.value);
+      } else {
+        setShowBibleSummary(null);
+      }
+    }
+
+    loadGenerationConfig().catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
   const handleGenerate = async () => {
     setLaunching(true);
     try {
       const run = await api.post(`api/projects/${projectId}/generate`, {
-        json: { duration_target: duration, user_prompt: prompt },
+        json: {
+          duration_target: duration,
+          user_prompt: prompt,
+          voice_a_id: voiceA || null,
+          voice_b_id: voiceB || null,
+        },
       }).json<{ id: string }>();
       startListening(run.id);
     } catch (err) {
@@ -53,8 +111,9 @@ export default function GeneratePage() {
   if (runId && status !== "idle") {
     return (
       <div className="min-h-screen bg-background">
-        <header className="border-b border-border px-6 py-4">
-          <h1 className="text-xl font-bold">Generating Podcast</h1>
+        <header className="border-b border-border px-6 py-4 flex items-center justify-between">
+          <h1 className="text-xl font-bold">{t("runningTitle")}</h1>
+          <LocaleSwitcher />
         </header>
         <main className="max-w-4xl mx-auto px-6 py-8">
           <GenerationProgress />
@@ -63,25 +122,25 @@ export default function GeneratePage() {
     );
   }
 
-  const durationMinutes = duration / 60;
   const durationLabels: Record<number, string> = {
     900: "15 min", 1800: "30 min", 2700: "45 min", 3600: "60 min", 5400: "90 min",
   };
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border px-6 py-4">
-        <h1 className="text-xl font-bold">Generate Podcast</h1>
+      <header className="border-b border-border px-6 py-4 flex items-center justify-between">
+        <h1 className="text-xl font-bold">{t("title")}</h1>
+        <LocaleSwitcher />
       </header>
 
       <main className="max-w-3xl mx-auto px-6 py-8 space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Topic & Prompt</CardTitle>
+            <CardTitle>{t("topicPrompt")}</CardTitle>
           </CardHeader>
           <CardContent>
             <Textarea
-              placeholder="Describe the podcast topic in detail. What should the hosts discuss? What angle should they take?"
+              placeholder={t("topicPlaceholder")}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               rows={4}
@@ -91,7 +150,7 @@ export default function GeneratePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Duration</CardTitle>
+            <CardTitle>{t("duration")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex gap-3">
@@ -112,29 +171,80 @@ export default function GeneratePage() {
           </CardContent>
         </Card>
 
-        {cost && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Cost Estimate</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <p className="text-2xl font-bold">${cost.estimated_llm_cost.toFixed(2)}</p>
-                  <p className="text-sm text-muted-foreground">LLM Cost</p>
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("voices")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {voices.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t("voicesLoading")}</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">{t("voiceA")}</label>
+                  <select
+                    value={voiceA}
+                    onChange={(e) => setVoiceA(e.target.value)}
+                    className="w-full rounded-md border border-border px-3 py-2 text-sm bg-background"
+                  >
+                    {voices.map((voice) => (
+                      <option key={voice.voice_id} value={voice.voice_id}>
+                        {voice.name}{voice.category ? ` (${voice.category})` : ""}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <div>
-                  <p className="text-2xl font-bold">${cost.estimated_tts_cost.toFixed(2)}</p>
-                  <p className="text-sm text-muted-foreground">TTS Cost</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-primary">${cost.estimated_total.toFixed(2)}</p>
-                  <p className="text-sm text-muted-foreground">Total</p>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">{t("voiceB")}</label>
+                  <select
+                    value={voiceB}
+                    onChange={(e) => setVoiceB(e.target.value)}
+                    className="w-full rounded-md border border-border px-3 py-2 text-sm bg-background"
+                  >
+                    {voices.map((voice) => (
+                      <option key={voice.voice_id} value={voice.voice_id}>
+                        {voice.name}{voice.category ? ` (${voice.category})` : ""}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("showBibleSummary")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {showBibleSummary ? (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  {t("showStyle")}: <span className="text-foreground">{showBibleSummary.show_style}</span>
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {t("tone")}: <span className="text-foreground">{showBibleSummary.tone_and_mood}</span>
+                </p>
+                {showBibleSummary.hosts && showBibleSummary.hosts.length > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    {t("hosts")}:{" "}
+                    <span className="text-foreground">
+                      {showBibleSummary.hosts.map((h) => h.name).filter(Boolean).join(", ")}
+                    </span>
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">{t("noShowBible")}</p>
+            )}
+            <Link href={`/projects/${projectId}`} className="inline-block">
+              <Button variant="ghost" size="sm">{t("editShowBible")}</Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {cost && <CostEstimateCard cost={cost} />}
 
         <Button
           size="lg"
@@ -142,7 +252,7 @@ export default function GeneratePage() {
           onClick={handleGenerate}
           disabled={!prompt.trim() || launching}
         >
-          {launching ? "Starting..." : "Start Generation"}
+          {launching ? t("starting") : t("startGeneration")}
         </Button>
       </main>
     </div>

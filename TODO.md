@@ -31,7 +31,7 @@
 - [x] Canonicalizer (dedup, reliability classification)
 - [x] Scout (ContentMap generation)
 - [x] Celery setup + ingestion tasks
-- [~] Frontend: Source uploader (basic upload, no tus resumable)
+- [x] Frontend: Source uploader (tus resumable + fallback upload)
 
 ## Этап 3: Show Setup + LangGraph Core (Phases 0, 2-4)
 
@@ -69,16 +69,16 @@
 
 - [x] Project list page
 - [x] Project detail page (sources tab, show bible tab, episodes tab)
-- [~] Generation config page (basic, cost estimate simplified)
+- [x] Generation config page (voices + ShowBible summary + cost estimate)
 - [x] Real-time progress UI (phase stepper, event feed)
 - [x] Episode player (HTML5 audio + synced transcript)
 - [x] Login page (dev-login)
-- [ ] Episodes list page (missing)
-- [ ] Shownotes viewer component (missing)
-- [ ] Cost estimate component (inline in generate page, not standalone)
-- [ ] i18n (EN/RU) with next-intl
-- [ ] wavesurfer.js waveform in player (using basic HTML5 audio)
-- [ ] tus resumable uploads
+- [x] Episodes list page (`/episodes`)
+- [x] Shownotes viewer component (structured renderer)
+- [x] Cost estimate component (standalone `CostEstimateCard`)
+- [x] i18n (EN/RU) with locale switcher + dictionaries
+- [x] wavesurfer.js waveform in player
+- [x] tus resumable uploads
 
 ## Этап 7: Production Quality
 

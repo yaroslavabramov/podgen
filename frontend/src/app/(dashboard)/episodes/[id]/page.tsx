@@ -1,14 +1,18 @@
 "use client";
 
+
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { useTranslations } from "use-intl";
 import { api, type Episode } from "@/lib/api";
-import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EpisodePlayer } from "@/components/episode-player";
+import { ShownotesViewer } from "@/components/shownotes-viewer";
+import { LocaleSwitcher } from "@/components/locale-switcher";
 
 export default function EpisodeDetailPage() {
+  const t = useTranslations("episodeDetailPage");
   const params = useParams();
   const id = params.id as string;
   const [episode, setEpisode] = useState<Episode | null>(null);
@@ -17,15 +21,16 @@ export default function EpisodeDetailPage() {
     api.get(`api/episodes/${id}`).json<Episode>().then(setEpisode);
   }, [id]);
 
-  if (!episode) return <div className="p-8 text-muted-foreground">Loading...</div>;
+  if (!episode) return <div className="p-8 text-muted-foreground">{t("loading")}</div>;
 
   const minutes = Math.floor(episode.duration_seconds / 60);
   const seconds = episode.duration_seconds % 60;
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border px-6 py-4">
+      <header className="border-b border-border px-6 py-4 flex items-center justify-between">
         <h1 className="text-xl font-bold">{episode.title}</h1>
+        <LocaleSwitcher />
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-8 space-y-6">
@@ -34,7 +39,7 @@ export default function EpisodeDetailPage() {
           <Badge variant="secondary">{minutes}m {seconds}s</Badge>
           {episode.quality_metrics && (
             <Badge variant="success">
-              {Math.round((episode.quality_metrics.verified_fact_pct || 0))}% verified
+              {t("verifiedPct", { pct: Math.round((episode.quality_metrics.verified_fact_pct || 0)) })}
             </Badge>
           )}
         </div>
@@ -46,7 +51,7 @@ export default function EpisodeDetailPage() {
         {episode.transcript_json && (
           <Card>
             <CardHeader>
-              <CardTitle>Transcript</CardTitle>
+              <CardTitle>{t("transcript")}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3 max-h-96 overflow-y-auto">
@@ -68,16 +73,7 @@ export default function EpisodeDetailPage() {
           </Card>
         )}
 
-        {episode.shownotes_json && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Show Notes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <pre className="text-sm whitespace-pre-wrap">{JSON.stringify(episode.shownotes_json, null, 2)}</pre>
-            </CardContent>
-          </Card>
-        )}
+        <ShownotesViewer shownotes={episode.shownotes_json} />
       </main>
     </div>
   );

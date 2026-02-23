@@ -14,13 +14,15 @@ router = APIRouter(prefix="/api/episodes", tags=["episodes"])
 
 
 @router.get("", response_model=EpisodeListResponse)
-async def list_episodes(user: CurrentUser, db: DB):
-    result = await db.execute(
+async def list_episodes(user: CurrentUser, db: DB, project_id: uuid.UUID | None = None):
+    stmt = (
         select(Episode)
         .join(Project, Episode.project_id == Project.id)
         .where(Project.user_id == user.id)
-        .order_by(Episode.created_at.desc())
     )
+    if project_id is not None:
+        stmt = stmt.where(Episode.project_id == project_id)
+    result = await db.execute(stmt.order_by(Episode.created_at.desc()))
     episodes = result.scalars().all()
     return EpisodeListResponse(items=[EpisodeResponse.model_validate(e) for e in episodes], total=len(episodes))
 

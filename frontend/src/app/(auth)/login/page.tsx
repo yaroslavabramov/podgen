@@ -1,12 +1,16 @@
 "use client";
 
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { LocaleSwitcher } from "@/components/locale-switcher";
 
 export default function LoginPage() {
+  const t = useTranslations("loginPage");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
@@ -33,18 +37,21 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="absolute top-4 right-4">
+        <LocaleSwitcher />
+      </div>
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Welcome to Podgen</CardTitle>
-          <CardDescription>Sign in to start creating podcasts</CardDescription>
+          <CardTitle className="text-2xl">{t("title")}</CardTitle>
+          <CardDescription>{t("subtitle")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Email</label>
+              <label className="text-sm font-medium">{t("email")}</label>
               <Input
                 type="email"
-                placeholder="you@example.com"
+                placeholder={t("emailPlaceholder")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -52,16 +59,16 @@ export default function LoginPage() {
             </div>
             {isRegistering && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Name</label>
+                <label className="text-sm font-medium">{t("name")}</label>
                 <Input
-                  placeholder="Your name"
+                  placeholder={t("namePlaceholder")}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
               </div>
             )}
             <Button type="submit" className="w-full">
-              {isRegistering ? "Create Account" : "Sign In"}
+              {isRegistering ? t("createAccount") : t("signIn")}
             </Button>
           </form>
 
@@ -70,7 +77,7 @@ export default function LoginPage() {
               onClick={() => setIsRegistering(!isRegistering)}
               className="text-sm text-muted-foreground hover:text-foreground"
             >
-              {isRegistering ? "Already have an account? Sign in" : "Need an account? Register"}
+              {isRegistering ? t("alreadyHaveAccount") : t("needAccount")}
             </button>
           </div>
         </CardContent>

@@ -1,0 +1,150 @@
+{
+  "locale": {
+    "label": "Язык",
+    "english": "EN",
+    "russian": "RU"
+  },
+  "projectsPage": {
+    "episodesLink": "Эпизоды",
+    "newProject": "Новый проект",
+    "title": "Ваши проекты",
+    "projectTitlePlaceholder": "Название проекта",
+    "languageEnglish": "Английский",
+    "languageRussian": "Русский",
+    "create": "Создать",
+    "cancel": "Отмена",
+    "loading": "Загрузка...",
+    "noProjects": "Проектов пока нет. Создайте первый!",
+    "createProject": "Создать проект",
+    "noDescription": "Без описания",
+    "sourcesCount": "{count} источников",
+    "episodesCount": "{count} эпизодов"
+  },
+  "projectDetailPage": {
+    "projectsBreadcrumb": "Проекты",
+    "generatePodcast": "Сгенерировать подкаст",
+    "tabSources": "Источники",
+    "tabBible": "Show Bible",
+    "tabEpisodes": "Эпизоды",
+    "loading": "Загрузка...",
+    "sourceUntitled": "Без названия",
+    "noSources": "Источников пока нет. Загрузите файл или добавьте URL.",
+    "episodesLoading": "Загрузка эпизодов...",
+    "noEpisodes": "Эпизодов пока нет. Запустите генерацию.",
+    "verifiedPct": "{pct}% проверено",
+    "openEpisode": "Открыть",
+    "viewAllEpisodes": "Все эпизоды"
+  },
+  "episodesPage": {
+    "projectsBreadcrumb": "Проекты",
+    "title": "Эпизоды",
+    "openProjects": "К проектам",
+    "loading": "Загрузка эпизодов...",
+    "loadError": "Не удалось загрузить эпизоды",
+    "empty": "Эпизодов пока нет. Запустите генерацию в проекте.",
+    "verifiedPct": "{pct}% проверено",
+    "projectLabel": "Проект"
+  },
+  "episodeDetailPage": {
+    "loading": "Загрузка...",
+    "verifiedPct": "{pct}% проверено",
+    "transcript": "Транскрипт"
+  },
+  "generatePage": {
+    "title": "Генерация подкаста",
+    "runningTitle": "Идёт генерация подкаста",
+    "topicPrompt": "Тема и промпт",
+    "topicPlaceholder": "Опишите тему подкаста. Что должны обсудить ведущие и под каким углом?",
+    "duration": "Длительность",
+    "voices": "Голоса",
+    "voicesLoading": "Загрузка доступных голосов...",
+    "voiceA": "Голос A",
+    "voiceB": "Голос B",
+    "showBibleSummary": "Сводка ShowBible",
+    "showStyle": "Стиль шоу",
+    "tone": "Тон",
+    "hosts": "Ведущие",
+    "noShowBible": "ShowBible пока не настроен. Генерацию можно запустить с дефолтами.",
+    "editShowBible": "Редактировать ShowBible",
+    "startGeneration": "Запустить генерацию",
+    "starting": "Запуск..."
+  },
+  "costEstimateCard": {
+    "title": "Оценка стоимости",
+    "llm": "Оценка LLM",
+    "tts": "Оценка TTS",
+    "total": "Итого",
+    "split": "Разбивка стоимости",
+    "minutes": "~{minutes} мин эпизод",
+    "llmShare": "LLM: {pct}%",
+    "ttsShare": "TTS: {pct}%"
+  },
+  "shownotesViewer": {
+    "title": "Шоуноуты",
+    "empty": "Структурированные шоуноуты пока недоступны.",
+    "claimFallback": "Тезис",
+    "conflicts": "Конфликты"
+  },
+  "generationProgress": {
+    "phaseSetup": "Настройка шоу",
+    "phaseDecompose": "План исследования",
+    "phaseResearch": "Исследование",
+    "phaseClaims": "Проверка фактов",
+    "phasePlanning": "План эпизода",
+    "phaseWriting": "Написание",
+    "phaseAudio": "Генерация аудио",
+    "progress": "Прогресс",
+    "completed": "Эпизод сгенерирован!",
+    "listen": "Слушать эпизод",
+    "failed": "Генерация не удалась",
+    "liveFeed": "Лента событий",
+    "waiting": "Ожидание событий...",
+    "ingested": "Ингестировано: {title}",
+    "fallbackEvent": "Событие"
+  },
+  "sourceUploader": {
+    "uploading": "Загрузка...",
+    "uploadingProgress": "Загрузка... {pct}%",
+    "dropOrBrowse": "Перетащите файлы или выберите их вручную",
+    "browseFiles": "Выбрать файлы",
+    "formats": "PDF, Аудио, Видео",
+    "addUrlPlaceholder": "Добавить URL (страница, статья, видео)",
+    "addUrl": "Добавить URL"
+  },
+  "showBibleEditor": {
+    "loading": "Загрузка...",
+    "aiGeneration": "Генерация ИИ",
+    "topicPlaceholder": "Тема подкаста",
+    "generateWithAi": "Сгенерировать через ИИ",
+    "generating": "Генерация...",
+    "showConfiguration": "Конфигурация шоу",
+    "showStyle": "Стиль шоу",
+    "audienceLevel": "Уровень аудитории",
+    "tone": "Тон",
+    "hostPersonas": "Персоны ведущих",
+    "role": "Роль: {role}",
+    "hostFallback": "Ведущий {index}",
+    "notAvailable": "Н/Д",
+    "forbiddenPhrases": "Запрещённые фразы",
+    "saveConfiguration": "Сохранить настройки"
+  },
+  "episodePlayer": {
+    "missingAuth": "Отсутствует токен авторизации",
+    "failedLoad": "Не удалось загрузить аудио",
+    "failedInit": "Не удалось инициализировать плеер",
+    "loadingWaveform": "Загрузка waveform...",
+    "download": "Скачать"
+  },
+  "loginPage": {
+    "title": "Добро пожаловать в Podgen",
+    "subtitle": "Войдите, чтобы начать создавать подкасты",
+    "email": "Email",
+    "emailPlaceholder": "you@example.com",
+    "name": "Имя",
+    "namePlaceholder": "Ваше имя",
+    "createAccount": "Создать аккаунт",
+    "signIn": "Войти",
+    "alreadyHaveAccount": "Уже есть аккаунт? Войти",
+    "needAccount": "Нужен аккаунт? Зарегистрироваться"
+  }
+}

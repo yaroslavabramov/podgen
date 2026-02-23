@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import type WaveSurfer from "wavesurfer.js";
 
 interface TranscriptEntry {
   start_ms: number;
@@ -17,48 +19,117 @@ interface Props {
 }
 
 export function EpisodePlayer({ episodeId, transcript }: Props) {
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const t = useTranslations("episodePlayer");
+  const waveformRef = useRef<HTMLDivElement>(null);
+  const wavesurferRef = useRef<WaveSurfer | null>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [loadingAudio, setLoadingAudio] = useState(true);
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
 
   const audioUrl = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/episodes/${episodeId}/audio`;
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    setLoadingAudio(true);
+    setAudioError(null);
+    setDownloadUrl(null);
+    setCurrentTime(0);
+    setDuration(0);
+    setPlaying(false);
 
-    const onTimeUpdate = () => setCurrentTime(audio.currentTime * 1000);
-    const onLoadedMetadata = () => setDuration(audio.duration * 1000);
-    const onEnded = () => setPlaying(false);
+    async function setupWaveform() {
+      const container = waveformRef.current;
+      if (!container) return;
+      container.innerHTML = "";
 
-    audio.addEventListener("timeupdate", onTimeUpdate);
-    audio.addEventListener("loadedmetadata", onLoadedMetadata);
-    audio.addEventListener("ended", onEnded);
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) throw new Error(t("missingAuth"));
+
+        const response = await fetch(audioUrl, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) throw new Error(t("failedLoad"));
+
+        const blob = await response.blob();
+        if (cancelled) return;
+
+        objectUrl = URL.createObjectURL(blob);
+        setDownloadUrl(objectUrl);
+
+        const module = await import("wavesurfer.js");
+        if (cancelled || !waveformRef.current) return;
+
+        const rootStyles = getComputedStyle(document.documentElement);
+        const waveColor = rootStyles.getPropertyValue("--color-muted-foreground").trim() || "#9ca3af";
+        const progressColor = rootStyles.getPropertyValue("--color-primary").trim() || "#6d28d9";
+
+        const ws = module.default.create({
+          container: waveformRef.current,
+          url: objectUrl,
+          waveColor,
+          progressColor,
+          cursorColor: progressColor,
+          height: 80,
+          normalize: true,
+          barWidth: 2,
+          barGap: 2,
+          barRadius: 4,
+          dragToSeek: true,
+        });
+
+        wavesurferRef.current = ws;
+        ws.on("ready", () => {
+          setDuration(ws.getDuration() * 1000);
+          setLoadingAudio(false);
+        });
+        ws.on("timeupdate", (seconds: number) => {
+          setCurrentTime(seconds * 1000);
+        });
+        ws.on("play", () => setPlaying(true));
+        ws.on("pause", () => setPlaying(false));
+        ws.on("finish", () => {
+          setPlaying(false);
+          setCurrentTime(ws.getDuration() * 1000);
+        });
+      } catch (err) {
+        if (!cancelled) {
+          const message = err instanceof Error ? err.message : t("failedInit");
+          setAudioError(message);
+          setLoadingAudio(false);
+        }
+      }
+    }
+
+    setupWaveform();
 
     return () => {
-      audio.removeEventListener("timeupdate", onTimeUpdate);
-      audio.removeEventListener("loadedmetadata", onLoadedMetadata);
-      audio.removeEventListener("ended", onEnded);
+      cancelled = true;
+      const ws = wavesurferRef.current;
+      if (ws) {
+        ws.destroy();
+        wavesurferRef.current = null;
+      }
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, []);
+  }, [audioUrl]);
 
   const togglePlay = () => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (playing) {
-      audio.pause();
-    } else {
-      audio.play();
-    }
-    setPlaying(!playing);
+    const ws = wavesurferRef.current;
+    if (!ws || loadingAudio || audioError) return;
+    ws.playPause();
+    setPlaying(ws.isPlaying());
   };
 
   const seekTo = (ms: number) => {
-    const audio = audioRef.current;
-    if (audio) {
-      audio.currentTime = ms / 1000;
-    }
+    const ws = wavesurferRef.current;
+    if (!ws) return;
+    ws.setTime(ms / 1000);
+    setCurrentTime(ms);
   };
 
   const formatTime = (ms: number) => {
@@ -75,32 +146,24 @@ export function EpisodePlayer({ episodeId, transcript }: Props) {
   return (
     <Card>
       <CardContent className="py-4 space-y-4">
-        <audio ref={audioRef} src={audioUrl} preload="metadata" />
+        <div className="space-y-2">
+          <div ref={waveformRef} className="w-full" />
+          {loadingAudio && <p className="text-xs text-muted-foreground">{t("loadingWaveform")}</p>}
+          {audioError && <p className="text-xs text-destructive">{audioError}</p>}
+        </div>
 
         <div className="flex items-center gap-4">
-          <Button onClick={togglePlay} variant="outline" size="icon">
+          <Button onClick={togglePlay} variant="outline" size="icon" disabled={loadingAudio || !!audioError}>
             {playing ? "\u23F8" : "\u25B6"}
           </Button>
-
-          <div className="flex-1">
-            <div
-              className="h-2 bg-muted rounded-full cursor-pointer relative"
-              onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const pct = (e.clientX - rect.left) / rect.width;
-                seekTo(pct * duration);
-              }}
-            >
-              <div
-                className="h-full bg-primary rounded-full"
-                style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
-              />
-            </div>
-          </div>
-
           <span className="text-xs text-muted-foreground whitespace-nowrap">
             {formatTime(currentTime)} / {formatTime(duration)}
           </span>
+          {downloadUrl && (
+            <a href={downloadUrl} download={`episode-${episodeId}.mp3`}>
+              <Button variant="ghost" size="sm">{t("download")}</Button>
+            </a>
+          )}
         </div>
 
         {/* Synced transcript */}

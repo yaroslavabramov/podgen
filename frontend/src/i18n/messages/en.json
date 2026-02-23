@@ -1,0 +1,150 @@
+{
+  "locale": {
+    "label": "Language",
+    "english": "EN",
+    "russian": "RU"
+  },
+  "projectsPage": {
+    "episodesLink": "Episodes",
+    "newProject": "New Project",
+    "title": "Your Projects",
+    "projectTitlePlaceholder": "Project title",
+    "languageEnglish": "English",
+    "languageRussian": "Russian",
+    "create": "Create",
+    "cancel": "Cancel",
+    "loading": "Loading...",
+    "noProjects": "No projects yet. Create your first one!",
+    "createProject": "Create Project",
+    "noDescription": "No description",
+    "sourcesCount": "{count} sources",
+    "episodesCount": "{count} episodes"
+  },
+  "projectDetailPage": {
+    "projectsBreadcrumb": "Projects",
+    "generatePodcast": "Generate Podcast",
+    "tabSources": "Sources",
+    "tabBible": "Show Bible",
+    "tabEpisodes": "Episodes",
+    "loading": "Loading...",
+    "sourceUntitled": "Untitled",
+    "noSources": "No sources yet. Upload files or add URLs above.",
+    "episodesLoading": "Loading episodes...",
+    "noEpisodes": "No episodes yet. Start generation to create your first episode.",
+    "verifiedPct": "{pct}% verified",
+    "openEpisode": "Open",
+    "viewAllEpisodes": "View all episodes"
+  },
+  "episodesPage": {
+    "projectsBreadcrumb": "Projects",
+    "title": "Episodes",
+    "openProjects": "Open Projects",
+    "loading": "Loading episodes...",
+    "loadError": "Failed to load episodes",
+    "empty": "No episodes yet. Start generation from a project to see episodes here.",
+    "verifiedPct": "{pct}% verified",
+    "projectLabel": "Project"
+  },
+  "episodeDetailPage": {
+    "loading": "Loading...",
+    "verifiedPct": "{pct}% verified",
+    "transcript": "Transcript"
+  },
+  "generatePage": {
+    "title": "Generate Podcast",
+    "runningTitle": "Generating Podcast",
+    "topicPrompt": "Topic & Prompt",
+    "topicPlaceholder": "Describe the podcast topic in detail. What should the hosts discuss? What angle should they take?",
+    "duration": "Duration",
+    "voices": "Voices",
+    "voicesLoading": "Loading available voices...",
+    "voiceA": "Voice A",
+    "voiceB": "Voice B",
+    "showBibleSummary": "ShowBible Summary",
+    "showStyle": "Show style",
+    "tone": "Tone",
+    "hosts": "Hosts",
+    "noShowBible": "No ShowBible configured yet. You can still run generation with defaults.",
+    "editShowBible": "Edit ShowBible",
+    "startGeneration": "Start Generation",
+    "starting": "Starting..."
+  },
+  "costEstimateCard": {
+    "title": "Cost Estimate",
+    "llm": "Estimated LLM Cost",
+    "tts": "Estimated TTS Cost",
+    "total": "Estimated Total",
+    "split": "Cost split",
+    "minutes": "~{minutes} min episode",
+    "llmShare": "LLM: {pct}%",
+    "ttsShare": "TTS: {pct}%"
+  },
+  "shownotesViewer": {
+    "title": "Show Notes",
+    "empty": "No structured shownotes available for this episode yet.",
+    "claimFallback": "Claim",
+    "conflicts": "Conflicts"
+  },
+  "generationProgress": {
+    "phaseSetup": "Show Setup",
+    "phaseDecompose": "Research Planning",
+    "phaseResearch": "Research",
+    "phaseClaims": "Fact-Checking",
+    "phasePlanning": "Episode Planning",
+    "phaseWriting": "Writing",
+    "phaseAudio": "Audio Generation",
+    "progress": "Progress",
+    "completed": "Episode Generated!",
+    "listen": "Listen to Episode",
+    "failed": "Generation Failed",
+    "liveFeed": "Live Feed",
+    "waiting": "Waiting for events...",
+    "ingested": "Ingested: {title}",
+    "fallbackEvent": "Event"
+  },
+  "sourceUploader": {
+    "uploading": "Uploading...",
+    "uploadingProgress": "Uploading... {pct}%",
+    "dropOrBrowse": "Drag & drop files here, or click to browse",
+    "browseFiles": "Browse Files",
+    "formats": "PDF, Audio, Video",
+    "addUrlPlaceholder": "Add URL (web page, article, video)",
+    "addUrl": "Add URL"
+  },
+  "showBibleEditor": {
+    "loading": "Loading...",
+    "aiGeneration": "AI Generation",
+    "topicPlaceholder": "Topic for the podcast",
+    "generateWithAi": "Generate with AI",
+    "generating": "Generating...",
+    "showConfiguration": "Show Configuration",
+    "showStyle": "Show Style",
+    "audienceLevel": "Audience Level",
+    "tone": "Tone",
+    "hostPersonas": "Host Personas",
+    "role": "Role: {role}",
+    "hostFallback": "Host {index}",
+    "notAvailable": "N/A",
+    "forbiddenPhrases": "Forbidden Phrases",
+    "saveConfiguration": "Save Configuration"
+  },
+  "episodePlayer": {
+    "missingAuth": "Missing auth token",
+    "failedLoad": "Failed to load audio",
+    "failedInit": "Failed to initialize player",
+    "loadingWaveform": "Loading waveform...",
+    "download": "Download"
+  },
+  "loginPage": {
+    "title": "Welcome to Podgen",
+    "subtitle": "Sign in to start creating podcasts",
+    "email": "Email",
+    "emailPlaceholder": "you@example.com",
+    "name": "Name",
+    "namePlaceholder": "Your name",
+    "createAccount": "Create Account",
+    "signIn": "Sign In",
+    "alreadyHaveAccount": "Already have an account? Sign in",
+    "needAccount": "Need an account? Register"
+  }
+}

@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
+import { useTranslations } from "use-intl";
+import * as tus from "tus-js-client";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,28 +14,81 @@ interface Props {
 }
 
 export function SourceUploader({ projectId, onUploaded }: Props) {
+  const t = useTranslations("sourceUploader");
   const [url, setUrl] = useState("");
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+
+  const uploadFileClassic = async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/projects/${projectId}/sources/upload`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        body: formData,
+      }
+    );
+  };
+
+  const uploadFileTus = (file: File) => {
+    return new Promise<void>((resolve, reject) => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        reject(new Error("Missing auth token"));
+        return;
+      }
+
+      const upload = new tus.Upload(file, {
+        endpoint: `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/projects/${projectId}/sources/upload/resumable`,
+        metadata: {
+          filename: file.name,
+          filetype: file.type || "application/octet-stream",
+        },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        retryDelays: [0, 1000, 3000, 5000, 10000],
+        chunkSize: 5 * 1024 * 1024,
+        removeFingerprintOnSuccess: true,
+        onProgress: (uploaded, total) => {
+          const pct = total > 0 ? Math.round((uploaded / total) * 100) : 0;
+          setUploadProgress(pct);
+        },
+        onSuccess: () => resolve(),
+        onError: (error) => reject(error),
+      });
+
+      upload.findPreviousUploads()
+        .then((previousUploads) => {
+          if (previousUploads.length > 0) {
+            upload.resumeFromPreviousUpload(previousUploads[0]);
+          }
+          upload.start();
+        })
+        .catch(reject);
+    });
+  };
 
   const handleFileUpload = async (files: FileList) => {
     setUploading(true);
+    setUploadProgress(0);
     try {
       for (const file of Array.from(files)) {
-        const formData = new FormData();
-        formData.append("file", file);
-        await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/projects/${projectId}/sources/upload`,
-          {
-            method: "POST",
-            headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-            body: formData,
-          }
-        );
+        try {
+          await uploadFileTus(file);
+        } catch {
+          // Fallback to classic upload for compatibility.
+          setUploadProgress(null);
+          await uploadFileClassic(file);
+        }
       }
       onUploaded();
     } finally {
       setUploading(false);
+      setUploadProgress(null);
     }
   };
 
@@ -50,11 +105,11 @@ export function SourceUploader({ projectId, onUploaded }: Props) {
     }
   };
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
     if (e.dataTransfer.files.length) handleFileUpload(e.dataTransfer.files);
-  }, []);
+  };
 
   return (
     <div className="space-y-4">
@@ -66,7 +121,11 @@ export function SourceUploader({ projectId, onUploaded }: Props) {
       >
         <CardContent className="py-8 text-center">
           <p className="text-muted-foreground mb-3">
-            {uploading ? "Uploading..." : "Drag & drop files here, or click to browse"}
+            {uploading
+              ? uploadProgress === null
+                ? t("uploading")
+                : t("uploadingProgress", { pct: uploadProgress })
+              : t("dropOrBrowse")}
           </p>
           <input
             type="file"
@@ -78,22 +137,22 @@ export function SourceUploader({ projectId, onUploaded }: Props) {
           />
           <label htmlFor="file-upload">
             <Button variant="outline" asChild disabled={uploading}>
-              <span>Browse Files</span>
+              <span>{t("browseFiles")}</span>
             </Button>
           </label>
-          <p className="text-xs text-muted-foreground mt-2">PDF, Audio, Video</p>
+          <p className="text-xs text-muted-foreground mt-2">{t("formats")}</p>
         </CardContent>
       </Card>
 
       <form onSubmit={handleUrlAdd} className="flex gap-3">
         <Input
-          placeholder="Add URL (web page, article, video)"
+          placeholder={t("addUrlPlaceholder")}
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           className="flex-1"
         />
         <Button type="submit" variant="outline" disabled={!url.trim() || uploading}>
-          Add URL
+          {t("addUrl")}
         </Button>
       </form>
     </div>

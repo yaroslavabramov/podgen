@@ -9,6 +9,8 @@ class GenerationCreate(BaseModel):
     user_prompt: str = Field(..., min_length=1, max_length=5000)
     show_bible_id: uuid.UUID | None = None
     show_bible_override: dict | None = None
+    voice_a_id: str | None = None
+    voice_b_id: str | None = None
 
 
 class CostEstimateRequest(BaseModel):

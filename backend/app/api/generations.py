@@ -26,6 +26,7 @@ async def estimate_generation_cost(project_id: uuid.UUID, data: CostEstimateRequ
 @router.post("/projects/{project_id}/generate", response_model=GenerationRunResponse, status_code=status.HTTP_201_CREATED)
 async def start_generation(project_id: uuid.UUID, data: GenerationCreate, user: CurrentUser, db: DB):
     project = await _get_user_project(project_id, user.id, db)
+    created_run_scoped_bible = False
 
     # Resolve ShowBible
     if data.show_bible_id:
@@ -66,6 +67,7 @@ async def start_generation(project_id: uuid.UUID, data: GenerationCreate, user: 
         db.add(new_bible)
         await db.flush()
         show_bible_id = new_bible.id
+        created_run_scoped_bible = True
     else:
         result = await db.execute(
             select(ShowBible).where(
@@ -78,6 +80,29 @@ async def start_generation(project_id: uuid.UUID, data: GenerationCreate, user: 
         if show_bible is None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No ShowBible configured. Create one first or provide show_bible_override.")
         show_bible_id = show_bible.id
+
+    # Optional voice override for this generation run.
+    if data.voice_a_id or data.voice_b_id:
+        result = await db.execute(select(ShowBible).where(ShowBible.id == show_bible_id))
+        selected_bible = result.scalar_one_or_none()
+        if selected_bible is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ShowBible not found")
+
+        updated_voice_profiles = _merge_voice_profiles(
+            selected_bible.voice_profiles or [],
+            data.voice_a_id,
+            data.voice_b_id,
+        )
+
+        if created_run_scoped_bible:
+            selected_bible.voice_profiles = updated_voice_profiles
+            await db.flush()
+        else:
+            run_bible = _clone_show_bible_for_run(selected_bible, project_id, updated_voice_profiles)
+            db.add(run_bible)
+            await db.flush()
+            show_bible_id = run_bible.id
+            created_run_scoped_bible = True
 
     # Estimate cost
     source_count = (await db.execute(
@@ -94,6 +119,8 @@ async def start_generation(project_id: uuid.UUID, data: GenerationCreate, user: 
             "duration_target": data.duration_target,
             "user_prompt": data.user_prompt,
             "language": project.language,
+            "voice_a_id": data.voice_a_id,
+            "voice_b_id": data.voice_b_id,
         },
         estimated_cost=cost.model_dump(),
     )
@@ -101,8 +128,8 @@ async def start_generation(project_id: uuid.UUID, data: GenerationCreate, user: 
     await db.flush()
     await db.refresh(run)
 
-    # Link run-scoped ShowBible to this run (if override was used)
-    if data.show_bible_override:
+    # Link run-scoped ShowBible to this run.
+    if created_run_scoped_bible:
         override_result = await db.execute(select(ShowBible).where(ShowBible.id == show_bible_id))
         override_bible = override_result.scalar_one_or_none()
         if override_bible:
@@ -182,3 +209,32 @@ async def _get_user_project(project_id, user_id, db) -> Project:
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     return project
+
+
+def _merge_voice_profiles(current_profiles: list, voice_a_id: str | None, voice_b_id: str | None) -> list:
+    profiles = [dict(v) if isinstance(v, dict) else {} for v in current_profiles[:2]]
+    while len(profiles) < 2:
+        profiles.append({})
+
+    if voice_a_id:
+        profiles[0]["voice_id"] = voice_a_id
+    if voice_b_id:
+        profiles[1]["voice_id"] = voice_b_id
+
+    return profiles
+
+
+def _clone_show_bible_for_run(base: ShowBible, project_id: uuid.UUID, voice_profiles: list) -> ShowBible:
+    return ShowBible(
+        project_id=project_id,
+        audience_profile=base.audience_profile,
+        tone_and_mood=base.tone_and_mood,
+        show_style=base.show_style,
+        hosts=base.hosts,
+        voice_profiles=voice_profiles,
+        forbidden_phrases=base.forbidden_phrases,
+        rigor_policy=base.rigor_policy,
+        adjacency_policy=base.adjacency_policy,
+        explanation_policy=base.explanation_policy,
+        format_rules=base.format_rules,
+    )

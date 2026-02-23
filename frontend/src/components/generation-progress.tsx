@@ -6,27 +6,47 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { useTranslations } from "use-intl";
 
-const PHASES = [
-  { id: "phase0_setup", label: "Show Setup", icon: "1" },
-  { id: "phase2_decomposition", label: "Research Planning", icon: "2" },
-  { id: "phase3_research", label: "Research", icon: "3" },
-  { id: "phase4_claims", label: "Fact-Checking", icon: "4" },
-  { id: "phase5_planning", label: "Episode Planning", icon: "5" },
-  { id: "phase6_writing", label: "Writing", icon: "6" },
-  { id: "phase7_audio", label: "Audio Generation", icon: "7" },
-];
+function pickEventText(event: Record<string, unknown>, t: (key: string, values?: Record<string, string>) => string) {
+  const asString = (value: unknown) => (typeof value === "string" ? value : "");
+
+  const direct =
+    asString(event.message) ||
+    asString(event.description) ||
+    asString(event.detail) ||
+    asString(event.statement_preview);
+
+  if (direct) return direct;
+
+  const sourceTitle = asString(event.source_title);
+  if (sourceTitle) return t("ingested", { title: sourceTitle });
+
+  const phase = asString(event.phase);
+  const step = asString(event.step);
+  return `${phase} ${step}`.trim() || t("fallbackEvent");
+}
 
 export function GenerationProgress() {
+  const t = useTranslations("generationProgress");
+  const phases = [
+    { id: "phase0_setup", label: t("phaseSetup"), icon: "1" },
+    { id: "phase2_decomposition", label: t("phaseDecompose"), icon: "2" },
+    { id: "phase3_research", label: t("phaseResearch"), icon: "3" },
+    { id: "phase4_claims", label: t("phaseClaims"), icon: "4" },
+    { id: "phase5_planning", label: t("phasePlanning"), icon: "5" },
+    { id: "phase6_writing", label: t("phaseWriting"), icon: "6" },
+    { id: "phase7_audio", label: t("phaseAudio"), icon: "7" },
+  ];
   const { status, currentPhase, progressPct, events, episodeId, error } = useGenerationStore();
 
-  const currentPhaseIndex = PHASES.findIndex((p) => p.id === currentPhase);
+  const currentPhaseIndex = phases.findIndex((p) => p.id === currentPhase);
 
   return (
     <div className="space-y-6">
       {/* Phase stepper */}
       <div className="flex items-center gap-1">
-        {PHASES.map((phase, i) => {
+        {phases.map((phase, i) => {
           const isActive = phase.id === currentPhase;
           const isCompleted = i < currentPhaseIndex;
           return (
@@ -41,7 +61,7 @@ export function GenerationProgress() {
               <span className={`ml-1 text-xs hidden lg:inline ${isActive ? "text-primary font-medium" : "text-muted-foreground"}`}>
                 {phase.label}
               </span>
-              {i < PHASES.length - 1 && (
+              {i < phases.length - 1 && (
                 <div className={`flex-1 h-0.5 mx-2 ${isCompleted ? "bg-green-500" : "bg-muted"}`} />
               )}
             </div>
@@ -52,7 +72,7 @@ export function GenerationProgress() {
       {/* Progress bar */}
       <div className="space-y-2">
         <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Progress</span>
+          <span className="text-muted-foreground">{t("progress")}</span>
           <span className="font-medium">{Math.round(progressPct)}%</span>
         </div>
         <Progress value={progressPct} />
@@ -62,9 +82,9 @@ export function GenerationProgress() {
       {status === "completed" && episodeId && (
         <Card className="border-green-500/50 bg-green-500/5">
           <CardContent className="py-6 text-center">
-            <p className="text-lg font-semibold text-green-600 mb-3">Episode Generated!</p>
+            <p className="text-lg font-semibold text-green-600 mb-3">{t("completed")}</p>
             <Link href={`/episodes/${episodeId}`}>
-              <Button>Listen to Episode</Button>
+              <Button>{t("listen")}</Button>
             </Link>
           </CardContent>
         </Card>
@@ -73,7 +93,7 @@ export function GenerationProgress() {
       {status === "failed" && (
         <Card className="border-destructive/50 bg-destructive/5">
           <CardContent className="py-6 text-center">
-            <p className="text-lg font-semibold text-destructive">Generation Failed</p>
+            <p className="text-lg font-semibold text-destructive">{t("failed")}</p>
             <p className="text-sm text-muted-foreground mt-1">{error}</p>
           </CardContent>
         </Card>
@@ -82,7 +102,7 @@ export function GenerationProgress() {
       {/* Live event feed */}
       <Card>
         <CardContent className="py-4">
-          <h3 className="text-sm font-medium mb-3">Live Feed</h3>
+          <h3 className="text-sm font-medium mb-3">{t("liveFeed")}</h3>
           <div className="space-y-1 max-h-64 overflow-y-auto text-sm">
             {events.slice(-20).map((event, i) => (
               <div key={i} className="flex items-center gap-2 py-0.5">
@@ -90,15 +110,12 @@ export function GenerationProgress() {
                   {event.type.replace(/_/g, " ")}
                 </Badge>
                 <span className="text-muted-foreground truncate">
-                  {event.message || event.description || event.detail ||
-                   (event.statement_preview) ||
-                   (event.source_title ? `Ingested: ${event.source_title}` : "") ||
-                   `${event.phase || ""} ${event.step || ""}`}
+                  {pickEventText(event, (key, values) => t(key, values))}
                 </span>
               </div>
             ))}
             {events.length === 0 && (
-              <p className="text-muted-foreground">Waiting for events...</p>
+              <p className="text-muted-foreground">{t("waiting")}</p>
             )}
           </div>
         </CardContent>

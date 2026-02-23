@@ -9,32 +9,34 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "next": "^15.1.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "@hookform/resolvers": "^3.9.0",
+    "@radix-ui/react-progress": "^1.1.1",
+    "@radix-ui/react-select": "^2.1.5",
+    "@radix-ui/react-slider": "^1.2.2",
     "@radix-ui/react-slot": "^1.1.1",
     "@radix-ui/react-tabs": "^1.1.2",
-    "@radix-ui/react-slider": "^1.2.2",
-    "@radix-ui/react-select": "^2.1.5",
-    "@radix-ui/react-progress": "^1.1.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "tailwind-merge": "^2.6.0",
-    "lucide-react": "^0.468.0",
-    "zustand": "^5.0.0",
-    "zod": "^3.24.0",
-    "react-hook-form": "^7.54.0",
-    "@hookform/resolvers": "^3.9.0",
     "ky": "^1.7.0",
+    "lucide-react": "^0.468.0",
+    "next": "^15.1.0",
+    "next-intl": "^4.8.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-hook-form": "^7.54.0",
     "socket.io-client": "^4.8.0",
-    "wavesurfer.js": "^7.8.0"
+    "tailwind-merge": "^2.6.0",
+    "tus-js-client": "^4.3.1",
+    "wavesurfer.js": "^7.8.0",
+    "zod": "^3.24.0",
+    "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "typescript": "^5.7.0",
-    "@tailwindcss/postcss": "^4.0.0",
-    "tailwindcss": "^4.0.0"
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.0"
   }
 }
