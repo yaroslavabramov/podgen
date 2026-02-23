@@ -83,9 +83,13 @@ async def list_presets(db: DB):
 async def create_or_update_show_bible(project_id: uuid.UUID, data: ShowBibleCreate, user: CurrentUser, db: DB):
     await _verify_project_ownership(project_id, user.id, db)
 
-    # Check for existing non-preset ShowBible
+    # Check for existing project-level (non-preset, non-run-scoped) ShowBible
     result = await db.execute(
-        select(ShowBible).where(ShowBible.project_id == project_id, ShowBible.is_preset == False)
+        select(ShowBible).where(
+            ShowBible.project_id == project_id,
+            ShowBible.is_preset == False,
+            ShowBible.generation_run_id.is_(None),
+        )
     )
     existing = result.scalar_one_or_none()
 
@@ -117,7 +121,11 @@ async def create_or_update_show_bible(project_id: uuid.UUID, data: ShowBibleCrea
 async def get_show_bible(project_id: uuid.UUID, user: CurrentUser, db: DB):
     await _verify_project_ownership(project_id, user.id, db)
     result = await db.execute(
-        select(ShowBible).where(ShowBible.project_id == project_id, ShowBible.is_preset == False)
+        select(ShowBible).where(
+            ShowBible.project_id == project_id,
+            ShowBible.is_preset == False,
+            ShowBible.generation_run_id.is_(None),
+        )
     )
     bible = result.scalar_one_or_none()
     if bible is None:
@@ -133,7 +141,11 @@ async def generate_show_bible(project_id: uuid.UUID, data: ShowBibleGenerateRequ
     bible_data = await generate_show_bible(data.topic, data.audience_level, data.show_style)
 
     result = await db.execute(
-        select(ShowBible).where(ShowBible.project_id == project_id, ShowBible.is_preset == False)
+        select(ShowBible).where(
+            ShowBible.project_id == project_id,
+            ShowBible.is_preset == False,
+            ShowBible.generation_run_id.is_(None),
+        )
     )
     existing = result.scalar_one_or_none()
 

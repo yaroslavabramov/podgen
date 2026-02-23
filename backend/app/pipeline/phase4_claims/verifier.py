@@ -11,6 +11,7 @@ from app.models.claim import Claim, ClaimEvidence, VerificationLevel
 from app.models.evidence import EvidenceSpan
 from app.models.source import Source
 from app.pipeline.state import PipelineState
+from app.config import settings
 from app.services.llm import call_sonnet_structured
 from app.realtime.publisher import publish_event, update_generation_progress
 from app.realtime.events import step_started, step_completed, claim_verified, progress
@@ -97,4 +98,27 @@ async def verify_claims(state: PipelineState) -> dict:
     publish_event(run_id, step_completed("phase4_claims", "verify"))
     publish_event(run_id, progress(45.0, f"Verified {len(claim_ids)} claims"))
 
-    return {"claim_ids": claim_ids, "current_phase": "phase4_claims"}
+    # Check if any claims need more research (UNVERIFIED with no counter evidence)
+    iteration_counts = dict(state.get("iteration_counts", {}))
+    verify_loops = iteration_counts.get("verify_research_loops", 0)
+    needs_research = False
+
+    if verify_loops < settings.max_verifier_research_loops:
+        async with async_session_factory() as db:
+            for cid in claim_ids:
+                result = await db.execute(select(Claim).where(Claim.id == uuid.UUID(cid)))
+                claim = result.scalar_one_or_none()
+                if claim and claim.claim_type == "fact" and claim.verification_level == VerificationLevel.UNVERIFIED:
+                    needs_research = True
+                    break
+
+    if needs_research:
+        iteration_counts["verify_research_loops"] = verify_loops + 1
+
+    iteration_counts["verify_needs_research"] = needs_research
+
+    return {
+        "claim_ids": claim_ids,
+        "current_phase": "phase4_claims",
+        "iteration_counts": iteration_counts,
+    }

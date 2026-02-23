@@ -6,8 +6,10 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.ingestion.canonicalizer import canonicalize_sources
 from app.ingestion.chunker import structural_chunk
 from app.ingestion.pdf import extract_pdf
+from app.ingestion.scout import build_content_map
 from app.ingestion.video import extract_video
 from app.ingestion.web import extract_web
 from app.models.source import Source, SourceType
@@ -94,5 +96,19 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
     for chunk, point_id in zip(chunks, point_ids):
         chunk.qdrant_point_id = point_id
     await db.flush()
+
+    # --- 6. Canonicalize source metadata ----------------------------------------
+    try:
+        await canonicalize_sources(str(source.project_id), db)
+        logger.info("Source %s: canonicalization complete", source_id)
+    except Exception:
+        logger.warning("Source %s: canonicalization failed, continuing", source_id, exc_info=True)
+
+    # --- 7. Rebuild content map for project ------------------------------------
+    try:
+        await build_content_map(str(source.project_id), db)
+        logger.info("Source %s: content map updated", source_id)
+    except Exception:
+        logger.warning("Source %s: content map build failed, continuing", source_id, exc_info=True)
 
     logger.info("Source %s: ingestion complete, %d chunks indexed", source_id, len(chunks))

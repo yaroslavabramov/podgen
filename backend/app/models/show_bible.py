@@ -23,6 +23,7 @@ class ShowBible(Base):
     adjacency_policy: Mapped[str | None] = mapped_column(Text)
     explanation_policy: Mapped[str | None] = mapped_column(Text)
     format_rules: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    generation_run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("generation_runs.id", ondelete="SET NULL"))
     is_preset: Mapped[bool] = mapped_column(Boolean, default=False)
     preset_name: Mapped[str | None] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

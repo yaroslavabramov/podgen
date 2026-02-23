@@ -10,8 +10,10 @@ from sqlalchemy import select
 from app.database import async_session_factory
 from app.models.episode_manifest import EpisodeManifest
 from app.models.evidence import EvidenceSpan
+from app.models.source import Source
 from app.pipeline.state import PipelineState
 from app.pipeline.phase3_research.tools import web_search_tool, fetch_page_tool, create_web_evidence
+from app.pipeline.phase3_research.librarian_deep import trigger_deep_ingestion
 from app.services.llm import call_sonnet_structured
 from app.config import settings
 from app.realtime.publisher import publish_event, update_generation_progress
@@ -127,6 +129,7 @@ async def research_fast_web(state: PipelineState) -> dict:
                         asset_type=item.get("asset_type", "mechanism").lower(),
                         project_id=state["project_id"],
                         db=db,
+                        generation_run_id=state["generation_run_id"],
                     )
                     all_evidence_ids.append(eid)
                     new_evidence_count += 1
@@ -138,6 +141,43 @@ async def research_fast_web(state: PipelineState) -> dict:
 
         await db.commit()
 
+    # Trigger deep ingestion for substantial temp sources (long articles, PDFs)
+    pending_deep = list(state.get("pending_deep_ingestion_job_ids", []))
+
+    # Check which pending jobs are still running to get real concurrency count
+    from celery.result import AsyncResult
+    from app.workers.celery_app import celery_app as celery
+
+    still_running = []
+    for task_id in pending_deep:
+        result = AsyncResult(task_id, app=celery)
+        if result.state in ("PENDING", "STARTED", "RETRY"):
+            still_running.append(task_id)
+    deep_active = len(still_running)
+    pending_deep = still_running  # prune completed/failed
+
+    if deep_active < settings.max_deep_ingestion_concurrent:
+        async with async_session_factory() as db2:
+            deep_result = await db2.execute(
+                select(Source).where(
+                    Source.project_id == uuid.UUID(state["project_id"]),
+                    Source.is_temporary == True,
+                    Source.fully_ingested == False,
+                    Source.generation_run_id == uuid.UUID(state["generation_run_id"]),
+                )
+            )
+            deep_candidates = deep_result.scalars().all()
+        for src in deep_candidates:
+            if deep_active >= settings.max_deep_ingestion_concurrent:
+                break
+            try:
+                task_id = trigger_deep_ingestion(str(src.id), run_id)
+                pending_deep.append(task_id)
+                deep_active += 1
+            except Exception:
+                logger.warning("Failed to trigger deep ingestion for source %s", src.id)
+
+    iteration_counts["deep_ingestion_active"] = deep_active
     iteration_counts["fast_web_per_act"] = fast_web_count
     publish_event(run_id, step_completed("phase3_research", "fast_web"))
     if new_evidence_count > 0:
@@ -146,6 +186,7 @@ async def research_fast_web(state: PipelineState) -> dict:
 
     return {
         "evidence_ids": all_evidence_ids,
+        "pending_deep_ingestion_job_ids": pending_deep,
         "iteration_counts": iteration_counts,
         "current_phase": "phase3_research",
     }

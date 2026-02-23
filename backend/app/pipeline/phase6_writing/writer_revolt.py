@@ -92,4 +92,14 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
     iteration_counts["writer_planner_loops"] = revolt_count
     publish_event(run_id, step_completed("phase6_writing", "engagement_eval"))
 
-    return {"script_segment_ids": segment_ids, "iteration_counts": iteration_counts}
+    # Signal graph whether revolt triggered rewrites
+    quality_signals = dict(state.get("quality_signals", {}))
+    any_revolt = revolt_count > iteration_counts.get("_prev_revolt_count", 0)
+    quality_signals["revolt_triggered"] = any_revolt
+    iteration_counts["_prev_revolt_count"] = revolt_count
+
+    return {
+        "script_segment_ids": segment_ids,
+        "iteration_counts": iteration_counts,
+        "quality_signals": quality_signals,
+    }

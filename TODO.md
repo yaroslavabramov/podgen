@@ -93,17 +93,30 @@
 
 ## Known Issues (from code review)
 
-See `REVIEW_FINDINGS.md` for detailed findings. Key fixes applied:
+See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. Fixes applied:
 
+**Round 1:**
 - [x] **P0**: `is_safe_url` import mismatch in tools.py → fixed to use `_check_ssrf`
 - [x] **P0**: `EpisodeManifest.duration_fill_layers` type mismatch (UUID vs String) → fixed to `ARRAY(String)`
 - [x] **P0**: Presets with fake project_id FK → fixed to nullable project_id for presets
 - [x] **P1**: WebSocket without ownership check → added JWT + ownership verification
-- [x] **P1**: `GET /api/projects/{id}` missing sources/show_bible → added to response
+- [x] **P1**: `GET /api/projects/{id}` missing sources/show_bible → added `ProjectDetailResponse`
 - [x] **P1**: Source missing `generation_run_id` for temp lifecycle → added field
 - [x] **P1**: Graph quality loops stubbed → implemented conditional logic
 
+**Round 2:**
+- [x] **P1**: Quality loop flags not set by nodes → verifier sets `verify_needs_research`, writer_revolt sets `revolt_triggered`
+- [x] **P1**: Deep ingestion not triggered from pipeline → librarian_fast now calls `trigger_deep_ingestion` for temp sources
+- [x] **P1**: `create_web_evidence` called without `generation_run_id` → now passed from state
+- [x] **P1**: Canonicalizer and scout not called during ingestion → added to `run_ingestion` pipeline
+- [x] **P2**: Run-scoped ShowBible not linked to generation run → added `generation_run_id` FK
+
+**Round 3:**
+- [x] **P1**: Run-scoped ShowBible breaks `scalar_one_or_none()` queries → all ShowBible lookups now filter `generation_run_id.is_(None)` to exclude run-scoped copies
+- [x] **P1**: Deep ingestion governor is monotonic counter → now checks Celery `AsyncResult` state, prunes completed tasks, counts only actually running jobs
+
 Deferred (by design):
+- **P0**: Alembic initial migration — run `alembic revision --autogenerate` when ready to start DB
 - **P1**: Full LangGraph checkpointing (requires production PostgreSQL saver setup)
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

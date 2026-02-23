@@ -62,9 +62,13 @@ async def get_project(project_id: uuid.UUID, user: CurrentUser, db: DB):
     )
     sources = sources_result.scalars().all()
 
-    # Show Bible
+    # Show Bible (project-level only, exclude run-scoped copies)
     bible_result = await db.execute(
-        select(ShowBible).where(ShowBible.project_id == project.id, ShowBible.is_preset == False)
+        select(ShowBible).where(
+            ShowBible.project_id == project.id,
+            ShowBible.is_preset == False,
+            ShowBible.generation_run_id.is_(None),
+        )
     )
     show_bible = bible_result.scalar_one_or_none()
 

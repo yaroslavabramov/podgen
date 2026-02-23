@@ -35,9 +35,13 @@ async def start_generation(project_id: uuid.UUID, data: GenerationCreate, user: 
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ShowBible not found")
         show_bible_id = show_bible.id
     elif data.show_bible_override:
-        # Create run-scoped ShowBible
+        # Create run-scoped ShowBible based on project's main ShowBible
         result = await db.execute(
-            select(ShowBible).where(ShowBible.project_id == project_id, ShowBible.is_preset == False)
+            select(ShowBible).where(
+                ShowBible.project_id == project_id,
+                ShowBible.is_preset == False,
+                ShowBible.generation_run_id.is_(None),
+            )
         )
         base = result.scalar_one_or_none()
         if base:
@@ -61,7 +65,11 @@ async def start_generation(project_id: uuid.UUID, data: GenerationCreate, user: 
         show_bible_id = new_bible.id
     else:
         result = await db.execute(
-            select(ShowBible).where(ShowBible.project_id == project_id, ShowBible.is_preset == False)
+            select(ShowBible).where(
+                ShowBible.project_id == project_id,
+                ShowBible.is_preset == False,
+                ShowBible.generation_run_id.is_(None),
+            )
         )
         show_bible = result.scalar_one_or_none()
         if show_bible is None:
@@ -89,6 +97,14 @@ async def start_generation(project_id: uuid.UUID, data: GenerationCreate, user: 
     db.add(run)
     await db.flush()
     await db.refresh(run)
+
+    # Link run-scoped ShowBible to this run (if override was used)
+    if data.show_bible_override:
+        override_result = await db.execute(select(ShowBible).where(ShowBible.id == show_bible_id))
+        override_bible = override_result.scalar_one_or_none()
+        if override_bible:
+            override_bible.generation_run_id = run.id
+            await db.flush()
 
     # Trigger async generation
     from app.workers.generation_tasks import run_generation_pipeline
