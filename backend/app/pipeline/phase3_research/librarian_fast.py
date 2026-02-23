@@ -7,7 +7,7 @@ import uuid
 
 from sqlalchemy import func, select
 
-from app.database import async_session_factory
+from app.workers.worker_db import worker_session_factory as async_session_factory
 from app.models.episode_manifest import EpisodeManifest
 from app.models.source import Source
 from app.pipeline.state import PipelineState

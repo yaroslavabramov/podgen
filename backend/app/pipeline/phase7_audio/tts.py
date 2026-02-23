@@ -8,7 +8,7 @@ import uuid
 
 from sqlalchemy import select
 
-from app.database import async_session_factory
+from app.workers.worker_db import worker_session_factory as async_session_factory
 from app.models.show_bible import ShowBible
 from app.models.script_segment import ScriptSegment
 from app.models.episode import Episode

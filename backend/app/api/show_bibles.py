@@ -137,8 +137,11 @@ async def get_show_bible(project_id: uuid.UUID, user: CurrentUser, db: DB):
 async def generate_show_bible(project_id: uuid.UUID, data: ShowBibleGenerateRequest, user: CurrentUser, db: DB):
     await _verify_project_ownership(project_id, user.id, db)
 
-    from app.pipeline.phase0_setup.show_configurator import generate_show_bible
-    bible_data = await generate_show_bible(data.topic, data.audience_level, data.show_style)
+    from app.pipeline.phase0_setup.show_configurator import generate_show_bible, ShowBibleGenerationError
+    try:
+        bible_data = await generate_show_bible(data.topic, data.audience_level, data.show_style)
+    except ShowBibleGenerationError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
     result = await db.execute(
         select(ShowBible).where(

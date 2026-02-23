@@ -7,7 +7,6 @@ from langgraph.graph import StateGraph, END
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import async_session_factory
 from app.models.generation_run import GenerationRun
 from app.models.source import Source
 from app.models.content_map import ContentMap

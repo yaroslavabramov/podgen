@@ -84,7 +84,7 @@
 
 - [ ] End-to-end tests
 - [ ] Token & Cost Governor enforcement (limits exist in config, enforcement partial)
-- [ ] Error handling + retry strategies
+- [~] Error handling + retry strategies (ingestion DB retries + explicit ShowBible generation errors done; full coverage pending)
 - [~] Generation resume (API endpoint exists, checkpointer not wired)
 - [ ] Structured logging + monitoring
 - [ ] Cost tracking (actual vs estimated)
@@ -125,6 +125,13 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 
 **Round 6:**
 - [x] **P1**: Deep ingestion crash-window / stuck PROCESSING → simplified to enqueue-first-then-mark (idempotent worker guards duplicates), added stale PROCESSING cleanup (>1h) to cron
+
+**Round 7:**
+- [x] **P1**: Celery task registration instability after worker restart → fixed explicit task module loading in `celery_app` (`include=[...]` + explicit imports)
+- [x] **P1**: Loop-bound asyncpg errors in generation workers (`Future/connection attached to a different loop`) → added dedicated worker DB session factory (`worker_db.py`, `NullPool`) and switched `app/pipeline/**` + generation worker sessions to it
+- [x] **P1**: Sources could remain `pending` forever on worker DB errors → `ingest_source` now retries transient SQLAlchemy DB failures and marks source `FAILED` after retry exhaustion
+- [x] **P2**: Silent ShowBible fallback masked LLM/JSON failures → removed fallback defaults, added strict payload validation + explicit `ShowBibleGenerationError`, API returns `502` on `/show-bible/generate`
+- [x] **P2**: Completed sources retained stale historical errors in `metadata.error` → ingestion now clears `metadata.error` on successful completion
 
 Deferred (by design):
 - **P0**: Alembic initial migration — run `alembic revision --autogenerate` when ready to start DB

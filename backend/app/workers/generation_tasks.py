@@ -8,17 +8,18 @@ from app.workers.celery_app import celery_app
 def run_generation_pipeline(self, generation_run_id: str, resume: bool = False):
     """Launch the LangGraph pipeline for podcast generation."""
     import asyncio
+
     asyncio.run(_run_pipeline_async(generation_run_id, resume))
 
 
 async def _run_pipeline_async(generation_run_id: str, resume: bool = False):
     from sqlalchemy import select
-    from app.database import async_session_factory
+    from app.workers.worker_db import worker_session_factory
     from app.models.generation_run import GenerationRun, GenerationStatus
     from app.realtime.publisher import publish_event
     from app.realtime.events import generation_completed, generation_failed
 
-    async with async_session_factory() as db:
+    async with worker_session_factory() as db:
         result = await db.execute(
             select(GenerationRun).where(GenerationRun.id == uuid.UUID(generation_run_id))
         )

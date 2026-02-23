@@ -113,6 +113,18 @@ The podcast generation pipeline has 8 phases orchestrated by LangGraph:
 
 Key principle: **State-by-IDs** — LangGraph state holds only ID references, never full texts. Each node loads from DB and writes back.
 
+## Runtime Reliability Notes (2026-02-23)
+
+- Celery workers use a dedicated DB session factory with `NullPool` (`backend/app/workers/worker_db.py`) to avoid asyncpg event-loop binding issues in worker processes.
+- All pipeline modules (`backend/app/pipeline/**`) use the worker session factory when running inside generation worker tasks.
+- Source ingestion lifecycle is `pending -> enqueued -> processing -> completed|failed`.
+- `ingest_source` retries transient SQLAlchemy DB errors and marks source as `failed` after retry exhaustion (prevents forever-`pending` sources).
+- On successful ingestion, stale `metadata.error` is cleared.
+- ShowBible generation has no silent fallback defaults:
+  - LLM call / JSON parse / payload validation errors raise `ShowBibleGenerationError`
+  - `POST /api/projects/{id}/show-bible/generate` returns `502` with error details
+- After backend worker code changes, restart Celery workers to load updated task modules and runtime behavior.
+
 ## Project Structure
 
 ```

@@ -177,6 +177,7 @@ podgen/
 │   │   ├── workers/
 │   │   │   ├── celery_app.py
 │   │   │   ├── ingestion_tasks.py
+│   │   │   ├── worker_db.py       # Dedicated worker async session factory (NullPool)
 │   │   │   └── generation_tasks.py
 │   │   │
 │   │   └── realtime/
@@ -323,7 +324,7 @@ file_path: String?  (MinIO key)
 title: String?
 published_at: DateTime?
 domain_reliability: Enum(HIGH, MEDIUM, LOW, UNKNOWN)
-ingestion_status: Enum(PENDING, PROCESSING, COMPLETED, FAILED)
+ingestion_status: Enum(PENDING, ENQUEUED, PROCESSING, COMPLETED, FAILED)
 is_temporary: Boolean (default false)  # Fast web evidence — snippet only, not fully ingested
 fully_ingested: Boolean (default false)  # True after deep ingestion pipeline completes
 raw_text_path: String?  (MinIO key — full extracted text stored in object store, NOT in Postgres)
@@ -616,6 +617,9 @@ class PipelineState(TypedDict):
   - adjacency_policy (правила "ухода в сторону")
   - explanation_policy (как объяснять сложное для данной аудитории)
   - format_rules (длина реплик, частота резюме, юмор)
+- Ошибка генерации ShowBible (LLM call fail / invalid JSON / invalid payload shape) не маскируется fallback-конфигом:
+  - выбрасывается `ShowBibleGenerationError`
+  - run/API получает явную ошибку
 - VoiceProfile — пользователь выбирает голоса в UI при настройке генерации:
   - Хранятся в ShowBible.voice_profiles (привязка host_name → voice_id)
   - Для run-scoped ShowBible: voice выбор сохраняется в копии
@@ -688,6 +692,11 @@ class PipelineState(TypedDict):
 ### Фаза 1: Ingestion & Indexing
 
 > Выполняется ДО LangGraph — при загрузке источников пользователем. Каждый Source обрабатывается через Celery task.
+
+**Runtime (Celery worker):**
+- Жизненный цикл статуса ingestion: `PENDING -> ENQUEUED -> PROCESSING -> COMPLETED|FAILED`.
+- Транзиентные SQLAlchemy/DB ошибки в ingestion task ретраятся; при исчерпании ретраев source переводится в `FAILED` с текстом ошибки.
+- После успешного ingestion устаревшее `metadata.error` очищается.
 
 #### 1.1 Cascade Ingestion
 
@@ -1425,6 +1434,7 @@ type WSEvent =
 - `POST /api/projects/{id}/show-bible` — создать/обновить ShowBible {audience_level, show_style, tone, hosts, ...}
 - `GET /api/projects/{id}/show-bible` — текущий ShowBible
 - `POST /api/projects/{id}/show-bible/generate` — LLM-генерация ShowBible из {topic, audience_level, show_style}
+  - при ошибке генерации/валидации возвращает `502` (без fallback-дефолтов)
 
 ### Sources
 - `POST /api/projects/{id}/sources/upload` — upload файла (multipart, tus resumable)

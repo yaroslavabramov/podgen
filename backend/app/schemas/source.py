@@ -22,7 +22,11 @@ class SourceResponse(BaseModel):
     is_temporary: bool
     fully_ingested: bool
     text_preview: str | None
-    metadata_: dict | None = Field(None, alias="metadata")
+    metadata_: dict | None = Field(
+        default=None,
+        validation_alias="metadata_",
+        serialization_alias="metadata",
+    )
     created_at: datetime
 
     model_config = {"from_attributes": True, "populate_by_name": True}

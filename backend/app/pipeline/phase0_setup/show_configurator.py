@@ -6,10 +6,9 @@ import uuid
 
 from sqlalchemy import select
 
-from app.database import async_session_factory
+from app.workers.worker_db import worker_session_factory as async_session_factory
 from app.models.show_bible import ShowBible
 from app.models.generation_run import GenerationRun
-from app.models.project import Project
 from app.pipeline.state import PipelineState
 from app.services.llm import call_sonnet_structured
 from app.realtime.publisher import publish_event, update_generation_progress
@@ -65,6 +64,76 @@ Return valid JSON with this exact schema:
   }
 }"""
 
+VALID_AUDIENCE_LEVELS = {"beginner", "casual", "professional"}
+
+
+class ShowBibleGenerationError(RuntimeError):
+    """Raised when LLM ShowBible generation fails or returns invalid payload."""
+
+
+def _coerce_string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if isinstance(item, (str, int, float))]
+
+
+def _optional_string(value: object, field: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be a string when provided")
+    stripped = value.strip()
+    return stripped or None
+
+
+def _normalize_show_bible_payload(payload: dict) -> dict:
+    audience_raw = payload.get("audience_profile")
+    if not isinstance(audience_raw, dict):
+        raise ValueError("audience_profile must be an object")
+    audience = audience_raw
+
+    level_raw = audience.get("level")
+    if not isinstance(level_raw, str) or level_raw not in VALID_AUDIENCE_LEVELS:
+        raise ValueError(f"audience_profile.level must be one of {sorted(VALID_AUDIENCE_LEVELS)}")
+    level = level_raw
+    knows = _coerce_string_list(audience.get("knows") or audience.get("assumed_knowledge"))
+    explain = _coerce_string_list(audience.get("explain") or audience.get("needs_explanation"))
+
+    tone_and_mood = payload.get("tone_and_mood")
+    if not isinstance(tone_and_mood, str) or not tone_and_mood.strip():
+        raise ValueError("tone_and_mood must be a non-empty string")
+    hosts = payload.get("hosts")
+    if not isinstance(hosts, list) or len(hosts) < 2:
+        raise ValueError("hosts must be an array with at least 2 items")
+    voice_profiles = payload.get("voice_profiles")
+    if voice_profiles is None:
+        voice_profiles = []
+    if not isinstance(voice_profiles, list):
+        raise ValueError("voice_profiles must be an array")
+    forbidden = payload.get("forbidden_phrases")
+    forbidden_phrases = _coerce_string_list(forbidden)
+    if not forbidden_phrases:
+        raise ValueError("forbidden_phrases must be a non-empty array of strings")
+    format_rules = payload.get("format_rules")
+    if not isinstance(format_rules, dict):
+        raise ValueError("format_rules must be an object")
+
+    return {
+        "audience_profile": {
+            "level": level,
+            "knows": knows,
+            "explain": explain,
+        },
+        "tone_and_mood": tone_and_mood.strip(),
+        "hosts": hosts,
+        "voice_profiles": voice_profiles,
+        "forbidden_phrases": forbidden_phrases,
+        "rigor_policy": _optional_string(payload.get("rigor_policy"), "rigor_policy"),
+        "adjacency_policy": _optional_string(payload.get("adjacency_policy"), "adjacency_policy"),
+        "explanation_policy": _optional_string(payload.get("explanation_policy"), "explanation_policy"),
+        "format_rules": format_rules,
+    }
+
 
 async def generate_show_bible(topic: str, audience_level: str, show_style: str) -> dict:
     """Use Claude Sonnet to generate ShowBible fields from topic parameters."""
@@ -81,13 +150,30 @@ async def generate_show_bible(topic: str, audience_level: str, show_style: str) 
         ),
     })
 
-    raw = await call_sonnet_structured(
-        system=SHOW_BIBLE_SYSTEM,
-        prompt=prompt,
-        max_tokens=4096,
-        temperature=0.7,
-    )
-    return json.loads(raw)
+    try:
+        raw = await call_sonnet_structured(
+            system=SHOW_BIBLE_SYSTEM,
+            prompt=prompt,
+            max_tokens=4096,
+            temperature=0.7,
+        )
+    except Exception as exc:
+        logger.exception("ShowBible generation failed during LLM call")
+        raise ShowBibleGenerationError(f"ShowBible generation failed during LLM call: {exc}") from exc
+
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        logger.error("ShowBible generation returned invalid JSON")
+        raise ShowBibleGenerationError("ShowBible generation returned invalid JSON") from exc
+
+    if not isinstance(parsed, dict):
+        raise ShowBibleGenerationError("ShowBible generation returned non-object JSON payload")
+
+    try:
+        return _normalize_show_bible_payload(parsed)
+    except ValueError as exc:
+        raise ShowBibleGenerationError(f"ShowBible payload validation failed: {exc}") from exc
 
 
 async def setup_show(state: PipelineState) -> dict:
@@ -138,16 +224,16 @@ async def setup_show(state: PipelineState) -> dict:
         # Persist the ShowBible
         bible = ShowBible(
             project_id=uuid.UUID(state["project_id"]),
-            audience_profile=bible_data.get("audience_profile", {}),
-            tone_and_mood=bible_data.get("tone_and_mood", "conversational"),
+            audience_profile=bible_data["audience_profile"],
+            tone_and_mood=bible_data["tone_and_mood"],
             show_style=show_style,
-            hosts=bible_data.get("hosts", []),
-            voice_profiles=bible_data.get("voice_profiles", []),
-            forbidden_phrases=bible_data.get("forbidden_phrases", []),
+            hosts=bible_data["hosts"],
+            voice_profiles=bible_data["voice_profiles"],
+            forbidden_phrases=bible_data["forbidden_phrases"],
             rigor_policy=bible_data.get("rigor_policy"),
             adjacency_policy=bible_data.get("adjacency_policy"),
             explanation_policy=bible_data.get("explanation_policy"),
-            format_rules=bible_data.get("format_rules", {}),
+            format_rules=bible_data["format_rules"],
         )
         db.add(bible)
         await db.flush()
