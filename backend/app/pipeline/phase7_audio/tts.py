@@ -144,7 +144,7 @@ async def _synthesize_line(text: str, speaker: str, voice_map: dict, ssml_hints:
         audio_iter = client.text_to_speech.convert(
             voice_id=voice_id,
             text=text,
-            model_id="eleven_multilingual_v2",
+            model_id="eleven_v3",
             voice_settings={
                 "stability": voice_settings.get("stability", 0.5),
                 "similarity_boost": voice_settings.get("similarity_boost", 0.75),

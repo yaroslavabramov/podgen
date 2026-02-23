@@ -38,7 +38,7 @@ All data queries must filter by `project_id` and/or `user_id`. Never allow cross
 ### Anthropic SDK (`anthropic` Python package)
 - Use `anthropic.AsyncAnthropic` for all calls (async-first).
 - Models are defined as constants in `app/services/llm.py`:
-  - **Sonnet**: `claude-sonnet-4-20250514` — reasoning, writing, verification, planning
+  - **Sonnet**: `claude-sonnet-4-6` — reasoning, writing, verification, planning
   - **Haiku**: `claude-haiku-4-5-20251001` — classification, scoring, extraction, shownotes
 - For structured output, append JSON instruction to system prompt and parse response manually. Do NOT rely on deprecated `response_format` — use the system prompt approach in `call_sonnet_structured` / `call_haiku_structured`.
 - Always set `temperature` explicitly. Use low (0.0–0.3) for extraction/classification, medium (0.3–0.5) for structured reasoning, higher (0.5–0.7) for creative writing.
