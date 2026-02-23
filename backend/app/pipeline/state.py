@@ -13,7 +13,6 @@ class PipelineState(TypedDict):
     content_map_id: str
     manifest_id: str
     evidence_ids: list[str]
-    pending_deep_ingestion_job_ids: list[str]
     claim_ids: list[str]
     conflict_brief_ids: list[str]
     script_segment_ids: list[str]

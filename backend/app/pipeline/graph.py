@@ -157,7 +157,6 @@ async def execute_pipeline(run: GenerationRun, db: AsyncSession, resume: bool = 
         "content_map_id": content_map_id,
         "manifest_id": "",
         "evidence_ids": [],
-        "pending_deep_ingestion_job_ids": [],
         "claim_ids": [],
         "conflict_brief_ids": [],
         "script_segment_ids": [],

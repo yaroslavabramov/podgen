@@ -104,12 +104,12 @@ async def _cleanup_async():
     stale_cutoff = datetime.utcnow() - timedelta(hours=1)
 
     async with async_session_factory() as db:
-        # 1. Reset stale PROCESSING sources (stuck > 1 hour — likely crashed worker)
+        # 1. Reset stale PROCESSING/ENQUEUED sources (stuck > 1 hour — likely crashed worker or lost task)
         stale_result = await db.execute(
             select(Source).where(
-                Source.ingestion_status == IngestionStatus.PROCESSING,
+                Source.ingestion_status.in_([IngestionStatus.PROCESSING, IngestionStatus.ENQUEUED]),
                 Source.is_temporary == True,
-                Source.created_at < stale_cutoff,
+                Source.status_changed_at < stale_cutoff,
             )
         )
         for source in stale_result.scalars().all():

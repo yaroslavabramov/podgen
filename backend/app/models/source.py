@@ -18,6 +18,7 @@ class SourceType(StrEnum):
 
 class IngestionStatus(StrEnum):
     PENDING = "pending"
+    ENQUEUED = "enqueued"      # Celery task dispatched, waiting for worker pickup
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -56,6 +57,7 @@ class Source(Base):
     generation_run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("generation_runs.id", ondelete="SET NULL"))
     is_duplicate_of: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("sources.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    status_changed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     project: Mapped["Project"] = relationship(back_populates="sources")
     chunks: Mapped[list["Chunk"]] = relationship(back_populates="source", cascade="all, delete-orphan")
