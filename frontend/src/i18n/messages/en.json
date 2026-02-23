@@ -105,6 +105,7 @@
   "sourceUploader": {
     "uploading": "Uploading...",
     "uploadingProgress": "Uploading... {pct}%",
+    "uploadFailed": "Upload failed",
     "dropOrBrowse": "Drag & drop files here, or click to browse",
     "browseFiles": "Browse Files",
     "formats": "PDF, Audio, Video",

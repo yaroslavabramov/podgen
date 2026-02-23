@@ -19,11 +19,12 @@ export function SourceUploader({ projectId, onUploaded }: Props) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const uploadFileClassic = async (file: File) => {
     const formData = new FormData();
     formData.append("file", file);
-    await fetch(
+    const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/projects/${projectId}/sources/upload`,
       {
         method: "POST",
@@ -31,6 +32,15 @@ export function SourceUploader({ projectId, onUploaded }: Props) {
         body: formData,
       }
     );
+    if (!response.ok) {
+      let detail = "";
+      try {
+        detail = await response.text();
+      } catch {
+        // Ignore body read errors.
+      }
+      throw new Error(detail || `Upload failed (${response.status})`);
+    }
   };
 
   const uploadFileTus = (file: File) => {
@@ -75,6 +85,7 @@ export function SourceUploader({ projectId, onUploaded }: Props) {
   const handleFileUpload = async (files: FileList) => {
     setUploading(true);
     setUploadProgress(0);
+    setUploadError(null);
     try {
       for (const file of Array.from(files)) {
         try {
@@ -86,6 +97,9 @@ export function SourceUploader({ projectId, onUploaded }: Props) {
         }
       }
       onUploaded();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t("uploadFailed");
+      setUploadError(message);
     } finally {
       setUploading(false);
       setUploadProgress(null);
@@ -143,6 +157,9 @@ export function SourceUploader({ projectId, onUploaded }: Props) {
           <p className="text-xs text-muted-foreground mt-2">{t("formats")}</p>
         </CardContent>
       </Card>
+      {uploadError && (
+        <p className="text-sm text-destructive">{uploadError}</p>
+      )}
 
       <form onSubmit={handleUrlAdd} className="flex gap-3">
         <Input

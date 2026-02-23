@@ -105,6 +105,7 @@
   "sourceUploader": {
     "uploading": "Загрузка...",
     "uploadingProgress": "Загрузка... {pct}%",
+    "uploadFailed": "Ошибка загрузки",
     "dropOrBrowse": "Перетащите файлы или выберите их вручную",
     "browseFiles": "Выбрать файлы",
     "formats": "PDF, Аудио, Видео",

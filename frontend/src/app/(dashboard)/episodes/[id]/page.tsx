@@ -45,7 +45,11 @@ export default function EpisodeDetailPage() {
         </div>
 
         {episode.audio_file_path && (
-          <EpisodePlayer episodeId={episode.id} transcript={episode.transcript_json || []} />
+          <EpisodePlayer
+            episodeId={episode.id}
+            transcript={episode.transcript_json || []}
+            durationSeconds={episode.duration_seconds}
+          />
         )}
 
         {episode.transcript_json && (

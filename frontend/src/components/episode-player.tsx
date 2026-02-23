@@ -16,9 +16,32 @@ interface TranscriptEntry {
 interface Props {
   episodeId: string;
   transcript: TranscriptEntry[];
+  durationSeconds: number;
 }
 
-export function EpisodePlayer({ episodeId, transcript }: Props) {
+function buildTranscriptPeaks(transcript: TranscriptEntry[], durationMs: number, bins = 320): number[] {
+  const safeDuration = Math.max(durationMs, 1);
+  const peaks = Array.from({ length: bins }, () => 0.05);
+
+  if (transcript.length === 0) return peaks;
+
+  for (const line of transcript) {
+    const start = Math.max(0, Math.min(safeDuration, line.start_ms));
+    const end = Math.max(start + 1, Math.min(safeDuration, line.end_ms));
+    const textWeight = Math.min(1, 0.2 + (line.text?.length || 0) / 240);
+    const startBin = Math.floor((start / safeDuration) * bins);
+    const endBin = Math.max(startBin, Math.floor((end / safeDuration) * bins));
+    for (let i = startBin; i <= endBin && i < bins; i += 1) {
+      peaks[i] = Math.max(peaks[i], textWeight);
+    }
+  }
+
+  const maxPeak = Math.max(...peaks);
+  if (maxPeak <= 0) return peaks;
+  return peaks.map((p) => Math.max(0.03, Math.min(1, p / maxPeak)));
+}
+
+export function EpisodePlayer({ episodeId, transcript, durationSeconds }: Props) {
   const t = useTranslations("episodePlayer");
   const waveformRef = useRef<HTMLDivElement>(null);
   const wavesurferRef = useRef<WaveSurfer | null>(null);
@@ -28,15 +51,60 @@ export function EpisodePlayer({ episodeId, transcript }: Props) {
   const [loadingAudio, setLoadingAudio] = useState(true);
   const [audioError, setAudioError] = useState<string | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
 
-  const audioUrl = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/episodes/${episodeId}/audio`;
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const playbackUrlApi = `${apiBase}/api/episodes/${episodeId}/audio-url`;
+  const transcriptMaxEndMs = transcript.reduce((max, row) => Math.max(max, row.end_ms), 0);
+  const estimatedDurationMs = Math.max(durationSeconds * 1000, transcriptMaxEndMs, 1);
 
   useEffect(() => {
     let cancelled = false;
-    let objectUrl: string | null = null;
     setLoadingAudio(true);
     setAudioError(null);
+    setPlaybackUrl(null);
     setDownloadUrl(null);
+
+    async function fetchPlaybackUrl() {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) throw new Error(t("missingAuth"));
+
+        const response = await fetch(playbackUrlApi, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) throw new Error(t("failedLoad"));
+
+        const data = await response.json() as { url?: string };
+        if (!data.url) throw new Error(t("failedLoad"));
+        if (cancelled) return;
+
+        const absoluteUrl = data.url.startsWith("http")
+          ? data.url
+          : `${apiBase}${data.url}`;
+        setPlaybackUrl(absoluteUrl);
+        setDownloadUrl(absoluteUrl);
+      } catch (err) {
+        if (!cancelled) {
+          const message = err instanceof Error ? err.message : t("failedInit");
+          setAudioError(message);
+          setLoadingAudio(false);
+        }
+      }
+    }
+
+    fetchPlaybackUrl();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBase, playbackUrlApi, t]);
+
+  useEffect(() => {
+    if (!playbackUrl) return;
+    const streamUrl = playbackUrl;
+
+    let cancelled = false;
     setCurrentTime(0);
     setDuration(0);
     setPlaying(false);
@@ -47,30 +115,17 @@ export function EpisodePlayer({ episodeId, transcript }: Props) {
       container.innerHTML = "";
 
       try {
-        const token = localStorage.getItem("token");
-        if (!token) throw new Error(t("missingAuth"));
-
-        const response = await fetch(audioUrl, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!response.ok) throw new Error(t("failedLoad"));
-
-        const blob = await response.blob();
-        if (cancelled) return;
-
-        objectUrl = URL.createObjectURL(blob);
-        setDownloadUrl(objectUrl);
-
         const module = await import("wavesurfer.js");
         if (cancelled || !waveformRef.current) return;
 
         const rootStyles = getComputedStyle(document.documentElement);
         const waveColor = rootStyles.getPropertyValue("--color-muted-foreground").trim() || "#9ca3af";
         const progressColor = rootStyles.getPropertyValue("--color-primary").trim() || "#6d28d9";
+        const peaks = buildTranscriptPeaks(transcript, estimatedDurationMs);
 
         const ws = module.default.create({
           container: waveformRef.current,
-          url: objectUrl,
+          url: streamUrl,
           waveColor,
           progressColor,
           cursorColor: progressColor,
@@ -80,6 +135,9 @@ export function EpisodePlayer({ episodeId, transcript }: Props) {
           barGap: 2,
           barRadius: 4,
           dragToSeek: true,
+          backend: "MediaElement",
+          peaks: [peaks],
+          duration: estimatedDurationMs / 1000,
         });
 
         wavesurferRef.current = ws;
@@ -95,6 +153,10 @@ export function EpisodePlayer({ episodeId, transcript }: Props) {
         ws.on("finish", () => {
           setPlaying(false);
           setCurrentTime(ws.getDuration() * 1000);
+        });
+        ws.on("error", (err: Error) => {
+          setAudioError(err.message || t("failedInit"));
+          setLoadingAudio(false);
         });
       } catch (err) {
         if (!cancelled) {
@@ -114,9 +176,8 @@ export function EpisodePlayer({ episodeId, transcript }: Props) {
         ws.destroy();
         wavesurferRef.current = null;
       }
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [audioUrl]);
+  }, [estimatedDurationMs, playbackUrl, t, transcript]);
 
   const togglePlay = () => {
     const ws = wavesurferRef.current;
@@ -159,7 +220,7 @@ export function EpisodePlayer({ episodeId, transcript }: Props) {
           <span className="text-xs text-muted-foreground whitespace-nowrap">
             {formatTime(currentTime)} / {formatTime(duration)}
           </span>
-          {downloadUrl && (
+          {downloadUrl && !audioError && (
             <a href={downloadUrl} download={`episode-${episodeId}.mp3`}>
               <Button variant="ghost" size="sm">{t("download")}</Button>
             </a>

@@ -1,16 +1,20 @@
 import uuid
+from datetime import datetime, timedelta, timezone
 
+import jwt
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DB
+from app.config import settings
 from app.models.episode import Episode
 from app.models.project import Project
 from app.schemas.episode import EpisodeResponse, EpisodeListResponse
 from app.services.storage import get_minio_client, download_file
 
 router = APIRouter(prefix="/api/episodes", tags=["episodes"])
+PLAYBACK_TOKEN_TTL_MINUTES = 60
 
 
 @router.get("", response_model=EpisodeListResponse)
@@ -36,17 +40,39 @@ async def get_episode(episode_id: uuid.UUID, user: CurrentUser, db: DB):
 @router.get("/{episode_id}/audio")
 async def stream_audio(episode_id: uuid.UUID, user: CurrentUser, db: DB):
     episode = await _get_user_episode(episode_id, user.id, db)
+    return _stream_episode_audio_response(episode, episode_id)
+
+
+@router.get("/{episode_id}/audio-url")
+async def get_streamable_audio_url(episode_id: uuid.UUID, user: CurrentUser, db: DB):
+    episode = await _get_user_episode(episode_id, user.id, db)
     if not episode.audio_file_path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Audio not available")
 
-    client = get_minio_client()
-    data = download_file(client, episode.audio_file_path)
+    token = _create_playback_token(user.id, episode_id)
+    return {
+        "url": f"/api/episodes/{episode_id}/audio-public?token={token}",
+        "expires_in_seconds": PLAYBACK_TOKEN_TTL_MINUTES * 60,
+    }
 
-    import io
-    return StreamingResponse(io.BytesIO(data), media_type="audio/mpeg", headers={
-        "Content-Disposition": f'inline; filename="episode_{episode_id}.mp3"',
-        "Content-Length": str(len(data)),
-    })
+
+@router.get("/{episode_id}/audio-public")
+async def stream_audio_public(episode_id: uuid.UUID, token: str, db: DB):
+    payload = _decode_playback_token(token)
+    if payload.get("episode_id") != str(episode_id):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid playback token")
+
+    user_id_raw = payload.get("sub")
+    if not isinstance(user_id_raw, str):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid playback token")
+
+    try:
+        user_id = uuid.UUID(user_id_raw)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid playback token")
+
+    episode = await _get_user_episode(episode_id, user_id, db)
+    return _stream_episode_audio_response(episode, episode_id)
 
 
 @router.get("/{episode_id}/transcript")
@@ -77,3 +103,38 @@ async def _get_user_episode(episode_id: uuid.UUID, user_id: uuid.UUID, db) -> Ep
     if episode is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Episode not found")
     return episode
+
+
+def _stream_episode_audio_response(episode: Episode, episode_id: uuid.UUID) -> StreamingResponse:
+    if not episode.audio_file_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Audio not available")
+
+    client = get_minio_client()
+    data = download_file(client, episode.audio_file_path)
+
+    import io
+    return StreamingResponse(io.BytesIO(data), media_type="audio/mpeg", headers={
+        "Content-Disposition": f'inline; filename="episode_{episode_id}.mp3"',
+        "Content-Length": str(len(data)),
+    })
+
+
+def _create_playback_token(user_id: uuid.UUID, episode_id: uuid.UUID) -> str:
+    payload = {
+        "sub": str(user_id),
+        "episode_id": str(episode_id),
+        "scope": "episode_audio",
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=PLAYBACK_TOKEN_TTL_MINUTES),
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+
+def _decode_playback_token(token: str) -> dict:
+    try:
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid playback token")
+
+    if payload.get("scope") != "episode_audio":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid playback token")
+    return payload

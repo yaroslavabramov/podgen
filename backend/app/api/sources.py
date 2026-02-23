@@ -1,8 +1,10 @@
 import uuid
 import base64
 import binascii
+import fcntl
 import json
 import tempfile
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -144,8 +146,9 @@ async def create_resumable_upload(project_id: uuid.UUID, request: Request, user:
 @router.head("/projects/{project_id}/sources/upload/resumable/{upload_id}")
 async def head_resumable_upload(project_id: uuid.UUID, upload_id: uuid.UUID, user: CurrentUser, db: DB):
     await _verify_project_ownership(project_id, user.id, db)
-    meta = _load_tus_meta(upload_id)
-    _verify_tus_meta_access(meta, project_id, user.id)
+    with _tus_upload_lock(upload_id):
+        meta = _load_tus_meta(upload_id)
+        _verify_tus_meta_access(meta, project_id, user.id)
 
     return Response(
         status_code=status.HTTP_204_NO_CONTENT,
@@ -165,54 +168,75 @@ async def patch_resumable_upload(project_id: uuid.UUID, upload_id: uuid.UUID, re
     if content_type != "application/offset+octet-stream":
         raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Content-Type must be application/offset+octet-stream")
 
-    meta = _load_tus_meta(upload_id)
-    _verify_tus_meta_access(meta, project_id, user.id)
-
-    current_offset = int(meta["offset"])
-    expected_offset = _parse_upload_offset(request.headers.get("Upload-Offset"))
-    if expected_offset != current_offset:
-        return Response(
-            status_code=status.HTTP_409_CONFLICT,
-            headers=_tus_headers({"Upload-Offset": str(current_offset)}),
-        )
-
     chunk = await request.body()
-    upload_length = int(meta["upload_length"])
-    new_offset = current_offset + len(chunk)
-    if new_offset > upload_length:
-        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Chunk exceeds upload length")
 
-    temp_path = Path(meta["temp_path"])
-    if not temp_path.exists():
-        raise HTTPException(status_code=status.HTTP_410_GONE, detail="Upload state expired")
+    with _tus_upload_lock(upload_id):
+        meta = _load_tus_meta(upload_id)
+        _verify_tus_meta_access(meta, project_id, user.id)
 
-    if len(chunk) > 0:
-        with temp_path.open("r+b") as f:
-            f.seek(current_offset)
-            f.write(chunk)
+        upload_length = int(meta["upload_length"])
+        current_offset = int(meta["offset"])
 
-    meta["offset"] = new_offset
-    meta["updated_at"] = _utcnow_iso()
+        if meta.get("completed", False):
+            return Response(
+                status_code=status.HTTP_204_NO_CONTENT,
+                headers=_tus_headers({
+                    "Upload-Offset": str(current_offset),
+                    "Upload-Length": str(upload_length),
+                }),
+            )
 
-    if new_offset == upload_length and not meta.get("completed", False):
-        source = await _finalize_resumable_upload(meta, db)
-        meta["completed"] = True
-        meta["source_id"] = str(source.id)
+        expected_offset = _parse_upload_offset(request.headers.get("Upload-Offset"))
+        if expected_offset != current_offset:
+            return Response(
+                status_code=status.HTTP_409_CONFLICT,
+                headers=_tus_headers({"Upload-Offset": str(current_offset)}),
+            )
+
+        new_offset = current_offset + len(chunk)
+        if new_offset > upload_length:
+            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Chunk exceeds upload length")
+
+        temp_path = Path(meta["temp_path"])
+        if not temp_path.exists():
+            raise HTTPException(status_code=status.HTTP_410_GONE, detail="Upload state expired")
+
+        if len(chunk) > 0:
+            with temp_path.open("r+b") as f:
+                f.seek(current_offset)
+                f.write(chunk)
+
+        meta["offset"] = new_offset
         meta["updated_at"] = _utcnow_iso()
-        try:
-            temp_path.unlink()
-        except OSError:
-            pass
 
-    _write_tus_meta(upload_id, meta)
+        if new_offset == upload_length and not meta.get("completed", False):
+            # Mark completion atomically before side effects.
+            meta["completed"] = True
+            _write_tus_meta(upload_id, meta)
+            try:
+                source = await _finalize_resumable_upload(meta, db)
+            except Exception:
+                meta["completed"] = False
+                meta["updated_at"] = _utcnow_iso()
+                _write_tus_meta(upload_id, meta)
+                raise
 
-    return Response(
-        status_code=status.HTTP_204_NO_CONTENT,
-        headers=_tus_headers({
-            "Upload-Offset": str(new_offset),
-            "Upload-Length": str(upload_length),
-        }),
-    )
+            meta["source_id"] = str(source.id)
+            meta["updated_at"] = _utcnow_iso()
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
+
+        _write_tus_meta(upload_id, meta)
+
+        return Response(
+            status_code=status.HTTP_204_NO_CONTENT,
+            headers=_tus_headers({
+                "Upload-Offset": str(new_offset),
+                "Upload-Length": str(upload_length),
+            }),
+        )
 
 
 @router.get("/projects/{project_id}/sources", response_model=SourceListResponse)
@@ -280,7 +304,10 @@ def _tus_file_path(upload_id: uuid.UUID) -> Path:
 
 def _write_tus_meta(upload_id: uuid.UUID, payload: dict) -> None:
     _ensure_tus_dirs()
-    _tus_meta_path(upload_id).write_text(json.dumps(payload), encoding="utf-8")
+    meta_path = _tus_meta_path(upload_id)
+    tmp_path = meta_path.with_suffix(".tmp")
+    tmp_path.write_text(json.dumps(payload), encoding="utf-8")
+    tmp_path.replace(meta_path)
 
 
 def _load_tus_meta(upload_id: uuid.UUID) -> dict:
@@ -288,6 +315,18 @@ def _load_tus_meta(upload_id: uuid.UUID) -> dict:
     if not path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Upload not found")
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+@contextmanager
+def _tus_upload_lock(upload_id: uuid.UUID):
+    _ensure_tus_dirs()
+    lock_path = TUS_META_ROOT / f"{upload_id}.lock"
+    with lock_path.open("a+b") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def _verify_tus_meta_access(meta: dict, project_id: uuid.UUID, user_id: uuid.UUID) -> None:
