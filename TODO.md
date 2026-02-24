@@ -230,8 +230,8 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 **Round 27 (scout content-map structure upgrade):**
 - [x] **P1**: Replaced flat chunk summaries with source-level scout summaries (`source`, `url`, `published_at`, `total_tokens`, `chunk_count`, `section_count`, `structure_depth`, `sections[]`)
 - [x] **P1**: Added lead extraction per section (first informative sentence) instead of `chunk.content[:200]`
-- [x] **P1**: Added lightweight term hints (TF on headings/leads) and cross-source heading clusters for duplicate-theme compression
-- [x] **P1**: Updated scout Haiku prompt/input payload to source-level format + hints and added unit tests for summary aggregation/lead/terms/clusters
+- [x] **P1**: Added cross-source heading clusters for duplicate-theme compression
+- [x] **P1**: Updated scout Haiku prompt/input payload to source-level format and added unit tests for summary aggregation/lead/clusters
 
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)

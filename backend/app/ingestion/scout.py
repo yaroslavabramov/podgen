@@ -4,7 +4,6 @@ import json
 import logging
 import re
 import uuid
-from collections import Counter
 from datetime import datetime
 from typing import Any
 
@@ -26,30 +25,14 @@ _MAX_SOURCE_SUMMARIES = 80
 _MAX_SECTIONS_PER_SOURCE = 12
 # Max chars for section lead.
 _MAX_LEAD_CHARS = 260
-# Top-N term hints injected into prompt.
-_MAX_TERM_HINTS = 40
 _MAX_HEADING_CLUSTERS = 40
-_MIN_TERM_LEN = 3
-_TERM_RE = re.compile(r"[A-Za-zА-Яа-я][A-Za-zА-Яа-я0-9\-]{2,}")
-
-_STOPWORDS = {
-    # English
-    "the", "and", "for", "with", "that", "this", "from", "into", "about", "what", "when", "where", "which",
-    "were", "been", "have", "has", "had", "will", "would", "their", "there", "than", "then", "also", "such",
-    "only", "over", "under", "after", "before", "between", "through", "during", "because", "while", "your",
-    "ours", "ourselves", "they", "them", "its", "our", "you", "are", "was", "is", "of", "to", "in", "on",
-    # Russian
-    "это", "как", "что", "для", "или", "при", "без", "под", "над", "после", "перед", "между", "если", "когда",
-    "где", "чем", "также", "только", "который", "которые", "было", "были", "есть", "был", "она", "они", "его",
-    "её", "их", "мы", "вы", "ты", "на", "по", "из", "в", "во", "и", "а", "но", "от", "до", "за", "не", "да",
-}
 
 
 async def build_content_map(project_id: str, db: AsyncSession) -> str:
     """Build a ContentMap from all project chunks.
 
     Aggregates source-level structure (sections + leads), coverage signals, and
-    term hints from chunk data. Uses Haiku structured output to produce the map.
+    heading clusters from chunk data. Uses Haiku structured output to produce the map.
 
     Returns:
         The content_map_id (UUID string) of the newly created ContentMap.
@@ -103,13 +86,11 @@ async def build_content_map(project_id: str, db: AsyncSession) -> str:
                     inputs={"rows_count": len(rows), "max_sources": _MAX_SOURCE_SUMMARIES},
                 ) as summaries_run:
                     source_summaries = _build_source_summaries(rows)
-                    term_hints = _extract_term_hints(source_summaries, top_n=_MAX_TERM_HINTS)
                     heading_clusters = _build_heading_clusters(source_summaries, top_n=_MAX_HEADING_CLUSTERS)
                     safe_set_run(
                         summaries_run,
                         outputs={
                             "source_summary_count": len(source_summaries),
-                            "term_hint_count": len(term_hints),
                             "heading_cluster_count": len(heading_clusters),
                             "truncated_sources": len({str(row[1]) for row in rows}) > _MAX_SOURCE_SUMMARIES,
                         },
@@ -127,11 +108,10 @@ async def build_content_map(project_id: str, db: AsyncSession) -> str:
                     run_type="chain",
                     inputs={
                         "source_summary_count": len(source_summaries),
-                        "term_hint_count": len(term_hints),
                         "heading_cluster_count": len(heading_clusters),
                     },
                 ) as extract_run:
-                    map_json = await _extract_content_map(source_summaries, term_hints, heading_clusters)
+                    map_json = await _extract_content_map(source_summaries, heading_clusters)
                     safe_set_run(
                         extract_run,
                         outputs={
@@ -165,7 +145,6 @@ async def build_content_map(project_id: str, db: AsyncSession) -> str:
                         "status": "ok",
                         "content_map_id": content_map_id,
                         "source_summary_count": len(source_summaries),
-                        "term_hint_count": len(term_hints),
                         "heading_cluster_count": len(heading_clusters),
                     },
                 )
@@ -284,31 +263,6 @@ def _extract_lead(text: str) -> str:
     return normalized[:_MAX_LEAD_CHARS]
 
 
-def _extract_term_hints(source_summaries: list[dict], top_n: int = _MAX_TERM_HINTS) -> list[dict]:
-    """Compute lightweight term-frequency hints from headings and leads."""
-    counter: Counter[str] = Counter()
-
-    for source in source_summaries:
-        for section in source.get("sections", []):
-            headings = section.get("headings", [])
-            if isinstance(headings, list):
-                for heading in headings:
-                    if isinstance(heading, str):
-                        for token in _TERM_RE.findall(heading):
-                            term = token.lower()
-                            if len(term) >= _MIN_TERM_LEN and term not in _STOPWORDS:
-                                counter[term] += 2  # headings are stronger signals
-
-            lead = section.get("lead")
-            if isinstance(lead, str):
-                for token in _TERM_RE.findall(lead):
-                    term = token.lower()
-                    if len(term) >= _MIN_TERM_LEN and term not in _STOPWORDS:
-                        counter[term] += 1
-
-    return [{"term": term, "mentions": mentions} for term, mentions in counter.most_common(top_n)]
-
-
 def _build_heading_clusters(source_summaries: list[dict], top_n: int = _MAX_HEADING_CLUSTERS) -> list[dict]:
     """Build lightweight cross-source heading clusters to reduce duplicate themes."""
     cluster_map: dict[str, dict[str, Any]] = {}
@@ -356,7 +310,6 @@ def _build_heading_clusters(source_summaries: list[dict], top_n: int = _MAX_HEAD
 
 async def _extract_content_map(
     source_summaries: list[dict],
-    term_hints: list[dict],
     heading_clusters: list[dict],
 ) -> dict:
     """Use Haiku to extract a structured content map from source-level summaries."""
@@ -365,13 +318,11 @@ async def _extract_content_map(
         run_type="chain",
         inputs={
             "source_summary_count": len(source_summaries),
-            "term_hint_count": len(term_hints),
             "heading_cluster_count": len(heading_clusters),
         },
     ) as extract_run:
         payload = {
             "source_summaries": source_summaries,
-            "term_hints": term_hints,
             "heading_clusters": heading_clusters,
         }
         payload_json = json.dumps(payload, ensure_ascii=False)
@@ -384,7 +335,6 @@ async def _extract_content_map(
             source_summaries = source_summaries[:trimmed_count]
             payload = {
                 "source_summaries": source_summaries,
-                "term_hints": term_hints,
                 "heading_clusters": heading_clusters,
             }
             payload_json = json.dumps(payload, ensure_ascii=False)
@@ -410,7 +360,6 @@ async def _extract_content_map(
             "- source_coverage: Which sources cover which topics.\n"
             "- gaps: Potential information gaps that might need more sources.\n"
             "- summary: A 2-3 sentence overview of the project's content landscape.\n"
-            "- Use term_hints only as hints; do not hallucinate unsupported terms."
             "- Use heading_clusters to merge duplicate section names across sources."
         )
 

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from app.ingestion.scout import _build_heading_clusters, _build_source_summaries, _extract_lead, _extract_term_hints
+from app.ingestion.scout import _build_heading_clusters, _build_source_summaries, _extract_lead
 from app.models.chunk import Chunk
 
 
@@ -96,32 +96,6 @@ def test_extract_lead_prefers_informative_sentence() -> None:
 
     assert lead.startswith("This is a longer and more informative sentence")
     assert len(lead) <= 260
-
-
-def test_extract_term_hints_from_headings_and_leads() -> None:
-    source_summaries = [
-        {
-            "sections": [
-                {
-                    "headings": ["Currency Board Mechanism"],
-                    "lead": "Currency board stability depends on reserve backing.",
-                    "token_count": 120,
-                },
-                {
-                    "headings": ["Hong Kong Dollar"],
-                    "lead": "Dollar peg stability remains central to policy.",
-                    "token_count": 80,
-                },
-            ]
-        }
-    ]
-
-    term_hints = _extract_term_hints(source_summaries, top_n=10)
-
-    terms = {item["term"] for item in term_hints}
-    assert "currency" in terms
-    assert "stability" in terms
-    assert "the" not in terms
 
 
 def test_build_heading_clusters_deduplicates_across_sources() -> None:
