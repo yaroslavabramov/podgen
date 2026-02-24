@@ -54,19 +54,32 @@ def _check_ssrf(url: str) -> None:
                 )
 
 
+def _origin(url: str) -> str:
+    """Return scheme://host[:port] for origin comparison."""
+    p = urlparse(url)
+    port_suffix = f":{p.port}" if p.port and p.port not in (80, 443) else ""
+    return f"{p.scheme}://{p.hostname}{port_suffix}"
+
+
 async def _safe_fetch(
     url: str,
     *,
     headers: dict[str, str] | None = None,
 ) -> httpx.Response:
-    """Fetch URL following redirects with SSRF validation on every hop."""
+    """Fetch URL following redirects with SSRF validation on every hop.
+
+    Sensitive headers (Authorization) are stripped when redirecting cross-origin.
+    """
+    current_headers = dict(headers) if headers else {}
+    initial_origin = _origin(url)
+
     async with httpx.AsyncClient(
         timeout=_TIMEOUT,
         follow_redirects=False,
     ) as client:
         current_url = url
         for _ in range(_MAX_REDIRECTS):
-            response = await client.get(current_url, headers=headers or {})
+            response = await client.get(current_url, headers=current_headers)
             if response.is_redirect:
                 location = response.headers.get("location")
                 if not location:
@@ -74,6 +87,10 @@ async def _safe_fetch(
                 # Resolve relative redirects
                 current_url = str(response.next_request.url) if response.next_request else location
                 _check_ssrf(current_url)
+                # Drop auth headers on cross-origin redirect
+                if _origin(current_url) != initial_origin:
+                    current_headers.pop("Authorization", None)
+                    current_headers.pop("authorization", None)
                 continue
             response.raise_for_status()
             content_length = len(response.content)
