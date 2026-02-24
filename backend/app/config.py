@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     openai_api_key: str = ""
 
+    # LangSmith tracing
+    langsmith_tracing: bool = False
+    langsmith_project: str = "podgen"
+    langsmith_api_key: str = ""
+    langsmith_endpoint: str = "https://api.smith.langchain.com"
+    langsmith_base_tags: str = "podgen,backend"
+    langsmith_sampling_rate: float = 1.0
+
     # ElevenLabs
     elevenlabs_api_key: str = ""
 

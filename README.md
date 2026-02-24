@@ -180,9 +180,21 @@ See `.env.example` for all required variables. Key ones:
 - `TAVILY_API_KEY` — Web search
 - `JINA_API_KEY` — Web content extraction
 - `DEEPGRAM_API_KEY` — Audio/video transcription
+- `LANGSMITH_TRACING` / `LANGSMITH_API_KEY` / `LANGSMITH_PROJECT` — optional end-to-end tracing for workers, LangGraph nodes, LLM calls, and research tools
+
+## LangSmith Tracing
+
+1. Set `LANGSMITH_TRACING=true`, `LANGSMITH_API_KEY`, and (optionally) `LANGSMITH_PROJECT`.
+2. Restart API and Celery workers.
+3. Open your LangSmith project and inspect traces:
+   - root task spans: `worker.run_generation_pipeline`, `worker.ingest_source`, `worker.deep_ingest_url`
+   - pipeline spans: `pipeline.execute`, `pipeline.node.*`
+   - model spans: `llm.call_*`, `llm.get_embeddings` (+ wrapped provider calls)
+   - research/ingestion tool spans: `research.tool.*`, `ingestion.*`
 
 ## Documentation
 
 - **PIPELINE.md** — Detailed pipeline architecture and design decisions
 - **IMPLEMENTATION.md** — Full implementation specification with data models
+- **PIPELINE_IO_MAP.md** — Code-level phase-by-phase I/O map (inputs/outputs/tools/events) + docs-vs-code diff
 - **CLAUDE.md** — AI assistant guidance for working with this codebase

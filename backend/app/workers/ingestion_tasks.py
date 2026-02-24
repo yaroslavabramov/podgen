@@ -6,6 +6,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.workers.celery_app import celery_app
 from app.config import settings
+from app.observability import push_trace_context, safe_set_run, trace_span, tracing_scope
 
 
 @celery_app.task(name="app.workers.ingestion_tasks.ingest_source", bind=True, max_retries=5)
@@ -41,23 +42,48 @@ async def _ingest_source_async(source_id: str) -> bool:
         if source is None:
             return False
 
-        source.ingestion_status = IngestionStatus.PROCESSING
-        await db.commit()
+        trace_ctx = {
+            "component": "worker.ingestion",
+            "source_id": str(source.id),
+            "project_id": str(source.project_id),
+            "generation_run_id": str(source.generation_run_id) if source.generation_run_id else "",
+            "source_type": source.source_type,
+        }
+        with push_trace_context(trace_ctx):
+            with tracing_scope(metadata=trace_ctx, tags=["worker", "ingestion"]):
+                with trace_span(
+                    "worker.ingest_source",
+                    run_type="chain",
+                    inputs={"source_id": source_id},
+                    metadata={"source_type": source.source_type},
+                    tags=["celery-task"],
+                ) as task_run:
+                    source.ingestion_status = IngestionStatus.PROCESSING
+                    await db.commit()
 
-        try:
-            from app.ingestion.router import run_ingestion
-            await run_ingestion(source, db)
+                    try:
+                        from app.ingestion.router import run_ingestion
 
-            source.ingestion_status = IngestionStatus.COMPLETED
-            source.fully_ingested = True
-            if source.metadata_ and isinstance(source.metadata_, dict) and "error" in source.metadata_:
-                source.metadata_ = {k: v for k, v in source.metadata_.items() if k != "error"}
-            await db.commit()
-        except Exception as e:
-            source.ingestion_status = IngestionStatus.FAILED
-            source.metadata_ = {**(source.metadata_ or {}), "error": str(e)}
-            await db.commit()
-            raise
+                        await run_ingestion(source, db)
+
+                        source.ingestion_status = IngestionStatus.COMPLETED
+                        source.fully_ingested = True
+                        if source.metadata_ and isinstance(source.metadata_, dict) and "error" in source.metadata_:
+                            source.metadata_ = {k: v for k, v in source.metadata_.items() if k != "error"}
+                        await db.commit()
+
+                        safe_set_run(
+                            task_run,
+                            outputs={
+                                "status": "completed",
+                                "fully_ingested": source.fully_ingested,
+                            },
+                        )
+                    except Exception as e:
+                        source.ingestion_status = IngestionStatus.FAILED
+                        source.metadata_ = {**(source.metadata_ or {}), "error": str(e)}
+                        await db.commit()
+                        raise
 
     return True
 
@@ -108,24 +134,49 @@ async def _deep_ingest_async(source_id: str, generation_run_id: str):
         if source.ingestion_status in (IngestionStatus.PROCESSING, IngestionStatus.COMPLETED):
             return
 
-        source.ingestion_status = IngestionStatus.PROCESSING
-        await db.commit()
+        trace_ctx = {
+            "component": "worker.deep_ingestion",
+            "source_id": str(source.id),
+            "project_id": str(source.project_id),
+            "generation_run_id": generation_run_id,
+            "source_type": source.source_type,
+        }
+        with push_trace_context(trace_ctx):
+            with tracing_scope(metadata=trace_ctx, tags=["worker", "deep-ingestion"]):
+                with trace_span(
+                    "worker.deep_ingest_url",
+                    run_type="chain",
+                    inputs={"source_id": source_id, "generation_run_id": generation_run_id},
+                    metadata={"source_type": source.source_type},
+                    tags=["celery-task"],
+                ) as task_run:
+                    source.ingestion_status = IngestionStatus.PROCESSING
+                    await db.commit()
 
-        try:
-            from app.ingestion.router import run_ingestion
-            await run_ingestion(source, db)
+                    try:
+                        from app.ingestion.router import run_ingestion
 
-            source.ingestion_status = IngestionStatus.COMPLETED
-            source.is_temporary = False
-            source.fully_ingested = True
-            if source.metadata_ and isinstance(source.metadata_, dict) and "error" in source.metadata_:
-                source.metadata_ = {k: v for k, v in source.metadata_.items() if k != "error"}
-            await db.commit()
+                        await run_ingestion(source, db)
 
-            publish_event(generation_run_id, deep_ingestion_completed(source.title or "Unknown"))
-        except Exception as e:
-            source.ingestion_status = IngestionStatus.FAILED
-            await db.commit()
+                        source.ingestion_status = IngestionStatus.COMPLETED
+                        source.is_temporary = False
+                        source.fully_ingested = True
+                        if source.metadata_ and isinstance(source.metadata_, dict) and "error" in source.metadata_:
+                            source.metadata_ = {k: v for k, v in source.metadata_.items() if k != "error"}
+                        await db.commit()
+
+                        publish_event(generation_run_id, deep_ingestion_completed(source.title or "Unknown"))
+                        safe_set_run(
+                            task_run,
+                            outputs={
+                                "status": "completed",
+                                "source_became_permanent": not source.is_temporary,
+                            },
+                        )
+                    except Exception:
+                        source.ingestion_status = IngestionStatus.FAILED
+                        await db.commit()
+                        raise
 
 
 @celery_app.task(name="app.workers.ingestion_tasks.cleanup_expired_temp_sources")
@@ -137,7 +188,7 @@ def cleanup_expired_temp_sources():
 
 
 async def _cleanup_async():
-    from sqlalchemy import select, delete
+    from sqlalchemy import select
     from app.workers.worker_db import worker_session_factory
     from app.models.source import Source, IngestionStatus
     from app.models.generation_run import GenerationRun, GenerationStatus
@@ -145,31 +196,57 @@ async def _cleanup_async():
     cutoff = datetime.utcnow() - timedelta(days=settings.temp_source_ttl_days)
     stale_cutoff = datetime.utcnow() - timedelta(hours=1)
 
-    async with worker_session_factory() as db:
-        # 1. Reset stale PROCESSING/ENQUEUED sources (stuck > 1 hour — likely crashed worker or lost task)
-        stale_result = await db.execute(
-            select(Source).where(
-                Source.ingestion_status.in_([IngestionStatus.PROCESSING, IngestionStatus.ENQUEUED]),
-                Source.is_temporary == True,
-                Source.status_changed_at < stale_cutoff,
-            )
-        )
-        for source in stale_result.scalars().all():
-            source.ingestion_status = IngestionStatus.PENDING
+    trace_ctx = {"component": "worker.cleanup_temp_sources"}
+    with push_trace_context(trace_ctx):
+        with tracing_scope(metadata=trace_ctx, tags=["worker", "cleanup"]):
+            with trace_span(
+                "worker.cleanup_expired_temp_sources",
+                run_type="chain",
+                inputs={
+                    "temp_source_ttl_days": settings.temp_source_ttl_days,
+                    "stale_cutoff_hours": 1,
+                },
+                tags=["celery-task"],
+            ) as cleanup_run:
+                async with worker_session_factory() as db:
+                    # 1. Reset stale PROCESSING/ENQUEUED sources.
+                    stale_result = await db.execute(
+                        select(Source).where(
+                            Source.ingestion_status.in_([IngestionStatus.PROCESSING, IngestionStatus.ENQUEUED]),
+                            Source.is_temporary,
+                            Source.status_changed_at < stale_cutoff,
+                        )
+                    )
+                    stale_sources = stale_result.scalars().all()
+                    for source in stale_sources:
+                        source.ingestion_status = IngestionStatus.PENDING
 
-        # 2. Delete temp sources whose generation run is done and past TTL
-        result = await db.execute(
-            select(Source)
-            .outerjoin(GenerationRun, Source.generation_run_id == GenerationRun.id)
-            .where(
-                Source.is_temporary == True,
-                Source.created_at < cutoff,
-                (GenerationRun.id == None) |
-                (GenerationRun.status.in_([GenerationStatus.COMPLETED, GenerationStatus.FAILED, GenerationStatus.CANCELLED]))
-            )
-        )
-        expired = result.scalars().all()
-        for source in expired:
-            await db.delete(source)
+                    # 2. Delete temp sources whose generation run is done and past TTL.
+                    result = await db.execute(
+                        select(Source)
+                        .outerjoin(GenerationRun, Source.generation_run_id == GenerationRun.id)
+                        .where(
+                            Source.is_temporary,
+                            Source.created_at < cutoff,
+                            (GenerationRun.id.is_(None))
+                            | (
+                                GenerationRun.status.in_(
+                                    [
+                                        GenerationStatus.COMPLETED,
+                                        GenerationStatus.FAILED,
+                                        GenerationStatus.CANCELLED,
+                                    ]
+                                )
+                            ),
+                        )
+                    )
+                    expired = result.scalars().all()
+                    for source in expired:
+                        await db.delete(source)
 
-        await db.commit()
+                    await db.commit()
+
+                safe_set_run(
+                    cleanup_run,
+                    outputs={"stale_reset_count": len(stale_sources), "deleted_count": len(expired)},
+                )

@@ -2,6 +2,7 @@
 
 import logging
 import uuid
+from functools import wraps
 from typing import Any
 
 from langgraph.errors import EmptyInputError
@@ -32,8 +33,93 @@ from app.pipeline.phase6_writing.writer_revolt import evaluate_and_revolt
 from app.pipeline.phase6_writing.citation_auditor import audit_citations
 from app.pipeline.phase7_audio.tts import generate_audio
 from app.pipeline.phase7_audio.shownotes import build_shownotes
+from app.observability import push_trace_context, safe_set_run, trace_span, tracing_scope
 
 logger = logging.getLogger(__name__)
+
+_NODE_PHASES = {
+    "setup_show": "phase0_setup",
+    "decompose": "phase2_decomposition",
+    "hunt_closed_book": "phase3_research",
+    "research_fast_web": "phase3_research",
+    "build_claims": "phase4_claims",
+    "verify_claims": "phase4_claims",
+    "resolve_conflicts": "phase4_claims",
+    "plan_episode": "phase5_planning",
+    "plan_acts": "phase5_planning",
+    "integrate_acts": "phase5_planning",
+    "write_screenplay": "phase6_writing",
+    "evaluate_and_revolt": "phase6_writing",
+    "audit_citations": "phase6_writing",
+    "generate_audio": "phase7_audio",
+    "build_shownotes": "phase7_audio",
+}
+
+
+def _summarize_state(state: PipelineState) -> dict[str, Any]:
+    return {
+        "generation_run_id": state.get("generation_run_id"),
+        "project_id": state.get("project_id"),
+        "language": state.get("language"),
+        "duration_target": state.get("duration_target"),
+        "current_phase": state.get("current_phase"),
+        "source_count": len(state.get("source_ids", [])),
+        "evidence_count": len(state.get("evidence_ids", [])),
+        "claim_count": len(state.get("claim_ids", [])),
+        "conflict_brief_count": len(state.get("conflict_brief_ids", [])),
+        "script_segment_count": len(state.get("script_segment_ids", [])),
+        "iteration_keys": sorted((state.get("iteration_counts") or {}).keys()),
+        "quality_signal_keys": sorted((state.get("quality_signals") or {}).keys()),
+    }
+
+
+def _summarize_update(update: Any) -> dict[str, Any]:
+    if not isinstance(update, dict):
+        return {"result_type": type(update).__name__}
+
+    summary: dict[str, Any] = {"keys": sorted(update.keys())}
+    for key, value in update.items():
+        if isinstance(value, list):
+            summary[f"{key}_count"] = len(value)
+        elif isinstance(value, dict):
+            summary[f"{key}_keys"] = sorted(value.keys())
+        elif isinstance(value, str):
+            if key.endswith("_id") or key == "current_phase":
+                summary[key] = value
+            else:
+                summary[f"{key}_chars"] = len(value)
+        else:
+            summary[key] = value
+    return summary
+
+
+def _trace_node(node_name: str, node_fn: Any) -> Any:
+    phase = _NODE_PHASES.get(node_name, "unknown")
+
+    @wraps(node_fn)
+    async def _wrapped(state: PipelineState) -> dict:
+        trace_ctx = {
+            "component": "pipeline.node",
+            "phase": phase,
+            "node": node_name,
+            "generation_run_id": state.get("generation_run_id"),
+            "project_id": state.get("project_id"),
+            "language": state.get("language"),
+        }
+        with push_trace_context(trace_ctx):
+            with tracing_scope(metadata=trace_ctx, tags=["pipeline", f"phase:{phase}", f"node:{node_name}"]):
+                with trace_span(
+                    f"pipeline.node.{node_name}",
+                    run_type="chain",
+                    inputs=_summarize_state(state),
+                    metadata={"phase": phase, "node": node_name},
+                    tags=["pipeline-node"],
+                ) as run_tree:
+                    result = await node_fn(state)
+                    safe_set_run(run_tree, outputs=_summarize_update(result))
+                    return result
+
+    return _wrapped
 
 
 def _should_loop_verify(state: PipelineState) -> str:
@@ -62,21 +148,21 @@ def build_graph() -> StateGraph:
     graph = StateGraph(PipelineState)
 
     # Add nodes
-    graph.add_node("setup_show", setup_show)
-    graph.add_node("decompose", decompose)
-    graph.add_node("hunt_closed_book", hunt_closed_book)
-    graph.add_node("research_fast_web", research_fast_web)
-    graph.add_node("build_claims", build_claims)
-    graph.add_node("verify_claims", verify_claims)
-    graph.add_node("resolve_conflicts", resolve_conflicts)
-    graph.add_node("plan_episode", plan_episode)
-    graph.add_node("plan_acts", plan_act)
-    graph.add_node("integrate_acts", integrate_acts)
-    graph.add_node("write_screenplay", write_screenplay)
-    graph.add_node("evaluate_and_revolt", evaluate_and_revolt)
-    graph.add_node("audit_citations", audit_citations)
-    graph.add_node("generate_audio", generate_audio)
-    graph.add_node("build_shownotes", build_shownotes)
+    graph.add_node("setup_show", _trace_node("setup_show", setup_show))
+    graph.add_node("decompose", _trace_node("decompose", decompose))
+    graph.add_node("hunt_closed_book", _trace_node("hunt_closed_book", hunt_closed_book))
+    graph.add_node("research_fast_web", _trace_node("research_fast_web", research_fast_web))
+    graph.add_node("build_claims", _trace_node("build_claims", build_claims))
+    graph.add_node("verify_claims", _trace_node("verify_claims", verify_claims))
+    graph.add_node("resolve_conflicts", _trace_node("resolve_conflicts", resolve_conflicts))
+    graph.add_node("plan_episode", _trace_node("plan_episode", plan_episode))
+    graph.add_node("plan_acts", _trace_node("plan_acts", plan_act))
+    graph.add_node("integrate_acts", _trace_node("integrate_acts", integrate_acts))
+    graph.add_node("write_screenplay", _trace_node("write_screenplay", write_screenplay))
+    graph.add_node("evaluate_and_revolt", _trace_node("evaluate_and_revolt", evaluate_and_revolt))
+    graph.add_node("audit_citations", _trace_node("audit_citations", audit_citations))
+    graph.add_node("generate_audio", _trace_node("generate_audio", generate_audio))
+    graph.add_node("build_shownotes", _trace_node("build_shownotes", build_shownotes))
 
     # Define edges
     graph.set_entry_point("setup_show")
@@ -241,71 +327,106 @@ async def _resolve_episode_id(
 
 async def execute_pipeline(run: GenerationRun, db: AsyncSession, resume: bool = False) -> str:
     """Execute the full pipeline for a generation run. Returns episode_id."""
-    # Get source IDs for project
-    result = await db.execute(
-        select(Source.id).where(
-            Source.project_id == run.project_id,
-            Source.is_temporary.is_(False),
-            Source.ingestion_status == "completed",
-        )
-    )
-    source_ids = [str(row[0]) for row in result.fetchall()]
+    trace_ctx = {
+        "component": "pipeline.execute",
+        "generation_run_id": str(run.id),
+        "project_id": str(run.project_id),
+        "user_id": str(run.user_id),
+        "language": (run.config or {}).get("language", "en"),
+    }
 
-    # Get content map if exists
-    result = await db.execute(
-        select(ContentMap.id).where(ContentMap.project_id == run.project_id).order_by(ContentMap.created_at.desc())
-    )
-    content_map_row = result.first()
-    content_map_id = str(content_map_row[0]) if content_map_row else ""
-
-    initial_state = _build_initial_state(run, source_ids, content_map_id)
-    thread_id = run.langgraph_thread_id or str(run.id)
-    run.langgraph_thread_id = thread_id
-    graph_config = {"configurable": {"thread_id": thread_id}}
-
-    logger.info(
-        "Starting pipeline for generation run %s (resume=%s, thread_id=%s)",
-        run.id,
-        resume,
-        thread_id,
-    )
-    await db.commit()
-
-    try:
-        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-    except ImportError as exc:
-        raise RuntimeError(
-            "LangGraph checkpoint backend requires psycopg with libpq support. "
-            "Install `psycopg[binary]` in backend env and restart worker."
-        ) from exc
-
-    async with AsyncPostgresSaver.from_conn_string(_checkpoint_conn_string()) as checkpointer:
-        await _ensure_checkpointer_schema(checkpointer)
-
-        if resume:
-            saved = await checkpointer.aget_tuple(graph_config)
-            if saved is None:
-                raise RuntimeError(
-                    "Resume is unavailable for this run: checkpoint state not found. Start a new generation run."
+    with push_trace_context(trace_ctx):
+        with tracing_scope(metadata=trace_ctx, tags=["pipeline", "generation"]):
+            with trace_span(
+                "pipeline.execute",
+                run_type="chain",
+                inputs={"generation_run_id": str(run.id), "resume": resume},
+                metadata={
+                    "thread_id": run.langgraph_thread_id or str(run.id),
+                    "has_show_bible": bool(run.show_bible_id),
+                },
+                tags=["pipeline-root"],
+            ) as pipeline_run:
+                # Get source IDs for project
+                result = await db.execute(
+                    select(Source.id).where(
+                        Source.project_id == run.project_id,
+                        Source.is_temporary.is_(False),
+                        Source.ingestion_status == "completed",
+                    )
                 )
+                source_ids = [str(row[0]) for row in result.fetchall()]
 
-        compiled = get_compiled_graph(checkpointer=checkpointer)
-        graph_input = None if resume else initial_state
-        final_state = None
+                # Get content map if exists
+                result = await db.execute(
+                    select(ContentMap.id)
+                    .where(ContentMap.project_id == run.project_id)
+                    .order_by(ContentMap.created_at.desc())
+                )
+                content_map_row = result.first()
+                content_map_id = str(content_map_row[0]) if content_map_row else ""
 
-        try:
-            async for state in compiled.astream(graph_input, config=graph_config):
-                final_state = state
-                if isinstance(state, dict):
-                    for node_output in state.values():
-                        if isinstance(node_output, dict) and node_output.get("current_phase"):
-                            run.current_phase = node_output["current_phase"]
-                            await db.commit()
-        except EmptyInputError as exc:
-            if resume:
-                raise RuntimeError(
-                    "Resume is unavailable for this run: no resumable checkpoint. Start a new generation run."
-                ) from exc
-            raise
+                initial_state = _build_initial_state(run, source_ids, content_map_id)
+                thread_id = run.langgraph_thread_id or str(run.id)
+                run.langgraph_thread_id = thread_id
+                graph_config = {"configurable": {"thread_id": thread_id}}
 
-    return await _resolve_episode_id(run, db, final_state, resume)
+                logger.info(
+                    "Starting pipeline for generation run %s (resume=%s, thread_id=%s)",
+                    run.id,
+                    resume,
+                    thread_id,
+                )
+                await db.commit()
+
+                try:
+                    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+                except ImportError as exc:
+                    raise RuntimeError(
+                        "LangGraph checkpoint backend requires psycopg with libpq support. "
+                        "Install `psycopg[binary]` in backend env and restart worker."
+                    ) from exc
+
+                async with AsyncPostgresSaver.from_conn_string(_checkpoint_conn_string()) as checkpointer:
+                    await _ensure_checkpointer_schema(checkpointer)
+
+                    if resume:
+                        saved = await checkpointer.aget_tuple(graph_config)
+                        if saved is None:
+                            raise RuntimeError(
+                                "Resume is unavailable for this run: checkpoint state not found. "
+                                "Start a new generation run."
+                            )
+
+                    compiled = get_compiled_graph(checkpointer=checkpointer)
+                    graph_input = None if resume else initial_state
+                    final_state = None
+
+                    try:
+                        async for state in compiled.astream(graph_input, config=graph_config):
+                            final_state = state
+                            if isinstance(state, dict):
+                                for node_output in state.values():
+                                    if isinstance(node_output, dict) and node_output.get("current_phase"):
+                                        run.current_phase = node_output["current_phase"]
+                                        await db.commit()
+                    except EmptyInputError as exc:
+                        if resume:
+                            raise RuntimeError(
+                                "Resume is unavailable for this run: no resumable checkpoint. "
+                                "Start a new generation run."
+                            ) from exc
+                        raise
+
+                episode_id = await _resolve_episode_id(run, db, final_state, resume)
+                safe_set_run(
+                    pipeline_run,
+                    outputs={
+                        "episode_id": episode_id,
+                        "source_count": len(source_ids),
+                        "content_map_id": content_map_id,
+                        "thread_id": thread_id,
+                        "resume": resume,
+                    },
+                )
+                return episode_id

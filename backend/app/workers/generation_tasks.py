@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 
+from app.observability import push_trace_context, safe_set_run, trace_span, tracing_scope
 from app.workers.celery_app import celery_app
 
 
@@ -30,29 +31,48 @@ async def _run_pipeline_async(generation_run_id: str, resume: bool = False):
         if run.status == GenerationStatus.CANCELLED:
             return
 
-        if not run.langgraph_thread_id:
-            run.langgraph_thread_id = str(run.id)
+        trace_ctx = {
+            "component": "worker.generation",
+            "generation_run_id": str(run.id),
+            "project_id": str(run.project_id),
+            "user_id": str(run.user_id),
+            "language": (run.config or {}).get("language", "en"),
+        }
 
-        run.status = GenerationStatus.RUNNING
-        run.error_message = None
-        run.started_at = datetime.utcnow()
-        await db.commit()
+        with push_trace_context(trace_ctx):
+            with tracing_scope(metadata=trace_ctx, tags=["worker", "generation"]):
+                with trace_span(
+                    "worker.run_generation_pipeline",
+                    run_type="chain",
+                    inputs={"generation_run_id": generation_run_id, "resume": resume},
+                    metadata={"langgraph_thread_id": run.langgraph_thread_id or str(run.id)},
+                    tags=["celery-task"],
+                ) as task_run:
+                    if not run.langgraph_thread_id:
+                        run.langgraph_thread_id = str(run.id)
 
-        try:
-            from app.pipeline.graph import execute_pipeline
-            episode_id = await execute_pipeline(run, db, resume=resume)
+                    run.status = GenerationStatus.RUNNING
+                    run.error_message = None
+                    run.started_at = datetime.utcnow()
+                    await db.commit()
 
-            run.status = GenerationStatus.COMPLETED
-            run.completed_at = datetime.utcnow()
-            await db.commit()
+                    try:
+                        from app.pipeline.graph import execute_pipeline
 
-            publish_event(generation_run_id, generation_completed(str(episode_id)))
+                        episode_id = await execute_pipeline(run, db, resume=resume)
 
-        except Exception as e:
-            run.status = GenerationStatus.FAILED
-            run.error_message = str(e)
-            run.completed_at = datetime.utcnow()
-            await db.commit()
+                        run.status = GenerationStatus.COMPLETED
+                        run.completed_at = datetime.utcnow()
+                        await db.commit()
 
-            publish_event(generation_run_id, generation_failed(str(e)))
-            raise
+                        publish_event(generation_run_id, generation_completed(str(episode_id)))
+                        safe_set_run(task_run, outputs={"status": "completed", "episode_id": str(episode_id)})
+
+                    except Exception as e:
+                        run.status = GenerationStatus.FAILED
+                        run.error_message = str(e)
+                        run.completed_at = datetime.utcnow()
+                        await db.commit()
+
+                        publish_event(generation_run_id, generation_failed(str(e)))
+                        raise
