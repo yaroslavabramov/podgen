@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select, func
@@ -110,18 +111,23 @@ async def start_generation(project_id: uuid.UUID, data: GenerationCreate, user: 
     )).scalar() or 0
     cost = estimate_cost(data.duration_target, source_count)
 
+    run_config = {
+        "duration_target": data.duration_target,
+        "user_prompt": data.user_prompt,
+        "language": project.language,
+        "voice_a_id": data.voice_a_id,
+        "voice_b_id": data.voice_b_id,
+        "execution_mode": data.execution_mode,
+    }
+    if data.execution_mode == "step":
+        run_config["step_control"] = _initial_step_control()
+
     run = GenerationRun(
         project_id=project_id,
         user_id=user.id,
         show_bible_id=show_bible_id,
         status=GenerationStatus.QUEUED,
-        config={
-            "duration_target": data.duration_target,
-            "user_prompt": data.user_prompt,
-            "language": project.language,
-            "voice_a_id": data.voice_a_id,
-            "voice_b_id": data.voice_b_id,
-        },
+        config=run_config,
         estimated_cost=cost.model_dump(),
     )
     db.add(run)
@@ -136,9 +142,11 @@ async def start_generation(project_id: uuid.UUID, data: GenerationCreate, user: 
             override_bible.generation_run_id = run.id
             await db.flush()
 
-    # Trigger async generation
-    from app.workers.generation_tasks import run_generation_pipeline
-    run_generation_pipeline.delay(str(run.id))
+    # Trigger async generation for full mode only.
+    if data.execution_mode == "full":
+        from app.workers.generation_tasks import run_generation_pipeline
+
+        run_generation_pipeline.delay(str(run.id))
 
     return GenerationRunResponse.model_validate(run)
 
@@ -186,6 +194,11 @@ async def resume_generation(run_id: uuid.UUID, user: CurrentUser, db: DB):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Generation run not found")
     if run.status != GenerationStatus.FAILED:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Can only resume failed runs")
+    if (run.config or {}).get("execution_mode") == "step":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Use step controls for runs started in step mode.",
+        )
     if not run.langgraph_thread_id:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -204,6 +217,47 @@ async def resume_generation(run_id: uuid.UUID, user: CurrentUser, db: DB):
     return GenerationRunResponse.model_validate(run)
 
 
+@router.post("/generations/{run_id}/steps/next", response_model=GenerationRunResponse)
+async def run_next_generation_step(run_id: uuid.UUID, user: CurrentUser, db: DB):
+    return await _enqueue_step_action(run_id, user.id, db, action="next")
+
+
+@router.post("/generations/{run_id}/steps/rerun", response_model=GenerationRunResponse)
+async def rerun_generation_step(run_id: uuid.UUID, user: CurrentUser, db: DB):
+    return await _enqueue_step_action(run_id, user.id, db, action="rerun")
+
+
+@router.post("/generations/{run_id}/steps/stop", response_model=GenerationRunResponse)
+async def stop_generation_step(run_id: uuid.UUID, user: CurrentUser, db: DB):
+    run = await _get_user_run(run_id, user.id, db)
+    step_control = dict(((run.config or {}).get("step_control") or {}))
+
+    if (run.config or {}).get("execution_mode") != "step":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Step stop is available only for runs started in step mode.",
+        )
+
+    queued_action = step_control.get("requested_action")
+    has_queued_action = isinstance(queued_action, str) and bool(queued_action)
+    is_running = run.status == GenerationStatus.RUNNING
+    is_queued_action = run.status == GenerationStatus.QUEUED and has_queued_action
+    if not is_running and not is_queued_action:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No running or queued step action to stop.",
+        )
+
+    if step_control.get("stop_requested"):
+        return GenerationRunResponse.model_validate(run)
+
+    run.error_message = None
+    run.config = _mark_step_stop_requested(run.config)
+    await db.flush()
+    await db.refresh(run)
+    return GenerationRunResponse.model_validate(run)
+
+
 async def _verify_project_ownership(project_id, user_id, db):
     result = await db.execute(select(Project).where(Project.id == project_id, Project.user_id == user_id))
     if result.scalar_one_or_none() is None:
@@ -216,6 +270,115 @@ async def _get_user_project(project_id, user_id, db) -> Project:
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     return project
+
+
+async def _enqueue_step_action(run_id: uuid.UUID, user_id: uuid.UUID, db: DB, action: str) -> GenerationRunResponse:
+    run = await _get_user_run(run_id, user_id, db)
+    step_control = dict(((run.config or {}).get("step_control") or {}))
+
+    if (run.config or {}).get("execution_mode") != "step":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Step actions are available only for runs started in step mode.",
+        )
+    if step_control.get("requested_action"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Another step action is already queued. Wait for it to finish.",
+        )
+    if step_control.get("stop_requested"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Stop requested for current step action. Wait until run is paused.",
+        )
+    if run.status == GenerationStatus.RUNNING:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Generation run is already running")
+    if run.status == GenerationStatus.CANCELLED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot execute step for a cancelled run",
+        )
+    if action == "rerun":
+        has_last_node = isinstance(step_control.get("last_node"), str) and bool(step_control.get("last_node"))
+        has_checkpoint = isinstance(step_control.get("checkpoint_id"), str) and bool(step_control.get("checkpoint_id"))
+        if not bool(step_control.get("can_rerun")) or not has_last_node or not has_checkpoint:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot rerun before at least one completed step. Run next step first.",
+            )
+    if run.status == GenerationStatus.COMPLETED and action != "rerun":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Generation run already completed. Use rerun to re-execute the last step.",
+        )
+
+    run.status = GenerationStatus.QUEUED
+    run.error_message = None
+    run.completed_at = None
+    run.config = _mark_step_action_requested(run.config, action)
+    await db.flush()
+    await db.refresh(run)
+
+    from app.workers.generation_tasks import run_generation_step
+
+    run_generation_step.delay(str(run.id), action=action)
+    return GenerationRunResponse.model_validate(run)
+
+
+async def _get_user_run(run_id: uuid.UUID, user_id: uuid.UUID, db: DB) -> GenerationRun:
+    result = await db.execute(
+        select(GenerationRun)
+        .join(Project, GenerationRun.project_id == Project.id)
+        .where(GenerationRun.id == run_id, Project.user_id == user_id)
+    )
+    run = result.scalar_one_or_none()
+    if run is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Generation run not found")
+    return run
+
+
+def _initial_step_control() -> dict:
+    return {
+        "last_action": None,
+        "last_node": None,
+        "executed_node": None,
+        "next_node": "setup_show",
+        "checkpoint_id": None,
+        "is_complete": False,
+        "can_rerun": False,
+        "requested_action": None,
+        "requested_at": None,
+        "stop_requested": False,
+        "stop_requested_at": None,
+        "stop_acknowledged_at": None,
+        "stop_reason": None,
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+
+
+def _mark_step_action_requested(config: dict | None, action: str) -> dict:
+    merged = dict(config or {})
+    merged["execution_mode"] = "step"
+    step_control = dict(merged.get("step_control") or {})
+    step_control["requested_action"] = action
+    step_control["requested_at"] = datetime.utcnow().isoformat()
+    step_control["stop_requested"] = False
+    step_control["stop_requested_at"] = None
+    step_control["stop_acknowledged_at"] = None
+    step_control["stop_reason"] = None
+    merged["step_control"] = step_control
+    return merged
+
+
+def _mark_step_stop_requested(config: dict | None) -> dict:
+    merged = dict(config or {})
+    merged["execution_mode"] = "step"
+    step_control = dict(merged.get("step_control") or {})
+    step_control["stop_requested"] = True
+    step_control["stop_requested_at"] = datetime.utcnow().isoformat()
+    step_control["stop_reason"] = "user_requested_stop"
+    merged["step_control"] = step_control
+    return merged
 
 
 def _merge_voice_profiles(current_profiles: list, voice_a_id: str | None, voice_b_id: str | None) -> list:

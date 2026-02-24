@@ -44,7 +44,75 @@
 4. `execute_pipeline` строит initial state (только IDs), запускает graph с Postgres-checkpointer.
 5. На выходе валидируется целостность эпизода (audio path, non-empty transcript, duration > 0).
 
-### 2.3 Realtime
+### 2.3 Пошаговый generation runtime (step mode)
+Точки истины:
+- API: `backend/app/api/generations.py:120-315`
+- Worker: `backend/app/workers/generation_tasks.py:17-216`
+- Graph step executor: `backend/app/pipeline/graph.py:369-490`
+
+Flow:
+1. `POST /api/projects/{id}/generate` с `execution_mode="step"`:
+   - создаёт run с `config.execution_mode=step`,
+   - инициализирует `config.step_control`:
+     - `last_action`, `last_node`, `executed_node`, `next_node="setup_show"`,
+     - `checkpoint_id`, `is_complete`, `can_rerun`, `updated_at`.
+   - **не** запускает `run_generation_pipeline`.
+2. Управляющие endpoint-ы:
+   - `POST /api/generations/{run_id}/steps/next`
+   - `POST /api/generations/{run_id}/steps/rerun`
+   - `POST /api/generations/{run_id}/steps/stop`
+3. Для `next/rerun` API:
+   - валидирует ownership/mode/status,
+   - для `rerun` требует precondition: есть completed step (`can_rerun=true`, `last_node`, `checkpoint_id`),
+   - ставит guard `step_control.requested_action` (anti-double-queue),
+   - переводит run в `queued`, чистит ошибку, фиксирует request metadata,
+   - enqueue: `run_generation_step.delay(run_id, action)`.
+4. Для `stop` API:
+   - доступен только при `status=running` или queued action,
+   - ставит `step_control.stop_requested=true`,
+   - не отменяет in-flight HTTP/LLM вызов мгновенно, но останавливает дальнейшие дорогие вызовы на ближайших check-point-ах.
+5. Worker `run_generation_step`:
+   - переводит run в `running`,
+   - выполняет `execute_pipeline_step(run, action)`,
+   - записывает результат в `config.step_control`,
+   - если `completed=true` -> `status=completed` + `generation_completed`,
+   - иначе -> `status=queued` + `generation_paused`,
+   - при stop-сигнале -> `status=queued`, не `failed`, с `generation_paused(stopped=true, reason=...)`.
+6. `execute_pipeline_step` выполняет ровно один node:
+   - `next`:
+     - без checkpoint -> запускает entry node `setup_show`,
+     - с checkpoint -> берёт следующий node из `latest.next`.
+   - `rerun`:
+     - читает state history (`limit=3`),
+     - откатывается к checkpoint "до последнего шага" и запускает тот же node заново.
+   - механизм: `compiled.astream(..., interrupt_after=[executed_node])`.
+   - выход:
+     - `executed_node`, `last_node`, `next_node`,
+     - `checkpoint_id`, `completed`, `episode_id?`.
+7. Какие "тулы" вызываются в шаге:
+   - ровно те, что принадлежат конкретному node (LLM/tools/TTS/etc.),
+   - orchestration layer не добавляет отдельные research tools поверх node logic.
+8. Где проверяется stop-сигнал:
+   - перед запуском node,
+   - перед LLM/embedding вызовами,
+   - перед web/TTS шагами.
+
+I/O контур `step_control` после шага:
+- `last_action`: `next|rerun`
+- `last_node`, `executed_node`, `next_node`
+- `checkpoint_id`
+- `is_complete`
+- `can_rerun`
+- `requested_action/requested_at` сбрасываются в `None`
+- `stop_requested/stop_requested_at` (request), `stop_acknowledged_at` (ack), `stop_reason`
+
+Status transitions (step mode):
+- `queued -> running -> queued` (шаг выполнен, есть `next_node`)
+- `queued -> running -> completed` (последний шаг, `next_node=None`)
+- `running|queued(action) -> queued` (step stop подтверждён)
+- `queued -> running -> failed` (ошибка шага)
+
+### 2.4 Realtime
 - Узлы публикуют события в Redis channel `generation:{run_id}`.
 - WebSocket `/api/ws/generations/{run_id}` читает pub/sub и пушит клиенту.
 
@@ -430,12 +498,23 @@
 - если checkpoint отсутствует -> runtime error.
 - завершение валидируется через `_assert_episode_complete` (`188-200`).
 
+### 7.4 Step-mode checkpoint rewind
+`backend/app/pipeline/graph.py:369-490`
+- `next` использует текущий checkpoint thread и исполняет следующий node.
+- `rerun`:
+  - требует существующий checkpoint,
+  - использует `aget_state_history(..., limit=3)`,
+  - берёт snapshot "до последнего node execution",
+  - выполняет тот же node заново.
+- Для step mode допускается только один `next_node`; если LangGraph вернёт fan-out, кидается runtime error.
+
 ## 8. Realtime и наблюдаемость
 
 ### 8.1 Realtime event bus (Redis + WS)
-- Event schema: `backend/app/realtime/events.py:14-79`.
+- Event schema: `backend/app/realtime/events.py:14-86`.
 - Publish: `backend/app/realtime/publisher.py:18-29`.
 - WS relay + auth/ownership guard: `backend/app/api/ws.py:48-87`.
+- Для step mode ключевое событие: `generation_paused(executed_node, next_node, stopped?, reason?)`.
 
 ### 8.2 LangSmith tracing (code reality)
 - Toggle/config:
@@ -445,6 +524,7 @@
   - `backend/app/observability/tracing.py` (`tracing_scope`, `trace_span`, context propagation, safe fallback, `safe_set_run`)
 - Root spans:
   - generation task: `worker.run_generation_pipeline` (`backend/app/workers/generation_tasks.py`)
+  - generation step task: `worker.run_generation_step` (`backend/app/workers/generation_tasks.py`)
   - ingestion tasks: `worker.ingest_source`, `worker.deep_ingest_url`, `worker.cleanup_expired_temp_sources` (`backend/app/workers/ingestion_tasks.py`)
   - pipeline root: `pipeline.execute` (`backend/app/pipeline/graph.py`)
   - ingestion root: `ingestion.run_ingestion` (`backend/app/ingestion/router.py`)

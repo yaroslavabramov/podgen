@@ -33,6 +33,7 @@ from app.pipeline.phase6_writing.writer_revolt import evaluate_and_revolt
 from app.pipeline.phase6_writing.citation_auditor import audit_citations
 from app.pipeline.phase7_audio.tts import generate_audio
 from app.pipeline.phase7_audio.shownotes import build_shownotes
+from app.pipeline.step_control import assert_step_not_stopped
 from app.observability import push_trace_context, safe_set_run, trace_span, tracing_scope
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,7 @@ _NODE_PHASES = {
     "generate_audio": "phase7_audio",
     "build_shownotes": "phase7_audio",
 }
+_ENTRY_NODE = "setup_show"
 
 
 def _summarize_state(state: PipelineState) -> dict[str, Any]:
@@ -115,6 +117,7 @@ def _trace_node(node_name: str, node_fn: Any) -> Any:
                     metadata={"phase": phase, "node": node_name},
                     tags=["pipeline-node"],
                 ) as run_tree:
+                    await assert_step_not_stopped()
                     result = await node_fn(state)
                     safe_set_run(run_tree, outputs=_summarize_update(result))
                     return result
@@ -214,6 +217,46 @@ def get_compiled_graph(checkpointer: Any | None = None):
 
 def _checkpoint_conn_string() -> str:
     return settings.database_url_sync_resolved
+
+
+def _thread_config(thread_id: str, checkpoint_id: str | None = None) -> dict[str, dict[str, str]]:
+    configurable: dict[str, str] = {"thread_id": thread_id}
+    if checkpoint_id:
+        configurable["checkpoint_id"] = checkpoint_id
+    return {"configurable": configurable}
+
+
+def _checkpoint_id_from_config(config: dict[str, Any] | None) -> str | None:
+    if not isinstance(config, dict):
+        return None
+    configurable = config.get("configurable")
+    if not isinstance(configurable, dict):
+        return None
+    checkpoint_id = configurable.get("checkpoint_id")
+    return checkpoint_id if isinstance(checkpoint_id, str) and checkpoint_id else None
+
+
+def _first_next_node(next_nodes: Any) -> str | None:
+    if not isinstance(next_nodes, (list, tuple)):
+        return None
+
+    nodes = [node for node in next_nodes if isinstance(node, str)]
+    if not nodes:
+        return None
+    if len(nodes) > 1:
+        raise RuntimeError(f"Step mode does not support parallel next nodes: {nodes}")
+
+    node = nodes[0]
+    if node in {"__start__", "__end__", END}:
+        return None
+    return node
+
+
+async def _load_state_history(compiled: Any, config: dict[str, Any], limit: int) -> list[Any]:
+    snapshots: list[Any] = []
+    async for snapshot in compiled.aget_state_history(config, limit=limit):
+        snapshots.append(snapshot)
+    return snapshots
 
 
 async def _ensure_checkpointer_schema(checkpointer: Any) -> None:
@@ -323,6 +366,118 @@ async def _resolve_episode_id(
 
     _assert_episode_complete(episode)
     return str(episode.id)
+
+
+async def execute_pipeline_step(run: GenerationRun, db: AsyncSession, action: str = "next") -> dict[str, Any]:
+    """Execute exactly one pipeline node using LangGraph checkpoints."""
+    if action not in {"next", "rerun"}:
+        raise RuntimeError(f"Unsupported step action: {action}")
+
+    result = await db.execute(
+        select(Source.id).where(
+            Source.project_id == run.project_id,
+            Source.is_temporary.is_(False),
+            Source.ingestion_status == "completed",
+        )
+    )
+    source_ids = [str(row[0]) for row in result.fetchall()]
+
+    result = await db.execute(
+        select(ContentMap.id)
+        .where(ContentMap.project_id == run.project_id)
+        .order_by(ContentMap.created_at.desc())
+    )
+    content_map_row = result.first()
+    content_map_id = str(content_map_row[0]) if content_map_row else ""
+
+    initial_state = _build_initial_state(run, source_ids, content_map_id)
+    thread_id = run.langgraph_thread_id or str(run.id)
+    run.langgraph_thread_id = thread_id
+    base_config = _thread_config(thread_id)
+
+    try:
+        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+    except ImportError as exc:
+        raise RuntimeError(
+            "LangGraph checkpoint backend requires psycopg with libpq support. "
+            "Install `psycopg[binary]` in backend env and restart worker."
+        ) from exc
+
+    async with AsyncPostgresSaver.from_conn_string(_checkpoint_conn_string()) as checkpointer:
+        await _ensure_checkpointer_schema(checkpointer)
+        compiled = get_compiled_graph(checkpointer=checkpointer)
+        saved = await checkpointer.aget_tuple(base_config)
+
+        graph_input: PipelineState | None = None
+        run_config = base_config
+
+        if action == "next":
+            if saved is None:
+                executed_node = _ENTRY_NODE
+                graph_input = initial_state
+            else:
+                latest = await compiled.aget_state(base_config)
+                executed_node = _first_next_node(latest.next)
+                if executed_node is None:
+                    episode_id = await _resolve_episode_id(run, db, None, resume=True)
+                    return {
+                        "executed_node": None,
+                        "last_node": None,
+                        "next_node": None,
+                        "checkpoint_id": _checkpoint_id_from_config(latest.config),
+                        "completed": True,
+                        "episode_id": episode_id,
+                    }
+                run_config = latest.config or base_config
+        else:
+            if saved is None:
+                raise RuntimeError("Cannot rerun step: checkpoint is missing. Run next step first.")
+            history = await _load_state_history(compiled, base_config, limit=3)
+            if len(history) < 2:
+                raise RuntimeError("Cannot rerun step: no executed step found in checkpoint history.")
+            before_last = history[1]
+            executed_node = _first_next_node(before_last.next)
+            if executed_node is None:
+                raise RuntimeError("Cannot rerun step: unable to determine last executed node.")
+            run_config = before_last.config or base_config
+
+        final_state = None
+        async for state in compiled.astream(
+            graph_input,
+            config=run_config,
+            interrupt_after=[executed_node],
+        ):
+            final_state = state
+            if not isinstance(state, dict):
+                continue
+            for node_output in state.values():
+                if isinstance(node_output, dict) and node_output.get("current_phase"):
+                    run.current_phase = node_output["current_phase"]
+
+        latest_after = await compiled.aget_state(base_config)
+        history_after = await _load_state_history(compiled, base_config, limit=3)
+
+    next_node = _first_next_node(latest_after.next)
+    last_node = None
+    if len(history_after) >= 2:
+        last_node = _first_next_node(history_after[1].next)
+
+    run.current_phase = _NODE_PHASES.get(executed_node, run.current_phase)
+    run.current_step = executed_node
+
+    completed = next_node is None
+    episode_id = None
+    if completed:
+        episode_id = await _resolve_episode_id(run, db, final_state, resume=True)
+
+    return {
+        "executed_node": executed_node,
+        "last_node": last_node or executed_node,
+        "next_node": next_node,
+        "checkpoint_id": _checkpoint_id_from_config(latest_after.config),
+        "completed": completed,
+        "episode_id": episode_id,
+    }
 
 
 async def execute_pipeline(run: GenerationRun, db: AsyncSession, resume: bool = False) -> str:

@@ -6,6 +6,7 @@ import openai
 
 from app.config import settings
 from app.observability import safe_set_run, trace_span, wrap_anthropic_client, wrap_openai_client
+from app.pipeline.step_control import assert_step_not_stopped
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +83,7 @@ def _openai_usage(response: Any) -> dict[str, Any]:
 
 async def call_sonnet(system: str, prompt: str, max_tokens: int = 4096, temperature: float = 0.7) -> str:
     client = get_anthropic_client()
+    await assert_step_not_stopped()
     with trace_span(
         "llm.call_sonnet",
         run_type="llm",
@@ -103,6 +105,7 @@ async def call_sonnet(system: str, prompt: str, max_tokens: int = 4096, temperat
 
 async def call_haiku(system: str, prompt: str, max_tokens: int = 4096, temperature: float = 0.3) -> str:
     client = get_anthropic_client()
+    await assert_step_not_stopped()
     with trace_span(
         "llm.call_haiku",
         run_type="llm",
@@ -130,6 +133,7 @@ async def call_sonnet_structured(
 ) -> str:
     """Call Sonnet expecting JSON output."""
     client = get_anthropic_client()
+    await assert_step_not_stopped()
     with trace_span(
         "llm.call_sonnet_structured",
         run_type="llm",
@@ -166,6 +170,7 @@ async def call_haiku_structured(
 ) -> str:
     """Call Haiku expecting JSON output."""
     client = get_anthropic_client()
+    await assert_step_not_stopped()
     with trace_span(
         "llm.call_haiku_structured",
         run_type="llm",
@@ -196,6 +201,7 @@ async def call_haiku_structured(
 
 async def get_embeddings(texts: list[str]) -> list[list[float]]:
     client = get_openai_client()
+    await assert_step_not_stopped()
     with trace_span(
         "llm.get_embeddings",
         run_type="embedding",

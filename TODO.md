@@ -70,6 +70,7 @@
 - [x] Project list page
 - [x] Project detail page (sources tab, show bible tab, episodes tab)
 - [x] Generation config page (voices + ShowBible summary + cost estimate)
+- [x] Step-by-step generation controls in UI (run next step / rerun last step)
 - [x] Real-time progress UI (phase stepper, event feed)
 - [x] Episode player (HTML5 audio + synced transcript)
 - [x] Login page (dev-login)
@@ -83,6 +84,8 @@
 ## Этап 7: Production Quality
 
 - [ ] End-to-end tests
+- [ ] Step-mode API/worker integration tests (`/steps/next`, `/steps/rerun`, `/steps/stop`, checkpoint rewind, stop ack path)
+- [ ] Step-mode concurrency hardening (single in-flight action guarantee under concurrent requests)
 - [ ] Token & Cost Governor enforcement (limits exist in config, enforcement partial)
 - [~] Error handling + retry strategies (ingestion DB retries + explicit ShowBible generation errors done; full coverage pending)
 - [x] Generation resume (continues from last checkpoint; no full pipeline rerun on retry)
@@ -191,6 +194,19 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P1**: Verifier was pure rule-based (D5): hybrid rule-based + LLM — pre-filter handles obvious cases (no evidence, counter evidence, opinion/report), Sonnet evaluates semantic alignment for FACT claims with evidence, batched by 8
 - [x] **P1**: Deep ingestion didn't upgrade claims (D3): after `deep_ingest_url` completes, `_upgrade_claims_for_source` re-verifies all claims linked to the source's evidence via `verify_single_claim`
 - [x] **P1**: Act planner had no evidence gap fill (D10): `_fill_evidence_gaps` detects narrative scenes without evidence, searches existing corpus via `vector_search_tool`, extracts quotes with Haiku, creates `EvidenceSpan` records (max 3 searches per act)
+
+**Round 23 (step-by-step execution mode):**
+- [x] **P1**: Added generation `execution_mode` (`full|step`) and step control state in run config
+- [x] **P1**: Added step execution endpoints: `POST /api/generations/{id}/steps/next` and `POST /api/generations/{id}/steps/rerun`
+- [x] **P1**: Added worker task `run_generation_step` that executes exactly one LangGraph node using checkpoints + interrupt
+- [x] **P1**: Added `generation_paused` realtime event and UI step controls for node-by-node debugging
+
+**Round 24 (step controls hardening + stop):**
+- [x] **P1**: Fixed step-mode failed retry action in UI: `retryFailedRun` now retries failed `next` step (not rerun previous step)
+- [x] **P1**: Added API precondition for `/steps/rerun` to prevent invalid rerun without completed checkpointed step
+- [x] **P1**: Added `POST /api/generations/{id}/steps/stop` with stop-request flagging in step control
+- [x] **P1**: Added cooperative stop handling in worker (`StepExecutionStopped` -> `queued` + `generation_paused(stopped=true)`, no forced `FAILED`)
+- [x] **P1**: Added stop checks before costly calls (LLM/embeddings, web tools, TTS lines) to reduce unnecessary spend after stop request
 
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)

@@ -408,6 +408,22 @@ Raw text сохраняется в MinIO до нормализации (audit tr
 
 ---
 
+## **Режимы запуска генерации (runtime)**
+
+- `execution_mode=full` (дефолт): запускается полный pipeline от `setup_show` до `build_shownotes`.
+- `execution_mode=step`: полный граф автоматически не запускается; выполнение идет по одному node.
+
+Для `step` режима:
+- `POST /api/generations/{run_id}/steps/next` — выполнить следующий node.
+- `POST /api/generations/{run_id}/steps/rerun` — переисполнить последний выполненный node.
+- `POST /api/generations/{run_id}/steps/stop` — остановить текущий/очередной step action.
+- `rerun` доступен только после как минимум одного успешно завершенного шага (нужен checkpoint + `last_node`).
+- после каждого шага и после подтвержденной остановки публикуется realtime-событие `generation_paused` с `executed_node` и `next_node` (дополнительно может содержать `stopped=true` и `reason`).
+
+Назначение: отладка и итеративная проверка фаз без стоимости полного прогона.
+
+---
+
 ## **Сигналы качества (простые метрики)**
 
 - % factual lines covered by Claim IDs

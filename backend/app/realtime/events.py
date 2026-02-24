@@ -1,4 +1,4 @@
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -77,3 +77,18 @@ def generation_completed(episode_id: str) -> PipelineEvent:
 
 def generation_failed(error: str) -> PipelineEvent:
     return PipelineEvent("generation_failed", {"error": error})
+
+
+def generation_paused(
+    executed_node: str | None,
+    next_node: str | None,
+    *,
+    stopped: bool = False,
+    reason: str | None = None,
+) -> PipelineEvent:
+    payload: dict[str, Any] = {"executed_node": executed_node, "next_node": next_node}
+    if stopped:
+        payload["stopped"] = True
+    if reason:
+        payload["reason"] = reason
+    return PipelineEvent("generation_paused", payload)

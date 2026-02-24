@@ -23,6 +23,12 @@ interface GenerationStore {
   error: string | null;
   socket: { close: () => void } | null;
   startListening: (runId: string) => void;
+  applyRunSnapshot: (snapshot: {
+    status?: string | null;
+    current_phase?: string | null;
+    current_step?: string | null;
+    progress_pct?: number | null;
+  }) => void;
   stopListening: () => void;
   reset: () => void;
 }
@@ -65,6 +71,10 @@ export const useGenerationStore = create<GenerationStore>((set, get) => ({
             updates.episodeId = (event.episode_id as string) || null;
             updates.progressPct = 100;
             break;
+          case "generation_paused":
+            updates.status = "paused";
+            updates.currentStep = (event.next_node as string) || state.currentStep;
+            break;
           case "generation_failed":
             updates.status = "failed";
             updates.error = (event.error as string) || "Unknown error";
@@ -76,6 +86,19 @@ export const useGenerationStore = create<GenerationStore>((set, get) => ({
     });
 
     set({ runId, socket, status: "connecting", events: [], error: null, episodeId: null });
+  },
+
+  applyRunSnapshot: (snapshot) => {
+    set((state) => ({
+      status: snapshot.status
+        ? snapshot.status === "queued"
+          ? "paused"
+          : snapshot.status
+        : state.status,
+      currentPhase: snapshot.current_phase ?? state.currentPhase,
+      currentStep: snapshot.current_step ?? state.currentStep,
+      progressPct: snapshot.progress_pct ?? state.progressPct,
+    }));
   },
 
   stopListening: () => {

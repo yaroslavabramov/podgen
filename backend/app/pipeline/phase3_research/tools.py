@@ -11,6 +11,7 @@ from app.models.chunk import Chunk
 from app.models.source import Source, SourceType, IngestionStatus, DomainReliability
 from app.models.evidence import EvidenceSpan
 from app.observability import safe_set_run, trace_span
+from app.pipeline.step_control import assert_step_not_stopped
 from app.services.embeddings import vector_search as qdrant_search
 
 
@@ -119,6 +120,7 @@ async def get_chunk_content(chunk_id: str, db: AsyncSession) -> dict:
 
 async def web_search_tool(query: str) -> list[dict]:
     """Search web using Tavily API."""
+    await assert_step_not_stopped()
     with trace_span(
         "research.tool.web_search",
         run_type="tool",
@@ -147,6 +149,7 @@ async def fetch_page_tool(url: str) -> dict:
     import httpx
     from app.ingestion.web import _check_ssrf
 
+    await assert_step_not_stopped()
     domain = urlparse(url).netloc
     with trace_span(
         "research.tool.fetch_page",
@@ -183,6 +186,7 @@ async def create_web_evidence(
     generation_run_id: str | None = None,
 ) -> str:
     """Create a temporary web source + evidence span."""
+    await assert_step_not_stopped()
     with trace_span(
         "research.tool.create_web_evidence",
         run_type="tool",

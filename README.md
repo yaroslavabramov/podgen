@@ -165,8 +165,12 @@ All endpoints prefixed with `/api/`. Auth via JWT Bearer token.
 | POST | `/api/projects/{id}/sources/upload` | Upload source file |
 | POST | `/api/projects/{id}/sources/url` | Add URL source |
 | POST | `/api/projects/{id}/show-bible` | Create/update show bible |
-| POST | `/api/projects/{id}/generate` | Start podcast generation |
+| POST | `/api/projects/{id}/generate` | Start generation (`execution_mode=full|step`) |
 | GET | `/api/generations/{id}` | Generation status |
+| POST | `/api/generations/{id}/steps/next` | Run exactly one next pipeline step (step mode only) |
+| POST | `/api/generations/{id}/steps/rerun` | Rerun last executed pipeline step (step mode only) |
+| POST | `/api/generations/{id}/steps/stop` | Request stop for running/queued step action (step mode only) |
+| POST | `/api/generations/{id}/resume` | Resume failed full-mode run from checkpoint |
 | WS | `/api/ws/generations/{id}` | Real-time generation events |
 | GET | `/api/episodes/{id}` | Episode details |
 | GET | `/api/episodes/{id}/audio` | Stream episode audio |
@@ -191,6 +195,19 @@ See `.env.example` for all required variables. Key ones:
    - pipeline spans: `pipeline.execute`, `pipeline.node.*`
    - model spans: `llm.call_*`, `llm.get_embeddings` (+ wrapped provider calls)
    - research/ingestion tool spans: `research.tool.*`, `ingestion.*`
+
+## Step-by-Step Debug Mode
+
+Use this mode to debug one pipeline step at a time and reduce LLM/TTS spend during iteration.
+
+1. In generation UI, enable `Step-by-step debug mode` before starting a run.
+2. The run is created in `execution_mode=step` and does not auto-run the full graph.
+3. Use:
+   - `Run Next Step` to execute one node
+   - `Rerun Last Step` to re-execute the previous node
+   - `Stop Current Step` to request cooperative stop of the current step action
+4. Progress/events continue via WebSocket (`generation_paused` is emitted after each step, including stop acknowledgements).
+5. `rerun` is available only after at least one completed step with checkpoint metadata.
 
 ## Documentation
 

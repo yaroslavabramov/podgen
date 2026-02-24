@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -11,6 +12,7 @@ class GenerationCreate(BaseModel):
     show_bible_override: dict | None = None
     voice_a_id: str | None = None
     voice_b_id: str | None = None
+    execution_mode: Literal["full", "step"] = "full"
 
 
 class CostEstimateRequest(BaseModel):

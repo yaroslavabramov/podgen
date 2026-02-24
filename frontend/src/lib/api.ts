@@ -56,11 +56,18 @@ export interface Episode {
 export interface GenerationRun {
   id: string;
   project_id: string;
+  user_id: string;
+  show_bible_id: string;
   status: string;
+  config: Record<string, unknown>;
   current_phase: string | null;
   current_step: string | null;
   progress_pct: number | null;
   estimated_cost: { estimated_llm_cost: number; estimated_tts_cost: number; estimated_total: number } | null;
+  actual_cost: Record<string, unknown> | null;
+  error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
   created_at: string;
 }
 

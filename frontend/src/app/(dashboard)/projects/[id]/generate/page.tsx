@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useTranslations } from "use-intl";
 import Link from "next/link";
 import { HTTPError } from "ky";
-import { api, type CostEstimate } from "@/lib/api";
+import { api, type CostEstimate, type GenerationRun } from "@/lib/api";
 import { useGenerationStore } from "@/stores/generation-store";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,8 +26,16 @@ interface ShowBibleSummary {
   hosts?: Array<{ name?: string }>;
 }
 
-interface GenerationRunStart {
-  id: string;
+type ExecutionMode = "full" | "step";
+
+interface StepControlState {
+  last_node: string | null;
+  next_node: string | null;
+  is_complete: boolean;
+  can_rerun: boolean;
+  requested_action: string | null;
+  stop_requested: boolean;
+  stop_reason: string | null;
 }
 
 export default function GeneratePage() {
@@ -42,11 +50,49 @@ export default function GeneratePage() {
   const [voiceA, setVoiceA] = useState("");
   const [voiceB, setVoiceB] = useState("");
   const [showBibleSummary, setShowBibleSummary] = useState<ShowBibleSummary | null>(null);
+  const [executionMode, setExecutionMode] = useState<ExecutionMode>("full");
+  const [activeExecutionMode, setActiveExecutionMode] = useState<ExecutionMode | null>(null);
+  const [stepControl, setStepControl] = useState<StepControlState | null>(null);
+  const [stepActionLoading, setStepActionLoading] = useState<"next" | "rerun" | "stop" | null>(null);
   const [launching, setLaunching] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const { runId, status, startListening, reset } = useGenerationStore();
+  const { runId, status, events, startListening, applyRunSnapshot, reset } = useGenerationStore();
+  const lastEvent = events.length > 0 ? events[events.length - 1] : null;
+
+  const parseStepControl = (config: unknown): StepControlState | null => {
+    if (!config || typeof config !== "object") return null;
+    const stepControlRaw = (config as { step_control?: unknown }).step_control;
+    if (!stepControlRaw || typeof stepControlRaw !== "object") return null;
+    const stepControlData = stepControlRaw as Record<string, unknown>;
+    return {
+      last_node: typeof stepControlData.last_node === "string" ? stepControlData.last_node : null,
+      next_node: typeof stepControlData.next_node === "string" ? stepControlData.next_node : null,
+      is_complete: Boolean(stepControlData.is_complete),
+      can_rerun: Boolean(stepControlData.can_rerun),
+      requested_action: typeof stepControlData.requested_action === "string" ? stepControlData.requested_action : null,
+      stop_requested: Boolean(stepControlData.stop_requested),
+      stop_reason: typeof stepControlData.stop_reason === "string" ? stepControlData.stop_reason : null,
+    };
+  };
+
+  const parseExecutionMode = (config: unknown): ExecutionMode => {
+    if (!config || typeof config !== "object") return "full";
+    return (config as { execution_mode?: string }).execution_mode === "step" ? "step" : "full";
+  };
+
+  const applyRunData = (run: GenerationRun) => {
+    applyRunSnapshot({
+      status: run.status,
+      current_phase: run.current_phase,
+      current_step: run.current_step,
+      progress_pct: run.progress_pct,
+    });
+    const mode = parseExecutionMode(run.config);
+    setActiveExecutionMode(mode);
+    setStepControl(mode === "step" ? parseStepControl(run.config) : null);
+  };
 
   const extractApiError = async (error: unknown, fallback: string) => {
     if (error instanceof HTTPError) {
@@ -60,6 +106,38 @@ export default function GeneratePage() {
     }
     if (error instanceof Error) return error.message || fallback;
     return fallback;
+  };
+
+  const nodeLabelMap: Record<string, string> = {
+    setup_show: t("stepNode.setup_show"),
+    decompose: t("stepNode.decompose"),
+    hunt_closed_book: t("stepNode.hunt_closed_book"),
+    research_fast_web: t("stepNode.research_fast_web"),
+    build_claims: t("stepNode.build_claims"),
+    verify_claims: t("stepNode.verify_claims"),
+    resolve_conflicts: t("stepNode.resolve_conflicts"),
+    plan_episode: t("stepNode.plan_episode"),
+    plan_acts: t("stepNode.plan_acts"),
+    integrate_acts: t("stepNode.integrate_acts"),
+    write_screenplay: t("stepNode.write_screenplay"),
+    evaluate_and_revolt: t("stepNode.evaluate_and_revolt"),
+    audit_citations: t("stepNode.audit_citations"),
+    generate_audio: t("stepNode.generate_audio"),
+    build_shownotes: t("stepNode.build_shownotes"),
+  };
+
+  const formatNodeLabel = (node: string | null) => {
+    if (!node) return t("stepUnknown");
+    return nodeLabelMap[node] || node;
+  };
+
+  const refreshRun = async (currentRunId: string) => {
+    try {
+      const run = await api.get(`api/generations/${currentRunId}`).json<GenerationRun>();
+      applyRunData(run);
+    } catch {
+      // keep previous UI state on refresh failure
+    }
   };
 
   useEffect(() => {
@@ -110,6 +188,12 @@ export default function GeneratePage() {
     };
   }, [projectId]);
 
+  useEffect(() => {
+    if (!runId || activeExecutionMode !== "step" || !lastEvent) return;
+    if (!["generation_paused", "generation_failed", "generation_completed"].includes(lastEvent.type)) return;
+    refreshRun(runId).catch(() => undefined);
+  }, [runId, activeExecutionMode, lastEvent]);
+
   const handleGenerate = async () => {
     setLaunching(true);
     setActionError(null);
@@ -120,9 +204,16 @@ export default function GeneratePage() {
           user_prompt: prompt,
           voice_a_id: voiceA || null,
           voice_b_id: voiceB || null,
+          execution_mode: executionMode,
         },
-      }).json<GenerationRunStart>();
+      }).json<GenerationRun>();
       startListening(run.id);
+      if (executionMode === "step") {
+        applyRunData(run);
+      } else {
+        setActiveExecutionMode("full");
+        setStepControl(null);
+      }
     } catch (err) {
       console.error("Failed to start generation:", err);
       setActionError(await extractApiError(err, t("startFailed")));
@@ -136,14 +227,73 @@ export default function GeneratePage() {
     setResuming(true);
     setActionError(null);
     try {
-      const run = await api.post(`api/generations/${runId}/resume`).json<GenerationRunStart>();
+      const run = await api.post(`api/generations/${runId}/resume`).json<GenerationRun>();
       startListening(run.id);
+      setActiveExecutionMode("full");
+      setStepControl(null);
     } catch (err) {
       setActionError(await extractApiError(err, t("resumeFailed")));
     } finally {
       setResuming(false);
     }
   };
+
+  const handleRunNextStep = async () => {
+    if (!runId) return;
+    setStepActionLoading("next");
+    setActionError(null);
+    try {
+      const run = await api.post(`api/generations/${runId}/steps/next`).json<GenerationRun>();
+      applyRunData(run);
+    } catch (err) {
+      setActionError(await extractApiError(err, t("stepNextFailed")));
+    } finally {
+      setStepActionLoading(null);
+    }
+  };
+
+  const handleRerunStep = async () => {
+    if (!runId) return;
+    setStepActionLoading("rerun");
+    setActionError(null);
+    try {
+      const run = await api.post(`api/generations/${runId}/steps/rerun`).json<GenerationRun>();
+      applyRunData(run);
+    } catch (err) {
+      setActionError(await extractApiError(err, t("stepRerunFailed")));
+    } finally {
+      setStepActionLoading(null);
+    }
+  };
+
+  const handleStopStep = async () => {
+    if (!runId) return;
+    setStepActionLoading("stop");
+    setActionError(null);
+    try {
+      const run = await api.post(`api/generations/${runId}/steps/stop`).json<GenerationRun>();
+      applyRunData(run);
+    } catch (err) {
+      setActionError(await extractApiError(err, t("stepStopFailed")));
+    } finally {
+      setStepActionLoading(null);
+    }
+  };
+
+  const handleResetRun = () => {
+    reset();
+    setActiveExecutionMode(null);
+    setStepControl(null);
+    setActionError(null);
+  };
+
+  const isStepModeRun = activeExecutionMode === "step";
+  const hasQueuedStepAction = Boolean(stepControl?.requested_action);
+  const stopRequested = Boolean(stepControl?.stop_requested);
+  const stepBusy = stepActionLoading !== null || status === "running" || hasQueuedStepAction || stopRequested;
+  const canRunNextStep = isStepModeRun && !stepBusy && !stepControl?.is_complete;
+  const canRerunStep = isStepModeRun && !stepBusy && Boolean(stepControl?.can_rerun && stepControl?.last_node);
+  const canStopStep = isStepModeRun && !stepActionLoading && (status === "running" || hasQueuedStepAction) && !stopRequested;
 
   if (runId && status !== "idle") {
     return (
@@ -153,17 +303,71 @@ export default function GeneratePage() {
           <LocaleSwitcher />
         </header>
         <main className="max-w-4xl mx-auto px-6 py-8">
+          {isStepModeRun && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>{t("stepModeTitle")}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
+                  <p>
+                    {t("stepLastNode")}:{" "}
+                    <span className="text-foreground">{formatNodeLabel(stepControl?.last_node ?? null)}</span>
+                  </p>
+                  <p>
+                    {t("stepNextNode")}:{" "}
+                    <span className="text-foreground">{formatNodeLabel(stepControl?.next_node ?? null)}</span>
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    type="button"
+                    onClick={handleRunNextStep}
+                    disabled={!canRunNextStep}
+                  >
+                    {stepActionLoading === "next" ? t("stepRunningNext") : t("stepRunNext")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleRerunStep}
+                    disabled={!canRerunStep}
+                  >
+                    {stepActionLoading === "rerun" ? t("stepRerunning") : t("stepRerun")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleStopStep}
+                    disabled={!canStopStep}
+                  >
+                    {stepActionLoading === "stop" || stopRequested ? t("stepStopping") : t("stepStop")}
+                  </Button>
+                </div>
+                {stopRequested && (
+                  <p className="text-sm text-muted-foreground">
+                    {t("stepStopRequested")}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           <GenerationProgress />
-          {(status === "failed" || status === "completed") && (
+          {(status === "failed" || status === "completed" || isStepModeRun) && (
             <Card className="mt-6">
               <CardContent className="py-4 space-y-3">
                 <div className="flex flex-wrap gap-3">
                   {status === "failed" && (
-                    <Button type="button" onClick={handleResume} disabled={resuming}>
+                    <Button
+                      type="button"
+                      onClick={isStepModeRun ? handleRunNextStep : handleResume}
+                      disabled={isStepModeRun ? !canRunNextStep : resuming}
+                    >
                       {resuming ? t("retrying") : t("retryFailedRun")}
                     </Button>
                   )}
-                  <Button type="button" variant="outline" onClick={reset}>
+                  <Button type="button" variant="outline" onClick={handleResetRun}>
                     {t("startNewRun")}
                   </Button>
                 </div>
@@ -295,6 +499,26 @@ export default function GeneratePage() {
             <Link href={`/projects/${projectId}`} className="inline-block">
               <Button variant="ghost" size="sm">{t("editShowBible")}</Button>
             </Link>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("executionModeTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={executionMode === "step"}
+                onChange={(e) => setExecutionMode(e.target.checked ? "step" : "full")}
+                className="mt-1"
+              />
+              <span className="text-sm text-muted-foreground">
+                <span className="text-foreground font-medium">{t("executionModeStepLabel")}</span>{" "}
+                {t("executionModeStepHint")}
+              </span>
+            </label>
           </CardContent>
         </Card>
 

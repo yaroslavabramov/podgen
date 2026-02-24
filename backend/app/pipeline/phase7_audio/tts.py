@@ -10,6 +10,7 @@ from app.models.show_bible import ShowBible
 from app.models.script_segment import ScriptSegment
 from app.models.episode import Episode
 from app.pipeline.state import PipelineState
+from app.pipeline.step_control import assert_step_not_stopped
 from app.pipeline.phase7_audio.audio_processor import process_audio
 from app.services.storage import get_minio_client, upload_file
 from app.config import settings
@@ -68,6 +69,7 @@ async def generate_audio(state: PipelineState) -> dict:
                 continue
 
             for line in seg.dialogue_json:
+                await assert_step_not_stopped()
                 if not isinstance(line, dict):
                     continue
                 speaker = line.get("speaker", "A")
@@ -162,6 +164,7 @@ async def generate_audio(state: PipelineState) -> dict:
 
 async def _synthesize_line(text: str, speaker: str, voice_map: dict, ssml_hints: dict) -> bytes | None:
     """Synthesize a single line using ElevenLabs."""
+    await assert_step_not_stopped()
     voice_config = voice_map.get(speaker, {})
     voice_id = voice_config.get("voice_id")
 
