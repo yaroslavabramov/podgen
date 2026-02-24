@@ -57,7 +57,7 @@ async def audit_citations(state: PipelineState) -> dict:
     t0 = time.time()
     publish_event(run_id, step_started("phase6_writing", "citation_audit", "Auditing citations and accuracy"))
 
-    segment_ids = state.get("script_segment_ids", [])
+    segment_ids = _dedupe_preserve_order(state.get("script_segment_ids", []))
     quality_signals = dict(state.get("quality_signals", {}))
 
     async with async_session_factory() as db:
@@ -127,3 +127,14 @@ async def audit_citations(state: PipelineState) -> dict:
     publish_event(run_id, progress(80.0, "Citation audit complete"))
 
     return {"script_segment_ids": segment_ids, "quality_signals": quality_signals, "current_phase": "phase6_writing"}
+
+
+def _dedupe_preserve_order(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    unique: list[str] = []
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        unique.append(value)
+    return unique

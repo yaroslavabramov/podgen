@@ -26,7 +26,8 @@ async def generate_audio(state: PipelineState) -> dict:
     update_generation_progress(run_id, "phase7_audio", "tts", 82.0)
 
     async with async_session_factory() as db:
-        if not state.get("script_segment_ids"):
+        script_segment_ids = _dedupe_preserve_order(state.get("script_segment_ids", []))
+        if not script_segment_ids:
             raise RuntimeError("Audio generation requires script segments, but none were provided")
 
         # Load voice profiles from ShowBible
@@ -44,7 +45,7 @@ async def generate_audio(state: PipelineState) -> dict:
 
         # Load all segments in order
         segments = []
-        for sid in state.get("script_segment_ids", []):
+        for sid in script_segment_ids:
             result = await db.execute(select(ScriptSegment).where(ScriptSegment.id == uuid.UUID(sid)))
             seg = result.scalar_one_or_none()
             if seg:
@@ -207,3 +208,14 @@ def _estimate_duration_ms(text: str) -> int:
     """Estimate speech duration from text length. ~150 words/min."""
     words = len(text.split())
     return int((words / 150) * 60 * 1000)
+
+
+def _dedupe_preserve_order(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    unique: list[str] = []
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        unique.append(value)
+    return unique

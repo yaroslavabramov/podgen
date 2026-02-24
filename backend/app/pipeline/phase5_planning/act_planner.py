@@ -224,6 +224,7 @@ def _normalize_beat_sheet(
     default_duration: int,
 ) -> list[dict[str, Any]]:
     normalized: list[dict[str, Any]] = []
+    used_scene_numbers: set[int] = set()
     for i, scene in enumerate(_extract_raw_scenes(beat_data), start=1):
         if not isinstance(scene, dict):
             continue
@@ -236,7 +237,11 @@ def _normalize_beat_sheet(
             else:
                 continue
 
-        scene_number = _positive_int(scene.get("scene"), i)
+        scene_number = _next_available_scene_number(
+            _positive_int(scene.get("scene"), i),
+            used_scene_numbers,
+        )
+        used_scene_numbers.add(scene_number)
         scene_type = scene.get("type")
         if not isinstance(scene_type, str) or not scene_type.strip():
             scene_type = "explanation"
@@ -273,3 +278,10 @@ def _normalize_beat_sheet(
         )
 
     return normalized
+
+
+def _next_available_scene_number(candidate: int, used: set[int]) -> int:
+    scene_number = candidate if candidate > 0 else 1
+    while scene_number in used:
+        scene_number += 1
+    return scene_number

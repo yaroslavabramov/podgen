@@ -164,6 +164,20 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P0**: Fixed `KeyError` in `screenwriter` prompt template (`str.format` collided with JSON braces in system prompt); switched to explicit token replacement for `max_reply_tokens`
 - [x] **P0**: Removed silent scene skipping in `screenwriter`; per-scene generation now retries and then fails the run explicitly (no partial scripts with missing scenes)
 
+**Round 18 (scene-level resume in phase6):**
+- [x] **P0**: `screenwriter` now persists progress per scene (`flush + commit` per successful scene), so retries can continue from remaining scenes instead of recomputing all completed scenes
+- [x] **P0**: `screenwriter` now reuses previously completed scene segments for the same run (checkpoint-aware), but still rewrites scenes explicitly marked for revision
+- [x] **P1**: Added DB-level uniqueness for script scenes per run (`generation_run_id + act_number + scene_number`) with migration and duplicate cleanup
+
+**Round 19 (review r6 — duplicate segment hardening):**
+- [x] **P1**: `act_planner` normalization now guarantees unique `scene` numbers within each act
+- [x] **P1**: `screenwriter` now skips duplicate scene numbers in a beat sheet and emits deduplicated `script_segment_ids`
+- [x] **P1**: Downstream dedupe guards for `script_segment_ids` added in `writer_revolt`, `citation_auditor`, and `tts` to avoid repeated processing/audio duplication from stale states
+
+**Round 20 (review r7 — revision semantics + migration safety):**
+- [x] **P1**: `screenwriter` rewrite predicate now uses explicit revision marker (`audit_status = REVISED`) instead of monotonic `revision_count`, so previously revised scenes are reused unless they are marked again
+- [x] **P1**: Script-segment uniqueness migration now keeps the newest duplicate row (`updated_at DESC NULLS LAST, created_at DESC, id DESC`) to preserve latest corrected scene content
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

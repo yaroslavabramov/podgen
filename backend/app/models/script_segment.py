@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import Integer, Float, DateTime, ForeignKey, Enum as SAEnum
+from sqlalchemy import Integer, Float, DateTime, ForeignKey, Enum as SAEnum, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -18,6 +18,14 @@ class AuditStatus(StrEnum):
 
 class ScriptSegment(Base):
     __tablename__ = "script_segments"
+    __table_args__ = (
+        UniqueConstraint(
+            "generation_run_id",
+            "act_number",
+            "scene_number",
+            name="uq_script_segments_run_act_scene",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     generation_run_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("generation_runs.id", ondelete="CASCADE"), nullable=False, index=True)

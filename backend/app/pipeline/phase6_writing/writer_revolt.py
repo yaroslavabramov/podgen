@@ -7,7 +7,7 @@ import uuid
 from sqlalchemy import select
 
 from app.workers.worker_db import worker_session_factory as async_session_factory
-from app.models.script_segment import ScriptSegment
+from app.models.script_segment import ScriptSegment, AuditStatus
 from app.pipeline.state import PipelineState
 from app.services.llm import call_haiku_structured
 from app.pipeline.llm_json import parse_llm_json
@@ -40,7 +40,7 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
     run_id = state["generation_run_id"]
     publish_event(run_id, step_started("phase6_writing", "engagement_eval", "Evaluating engagement quality"))
 
-    segment_ids = state.get("script_segment_ids", [])
+    segment_ids = _dedupe_preserve_order(state.get("script_segment_ids", []))
     iteration_counts = dict(state.get("iteration_counts", {}))
     revolt_count = iteration_counts.get("writer_planner_loops", 0)
 
@@ -85,6 +85,7 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
                     publish_event(run_id, writer_revolt(segment.act_number, segment.scene_number, reason))
 
                     # Mark for revision (actual rewrite happens in screenwriter re-run if needed)
+                    segment.audit_status = AuditStatus.REVISED
                     segment.revision_count += 1
                     revolt_count += 1
 
@@ -104,3 +105,14 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
         "iteration_counts": iteration_counts,
         "quality_signals": quality_signals,
     }
+
+
+def _dedupe_preserve_order(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    unique: list[str] = []
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        unique.append(value)
+    return unique

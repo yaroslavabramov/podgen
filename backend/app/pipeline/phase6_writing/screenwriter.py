@@ -13,7 +13,7 @@ from app.models.claim import Claim
 from app.models.evidence import EvidenceSpan
 from app.models.episode_manifest import EpisodeManifest
 from app.pipeline.llm_json import parse_llm_json
-from app.models.script_segment import ScriptSegment
+from app.models.script_segment import ScriptSegment, AuditStatus
 from app.pipeline.state import PipelineState
 from app.services.llm import call_sonnet_structured
 from app.realtime.publisher import publish_event, update_generation_progress
@@ -58,11 +58,14 @@ async def write_screenplay(state: PipelineState) -> dict:
     publish_event(run_id, phase_started("phase6_writing", "Writing podcast screenplay"))
     update_generation_progress(run_id, "phase6_writing", "screenwriter", 62.0)
 
-    all_segment_ids = []
+    all_segment_ids: list[str] = []
+    all_segment_ids_set: set[str] = set()
     planned_scene_count = 0
     total_dialogue_lines = 0
 
     async with async_session_factory() as db:
+        run_uuid = uuid.UUID(run_id)
+
         # Load ShowBible
         bible = None
         hosts = [{"name": "Host A", "role": "Guide"}, {"name": "Host B", "role": "Challenger"}]
@@ -91,6 +94,27 @@ async def write_screenplay(state: PipelineState) -> dict:
         max_tokens = max(32, max_tokens)
         system_prompt = SCREENWRITER_SYSTEM.replace("__MAX_REPLY_TOKENS__", str(max_tokens))
 
+        existing_result = await db.execute(
+            select(ScriptSegment)
+            .where(ScriptSegment.generation_run_id == run_uuid)
+            .order_by(ScriptSegment.updated_at.desc(), ScriptSegment.created_at.desc())
+        )
+        existing_segments: dict[tuple[int, int], ScriptSegment] = {}
+        duplicate_scene_keys: list[tuple[int, int]] = []
+        for segment in existing_result.scalars():
+            scene_key = (segment.act_number, segment.scene_number)
+            if scene_key in existing_segments:
+                duplicate_scene_keys.append(scene_key)
+                continue
+            existing_segments[scene_key] = segment
+
+        if duplicate_scene_keys:
+            logger.warning(
+                "Found duplicate script segments for run %s; using latest rows for scenes: %s",
+                run_id,
+                duplicate_scene_keys[:20],
+            )
+
         for act in manifest.acts_json:
             act_num = act.get("act_number", 0)
             beat_sheet = act.get("beat_sheet", [])
@@ -98,12 +122,50 @@ async def write_screenplay(state: PipelineState) -> dict:
                 logger.warning("Act %s beat_sheet has invalid type: %s", act_num, type(beat_sheet).__name__)
                 continue
 
-            for scene in beat_sheet:
+            seen_scene_numbers_in_act: set[int] = set()
+            for scene_idx, scene in enumerate(beat_sheet, start=1):
                 if not isinstance(scene, dict):
                     continue
-                scene_num = scene.get("scene", 0)
+                scene_num = _normalized_scene_number(scene.get("scene"), scene_idx)
+                if scene_num in seen_scene_numbers_in_act:
+                    logger.warning(
+                        "Skipping duplicate scene number %s in act %s",
+                        scene_num,
+                        act_num,
+                    )
+                    continue
+                seen_scene_numbers_in_act.add(scene_num)
+                scene_key = (act_num, scene_num)
+                existing_segment = existing_segments.get(scene_key)
+                existing_line_count = (
+                    _dialogue_line_count(existing_segment.dialogue_json)
+                    if existing_segment is not None
+                    else 0
+                )
+                should_rewrite_scene = (
+                    existing_segment is not None
+                    and existing_segment.audit_status == AuditStatus.REVISED
+                )
+                should_reuse_scene = (
+                    existing_segment is not None
+                    and not should_rewrite_scene
+                    and existing_line_count > 0
+                )
                 planned_scene_count += 1
-                publish_event(run_id, step_started("phase6_writing", f"write_{act_num}_{scene_num}", f"Writing Act {act_num}, Scene {scene_num}"))
+                if should_reuse_scene:
+                    step_detail = f"Reusing Act {act_num}, Scene {scene_num} from prior checkpoint"
+                elif should_rewrite_scene:
+                    step_detail = f"Rewriting Act {act_num}, Scene {scene_num}"
+                else:
+                    step_detail = f"Writing Act {act_num}, Scene {scene_num}"
+                publish_event(run_id, step_started("phase6_writing", f"write_{act_num}_{scene_num}", step_detail))
+
+                if should_reuse_scene:
+                    _append_unique_segment_id(str(existing_segment.id), all_segment_ids, all_segment_ids_set)
+                    total_dialogue_lines += existing_line_count
+                    publish_event(run_id, scene_written(act_num, scene_num))
+                    publish_event(run_id, step_completed("phase6_writing", f"write_{act_num}_{scene_num}"))
+                    continue
 
                 # Gather claims and evidence for this scene
                 scene_claims = []
@@ -196,16 +258,26 @@ async def write_screenplay(state: PipelineState) -> dict:
                         f"after {SCENE_GENERATION_ATTEMPTS} attempts: {last_error}"
                     ) from last_error
 
-                segment = ScriptSegment(
-                    id=uuid.uuid4(),
-                    generation_run_id=uuid.UUID(run_id),
-                    act_number=act_num,
-                    scene_number=scene_num,
-                    dialogue_json=dialogue,
-                )
-                db.add(segment)
+                if existing_segment is None:
+                    segment = ScriptSegment(
+                        id=uuid.uuid4(),
+                        generation_run_id=run_uuid,
+                        act_number=act_num,
+                        scene_number=scene_num,
+                        dialogue_json=dialogue,
+                    )
+                    db.add(segment)
+                    existing_segments[scene_key] = segment
+                else:
+                    segment = existing_segment
+                    segment.dialogue_json = dialogue
+                    segment.engagement_score = None
+                    segment.audit_status = AuditStatus.PENDING
+                    segment.quality_metrics = None
+
                 await db.flush()
-                all_segment_ids.append(str(segment.id))
+                await db.commit()
+                _append_unique_segment_id(str(segment.id), all_segment_ids, all_segment_ids_set)
                 total_dialogue_lines += len(dialogue)
 
                 publish_event(run_id, scene_written(act_num, scene_num))
@@ -216,9 +288,35 @@ async def write_screenplay(state: PipelineState) -> dict:
         if total_dialogue_lines == 0:
             raise RuntimeError("Screenwriter produced no dialogue lines")
 
-        await db.commit()
-
     publish_event(run_id, progress(75.0, f"Wrote {len(all_segment_ids)} scenes"))
     update_generation_progress(run_id, "phase6_writing", "screenwriter_done", 75.0)
 
     return {"script_segment_ids": all_segment_ids, "current_phase": "phase6_writing"}
+
+
+def _dialogue_line_count(dialogue_json: object) -> int:
+    if not isinstance(dialogue_json, list):
+        return 0
+    count = 0
+    for line in dialogue_json:
+        if not isinstance(line, dict):
+            continue
+        text = line.get("text")
+        if isinstance(text, str) and text.strip():
+            count += 1
+    return count
+
+
+def _append_unique_segment_id(segment_id: str, ordered: list[str], seen: set[str]) -> None:
+    if segment_id in seen:
+        return
+    seen.add(segment_id)
+    ordered.append(segment_id)
+
+
+def _normalized_scene_number(value: object, fallback: int) -> int:
+    try:
+        scene_number = int(value)
+    except (TypeError, ValueError):
+        return fallback
+    return scene_number if scene_number > 0 else fallback
