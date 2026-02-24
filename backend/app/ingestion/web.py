@@ -102,7 +102,7 @@ async def _safe_fetch(
         raise ValueError(f"Too many redirects (>{_MAX_REDIRECTS}) for {url}")
 
 
-async def extract_web(url: str) -> tuple[str, str | None]:
+async def extract_web(url: str) -> tuple[str, str | None, str | None]:
     """Extract content from a URL.
 
     Strategy:
@@ -111,7 +111,7 @@ async def extract_web(url: str) -> tuple[str, str | None]:
       3. Last resort: raw httpx fetch + basic HTML stripping.
 
     Returns:
-        (text_content, title_or_none)
+        (text_content, title_or_none, published_date_str_or_none)
 
     Raises:
         ValueError: On SSRF violation or invalid URL.
@@ -123,10 +123,10 @@ async def extract_web(url: str) -> tuple[str, str | None]:
     try:
         result = await _trafilatura_extract(url)
         if result:
-            text, title = result
+            text, title, date = result
             if text.strip() and not contains_blocking_signal(text):
                 logger.info("Trafilatura succeeded for %s (%d chars)", url, len(text))
-                return text, title
+                return text, title, date
             elif contains_blocking_signal(text):
                 logger.warning("Trafilatura returned blocked content for %s; trying Jina", url)
             else:
@@ -146,7 +146,7 @@ async def extract_web(url: str) -> tuple[str, str | None]:
                     )
                 else:
                     logger.info("Jina Reader succeeded for %s (%d chars)", url, len(text))
-                    return text, title
+                    return text, title, None
             else:
                 logger.warning("Jina Reader returned empty for %s, falling back", url)
         except Exception:
@@ -155,13 +155,14 @@ async def extract_web(url: str) -> tuple[str, str | None]:
     # --- 3. Last resort: raw httpx + basic HTML strip --------------------------
     text, title = await _httpx_extract(url)
     logger.info("httpx fallback succeeded for %s (%d chars)", url, len(text))
-    return text, title
+    return text, title, None
 
 
-async def _trafilatura_extract(url: str) -> tuple[str, str | None] | None:
+async def _trafilatura_extract(url: str) -> tuple[str, str | None, str | None] | None:
     """Fetch HTML via httpx and extract content with trafilatura.
 
-    Returns (text, title) or None if trafilatura couldn't extract content.
+    Returns (text, title, date_str) or None if trafilatura couldn't extract content.
+    The date_str is in "YYYY-MM-DD" format when available from HTML metadata.
     """
     import trafilatura
 
@@ -179,13 +180,17 @@ async def _trafilatura_extract(url: str) -> tuple[str, str | None] | None:
     if not text or not text.strip():
         return None
 
-    # Extract title from metadata
+    # Extract title and date from HTML metadata
     title: str | None = None
+    date: str | None = None
     meta = trafilatura.extract_metadata(html)
-    if meta and meta.title:
-        title = meta.title
+    if meta:
+        if meta.title:
+            title = meta.title
+        if meta.date:
+            date = meta.date
 
-    return text, title
+    return text, title, date
 
 
 async def _jina_extract(url: str) -> tuple[str, str | None]:

@@ -111,6 +111,7 @@ def clean_web_text(text: str) -> str:
         filtered_lines.append(stripped)
 
     filtered_lines = _drop_repeated_short_lines(filtered_lines)
+    filtered_lines = _drop_consecutive_duplicates(filtered_lines)
     return _normalize_whitespace("\n".join(filtered_lines))
 
 
@@ -135,6 +136,7 @@ def resolve_web_title(
 
 
 def _drop_repeated_short_lines(lines: list[str], *, threshold: int = 3, max_len: int = 100) -> list[str]:
+    """Remove short lines that appear *threshold* or more times (boilerplate)."""
     counts: dict[str, int] = {}
     for line in lines:
         if not line:
@@ -146,6 +148,17 @@ def _drop_repeated_short_lines(lines: list[str], *, threshold: int = 3, max_len:
     if not repeated:
         return lines
     return [line for line in lines if line not in repeated]
+
+
+def _drop_consecutive_duplicates(lines: list[str]) -> list[str]:
+    """Remove consecutive duplicate non-empty lines, keeping the first occurrence."""
+    result: list[str] = []
+    for line in lines:
+        if line.strip() and result and line == result[-1]:
+            continue
+        result.append(line)
+    return result
+
 
 
 def _blocked_reasons(normalized_text: str) -> list[str]:

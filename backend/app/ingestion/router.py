@@ -52,6 +52,7 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
                 # --- 1. Extract text -------------------------------------------------------
                 text: str
                 extracted_title: str | None = None
+                extracted_date: str | None = None
                 web_quality_state: str | None = None
                 web_quality_reasons: list[str] = []
                 blocked_web_source = False
@@ -66,7 +67,7 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
                         case SourceType.WEB:
                             if not source.original_url:
                                 raise ValueError(f"Source {source_id} is WEB but has no original_url")
-                            text, extracted_title = await extract_web(source.original_url)
+                            text, extracted_title, extracted_date = await extract_web(source.original_url)
 
                         case SourceType.VIDEO | SourceType.AUDIO:
                             # Load project language for Deepgram transcription
@@ -162,6 +163,14 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
                 if resolved_title and not source.title:
                     source.title = resolved_title[:500]
                 source.text_preview = text[:500]
+
+                # Use trafilatura-extracted date if available (skips LLM date extraction)
+                if source.source_type == SourceType.WEB and extracted_date and not source.published_at:
+                    from datetime import datetime
+                    try:
+                        source.published_at = datetime.strptime(extracted_date, "%Y-%m-%d")
+                    except ValueError:
+                        logger.debug("Invalid trafilatura date format: %s", extracted_date)
                 await db.flush()
 
                 if source.source_type == SourceType.WEB and blocked_web_source:
