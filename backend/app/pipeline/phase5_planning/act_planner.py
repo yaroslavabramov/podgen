@@ -1,5 +1,6 @@
 """Phase 5.2: Act Planner — beat sheet per act."""
 
+import copy
 import json
 import logging
 import uuid
@@ -68,7 +69,9 @@ async def plan_act(state: PipelineState) -> dict:
         if not isinstance(manifest.acts_json, list):
             raise RuntimeError("Act planner expected acts_json list in manifest")
 
-        acts = manifest.acts_json
+        # JSONB nested in-place mutation is not tracked reliably by SQLAlchemy.
+        # Work on a detached copy and assign it back to guarantee persistence.
+        acts = copy.deepcopy(manifest.acts_json)
         total_scene_count = 0
 
         for i, act in enumerate(acts, start=1):

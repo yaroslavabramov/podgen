@@ -155,8 +155,14 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 
 **Round 16 (planning reliability hardening):**
 - [x] **P1**: `showrunner` now normalizes LLM output (`dict` or top-level `list`) and validates non-empty acts before writing manifest
-- [x] **P1**: `act_planner` now accepts both output shapes (`{"beat_sheet": [...]}` or `[...]`), normalizes scenes, retries on invalid output, and fails explicitly instead of silently writing empty beat sheets
+- [x] **P1**: `act_planner` now accepts both output shapes (`{"beat_sheet": [...]}` or `[...]`), normalizes scenes, retries on invalid output, and fails explicitly with root-cause error instead of silently writing empty beat sheets
 - [x] **P1**: `integrator` now validates every act has a non-empty beat sheet, so empty scene plans fail in phase 5 (not later in screenwriter)
+- [x] **P1**: Recovery path for resumed/legacy runs with empty beat sheets — `integrator` re-runs `act_planner` once before failing
+- [x] **P0**: Fixed root cause of “missing beat_sheet after plan_acts” — JSONB nested in-place mutation on `EpisodeManifest.acts_json` was not tracked; phase5 now uses `deepcopy` + re-assignment to force persistence
+
+**Round 17 (screenwriter template bugfix):**
+- [x] **P0**: Fixed `KeyError` in `screenwriter` prompt template (`str.format` collided with JSON braces in system prompt); switched to explicit token replacement for `max_reply_tokens`
+- [x] **P0**: Removed silent scene skipping in `screenwriter`; per-scene generation now retries and then fails the run explicitly (no partial scripts with missing scenes)
 
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)

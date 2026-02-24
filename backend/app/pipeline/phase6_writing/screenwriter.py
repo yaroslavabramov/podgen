@@ -1,5 +1,6 @@
 """Phase 6.1: Screenwriter — generate dialogue per scene."""
 
+import asyncio
 import json
 import logging
 import uuid
@@ -19,6 +20,8 @@ from app.realtime.publisher import publish_event, update_generation_progress
 from app.realtime.events import phase_started, step_started, step_completed, scene_written, progress
 
 logger = logging.getLogger(__name__)
+SCENE_GENERATION_ATTEMPTS = 3
+SCENE_RETRY_BASE_DELAY_SECONDS = 1.0
 
 SCREENWRITER_SYSTEM = """You are a podcast screenwriter creating natural dialogue between two hosts.
 Given a scene description, claims, evidence, and host personas, write the dialogue.
@@ -45,7 +48,7 @@ Speech rules by verification level:
 Host A = Guide: leads narrative, explains, summarizes
 Host B = Challenger: questions, demands proof, plays devil's advocate
 
-Keep replies under {max_reply_tokens} tokens. Natural, conversational tone.
+Keep replies under __MAX_REPLY_TOKENS__ tokens. Natural, conversational tone.
 NEVER use any forbidden phrases."""
 
 
@@ -81,7 +84,12 @@ async def write_screenplay(state: PipelineState) -> dict:
         if not manifest or not manifest.acts_json:
             return {"script_segment_ids": [], "current_phase": "phase6_writing"}
 
-        max_tokens = format_rules.get("max_reply_tokens", 120)
+        try:
+            max_tokens = int(format_rules.get("max_reply_tokens", 120))
+        except (TypeError, ValueError):
+            max_tokens = 120
+        max_tokens = max(32, max_tokens)
+        system_prompt = SCREENWRITER_SYSTEM.replace("__MAX_REPLY_TOKENS__", str(max_tokens))
 
         for act in manifest.acts_json:
             act_num = act.get("act_number", 0)
@@ -133,41 +141,60 @@ async def write_screenplay(state: PipelineState) -> dict:
                     "language": state["language"],
                 })
 
-                try:
-                    raw = await call_sonnet_structured(
-                        system=SCREENWRITER_SYSTEM.format(max_reply_tokens=max_tokens),
-                        prompt=prompt,
-                        max_tokens=4096,
-                        temperature=0.7,
-                    )
-                    parsed = parse_llm_json(raw)
-                    if not isinstance(parsed, list):
-                        raise ValueError(f"screenwriter output must be a JSON array, got {type(parsed).__name__}")
+                dialogue = []
+                last_error: Exception | None = None
+                for attempt in range(1, SCENE_GENERATION_ATTEMPTS + 1):
+                    try:
+                        raw = await call_sonnet_structured(
+                            system=system_prompt,
+                            prompt=prompt,
+                            max_tokens=4096,
+                            temperature=0.7,
+                        )
+                        parsed = parse_llm_json(raw)
+                        if not isinstance(parsed, list):
+                            raise ValueError(
+                                f"screenwriter output must be a JSON array, got {type(parsed).__name__}"
+                            )
 
-                    dialogue = []
-                    for item in parsed:
-                        if not isinstance(item, dict):
-                            continue
-                        text = item.get("text")
-                        if not isinstance(text, str) or not text.strip():
-                            continue
-                        line = dict(item)
-                        speaker = line.get("speaker")
-                        line["speaker"] = speaker if isinstance(speaker, str) and speaker.strip() else "A"
-                        line["text"] = text.strip()
-                        if not isinstance(line.get("ssml_hints"), dict):
-                            line["ssml_hints"] = {}
-                        if not isinstance(line.get("claim_ids"), list):
-                            line["claim_ids"] = []
-                        dialogue.append(line)
-                except Exception:
-                    logger.error("Screenwriting failed for act %d scene %d", act_num, scene_num, exc_info=True)
-                    dialogue = []
+                        dialogue = []
+                        for item in parsed:
+                            if not isinstance(item, dict):
+                                continue
+                            text = item.get("text")
+                            if not isinstance(text, str) or not text.strip():
+                                continue
+                            line = dict(item)
+                            speaker = line.get("speaker")
+                            line["speaker"] = speaker if isinstance(speaker, str) and speaker.strip() else "A"
+                            line["text"] = text.strip()
+                            if not isinstance(line.get("ssml_hints"), dict):
+                                line["ssml_hints"] = {}
+                            if not isinstance(line.get("claim_ids"), list):
+                                line["claim_ids"] = []
+                            dialogue.append(line)
+
+                        if not dialogue:
+                            raise ValueError("screenwriter output contains no valid dialogue lines")
+                        break
+                    except Exception as exc:
+                        last_error = exc
+                        logger.warning(
+                            "Screenwriting attempt %s/%s failed for act %s scene %s",
+                            attempt,
+                            SCENE_GENERATION_ATTEMPTS,
+                            act_num,
+                            scene_num,
+                            exc_info=True,
+                        )
+                        if attempt < SCENE_GENERATION_ATTEMPTS:
+                            await asyncio.sleep(SCENE_RETRY_BASE_DELAY_SECONDS * attempt)
 
                 if not dialogue:
-                    logger.warning("Skipping empty dialogue for act %s scene %s", act_num, scene_num)
-                    publish_event(run_id, step_completed("phase6_writing", f"write_{act_num}_{scene_num}"))
-                    continue
+                    raise RuntimeError(
+                        f"Screenwriting failed for act {act_num} scene {scene_num} "
+                        f"after {SCENE_GENERATION_ATTEMPTS} attempts: {last_error}"
+                    ) from last_error
 
                 segment = ScriptSegment(
                     id=uuid.uuid4(),

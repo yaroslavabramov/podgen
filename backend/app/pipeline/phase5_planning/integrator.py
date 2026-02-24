@@ -1,5 +1,6 @@
 """Phase 5.3: Integrator — check transitions, anti-duplication, complexity flow."""
 
+import copy
 import json
 import logging
 import time
@@ -10,6 +11,7 @@ from sqlalchemy import select
 from app.workers.worker_db import worker_session_factory as async_session_factory
 from app.models.episode_manifest import EpisodeManifest
 from app.pipeline.state import PipelineState
+from app.pipeline.phase5_planning.act_planner import plan_act
 from app.services.llm import call_sonnet_structured
 from app.pipeline.llm_json import parse_llm_json
 from app.realtime.publisher import publish_event
@@ -52,13 +54,25 @@ async def integrate_acts(state: PipelineState) -> dict:
         acts = manifest.acts_json
         if not isinstance(acts, list):
             raise RuntimeError("Integrator expected acts_json list in manifest")
+        acts = copy.deepcopy(acts)
 
-        for i, act in enumerate(acts, start=1):
-            act_num = act.get("act_number", i) if isinstance(act, dict) else i
-            beat_sheet = act.get("beat_sheet") if isinstance(act, dict) else None
-            if not isinstance(beat_sheet, list) or not beat_sheet:
+        missing_beat_sheet_acts = _missing_beat_sheet_acts(acts)
+        if missing_beat_sheet_acts:
+            logger.warning(
+                "Integrator detected empty beat sheets for acts %s; re-running act planner for recovery",
+                missing_beat_sheet_acts,
+            )
+            await plan_act(state)
+            await db.refresh(manifest)
+            acts = manifest.acts_json
+            if not isinstance(acts, list):
+                raise RuntimeError("Integrator expected acts_json list in manifest")
+            acts = copy.deepcopy(acts)
+            missing_beat_sheet_acts = _missing_beat_sheet_acts(acts)
+            if missing_beat_sheet_acts:
                 raise RuntimeError(
-                    f"Integrator requires non-empty beat_sheet for act {act_num}"
+                    "Integrator requires non-empty beat_sheet for acts "
+                    + ", ".join(str(a) for a in missing_beat_sheet_acts)
                 )
 
         prompt = json.dumps({"acts": acts})
@@ -86,3 +100,13 @@ async def integrate_acts(state: PipelineState) -> dict:
     publish_event(run_id, progress(60.0, "Episode structure finalized"))
 
     return {"manifest_id": state["manifest_id"], "current_phase": "phase5_planning"}
+
+
+def _missing_beat_sheet_acts(acts: list) -> list[int]:
+    missing: list[int] = []
+    for i, act in enumerate(acts, start=1):
+        act_num = act.get("act_number", i) if isinstance(act, dict) else i
+        beat_sheet = act.get("beat_sheet") if isinstance(act, dict) else None
+        if not isinstance(beat_sheet, list) or not beat_sheet:
+            missing.append(act_num)
+    return missing
