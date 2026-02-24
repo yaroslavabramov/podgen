@@ -2,7 +2,6 @@
 
 import json
 import logging
-import time
 import uuid
 
 from sqlalchemy import select
@@ -55,7 +54,6 @@ Rules:
 async def plan_episode(state: PipelineState) -> dict:
     """LangGraph node: create high-level act structure."""
     run_id = state["generation_run_id"]
-    t0 = time.time()
     publish_event(run_id, phase_started("phase5_planning", "Planning episode structure"))
     update_generation_progress(run_id, "phase5_planning", "showrunner", 50.0)
 
@@ -113,7 +111,7 @@ async def plan_episode(state: PipelineState) -> dict:
         })
 
         raw = await call_sonnet_structured(system=SHOWRUNNER_SYSTEM, prompt=prompt, temperature=0.5)
-        plan = parse_llm_json(raw)
+        plan = _normalize_plan(parse_llm_json(raw), state["duration_target"])
 
         # Validate: all disputed claims have debate slots
         for act in plan.get("acts", []):
@@ -131,3 +129,76 @@ async def plan_episode(state: PipelineState) -> dict:
     publish_event(run_id, progress(55.0, f"Planned {plan.get('act_count', 0)} acts"))
 
     return {"manifest_id": state.get("manifest_id", ""), "current_phase": "phase5_planning"}
+
+
+def _positive_int(value, default: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
+
+
+def _uuid_list(value) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        try:
+            uuid.UUID(item)
+        except ValueError:
+            continue
+        if item in seen:
+            continue
+        seen.add(item)
+        out.append(item)
+    return out
+
+
+def _normalize_plan(plan, duration_target: int) -> dict:
+    if isinstance(plan, dict):
+        acts_raw = plan.get("acts")
+    elif isinstance(plan, list):
+        acts_raw = plan
+    else:
+        acts_raw = None
+
+    if not isinstance(acts_raw, list):
+        raise RuntimeError("Showrunner response does not contain an acts list")
+
+    default_act_duration = max(180, duration_target // max(1, len(acts_raw)))
+    normalized_acts: list[dict] = []
+
+    for i, act in enumerate(acts_raw, start=1):
+        if not isinstance(act, dict):
+            continue
+        act_number = _positive_int(act.get("act_number"), i)
+        title = act.get("title")
+        if not isinstance(title, str) or not title.strip():
+            title = f"Act {act_number}"
+
+        content_quotas = act.get("content_quotas")
+        if not isinstance(content_quotas, dict):
+            content_quotas = {}
+
+        normalized_acts.append(
+            {
+                "act_number": act_number,
+                "title": title.strip(),
+                "estimated_duration_seconds": _positive_int(
+                    act.get("estimated_duration_seconds"),
+                    default_act_duration,
+                ),
+                "claim_ids": _uuid_list(act.get("claim_ids")),
+                "conflict_brief_ids": _uuid_list(act.get("conflict_brief_ids")),
+                "content_quotas": content_quotas,
+            }
+        )
+
+    if not normalized_acts:
+        raise RuntimeError("Showrunner produced no valid acts")
+
+    return {"act_count": len(normalized_acts), "acts": normalized_acts}

@@ -148,6 +148,16 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P0**: Resume now uses LangGraph Postgres checkpointer (`AsyncPostgresSaver`) with persistent `langgraph_thread_id`; retry continues from checkpointed state
 - [x] **P1**: Retry idempotency for run-unique artifacts (`EpisodeManifest`, `Episode`) to prevent unique-constraint crashes on repeated attempts
 
+**Round 15 (episode artifact integrity):**
+- [x] **P0**: Prevent false `COMPLETED` runs with empty episode artifacts — pipeline now validates `audio_file_path`, non-empty transcript text, and positive duration before returning `episode_id`
+- [x] **P1**: Shownotes phase is now strict about phase ordering — it fails if `episode_id` is missing/invalid or if audio/transcript artifacts are absent
+- [x] **P1**: TTS phase now fails fast when transcript timeline is empty/zero-length (instead of allowing downstream empty episodes)
+
+**Round 16 (planning reliability hardening):**
+- [x] **P1**: `showrunner` now normalizes LLM output (`dict` or top-level `list`) and validates non-empty acts before writing manifest
+- [x] **P1**: `act_planner` now accepts both output shapes (`{"beat_sheet": [...]}` or `[...]`), normalizes scenes, retries on invalid output, and fails explicitly instead of silently writing empty beat sheets
+- [x] **P1**: `integrator` now validates every act has a non-empty beat sheet, so empty scene plans fail in phase 5 (not later in screenwriter)
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

@@ -26,6 +26,9 @@ async def generate_audio(state: PipelineState) -> dict:
     update_generation_progress(run_id, "phase7_audio", "tts", 82.0)
 
     async with async_session_factory() as db:
+        if not state.get("script_segment_ids"):
+            raise RuntimeError("Audio generation requires script segments, but none were provided")
+
         # Load voice profiles from ShowBible
         voice_map = {}  # speaker -> {voice_id, settings}
         if state.get("show_bible_id"):
@@ -48,6 +51,8 @@ async def generate_audio(state: PipelineState) -> dict:
                 segments.append(seg)
 
         segments.sort(key=lambda s: (s.act_number, s.scene_number))
+        if not segments:
+            raise RuntimeError("Audio generation could not load script segments from storage")
 
         # Generate audio per line
         audio_segments = []
@@ -57,13 +62,21 @@ async def generate_audio(state: PipelineState) -> dict:
         publish_event(run_id, step_started("phase7_audio", "tts_generation", "Synthesizing speech"))
 
         for seg in segments:
+            if not isinstance(seg.dialogue_json, list):
+                logger.warning("Skipping segment %s with invalid dialogue payload type", seg.id)
+                continue
+
             for line in seg.dialogue_json:
+                if not isinstance(line, dict):
+                    continue
                 speaker = line.get("speaker", "A")
                 text = line.get("text", "")
-                if not text.strip():
+                if not isinstance(text, str) or not text.strip():
                     continue
 
                 ssml_hints = line.get("ssml_hints", {})
+                if not isinstance(ssml_hints, dict):
+                    ssml_hints = {}
 
                 try:
                     audio_data = await _synthesize_line(text, speaker, voice_map, ssml_hints)
@@ -87,17 +100,23 @@ async def generate_audio(state: PipelineState) -> dict:
         # Post-process audio
         publish_event(run_id, step_started("phase7_audio", "audio_processing", "Processing and normalizing audio"))
 
-        if audio_segments:
-            final_audio = process_audio(audio_segments)
-            # Upload to MinIO
-            client = get_minio_client()
-            object_name = f"episodes/{run_id}/episode.mp3"
-            upload_file(client, final_audio, object_name, "audio/mpeg")
-            duration_seconds = current_ms // 1000
-        else:
-            object_name = None
-            duration_seconds = 0
-            final_audio = b""
+        if not transcript_entries:
+            raise RuntimeError("Audio generation produced no transcript entries")
+        if current_ms <= 0:
+            raise RuntimeError("Audio generation produced a zero-length transcript timeline")
+
+        if not audio_segments:
+            raise RuntimeError("Audio generation produced no audio segments")
+
+        final_audio = process_audio(audio_segments)
+        if not final_audio:
+            raise RuntimeError("Audio post-processing produced empty output")
+
+        # Upload to MinIO
+        client = get_minio_client()
+        object_name = f"episodes/{run_id}/episode.mp3"
+        upload_file(client, final_audio, object_name, "audio/mpeg")
+        duration_seconds = current_ms // 1000
 
         publish_event(run_id, step_completed("phase7_audio", "audio_processing"))
 

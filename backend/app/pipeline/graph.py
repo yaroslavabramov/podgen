@@ -1,6 +1,7 @@
 """Main LangGraph pipeline assembly."""
 
 import logging
+import uuid
 from typing import Any
 
 from langgraph.errors import EmptyInputError
@@ -161,6 +162,83 @@ def _build_initial_state(run: GenerationRun, source_ids: list[str], content_map_
     }
 
 
+def _extract_episode_id(final_state: dict[str, Any] | None) -> str | None:
+    if not final_state:
+        return None
+    for node_output in final_state.values():
+        if isinstance(node_output, dict):
+            episode_id = node_output.get("episode_id")
+            if isinstance(episode_id, str) and episode_id:
+                return episode_id
+    return None
+
+
+def _transcript_has_lines(transcript_json: Any) -> bool:
+    if not isinstance(transcript_json, list) or not transcript_json:
+        return False
+    for line in transcript_json:
+        if not isinstance(line, dict):
+            continue
+        text = line.get("text")
+        if isinstance(text, str) and text.strip():
+            return True
+    return False
+
+
+def _assert_episode_complete(episode: Episode) -> None:
+    issues: list[str] = []
+    if not episode.audio_file_path:
+        issues.append("missing audio file path")
+    if episode.duration_seconds <= 0:
+        issues.append("duration is zero")
+    if not _transcript_has_lines(episode.transcript_json):
+        issues.append("transcript is empty")
+    if issues:
+        raise RuntimeError(
+            "Pipeline finished with incomplete episode artifacts: "
+            + ", ".join(issues)
+        )
+
+
+async def _resolve_episode_id(
+    run: GenerationRun,
+    db: AsyncSession,
+    final_state: dict[str, Any] | None,
+    resume: bool,
+) -> str:
+    candidate_episode_id = _extract_episode_id(final_state)
+    episode: Episode | None = None
+
+    if candidate_episode_id:
+        try:
+            episode_uuid = uuid.UUID(candidate_episode_id)
+        except ValueError as exc:
+            raise RuntimeError(f"Pipeline returned invalid episode_id: {candidate_episode_id}") from exc
+
+        result = await db.execute(
+            select(Episode).where(
+                Episode.id == episode_uuid,
+                Episode.generation_run_id == run.id,
+            )
+        )
+        episode = result.scalar_one_or_none()
+        if episode is None:
+            raise RuntimeError(
+                "Pipeline returned episode_id that does not belong to this generation run"
+            )
+    elif resume:
+        # Resume may replay from checkpoints where terminal payload is omitted.
+        result = await db.execute(select(Episode).where(Episode.generation_run_id == run.id))
+        episode = result.scalar_one_or_none()
+        if episode is None:
+            raise RuntimeError("Pipeline completed but no episode_id produced")
+    else:
+        raise RuntimeError("Pipeline completed but no episode_id produced")
+
+    _assert_episode_complete(episode)
+    return str(episode.id)
+
+
 async def execute_pipeline(run: GenerationRun, db: AsyncSession, resume: bool = False) -> str:
     """Execute the full pipeline for a generation run. Returns episode_id."""
     # Get source IDs for project
@@ -230,16 +308,4 @@ async def execute_pipeline(run: GenerationRun, db: AsyncSession, resume: bool = 
                 ) from exc
             raise
 
-    # Extract episode_id from final state
-    if final_state:
-        for node_output in final_state.values():
-            if isinstance(node_output, dict) and node_output.get("episode_id"):
-                return node_output["episode_id"]
-
-    # Fallback lookup for resumed runs where terminal update payload is absent.
-    episode_result = await db.execute(select(Episode.id).where(Episode.generation_run_id == run.id))
-    episode_row = episode_result.first()
-    if episode_row:
-        return str(episode_row[0])
-
-    raise RuntimeError("Pipeline completed but no episode_id produced")
+    return await _resolve_episode_id(run, db, final_state, resume)

@@ -2,7 +2,6 @@
 
 import json
 import logging
-import time
 import uuid
 
 from sqlalchemy import select
@@ -11,7 +10,6 @@ from app.workers.worker_db import worker_session_factory as async_session_factor
 from app.models.show_bible import ShowBible
 from app.models.claim import Claim
 from app.models.evidence import EvidenceSpan
-from app.models.claim import ClaimEvidence
 from app.models.episode_manifest import EpisodeManifest
 from app.pipeline.llm_json import parse_llm_json
 from app.models.script_segment import ScriptSegment
@@ -54,11 +52,12 @@ NEVER use any forbidden phrases."""
 async def write_screenplay(state: PipelineState) -> dict:
     """LangGraph node: write dialogue for all acts sequentially."""
     run_id = state["generation_run_id"]
-    t0 = time.time()
     publish_event(run_id, phase_started("phase6_writing", "Writing podcast screenplay"))
     update_generation_progress(run_id, "phase6_writing", "screenwriter", 62.0)
 
     all_segment_ids = []
+    planned_scene_count = 0
+    total_dialogue_lines = 0
 
     async with async_session_factory() as db:
         # Load ShowBible
@@ -87,9 +86,15 @@ async def write_screenplay(state: PipelineState) -> dict:
         for act in manifest.acts_json:
             act_num = act.get("act_number", 0)
             beat_sheet = act.get("beat_sheet", [])
+            if not isinstance(beat_sheet, list):
+                logger.warning("Act %s beat_sheet has invalid type: %s", act_num, type(beat_sheet).__name__)
+                continue
 
             for scene in beat_sheet:
+                if not isinstance(scene, dict):
+                    continue
                 scene_num = scene.get("scene", 0)
+                planned_scene_count += 1
                 publish_event(run_id, step_started("phase6_writing", f"write_{act_num}_{scene_num}", f"Writing Act {act_num}, Scene {scene_num}"))
 
                 # Gather claims and evidence for this scene
@@ -135,10 +140,34 @@ async def write_screenplay(state: PipelineState) -> dict:
                         max_tokens=4096,
                         temperature=0.7,
                     )
-                    dialogue = parse_llm_json(raw)
+                    parsed = parse_llm_json(raw)
+                    if not isinstance(parsed, list):
+                        raise ValueError(f"screenwriter output must be a JSON array, got {type(parsed).__name__}")
+
+                    dialogue = []
+                    for item in parsed:
+                        if not isinstance(item, dict):
+                            continue
+                        text = item.get("text")
+                        if not isinstance(text, str) or not text.strip():
+                            continue
+                        line = dict(item)
+                        speaker = line.get("speaker")
+                        line["speaker"] = speaker if isinstance(speaker, str) and speaker.strip() else "A"
+                        line["text"] = text.strip()
+                        if not isinstance(line.get("ssml_hints"), dict):
+                            line["ssml_hints"] = {}
+                        if not isinstance(line.get("claim_ids"), list):
+                            line["claim_ids"] = []
+                        dialogue.append(line)
                 except Exception:
                     logger.error("Screenwriting failed for act %d scene %d", act_num, scene_num, exc_info=True)
                     dialogue = []
+
+                if not dialogue:
+                    logger.warning("Skipping empty dialogue for act %s scene %s", act_num, scene_num)
+                    publish_event(run_id, step_completed("phase6_writing", f"write_{act_num}_{scene_num}"))
+                    continue
 
                 segment = ScriptSegment(
                     id=uuid.uuid4(),
@@ -150,13 +179,18 @@ async def write_screenplay(state: PipelineState) -> dict:
                 db.add(segment)
                 await db.flush()
                 all_segment_ids.append(str(segment.id))
+                total_dialogue_lines += len(dialogue)
 
                 publish_event(run_id, scene_written(act_num, scene_num))
                 publish_event(run_id, step_completed("phase6_writing", f"write_{act_num}_{scene_num}"))
 
+        if planned_scene_count == 0:
+            raise RuntimeError("Screenwriter received an empty beat sheet; no scenes to write")
+        if total_dialogue_lines == 0:
+            raise RuntimeError("Screenwriter produced no dialogue lines")
+
         await db.commit()
 
-    total_lines = sum(1 for _ in all_segment_ids)
     publish_event(run_id, progress(75.0, f"Wrote {len(all_segment_ids)} scenes"))
     update_generation_progress(run_id, "phase6_writing", "screenwriter_done", 75.0)
 

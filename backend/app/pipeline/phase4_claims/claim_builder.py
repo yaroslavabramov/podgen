@@ -2,7 +2,6 @@
 
 import json
 import logging
-import time
 import uuid
 
 from sqlalchemy import select
@@ -83,6 +82,7 @@ async def build_claims(state: PipelineState) -> dict:
         batch_size = 30
         for batch_start in range(0, len(evidence_list), batch_size):
             batch = evidence_list[batch_start:batch_start + batch_size]
+            batch_ids = {e["id"] for e in batch}
 
             prompt = json.dumps({
                 "evidence_spans": batch,
@@ -113,14 +113,38 @@ async def build_claims(state: PipelineState) -> dict:
                 db.add(claim)
                 await db.flush()
 
-                # Create ClaimEvidence links
+                # Create ClaimEvidence links.
+                # PK is (claim_id, evidence_id), so a single evidence cannot have
+                # both "supporting" and "illustrative" links for one claim.
+                # If both are present, keep the stronger "supporting" relation.
+                merged_relations: dict[str, str] = {}
+
                 for se_id in cd.get("supporting_evidence_ids", []):
-                    if se_id in [e["id"] for e in batch]:
-                        db.add(ClaimEvidence(claim_id=claim.id, evidence_id=uuid.UUID(se_id), relation="supporting"))
+                    if isinstance(se_id, str) and se_id in batch_ids:
+                        merged_relations[se_id] = "supporting"
 
                 for ie_id in cd.get("illustrative_evidence_ids", []):
-                    if ie_id in [e["id"] for e in batch]:
-                        db.add(ClaimEvidence(claim_id=claim.id, evidence_id=uuid.UUID(ie_id), relation="illustrative"))
+                    if (
+                        isinstance(ie_id, str)
+                        and ie_id in batch_ids
+                        and ie_id not in merged_relations
+                    ):
+                        merged_relations[ie_id] = "illustrative"
+
+                for evidence_id, relation in merged_relations.items():
+                    try:
+                        db.add(
+                            ClaimEvidence(
+                                claim_id=claim.id,
+                                evidence_id=uuid.UUID(evidence_id),
+                                relation=relation,
+                            )
+                        )
+                    except ValueError:
+                        logger.warning(
+                            "Claim builder produced invalid evidence UUID: %s",
+                            evidence_id,
+                        )
 
                 await db.flush()
                 all_claim_ids.append(str(claim.id))

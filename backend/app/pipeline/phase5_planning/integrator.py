@@ -50,6 +50,17 @@ async def integrate_acts(state: PipelineState) -> dict:
             return {"manifest_id": state["manifest_id"]}
 
         acts = manifest.acts_json
+        if not isinstance(acts, list):
+            raise RuntimeError("Integrator expected acts_json list in manifest")
+
+        for i, act in enumerate(acts, start=1):
+            act_num = act.get("act_number", i) if isinstance(act, dict) else i
+            beat_sheet = act.get("beat_sheet") if isinstance(act, dict) else None
+            if not isinstance(beat_sheet, list) or not beat_sheet:
+                raise RuntimeError(
+                    f"Integrator requires non-empty beat_sheet for act {act_num}"
+                )
+
         prompt = json.dumps({"acts": acts})
 
         try:
