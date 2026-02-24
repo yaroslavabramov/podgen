@@ -536,6 +536,7 @@ Status transitions (step mode):
 - Tool-level spans:
   - `research.tool.*` (`backend/app/pipeline/phase3_research/tools.py`)
   - ingestion step spans (`ingestion.extract`, `ingestion.structural_chunk`, `ingestion.embed_chunks`, etc. in `backend/app/ingestion/router.py`)
+  - scout/content-map spans (`ingestion.scout.build_content_map`, `ingestion.scout.collect_chunks`, `ingestion.scout.build_chunk_summaries`, `ingestion.scout.extract_map`, `ingestion.scout.extract_content_map`, `ingestion.scout.persist_map` in `backend/app/ingestion/scout.py`)
 
 ### 8.3 Trace context contract (minimum)
 - Root context keys: `generation_run_id`, `project_id`, `component`, optionally `user_id`, `language`, `source_id`, `source_type`.
