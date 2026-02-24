@@ -186,6 +186,12 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P1**: Instrumented LLM/embedding calls and wrapped Anthropic/OpenAI clients for provider-level traces
 - [x] **P1**: Instrumented ingestion/research tools with compact I/O metadata for debuggable end-to-end traces
 
+**Round 22 (pipeline quality — doc/code alignment D3/D5/D9/D10):**
+- [x] **P1**: Deepgram `language="en"` hardcoded → auto-detect (D9): `extract_video` now accepts optional `language` param; `run_ingestion` loads `Project.language` and passes it; `None` triggers nova-3 auto-detection
+- [x] **P1**: Verifier was pure rule-based (D5): hybrid rule-based + LLM — pre-filter handles obvious cases (no evidence, counter evidence, opinion/report), Sonnet evaluates semantic alignment for FACT claims with evidence, batched by 8
+- [x] **P1**: Deep ingestion didn't upgrade claims (D3): after `deep_ingest_url` completes, `_upgrade_claims_for_source` re-verifies all claims linked to the source's evidence via `verify_single_claim`
+- [x] **P1**: Act planner had no evidence gap fill (D10): `_fill_evidence_gaps` detects narrative scenes without evidence, searches existing corpus via `vector_search_tool`, extracts quotes with Haiku, creates `EvidenceSpan` records (max 3 searches per act)
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

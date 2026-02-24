@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import datetime, timedelta
 
@@ -7,6 +8,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.workers.celery_app import celery_app
 from app.config import settings
 from app.observability import push_trace_context, safe_set_run, trace_span, tracing_scope
+
+logger = logging.getLogger(__name__)
 
 
 @celery_app.task(name="app.workers.ingestion_tasks.ingest_source", bind=True, max_retries=5)
@@ -165,6 +168,20 @@ async def _deep_ingest_async(source_id: str, generation_run_id: str):
                             source.metadata_ = {k: v for k, v in source.metadata_.items() if k != "error"}
                         await db.commit()
 
+                        # Upgrade claims referencing evidence from this source
+                        try:
+                            upgraded = await _upgrade_claims_for_source(source.id, db)
+                            if upgraded:
+                                logger.info(
+                                    "Deep ingestion: upgraded %d claims for source %s",
+                                    upgraded, source_id,
+                                )
+                        except Exception:
+                            logger.warning(
+                                "Claim upgrade failed for source %s, continuing",
+                                source_id, exc_info=True,
+                            )
+
                         publish_event(generation_run_id, deep_ingestion_completed(source.title or "Unknown"))
                         safe_set_run(
                             task_run,
@@ -250,3 +267,54 @@ async def _cleanup_async():
                     cleanup_run,
                     outputs={"stale_reset_count": len(stale_sources), "deleted_count": len(expired)},
                 )
+
+
+async def _upgrade_claims_for_source(source_id: uuid.UUID, db) -> int:
+    """Re-verify claims that reference evidence from a newly deep-ingested source.
+
+    Returns the number of claims whose verification_level changed.
+    """
+    from sqlalchemy import select
+    from app.models.claim import Claim, ClaimEvidence
+    from app.models.evidence import EvidenceSpan
+    from app.pipeline.phase4_claims.verifier import verify_single_claim
+
+    # Find all evidence spans for this source
+    ev_result = await db.execute(
+        select(EvidenceSpan.id).where(EvidenceSpan.source_id == source_id)
+    )
+    evidence_ids = [row[0] for row in ev_result.all()]
+    if not evidence_ids:
+        return 0
+
+    # Find all claims linked to these evidence spans
+    ce_result = await db.execute(
+        select(ClaimEvidence.claim_id)
+        .where(ClaimEvidence.evidence_id.in_(evidence_ids))
+        .distinct()
+    )
+    claim_ids = [row[0] for row in ce_result.all()]
+    if not claim_ids:
+        return 0
+
+    upgraded = 0
+    for claim_id in claim_ids:
+        result = await db.execute(select(Claim).where(Claim.id == claim_id))
+        claim = result.scalar_one_or_none()
+        if not claim:
+            continue
+
+        old_level = claim.verification_level
+        new_level = await verify_single_claim(claim, db)
+        if new_level != old_level:
+            claim.verification_level = new_level
+            upgraded += 1
+            logger.info(
+                "Claim %s upgraded: %s → %s (after deep ingestion of source %s)",
+                claim_id, old_level, new_level, source_id,
+            )
+
+    if upgraded:
+        await db.commit()
+
+    return upgraded

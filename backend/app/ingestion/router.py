@@ -11,6 +11,7 @@ from app.ingestion.pdf import extract_pdf
 from app.ingestion.scout import build_content_map
 from app.ingestion.video import extract_video
 from app.ingestion.web import extract_web
+from app.models.project import Project
 from app.models.source import Source, SourceType
 from app.observability import push_trace_context, safe_set_run, trace_span, tracing_scope
 from app.services.embeddings import index_chunks
@@ -63,7 +64,13 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
                             text, extracted_title = await extract_web(source.original_url)
 
                         case SourceType.VIDEO | SourceType.AUDIO:
-                            text = await extract_video(source)
+                            # Load project language for Deepgram transcription
+                            from sqlalchemy import select as sa_select
+                            proj_result = await db.execute(
+                                sa_select(Project.language).where(Project.id == source.project_id)
+                            )
+                            project_lang = proj_result.scalar_one_or_none()
+                            text = await extract_video(source, language=project_lang)
 
                         case _:
                             raise ValueError(f"Unsupported source type: {source.source_type}")

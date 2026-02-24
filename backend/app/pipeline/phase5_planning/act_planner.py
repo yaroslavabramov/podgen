@@ -14,13 +14,28 @@ from app.models.evidence import EvidenceSpan
 from app.models.claim import ClaimEvidence
 from app.models.episode_manifest import EpisodeManifest
 from app.pipeline.state import PipelineState
-from app.services.llm import call_sonnet_structured
+from app.models.source import Source
+from app.services.llm import call_sonnet_structured, call_haiku_structured
 from app.pipeline.llm_json import parse_llm_json
+from app.pipeline.phase3_research.tools import vector_search_tool
 from app.realtime.publisher import publish_event
 from app.realtime.events import act_planned, step_started, step_completed
 
 logger = logging.getLogger(__name__)
 ACT_PLANNER_RETRIES = 2
+MAX_EVIDENCE_SEARCHES_PER_ACT = 3
+
+EVIDENCE_EXTRACT_SYSTEM = """You are an evidence extractor. Given a chunk of text and a scene description, extract a relevant verbatim quote that could serve as evidence for the scene.
+
+Return JSON:
+{
+  "quote": "exact verbatim text from the chunk",
+  "asset_type": "anecdote|case|contrast|statistic|expert_quote|definition|mechanism|timeline",
+  "relevance_score": 0.8
+}
+
+If the chunk has no relevant evidence for this scene, return:
+{"quote": null, "asset_type": null, "relevance_score": 0.0}"""
 
 ACT_PLANNER_SYSTEM = """You are a podcast act planner creating a beat sheet (scene list).
 Given an act's claims, evidence, and quotas, create a detailed scene breakdown.
@@ -163,6 +178,16 @@ async def plan_act(state: PipelineState) -> dict:
                     f"Act planner produced empty beat sheet for act {act_num}. Last error: {last_error}"
                 )
 
+            # Fill evidence gaps from existing corpus
+            try:
+                new_ev_ids = await _fill_evidence_gaps(
+                    act, beat_sheet, db, state["project_id"],
+                )
+                if new_ev_ids:
+                    logger.info("Act %s: filled %d evidence gaps", act_num, len(new_ev_ids))
+            except Exception:
+                logger.warning("Evidence gap fill failed for act %s, continuing", act_num, exc_info=True)
+
             act["beat_sheet"] = beat_sheet
 
             scene_count = len(act.get("beat_sheet", []))
@@ -177,6 +202,109 @@ async def plan_act(state: PipelineState) -> dict:
         await db.commit()
 
     return {"manifest_id": state["manifest_id"], "current_phase": "phase5_planning"}
+
+
+NARRATIVE_SCENE_TYPES = {"case_study", "debate", "hook"}
+
+
+async def _fill_evidence_gaps(
+    act: dict, beat_sheet: list[dict], db, project_id: str,
+) -> list[str]:
+    """Detect evidence gaps in beat sheet and fill from existing corpus.
+
+    Returns list of new evidence_ids added.
+    """
+    # Detect gaps: scenes of narrative types without evidence
+    gap_scenes = []
+    for scene in beat_sheet:
+        scene_type = scene.get("type", "")
+        if scene_type in NARRATIVE_SCENE_TYPES and not scene.get("evidence_ids"):
+            gap_scenes.append(scene)
+
+    # Also check: if entire act has < 1 narrative evidence, flag all scenes
+    total_evidence = sum(len(s.get("evidence_ids", [])) for s in beat_sheet)
+    if total_evidence == 0 and not gap_scenes:
+        # Pick scenes that could benefit most from evidence
+        gap_scenes = [s for s in beat_sheet if s.get("type") in ("explanation", "case_study", "hook")][:2]
+
+    if not gap_scenes:
+        return []
+
+    # Load project source IDs for vector search
+    source_result = await db.execute(
+        select(Source.id).where(
+            Source.project_id == uuid.UUID(project_id),
+            Source.fully_ingested.is_(True),
+        )
+    )
+    source_ids = [str(row[0]) for row in source_result.all()]
+    if not source_ids:
+        return []
+
+    new_evidence_ids: list[str] = []
+    searches_done = 0
+
+    for scene in gap_scenes:
+        if searches_done >= MAX_EVIDENCE_SEARCHES_PER_ACT:
+            break
+
+        query = scene.get("description", "")
+        if not query:
+            continue
+
+        # Vector search in existing corpus
+        chunks = await vector_search_tool(query, top_k=3, source_ids=source_ids, db=db)
+        searches_done += 1
+
+        if not chunks:
+            continue
+
+        # Use Haiku to extract evidence from top chunk
+        best_chunk = chunks[0]
+        try:
+            prompt = json.dumps({
+                "scene_description": query,
+                "scene_type": scene.get("type", ""),
+                "chunk_content": best_chunk["preview"],
+                "source_id": best_chunk["source_id"],
+            })
+            raw = await call_haiku_structured(
+                system=EVIDENCE_EXTRACT_SYSTEM,
+                prompt=prompt,
+                max_tokens=1024,
+                temperature=0.2,
+            )
+            extracted = parse_llm_json(raw)
+            if not isinstance(extracted, dict) or not extracted.get("quote"):
+                continue
+
+            if extracted.get("relevance_score", 0) < 0.5:
+                continue
+
+            # Create EvidenceSpan
+            evidence = EvidenceSpan(
+                id=uuid.uuid4(),
+                project_id=uuid.UUID(project_id),
+                source_id=uuid.UUID(best_chunk["source_id"]),
+                verbatim_quote=extracted["quote"][:2000],
+                asset_type=extracted.get("asset_type", "case"),
+                narrative_value_score=extracted.get("relevance_score", 0.5),
+            )
+            db.add(evidence)
+            await db.flush()
+
+            eid = str(evidence.id)
+            scene.setdefault("evidence_ids", []).append(eid)
+            new_evidence_ids.append(eid)
+            logger.info(
+                "Evidence gap filled: scene %s got evidence %s (type=%s)",
+                scene.get("scene"), eid, extracted.get("asset_type"),
+            )
+        except Exception:
+            logger.warning("Evidence extraction failed for scene %s", scene.get("scene"), exc_info=True)
+            continue
+
+    return new_evidence_ids
 
 
 def _positive_int(value: Any, default: int) -> int:

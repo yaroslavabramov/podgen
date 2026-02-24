@@ -117,7 +117,7 @@
 1. Extraction:
 - PDF -> `extract_pdf` (`39-44`, `ingestion/pdf.py:12`), Marker/PyPDF fallback.
 - WEB -> `extract_web` (`45-49`, `ingestion/web.py:52`), Jina -> httpx HTML strip fallback.
-- VIDEO/AUDIO -> `extract_video` (`50-51`, `ingestion/video.py:12`), Deepgram `nova-3`.
+- VIDEO/AUDIO -> `extract_video(source, language)` (`50-51`, `ingestion/video.py:12`), Deepgram `nova-3`. Language loaded from `Project.language`; if `None`, nova-3 auto-detects.
 
 2. Raw text storage:
 - upload raw text в MinIO `raw_text/{project_id}/{source_id}.md` (`59-63`).
@@ -148,6 +148,7 @@
 - Берёт lock `SELECT ... FOR UPDATE SKIP LOCKED` (`99-103`).
 - Выполняет `run_ingestion`.
 - Успех: `is_temporary=False`, `fully_ingested=True`, `completed`, `deep_ingestion_completed` event (`118-125`).
+- Post-upgrade: `_upgrade_claims_for_source` — находит все `EvidenceSpan` → `ClaimEvidence` → `Claim` для этого source, перезапускает `verify_single_claim` для каждого. Claims могут быть промоутнуты (e.g. OBSERVED→VERIFIED).
 - Ошибка: `failed` (`126-128`).
 
 ## 6. LangGraph pipeline (Phases 0,2-7) — по нодам
@@ -250,13 +251,17 @@
 - DB read:
   - `Claim`, `ClaimEvidence`, `EvidenceSpan`, `Source`.
 - External:
-  - Нет обязательных внешних вызовов; verification rule-based.
+  - **Hybrid rule-based + LLM:**
+    - Pre-filter (no LLM): opinion/report → OBSERVED/UNVERIFIED by attribution; counter evidence → DISPUTED; no evidence → UNVERIFIED.
+    - LLM verification (Sonnet structured, batched by 8): for FACT claims with supporting evidence, evaluates semantic alignment between claim statement and evidence quotes. Falls back to `_rule_based_fallback` on LLM failure.
 - DB write:
   - `claim.verification_level`.
 - State output:
   - `claim_ids`, `current_phase`, `iteration_counts.verify_research_loops`, `iteration_counts.verify_needs_research`.
 - Loop signals:
-  - Если есть `UNVERIFIED fact` -> `verify_needs_research=True`.
+  - Если есть `UNVERIFIED fact` или LLM вернул `needs_research=true` -> `verify_needs_research=True`.
+- Reusable:
+  - `verify_single_claim(claim, db)` — используется также в `_upgrade_claims_for_source` (deep ingestion post-upgrade).
 
 ### Phase 4.3 — `resolve_conflicts`
 Файл: `phase4_claims/conflict_resolver.py:33`
@@ -290,13 +295,15 @@
 Файл: `phase5_planning/act_planner.py:54`
 
 - State input:
-  - `generation_run_id`, `manifest_id`.
+  - `generation_run_id`, `manifest_id`, `project_id`.
 - DB read:
-  - `EpisodeManifest`, `Claim`, `ClaimEvidence`, `EvidenceSpan`.
+  - `EpisodeManifest`, `Claim`, `ClaimEvidence`, `EvidenceSpan`, `Source`.
 - External:
   - `call_sonnet_structured` per act with retries (`129-159`).
+  - **Evidence gap fill** (`_fill_evidence_gaps`): after beat sheet generation, detects narrative scenes (case_study/debate/hook) without evidence. Uses `vector_search_tool` on existing corpus + `call_haiku_structured` to extract quotes. Creates new `EvidenceSpan` rows and adds their IDs to scenes. Governor: max 3 searches per act.
 - DB write:
   - дописывает `beat_sheet` в `EpisodeManifest.acts_json` (`166-177`).
+  - new `EvidenceSpan` rows from gap fill.
 - State output:
   - `manifest_id`, `current_phase`.
 - Retry:
@@ -470,20 +477,20 @@
 - Доп. подтверждение: `TODO.md:26`, `TODO.md:184`.
 - Влияние: ожидаемое поведение web extraction в доке шире, чем реализовано.
 
-### D3. Deep ingestion «апгрейдит claim verification и evidence locators»
+### ~~D3. Deep ingestion «апгрейдит claim verification и evidence locators»~~ ✅ RESOLVED
 - Документация: `IMPLEMENTATION.md:964-968`, `IMPLEMENTATION.md:977`.
-- Код: `deep_ingest_url` вызывает только `run_ingestion`, обновляет статус source и шлёт event (`backend/app/workers/ingestion_tasks.py:114-125`), явной логики upgrade claims нет.
-- Влияние: завышенное ожидание влияния deep ingestion на текущий run.
+- ~~Код: `deep_ingest_url` вызывает только `run_ingestion`, обновляет статус source и шлёт event, явной логики upgrade claims нет.~~
+- Исправлено: `_upgrade_claims_for_source` re-verifies claims linked to deep-ingested source via `verify_single_claim`.
 
 ### D4. Act planners как parallel fan-out (LangGraph Send)
 - Документация: `IMPLEMENTATION.md:1105-1107`, `1125-1131`.
 - Код: один node `plan_acts` без `Send`, внутри обычный последовательный цикл по актам (`backend/app/pipeline/graph.py:97-99`, `backend/app/pipeline/phase5_planning/act_planner.py:77-177`).
 - Влияние: docs обещает параллелизм/кэш-координацию, в коде их нет.
 
-### D5. Verifier как LLM+tools (`update_claim`, `request_research`)
+### ~~D5. Verifier как LLM+tools (`update_claim`, `request_research`)~~ ✅ RESOLVED
 - Документация: `IMPLEMENTATION.md:1014`, `1036-1038`.
-- Код: rule-based Python алгоритм без tool-calling и без обязательного LLM шага (`backend/app/pipeline/phase4_claims/verifier.py:32-124`).
-- Влияние: архитектурное описание verifier в доках не совпадает с реальностью.
+- ~~Код: rule-based Python алгоритм без tool-calling и без обязательного LLM шага.~~
+- Исправлено: hybrid rule-based pre-filter + Sonnet LLM verification (batched by 8) with rule-based fallback on LLM failure. No tool-calling, but LLM evaluates semantic alignment. `needs_research` signal preserved.
 
 ### D6. Дефолт голосов «первые 2 ElevenLabs voices»
 - Документация: `IMPLEMENTATION.md:627`.
@@ -500,10 +507,10 @@
 - Код: `run_ingestion` устанавливает `raw_text_path`, `text_preview`; структурированное metadata заполняется в основном при ошибках (`backend/app/ingestion/router.py:59-72`, `backend/app/workers/ingestion_tasks.py:53-59`).
 - Влияние: поле `Source.metadata` сейчас не является стабильным контрактом extraction metadata.
 
-### D9. Deepgram language mode
+### ~~D9. Deepgram language mode~~ ✅ RESOLVED
 - Документация: `IMPLEMENTATION.md:709` указывает `language="auto"`.
-- Код: жёстко задано `language="en"` (`backend/app/ingestion/video.py:29-35`).
-- Влияние: авто-детект языка для media ingestion сейчас не реализован.
+- ~~Код: жёстко задано `language="en"`.~~
+- Исправлено: `extract_video(source, language=None)` — loads `Project.language`; if `None`, nova-3 auto-detects.
 
 ### D10. «Act Planner может делать request_fast_research/search_evidence как tool calls»
 - Документация: `IMPLEMENTATION.md:1121-1123`, `1130-1131`.

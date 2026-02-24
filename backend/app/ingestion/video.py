@@ -9,12 +9,17 @@ from app.services.storage import get_minio_client, download_file, get_presigned_
 logger = logging.getLogger(__name__)
 
 
-async def extract_video(source: Source) -> str:
+async def extract_video(source: Source, language: str | None = None) -> str:
     """Extract transcript from a video or audio source using Deepgram nova-3.
 
     Supports two modes:
       - File-based: source.file_path points to a file in MinIO.
       - URL-based:  source.original_url points to a publicly accessible media file.
+
+    Args:
+        source: The Source object with file_path or original_url.
+        language: BCP-47 language code (e.g. "en", "ru"). If None, Deepgram
+                  auto-detects the language.
 
     Returns:
         Formatted transcript as a markdown string.
@@ -26,13 +31,16 @@ async def extract_video(source: Source) -> str:
 
     dg = DeepgramClient(settings.deepgram_api_key)
 
-    options = PrerecordedOptions(
-        model="nova-3",
-        smart_format=True,
-        diarize=True,
-        paragraphs=True,
-        language="en",
-    )
+    opts: dict = {
+        "model": "nova-3",
+        "smart_format": True,
+        "diarize": True,
+        "paragraphs": True,
+    }
+    if language:
+        opts["language"] = language
+
+    options = PrerecordedOptions(**opts)
 
     if source.file_path:
         transcript = await _transcribe_from_file(dg, source.file_path, options)
