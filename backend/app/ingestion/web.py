@@ -174,7 +174,6 @@ async def _trafilatura_extract(url: str) -> tuple[str, str | None, str | None] |
         include_tables=True,
         include_comments=False,
         include_links=False,
-        favor_recall=True,
     )
 
     if not text or not text.strip():
