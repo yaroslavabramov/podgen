@@ -86,6 +86,7 @@
 - [ ] End-to-end tests
 - [ ] Step-mode API/worker integration tests (`/steps/next`, `/steps/rerun`, `/steps/stop`, checkpoint rewind, stop ack path)
 - [ ] Step-mode concurrency hardening (single in-flight action guarantee under concurrent requests)
+- [ ] Structured-output hardening: migrate rigid JSON nodes from freeform JSON + `parse_llm_json` to Anthropic tool_use/json-schema
 - [ ] Token & Cost Governor enforcement (limits exist in config, enforcement partial)
 - [~] Error handling + retry strategies (ingestion DB retries + explicit ShowBible generation errors done; full coverage pending)
 - [x] Generation resume (continues from last checkpoint; no full pipeline rerun on retry)

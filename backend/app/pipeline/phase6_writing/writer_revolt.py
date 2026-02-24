@@ -67,7 +67,7 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
                         "act": segment.act_number,
                         "scene": segment.scene_number,
                         "dialogue": segment.dialogue_json,
-                    }),
+                    }, ensure_ascii=False),
                     max_tokens=1024,
                     temperature=0.2,
                 )

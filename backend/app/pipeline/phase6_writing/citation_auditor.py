@@ -93,7 +93,7 @@ async def audit_citations(state: PipelineState) -> dict:
                 "forbidden_phrases": forbidden,
                 "rigor_policy": rigor,
                 "language": state["language"],
-            })
+            }, ensure_ascii=False)
 
             try:
                 raw = await call_sonnet_structured(system=AUDITOR_SYSTEM, prompt=prompt, max_tokens=2048, temperature=0.2)

@@ -100,7 +100,7 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                 "research_question": q["question"],
                 "expected_evidence_types": q["expected_types"],
                 "chunks": [{"content": c["content"][:2000], "source": c.get("source_title", ""), "heading": c.get("heading_path", [])} for c in chunk_texts],
-            })
+            }, ensure_ascii=False)
 
             try:
                 raw = await call_haiku_structured(

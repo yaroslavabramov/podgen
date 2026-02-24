@@ -75,7 +75,7 @@ async def integrate_acts(state: PipelineState) -> dict:
                     + ", ".join(str(a) for a in missing_beat_sheet_acts)
                 )
 
-        prompt = json.dumps({"acts": acts})
+        prompt = json.dumps({"acts": acts}, ensure_ascii=False)
 
         try:
             raw = await call_sonnet_structured(system=INTEGRATOR_SYSTEM, prompt=prompt, max_tokens=2048, temperature=0.4)

@@ -59,7 +59,7 @@ async def resolve_conflicts(state: PipelineState) -> dict:
                 "disputed_claim": claim.statement,
                 "claim_type": claim.claim_type,
                 "notes": claim.notes or "",
-            })
+            }, ensure_ascii=False)
 
             try:
                 raw = await call_sonnet_structured(

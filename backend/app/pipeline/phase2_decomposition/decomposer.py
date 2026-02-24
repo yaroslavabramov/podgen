@@ -4,6 +4,7 @@ import json
 import logging
 import time
 import uuid
+from typing import Any
 
 from sqlalchemy import select
 
@@ -90,15 +91,16 @@ async def decompose(state: PipelineState) -> dict:
         # Build research tree
         publish_event(run_id, step_started("phase2_decomposition", "build_tree", "Building research tree"))
 
-        prompt = json.dumps({
+        prompt_payload = {
             "topic": state["user_prompt"],
             "duration_target_seconds": state["duration_target"],
             "language": state["language"],
-            "content_map_summary": json.dumps(content_map_data)[:3000],
+            "content_map": _compact_content_map(content_map_data),
             "audience_profile": bible_data.get("audience_profile", {}),
             "adjacency_policy": bible_data.get("adjacency_policy", ""),
             "show_style": bible_data.get("show_style", "Conversational"),
-        })
+        }
+        prompt = json.dumps(prompt_payload, ensure_ascii=False)
 
         raw = await call_sonnet_structured(
             system=DECOMPOSER_SYSTEM,
@@ -149,3 +151,66 @@ async def decompose(state: PipelineState) -> dict:
     publish_event(run_id, progress(15.0, f"Research tree: {len(research_tree.get('branches', []))} angles, {branch_total} drill-downs"))
 
     return {"manifest_id": manifest_id, "current_phase": "phase2_decomposition"}
+
+
+def _compact_content_map(content_map_data: Any) -> dict[str, Any]:
+    """Keep content map signal while avoiding nested JSON strings and giant payloads."""
+    if not isinstance(content_map_data, dict):
+        return {}
+
+    def _clip_text(value: Any, limit: int) -> str:
+        return str(value or "")[:limit]
+
+    compact_topics: list[dict[str, Any]] = []
+    for raw in content_map_data.get("topics", [])[:8]:
+        if not isinstance(raw, dict):
+            continue
+        compact_topics.append(
+            {
+                "name": _clip_text(raw.get("name"), 120),
+                "description": _clip_text(raw.get("description"), 240),
+                "chunk_count": raw.get("chunk_count"),
+            }
+        )
+
+    compact_entities: list[dict[str, Any]] = []
+    for raw in content_map_data.get("entities", [])[:12]:
+        if not isinstance(raw, dict):
+            continue
+        compact_entities.append(
+            {
+                "name": _clip_text(raw.get("name"), 120),
+                "type": _clip_text(raw.get("type"), 80),
+                "mentions": raw.get("mentions"),
+            }
+        )
+
+    compact_terms: list[dict[str, Any]] = []
+    for raw in content_map_data.get("key_terms", [])[:12]:
+        if not isinstance(raw, dict):
+            continue
+        compact_terms.append(
+            {
+                "term": _clip_text(raw.get("term"), 120),
+                "context": _clip_text(raw.get("context"), 180),
+            }
+        )
+
+    compact_gaps = [
+        _clip_text(gap, 180)
+        for gap in (content_map_data.get("gaps", []) if isinstance(content_map_data.get("gaps"), list) else [])
+        if str(gap).strip()
+    ][:8]
+
+    compact: dict[str, Any] = {
+        "summary": _clip_text(content_map_data.get("summary"), 1200),
+        "topics": compact_topics,
+        "entities": compact_entities,
+        "key_terms": compact_terms,
+        "gaps": compact_gaps,
+    }
+
+    if content_map_data.get("_raw_response"):
+        compact["parse_warning"] = "content_map_parse_failed"
+
+    return compact

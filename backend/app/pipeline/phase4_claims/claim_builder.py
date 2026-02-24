@@ -88,7 +88,7 @@ async def build_claims(state: PipelineState) -> dict:
                 "evidence_spans": batch,
                 "target_language": state["language"],
                 "instructions": "Build claims from these evidence spans. Group related evidence.",
-            })
+            }, ensure_ascii=False)
 
             try:
                 raw = await call_sonnet_structured(

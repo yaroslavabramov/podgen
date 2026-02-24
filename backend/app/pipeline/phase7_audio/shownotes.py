@@ -128,7 +128,7 @@ async def build_shownotes(state: PipelineState) -> dict:
             "claims": claims_with_sources,
             "conflicts": conflicts_data,
             "language": state["language"],
-        })
+        }, ensure_ascii=False)
 
         try:
             raw = await call_haiku_structured(system=SHOWNOTES_SYSTEM, prompt=prompt, max_tokens=4096, temperature=0.3)

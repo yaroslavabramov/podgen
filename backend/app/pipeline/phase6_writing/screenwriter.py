@@ -203,7 +203,7 @@ async def write_screenplay(state: PipelineState) -> dict:
                     "forbidden_phrases": forbidden,
                     "max_reply_tokens": max_tokens,
                     "language": state["language"],
-                })
+                }, ensure_ascii=False)
 
                 dialogue = []
                 last_error: Exception | None = None

@@ -109,7 +109,7 @@ async def research_fast_web(state: PipelineState) -> dict:
                 prompt = json.dumps({
                     "research_question": query,
                     "web_pages": page_contents,
-                })
+                }, ensure_ascii=False)
 
                 raw = await call_sonnet_structured(
                     system=EXTRACT_WEB_EVIDENCE_SYSTEM,

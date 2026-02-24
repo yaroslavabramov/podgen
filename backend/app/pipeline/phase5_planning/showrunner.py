@@ -108,7 +108,7 @@ async def plan_episode(state: PipelineState) -> dict:
             "conflicts": conflicts_summary,
             "disputed_claim_ids": disputed_ids,
             "duration_fill_layers": manifest.duration_fill_layers if manifest else [],
-        })
+        }, ensure_ascii=False)
 
         raw = await call_sonnet_structured(system=SHOWRUNNER_SYSTEM, prompt=prompt, temperature=0.5)
         plan = _normalize_plan(parse_llm_json(raw), state["duration_target"])

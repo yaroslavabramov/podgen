@@ -149,7 +149,7 @@ async def plan_act(state: PipelineState) -> dict:
                     )
                     prompt_payload["previous_error"] = last_error
 
-                prompt = json.dumps(prompt_payload)
+                prompt = json.dumps(prompt_payload, ensure_ascii=False)
                 try:
                     raw = await call_sonnet_structured(system=ACT_PLANNER_SYSTEM, prompt=prompt, temperature=0.5)
                     beat_data = parse_llm_json(raw)
@@ -267,7 +267,7 @@ async def _fill_evidence_gaps(
                 "scene_type": scene.get("type", ""),
                 "chunk_content": best_chunk["preview"],
                 "source_id": best_chunk["source_id"],
-            })
+            }, ensure_ascii=False)
             raw = await call_haiku_structured(
                 system=EVIDENCE_EXTRACT_SYSTEM,
                 prompt=prompt,

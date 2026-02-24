@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.chunk import Chunk
 from app.models.content_map import ContentMap
 from app.models.source import Source
+from app.pipeline.llm_json import parse_llm_json
 from app.services.llm import call_haiku_structured
 
 logger = logging.getLogger(__name__)
@@ -132,8 +133,12 @@ async def _extract_content_map(chunk_summaries: list[dict]) -> dict:
     )
 
     try:
-        result = json.loads(raw)
-    except json.JSONDecodeError:
+        parsed = parse_llm_json(raw)
+        if isinstance(parsed, dict):
+            result = parsed
+        else:
+            raise ValueError("Content map response must be a JSON object")
+    except ValueError:
         logger.error("Failed to parse content map JSON: %s", raw[:500])
         # Return a minimal fallback
         result = {

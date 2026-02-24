@@ -116,7 +116,7 @@ async def verify_single_claim(claim: Claim, db: AsyncSession) -> VerificationLev
 
 async def _llm_verify_batch(claims_payload: list[dict]) -> list[dict]:
     """Call LLM to verify a batch of claims. Returns parsed results."""
-    prompt = json.dumps({"claims": claims_payload})
+    prompt = json.dumps({"claims": claims_payload}, ensure_ascii=False)
     try:
         raw = await call_sonnet_structured(
             system=VERIFIER_SYSTEM,
