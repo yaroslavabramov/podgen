@@ -2,7 +2,10 @@
 
 import json
 import logging
+import re
 import uuid
+from collections import Counter
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -17,18 +20,36 @@ from app.services.llm import call_haiku_structured
 
 logger = logging.getLogger(__name__)
 
-# Maximum number of chunk summaries to include in a single LLM call
-_MAX_CHUNK_SUMMARIES = 200
-# Max chars per chunk summary to keep the prompt within context limits
-_SUMMARY_CHARS = 200
+# Maximum number of source summaries to include in a single LLM call.
+_MAX_SOURCE_SUMMARIES = 80
+# Max number of sections kept per source summary.
+_MAX_SECTIONS_PER_SOURCE = 12
+# Max chars for section lead.
+_MAX_LEAD_CHARS = 260
+# Top-N term hints injected into prompt.
+_MAX_TERM_HINTS = 40
+_MAX_HEADING_CLUSTERS = 40
+_MIN_TERM_LEN = 3
+_TERM_RE = re.compile(r"[A-Za-zА-Яа-я][A-Za-zА-Яа-я0-9\-]{2,}")
+
+_STOPWORDS = {
+    # English
+    "the", "and", "for", "with", "that", "this", "from", "into", "about", "what", "when", "where", "which",
+    "were", "been", "have", "has", "had", "will", "would", "their", "there", "than", "then", "also", "such",
+    "only", "over", "under", "after", "before", "between", "through", "during", "because", "while", "your",
+    "ours", "ourselves", "they", "them", "its", "our", "you", "are", "was", "is", "of", "to", "in", "on",
+    # Russian
+    "это", "как", "что", "для", "или", "при", "без", "под", "над", "после", "перед", "между", "если", "когда",
+    "где", "чем", "также", "только", "который", "которые", "было", "были", "есть", "был", "она", "они", "его",
+    "её", "их", "мы", "вы", "ты", "на", "по", "из", "в", "во", "и", "а", "но", "от", "до", "за", "не", "да",
+}
 
 
 async def build_content_map(project_id: str, db: AsyncSession) -> str:
     """Build a ContentMap from all project chunks.
 
-    Aggregates topics, entities, and key terms from chunk headings and the
-    first 200 characters of each chunk's content. Uses Haiku structured
-    output to produce the map.
+    Aggregates source-level structure (sections + leads), coverage signals, and
+    term hints from chunk data. Uses Haiku structured output to produce the map.
 
     Returns:
         The content_map_id (UUID string) of the newly created ContentMap.
@@ -44,52 +65,73 @@ async def build_content_map(project_id: str, db: AsyncSession) -> str:
                 run_type="chain",
                 inputs={"project_id": project_id},
             ) as scout_run:
-                # --- 1. Gather chunk summaries -------------------------------------
+                # --- 1. Gather source+chunk rows -----------------------------------
                 with trace_span(
                     "ingestion.scout.collect_chunks",
                     run_type="retriever",
                     inputs={"project_id": project_id},
                 ) as collect_run:
                     result = await db.execute(
-                        select(Chunk, Source.title, Source.source_type)
+                        select(
+                            Chunk,
+                            Source.id,
+                            Source.title,
+                            Source.source_type,
+                            Source.original_url,
+                            Source.published_at,
+                        )
                         .join(Source, Chunk.source_id == Source.id)
                         .where(Source.project_id == project_id)
-                        .order_by(Chunk.chunk_index)
+                        .order_by(Source.id, Chunk.chunk_index)
                     )
                     rows = result.all()
-                    safe_set_run(collect_run, outputs={"rows_count": len(rows)})
+                    safe_set_run(
+                        collect_run,
+                        outputs={
+                            "rows_count": len(rows),
+                            "source_count": len({str(row[1]) for row in rows}),
+                        },
+                    )
 
                 if not rows:
                     safe_set_run(scout_run, outputs={"status": "no_chunks"})
                     raise ValueError(f"No chunks found for project {project_id}")
 
                 with trace_span(
-                    "ingestion.scout.build_chunk_summaries",
+                    "ingestion.scout.build_source_summaries",
                     run_type="chain",
-                    inputs={"rows_count": len(rows), "max_rows": _MAX_CHUNK_SUMMARIES},
+                    inputs={"rows_count": len(rows), "max_sources": _MAX_SOURCE_SUMMARIES},
                 ) as summaries_run:
-                    chunk_summaries = _build_chunk_summaries(rows)
+                    source_summaries = _build_source_summaries(rows)
+                    term_hints = _extract_term_hints(source_summaries, top_n=_MAX_TERM_HINTS)
+                    heading_clusters = _build_heading_clusters(source_summaries, top_n=_MAX_HEADING_CLUSTERS)
                     safe_set_run(
                         summaries_run,
                         outputs={
-                            "summary_count": len(chunk_summaries),
-                            "truncated_input": len(rows) > _MAX_CHUNK_SUMMARIES,
+                            "source_summary_count": len(source_summaries),
+                            "term_hint_count": len(term_hints),
+                            "heading_cluster_count": len(heading_clusters),
+                            "truncated_sources": len({str(row[1]) for row in rows}) > _MAX_SOURCE_SUMMARIES,
                         },
                     )
 
                 logger.info(
-                    "Building content map for project %s with %d chunk summaries",
+                    "Building content map for project %s with %d source summaries",
                     project_id,
-                    len(chunk_summaries),
+                    len(source_summaries),
                 )
 
                 # --- 2. Call Haiku for structured extraction ------------------------
                 with trace_span(
                     "ingestion.scout.extract_map",
                     run_type="chain",
-                    inputs={"summary_count": len(chunk_summaries)},
+                    inputs={
+                        "source_summary_count": len(source_summaries),
+                        "term_hint_count": len(term_hints),
+                        "heading_cluster_count": len(heading_clusters),
+                    },
                 ) as extract_run:
-                    map_json = await _extract_content_map(chunk_summaries)
+                    map_json = await _extract_content_map(source_summaries, term_hints, heading_clusters)
                     safe_set_run(
                         extract_run,
                         outputs={
@@ -122,54 +164,234 @@ async def build_content_map(project_id: str, db: AsyncSession) -> str:
                     outputs={
                         "status": "ok",
                         "content_map_id": content_map_id,
-                        "summary_count": len(chunk_summaries),
+                        "source_summary_count": len(source_summaries),
+                        "term_hint_count": len(term_hints),
+                        "heading_cluster_count": len(heading_clusters),
                     },
                 )
                 logger.info("Created ContentMap %s for project %s", content_map_id, project_id)
                 return content_map_id
 
 
-def _build_chunk_summaries(rows) -> list[dict]:
-    """Build compact chunk summaries for the LLM prompt."""
-    summaries: list[dict] = []
+def _build_source_summaries(rows) -> list[dict]:
+    """Build source-level structured summaries for the LLM prompt."""
+    by_source: dict[str, dict[str, Any]] = {}
 
-    for row in rows[:_MAX_CHUNK_SUMMARIES]:
+    for row in rows:
         chunk: Chunk = row[0]
-        source_title: str | None = row[1]
-        source_type: str = row[2]
+        source_id = str(row[1])
+        source_title: str | None = row[2]
+        source_type: str = row[3]
+        source_url: str | None = row[4]
+        published_at: datetime | None = row[5]
 
-        summary = {
-            "source": source_title or "Untitled",
-            "type": source_type,
-            "headings": chunk.heading_path,
-            "preview": chunk.content[:_SUMMARY_CHARS],
-        }
-        summaries.append(summary)
+        source = by_source.get(source_id)
+        if source is None:
+            source = {
+                "source_id": source_id,
+                "source": source_title or "Untitled",
+                "type": source_type,
+                "url": source_url,
+                "published_at": published_at.date().isoformat() if isinstance(published_at, datetime) else None,
+                "total_tokens": 0,
+                "chunk_count": 0,
+                "_structure_depth": 0,
+                "_sections": {},
+            }
+            by_source[source_id] = source
+
+        token_count = int(chunk.token_count or 0)
+        source["total_tokens"] += token_count
+        source["chunk_count"] += 1
+
+        headings = [h.strip() for h in (chunk.heading_path or []) if isinstance(h, str) and h.strip()]
+        source["_structure_depth"] = max(source["_structure_depth"], len(headings))
+        section_key = " > ".join(headings) if headings else "(root)"
+        section = source["_sections"].get(section_key)
+        if section is None:
+            section = {
+                "headings": headings,
+                "lead": _extract_lead(chunk.content),
+                "token_count": 0,
+                "chunk_count": 0,
+            }
+            source["_sections"][section_key] = section
+        elif not section.get("lead"):
+            section["lead"] = _extract_lead(chunk.content)
+
+        section["token_count"] += token_count
+        section["chunk_count"] += 1
+
+    summaries: list[dict] = []
+    sorted_sources = sorted(
+        by_source.values(),
+        key=lambda item: (int(item["total_tokens"]), int(item["chunk_count"])),
+        reverse=True,
+    )[:_MAX_SOURCE_SUMMARIES]
+
+    for source in sorted_sources:
+        section_values = list(source["_sections"].values())
+        section_values.sort(key=lambda item: (int(item["token_count"]), len(item["headings"])), reverse=True)
+        section_values = section_values[:_MAX_SECTIONS_PER_SOURCE]
+
+        summaries.append(
+            {
+                "source_id": source["source_id"],
+                "source": source["source"],
+                "type": source["type"],
+                "url": source["url"],
+                "published_at": source["published_at"],
+                "total_tokens": source["total_tokens"],
+                "chunk_count": source["chunk_count"],
+                "section_count": len(source["_sections"]),
+                "structure_depth": source["_structure_depth"],
+                "sections": [
+                    {
+                        "headings": section["headings"],
+                        "lead": section["lead"],
+                        "token_count": section["token_count"],
+                    }
+                    for section in section_values
+                ],
+            }
+        )
 
     return summaries
 
 
-async def _extract_content_map(chunk_summaries: list[dict]) -> dict:
-    """Use Haiku to extract a structured content map from chunk summaries."""
+def _extract_lead(text: str) -> str:
+    """Extract a compact lead sentence from a chunk."""
+    if not text:
+        return ""
+
+    normalized = re.sub(r"\s+", " ", text).strip()
+    if not normalized:
+        return ""
+
+    # Split on common sentence boundaries first.
+    parts = re.split(r"(?<=[.!?])\s+", normalized)
+    for part in parts:
+        candidate = part.strip()
+        if len(candidate) >= 40:
+            return candidate[:_MAX_LEAD_CHARS]
+
+    # Fallback: first non-empty fragment.
+    for part in parts:
+        candidate = part.strip()
+        if candidate:
+            return candidate[:_MAX_LEAD_CHARS]
+
+    return normalized[:_MAX_LEAD_CHARS]
+
+
+def _extract_term_hints(source_summaries: list[dict], top_n: int = _MAX_TERM_HINTS) -> list[dict]:
+    """Compute lightweight term-frequency hints from headings and leads."""
+    counter: Counter[str] = Counter()
+
+    for source in source_summaries:
+        for section in source.get("sections", []):
+            headings = section.get("headings", [])
+            if isinstance(headings, list):
+                for heading in headings:
+                    if isinstance(heading, str):
+                        for token in _TERM_RE.findall(heading):
+                            term = token.lower()
+                            if len(term) >= _MIN_TERM_LEN and term not in _STOPWORDS:
+                                counter[term] += 2  # headings are stronger signals
+
+            lead = section.get("lead")
+            if isinstance(lead, str):
+                for token in _TERM_RE.findall(lead):
+                    term = token.lower()
+                    if len(term) >= _MIN_TERM_LEN and term not in _STOPWORDS:
+                        counter[term] += 1
+
+    return [{"term": term, "mentions": mentions} for term, mentions in counter.most_common(top_n)]
+
+
+def _build_heading_clusters(source_summaries: list[dict], top_n: int = _MAX_HEADING_CLUSTERS) -> list[dict]:
+    """Build lightweight cross-source heading clusters to reduce duplicate themes."""
+    cluster_map: dict[str, dict[str, Any]] = {}
+
+    for source in source_summaries:
+        source_id = str(source.get("source_id") or "")
+        for section in source.get("sections", []):
+            headings = section.get("headings", [])
+            if not isinstance(headings, list) or not headings:
+                continue
+
+            raw_heading = str(headings[-1]).strip()
+            if not raw_heading:
+                continue
+
+            normalized = re.sub(r"\s+", " ", raw_heading).strip().lower()
+            if not normalized:
+                continue
+
+            cluster = cluster_map.get(normalized)
+            if cluster is None:
+                cluster = {
+                    "heading": raw_heading,
+                    "mentions": 0,
+                    "source_ids": set(),
+                }
+                cluster_map[normalized] = cluster
+
+            cluster["mentions"] += 1
+            if source_id:
+                cluster["source_ids"].add(source_id)
+
+    clusters = [
+        {
+            "heading": cluster["heading"],
+            "mentions": cluster["mentions"],
+            "source_count": len(cluster["source_ids"]),
+        }
+        for cluster in cluster_map.values()
+        if len(cluster["source_ids"]) > 1
+    ]
+    clusters.sort(key=lambda item: (int(item["source_count"]), int(item["mentions"])), reverse=True)
+    return clusters[:top_n]
+
+
+async def _extract_content_map(
+    source_summaries: list[dict],
+    term_hints: list[dict],
+    heading_clusters: list[dict],
+) -> dict:
+    """Use Haiku to extract a structured content map from source-level summaries."""
     with trace_span(
         "ingestion.scout.extract_content_map",
         run_type="chain",
-        inputs={"summary_count": len(chunk_summaries)},
+        inputs={
+            "source_summary_count": len(source_summaries),
+            "term_hint_count": len(term_hints),
+            "heading_cluster_count": len(heading_clusters),
+        },
     ) as extract_run:
-        # Truncate summaries to fit context -- serialize and check size
-        summaries_json = json.dumps(chunk_summaries, ensure_ascii=False)
+        payload = {
+            "source_summaries": source_summaries,
+            "term_hints": term_hints,
+            "heading_clusters": heading_clusters,
+        }
+        payload_json = json.dumps(payload, ensure_ascii=False)
         trimmed = False
 
-        # If too large, progressively trim
-        if len(summaries_json) > 80_000:
-            ratio = 80_000 / len(summaries_json)
-            trimmed_count = max(10, int(len(chunk_summaries) * ratio))
-            chunk_summaries = chunk_summaries[:trimmed_count]
-            summaries_json = json.dumps(chunk_summaries, ensure_ascii=False)
+        # If payload is too large, progressively trim source_summaries.
+        if len(payload_json) > 80_000:
+            ratio = 80_000 / len(payload_json)
+            trimmed_count = max(5, int(len(source_summaries) * ratio))
+            source_summaries = source_summaries[:trimmed_count]
+            payload = {
+                "source_summaries": source_summaries,
+                "term_hints": term_hints,
+                "heading_clusters": heading_clusters,
+            }
+            payload_json = json.dumps(payload, ensure_ascii=False)
             trimmed = True
 
         system_prompt = (
-            "You are a content analyst. Given chunk summaries from a research project, "
+            "You are a content analyst. Given source-level summaries from a research project, "
             "produce a structured content map that identifies the key themes and information "
             "available across all sources.\n\n"
             "Return a JSON object with this schema:\n"
@@ -181,17 +403,20 @@ async def _extract_content_map(chunk_summaries: list[dict]) -> dict:
             '  "gaps": [str],\n'
             '  "summary": str\n'
             "}\n\n"
+            "- Input is source-level: each source contains sections (heading path + lead) and coverage signals.\n"
             "- topics: Major themes with approximate chunk counts.\n"
             "- entities: People, organizations, technologies, etc.\n"
             "- key_terms: Domain-specific terms with brief context.\n"
             "- source_coverage: Which sources cover which topics.\n"
             "- gaps: Potential information gaps that might need more sources.\n"
-            "- summary: A 2-3 sentence overview of the project's content landscape."
+            "- summary: A 2-3 sentence overview of the project's content landscape.\n"
+            "- Use term_hints only as hints; do not hallucinate unsupported terms."
+            "- Use heading_clusters to merge duplicate section names across sources."
         )
 
         user_prompt = (
-            f"Analyze these {len(chunk_summaries)} chunk summaries and produce the content map:\n\n"
-            f"{summaries_json}"
+            f"Analyze these {len(source_summaries)} source summaries and produce the content map:\n\n"
+            f"{payload_json}"
         )
 
         raw = await call_haiku_structured(
@@ -226,12 +451,13 @@ async def _extract_content_map(chunk_summaries: list[dict]) -> dict:
             extract_run,
             outputs={
                 "trimmed_input": trimmed,
-                "summary_count_final": len(chunk_summaries),
+                "source_summary_count_final": len(source_summaries),
                 "prompt_chars": len(user_prompt),
                 "parse_ok": parse_ok,
                 "topic_count": _len_if_list(result.get("topics")),
                 "entity_count": _len_if_list(result.get("entities")),
                 "key_term_count": _len_if_list(result.get("key_terms")),
+                "heading_cluster_count": len(heading_clusters),
             },
         )
         return result

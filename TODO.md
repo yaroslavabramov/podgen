@@ -219,6 +219,20 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P1**: Simplified Gate B (`clean_web_text`): removed site-specific regex hacks (HKMA checklist, search UI, lang toggle, font-size buttons), kept only markdown link cleanup + whitespace normalization for Jina fallback path
 - [x] **P2**: Reverted over-broad `_INLINE_LINK_RE` change that stripped all markdown links (including relative/anchor links)
 
+**Round 26 (web extraction — security + metadata):**
+- [x] **P1**: SSRF bypass via redirect — `_safe_fetch()` validates every redirect hop with `_check_ssrf()`, replaces `follow_redirects=True` across all extractors
+- [x] **P1**: Auth header leak on cross-origin redirect — `_safe_fetch()` strips `Authorization` header when redirect target origin differs
+- [x] **P1**: Trafilatura `favor_recall=True` pulled nav garbage — removed, default precision/recall balance produces clean output
+- [x] **P1**: Removed fragile heuristics (`_looks_like_article`, `_strip_leading_nav`) that caused false positive content loss
+- [x] **P2**: Trafilatura metadata date extraction — `extract_web()` returns `(text, title, date)`, router writes `published_at` before canonicalizer, skipping LLM date extraction
+- [x] **P2**: Updated all callers/tests for new `extract_web()` 3-value return signature
+
+**Round 27 (scout content-map structure upgrade):**
+- [x] **P1**: Replaced flat chunk summaries with source-level scout summaries (`source`, `url`, `published_at`, `total_tokens`, `chunk_count`, `section_count`, `structure_depth`, `sections[]`)
+- [x] **P1**: Added lead extraction per section (first informative sentence) instead of `chunk.content[:200]`
+- [x] **P1**: Added lightweight term hints (TF on headings/leads) and cross-source heading clusters for duplicate-theme compression
+- [x] **P1**: Updated scout Haiku prompt/input payload to source-level format + hints and added unit tests for summary aggregation/lead/terms/clusters
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority
