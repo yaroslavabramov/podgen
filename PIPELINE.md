@@ -158,6 +158,28 @@
 
 Raw text сохраняется в MinIO до нормализации (audit trail). Chunker получает уже нормализованный текст.
 
+### **1.1c Web Source Quality Gates**
+
+Чтобы captcha/403 страницы и UI-шум не портили canonicalizer/scout, web ingestion проходит 3 quality gate перед metadata extraction:
+
+1. **Gate A — Fetch health / anti-bot detection**
+   - Вход: extracted web text + URL + заголовок.
+   - Проверки: `403`, `forbidden`, `captcha`, `just a moment`, `security verification`, слишком короткий/пустой текст.
+   - Выход: `web_quality_state` (`ok|low_signal|blocked`) + `web_quality_reasons[]`.
+   - `blocked`: не отправлять текст в LLM metadata extractor, помечать source как требующий retry/fallback fetch.
+
+2. **Gate B — Web cleaner for downstream LLM**
+   - Вход: текст после Gate A.
+   - Очистка: collapse избыточных пустых строк, удаление навигационного boilerplate, markdown link/image noise, повторяющихся chrome-блоков.
+   - Выход: `clean_text` для chunking и `clean_text_preview` для UI/metadata.
+
+3. **Gate C — Metadata extraction gate**
+   - Date extractor запускается только для `ok|low_signal` и при достаточном signal (`min_chars`, не пустой preview).
+   - Парсинг structured output: tolerant parser (fenced JSON/partial wrapper), не `json.loads(raw)` напрямую.
+   - Фиксировать `date_extraction_status` и `date_extraction_reason` в metadata.
+
+**Tracing contract:** отдельные spans `ingestion.web_quality.gate_a|gate_b|gate_c` с компактным payload (state, reason, char_count, skipped=true/false).
+
 ### **1.2 Structural chunking**
 
 - логические границы (h2/h3/абзацы)

@@ -1,6 +1,5 @@
 "use client";
 
-
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -18,13 +17,15 @@ export default function ProjectDetailPage() {
   const t = useTranslations("projectDetailPage");
   const params = useParams();
   const id = params.id as string;
-  const { currentProject, sources, fetchProject, fetchSources, updateProjectLanguage } = useProjectStore();
+  const { currentProject, sources, fetchProject, fetchSources, deleteSource, updateProjectLanguage } = useProjectStore();
   const [activeTab, setActiveTab] = useState<"sources" | "bible" | "episodes">("sources");
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [episodesLoading, setEpisodesLoading] = useState(false);
   const [projectLanguage, setProjectLanguage] = useState<"en" | "ru">("en");
   const [savingLanguage, setSavingLanguage] = useState(false);
   const [languageError, setLanguageError] = useState<string | null>(null);
+  const [deletingSourceId, setDeletingSourceId] = useState<string | null>(null);
+  const [deleteSourceError, setDeleteSourceError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProject(id);
@@ -76,6 +77,21 @@ export default function ProjectDetailPage() {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}m ${secs}s`;
+  };
+
+  const handleDeleteSource = async (sourceId: string, sourceLabel: string) => {
+    const confirmed = window.confirm(t("deleteSourceConfirm", { title: sourceLabel }));
+    if (!confirmed) return;
+
+    setDeleteSourceError(null);
+    setDeletingSourceId(sourceId);
+    try {
+      await deleteSource(sourceId);
+    } catch {
+      setDeleteSourceError(t("deleteSourceFailed"));
+    } finally {
+      setDeletingSourceId(null);
+    }
   };
 
   if (!currentProject || currentProject.id !== id) return <div className="p-8 text-muted-foreground">{t("loading")}</div>;
@@ -144,6 +160,7 @@ export default function ProjectDetailPage() {
         {activeTab === "sources" && (
           <div className="space-y-6">
             <SourceUploader projectId={id} onUploaded={() => fetchSources(id)} />
+            {deleteSourceError && <p className="text-sm text-destructive">{deleteSourceError}</p>}
 
             <div className="space-y-3">
               {sources.map((source) => (
@@ -153,15 +170,30 @@ export default function ProjectDetailPage() {
                       <p className="font-medium">{source.title || source.original_url || t("sourceUntitled")}</p>
                       <p className="text-sm text-muted-foreground">{source.source_type.toUpperCase()}</p>
                     </div>
-                    <Badge
-                      variant={
-                        source.ingestion_status === "completed" ? "success" :
-                        source.ingestion_status === "failed" ? "destructive" :
-                        source.ingestion_status === "processing" ? "warning" : "secondary"
-                      }
-                    >
-                      {source.ingestion_status}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        variant={
+                          source.ingestion_status === "completed" ? "success" :
+                          source.ingestion_status === "failed" ? "destructive" :
+                          source.ingestion_status === "processing" ? "warning" : "secondary"
+                        }
+                      >
+                        {source.ingestion_status}
+                      </Badge>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() =>
+                          handleDeleteSource(
+                            source.id,
+                            source.title || source.original_url || t("sourceUntitled"),
+                          )
+                        }
+                        disabled={deletingSourceId === source.id}
+                      >
+                        {deletingSourceId === source.id ? t("deletingSource") : t("deleteSource")}
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}

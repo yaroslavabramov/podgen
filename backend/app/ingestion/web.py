@@ -3,13 +3,17 @@
 import ipaddress
 import logging
 import socket
+import re
 from urllib.parse import urlparse
 
 import httpx
 
 from app.config import settings
+from app.ingestion.web_quality import contains_blocking_signal
 
 logger = logging.getLogger(__name__)
+
+_JINA_TITLE_RE = re.compile(r"^\s*Title:\s*(.+)$", re.IGNORECASE)
 
 # Private / reserved IP ranges that must be blocked to prevent SSRF
 _BLOCKED_NETWORKS = [
@@ -70,9 +74,16 @@ async def extract_web(url: str) -> tuple[str, str | None]:
         try:
             text, title = await _jina_extract(url)
             if text and text.strip():
-                logger.info("Jina Reader succeeded for %s (%d chars)", url, len(text))
-                return text, title
-            logger.warning("Jina Reader returned empty for %s, falling back", url)
+                if contains_blocking_signal(text):
+                    logger.warning(
+                        "Jina Reader returned blocked/challenge content for %s; trying httpx fallback",
+                        url,
+                    )
+                else:
+                    logger.info("Jina Reader succeeded for %s (%d chars)", url, len(text))
+                    return text, title
+            else:
+                logger.warning("Jina Reader returned empty for %s, falling back", url)
         except Exception:
             logger.warning("Jina Reader failed for %s, falling back to httpx", url, exc_info=True)
 
@@ -104,11 +115,15 @@ async def _jina_extract(url: str) -> tuple[str, str | None]:
 
         text = response.text
 
-    # Jina Reader sometimes includes a title line "Title: ..."
     title: str | None = None
-    lines = text.split("\n", 3)
-    if lines and lines[0].startswith("Title:"):
-        title = lines[0][len("Title:"):].strip()
+    for line in text.splitlines()[:40]:
+        match = _JINA_TITLE_RE.match(line)
+        if not match:
+            continue
+        candidate = match.group(1).strip()
+        if candidate and candidate.lower() not in {"n/a", "na", "none", "null"}:
+            title = candidate
+            break
 
     return text, title
 

@@ -4,6 +4,7 @@ import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.ingestion.canonicalizer import canonicalize_sources
 from app.ingestion.chunker import structural_chunk
 from app.ingestion.normalize import normalize_text
@@ -11,6 +12,7 @@ from app.ingestion.pdf import extract_pdf
 from app.ingestion.scout import build_content_map
 from app.ingestion.video import extract_video
 from app.ingestion.web import extract_web
+from app.ingestion.web_quality import assess_web_fetch_health, clean_web_text, resolve_web_title
 from app.models.project import Project
 from app.models.source import Source, SourceType
 from app.observability import push_trace_context, safe_set_run, trace_span, tracing_scope
@@ -50,6 +52,9 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
                 # --- 1. Extract text -------------------------------------------------------
                 text: str
                 extracted_title: str | None = None
+                web_quality_state: str | None = None
+                web_quality_reasons: list[str] = []
+                blocked_web_source = False
 
                 with trace_span("ingestion.extract", run_type="tool", inputs={"source_type": source.source_type}):
                     match source.source_type:
@@ -78,6 +83,35 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
                 if not text or not text.strip():
                     raise ValueError(f"Extraction returned empty text for source {source_id}")
 
+                # --- 1a. Gate A: fetch health / anti-bot detection -----------------------
+                if source.source_type == SourceType.WEB:
+                    with trace_span(
+                        "ingestion.web_quality.gate_a",
+                        run_type="tool",
+                        inputs={
+                            "source_id": source_id,
+                            "input_chars": len(text),
+                            "min_chars": settings.web_quality_gate_a_min_chars,
+                        },
+                    ) as gate_run:
+                        assessment = assess_web_fetch_health(
+                            text,
+                            min_chars=settings.web_quality_gate_a_min_chars,
+                        )
+                        web_quality_state = assessment.state
+                        web_quality_reasons = assessment.reasons
+                        blocked_web_source = assessment.state == "blocked"
+                        safe_set_run(
+                            gate_run,
+                            outputs={
+                                "state": assessment.state,
+                                "reasons": assessment.reasons,
+                                "char_count": assessment.char_count,
+                                "non_whitespace_chars": assessment.non_whitespace_chars,
+                                "blocked": blocked_web_source,
+                            },
+                        )
+
                 # --- 2. Store raw text in MinIO --------------------------------------------
                 object_name = f"raw_text/{source.project_id}/{source_id}.md"
                 with trace_span(
@@ -92,11 +126,49 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
                 # --- 2b. Normalize text (raw preserved in MinIO above) --------------------
                 text = normalize_text(text, source.source_type)
 
+                # --- 2c. Gate B: web-specific cleanup ------------------------------------
+                if source.source_type == SourceType.WEB:
+                    with trace_span(
+                        "ingestion.web_quality.gate_b",
+                        run_type="tool",
+                        inputs={"source_id": source_id, "input_chars": len(text), "state": web_quality_state or "unknown"},
+                    ) as gate_run:
+                        cleaned = clean_web_text(text)
+                        clean_delta = len(text) - len(cleaned)
+                        text = cleaned
+                        safe_set_run(
+                            gate_run,
+                            outputs={
+                                "output_chars": len(cleaned),
+                                "removed_chars": clean_delta if clean_delta > 0 else 0,
+                            },
+                        )
                 # --- 3. Update source metadata ---------------------------------------------
-                if extracted_title and not source.title:
-                    source.title = extracted_title[:500]
+                if source.source_type == SourceType.WEB:
+                    metadata = source.metadata_ if isinstance(source.metadata_, dict) else {}
+                    metadata = dict(metadata)
+                    metadata["web_quality"] = {
+                        "state": web_quality_state or "ok",
+                        "reasons": web_quality_reasons,
+                        "blocked": blocked_web_source,
+                    }
+                    source.metadata_ = metadata
+
+                resolved_title = (
+                    resolve_web_title(extracted_title, text=text, url=source.original_url)
+                    if source.source_type == SourceType.WEB
+                    else extracted_title
+                )
+                if resolved_title and not source.title:
+                    source.title = resolved_title[:500]
                 source.text_preview = text[:500]
                 await db.flush()
+
+                if source.source_type == SourceType.WEB and blocked_web_source:
+                    reasons = ", ".join(web_quality_reasons) if web_quality_reasons else "unknown"
+                    raise ValueError(
+                        f"Web source blocked by anti-bot/security wall (reasons: {reasons})"
+                    )
 
                 logger.info("Source %s: extracted %d chars, stored at %s", source_id, len(text), object_name)
 
@@ -113,6 +185,20 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
 
                 if not chunks:
                     logger.warning("Source %s: no chunks produced, skipping embedding", source_id)
+                    try:
+                        with trace_span("ingestion.canonicalize_sources", run_type="chain"):
+                            await canonicalize_sources(str(source.project_id), db)
+                        logger.info("Source %s: canonicalization complete", source_id)
+                    except Exception:
+                        logger.warning("Source %s: canonicalization failed, continuing", source_id, exc_info=True)
+
+                    try:
+                        with trace_span("ingestion.build_content_map", run_type="chain"):
+                            await build_content_map(str(source.project_id), db)
+                        logger.info("Source %s: content map updated", source_id)
+                    except Exception:
+                        logger.warning("Source %s: content map build failed, continuing", source_id, exc_info=True)
+
                     safe_set_run(
                         ingestion_run,
                         outputs={"chunk_count": 0, "embedded_point_count": 0, "normalized_text_chars": len(text)},

@@ -87,6 +87,11 @@
 - [ ] Step-mode API/worker integration tests (`/steps/next`, `/steps/rerun`, `/steps/stop`, checkpoint rewind, stop ack path)
 - [ ] Step-mode concurrency hardening (single in-flight action guarantee under concurrent requests)
 - [ ] Structured-output hardening: migrate rigid JSON nodes from freeform JSON + `parse_llm_json` to Anthropic tool_use/json-schema
+- [x] Web ingestion quality gates (A/B/C): anti-bot detection, web cleaner, metadata eligibility gate before canonicalizer date extraction
+- [x] Canonicalizer date extraction hardening: replace any bare `json.loads(raw)` with tolerant parser helper + persist extraction status/reason in source metadata
+- [x] WEB title fallback extraction when `Title:` is missing (H1/HTML `<title>`/domain fallback)
+- [x] Ingestion quality test pack: captcha/403 fixture, noisy whitespace/navigation fixture, markdown-heavy fixture; verify gate decisions and skip behavior
+- [ ] LangSmith trace assertions for ingestion quality gates (`ingestion.web_quality.gate_a|gate_b|gate_c`)
 - [ ] Token & Cost Governor enforcement (limits exist in config, enforcement partial)
 - [~] Error handling + retry strategies (ingestion DB retries + explicit ShowBible generation errors done; full coverage pending)
 - [x] Generation resume (continues from last checkpoint; no full pipeline rerun on retry)

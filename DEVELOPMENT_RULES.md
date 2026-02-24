@@ -46,6 +46,16 @@ All data queries must filter by `project_id` and/or `user_id`. Never allow cross
   - Guard all trace writes via `safe_set_run(...)`.
   - Feature remains opt-in by env (`LANGSMITH_TRACING=true` + API key).
 
+### Web Ingestion Quality Gates
+- Any `WEB` source must pass three gates before canonicalization/scout metadata extraction:
+  - `gate_a`: anti-bot/error detection (`403`, captcha, verification walls, empty/low-signal text).
+  - `gate_b`: web-specific cleanup (navigation/chrome/markdown noise stripping, whitespace compaction).
+  - `gate_c`: metadata extraction eligibility + parse validation.
+- If `gate_a` marks source as blocked, do not call LLM date extraction for that source.
+- Metadata extractor input must come from cleaned preview text, not raw extracted text.
+- Structured parser rule for metadata extraction: use tolerant parser helpers (for example `parse_llm_json`), never bare `json.loads(raw)` on model output.
+- Each gate must emit a LangSmith span (`ingestion.web_quality.*`) with compact fields: `source_id`, `state`, `reason`, `char_count`, `skipped`.
+
 ---
 
 ## LLM SDK & Models

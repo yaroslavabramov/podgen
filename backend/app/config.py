@@ -78,6 +78,8 @@ class Settings(BaseSettings):
     # Web security
     web_fetch_timeout: int = 30
     web_max_file_size_mb: int = 50
+    web_quality_gate_a_min_chars: int = 160
+    web_date_extraction_min_preview_chars: int = 80
 
     @property
     def database_url_sync_resolved(self) -> str:
