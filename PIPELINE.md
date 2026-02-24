@@ -158,25 +158,30 @@
 
 Raw text сохраняется в MinIO до нормализации (audit trail). Chunker получает уже нормализованный текст.
 
-### **1.1c Web Source Quality Gates**
+### **1.1c Web Extraction & Quality Gates**
 
-Чтобы captcha/403 страницы и UI-шум не портили canonicalizer/scout, web ingestion проходит 3 quality gate перед metadata extraction:
+Web extraction использует каскад из трёх extractors:
+
+1. **trafilatura** (primary) — локальная библиотека, извлекает основной контент из HTML на уровне DOM. Удаляет навигацию, рекламу, footer, boilerplate автоматически. Также извлекает metadata (title, date).
+2. **Jina Reader** (fallback) — hosted API с headless browser, обрабатывает JS-heavy страницы. Возвращает markdown.
+3. **httpx + HTMLParser** (last resort) — stdlib парсер, убирает `<script>/<style>/<nav>/<footer>`.
+
+После extraction текст проходит quality gates:
 
 1. **Gate A — Fetch health / anti-bot detection**
-   - Вход: extracted web text + URL + заголовок.
-   - Проверки: `403`, `forbidden`, `captcha`, `just a moment`, `security verification`, слишком короткий/пустой текст.
+   - Вход: extracted text.
+   - Проверки: `403`, `captcha`, `just a moment`, `security verification`, слишком короткий/пустой текст.
    - Выход: `web_quality_state` (`ok|low_signal|blocked`) + `web_quality_reasons[]`.
-   - `blocked`: не отправлять текст в LLM metadata extractor, помечать source как требующий retry/fallback fetch.
+   - `blocked`: source помечается как failed.
 
-2. **Gate B — Web cleaner for downstream LLM**
+2. **Gate B — Residual cleanup**
    - Вход: текст после Gate A.
-   - Очистка: collapse избыточных пустых строк, удаление навигационного boilerplate, markdown link/image noise, повторяющихся chrome-блоков.
-   - Выход: `clean_text` для chunking и `clean_text_preview` для UI/metadata.
+   - Минимальная очистка: markdown link/image noise (для Jina path), bare URL lines, nav-линии, повторяющиеся короткие строки, whitespace нормализация.
+   - Основная boilerplate-очистка уже сделана trafilatura на этапе extraction.
 
 3. **Gate C — Metadata extraction gate**
    - Date extractor запускается только для `ok|low_signal` и при достаточном signal (`min_chars`, не пустой preview).
    - Парсинг structured output: tolerant parser (fenced JSON/partial wrapper), не `json.loads(raw)` напрямую.
-   - Фиксировать `date_extraction_status` и `date_extraction_reason` в metadata.
 
 **Tracing contract:** отдельные spans `ingestion.web_quality.gate_a|gate_b|gate_c` с компактным payload (state, reason, char_count, skipped=true/false).
 

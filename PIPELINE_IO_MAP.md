@@ -184,7 +184,7 @@ Status transitions (step mode):
 Шаги:
 1. Extraction:
 - PDF -> `extract_pdf` (`39-44`, `ingestion/pdf.py:12`), Marker/PyPDF fallback.
-- WEB -> `extract_web` (`45-49`, `ingestion/web.py:52`), Jina -> httpx HTML strip fallback.
+- WEB -> `extract_web` (`45-49`, `ingestion/web.py:56`), trafilatura (primary) -> Jina (JS fallback) -> httpx+HTMLParser (last resort).
 - VIDEO/AUDIO -> `extract_video(source, language)` (`50-51`, `ingestion/video.py:12`), Deepgram `nova-3`. Language loaded from `Project.language`; if `None`, nova-3 auto-detects.
 
 2. Raw text storage:
@@ -554,7 +554,7 @@ Status transitions (step mode):
 
 ### D2. Web ingestion cascade (FireCrawl/Playwright)
 - Документация: `IMPLEMENTATION.md:708`.
-- Код: Jina -> httpx fallback, без FireCrawl/Playwright (`backend/app/ingestion/web.py:55-82`).
+- Код: trafilatura (primary) -> Jina (JS fallback) -> httpx+HTMLParser (last resort), без FireCrawl/Playwright (`backend/app/ingestion/web.py:56-116`).
 - Доп. подтверждение: `TODO.md:26`, `TODO.md:184`.
 - Влияние: ожидаемое поведение web extraction в доке шире, чем реализовано.
 

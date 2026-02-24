@@ -214,8 +214,13 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P1**: Added cooperative stop handling in worker (`StepExecutionStopped` -> `queued` + `generation_paused(stopped=true)`, no forced `FAILED`)
 - [x] **P1**: Added stop checks before costly calls (LLM/embeddings, web tools, TTS lines) to reduce unnecessary spend after stop request
 
+**Round 25 (web extraction — trafilatura):**
+- [x] **P1**: Replaced regex-based boilerplate cleanup with trafilatura as primary web extractor: trafilatura (local, free) → Jina (JS fallback) → httpx+HTMLParser (last resort)
+- [x] **P1**: Simplified Gate B (`clean_web_text`): removed site-specific regex hacks (HKMA checklist, search UI, lang toggle, font-size buttons), kept only markdown link cleanup + whitespace normalization for Jina fallback path
+- [x] **P2**: Reverted over-broad `_INLINE_LINK_RE` change that stripped all markdown links (including relative/anchor links)
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority
-- **P2**: Full web cascade (FireCrawl + Playwright) — Jina + httpx sufficient for MVP
+- **P2**: Full web cascade (FireCrawl + Playwright) — trafilatura + Jina + httpx sufficient for MVP
 - **P2**: tus uploads, wavesurfer.js — nice-to-have UX features

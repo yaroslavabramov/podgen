@@ -61,6 +61,27 @@ def test_clean_web_text_removes_markdown_noise() -> None:
     assert "this section" in cleaned
 
 
+def test_clean_web_text_removes_nav_and_url_lines() -> None:
+    """Nav lines, bare URLs, and dividers are removed; content is preserved."""
+    raw = (
+        "Home\n"
+        "Menu\n"
+        "---\n"
+        "## Article Title\n"
+        "https://example.com/some/tracking/link\n"
+        "This is meaningful content about the topic.\n"
+    )
+
+    cleaned = clean_web_text(raw)
+
+    assert "Home" not in cleaned
+    assert "Menu" not in cleaned
+    assert "---" not in cleaned
+    assert "https://example.com" not in cleaned
+    assert "Article Title" in cleaned
+    assert "meaningful content" in cleaned
+
+
 def test_resolve_web_title_falls_back_to_heading() -> None:
     text = (
         "N/A\n"

@@ -18,7 +18,6 @@ _URL_ONLY_RE = re.compile(r"^https?://\S+$", re.IGNORECASE)
 _MULTI_SPACE_RE = re.compile(r"[^\S\n]+")
 _TRAILING_SPACE_RE = re.compile(r" +\n")
 _TOO_MANY_NEWLINES_RE = re.compile(r"\n{3,}")
-
 _NAV_LINE_RE = re.compile(
     r"^(skip to (main )?content|home|menu|search|sign in|login|subscribe|cookie(s)?|privacy|terms|contact)\b",
     re.IGNORECASE,

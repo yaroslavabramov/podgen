@@ -29,6 +29,7 @@ _BLOCKED_NETWORKS = [
 
 _MAX_BYTES = settings.web_max_file_size_mb * 1024 * 1024  # 50 MB default
 _TIMEOUT = settings.web_fetch_timeout                      # 30s default
+_MAX_REDIRECTS = 5
 
 
 def _check_ssrf(url: str) -> None:
@@ -53,12 +54,44 @@ def _check_ssrf(url: str) -> None:
                 )
 
 
+async def _safe_fetch(
+    url: str,
+    *,
+    headers: dict[str, str] | None = None,
+) -> httpx.Response:
+    """Fetch URL following redirects with SSRF validation on every hop."""
+    async with httpx.AsyncClient(
+        timeout=_TIMEOUT,
+        follow_redirects=False,
+    ) as client:
+        current_url = url
+        for _ in range(_MAX_REDIRECTS):
+            response = await client.get(current_url, headers=headers or {})
+            if response.is_redirect:
+                location = response.headers.get("location")
+                if not location:
+                    raise ValueError("Redirect without Location header")
+                # Resolve relative redirects
+                current_url = str(response.next_request.url) if response.next_request else location
+                _check_ssrf(current_url)
+                continue
+            response.raise_for_status()
+            content_length = len(response.content)
+            if content_length > _MAX_BYTES:
+                raise ValueError(
+                    f"Response too large: {content_length} bytes (limit: {_MAX_BYTES})"
+                )
+            return response
+        raise ValueError(f"Too many redirects (>{_MAX_REDIRECTS}) for {url}")
+
+
 async def extract_web(url: str) -> tuple[str, str | None]:
     """Extract content from a URL.
 
     Strategy:
-      1. Try Jina Reader API (produces clean markdown).
-      2. Fall back to raw httpx fetch + basic HTML stripping.
+      1. Try trafilatura (local, free, good boilerplate removal).
+      2. Fall back to Jina Reader API (handles JS-heavy pages).
+      3. Last resort: raw httpx fetch + basic HTML stripping.
 
     Returns:
         (text_content, title_or_none)
@@ -69,7 +102,22 @@ async def extract_web(url: str) -> tuple[str, str | None]:
     """
     _check_ssrf(url)
 
-    # --- Try Jina Reader first -------------------------------------------------
+    # --- 1. Try trafilatura (local, free, good quality) -------------------------
+    try:
+        result = await _trafilatura_extract(url)
+        if result:
+            text, title = result
+            if text.strip() and not contains_blocking_signal(text):
+                logger.info("Trafilatura succeeded for %s (%d chars)", url, len(text))
+                return text, title
+            elif contains_blocking_signal(text):
+                logger.warning("Trafilatura returned blocked content for %s; trying Jina", url)
+            else:
+                logger.warning("Trafilatura returned empty for %s, trying Jina", url)
+    except Exception:
+        logger.warning("Trafilatura failed for %s, trying Jina", url, exc_info=True)
+
+    # --- 2. Fallback: Jina Reader (handles JS-heavy pages) ---------------------
     if settings.jina_api_key:
         try:
             text, title = await _jina_extract(url)
@@ -87,33 +135,53 @@ async def extract_web(url: str) -> tuple[str, str | None]:
         except Exception:
             logger.warning("Jina Reader failed for %s, falling back to httpx", url, exc_info=True)
 
-    # --- Fallback: raw httpx ---------------------------------------------------
+    # --- 3. Last resort: raw httpx + basic HTML strip --------------------------
     text, title = await _httpx_extract(url)
     logger.info("httpx fallback succeeded for %s (%d chars)", url, len(text))
+    return text, title
+
+
+async def _trafilatura_extract(url: str) -> tuple[str, str | None] | None:
+    """Fetch HTML via httpx and extract content with trafilatura.
+
+    Returns (text, title) or None if trafilatura couldn't extract content.
+    """
+    import trafilatura
+
+    response = await _safe_fetch(url)
+    html = response.text
+
+    text = trafilatura.extract(
+        html,
+        include_tables=True,
+        include_comments=False,
+        include_links=False,
+        favor_recall=True,
+    )
+
+    if not text or not text.strip():
+        return None
+
+    # Extract title from metadata
+    title: str | None = None
+    meta = trafilatura.extract_metadata(html)
+    if meta and meta.title:
+        title = meta.title
+
     return text, title
 
 
 async def _jina_extract(url: str) -> tuple[str, str | None]:
     """Fetch content via Jina Reader API."""
     jina_url = f"https://r.jina.ai/{url}"
+    headers = {
+        "Authorization": f"Bearer {settings.jina_api_key}",
+        "Accept": "text/markdown",
+        "X-Return-Format": "markdown",
+    }
 
-    async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
-        headers = {
-            "Authorization": f"Bearer {settings.jina_api_key}",
-            "Accept": "text/markdown",
-            "X-Return-Format": "markdown",
-        }
-
-        response = await client.get(jina_url, headers=headers)
-        response.raise_for_status()
-
-        content_length = len(response.content)
-        if content_length > _MAX_BYTES:
-            raise ValueError(
-                f"Response too large: {content_length} bytes (limit: {_MAX_BYTES})"
-            )
-
-        text = response.text
+    response = await _safe_fetch(jina_url, headers=headers)
+    text = response.text
 
     title: str | None = None
     for line in text.splitlines()[:40]:
@@ -130,22 +198,9 @@ async def _jina_extract(url: str) -> tuple[str, str | None]:
 
 async def _httpx_extract(url: str) -> tuple[str, str | None]:
     """Fetch content directly via httpx with basic HTML-to-text conversion."""
-    async with httpx.AsyncClient(
-        timeout=_TIMEOUT,
-        follow_redirects=True,
-        max_redirects=5,
-    ) as client:
-        response = await client.get(url)
-        response.raise_for_status()
-
-        content_length = len(response.content)
-        if content_length > _MAX_BYTES:
-            raise ValueError(
-                f"Response too large: {content_length} bytes (limit: {_MAX_BYTES})"
-            )
-
-        content_type = response.headers.get("content-type", "")
-        raw = response.text
+    response = await _safe_fetch(url)
+    content_type = response.headers.get("content-type", "")
+    raw = response.text
 
     title: str | None = None
 

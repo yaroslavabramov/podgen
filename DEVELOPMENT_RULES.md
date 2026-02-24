@@ -46,10 +46,11 @@ All data queries must filter by `project_id` and/or `user_id`. Never allow cross
   - Guard all trace writes via `safe_set_run(...)`.
   - Feature remains opt-in by env (`LANGSMITH_TRACING=true` + API key).
 
-### Web Ingestion Quality Gates
+### Web Extraction & Quality Gates
+- Web extraction cascade: **trafilatura** (primary, local) → **Jina Reader** (JS fallback) → **httpx+HTMLParser** (last resort). Trafilatura handles boilerplate removal at the HTML DOM level — do not add regex hacks for site-specific UI noise.
 - Any `WEB` source must pass three gates before canonicalization/scout metadata extraction:
   - `gate_a`: anti-bot/error detection (`403`, captcha, verification walls, empty/low-signal text).
-  - `gate_b`: web-specific cleanup (navigation/chrome/markdown noise stripping, whitespace compaction).
+  - `gate_b`: residual cleanup (markdown link/image noise from Jina path, whitespace normalization, repeated short lines).
   - `gate_c`: metadata extraction eligibility + parse validation.
 - If `gate_a` marks source as blocked, do not call LLM date extraction for that source.
 - Metadata extractor input must come from cleaned preview text, not raw extracted text.
