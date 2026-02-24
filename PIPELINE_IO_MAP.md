@@ -512,22 +512,19 @@
 - ~~Код: жёстко задано `language="en"`.~~
 - Исправлено: `extract_video(source, language=None)` — loads `Project.language`; if `None`, nova-3 auto-detects.
 
-### D10. «Act Planner может делать request_fast_research/search_evidence как tool calls»
+### ~~D10. «Act Planner может делать request_fast_research/search_evidence как tool calls»~~ ✅ RESOLVED
 - Документация: `IMPLEMENTATION.md:1121-1123`, `1130-1131`.
-- Код: `plan_act` использует только уже существующие claims/evidence и не вызывает research tools (`backend/app/pipeline/phase5_planning/act_planner.py:86-125`, `127-177`).
-- Влияние: planner не дообогащает evidence в фазе 5 напрямую.
+- ~~Код: `plan_act` использует только уже существующие claims/evidence и не вызывает research tools.~~
+- Исправлено: `_fill_evidence_gaps` searches existing corpus via `vector_search_tool` + Haiku extraction after beat sheet generation. No web search (no `request_fast_research`), only existing ingested sources. Max 3 searches per act.
 
 ## 10. Что обновлять в документации в первую очередь
 
 1. `IMPLEMENTATION.md`:
 - секции state contract (Phase 3 outputs),
 - web ingestion cascade,
-- deep-ingestion side effects,
-- phase 5 parallelism,
-- verifier description,
+- phase 5 parallelism (D4 — act planners sequential, not fan-out),
 - auth endpoints,
-- voice defaults,
-- media language mode.
+- voice defaults.
 
 2. `PIPELINE.md`:
 - явно отметить, что часть описания — target architecture, а не текущая code reality.

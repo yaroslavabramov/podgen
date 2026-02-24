@@ -12,6 +12,7 @@ interface ProjectStore {
   fetchProject: (id: string) => Promise<void>;
   fetchSources: (projectId: string) => Promise<void>;
   createProject: (data: { title: string; description?: string; language: string }) => Promise<Project>;
+  updateProjectLanguage: (id: string, language: "en" | "ru") => Promise<Project>;
 }
 
 export const useProjectStore = create<ProjectStore>((set) => ({
@@ -48,6 +49,15 @@ export const useProjectStore = create<ProjectStore>((set) => ({
   createProject: async (data) => {
     const project = await api.post("api/projects", { json: data }).json<Project>();
     set((state) => ({ projects: [project, ...state.projects] }));
+    return project;
+  },
+
+  updateProjectLanguage: async (id, language) => {
+    const project = await api.patch(`api/projects/${id}`, { json: { language } }).json<Project>();
+    set((state) => ({
+      currentProject: state.currentProject?.id === id ? project : state.currentProject,
+      projects: state.projects.map((item) => (item.id === id ? project : item)),
+    }));
     return project;
   },
 }));

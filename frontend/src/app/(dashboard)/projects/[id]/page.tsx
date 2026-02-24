@@ -18,10 +18,13 @@ export default function ProjectDetailPage() {
   const t = useTranslations("projectDetailPage");
   const params = useParams();
   const id = params.id as string;
-  const { currentProject, sources, fetchProject, fetchSources } = useProjectStore();
+  const { currentProject, sources, fetchProject, fetchSources, updateProjectLanguage } = useProjectStore();
   const [activeTab, setActiveTab] = useState<"sources" | "bible" | "episodes">("sources");
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [episodesLoading, setEpisodesLoading] = useState(false);
+  const [projectLanguage, setProjectLanguage] = useState<"en" | "ru">("en");
+  const [savingLanguage, setSavingLanguage] = useState(false);
+  const [languageError, setLanguageError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProject(id);
@@ -49,13 +52,33 @@ export default function ProjectDetailPage() {
     };
   }, [id]);
 
+  useEffect(() => {
+    if (!currentProject || currentProject.id !== id) return;
+    setProjectLanguage(currentProject.language === "ru" ? "ru" : "en");
+  }, [currentProject, id]);
+
+  const handleSaveLanguage = async () => {
+    if (!currentProject || currentProject.id !== id) return;
+    if (projectLanguage === currentProject.language) return;
+
+    setSavingLanguage(true);
+    setLanguageError(null);
+    try {
+      await updateProjectLanguage(id, projectLanguage);
+    } catch {
+      setLanguageError(t("languageSaveFailed"));
+    } finally {
+      setSavingLanguage(false);
+    }
+  };
+
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}m ${secs}s`;
   };
 
-  if (!currentProject) return <div className="p-8 text-muted-foreground">{t("loading")}</div>;
+  if (!currentProject || currentProject.id !== id) return <div className="p-8 text-muted-foreground">{t("loading")}</div>;
 
   return (
     <div className="min-h-screen bg-background">
@@ -74,6 +97,34 @@ export default function ProjectDetailPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-8">
+        <section className="mb-6 rounded-lg border border-border p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-sm font-medium">{t("projectLanguageLabel")}</p>
+              <p className="text-sm text-muted-foreground">{t("projectLanguageHelp")}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                value={projectLanguage}
+                onChange={(e) => setProjectLanguage(e.target.value === "ru" ? "ru" : "en")}
+                disabled={savingLanguage}
+                className="rounded-md border border-border px-3 py-2 text-sm bg-background"
+              >
+                <option value="en">{t("languageEnglish")}</option>
+                <option value="ru">{t("languageRussian")}</option>
+              </select>
+              <Button
+                variant="outline"
+                onClick={handleSaveLanguage}
+                disabled={savingLanguage || projectLanguage === currentProject.language}
+              >
+                {savingLanguage ? t("savingLanguage") : t("saveLanguage")}
+              </Button>
+            </div>
+          </div>
+          {languageError && <p className="mt-2 text-sm text-destructive">{languageError}</p>}
+        </section>
+
         <div className="flex gap-1 mb-6 border-b border-border">
           {(["sources", "bible", "episodes"] as const).map((tab) => (
             <button

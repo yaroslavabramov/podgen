@@ -38,17 +38,19 @@ Return JSON array:
 ]
 
 Speech rules by verification level:
-- VERIFIED → speak confidently ("Studies confirm...", "It's established that...")
-- OBSERVED → hedge ("According to reports...", "Data suggests...")
-- UNVERIFIED → strong hedge ("Some claim...", "There are unconfirmed reports...")
-- DISPUTED → present both sides ("Interestingly, there's debate here...")
-- OPINION → attribute ("Karpathy believes...", "As X puts it...")
-- REPORT → recount ("The report states...", "According to the investigation...")
+- VERIFIED → speak confidently with clear attribution to evidence.
+- OBSERVED → include light uncertainty and attribution.
+- UNVERIFIED → clearly mark uncertainty and avoid definitive claims.
+- DISPUTED → present competing positions and why they differ.
+- OPINION → explicit attribution to speaker/source.
+- REPORT → recount with source context.
 
 Host A = Guide: leads narrative, explains, summarizes
 Host B = Challenger: questions, demands proof, plays devil's advocate
 
 Keep replies under __MAX_REPLY_TOKENS__ tokens. Natural, conversational tone.
+Treat host/policy fields as abstract constraints; do not copy their wording verbatim into dialogue.
+Vary uncertainty wording naturally; avoid repeating one canned hedge phrase.
 NEVER use any forbidden phrases."""
 
 

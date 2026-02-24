@@ -23,6 +23,13 @@
   "projectDetailPage": {
     "projectsBreadcrumb": "Проекты",
     "generatePodcast": "Сгенерировать подкаст",
+    "projectLanguageLabel": "Язык проекта",
+    "projectLanguageHelp": "Используется для AI-генерации, включая Show Bible и пайплайн эпизода.",
+    "languageEnglish": "Английский",
+    "languageRussian": "Русский",
+    "saveLanguage": "Сохранить язык",
+    "savingLanguage": "Сохраняем...",
+    "languageSaveFailed": "Не удалось обновить язык проекта",
     "tabSources": "Источники",
     "tabBible": "Show Bible",
     "tabEpisodes": "Эпизоды",

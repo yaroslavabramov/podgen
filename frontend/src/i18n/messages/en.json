@@ -23,6 +23,13 @@
   "projectDetailPage": {
     "projectsBreadcrumb": "Projects",
     "generatePodcast": "Generate Podcast",
+    "projectLanguageLabel": "Project language",
+    "projectLanguageHelp": "Used for AI generation outputs, including Show Bible and episode pipeline.",
+    "languageEnglish": "English",
+    "languageRussian": "Russian",
+    "saveLanguage": "Save language",
+    "savingLanguage": "Saving...",
+    "languageSaveFailed": "Failed to update project language",
     "tabSources": "Sources",
     "tabBible": "Show Bible",
     "tabEpisodes": "Episodes",

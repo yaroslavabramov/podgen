@@ -6,7 +6,8 @@ from sqlalchemy import select
 from app.api.deps import CurrentUser, DB
 from app.models.project import Project
 from app.models.show_bible import ShowBible
-from app.schemas.show_bible import ShowBibleCreate, ShowBibleUpdate, ShowBibleResponse, ShowBibleGenerateRequest
+from app.observability import push_trace_context, safe_set_run, trace_span, tracing_scope
+from app.schemas.show_bible import ShowBibleCreate, ShowBibleResponse, ShowBibleGenerateRequest
 
 router = APIRouter(prefix="/api", tags=["show-bibles"])
 
@@ -62,7 +63,7 @@ PRESETS = [
 
 @router.get("/show-bibles/presets", response_model=list[ShowBibleResponse])
 async def list_presets(db: DB):
-    result = await db.execute(select(ShowBible).where(ShowBible.is_preset == True))
+    result = await db.execute(select(ShowBible).where(ShowBible.is_preset.is_(True)))
     presets = result.scalars().all()
     if not presets:
         # Seed presets on first access
@@ -74,7 +75,7 @@ async def list_presets(db: DB):
             )
             db.add(preset)
         await db.flush()
-        result = await db.execute(select(ShowBible).where(ShowBible.is_preset == True))
+        result = await db.execute(select(ShowBible).where(ShowBible.is_preset.is_(True)))
         presets = result.scalars().all()
     return [ShowBibleResponse.model_validate(p) for p in presets]
 
@@ -87,7 +88,7 @@ async def create_or_update_show_bible(project_id: uuid.UUID, data: ShowBibleCrea
     result = await db.execute(
         select(ShowBible).where(
             ShowBible.project_id == project_id,
-            ShowBible.is_preset == False,
+            ShowBible.is_preset.is_(False),
             ShowBible.generation_run_id.is_(None),
         )
     )
@@ -123,7 +124,7 @@ async def get_show_bible(project_id: uuid.UUID, user: CurrentUser, db: DB):
     result = await db.execute(
         select(ShowBible).where(
             ShowBible.project_id == project_id,
-            ShowBible.is_preset == False,
+            ShowBible.is_preset.is_(False),
             ShowBible.generation_run_id.is_(None),
         )
     )
@@ -135,35 +136,117 @@ async def get_show_bible(project_id: uuid.UUID, user: CurrentUser, db: DB):
 
 @router.post("/projects/{project_id}/show-bible/generate", response_model=ShowBibleResponse)
 async def generate_show_bible(project_id: uuid.UUID, data: ShowBibleGenerateRequest, user: CurrentUser, db: DB):
-    await _verify_project_ownership(project_id, user.id, db)
+    trace_ctx = {
+        "component": "api.show_bible_generate",
+        "project_id": str(project_id),
+        "user_id": str(user.id),
+    }
+    with push_trace_context(trace_ctx):
+        with tracing_scope(metadata=trace_ctx, tags=["api", "show-bible"]):
+            with trace_span(
+                "api.generate_show_bible",
+                run_type="chain",
+                inputs={
+                    "project_id": str(project_id),
+                    "topic_chars": len(data.topic),
+                    "audience_level": data.audience_level,
+                    "show_style": data.show_style,
+                },
+                tags=["api-endpoint"],
+            ) as api_run:
+                project = await _get_owned_project(project_id, user.id, db)
 
-    from app.pipeline.phase0_setup.show_configurator import generate_show_bible, ShowBibleGenerationError
-    try:
-        bible_data = await generate_show_bible(data.topic, data.audience_level, data.show_style)
-    except ShowBibleGenerationError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+                from app.pipeline.phase0_setup.show_configurator import generate_show_bible, ShowBibleGenerationError
 
-    result = await db.execute(
-        select(ShowBible).where(
-            ShowBible.project_id == project_id,
-            ShowBible.is_preset == False,
-            ShowBible.generation_run_id.is_(None),
-        )
-    )
-    existing = result.scalar_one_or_none()
+                try:
+                    bible_data = await generate_show_bible(
+                        data.topic,
+                        data.audience_level,
+                        data.show_style,
+                        language=project.language,
+                    )
+                except ShowBibleGenerationError as exc:
+                    raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
-    if existing:
-        for key, value in bible_data.items():
-            setattr(existing, key, value)
-        await db.flush()
-        await db.refresh(existing)
-        return ShowBibleResponse.model_validate(existing)
+                result = await db.execute(
+                    select(ShowBible).where(
+                        ShowBible.project_id == project_id,
+                        ShowBible.is_preset.is_(False),
+                        ShowBible.generation_run_id.is_(None),
+                    )
+                )
+                existing = result.scalar_one_or_none()
 
-    bible = ShowBible(project_id=project_id, **bible_data)
-    db.add(bible)
-    await db.flush()
-    await db.refresh(bible)
-    return ShowBibleResponse.model_validate(bible)
+                if existing:
+                    bible_data["voice_profiles"] = _merge_generated_voice_profiles(
+                        existing.voice_profiles or [],
+                        bible_data.get("voice_profiles") or [],
+                    )
+                    for key, value in bible_data.items():
+                        setattr(existing, key, value)
+                    await db.flush()
+                    await db.refresh(existing)
+                    safe_set_run(
+                        api_run,
+                        outputs={
+                            "operation": "update",
+                            "show_bible_id": str(existing.id),
+                        },
+                    )
+                    return ShowBibleResponse.model_validate(existing)
+
+                bible = ShowBible(project_id=project_id, **bible_data)
+                db.add(bible)
+                await db.flush()
+                await db.refresh(bible)
+                safe_set_run(
+                    api_run,
+                    outputs={
+                        "operation": "create",
+                        "show_bible_id": str(bible.id),
+                    },
+                )
+                return ShowBibleResponse.model_validate(bible)
+
+
+def _merge_generated_voice_profiles(current_profiles: list, generated_profiles: list) -> list:
+    """Keep user-selected voices when AI regenerates textual ShowBible fields."""
+    merged: list[dict] = []
+
+    for idx in range(2):
+        generated = generated_profiles[idx] if idx < len(generated_profiles) and isinstance(generated_profiles[idx], dict) else {}
+        current = current_profiles[idx] if idx < len(current_profiles) and isinstance(current_profiles[idx], dict) else {}
+
+        profile = dict(generated)
+        profile.setdefault("host_index", idx)
+        profile.setdefault("tts_provider", "elevenlabs")
+        profile.setdefault("voice_id", "")
+        profile.setdefault("pace", "medium")
+        profile.setdefault("pitch", "medium")
+
+        current_voice_id = current.get("voice_id")
+        if isinstance(current_voice_id, str) and current_voice_id.strip():
+            profile["voice_id"] = current_voice_id.strip()
+
+        current_settings = current.get("settings")
+        if isinstance(current_settings, dict) and "settings" not in profile:
+            profile["settings"] = current_settings
+
+        current_host_name = current.get("host_name")
+        if isinstance(current_host_name, str) and current_host_name.strip() and "host_name" not in profile:
+            profile["host_name"] = current_host_name.strip()
+
+        merged.append(profile)
+
+    return merged
+
+
+async def _get_owned_project(project_id: uuid.UUID, user_id: uuid.UUID, db: DB) -> Project:
+    result = await db.execute(select(Project).where(Project.id == project_id, Project.user_id == user_id))
+    project = result.scalar_one_or_none()
+    if project is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    return project
 
 
 async def _verify_project_ownership(project_id: uuid.UUID, user_id: uuid.UUID, db):
