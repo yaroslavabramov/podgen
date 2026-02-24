@@ -50,6 +50,10 @@ All data queries must filter by `project_id` and/or `user_id`. Never allow cross
 
 ## LLM SDK & Models
 
+### Prompt Design Standard
+- Prompt contracts, language rules, and change checklist are defined in `PROMPT_RULES.md`.
+- Any change to production prompts must follow that document and keep parsing/normalization deterministic.
+
 ### Anthropic SDK (`anthropic` Python package)
 - Use `anthropic.AsyncAnthropic` for all calls (async-first).
 - Models are defined as constants in `app/services/llm.py`:
