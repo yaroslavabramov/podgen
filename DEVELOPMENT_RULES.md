@@ -31,6 +31,21 @@ All loop/concurrency limits are in `app/config.py`. Never hardcode limits in pip
 ### Multi-Tenant Isolation
 All data queries must filter by `project_id` and/or `user_id`. Never allow cross-tenant data access. ShowBible, Source, Claim, Episode — everything is scoped to a project. When accepting entity IDs from API input, always verify ownership.
 
+### Observability-First (LangSmith)
+- Tracing is implemented via `app.observability` helpers. Do not call LangSmith SDK directly from business modules.
+- Every long-running execution path must have a root span:
+  - Celery tasks (`worker.*`)
+  - generation pipeline root (`pipeline.execute`)
+  - ingestion pipeline root (`ingestion.run_ingestion`)
+- LangGraph nodes must be wrapped with per-node spans (`pipeline.node.*`), carrying `phase`, `node`, `generation_run_id`, `project_id`.
+- External operations should be traced with dedicated spans (`llm.*`, `research.tool.*`, `ingestion.*`) using concise input/output summaries.
+- Trace payloads must be compact and safe:
+  - No full raw source texts/transcripts in trace inputs/outputs.
+  - Store sizes/counts/IDs and key status fields instead of large blobs.
+- Tracing must never affect correctness:
+  - Guard all trace writes via `safe_set_run(...)`.
+  - Feature remains opt-in by env (`LANGSMITH_TRACING=true` + API key).
+
 ---
 
 ## LLM SDK & Models
@@ -117,6 +132,9 @@ When new model versions are released, update **only** the constants in `app/serv
 - Publish real-time events via `publish_event()` for user-visible progress.
 - Use `async_session_factory()` for DB access inside nodes (not the FastAPI dependency injection).
 - Wrap external calls (LLM, web fetch) in try/except — a single failed evidence extraction should not crash the pipeline.
+- Keep node tracing metadata accurate:
+  - `phase` and `node` tags must match the actual graph node.
+  - include `generation_run_id` and `project_id` in trace context.
 
 ### Testing
 - Use `pytest` + `pytest-asyncio`.

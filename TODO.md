@@ -86,9 +86,10 @@
 - [ ] Token & Cost Governor enforcement (limits exist in config, enforcement partial)
 - [~] Error handling + retry strategies (ingestion DB retries + explicit ShowBible generation errors done; full coverage pending)
 - [x] Generation resume (continues from last checkpoint; no full pipeline rerun on retry)
-- [ ] Structured logging + monitoring
+- [~] Structured logging + monitoring (LangSmith tracing integrated; dashboards/alerts/metrics aggregation pending)
 - [ ] Cost tracking (actual vs estimated)
 - [ ] Temp source cleanup tied to generation_run (currently age-based only)
+- [x] LangSmith tracing baseline (workers + pipeline root/nodes + LLM + ingestion/research tools)
 
 ---
 
@@ -177,6 +178,13 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 **Round 20 (review r7 — revision semantics + migration safety):**
 - [x] **P1**: `screenwriter` rewrite predicate now uses explicit revision marker (`audit_status = REVISED`) instead of monotonic `revision_count`, so previously revised scenes are reused unless they are marked again
 - [x] **P1**: Script-segment uniqueness migration now keeps the newest duplicate row (`updated_at DESC NULLS LAST, created_at DESC, id DESC`) to preserve latest corrected scene content
+
+**Round 21 (observability baseline):**
+- [x] **P1**: Added LangSmith tracing layer (`app/observability`) with safe no-op fallback and protected trace updates
+- [x] **P1**: Instrumented Celery roots (`worker.run_generation_pipeline`, `worker.ingest_source`, `worker.deep_ingest_url`, cleanup task)
+- [x] **P1**: Instrumented LangGraph execution (`pipeline.execute`) and all graph nodes (`pipeline.node.*`)
+- [x] **P1**: Instrumented LLM/embedding calls and wrapped Anthropic/OpenAI clients for provider-level traces
+- [x] **P1**: Instrumented ingestion/research tools with compact I/O metadata for debuggable end-to-end traces
 
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)

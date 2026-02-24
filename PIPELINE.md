@@ -390,6 +390,24 @@ Raw text сохраняется в MinIO до нормализации (audit tr
 
 ---
 
+## **Observability & Tracing (runtime)**
+
+Текущая реализация поддерживает end-to-end tracing через LangSmith (опционально по env):
+
+- `LANGSMITH_TRACING=true`
+- `LANGSMITH_API_KEY`
+- `LANGSMITH_PROJECT` (опционально, по умолчанию `podgen`)
+
+Инструментированные уровни:
+- Celery roots: generation/ingestion/deep-ingestion/cleanup
+- LangGraph root (`pipeline.execute`) и каждый node (`pipeline.node.*`)
+- LLM/embedding вызовы (`llm.call_*`, `llm.get_embeddings`)
+- research/ingestion tools (`research.tool.*`, `ingestion.*`)
+
+Контракт: в трейсы пишутся сжатые метаданные (ID, counts, status, размеры), а не полные тексты артефактов.
+
+---
+
 ## **Сигналы качества (простые метрики)**
 
 - % factual lines covered by Claim IDs

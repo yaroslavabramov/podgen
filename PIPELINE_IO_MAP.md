@@ -408,7 +408,7 @@
   - `evaluate_and_revolt` -> `write_screenplay`, если `revolt_triggered` и loop<=4 (`49-57`, `103-106`).
 
 ### 7.2 Governors (settings)
-`backend/app/config.py:62-68`
+`backend/app/config.py:70-76`
 - `max_fast_web_per_act=5`
 - `max_deep_ingestion_concurrent=3`
 - `max_writer_revolt_per_act=4`
@@ -425,9 +425,35 @@
 
 ## 8. Realtime и наблюдаемость
 
+### 8.1 Realtime event bus (Redis + WS)
 - Event schema: `backend/app/realtime/events.py:14-79`.
 - Publish: `backend/app/realtime/publisher.py:18-29`.
 - WS relay + auth/ownership guard: `backend/app/api/ws.py:48-87`.
+
+### 8.2 LangSmith tracing (code reality)
+- Toggle/config:
+  - `LANGSMITH_TRACING`, `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT`, `LANGSMITH_ENDPOINT`, `LANGSMITH_BASE_TAGS`, `LANGSMITH_SAMPLING_RATE`
+  - `backend/app/config.py:42-49`, `.env.example`
+- Tracing layer:
+  - `backend/app/observability/tracing.py` (`tracing_scope`, `trace_span`, context propagation, safe fallback, `safe_set_run`)
+- Root spans:
+  - generation task: `worker.run_generation_pipeline` (`backend/app/workers/generation_tasks.py`)
+  - ingestion tasks: `worker.ingest_source`, `worker.deep_ingest_url`, `worker.cleanup_expired_temp_sources` (`backend/app/workers/ingestion_tasks.py`)
+  - pipeline root: `pipeline.execute` (`backend/app/pipeline/graph.py`)
+  - ingestion root: `ingestion.run_ingestion` (`backend/app/ingestion/router.py`)
+- Node-level spans:
+  - `pipeline.node.*` for every LangGraph node with `phase/node` metadata (`backend/app/pipeline/graph.py`)
+- LLM and embedding spans:
+  - `llm.call_sonnet*`, `llm.call_haiku*`, `llm.get_embeddings` (`backend/app/services/llm.py`)
+  - Anthropic/OpenAI clients are wrapped via LangSmith wrappers in the same module
+- Tool-level spans:
+  - `research.tool.*` (`backend/app/pipeline/phase3_research/tools.py`)
+  - ingestion step spans (`ingestion.extract`, `ingestion.structural_chunk`, `ingestion.embed_chunks`, etc. in `backend/app/ingestion/router.py`)
+
+### 8.3 Trace context contract (minimum)
+- Root context keys: `generation_run_id`, `project_id`, `component`, optionally `user_id`, `language`, `source_id`, `source_type`.
+- Tags are merged from base tags + runtime context (`component:*`, `phase:*`, `node:*`, `language:*`).
+- Inputs/outputs are intentionally summarized (counts/chars/ids), not full payloads.
 
 ## 9. Docs vs Code (зафиксированные различия)
 
@@ -501,4 +527,3 @@
 
 3. `README.md`:
 - добавить ссылку на этот файл как «операционный контракт текущей реализации».
-
