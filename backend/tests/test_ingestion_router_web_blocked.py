@@ -23,11 +23,12 @@ async def test_blocked_web_source_fails_instead_of_silent_complete(monkeypatch: 
     )
     db = _DummySession()
 
-    async def _fake_extract_web(url: str) -> tuple[str, str | None]:
+    async def _fake_extract_web(url: str) -> tuple[str, str | None, str | None]:
         return (
             "Warning: Target URL returned error 403: Forbidden\n"
             "Just a moment...\n"
             "Performing security verification\n",
+            None,
             None,
         )
 

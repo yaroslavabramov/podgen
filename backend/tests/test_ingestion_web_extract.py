@@ -23,7 +23,7 @@ async def test_extract_web_falls_back_when_jina_returns_blocked_content(
     monkeypatch.setattr("app.ingestion.web._jina_extract", _fake_jina)
     monkeypatch.setattr("app.ingestion.web._httpx_extract", _fake_httpx)
 
-    text, title = await extract_web("https://example.com/article")
+    text, title, date = await extract_web("https://example.com/article")
 
     assert text == "Actual article body from httpx fallback."
     assert title == "Real title"
