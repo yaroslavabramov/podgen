@@ -83,6 +83,7 @@ async def structural_chunk(
 
 # --- Pass 1: Split by headers -------------------------------------------------
 _HEADER_RE = re.compile(r"^(#{2,3})\s+(.+)$", re.MULTILINE)
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?。！？])\s+")
 
 
 def _split_by_headers(text: str) -> list[_RawChunk]:
@@ -175,7 +176,7 @@ def _normalize_sizes(chunks: list[_RawChunk]) -> list[_RawChunk]:
 
 def _split_large_chunk(chunk: _RawChunk) -> list[_RawChunk]:
     """Split a chunk that exceeds TARGET_MAX_TOKENS by paragraph boundaries."""
-    paragraphs = re.split(r"\n{2,}", chunk.content)
+    paragraphs = _paragraph_candidates(chunk.content)
     result: list[_RawChunk] = []
     current_parts: list[str] = []
     current_tokens = 0
@@ -186,6 +187,20 @@ def _split_large_chunk(chunk: _RawChunk) -> list[_RawChunk]:
             continue
 
         para_tokens = _count_tokens(para)
+        if para_tokens > TARGET_MAX_TOKENS:
+            if current_parts:
+                result.append(
+                    _RawChunk(
+                        content="\n\n".join(current_parts),
+                        heading_path=list(chunk.heading_path),
+                        token_count=current_tokens,
+                    )
+                )
+                current_parts = []
+                current_tokens = 0
+
+            result.extend(_split_oversized_text(para, chunk.heading_path))
+            continue
 
         if current_tokens + para_tokens > TARGET_MAX_TOKENS and current_parts:
             result.append(
@@ -210,8 +225,78 @@ def _split_large_chunk(chunk: _RawChunk) -> list[_RawChunk]:
             )
         )
 
-    # If a single paragraph exceeds the limit we still return it (don't break mid-sentence)
     return result if result else [chunk]
+
+
+def _paragraph_candidates(text: str) -> list[str]:
+    """Prefer paragraph boundaries, fall back to single newlines for flat web text."""
+    paragraphs = [part.strip() for part in re.split(r"\n{2,}", text) if part.strip()]
+    if len(paragraphs) > 1:
+        return paragraphs
+
+    if "\n" in text:
+        lines = [line.strip() for line in re.split(r"\n+", text) if line.strip()]
+        if len(lines) > 1:
+            return lines
+
+    stripped = text.strip()
+    return [stripped] if stripped else []
+
+
+def _split_oversized_text(text: str, heading_path: list[str]) -> list[_RawChunk]:
+    """Split oversized text by sentence boundaries, then by token window."""
+    sentences = [part.strip() for part in _SENTENCE_SPLIT_RE.split(text) if part.strip()]
+    packed = _pack_segments(sentences)
+    if packed:
+        return [
+            _RawChunk(content=part, heading_path=list(heading_path), token_count=_count_tokens(part))
+            for part in packed
+        ]
+
+    # Ultimate fallback: hard token-window split, never return > TARGET_MAX_TOKENS.
+    encoder = _get_encoder()
+    tokens = encoder.encode(text)
+    windows: list[_RawChunk] = []
+    for i in range(0, len(tokens), TARGET_MAX_TOKENS):
+        piece = encoder.decode(tokens[i : i + TARGET_MAX_TOKENS]).strip()
+        if not piece:
+            continue
+        windows.append(
+            _RawChunk(
+                content=piece,
+                heading_path=list(heading_path),
+                token_count=_count_tokens(piece),
+            )
+        )
+    return windows
+
+
+def _pack_segments(segments: list[str]) -> list[str]:
+    """Pack segments into <= TARGET_MAX_TOKENS parts; return [] if impossible."""
+    if not segments:
+        return []
+
+    packed: list[str] = []
+    current_parts: list[str] = []
+    current_tokens = 0
+
+    for segment in segments:
+        seg_tokens = _count_tokens(segment)
+        if seg_tokens > TARGET_MAX_TOKENS:
+            return []
+
+        if current_parts and current_tokens + seg_tokens > TARGET_MAX_TOKENS:
+            packed.append(" ".join(current_parts))
+            current_parts = []
+            current_tokens = 0
+
+        current_parts.append(segment)
+        current_tokens += seg_tokens
+
+    if current_parts:
+        packed.append(" ".join(current_parts))
+
+    return [part for part in packed if part.strip()]
 
 
 # --- Pass 3: Add overlap ------------------------------------------------------

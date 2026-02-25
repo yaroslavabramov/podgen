@@ -1,6 +1,7 @@
 import pytest
 
 from app.ingestion.web import (
+    _dump_extractor_output,
     _extract_wikipedia_revision_date,
     _parse_wikipedia_page,
     _wikipedia_sections_to_markdown,
@@ -136,6 +137,61 @@ def test_extract_wikipedia_revision_date_returns_none_on_missing_revision() -> N
     assert _extract_wikipedia_revision_date({}) is None
     assert _extract_wikipedia_revision_date({"revisions": []}) is None
     assert _extract_wikipedia_revision_date({"revisions": [{"timestamp": "invalid"}]}) is None
+
+
+def test_dump_extractor_output_writes_file(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.ingestion.web.settings.web_extractor_debug_dump_dir",
+        str(tmp_path),
+        raising=False,
+    )
+
+    _dump_extractor_output(
+        url="https://example.com/article",
+        extractor="jina",
+        status="success",
+        text="hello world",
+        title="Example",
+        date="2026-02-25",
+    )
+
+    files = list(tmp_path.glob("*.md"))
+    assert len(files) == 1
+    content = files[0].read_text(encoding="utf-8")
+    assert "extractor: jina" in content
+    assert "status: success" in content
+    assert "text_chars: 11" in content
+    assert "hello world" in content
+
+
+def test_dump_extractor_output_skips_when_disabled(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.ingestion.web.settings.web_extractor_debug_dump_dir", "", raising=False)
+    _dump_extractor_output(
+        url="https://example.com/article",
+        extractor="trafilatura",
+        status="success",
+        text="data",
+    )
+    assert list(tmp_path.glob("*.md")) == []
+
+
+def test_dump_extractor_output_resolves_relative_path_from_repo_root(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("app.ingestion.web._REPO_ROOT", tmp_path)
+    monkeypatch.setattr("app.ingestion.web.settings.web_extractor_debug_dump_dir", "debug/web", raising=False)
+
+    _dump_extractor_output(
+        url="https://example.com/article",
+        extractor="httpx",
+        status="success",
+        text="payload",
+    )
+
+    files = list((tmp_path / "debug" / "web").glob("*.md"))
+    assert len(files) == 1
+    assert "extractor: httpx" in files[0].read_text(encoding="utf-8")
 
 
 def test_wikipedia_sections_to_markdown_maps_levels() -> None:

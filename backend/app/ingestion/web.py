@@ -1,9 +1,12 @@
 """Web content extraction with Jina Reader API and httpx fallback."""
 
+import hashlib
 import ipaddress
 import logging
-import socket
 import re
+import socket
+from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import quote, unquote, urlparse
 
 import httpx
@@ -54,6 +57,7 @@ _DEFAULT_FETCH_HEADERS = {
     "Accept-Language": settings.web_accept_language,
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 }
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 def _check_ssrf(url: str) -> None:
@@ -83,6 +87,67 @@ def _origin(url: str) -> str:
     p = urlparse(url)
     port_suffix = f":{p.port}" if p.port and p.port not in (80, 443) else ""
     return f"{p.scheme}://{p.hostname}{port_suffix}"
+
+
+def _safe_filename_token(value: str) -> str:
+    token = re.sub(r"[^A-Za-z0-9_-]+", "-", value.strip())
+    token = token.strip("-_")
+    return token or "unknown"
+
+
+def _resolve_dump_dir(raw_dir: str) -> Path:
+    path = Path(raw_dir).expanduser()
+    if path.is_absolute():
+        return path
+    return _REPO_ROOT / path
+
+
+def _dump_extractor_output(
+    *,
+    url: str,
+    extractor: str,
+    status: str,
+    text: str | None = None,
+    title: str | None = None,
+    date: str | None = None,
+    error: str | None = None,
+) -> None:
+    """Write raw extractor output to disk when debug dump dir is configured."""
+    dump_dir = (settings.web_extractor_debug_dump_dir or "").strip()
+    if not dump_dir:
+        return
+
+    try:
+        path = _resolve_dump_dir(dump_dir)
+        path.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        url_hash = hashlib.sha1(url.encode("utf-8")).hexdigest()[:10]
+        filename = (
+            f"{ts}_{_safe_filename_token(extractor)}_"
+            f"{_safe_filename_token(status)}_{url_hash}.md"
+        )
+
+        lines = [
+            f"extractor: {extractor}",
+            f"status: {status}",
+            f"url: {url}",
+            f"title: {title or ''}",
+            f"date: {date or ''}",
+            f"text_chars: {len(text) if text else 0}",
+        ]
+        if error:
+            lines.append(f"error: {error}")
+        lines.extend(["", text or ""])
+
+        (path / filename).write_text("\n".join(lines), encoding="utf-8")
+    except Exception:
+        logger.warning(
+            "Failed to write web extractor debug dump (extractor=%s, status=%s, url=%s)",
+            extractor,
+            status,
+            url,
+            exc_info=True,
+        )
 
 
 async def _safe_fetch(
@@ -151,10 +216,32 @@ async def extract_web(url: str) -> tuple[str, str | None, str | None]:
         if wiki_result:
             text, title, date = wiki_result
             if text.strip():
+                _dump_extractor_output(
+                    url=url,
+                    extractor="mediawiki",
+                    status="success",
+                    text=text,
+                    title=title,
+                    date=date,
+                )
                 logger.info("MediaWiki API succeeded for %s (%d chars)", url, len(text))
                 return text, title, date
+            _dump_extractor_output(
+                url=url,
+                extractor="mediawiki",
+                status="empty",
+                text=text,
+                title=title,
+                date=date,
+            )
             logger.warning("MediaWiki API returned empty text for %s; falling back", url)
     except Exception:
+        _dump_extractor_output(
+            url=url,
+            extractor="mediawiki",
+            status="error",
+            error="exception during mediawiki extraction",
+        )
         logger.warning("MediaWiki API failed for %s; falling back", url, exc_info=True)
 
     # --- 1. Try trafilatura (local, free, good quality) -------------------------
@@ -162,14 +249,45 @@ async def extract_web(url: str) -> tuple[str, str | None, str | None]:
         result = await _trafilatura_extract(url)
         if result:
             text, title, date = result
-            if text.strip() and not contains_blocking_signal(text):
+            blocked = contains_blocking_signal(text)
+            if text.strip() and not blocked:
+                _dump_extractor_output(
+                    url=url,
+                    extractor="trafilatura",
+                    status="success",
+                    text=text,
+                    title=title,
+                    date=date,
+                )
                 logger.info("Trafilatura succeeded for %s (%d chars)", url, len(text))
                 return text, title, date
-            elif contains_blocking_signal(text):
+            elif blocked:
+                _dump_extractor_output(
+                    url=url,
+                    extractor="trafilatura",
+                    status="blocked",
+                    text=text,
+                    title=title,
+                    date=date,
+                )
                 logger.warning("Trafilatura returned blocked content for %s; trying Jina", url)
             else:
+                _dump_extractor_output(
+                    url=url,
+                    extractor="trafilatura",
+                    status="empty",
+                    text=text,
+                    title=title,
+                    date=date,
+                )
                 logger.warning("Trafilatura returned empty for %s, trying Jina", url)
     except Exception:
+        _dump_extractor_output(
+            url=url,
+            extractor="trafilatura",
+            status="error",
+            error="exception during trafilatura extraction",
+        )
         logger.warning("Trafilatura failed for %s, trying Jina", url, exc_info=True)
 
     # --- 2. Fallback: Jina Reader (handles JS-heavy pages) ---------------------
@@ -177,21 +295,56 @@ async def extract_web(url: str) -> tuple[str, str | None, str | None]:
         try:
             text, title = await _jina_extract(url)
             if text and text.strip():
-                if contains_blocking_signal(text):
+                blocked = contains_blocking_signal(text)
+                if blocked:
+                    _dump_extractor_output(
+                        url=url,
+                        extractor="jina",
+                        status="blocked",
+                        text=text,
+                        title=title,
+                    )
                     logger.warning(
                         "Jina Reader returned blocked/challenge content for %s; trying httpx fallback",
                         url,
                     )
                 else:
+                    _dump_extractor_output(
+                        url=url,
+                        extractor="jina",
+                        status="success",
+                        text=text,
+                        title=title,
+                    )
                     logger.info("Jina Reader succeeded for %s (%d chars)", url, len(text))
                     return text, title, None
             else:
+                _dump_extractor_output(
+                    url=url,
+                    extractor="jina",
+                    status="empty",
+                    text=text,
+                    title=title,
+                )
                 logger.warning("Jina Reader returned empty for %s, falling back", url)
         except Exception:
+            _dump_extractor_output(
+                url=url,
+                extractor="jina",
+                status="error",
+                error="exception during jina extraction",
+            )
             logger.warning("Jina Reader failed for %s, falling back to httpx", url, exc_info=True)
 
     # --- 3. Last resort: raw httpx + basic HTML strip --------------------------
     text, title = await _httpx_extract(url)
+    _dump_extractor_output(
+        url=url,
+        extractor="httpx",
+        status="success",
+        text=text,
+        title=title,
+    )
     logger.info("httpx fallback succeeded for %s (%d chars)", url, len(text))
     return text, title, None
 

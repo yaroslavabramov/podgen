@@ -245,6 +245,20 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P2**: Added regression tests for non-Wikipedia host, encoded namespace (`Category%3A...`), and valid colon article slug
 - [x] **P2**: Wikipedia fast-path now returns date from first revision timestamp (`rvdir=newer&rvlimit=1`) so `published_at` is filled and LLM date extraction is skipped
 
+**Round 36 (chunking reliability — oversized web blocks):**
+- [x] **P1**: Fixed oversized chunk leak to embeddings: `_split_large_chunk` now hard-splits huge single blocks instead of returning >8k-token chunks
+- [x] **P1**: Added split fallback chain for flat web text: paragraph (`\n\n`) → single newline lines → sentence packing → hard token windows
+- [x] **P2**: Added regression tests for oversized single paragraph and single-newline flat text
+
+**Round 37 (debug tooling — extractor raw dumps):**
+- [x] **P2**: Added optional file dump for raw extractor outputs (`mediawiki/trafilatura/jina/httpx`) with status/title/date/error metadata
+- [x] **P2**: Added env flag `WEB_EXTRACTOR_DEBUG_DUMP_DIR` (disabled by default) to enable/disable dumps without code changes
+- [x] **P2**: Added tests for debug dump write path and disabled path
+
+**Round 38 (scout quality — unstructured source coverage):**
+- [x] **P1**: Root-only chunk sources no longer collapse into a single scout section; each root chunk is kept as its own section for better content-map coverage
+- [x] **P2**: Added unit test for unstructured multi-chunk source summary behavior (`section_count == chunk_count`)
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

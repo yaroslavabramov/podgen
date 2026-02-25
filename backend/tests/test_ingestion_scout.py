@@ -120,3 +120,59 @@ def test_build_heading_clusters_deduplicates_across_sources() -> None:
     assert clusters[0]["heading"] == "Note Issuance"
     assert clusters[0]["source_count"] == 2
     assert clusters[0]["mentions"] == 2
+
+
+def test_build_source_summaries_keeps_root_only_chunks_separate() -> None:
+    source_id = uuid.uuid4()
+    rows = [
+        (
+            _chunk(
+                source_id,
+                content="Intro line. " + ("alpha " * 80),
+                heading_path=[],
+                chunk_index=0,
+                token_count=120,
+            ),
+            source_id,
+            "Long Unstructured Source",
+            "web",
+            "https://example.com/flat",
+            None,
+        ),
+        (
+            _chunk(
+                source_id,
+                content="Second section. " + ("beta " * 80),
+                heading_path=[],
+                chunk_index=1,
+                token_count=110,
+            ),
+            source_id,
+            "Long Unstructured Source",
+            "web",
+            "https://example.com/flat",
+            None,
+        ),
+        (
+            _chunk(
+                source_id,
+                content="Third section. " + ("gamma " * 80),
+                heading_path=[],
+                chunk_index=2,
+                token_count=100,
+            ),
+            source_id,
+            "Long Unstructured Source",
+            "web",
+            "https://example.com/flat",
+            None,
+        ),
+    ]
+
+    summaries = _build_source_summaries(rows)
+    summary = summaries[0]
+
+    assert summary["chunk_count"] == 3
+    assert summary["section_count"] == 3
+    assert len(summary["sections"]) == 3
+    assert all(section["headings"] == [] for section in summary["sections"])

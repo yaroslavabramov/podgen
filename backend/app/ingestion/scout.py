@@ -176,6 +176,7 @@ def _build_source_summaries(rows) -> list[dict]:
                 "chunk_count": 0,
                 "_structure_depth": 0,
                 "_sections": {},
+                "_root_sections": [],
             }
             by_source[source_id] = source
 
@@ -185,7 +186,23 @@ def _build_source_summaries(rows) -> list[dict]:
 
         headings = [h.strip() for h in (chunk.heading_path or []) if isinstance(h, str) and h.strip()]
         source["_structure_depth"] = max(source["_structure_depth"], len(headings))
-        section_key = " > ".join(headings) if headings else "(root)"
+        if headings:
+            section_key = " > ".join(headings)
+        else:
+            # Keep root-only chunks separate so unstructured long sources still expose
+            # meaningful coverage in scout summaries.
+            root_key = f"(root:{int(chunk.chunk_index)})"
+            source["_root_sections"].append(
+                {
+                    "key": root_key,
+                    "headings": [],
+                    "lead": _extract_lead(chunk.content),
+                    "token_count": token_count,
+                    "chunk_count": 1,
+                    "chunk_index": int(chunk.chunk_index or 0),
+                }
+            )
+            section_key = root_key
         section = source["_sections"].get(section_key)
         if section is None:
             section = {
@@ -193,6 +210,7 @@ def _build_source_summaries(rows) -> list[dict]:
                 "lead": _extract_lead(chunk.content),
                 "token_count": 0,
                 "chunk_count": 0,
+                "chunk_index": int(chunk.chunk_index or 0),
             }
             source["_sections"][section_key] = section
         elif not section.get("lead"):
@@ -209,8 +227,11 @@ def _build_source_summaries(rows) -> list[dict]:
     )[:_MAX_SOURCE_SUMMARIES]
 
     for source in sorted_sources:
-        section_values = list(source["_sections"].values())
-        section_values.sort(key=lambda item: (int(item["token_count"]), len(item["headings"])), reverse=True)
+        if source["_structure_depth"] == 0 and source["_root_sections"]:
+            section_values = sorted(source["_root_sections"], key=lambda item: int(item["chunk_index"]))
+        else:
+            section_values = list(source["_sections"].values())
+            section_values.sort(key=lambda item: (int(item["token_count"]), len(item["headings"])), reverse=True)
         section_values = section_values[:_MAX_SECTIONS_PER_SOURCE]
 
         summaries.append(
