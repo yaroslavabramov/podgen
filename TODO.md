@@ -328,6 +328,28 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P2**: Improved lead extraction for no-space punctuation scripts: sentence split now works without whitespace after punctuation, with CJK-aware candidate scoring
 - [x] **P2**: Added regression tests for CJK navigation noise detection, CJK source downweighting, and CJK lead sentence selection
 
+**Round 53 (PDF ingestion reliability — marker timeout fallback):**
+- [x] **P1**: Added hard timeout for marker-pdf conversion (`PDF_MARKER_TIMEOUT_SECONDS`) to prevent long worker stalls on first model download/init
+- [x] **P1**: Added automatic fallback chain on marker timeout/error: `pypdfium2` → `PyPDF2`
+- [x] **P2**: Added regression tests for marker success, exception fallback, and timeout fallback behavior
+
+**Round 54 (PDF ingestion reliability — marker prewarm compatibility):**
+- [x] **P1**: Added `surya`/`transformers` compatibility shim in PDF marker path to prevent `KeyError('encoder')` during marker model initialization
+- [x] **P1**: Added compatibility patch for composite Surya configs (`get_text_config`) to avoid transformers ambiguity errors when both `text_encoder` and `decoder` are present
+- [x] **P1**: Added explicit `prewarm_marker_models()` helper so model predownload runs through app compatibility layer
+- [x] **P2**: Added regression test validating empty `SuryaOCRConfig()` init works after compat patch
+- [x] **P2**: Added regression test validating table-rec composite config text-config resolution after compat patch
+- [x] **P2**: Updated README/DEVELOPMENT_RULES with the supported prewarm command and policy
+
+**Round 55 (PDF ingestion reliability — surya S3 retry path bug):**
+- [x] **P1**: Patched `surya.common.s3.S3DownloaderMixin.from_pretrained` retry logic to preserve remote `s3://...` path across retries (prevents broken `https://models.datalab.to/<absolute-local-path>/manifest.json` 404 sequence after first transient failure)
+- [x] **P2**: Added regression test that reproduces first-attempt failure and verifies second attempt still uses remote model path
+
+**Round 56 (PDF ingestion reliability — true hard timeout in Celery):**
+- [x] **P1**: Replaced marker execution path from default loop executor to dedicated subprocess with hard timeout + terminate/kill, preventing `asyncio.run()` default-executor shutdown stall in Celery tasks
+- [x] **P2**: Updated timeout/fallback unit tests for new execution path and added regression test validating stuck subprocess is terminated on timeout
+- [x] **P2**: Updated PIPELINE/IMPLEMENTATION/DEVELOPMENT_RULES to document subprocess hard-timeout contract
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

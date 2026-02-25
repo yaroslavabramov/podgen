@@ -704,7 +704,7 @@ class PipelineState(TypedDict):
 **Вход:** `Source` record (source_type, file_path/original_url)
 
 **Процесс:**
-- **PDF:** MinIO → `marker` → Markdown (H1/H2/списки/таблицы сохранены)
+- **PDF:** MinIO → `marker` → Markdown (H1/H2/списки/таблицы сохранены), с subprocess hard-timeout guard и fallback на `pypdfium2`/`PyPDF2` при долгой инициализации моделей или ошибке marker.
 - **Web:** URL → Jina Reader API → если fail → FireCrawl → если fail → Playwright headless + readability
 - **Video/Audio:** файл/URL → Deepgram SDK (nova-3, smart_format=True, diarize=True, paragraphs=True, language="auto")
 

@@ -124,6 +124,10 @@ Key principle: **State-by-IDs** — LangGraph state holds only ID references, ne
   - LLM call / JSON parse / payload validation errors raise `ShowBibleGenerationError`
   - `POST /api/projects/{id}/show-bible/generate` returns `502` with error details
 - After backend worker code changes, restart Celery workers to load updated task modules and runtime behavior.
+- PDF model cold-start: prewarm marker models once to avoid long first-PDF latency in worker.
+  - Run from `backend/` venv:
+    - `python -c "from app.ingestion.pdf import prewarm_marker_models; prewarm_marker_models(); print('marker models ready')"`
+  - Cache location (macOS): `~/Library/Caches/datalab/models`
 
 ## Project Structure
 

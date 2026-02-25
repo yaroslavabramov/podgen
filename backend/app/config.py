@@ -85,6 +85,7 @@ class Settings(BaseSettings):
     web_dns_resolve_retries: int = 3
     web_dns_resolve_retry_delay_ms: int = 250
     web_extractor_debug_dump_dir: str = ""
+    pdf_marker_timeout_seconds: int = 120
 
     @property
     def database_url_sync_resolved(self) -> str:

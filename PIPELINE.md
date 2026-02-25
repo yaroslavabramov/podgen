@@ -144,6 +144,7 @@
 ### **1.1 Cascade ingestion**
 
 - PDF → Marker → Markdown
+  - Защита от долгих зависаний: marker conversion запускается в отдельном subprocess с hard-timeout; при timeout/error subprocess принудительно завершается и используется локальный fallback extraction (pypdfium2, затем PyPDF2).
 
 - Web → MediaWiki API (for `wikipedia.org/wiki/*`) → trafilatura → Jina Reader → httpx fallback, with auto PDF promotion (`.pdf` / `downloadpdf` direct URLs and nav-heavy Jina pages with same-host Download PDF links)
 
