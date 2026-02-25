@@ -6,6 +6,9 @@ from app.ingestion.web import (
     DNSResolutionError,
     _dump_extractor_output,
     _extract_wikipedia_revision_date,
+    _find_pdf_candidate_url_from_markdown,
+    _is_navigation_heavy_jina_text,
+    _looks_like_pdf_url,
     _parse_wikipedia_page,
     _resolve_host_infos,
     _wikipedia_sections_to_markdown,
@@ -61,6 +64,107 @@ async def test_extract_web_prefers_mediawiki_for_wikipedia(
     assert text.startswith("## History")
     assert title == "Hong Kong Monetary Authority"
     assert date is None
+
+
+@pytest.mark.asyncio
+async def test_extract_web_direct_pdf_url_uses_pdf_fast_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("app.ingestion.web._check_ssrf", lambda url: None)
+    monkeypatch.setattr("app.ingestion.web._looks_like_pdf_url", lambda url: True)
+
+    async def _fake_pdf_extract(url: str):
+        return ("PDF body content", "paper", None)
+
+    async def _should_not_call(*args, **kwargs):  # pragma: no cover - defensive
+        raise AssertionError("Cascade extractors should not run when direct PDF succeeds")
+
+    monkeypatch.setattr("app.ingestion.web._extract_pdf_from_url", _fake_pdf_extract)
+    monkeypatch.setattr("app.ingestion.web._wikipedia_api_extract", _should_not_call)
+    monkeypatch.setattr("app.ingestion.web._trafilatura_extract", _should_not_call)
+    monkeypatch.setattr("app.ingestion.web._jina_extract", _should_not_call)
+    monkeypatch.setattr("app.ingestion.web._httpx_extract", _should_not_call)
+
+    text, title, date = await extract_web("https://example.com/paper.pdf")
+
+    assert text == "PDF body content"
+    assert title == "paper"
+    assert date is None
+
+
+@pytest.mark.asyncio
+async def test_extract_web_promotes_pdf_from_navigation_heavy_jina(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("app.ingestion.web._check_ssrf", lambda url: None)
+    monkeypatch.setattr("app.ingestion.web.settings.jina_api_key", "test-key", raising=False)
+
+    async def _fake_trafilatura(url: str):
+        return None
+
+    jina_text = (
+        "Published Time: 1951-01-01\n"
+        "###### Topics\n"
+        "[Many Link](https://example.com/a)\n"
+        "[Download PDF](https://example.com/downloadpdf/view/paper.pdf)\n"
+    )
+
+    async def _fake_jina(url: str) -> tuple[str, str | None]:
+        return (jina_text, "Portal title")
+
+    async def _fake_pdf_extract(url: str):
+        assert "downloadpdf" in url
+        return ("PDF promoted body", "Promoted PDF", None)
+
+    async def _should_not_call(*args, **kwargs):  # pragma: no cover - defensive
+        raise AssertionError("httpx fallback should not run when promoted PDF succeeds")
+
+    monkeypatch.setattr("app.ingestion.web._trafilatura_extract", _fake_trafilatura)
+    monkeypatch.setattr("app.ingestion.web._jina_extract", _fake_jina)
+    monkeypatch.setattr("app.ingestion.web._find_pdf_candidate_url_from_markdown", lambda text, base_url: "https://example.com/downloadpdf/view/paper.pdf")
+    monkeypatch.setattr("app.ingestion.web._is_navigation_heavy_jina_text", lambda text: True)
+    monkeypatch.setattr("app.ingestion.web._extract_pdf_from_url", _fake_pdf_extract)
+    monkeypatch.setattr("app.ingestion.web._httpx_extract", _should_not_call)
+
+    text, title, date = await extract_web("https://example.com/article")
+
+    assert text == "PDF promoted body"
+    assert title == "Promoted PDF"
+    assert date == "1951-01-01"
+
+
+@pytest.mark.asyncio
+async def test_extract_web_keeps_jina_when_not_navigation_heavy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("app.ingestion.web._check_ssrf", lambda url: None)
+    monkeypatch.setattr("app.ingestion.web.settings.jina_api_key", "test-key", raising=False)
+
+    async def _fake_trafilatura(url: str):
+        return None
+
+    jina_text = (
+        "Published Time: 1951-01-01\n"
+        "Core article text\n"
+        "[Download PDF](https://example.com/downloadpdf/view/paper.pdf)\n"
+    )
+
+    async def _fake_jina(url: str) -> tuple[str, str | None]:
+        return (jina_text, "Portal title")
+
+    async def _should_not_call(*args, **kwargs):  # pragma: no cover - defensive
+        raise AssertionError("PDF promotion should not run when page is not nav-heavy")
+
+    monkeypatch.setattr("app.ingestion.web._trafilatura_extract", _fake_trafilatura)
+    monkeypatch.setattr("app.ingestion.web._jina_extract", _fake_jina)
+    monkeypatch.setattr("app.ingestion.web._is_navigation_heavy_jina_text", lambda text: False)
+    monkeypatch.setattr("app.ingestion.web._extract_pdf_from_url", _should_not_call)
+
+    text, title, date = await extract_web("https://example.com/article")
+
+    assert text == jina_text
+    assert title == "Portal title"
+    assert date == "1951-01-01"
 
 
 @pytest.mark.asyncio
@@ -236,3 +340,30 @@ def test_wikipedia_sections_to_markdown_maps_levels() -> None:
     converted = _wikipedia_sections_to_markdown(text)
     assert "## History" in converted
     assert "### Institutions" in converted
+
+
+def test_looks_like_pdf_url_recognizes_pdf_and_downloadpdf_paths() -> None:
+    assert _looks_like_pdf_url("https://example.com/paper.pdf")
+    assert _looks_like_pdf_url("https://example.com/downloadpdf/view/journals/abc")
+    assert not _looks_like_pdf_url("https://example.com/article")
+
+
+def test_find_pdf_candidate_url_from_markdown_same_host_only() -> None:
+    text = (
+        "[Download PDF](https://example.com/downloadpdf/paper.pdf)\n"
+        "[Other PDF](https://evil.test/paper.pdf)\n"
+    )
+    found = _find_pdf_candidate_url_from_markdown(text, base_url="https://example.com/article")
+    assert found == "https://example.com/downloadpdf/paper.pdf"
+
+
+def test_navigation_heavy_jina_text_detects_portal_like_markdown() -> None:
+    text = "\n".join(
+        [
+            "###### Topics",
+            "###### Countries",
+            "Advanced search",
+        ]
+        + [f"[Link {i}](https://example.com/{i})" for i in range(60)]
+    )
+    assert _is_navigation_heavy_jina_text(text) is True

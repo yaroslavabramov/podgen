@@ -145,7 +145,7 @@
 
 - PDF → Marker → Markdown
 
-- Web → MediaWiki API (for `wikipedia.org/wiki/*`) → trafilatura → Jina Reader → httpx fallback
+- Web → MediaWiki API (for `wikipedia.org/wiki/*`) → trafilatura → Jina Reader → httpx fallback, with auto PDF promotion (`.pdf` / `downloadpdf` direct URLs and nav-heavy Jina pages with same-host Download PDF links)
 
 - Video/Audio → Deepgram + diarization
 
@@ -166,6 +166,7 @@ Web extraction использует каскад extractors:
 2. **trafilatura** (primary для остальных сайтов) — локальная библиотека, извлекает основной контент из HTML на уровне DOM. Удаляет навигацию, рекламу, footer, boilerplate автоматически. Также извлекает metadata (title, date).
 3. **Jina Reader** (fallback) — hosted API с headless browser, обрабатывает JS-heavy страницы. Возвращает markdown.
 4. **httpx + HTMLParser** (last resort) — stdlib парсер, убирает `<script>/<style>/<nav>/<footer>`.
+5. **PDF promotion path** — если URL PDF-like или Jina-страница портального типа (navigation-heavy) содержит same-host ссылку на `Download PDF`, система автоматически скачивает PDF и извлекает текст через `marker-pdf`/PyPDF2 fallback.
 
 После extraction текст проходит quality gates:
 

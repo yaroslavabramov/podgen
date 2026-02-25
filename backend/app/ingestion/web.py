@@ -8,18 +8,34 @@ import socket
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import quote, unquote, urlparse
+from urllib.parse import quote, unquote, urljoin, urlparse
 
 import httpx
 
 from app.config import settings
+from app.ingestion.pdf import extract_pdf_bytes
 from app.ingestion.web_quality import contains_blocking_signal
 
 logger = logging.getLogger(__name__)
 
 _JINA_TITLE_RE = re.compile(r"^\s*Title:\s*(.+)$", re.IGNORECASE)
+_JINA_PUBLISHED_TIME_RE = re.compile(r"^\s*Published Time:\s*(\d{4}-\d{2}-\d{2})\s*$", re.IGNORECASE)
+_JINA_LINK_RE = re.compile(
+    r"\[([^\]]{1,240})\]\((\S+?)(?:\s+\"[^\"]*\"|\s+'[^']*')?\)"
+)
 _WIKI_SECTION_RE = re.compile(r"^(={2,6})\s*(.*?)\s*\1\s*$", re.MULTILINE)
 _WIKI_TIMESTAMP_DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})T")
+_PDF_URL_HINT_RE = re.compile(r"\.pdf(?:$|[?#])|/downloadpdf/", re.IGNORECASE)
+_JINA_NAV_MARKERS = (
+    "###### topics",
+    "###### countries",
+    "###### series",
+    "advanced search",
+    "resources",
+    "about us",
+    "search for other papers",
+    "download pdf",
+)
 _WIKIPEDIA_NAMESPACE_PREFIXES = {
     "category",
     "file",
@@ -211,6 +227,95 @@ async def _safe_fetch(
         raise ValueError(f"Too many redirects (>{_MAX_REDIRECTS}) for {url}")
 
 
+def _looks_like_pdf_url(url: str) -> bool:
+    return bool(_PDF_URL_HINT_RE.search(url))
+
+
+def _response_is_pdf(response: httpx.Response, *, requested_url: str) -> bool:
+    content_type = response.headers.get("content-type", "").lower()
+    if "application/pdf" in content_type:
+        return True
+    if _looks_like_pdf_url(requested_url) or _looks_like_pdf_url(str(response.url)):
+        if "application/octet-stream" in content_type:
+            return True
+    return response.content.startswith(b"%PDF-")
+
+
+def _extract_jina_published_date(text: str) -> str | None:
+    for line in text.splitlines()[:80]:
+        match = _JINA_PUBLISHED_TIME_RE.match(line.strip())
+        if match:
+            return match.group(1)
+    return None
+
+
+def _find_pdf_candidate_url_from_markdown(text: str, *, base_url: str) -> str | None:
+    base_host = (urlparse(base_url).hostname or "").lower()
+    if not base_host:
+        return None
+
+    for match in _JINA_LINK_RE.finditer(text[:220000]):
+        label = match.group(1).strip().lower()
+        href = match.group(2).strip()
+        if not href:
+            continue
+        candidate = urljoin(base_url, href)
+        parsed = urlparse(candidate)
+        host = (parsed.hostname or "").lower()
+        if host != base_host:
+            continue
+        if _looks_like_pdf_url(candidate):
+            return candidate
+        if "download pdf" in label or label in {"pdf", "full pdf"}:
+            return candidate
+    return None
+
+
+def _is_navigation_heavy_jina_text(text: str) -> bool:
+    if not text:
+        return False
+
+    sample = text[:220000]
+    lower = sample.lower()
+    marker_hits = sum(1 for marker in _JINA_NAV_MARKERS if marker in lower)
+    link_count = len(_JINA_LINK_RE.findall(sample))
+    lines = sample.splitlines()
+    short_link_lines = sum(
+        1
+        for line in lines
+        if len(line.strip()) <= 170 and ("](" in line or line.strip().startswith("["))
+    )
+
+    if marker_hits >= 3 and link_count >= 35:
+        return True
+    if link_count >= 120 and short_link_lines >= 80:
+        return True
+    return False
+
+
+def _title_from_pdf_url(url: str) -> str | None:
+    parsed = urlparse(url)
+    slug = parsed.path.strip("/").split("/")[-1]
+    if not slug:
+        return None
+    slug = re.sub(r"\.pdf$", "", unquote(slug), flags=re.IGNORECASE)
+    slug = re.sub(r"[-_]+", " ", slug).strip()
+    return slug or None
+
+
+async def _extract_pdf_from_url(url: str) -> tuple[str, str | None, str | None] | None:
+    _check_ssrf(url)
+    response = await _safe_fetch(
+        url,
+        headers={"Accept": "application/pdf,application/octet-stream;q=0.9,*/*;q=0.1"},
+    )
+    if not _response_is_pdf(response, requested_url=url):
+        return None
+    text = await extract_pdf_bytes(response.content, source_ref=url)
+    title = _title_from_pdf_url(str(response.url)) or _title_from_pdf_url(url)
+    return text, title, None
+
+
 async def extract_web(url: str) -> tuple[str, str | None, str | None]:
     """Extract content from a URL.
 
@@ -227,6 +332,31 @@ async def extract_web(url: str) -> tuple[str, str | None, str | None]:
         httpx.HTTPError: On network failures after all retries.
     """
     _check_ssrf(url)
+
+    # --- 0. Direct PDF URL fast-path --------------------------------------------
+    if _looks_like_pdf_url(url):
+        try:
+            pdf_result = await _extract_pdf_from_url(url)
+            if pdf_result:
+                text, title, date = pdf_result
+                _dump_extractor_output(
+                    url=url,
+                    extractor="web_pdf_direct",
+                    status="success",
+                    text=text,
+                    title=title,
+                    date=date,
+                )
+                logger.info("Direct PDF extraction succeeded for %s (%d chars)", url, len(text))
+                return text, title, date
+        except Exception:
+            _dump_extractor_output(
+                url=url,
+                extractor="web_pdf_direct",
+                status="error",
+                error="exception during direct pdf extraction",
+            )
+            logger.warning("Direct PDF extraction failed for %s; continuing cascade", url, exc_info=True)
 
     # --- 0. Wikipedia fast-path via official MediaWiki API ----------------------
     try:
@@ -314,6 +444,7 @@ async def extract_web(url: str) -> tuple[str, str | None, str | None]:
             text, title = await _jina_extract(url)
             if text and text.strip():
                 blocked = contains_blocking_signal(text)
+                jina_date = _extract_jina_published_date(text)
                 if blocked:
                     _dump_extractor_output(
                         url=url,
@@ -327,15 +458,51 @@ async def extract_web(url: str) -> tuple[str, str | None, str | None]:
                         url,
                     )
                 else:
+                    pdf_candidate_url = _find_pdf_candidate_url_from_markdown(text, base_url=url)
+                    if pdf_candidate_url and _is_navigation_heavy_jina_text(text):
+                        try:
+                            promoted = await _extract_pdf_from_url(pdf_candidate_url)
+                            if promoted:
+                                pdf_text, pdf_title, pdf_date = promoted
+                                chosen_date = pdf_date or jina_date
+                                _dump_extractor_output(
+                                    url=pdf_candidate_url,
+                                    extractor="web_pdf_promoted",
+                                    status="success",
+                                    text=pdf_text,
+                                    title=pdf_title or title,
+                                    date=chosen_date,
+                                )
+                                logger.info(
+                                    "Promoted PDF extraction for %s via %s (%d chars)",
+                                    url,
+                                    pdf_candidate_url,
+                                    len(pdf_text),
+                                )
+                                return pdf_text, (pdf_title or title), chosen_date
+                        except Exception:
+                            _dump_extractor_output(
+                                url=pdf_candidate_url,
+                                extractor="web_pdf_promoted",
+                                status="error",
+                                error="exception during promoted pdf extraction",
+                            )
+                            logger.warning(
+                                "Promoted PDF extraction failed for %s via %s; keeping Jina text",
+                                url,
+                                pdf_candidate_url,
+                                exc_info=True,
+                            )
                     _dump_extractor_output(
                         url=url,
                         extractor="jina",
                         status="success",
                         text=text,
                         title=title,
+                        date=jina_date,
                     )
                     logger.info("Jina Reader succeeded for %s (%d chars)", url, len(text))
-                    return text, title, None
+                    return text, title, jina_date
             else:
                 _dump_extractor_output(
                     url=url,
@@ -376,6 +543,10 @@ async def _trafilatura_extract(url: str) -> tuple[str, str | None, str | None] |
     import trafilatura
 
     response = await _safe_fetch(url)
+    if _response_is_pdf(response, requested_url=url):
+        text = await extract_pdf_bytes(response.content, source_ref=url)
+        return text, _title_from_pdf_url(str(response.url)) or _title_from_pdf_url(url), None
+
     html = response.text
 
     text = trafilatura.extract(

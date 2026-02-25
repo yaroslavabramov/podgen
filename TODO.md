@@ -294,6 +294,12 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P1**: Scout now strips chunk overlap prefix before lead extraction, using previous base chunk tail (`OVERLAP_TOKENS`) so section leads start from section-owned content
 - [x] **P2**: Added regression tests proving `Section 3` lead does not inherit `Article 65` carry-over from previous section, plus mismatch-safe no-op behavior
 
+**Round 46 (web extraction quality — automatic PDF promotion):**
+- [x] **P1**: Added direct PDF URL fast-path in web extractor (`.pdf` / `downloadpdf`) with extraction via `extract_pdf_bytes` (no manual user PDF upload required)
+- [x] **P1**: Added nav-heavy Jina detection + same-host `Download PDF` promotion path to auto-switch from noisy portal markdown to article PDF
+- [x] **P2**: Added Jina published-date extraction (`Published Time: YYYY-MM-DD`) and carried date through promoted-PDF path
+- [x] **P2**: Refactored `app/ingestion/pdf.py` to expose reusable `extract_pdf_bytes(...)` for web ingestion and added regression tests for new web cascade branches
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

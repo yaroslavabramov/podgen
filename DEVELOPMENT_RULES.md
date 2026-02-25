@@ -48,6 +48,7 @@ All data queries must filter by `project_id` and/or `user_id`. Never allow cross
 
 ### Web Extraction & Quality Gates
 - Web extraction cascade: **MediaWiki API** (for `wikipedia.org/wiki/*`) → **trafilatura** (primary, local) → **Jina Reader** (JS fallback) → **httpx+HTMLParser** (last resort). Use domain-specific official APIs where available instead of regex-cleaning generic HTML.
+- Web extraction must support PDF promotion: if URL is PDF-like (`.pdf` / `downloadpdf`) or Jina output is nav-heavy and contains a same-host `Download PDF` link, promote to PDF extraction (`extract_pdf_bytes`) automatically instead of requiring manual user upload.
 - All outbound web fetches must send explicit default headers (`User-Agent`, `Accept-Language`) via shared fetch helper (`_safe_fetch`) to reduce avoidable 403/bot blocks.
 - SSRF DNS pre-check must use bounded retries (`WEB_DNS_RESOLVE_RETRIES`, `WEB_DNS_RESOLVE_RETRY_DELAY_MS`) and raise a retryable DNS error type for worker-level retry handling.
 - Any `WEB` source must pass three gates before canonicalization/scout metadata extraction:

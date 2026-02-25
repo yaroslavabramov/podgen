@@ -20,11 +20,23 @@ async def extract_pdf(file_path: str) -> str:
     """
     minio = get_minio_client()
     pdf_bytes = download_file(minio, file_path)
+    return await extract_pdf_bytes(pdf_bytes, source_ref=file_path)
 
+
+async def extract_pdf_bytes(pdf_bytes: bytes, *, source_ref: str = "pdf_bytes") -> str:
+    """Convert PDF bytes to markdown using marker-pdf.
+
+    Args:
+        pdf_bytes: Raw PDF file bytes.
+        source_ref: Identifier for logging/error messages.
+
+    Returns:
+        Markdown string of the extracted content.
+    """
     if not pdf_bytes:
-        raise ValueError(f"Downloaded empty PDF from {file_path}")
+        raise ValueError(f"Downloaded empty PDF from {source_ref}")
 
-    logger.info("Downloaded PDF (%d bytes) from %s", len(pdf_bytes), file_path)
+    logger.info("Downloaded PDF (%d bytes) from %s", len(pdf_bytes), source_ref)
 
     # Write to a temp file because marker-pdf operates on file paths
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -35,7 +47,7 @@ async def extract_pdf(file_path: str) -> str:
         markdown = await _convert_with_marker(input_path)
 
     if not markdown or not markdown.strip():
-        raise ValueError(f"marker-pdf returned empty output for {file_path}")
+        raise ValueError(f"marker-pdf returned empty output for {source_ref}")
 
     return markdown
 
