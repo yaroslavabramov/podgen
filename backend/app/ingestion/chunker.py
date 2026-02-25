@@ -84,6 +84,17 @@ async def structural_chunk(
 # --- Pass 1: Split by headers -------------------------------------------------
 _HEADER_RE = re.compile(r"^(#{2,3})\s+(.+)$", re.MULTILINE)
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?。！？])\s+")
+_OUTLINE_PREFIX_RE = re.compile(
+    r"^(?P<prefix>(?:\d+(?:\.\d+)+(?:[)\.:-])?|\d+[)\.:-]|(?:[IVXLCM]+|[A-Z])[)\.:-]))\s+(?P<title>.+)$"
+)
+_SECTION_LABEL_RE = re.compile(
+    r"^(?P<label>chapter|section|part|article|annex|appendix|book|title)\b",
+    re.IGNORECASE,
+)
+_WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9'/-]*")
+_URL_ONLY_RE = re.compile(r"^https?://\S+$", re.IGNORECASE)
+_GENERIC_HEADING_WORDS = {"introduction", "background", "overview", "summary", "conclusion"}
+_MIN_BODY_WORDS_FOR_HEADING = 6
 
 
 def _split_by_headers(text: str) -> list[_RawChunk]:
@@ -94,6 +105,9 @@ def _split_by_headers(text: str) -> list[_RawChunk]:
     matches = list(_HEADER_RE.finditer(text))
 
     if not matches:
+        inferred = _split_by_inferred_headings(text)
+        if inferred:
+            return inferred
         # No headers: treat entire text as one chunk
         tc = _count_tokens(text)
         return [_RawChunk(content=text.strip(), heading_path=[], token_count=tc)]
@@ -131,6 +145,139 @@ def _split_by_headers(text: str) -> list[_RawChunk]:
             )
 
     return chunks
+
+
+def _split_by_inferred_headings(text: str) -> list[_RawChunk]:
+    """Infer heading structure from plain text lines when markdown headers are absent."""
+    lines = text.splitlines()
+    inferred = _infer_heading_lines(lines)
+    if not inferred:
+        return []
+
+    chunks: list[_RawChunk] = []
+    first_idx = inferred[0]["line_index"]
+    preamble = "\n".join(lines[:first_idx]).strip()
+    if preamble:
+        chunks.append(_RawChunk(content=preamble, heading_path=[], token_count=_count_tokens(preamble)))
+
+    current_h2: str | None = None
+    for i, heading in enumerate(inferred):
+        start = heading["line_index"] + 1
+        end = inferred[i + 1]["line_index"] if i + 1 < len(inferred) else len(lines)
+        body = "\n".join(lines[start:end]).strip()
+        if not body:
+            continue
+
+        level = int(heading["level"])
+        heading_text = str(heading["text"]).strip()
+        if level == 2:
+            current_h2 = heading_text
+            heading_path = [heading_text]
+        else:
+            heading_path = [current_h2, heading_text] if current_h2 else [heading_text]
+
+        chunks.append(
+            _RawChunk(
+                content=body,
+                heading_path=heading_path,
+                token_count=_count_tokens(body),
+            )
+        )
+
+    return chunks
+
+
+def _infer_heading_lines(lines: list[str]) -> list[dict]:
+    """Return inferred heading lines with confidence/TOC guards."""
+    non_empty_indexes = [idx for idx, line in enumerate(lines) if line.strip()]
+    if len(non_empty_indexes) < 6:
+        return []
+
+    candidates: list[dict] = []
+    for idx in non_empty_indexes:
+        line = lines[idx].strip()
+        level = _infer_heading_level(line)
+        if level is None:
+            continue
+        candidates.append({"line_index": idx, "text": line, "level": level})
+
+    if not candidates:
+        return []
+
+    candidate_idx = {item["line_index"] for item in candidates}
+    supported = [
+        item
+        for item in candidates
+        if _has_supporting_body(item["line_index"], lines, candidate_idx)
+    ]
+    if len(supported) < 2:
+        return []
+
+    # Anti-TOC guard: if too many lines are "headings", confidence is low.
+    heading_density = len(supported) / max(1, len(non_empty_indexes))
+    if heading_density > 0.35:
+        return []
+
+    return supported
+
+
+def _infer_heading_level(line: str) -> int | None:
+    """Infer heading level from generic outline markers and line style."""
+    if len(line) < 3 or len(line) > 140:
+        return None
+    if _URL_ONLY_RE.match(line):
+        return None
+    if line.startswith(("-", "*", "•")):
+        return None
+    if line[-1] in ".?!;":
+        return None
+
+    outline_match = _OUTLINE_PREFIX_RE.match(line)
+    if outline_match:
+        prefix = outline_match.group("prefix")
+        normalized = prefix.rstrip(").-:")
+        if re.match(r"^\d+\.\d+", normalized):
+            return 3
+        return 2
+
+    label_match = _SECTION_LABEL_RE.match(line)
+    if label_match:
+        label = label_match.group("label").lower()
+        return 2 if label in {"chapter", "part", "annex", "appendix", "book", "title"} else 3
+
+    words = _WORD_RE.findall(line)
+    if not words or len(words) > 12:
+        return None
+
+    first_word = words[0].lower()
+    if first_word in _GENERIC_HEADING_WORDS:
+        return 2
+
+    capitalized = sum(1 for word in words if word[:1].isupper())
+    if capitalized / len(words) >= 0.6:
+        return 2
+
+    return None
+
+
+def _has_supporting_body(index: int, lines: list[str], candidate_indexes: set[int], *, lookahead: int = 12) -> bool:
+    """Check that a heading candidate is followed by substantive non-heading content."""
+    body_signal = 0
+    upper = min(len(lines), index + 1 + lookahead)
+
+    for i in range(index + 1, upper):
+        stripped = lines[i].strip()
+        if not stripped:
+            continue
+        if i in candidate_indexes:
+            return body_signal >= _MIN_BODY_WORDS_FOR_HEADING
+        if _URL_ONLY_RE.match(stripped):
+            continue
+        body_signal += len(_WORD_RE.findall(stripped))
+        if body_signal >= _MIN_BODY_WORDS_FOR_HEADING:
+            return True
+
+    return body_signal >= _MIN_BODY_WORDS_FOR_HEADING
 
 
 # --- Pass 2: Normalize sizes ---------------------------------------------------
@@ -277,24 +424,24 @@ def _pack_segments(segments: list[str]) -> list[str]:
         return []
 
     packed: list[str] = []
-    current_parts: list[str] = []
-    current_tokens = 0
+    current_text = ""
 
     for segment in segments:
         seg_tokens = _count_tokens(segment)
         if seg_tokens > TARGET_MAX_TOKENS:
             return []
 
-        if current_parts and current_tokens + seg_tokens > TARGET_MAX_TOKENS:
-            packed.append(" ".join(current_parts))
-            current_parts = []
-            current_tokens = 0
+        candidate = f"{current_text} {segment}".strip() if current_text else segment
+        if _count_tokens(candidate) <= TARGET_MAX_TOKENS:
+            current_text = candidate
+            continue
 
-        current_parts.append(segment)
-        current_tokens += seg_tokens
+        if current_text:
+            packed.append(current_text)
+        current_text = segment
 
-    if current_parts:
-        packed.append(" ".join(current_parts))
+    if current_text:
+        packed.append(current_text)
 
     return [part for part in packed if part.strip()]
 

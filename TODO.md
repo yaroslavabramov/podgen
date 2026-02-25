@@ -259,6 +259,15 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P1**: Root-only chunk sources no longer collapse into a single scout section; each root chunk is kept as its own section for better content-map coverage
 - [x] **P2**: Added unit test for unstructured multi-chunk source summary behavior (`section_count == chunk_count`)
 
+**Round 39 (chunking quality — universal heading inference):**
+- [x] **P1**: Added deterministic heading inference for non-markdown web text (outline prefixes, section labels, title-like short lines) before fallback flat chunking
+- [x] **P1**: Added confidence guards to avoid false structure from TOC/navigation lists (requires supporting body + heading density cap)
+- [x] **P2**: Added regression tests for inferred outline structure and TOC-like false-positive rejection
+
+**Round 40 (chunking reliability — pack boundary fix):**
+- [x] **P1**: Fixed `_pack_segments` token budgeting bug by validating real joined chunk token count (`_count_tokens(candidate)`) instead of summing isolated segment counts
+- [x] **P2**: Added deterministic regression test for join-boundary overflow case (`max_packed_tokens` must be `<= TARGET_MAX_TOKENS`)
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority
