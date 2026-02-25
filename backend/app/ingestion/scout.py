@@ -7,9 +7,11 @@ import uuid
 from datetime import datetime
 from typing import Any
 
+import tiktoken
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ingestion.chunker import OVERLAP_TOKENS
 from app.models.chunk import Chunk
 from app.models.content_map import ContentMap
 from app.models.source import Source
@@ -33,6 +35,7 @@ _LEAD_GOOD_START_RE = re.compile(r"^[\"“”'‘’(\[]?[A-ZА-Я0-9]")
 _LEAD_BAD_PREFIX_RE = re.compile(r"^[,;:)\]\-]")
 _LEAD_LOWER_START_RE = re.compile(r"^[a-zа-я]")
 _LEAD_WORD_RE = re.compile(r"[A-Za-zА-Яа-я0-9][A-Za-zА-Яа-я0-9'/-]*")
+_lead_encoder: tiktoken.Encoding | None = None
 
 
 async def build_content_map(project_id: str, db: AsyncSession) -> str:
@@ -184,8 +187,15 @@ def _build_source_summaries(rows) -> list[dict]:
                 "_structure_depth": 0,
                 "_sections": {},
                 "_root_sections": [],
+                "_prev_base_chunk_content": None,
             }
             by_source[source_id] = source
+
+        base_chunk_content = _strip_overlap_prefix_for_lead(
+            chunk.content,
+            source.get("_prev_base_chunk_content"),
+        )
+        source["_prev_base_chunk_content"] = base_chunk_content
 
         token_count = int(chunk.token_count or 0)
         source["total_tokens"] += token_count
@@ -203,7 +213,7 @@ def _build_source_summaries(rows) -> list[dict]:
                 {
                     "key": root_key,
                     "headings": [],
-                    "lead": _extract_lead(chunk.content),
+                    "lead": _extract_lead(base_chunk_content),
                     "token_count": token_count,
                     "chunk_count": 1,
                     "chunk_index": int(chunk.chunk_index or 0),
@@ -214,14 +224,14 @@ def _build_source_summaries(rows) -> list[dict]:
         if section is None:
             section = {
                 "headings": headings,
-                "lead": _extract_lead(chunk.content),
+                "lead": _extract_lead(base_chunk_content),
                 "token_count": 0,
                 "chunk_count": 0,
                 "chunk_index": int(chunk.chunk_index or 0),
             }
             source["_sections"][section_key] = section
         elif not section.get("lead"):
-            section["lead"] = _extract_lead(chunk.content)
+            section["lead"] = _extract_lead(base_chunk_content)
 
         section["token_count"] += token_count
         section["chunk_count"] += 1
@@ -269,6 +279,36 @@ def _build_source_summaries(rows) -> list[dict]:
         )
 
     return summaries
+
+
+def _get_lead_encoder() -> tiktoken.Encoding:
+    global _lead_encoder
+    if _lead_encoder is None:
+        _lead_encoder = tiktoken.get_encoding("cl100k_base")
+    return _lead_encoder
+
+
+def _strip_overlap_prefix_for_lead(text: str, prev_base_chunk_content: str | None) -> str:
+    """Remove chunk overlap prefix so scout lead starts from chunk's own body."""
+    if not text or not prev_base_chunk_content:
+        return text
+
+    encoder = _get_lead_encoder()
+    prev_tokens = encoder.encode(prev_base_chunk_content)
+    if not prev_tokens:
+        return text
+
+    overlap_tokens = prev_tokens[-OVERLAP_TOKENS:] if len(prev_tokens) > OVERLAP_TOKENS else prev_tokens
+    overlap_text = encoder.decode(overlap_tokens).strip()
+    if not overlap_text:
+        return text
+
+    prefix = f"{overlap_text}\n\n"
+    if not text.startswith(prefix):
+        return text
+
+    trimmed = text[len(prefix) :].lstrip()
+    return trimmed or text
 
 
 def _extract_lead(text: str) -> str:

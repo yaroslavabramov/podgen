@@ -290,6 +290,10 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P1**: Added explicit guard against `Article N ...` lines passing the generic capitalized-words heuristic in `_infer_heading_level()`
 - [x] **P2**: Added regression tests for nested chapter heading_path, child-heading transparency, TOC rejection, and article exclusion
 
+**Round 45 (scout quality — de-overlap leads):**
+- [x] **P1**: Scout now strips chunk overlap prefix before lead extraction, using previous base chunk tail (`OVERLAP_TOKENS`) so section leads start from section-owned content
+- [x] **P2**: Added regression tests proving `Section 3` lead does not inherit `Article 65` carry-over from previous section, plus mismatch-safe no-op behavior
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

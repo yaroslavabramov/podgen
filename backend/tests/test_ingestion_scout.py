@@ -1,7 +1,12 @@
 import uuid
 from datetime import datetime
 
-from app.ingestion.scout import _build_heading_clusters, _build_source_summaries, _extract_lead
+from app.ingestion.scout import (
+    _build_heading_clusters,
+    _build_source_summaries,
+    _extract_lead,
+    _strip_overlap_prefix_for_lead,
+)
 from app.models.chunk import Chunk
 
 
@@ -217,3 +222,61 @@ def test_build_source_summaries_uses_adaptive_section_limit_for_large_source() -
     assert summary["section_count"] == 26
     # Adaptive cap with few sources allows more than the old hard limit of 12.
     assert len(summary["sections"]) > 12
+
+
+def test_build_source_summaries_strips_overlap_before_extracting_lead() -> None:
+    source_id = uuid.uuid4()
+    prev_chunk = (
+        "Article 65 The previous system of establishing advisory bodies by the executive authorities "
+        "shall be maintained."
+    )
+    current_body = (
+        "Article 66 The Legislative Council of the Hong Kong Special Administrative Region shall be "
+        "the legislature of the Region."
+    )
+    overlapped_current = f"{prev_chunk}\n\n{current_body}"
+
+    rows = [
+        (
+            _chunk(
+                source_id,
+                content=prev_chunk,
+                heading_path=["Chapter IV Political Structure", "Section 2 The Executive Authorities"],
+                chunk_index=0,
+                token_count=120,
+            ),
+            source_id,
+            "Basic Law",
+            "web",
+            "https://example.com/basic-law",
+            None,
+        ),
+        (
+            _chunk(
+                source_id,
+                content=overlapped_current,
+                heading_path=["Chapter IV Political Structure", "Section 3 The Legislature"],
+                chunk_index=1,
+                token_count=130,
+            ),
+            source_id,
+            "Basic Law",
+            "web",
+            "https://example.com/basic-law",
+            None,
+        ),
+    ]
+
+    summaries = _build_source_summaries(rows)
+    sections = summaries[0]["sections"]
+    section3 = next(item for item in sections if item["headings"][-1] == "Section 3 The Legislature")
+
+    assert section3["lead"].startswith("Article 66 The Legislative Council")
+    assert "Article 65" not in section3["lead"]
+
+
+def test_strip_overlap_prefix_for_lead_keeps_text_when_prefix_mismatch() -> None:
+    text = "Article 66 The Legislative Council shall be the legislature of the Region."
+    prev = "Unrelated previous chunk text that should not match."
+
+    assert _strip_overlap_prefix_for_lead(text, prev) == text
