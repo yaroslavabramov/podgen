@@ -300,6 +300,15 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P2**: Added Jina published-date extraction (`Published Time: YYYY-MM-DD`) and carried date through promoted-PDF path
 - [x] **P2**: Refactored `app/ingestion/pdf.py` to expose reusable `extract_pdf_bytes(...)` for web ingestion and added regression tests for new web cascade branches
 
+**Round 47 (chunking quality — markdown AST headings):**
+- [x] **P1**: Replaced regex-only markdown split (`##/###`) with `markdown-it-py` token parsing for headings H1-H6 (ATX + Setext)
+- [x] **P1**: Preserved heading hierarchy generically by markdown level (not hardcoded to H2/H3), while keeping plain-text heading inference fallback when markdown headings are absent
+- [x] **P2**: Added regression tests for setext headings and deep-level markdown headings (`#` + `####`) to ensure heading_path is built correctly
+
+**Round 48 (chunking quality — multilingual markdown headings):**
+- [x] **P1**: Fixed markdown heading validation to support Cyrillic headings (previously non-Latin headings were rejected, causing fallback to flat chunking)
+- [x] **P2**: Added regression test for Russian markdown heading hierarchy (`# Введение` → `## Детали`)
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

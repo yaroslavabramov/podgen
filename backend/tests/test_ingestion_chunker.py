@@ -54,6 +54,51 @@ def test_split_by_headers_infers_outline_structure_without_markdown() -> None:
     assert any(chunk.heading_path == ["2. Outcomes"] for chunk in chunks)
 
 
+def test_split_by_headers_parses_setext_markdown_headings() -> None:
+    text = (
+        "Document intro paragraph with enough meaningful words for preamble.\n\n"
+        "Main Title\n"
+        "==========\n"
+        "This first section describes the core context in a concise way.\n\n"
+        "Abstract\n"
+        "--------\n"
+        "This abstract section captures the framing and high-level argument.\n"
+    )
+
+    chunks = _split_by_headers(text)
+
+    assert any(chunk.heading_path == ["Main Title"] for chunk in chunks)
+    assert any(chunk.heading_path and chunk.heading_path[-1] == "Abstract" for chunk in chunks)
+
+
+def test_split_by_headers_parses_all_markdown_heading_levels() -> None:
+    text = (
+        "# Root\n"
+        "Root context text with enough words to represent real body content.\n\n"
+        "#### Deep Section\n"
+        "Nested section body with specific detail and supporting explanation.\n"
+    )
+
+    chunks = _split_by_headers(text)
+
+    assert any(chunk.heading_path == ["Root"] for chunk in chunks)
+    assert any(chunk.heading_path == ["Root", "Deep Section"] for chunk in chunks)
+
+
+def test_split_by_headers_parses_cyrillic_markdown_headings() -> None:
+    text = (
+        "# Введение\n"
+        "Краткий контекст и постановка проблемы.\n\n"
+        "## Детали\n"
+        "Подробное объяснение механизма с примерами и выводами.\n"
+    )
+
+    chunks = _split_by_headers(text)
+
+    assert any(chunk.heading_path == ["Введение"] for chunk in chunks)
+    assert any(chunk.heading_path == ["Введение", "Детали"] for chunk in chunks)
+
+
 def test_split_by_headers_ignores_toc_like_heading_lists() -> None:
     text = (
         "Contents\n"

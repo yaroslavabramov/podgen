@@ -741,7 +741,7 @@ class PipelineState(TypedDict):
 
 **Процесс:**
 1. **Первый проход — структурное разбиение:**
-   - Режем по H2/H3 заголовкам и семантическим разделителям (--- , пустые строки ≥ 2)
+   - Режем по markdown-заголовкам H1-H6 (ATX + Setext) и семантическим разделителям (--- , пустые строки ≥ 2)
    - Каждый структурный блок получает heading_path (хлебные крошки заголовков)
    - Сохраняем parent-child: H1 → H2 → H3
    - **Heading inference (без markdown):** если markdown-заголовков нет, используется deterministic inference:
@@ -1614,7 +1614,7 @@ type WSEvent =
 
 4. **Cost estimation:** Формула: `f(duration_target, source_count, language)` → estimated tokens per phase × model pricing + estimated chars × ElevenLabs pricing. Показываем перед запуском, сравниваем с actual после.
 
-5. **Chunking:** Structure-first (H2/H3/абзацы), потом normalize размер (256-1024 tokens). Heading hierarchy не ломается при split.
+5. **Chunking:** Structure-first (markdown headings H1-H6 + fallback inference + абзацы), потом normalize размер (256-1024 tokens). Heading hierarchy не ломается при split.
 
 6. **Два режима web research:** Fast (в цикле, non-blocking, Tavily+Jina) vs Deep (Celery async, full ingestion). Act Planner **никогда не ждёт** deep ingestion.
 

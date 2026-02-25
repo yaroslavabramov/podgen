@@ -5,6 +5,7 @@ import re
 import uuid
 from dataclasses import dataclass, field
 
+from markdown_it import MarkdownIt
 import tiktoken
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +20,7 @@ TARGET_MAX_TOKENS = 1024
 OVERLAP_TOKENS = 64
 
 _encoder: tiktoken.Encoding | None = None
+_markdown_parser: MarkdownIt | None = None
 
 
 def _get_encoder() -> tiktoken.Encoding:
@@ -30,6 +32,13 @@ def _get_encoder() -> tiktoken.Encoding:
 
 def _count_tokens(text: str) -> int:
     return len(_get_encoder().encode(text))
+
+
+def _get_markdown_parser() -> MarkdownIt:
+    global _markdown_parser
+    if _markdown_parser is None:
+        _markdown_parser = MarkdownIt("commonmark")
+    return _markdown_parser
 
 
 # --- Internal data structure ---------------------------------------------------
@@ -48,7 +57,8 @@ async def structural_chunk(
 ) -> list[Chunk]:
     """Structure-first chunking pipeline.
 
-    Pass 1 -- Split by H2/H3 markdown headers, tracking heading_path.
+    Pass 1 -- Split by markdown headings (H1-H6, ATX + Setext), tracking heading_path.
+              If no markdown heading structure is found, infer headings from plain text.
     Pass 2 -- Normalize sizes: split large chunks (> TARGET_MAX_TOKENS) by
               paragraphs and merge small chunks (< MIN_CHUNK_TOKENS) with neighbours.
     Pass 3 -- Add OVERLAP_TOKENS-token overlap between consecutive chunks.
@@ -82,7 +92,6 @@ async def structural_chunk(
 
 
 # --- Pass 1: Split by headers -------------------------------------------------
-_HEADER_RE = re.compile(r"^(#{2,3})\s+(.+)$", re.MULTILINE)
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?。！？])\s+")
 _OUTLINE_PREFIX_RE = re.compile(
     r"^(?P<prefix>(?:\d+(?:\.\d+)+(?:[)\.:-])?|\d+[)\.:-]|(?:[IVXLCM]+|[A-Z])[)\.:-]))\s+(?P<title>.+)$"
@@ -91,60 +100,122 @@ _SECTION_LABEL_RE = re.compile(
     r"^(?P<label>chapter|section|part|annex|appendix|book|title)\b",
     re.IGNORECASE,
 )
-_WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9'/-]*")
+_WORD_RE = re.compile(r"[A-Za-zА-Яа-я][A-Za-zА-Яа-я0-9'/-]*")
 _URL_ONLY_RE = re.compile(r"^https?://\S+$", re.IGNORECASE)
 _GENERIC_HEADING_WORDS = {"introduction", "background", "overview", "summary", "conclusion"}
 _MIN_BODY_WORDS_FOR_HEADING = 6
 
 
 def _split_by_headers(text: str) -> list[_RawChunk]:
-    """Split text on ## and ### boundaries, tracking a heading breadcrumb."""
+    """Split text on markdown headings first, then plain-text inferred headings."""
+    markdown_chunks = _split_by_markdown_headings(text)
+    if markdown_chunks:
+        return markdown_chunks
+
+    inferred = _split_by_inferred_headings(text)
+    if inferred:
+        return inferred
+
+    # No structure detected: treat entire text as one chunk.
+    tc = _count_tokens(text)
+    return [_RawChunk(content=text.strip(), heading_path=[], token_count=tc)]
+
+
+def _split_by_markdown_headings(text: str) -> list[_RawChunk]:
+    """Split text by markdown heading tokens (H1-H6; ATX and Setext)."""
+    lines = text.splitlines()
+    if not lines:
+        return []
+
+    parser = _get_markdown_parser()
+    tokens = parser.parse(text)
+
+    headings: list[dict] = []
+    for idx, token in enumerate(tokens):
+        if token.type != "heading_open":
+            continue
+        if not token.tag.startswith("h"):
+            continue
+        try:
+            level = int(token.tag[1:])
+        except (TypeError, ValueError):
+            continue
+        if level < 1 or level > 6:
+            continue
+
+        line_map = token.map or []
+        if len(line_map) < 2:
+            continue
+        line_start = int(line_map[0])
+        line_end = int(line_map[1])
+        if line_start < 0 or line_end < line_start:
+            continue
+
+        heading_text = ""
+        if idx + 1 < len(tokens) and tokens[idx + 1].type == "inline":
+            heading_text = (tokens[idx + 1].content or "").strip()
+        if not _is_supported_markdown_heading_text(heading_text):
+            continue
+
+        headings.append(
+            {
+                "level": level,
+                "text": heading_text,
+                "line_start": line_start,
+                "line_end": line_end,
+            }
+        )
+
+    if not headings:
+        return []
+
+    headings.sort(key=lambda item: int(item["line_start"]))
+    deduped: list[dict] = []
+    seen_starts: set[int] = set()
+    for heading in headings:
+        line_start = int(heading["line_start"])
+        if line_start in seen_starts:
+            continue
+        seen_starts.add(line_start)
+        deduped.append(heading)
+    headings = deduped
+
     chunks: list[_RawChunk] = []
-    heading_path: list[str] = []
-
-    matches = list(_HEADER_RE.finditer(text))
-
-    if not matches:
-        inferred = _split_by_inferred_headings(text)
-        if inferred:
-            return inferred
-        # No headers: treat entire text as one chunk
-        tc = _count_tokens(text)
-        return [_RawChunk(content=text.strip(), heading_path=[], token_count=tc)]
-
-    # Content before the first header
-    preamble = text[: matches[0].start()].strip()
+    first_start = int(headings[0]["line_start"])
+    preamble = "\n".join(lines[:first_start]).strip()
     if preamble:
-        tc = _count_tokens(preamble)
-        chunks.append(_RawChunk(content=preamble, heading_path=[], token_count=tc))
+        chunks.append(_RawChunk(content=preamble, heading_path=[], token_count=_count_tokens(preamble)))
 
-    for i, match in enumerate(matches):
-        level = len(match.group(1))  # 2 or 3
-        heading_text = match.group(2).strip()
+    heading_path: list[str] = []
+    for i, heading in enumerate(headings):
+        level = int(heading["level"])
+        heading_text = str(heading["text"])
+        heading_path = heading_path[: max(0, level - 1)] + [heading_text]
 
-        # Update heading breadcrumb
-        if level == 2:
-            heading_path = [heading_text]
-        elif level == 3:
-            # Keep the H2 parent, replace H3
-            heading_path = heading_path[:1] + [heading_text]
+        start = int(heading["line_end"])
+        end = int(headings[i + 1]["line_start"]) if i + 1 < len(headings) else len(lines)
+        body = "\n".join(lines[start:end]).strip()
+        if not body:
+            continue
 
-        # Extract content between this header and the next (or end of text)
-        start = match.end()
-        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        body = text[start:end].strip()
-
-        if body:
-            tc = _count_tokens(body)
-            chunks.append(
-                _RawChunk(
-                    content=body,
-                    heading_path=list(heading_path),
-                    token_count=tc,
-                )
+        chunks.append(
+            _RawChunk(
+                content=body,
+                heading_path=list(heading_path),
+                token_count=_count_tokens(body),
             )
+        )
 
     return chunks
+
+
+def _is_supported_markdown_heading_text(text: str) -> bool:
+    normalized = re.sub(r"\s+", " ", text).strip()
+    if len(normalized) < 2 or len(normalized) > 220:
+        return False
+    if _URL_ONLY_RE.match(normalized):
+        return False
+    return len(_WORD_RE.findall(normalized)) >= 1
 
 
 def _split_by_inferred_headings(text: str) -> list[_RawChunk]:

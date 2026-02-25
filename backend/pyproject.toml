@@ -49,6 +49,7 @@ dependencies = [
     "pydantic-settings>=2.6.0",
     "python-dotenv>=1.0.1",
     "trafilatura>=2.0.0",
+    "markdown-it-py>=3.0.0",
 ]
 
 [project.optional-dependencies]
