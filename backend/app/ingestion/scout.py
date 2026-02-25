@@ -30,7 +30,7 @@ _MAX_SECTIONS_PER_SOURCE_FEW = 24
 # Max chars for section lead.
 _MAX_LEAD_CHARS = 260
 _MAX_HEADING_CLUSTERS = 40
-_LEAD_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?。！？])\s+")
+_LEAD_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?。！？])\s*")
 _LEAD_GOOD_START_RE = re.compile(r"^[\"“”'‘’(\[]?[A-ZА-Я0-9]")
 _LEAD_BAD_PREFIX_RE = re.compile(r"^[,;:)\]\-]")
 _LEAD_LOWER_START_RE = re.compile(r"^[a-zа-я]")
@@ -38,7 +38,9 @@ _LEAD_WORD_RE = re.compile(r"[A-Za-zА-Яа-я0-9][A-Za-zА-Яа-я0-9'/-]*")
 _URL_MARKER_RE = re.compile(r"https?://|www\.", re.IGNORECASE)
 _MARKDOWN_LINK_RE = re.compile(r"\[[^\]]{1,120}\]\([^)]+\)")
 _SENTENCE_PUNCT_RE = re.compile(r"[.!?。！？]")
-_LIST_SEPARATOR_RE = re.compile(r"[,;|•●·]")
+_LIST_SEPARATOR_RE = re.compile(r"[,;|•●·，；、｜]")
+_TOKEN_RE = re.compile(r"[A-Za-zА-Яа-я0-9]+|[\u3400-\u9fff]+|[\u3040-\u30ff]+|[\uac00-\ud7af]+")
+_CJK_TEXT_RE = re.compile(r"[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]")
 _lead_encoder: tiktoken.Encoding | None = None
 
 
@@ -367,38 +369,73 @@ def _extract_lead(text: str) -> str:
     if not parts:
         return normalized[:_MAX_LEAD_CHARS]
 
-    fallback_candidate: str | None = None
-    for candidate in parts[:12]:
+    preferred_candidates: list[tuple[int, str]] = []
+    fallback_candidates: list[tuple[int, str]] = []
+    for idx, candidate in enumerate(parts[:12]):
         if _is_preferred_lead_candidate(candidate):
-            return candidate[:_MAX_LEAD_CHARS]
-        if fallback_candidate is None and _is_fallback_lead_candidate(candidate):
-            fallback_candidate = candidate
+            preferred_candidates.append((idx, candidate))
+            continue
+        if _is_fallback_lead_candidate(candidate):
+            fallback_candidates.append((idx, candidate))
 
-    if fallback_candidate:
-        return fallback_candidate[:_MAX_LEAD_CHARS]
+    if preferred_candidates:
+        best = max(preferred_candidates, key=lambda item: _lead_candidate_score(item[1], item[0]))[1]
+        return best[:_MAX_LEAD_CHARS]
+
+    if fallback_candidates:
+        best = max(fallback_candidates, key=lambda item: _lead_candidate_score(item[1], item[0]))[1]
+        return best[:_MAX_LEAD_CHARS]
 
     # Last resort: first non-empty fragment.
     return parts[0][:_MAX_LEAD_CHARS]
 
 
 def _is_preferred_lead_candidate(candidate: str) -> bool:
-    if len(candidate) < 35:
+    if len(candidate) < _min_lead_chars(candidate, preferred=True):
         return False
     if _LEAD_BAD_PREFIX_RE.match(candidate):
         return False
-    if not _LEAD_GOOD_START_RE.match(candidate):
+    if not _has_preferred_start(candidate):
         return False
-    return len(_LEAD_WORD_RE.findall(candidate)) >= 6
+    units = _lead_content_units(candidate)
+    return units >= 6
 
 
 def _is_fallback_lead_candidate(candidate: str) -> bool:
-    if len(candidate) < 30:
+    if len(candidate) < _min_lead_chars(candidate, preferred=False):
         return False
     if _LEAD_BAD_PREFIX_RE.match(candidate):
         return False
     if _LEAD_LOWER_START_RE.match(candidate):
         return False
-    return len(_LEAD_WORD_RE.findall(candidate)) >= 5
+    units = _lead_content_units(candidate)
+    return units >= 5
+
+
+def _has_preferred_start(candidate: str) -> bool:
+    if _LEAD_GOOD_START_RE.match(candidate):
+        return True
+    stripped = candidate.lstrip("\"“”'‘’([")
+    return bool(stripped and _CJK_TEXT_RE.match(stripped[0]))
+
+
+def _lead_content_units(candidate: str) -> int:
+    word_units = len(_LEAD_WORD_RE.findall(candidate))
+    cjk_chars = len(_CJK_TEXT_RE.findall(candidate))
+    cjk_units = cjk_chars // 2
+    return max(word_units, cjk_units)
+
+
+def _lead_candidate_score(candidate: str, position: int) -> tuple[int, int, int]:
+    position_bonus = 1 if position > 0 else 0
+    return (_lead_content_units(candidate) + position_bonus, len(candidate), position)
+
+
+def _min_lead_chars(candidate: str, *, preferred: bool) -> int:
+    cjk_chars = len(_CJK_TEXT_RE.findall(candidate))
+    if cjk_chars >= 8:
+        return 12 if preferred else 10
+    return 35 if preferred else 30
 
 
 def _section_limit_for_source(*, chunk_count: int, total_sources: int) -> int:
@@ -479,12 +516,7 @@ def _normalized_headings(raw_headings: Any) -> list[str]:
 
 
 def _tokenize_for_noise(text: str) -> list[str]:
-    tokens: list[str] = []
-    for raw in text.split():
-        token = raw.strip("[](){}<>\"'`.,;:!?")
-        if token:
-            tokens.append(token)
-    return tokens
+    return _TOKEN_RE.findall(text)
 
 
 def _heading_word_count(heading: str) -> int:
@@ -502,6 +534,8 @@ def _is_prose_like_section(section: dict[str, Any]) -> bool:
         return True
     # Longer lines can still be prose when sentence punctuation is missing due truncation.
     if token_count >= 24 and len(_LIST_SEPARATOR_RE.findall(lead)) <= 1:
+        return True
+    if token_count >= 14 and _CJK_TEXT_RE.search(lead) and len(_LIST_SEPARATOR_RE.findall(lead)) <= 1:
         return True
     return False
 
@@ -552,6 +586,13 @@ def _navigation_noise_score(section: dict[str, Any], *, context: dict[str, Any] 
         score += 2
     if token_count >= 24 and sentence_punct_count <= 1 and separator_count >= 4:
         score += 1
+
+    cjk_char_count = len(_CJK_TEXT_RE.findall(lead))
+    cjk_token_count = sum(1 for token in tokens if _CJK_TEXT_RE.search(token))
+    if cjk_char_count >= 10 and sentence_punct_count == 0 and separator_count >= 2 and cjk_token_count >= 4:
+        score += 2
+    if cjk_char_count >= 16 and sentence_punct_count <= 1 and separator_count >= 4 and cjk_token_count >= 6:
+        score += 2
 
     alpha_tokens = 0
     titlecase_like = 0

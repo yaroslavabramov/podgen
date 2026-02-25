@@ -466,3 +466,59 @@ def test_navigation_noise_heuristic_keeps_legitimate_keywords_section() -> None:
         "token_count": 250,
     }
     assert _is_navigation_noise_section(section) is False
+
+
+def test_navigation_noise_heuristic_detects_cjk_navigation_list() -> None:
+    section = {
+        "headings": ["导航"],
+        "lead": "主题，国家，系列，资源，关于，搜索，帮助，隐私，条款",
+        "token_count": 500,
+    }
+    assert _is_navigation_noise_section(section) is True
+
+
+def test_extract_lead_splits_cjk_sentences_without_spaces() -> None:
+    text = "以及此前重叠片段可能延续到这里。香港金融管理局负责维护货币稳定和监管框架。"
+
+    lead = _extract_lead(text)
+
+    assert lead.startswith("香港金融管理局")
+
+
+def test_build_source_summaries_downweights_noisy_cjk_source() -> None:
+    noisy = uuid.uuid4()
+    clean = uuid.uuid4()
+    rows = [
+        (
+            _chunk(
+                noisy,
+                content="主题，国家，系列，资源，关于，搜索，帮助，隐私，条款，登录，目录，工具",
+                heading_path=["导航"],
+                chunk_index=0,
+                token_count=5000,
+            ),
+            noisy,
+            "Noisy CJK Portal",
+            "web",
+            "https://example.com/cjk-noise",
+            None,
+        ),
+        (
+            _chunk(
+                clean,
+                content="香港金融管理局负责维护货币稳定，并通过货币安排增强市场信心。",
+                heading_path=["货币政策框架"],
+                chunk_index=0,
+                token_count=800,
+            ),
+            clean,
+            "Clean CJK Source",
+            "web",
+            "https://example.com/cjk-clean",
+            None,
+        ),
+    ]
+
+    summaries = _build_source_summaries(rows)
+    assert summaries
+    assert summaries[0]["source_id"] == str(clean)

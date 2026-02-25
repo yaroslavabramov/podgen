@@ -323,6 +323,11 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P1**: Added source-level exclusion for nav-heavy low-prose web sources based on aggregate noise/prose ratios (without language-specific keyword dictionaries)
 - [x] **P2**: Updated engineering rules/docs to enforce language-agnostic scout filtering policy
 
+**Round 52 (scout quality — non-whitespace script handling):**
+- [x] **P1**: Improved section noise scoring/tokenization for non-whitespace scripts (CJK/Hiragana/Katakana/Hangul) and full-width separators so taxonomy-style portal sections are detected consistently
+- [x] **P2**: Improved lead extraction for no-space punctuation scripts: sentence split now works without whitespace after punctuation, with CJK-aware candidate scoring
+- [x] **P2**: Added regression tests for CJK navigation noise detection, CJK source downweighting, and CJK lead sentence selection
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority
