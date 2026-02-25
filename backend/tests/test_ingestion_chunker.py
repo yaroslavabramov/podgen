@@ -1,5 +1,6 @@
 from app.ingestion.chunker import (
     TARGET_MAX_TOKENS,
+    _normalize_sizes,
     _RawChunk,
     _count_tokens,
     _pack_segments,
@@ -90,3 +91,28 @@ def test_pack_segments_never_exceeds_target_tokens_on_join_boundary() -> None:
 
     assert packed
     assert max(_count_tokens(part) for part in packed) <= TARGET_MAX_TOKENS
+
+
+def test_normalize_sizes_does_not_merge_chunks_with_different_heading_path() -> None:
+    left_text = "alpha " * 40
+    right_text = "beta " * 40
+    left = _RawChunk(content=left_text.strip(), heading_path=["Chapter I"], token_count=_count_tokens(left_text))
+    right = _RawChunk(content=right_text.strip(), heading_path=["Chapter II"], token_count=_count_tokens(right_text))
+
+    normalized = _normalize_sizes([left, right])
+
+    assert len(normalized) == 2
+    assert normalized[0].heading_path == ["Chapter I"]
+    assert normalized[1].heading_path == ["Chapter II"]
+
+
+def test_normalize_sizes_merges_chunks_with_same_heading_path() -> None:
+    left_text = "alpha " * 40
+    right_text = "beta " * 40
+    left = _RawChunk(content=left_text.strip(), heading_path=["Chapter I"], token_count=_count_tokens(left_text))
+    right = _RawChunk(content=right_text.strip(), heading_path=["Chapter I"], token_count=_count_tokens(right_text))
+
+    normalized = _normalize_sizes([left, right])
+
+    assert len(normalized) == 1
+    assert normalized[0].heading_path == ["Chapter I"]

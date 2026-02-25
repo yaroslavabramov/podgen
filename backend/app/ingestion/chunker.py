@@ -298,23 +298,20 @@ def _normalize_sizes(chunks: list[_RawChunk]) -> list[_RawChunk]:
             merged
             and chunk.token_count < MIN_CHUNK_TOKENS
             and merged[-1].token_count + chunk.token_count <= TARGET_MAX_TOKENS
+            and merged[-1].heading_path == chunk.heading_path
         ):
             # Merge into previous chunk
             merged[-1].content += "\n\n" + chunk.content
             merged[-1].token_count = _count_tokens(merged[-1].content)
-            # Keep the more specific heading path
-            if len(chunk.heading_path) > len(merged[-1].heading_path):
-                merged[-1].heading_path = chunk.heading_path
         elif (
             merged
             and merged[-1].token_count < MIN_CHUNK_TOKENS
             and merged[-1].token_count + chunk.token_count <= TARGET_MAX_TOKENS
+            and merged[-1].heading_path == chunk.heading_path
         ):
             # Previous chunk is too small; merge current into it
             merged[-1].content += "\n\n" + chunk.content
             merged[-1].token_count = _count_tokens(merged[-1].content)
-            if len(chunk.heading_path) > len(merged[-1].heading_path):
-                merged[-1].heading_path = chunk.heading_path
         else:
             merged.append(chunk)
 

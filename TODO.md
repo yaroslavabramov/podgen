@@ -272,6 +272,12 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P2**: Disabled LangSmith tracing in pytest by default (`tests/conftest.py`: env + runtime settings override) to prevent test runs from polluting operational traces
 - [x] **P2**: Added explicit rule in `DEVELOPMENT_RULES.md` that test runs must use `LANGSMITH_TRACING=false`
 
+**Round 42 (summary quality — merge/lead/section-cap fixes):**
+- [x] **P1**: Chunk merge now requires identical `heading_path` (no cross-section merge contamination)
+- [x] **P1**: Scout lead extraction now prefers complete sentence starts and skips overlap-like lowercase fragments
+- [x] **P1**: Replaced fixed per-source section cap with adaptive cap based on source size and number of sources in prompt
+- [x] **P2**: Added regression tests for heading-preserving merge behavior, lead fragment filtering, and adaptive section cap behavior
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

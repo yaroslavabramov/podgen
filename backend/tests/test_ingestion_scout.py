@@ -98,6 +98,17 @@ def test_extract_lead_prefers_informative_sentence() -> None:
     assert len(lead) <= 260
 
 
+def test_extract_lead_skips_lowercase_overlap_like_fragment() -> None:
+    text = (
+        "and this is likely a carry-over fragment from previous overlap context. "
+        "The Hong Kong Monetary Authority oversees note issuance and monetary stability."
+    )
+
+    lead = _extract_lead(text)
+
+    assert lead.startswith("The Hong Kong Monetary Authority")
+
+
 def test_build_heading_clusters_deduplicates_across_sources() -> None:
     source_summaries = [
         {
@@ -176,3 +187,33 @@ def test_build_source_summaries_keeps_root_only_chunks_separate() -> None:
     assert summary["section_count"] == 3
     assert len(summary["sections"]) == 3
     assert all(section["headings"] == [] for section in summary["sections"])
+
+
+def test_build_source_summaries_uses_adaptive_section_limit_for_large_source() -> None:
+    source_id = uuid.uuid4()
+    rows = []
+    for idx in range(26):
+        rows.append(
+            (
+                _chunk(
+                    source_id,
+                    content=f"Section {idx}. " + ("alpha " * 80),
+                    heading_path=[],
+                    chunk_index=idx,
+                    token_count=120,
+                ),
+                source_id,
+                "Large Source",
+                "web",
+                "https://example.com/large",
+                None,
+            )
+        )
+
+    summaries = _build_source_summaries(rows)
+    summary = summaries[0]
+
+    assert summary["chunk_count"] == 26
+    assert summary["section_count"] == 26
+    # Adaptive cap with few sources allows more than the old hard limit of 12.
+    assert len(summary["sections"]) > 12

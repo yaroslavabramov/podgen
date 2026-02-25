@@ -57,6 +57,8 @@ All data queries must filter by `project_id` and/or `user_id`. Never allow cross
 - Metadata extractor input must come from cleaned preview text, not raw extracted text.
 - Structured parser rule for metadata extraction: use tolerant parser helpers (for example `parse_llm_json`), never bare `json.loads(raw)` on model output.
 - Each gate must emit a LangSmith span (`ingestion.web_quality.*`) with compact fields: `source_id`, `state`, `reason`, `char_count`, `skipped`.
+- Chunk normalization rule: small-chunk merge is allowed only when adjacent chunks have the same `heading_path`; never merge across section boundaries.
+- Scout summarization rule: section cap is adaptive by corpus size/source size (not a single hard cap), and lead extraction should prefer complete sentence starts over overlap fragments.
 
 ---
 

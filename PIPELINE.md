@@ -189,6 +189,8 @@ Web extraction использует каскад extractors:
 ### **1.2 Structural chunking**
 
 - логические границы (h2/h3/абзацы)
+- если markdown-заголовков нет: deterministic heading inference (outline prefixes / section labels / title-like lines) с anti-TOC guard
+- merge маленьких chunk-ов только внутри одного `heading_path` (без смешивания разных секций)
 
 - Parent--Child retrieval
 
@@ -203,6 +205,8 @@ Web extraction использует каскад extractors:
 ### **1.4 Scouting ("Content Map")**
 
 - H1/H2/аннотации + (опционально) частотные сущности/термины
+- source summary использует adaptive section cap (выше для few-source проектов, ниже для many-source проектов)
+- lead-сентенции выбираются с фильтрацией обрывков overlap (предпочтение полным предложениям с корректным началом)
 
 - output: компактная карта корпуса (3--5k токенов)
 

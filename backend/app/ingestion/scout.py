@@ -21,11 +21,18 @@ logger = logging.getLogger(__name__)
 
 # Maximum number of source summaries to include in a single LLM call.
 _MAX_SOURCE_SUMMARIES = 80
-# Max number of sections kept per source summary.
-_MAX_SECTIONS_PER_SOURCE = 12
+# Adaptive section limits per source summary.
+_MAX_SECTIONS_PER_SOURCE_BASE = 12
+_MAX_SECTIONS_PER_SOURCE_MEDIUM = 18
+_MAX_SECTIONS_PER_SOURCE_FEW = 24
 # Max chars for section lead.
 _MAX_LEAD_CHARS = 260
 _MAX_HEADING_CLUSTERS = 40
+_LEAD_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?。！？])\s+")
+_LEAD_GOOD_START_RE = re.compile(r"^[\"“”'‘’(\[]?[A-ZА-Я0-9]")
+_LEAD_BAD_PREFIX_RE = re.compile(r"^[,;:)\]\-]")
+_LEAD_LOWER_START_RE = re.compile(r"^[a-zа-я]")
+_LEAD_WORD_RE = re.compile(r"[A-Za-zА-Яа-я0-9][A-Za-zА-Яа-я0-9'/-]*")
 
 
 async def build_content_map(project_id: str, db: AsyncSession) -> str:
@@ -225,14 +232,19 @@ def _build_source_summaries(rows) -> list[dict]:
         key=lambda item: (int(item["total_tokens"]), int(item["chunk_count"])),
         reverse=True,
     )[:_MAX_SOURCE_SUMMARIES]
+    total_sources = len(sorted_sources)
 
     for source in sorted_sources:
+        section_limit = _section_limit_for_source(
+            chunk_count=int(source["chunk_count"]),
+            total_sources=total_sources,
+        )
         if source["_structure_depth"] == 0 and source["_root_sections"]:
             section_values = sorted(source["_root_sections"], key=lambda item: int(item["chunk_index"]))
         else:
             section_values = list(source["_sections"].values())
             section_values.sort(key=lambda item: (int(item["token_count"]), len(item["headings"])), reverse=True)
-        section_values = section_values[:_MAX_SECTIONS_PER_SOURCE]
+        section_values = section_values[:section_limit]
 
         summaries.append(
             {
@@ -268,20 +280,64 @@ def _extract_lead(text: str) -> str:
     if not normalized:
         return ""
 
-    # Split on common sentence boundaries first.
-    parts = re.split(r"(?<=[.!?])\s+", normalized)
-    for part in parts:
-        candidate = part.strip()
-        if len(candidate) >= 40:
-            return candidate[:_MAX_LEAD_CHARS]
+    parts = [part.strip() for part in _LEAD_SENTENCE_SPLIT_RE.split(normalized) if part.strip()]
+    if not parts:
+        return normalized[:_MAX_LEAD_CHARS]
 
-    # Fallback: first non-empty fragment.
-    for part in parts:
-        candidate = part.strip()
-        if candidate:
+    fallback_candidate: str | None = None
+    for candidate in parts[:12]:
+        if _is_preferred_lead_candidate(candidate):
             return candidate[:_MAX_LEAD_CHARS]
+        if fallback_candidate is None and _is_fallback_lead_candidate(candidate):
+            fallback_candidate = candidate
 
-    return normalized[:_MAX_LEAD_CHARS]
+    if fallback_candidate:
+        return fallback_candidate[:_MAX_LEAD_CHARS]
+
+    # Last resort: first non-empty fragment.
+    return parts[0][:_MAX_LEAD_CHARS]
+
+
+def _is_preferred_lead_candidate(candidate: str) -> bool:
+    if len(candidate) < 35:
+        return False
+    if _LEAD_BAD_PREFIX_RE.match(candidate):
+        return False
+    if not _LEAD_GOOD_START_RE.match(candidate):
+        return False
+    return len(_LEAD_WORD_RE.findall(candidate)) >= 6
+
+
+def _is_fallback_lead_candidate(candidate: str) -> bool:
+    if len(candidate) < 30:
+        return False
+    if _LEAD_BAD_PREFIX_RE.match(candidate):
+        return False
+    if _LEAD_LOWER_START_RE.match(candidate):
+        return False
+    return len(_LEAD_WORD_RE.findall(candidate)) >= 5
+
+
+def _section_limit_for_source(*, chunk_count: int, total_sources: int) -> int:
+    """Adaptive section cap: higher for few-source projects, tighter for many-source projects."""
+    if chunk_count <= _MAX_SECTIONS_PER_SOURCE_BASE:
+        return max(1, chunk_count)
+
+    if total_sources <= 5:
+        hard_cap = _MAX_SECTIONS_PER_SOURCE_FEW
+    elif total_sources <= 15:
+        hard_cap = _MAX_SECTIONS_PER_SOURCE_MEDIUM
+    else:
+        hard_cap = _MAX_SECTIONS_PER_SOURCE_BASE
+
+    if hard_cap <= _MAX_SECTIONS_PER_SOURCE_BASE:
+        return _MAX_SECTIONS_PER_SOURCE_BASE
+
+    ratio = min(1.0, chunk_count / 24.0)
+    scaled = _MAX_SECTIONS_PER_SOURCE_BASE + int(
+        round((hard_cap - _MAX_SECTIONS_PER_SOURCE_BASE) * ratio)
+    )
+    return max(_MAX_SECTIONS_PER_SOURCE_BASE, min(hard_cap, scaled))
 
 
 def _build_heading_clusters(source_summaries: list[dict], top_n: int = _MAX_HEADING_CLUSTERS) -> list[dict]:
