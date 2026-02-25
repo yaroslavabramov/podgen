@@ -379,6 +379,10 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P2**: Expanded lead content-unit scoring with Unicode word units + alphabetic-density fallback so non-case/non-whitespace scripts are not under-scored
 - [x] **P2**: Added regression test for Arabic lead selection (informative second sentence now preferred over short opener)
 
+**Round 62 (content-map consistency under parallel ingestion):**
+- [ ] **P1**: Guarantee that project `ContentMap` is built from a complete committed corpus snapshot under concurrent source ingestion (eliminate race where latest `created_at` map can be built from a partial source set)
+- [ ] **P2**: Add concurrency regression test(s) for simultaneous source ingestions validating that pipeline picks a map containing all completed sources
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority
