@@ -268,6 +268,10 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P1**: Fixed `_pack_segments` token budgeting bug by validating real joined chunk token count (`_count_tokens(candidate)`) instead of summing isolated segment counts
 - [x] **P2**: Added deterministic regression test for join-boundary overflow case (`max_packed_tokens` must be `<= TARGET_MAX_TOKENS`)
 
+**Round 41 (test hygiene — tracing isolation):**
+- [x] **P2**: Disabled LangSmith tracing in pytest by default (`tests/conftest.py`: env + runtime settings override) to prevent test runs from polluting operational traces
+- [x] **P2**: Added explicit rule in `DEVELOPMENT_RULES.md` that test runs must use `LANGSMITH_TRACING=false`
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

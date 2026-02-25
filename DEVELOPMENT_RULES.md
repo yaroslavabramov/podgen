@@ -156,6 +156,7 @@ When new model versions are released, update **only** the constants in `app/serv
 - Use `pytest` + `pytest-asyncio`.
 - Test files mirror source structure: `tests/test_api/`, `tests/test_pipeline/`, `tests/test_ingestion/`.
 - For API tests, use `httpx.AsyncClient` with the FastAPI app.
+- LangSmith tracing must be disabled for test runs (`LANGSMITH_TRACING=false`) to avoid polluting production traces and adding test noise.
 
 ### Linting
 - **ruff** for linting and formatting. Config in `pyproject.toml`.
