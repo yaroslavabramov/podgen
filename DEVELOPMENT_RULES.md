@@ -67,6 +67,7 @@ All data queries must filter by `project_id` and/or `user_id`. Never allow cross
   - Anti-TOC density guard: if heading candidates exceed 35% of non-empty lines, all inferred headings are rejected (likely a table of contents).
 - Scout summarization rule: section cap is adaptive by corpus size/source size (not a single hard cap), and lead extraction should prefer complete sentence starts over overlap fragments.
 - Scout lead extraction must run on chunk text with the overlap prefix removed (derived from previous base chunk tail), so section leads reflect the section body rather than carry-over context.
+- Scout web-noise filtering must be language-agnostic by default: rely on structural/statistical signals (heading-path depth/prefix dominance, list/link density, prose-vs-index features) rather than hardcoded per-language keyword dictionaries.
 
 ---
 

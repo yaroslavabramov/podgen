@@ -785,11 +785,14 @@ class PipelineState(TypedDict):
 
 #### 1.4 Scouting (Content Map)
 
-**Вход:** все Chunks проекта (heading_path + first 200 chars each)
+**Вход:** source-level summaries (sections + lead-сентенции + coverage signals)
 
 **LLM: Haiku** (structured output)
 
 **Процесс:** Агрегация тем, сущностей, терминов. Компрессия до 3-5k tokens.
+- Для `web` источников перед LLM шагом применяется section-level noise filtering (портальная навигация/таксономии/UI-блоки удаляются).
+- Фильтр web-noise строится на language-agnostic признаках (структура heading_path, list/link density, prose-vs-index), а не на словарях под конкретные языки.
+- `web` источники с высоким nav-noise ratio downweight-ятся; источники, состоящие только из навигации, исключаются из scout prompt.
 
 **Выход → ContentMap record:**
 ```json

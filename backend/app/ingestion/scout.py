@@ -35,6 +35,10 @@ _LEAD_GOOD_START_RE = re.compile(r"^[\"“”'‘’(\[]?[A-ZА-Я0-9]")
 _LEAD_BAD_PREFIX_RE = re.compile(r"^[,;:)\]\-]")
 _LEAD_LOWER_START_RE = re.compile(r"^[a-zа-я]")
 _LEAD_WORD_RE = re.compile(r"[A-Za-zА-Яа-я0-9][A-Za-zА-Яа-я0-9'/-]*")
+_URL_MARKER_RE = re.compile(r"https?://|www\.", re.IGNORECASE)
+_MARKDOWN_LINK_RE = re.compile(r"\[[^\]]{1,120}\]\([^)]+\)")
+_SENTENCE_PUNCT_RE = re.compile(r"[.!?。！？]")
+_LIST_SEPARATOR_RE = re.compile(r"[,;|•●·]")
 _lead_encoder: tiktoken.Encoding | None = None
 
 
@@ -236,25 +240,64 @@ def _build_source_summaries(rows) -> list[dict]:
         section["token_count"] += token_count
         section["chunk_count"] += 1
 
-    summaries: list[dict] = []
-    sorted_sources = sorted(
-        by_source.values(),
-        key=lambda item: (int(item["total_tokens"]), int(item["chunk_count"])),
-        reverse=True,
-    )[:_MAX_SOURCE_SUMMARIES]
-    total_sources = len(sorted_sources)
+    source_candidates: list[dict[str, Any]] = []
+    for source in by_source.values():
+        if source["_structure_depth"] == 0 and source["_root_sections"]:
+            section_pool = sorted(source["_root_sections"], key=lambda item: int(item["chunk_index"]))
+        else:
+            section_pool = list(source["_sections"].values())
+            section_pool.sort(key=lambda item: (int(item["token_count"]), len(item["headings"])), reverse=True)
 
-    for source in sorted_sources:
+        kept_sections, removed_sections, removed_tokens, noise_signal_ratio, prose_section_ratio = _filter_sections_for_source(
+            source_type=str(source["type"]),
+            sections=section_pool,
+        )
+        kept_tokens = max(0, int(source["total_tokens"]) - int(removed_tokens))
+
+        quality_weight = _source_quality_weight(
+            source_type=str(source["type"]),
+            total_tokens=int(source["total_tokens"]),
+            kept_tokens=kept_tokens,
+            kept_sections=len(kept_sections),
+            removed_sections=removed_sections,
+            noise_signal_ratio=noise_signal_ratio,
+            prose_section_ratio=prose_section_ratio,
+        )
+        if quality_weight <= 0.0:
+            continue
+
+        source_candidates.append(
+            {
+                "source": source,
+                "sections": kept_sections,
+                "kept_tokens": kept_tokens,
+                "quality_weight": quality_weight,
+                "effective_tokens": int(round(kept_tokens * quality_weight)),
+                "structure_depth": max((len(section.get("headings", [])) for section in kept_sections), default=0),
+            }
+        )
+
+    source_candidates.sort(
+        key=lambda item: (
+            int(item["effective_tokens"]),
+            int(item["source"]["chunk_count"]),
+            int(item["kept_tokens"]),
+        ),
+        reverse=True,
+    )
+    source_candidates = source_candidates[:_MAX_SOURCE_SUMMARIES]
+
+    summaries: list[dict] = []
+    total_sources = len(source_candidates)
+    for candidate in source_candidates:
+        source = candidate["source"]
         section_limit = _section_limit_for_source(
             chunk_count=int(source["chunk_count"]),
             total_sources=total_sources,
         )
-        if source["_structure_depth"] == 0 and source["_root_sections"]:
-            section_values = sorted(source["_root_sections"], key=lambda item: int(item["chunk_index"]))
-        else:
-            section_values = list(source["_sections"].values())
-            section_values.sort(key=lambda item: (int(item["token_count"]), len(item["headings"])), reverse=True)
-        section_values = section_values[:section_limit]
+        section_values = candidate["sections"][:section_limit]
+        if not section_values:
+            continue
 
         summaries.append(
             {
@@ -263,10 +306,10 @@ def _build_source_summaries(rows) -> list[dict]:
                 "type": source["type"],
                 "url": source["url"],
                 "published_at": source["published_at"],
-                "total_tokens": source["total_tokens"],
+                "total_tokens": candidate["kept_tokens"],
                 "chunk_count": source["chunk_count"],
-                "section_count": len(source["_sections"]),
-                "structure_depth": source["_structure_depth"],
+                "section_count": len(candidate["sections"]),
+                "structure_depth": candidate["structure_depth"],
                 "sections": [
                     {
                         "headings": section["headings"],
@@ -378,6 +421,210 @@ def _section_limit_for_source(*, chunk_count: int, total_sources: int) -> int:
         round((hard_cap - _MAX_SECTIONS_PER_SOURCE_BASE) * ratio)
     )
     return max(_MAX_SECTIONS_PER_SOURCE_BASE, min(hard_cap, scaled))
+
+
+def _filter_sections_for_source(
+    *,
+    source_type: str,
+    sections: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], int, int, float, float]:
+    if source_type.lower() != "web":
+        return sections, 0, 0, 0.0, 1.0
+
+    context = _build_section_noise_context(sections)
+    kept: list[dict[str, Any]] = []
+    removed_count = 0
+    removed_tokens = 0
+    noisy_hint_sections = 0
+    prose_like_sections = 0
+    for section in sections:
+        if _is_prose_like_section(section):
+            prose_like_sections += 1
+        noise_score = _navigation_noise_score(section, context=context)
+        if noise_score >= 2:
+            noisy_hint_sections += 1
+        if noise_score >= 4:
+            removed_count += 1
+            removed_tokens += int(section.get("token_count") or 0)
+            continue
+        kept.append(section)
+    hint_ratio = noisy_hint_sections / max(1, len(sections))
+    prose_ratio = prose_like_sections / max(1, len(sections))
+    return kept, removed_count, removed_tokens, hint_ratio, prose_ratio
+
+
+def _build_section_noise_context(sections: list[dict[str, Any]]) -> dict[str, Any]:
+    prefix_counts: dict[str, int] = {}
+    for section in sections:
+        headings = _normalized_headings(section.get("headings", []))
+        for depth in range(1, len(headings) + 1):
+            key = " > ".join(headings[:depth])
+            prefix_counts[key] = prefix_counts.get(key, 0) + 1
+
+    return {
+        "total_sections": len(sections),
+        "prefix_counts": prefix_counts,
+    }
+
+
+def _normalized_headings(raw_headings: Any) -> list[str]:
+    headings: list[str] = []
+    if not isinstance(raw_headings, list):
+        return headings
+    for heading in raw_headings:
+        normalized = re.sub(r"\s+", " ", str(heading or "")).strip().lower()
+        if normalized:
+            headings.append(normalized)
+    return headings
+
+
+def _tokenize_for_noise(text: str) -> list[str]:
+    tokens: list[str] = []
+    for raw in text.split():
+        token = raw.strip("[](){}<>\"'`.,;:!?")
+        if token:
+            tokens.append(token)
+    return tokens
+
+
+def _heading_word_count(heading: str) -> int:
+    return len([part for part in re.split(r"\s+", heading.strip()) if part])
+
+
+def _is_prose_like_section(section: dict[str, Any]) -> bool:
+    lead = str(section.get("lead") or "")
+    tokens = _tokenize_for_noise(lead)
+    token_count = len(tokens)
+    if token_count < 8:
+        return False
+    sentence_punct_count = len(_SENTENCE_PUNCT_RE.findall(lead))
+    if sentence_punct_count >= 1:
+        return True
+    # Longer lines can still be prose when sentence punctuation is missing due truncation.
+    if token_count >= 24 and len(_LIST_SEPARATOR_RE.findall(lead)) <= 1:
+        return True
+    return False
+
+
+def _is_navigation_noise_section(section: dict[str, Any], *, context: dict[str, Any] | None = None) -> bool:
+    return _navigation_noise_score(section, context=context) >= 4
+
+
+def _navigation_noise_score(section: dict[str, Any], *, context: dict[str, Any] | None = None) -> int:
+    score = 0
+
+    if context is None:
+        context = {"total_sections": 1, "prefix_counts": {}}
+
+    headings = _normalized_headings(section.get("headings", []))
+    depth = len(headings)
+    if depth >= 4:
+        score += 2
+    elif depth == 3:
+        score += 1
+
+    if depth >= 3:
+        short_heading_count = sum(1 for heading in headings if _heading_word_count(heading) <= 2)
+        if short_heading_count == depth:
+            score += 1
+
+    total_sections = int(context.get("total_sections") or 0)
+    prefix_counts = context.get("prefix_counts", {})
+    if total_sections >= 4 and depth >= 2 and isinstance(prefix_counts, dict):
+        for prefix_depth in range(2, min(depth, 3) + 1):
+            key = " > ".join(headings[:prefix_depth])
+            freq = int(prefix_counts.get(key) or 0) / max(1, total_sections)
+            if freq >= 0.6:
+                score += 1
+                break
+
+    lead = str(section.get("lead") or "")
+    tokens = _tokenize_for_noise(lead)
+    token_count = len(tokens)
+    sentence_punct_count = len(_SENTENCE_PUNCT_RE.findall(lead))
+    separator_count = len(_LIST_SEPARATOR_RE.findall(lead))
+    url_marker_count = len(_URL_MARKER_RE.findall(lead)) + len(_MARKDOWN_LINK_RE.findall(lead))
+    if url_marker_count > 0:
+        score += 2
+
+    # List/taxonomy-like signal: many tokens, little prose punctuation.
+    if token_count >= 16 and sentence_punct_count == 0 and separator_count >= 2:
+        score += 2
+    if token_count >= 24 and sentence_punct_count <= 1 and separator_count >= 4:
+        score += 1
+
+    alpha_tokens = 0
+    titlecase_like = 0
+    for token in tokens:
+        first_alpha = next((ch for ch in token if ch.isalpha()), "")
+        if not first_alpha:
+            continue
+        alpha_tokens += 1
+        if first_alpha.isupper():
+            titlecase_like += 1
+
+    # Name/index lists (countries/topics) often have no sentence punctuation and mostly title-cased tokens.
+    if alpha_tokens >= 8 and sentence_punct_count == 0:
+        titlecase_ratio = titlecase_like / max(1, alpha_tokens)
+        if titlecase_ratio >= 0.8 and separator_count == 0:
+            score += 2
+        elif titlecase_ratio >= 0.7:
+            score += 1
+
+    # Prose signal reduces false positives (e.g. legitimate "Metrics"/"Keywords" sections).
+    if sentence_punct_count >= 1 and token_count >= 8:
+        score -= 1
+    if sentence_punct_count >= 2:
+        score -= 1
+
+    return score
+
+
+def _source_quality_weight(
+    *,
+    source_type: str,
+    total_tokens: int,
+    kept_tokens: int,
+    kept_sections: int,
+    removed_sections: int,
+    noise_signal_ratio: float,
+    prose_section_ratio: float,
+) -> float:
+    if source_type.lower() != "web":
+        return 1.0
+    if kept_sections <= 0 or kept_tokens <= 0:
+        return 0.0
+
+    if noise_signal_ratio >= 0.9 and kept_tokens < 2500:
+        return 0.0
+    if noise_signal_ratio >= 0.75 and kept_tokens < 1200:
+        return 0.0
+    if prose_section_ratio < 0.2 and noise_signal_ratio >= 0.66 and kept_sections <= 3:
+        return 0.0
+    if prose_section_ratio == 0.0 and noise_signal_ratio >= 0.5 and kept_sections <= 2:
+        return 0.0
+
+    noise_ratio = 1.0 - (kept_tokens / max(1, total_tokens))
+    if noise_ratio >= 0.9 and kept_tokens < 1500:
+        return 0.0
+    if kept_sections == 1 and removed_sections >= 4 and kept_tokens < 900:
+        return 0.0
+
+    weight = 1.0
+    if noise_ratio >= 0.75:
+        weight = min(weight, 0.3)
+    elif noise_ratio >= 0.5:
+        weight = min(weight, 0.6)
+    elif noise_ratio >= 0.3:
+        weight = min(weight, 0.8)
+
+    if noise_signal_ratio >= 0.75:
+        weight = min(weight, 0.3)
+    elif noise_signal_ratio >= 0.6:
+        weight = min(weight, 0.6)
+    elif noise_signal_ratio >= 0.4:
+        weight = min(weight, 0.8)
+    return weight
 
 
 def _build_heading_clusters(source_summaries: list[dict], top_n: int = _MAX_HEADING_CLUSTERS) -> list[dict]:

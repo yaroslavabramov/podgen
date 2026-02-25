@@ -309,6 +309,20 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P1**: Fixed markdown heading validation to support Cyrillic headings (previously non-Latin headings were rejected, causing fallback to flat chunking)
 - [x] **P2**: Added regression test for Russian markdown heading hierarchy (`# Введение` → `## Детали`)
 
+**Round 49 (scout quality — navigation noise suppression):**
+- [x] **P1**: Added section-level noise filtering for web source summaries to remove portal/navigation/UI sections before content-map LLM call
+- [x] **P1**: Added source-level web quality weighting (downweight nav-heavy sources; exclude navigation-only sources) to prevent content-map domination by noisy portals
+- [x] **P2**: Added regression tests for section filtering, navigation-only source exclusion, and nav-heavy source downweight ordering
+
+**Round 50 (scout quality — metrics/keywords false-positive fix):**
+- [x] **P1**: Refined navigation-noise heuristic scoring: `metrics/keywords` moved to weak signals so standalone substantive sections are not dropped
+- [x] **P2**: Added regression tests ensuring legitimate `Metrics` / `Keywords` content sections are preserved
+
+**Round 51 (scout quality — language-agnostic noise scoring):**
+- [x] **P1**: Replaced dictionary-centric web section filter with language-agnostic structural scoring (heading depth/prefix dominance, list/link density, prose-vs-index signals)
+- [x] **P1**: Added source-level exclusion for nav-heavy low-prose web sources based on aggregate noise/prose ratios (without language-specific keyword dictionaries)
+- [x] **P2**: Updated engineering rules/docs to enforce language-agnostic scout filtering policy
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

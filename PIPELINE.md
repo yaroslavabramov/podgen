@@ -210,6 +210,8 @@ Web extraction использует каскад extractors:
 - H1/H2/аннотации + (опционально) частотные сущности/термины
 - source summary использует adaptive section cap (выше для few-source проектов, ниже для many-source проектов)
 - lead-сентенции выбираются с фильтрацией обрывков overlap (предпочтение полным предложениям с корректным началом)
+- перед LLM входом применяется section-level noise filter для web-источников (навигационные/портальные секции удаляются) на основе language-agnostic структурных сигналов (heading-depth/prefix dominance, list/link density, prose-vs-index признаки)
+- web-источники с высоким nav-noise ratio получают quality downweight; полностью навигационные источники исключаются из scout prompt
 
 - output: компактная карта корпуса (3--5k токенов)
 

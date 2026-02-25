@@ -5,6 +5,7 @@ from app.ingestion.scout import (
     _build_heading_clusters,
     _build_source_summaries,
     _extract_lead,
+    _is_navigation_noise_section,
     _strip_overlap_prefix_for_lead,
 )
 from app.models.chunk import Chunk
@@ -280,3 +281,188 @@ def test_strip_overlap_prefix_for_lead_keeps_text_when_prefix_mismatch() -> None
     prev = "Unrelated previous chunk text that should not match."
 
     assert _strip_overlap_prefix_for_lead(text, prev) == text
+
+
+def test_build_source_summaries_filters_navigation_sections_for_web_source() -> None:
+    source_id = uuid.uuid4()
+    rows = [
+        (
+            _chunk(
+                source_id,
+                content=(
+                    "Browse Topics Countries Series Resources About Search Sign in Help "
+                    "Privacy Terms Powered by PubFactory"
+                ),
+                heading_path=["Topics", "Countries", "Series", "Resources"],
+                chunk_index=0,
+                token_count=1200,
+            ),
+            source_id,
+            "Portal-like Source",
+            "web",
+            "https://example.com/portal",
+            None,
+        ),
+        (
+            _chunk(
+                source_id,
+                content="The sterling exchange standard evolved through practical colonial administration reforms.",
+                heading_path=["Historical Context"],
+                chunk_index=1,
+                token_count=500,
+            ),
+            source_id,
+            "Portal-like Source",
+            "web",
+            "https://example.com/portal",
+            None,
+        ),
+    ]
+
+    summaries = _build_source_summaries(rows)
+    assert len(summaries) == 1
+
+    summary = summaries[0]
+    assert summary["section_count"] == 1
+    assert len(summary["sections"]) == 1
+    assert summary["sections"][0]["headings"] == ["Historical Context"]
+
+
+def test_build_source_summaries_excludes_navigation_only_web_source() -> None:
+    noisy_source = uuid.uuid4()
+    clean_source = uuid.uuid4()
+    rows = [
+        (
+            _chunk(
+                noisy_source,
+                content=(
+                    "Sign in Search Browse Topics Countries Series Resources About Help "
+                    "Privacy Terms Powered by PubFactory"
+                ),
+                heading_path=["Topics", "Countries"],
+                chunk_index=0,
+                token_count=2200,
+            ),
+            noisy_source,
+            "Noisy Portal",
+            "web",
+            "https://example.com/noisy",
+            None,
+        ),
+        (
+            _chunk(
+                noisy_source,
+                content=(
+                    "Table of Contents Keywords Headings Metrics Edit Annotation Character limit "
+                    "Save Cancel"
+                ),
+                heading_path=["Table of Contents", "Metrics"],
+                chunk_index=1,
+                token_count=1800,
+            ),
+            noisy_source,
+            "Noisy Portal",
+            "web",
+            "https://example.com/noisy",
+            None,
+        ),
+        (
+            _chunk(
+                clean_source,
+                content="Hong Kong retained monetary autonomy under the Basic Law after 1997.",
+                heading_path=["Monetary Autonomy"],
+                chunk_index=0,
+                token_count=300,
+            ),
+            clean_source,
+            "Clean Source",
+            "web",
+            "https://example.com/clean",
+            None,
+        ),
+    ]
+
+    summaries = _build_source_summaries(rows)
+    summary_ids = {item["source_id"] for item in summaries}
+
+    assert str(noisy_source) not in summary_ids
+    assert str(clean_source) in summary_ids
+
+
+def test_build_source_summaries_downweights_navigation_heavy_web_source() -> None:
+    noisy_mixed = uuid.uuid4()
+    clean = uuid.uuid4()
+    rows = [
+        (
+            _chunk(
+                noisy_mixed,
+                content=(
+                    "Browse Topics Countries Series Resources About Search Sign in Help "
+                    "Privacy Terms Powered by PubFactory"
+                ),
+                heading_path=["Topics", "Countries", "Series", "Resources"],
+                chunk_index=0,
+                token_count=3400,
+            ),
+            noisy_mixed,
+            "Noisy Mixed Source",
+            "web",
+            "https://example.com/noisy-mixed",
+            None,
+        ),
+        (
+            _chunk(
+                noisy_mixed,
+                content=(
+                    "Colonial reforms established stable exchange mechanisms and improved currency governance."
+                ),
+                heading_path=["Historical Analysis"],
+                chunk_index=1,
+                token_count=600,
+            ),
+            noisy_mixed,
+            "Noisy Mixed Source",
+            "web",
+            "https://example.com/noisy-mixed",
+            None,
+        ),
+        (
+            _chunk(
+                clean,
+                content=(
+                    "The linked exchange rate system anchored market expectations and reduced exchange-rate volatility."
+                ),
+                heading_path=["Linked Exchange Rate System"],
+                chunk_index=0,
+                token_count=2000,
+            ),
+            clean,
+            "Clean Source",
+            "web",
+            "https://example.com/clean",
+            None,
+        ),
+    ]
+
+    summaries = _build_source_summaries(rows)
+    assert len(summaries) == 2
+    assert summaries[0]["source_id"] == str(clean)
+    assert summaries[1]["source_id"] == str(noisy_mixed)
+
+
+def test_navigation_noise_heuristic_keeps_legitimate_metrics_section() -> None:
+    section = {
+        "headings": ["Metrics"],
+        "lead": "We report metrics for latency, throughput, and quality under production load.",
+        "token_count": 320,
+    }
+    assert _is_navigation_noise_section(section) is False
+
+
+def test_navigation_noise_heuristic_keeps_legitimate_keywords_section() -> None:
+    section = {
+        "headings": ["Keywords"],
+        "lead": "Keywords include currency board, linked exchange rate, and reserve management.",
+        "token_count": 250,
+    }
+    assert _is_navigation_noise_section(section) is False
