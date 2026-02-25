@@ -350,6 +350,35 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P2**: Updated timeout/fallback unit tests for new execution path and added regression test validating stuck subprocess is terminated on timeout
 - [x] **P2**: Updated PIPELINE/IMPLEMENTATION/DEVELOPMENT_RULES to document subprocess hard-timeout contract
 
+**Round 57 (web/scout quality — universal nav handling without aggressive drops):**
+- [x] **P1**: Gate B cleanup now preserves setext heading underlines and removes additional UI artifacts safely (`* Skip to ...` style bullet nav stubs, `javascript:` placeholder links) without site-specific regex packs
+- [x] **P1**: Scout section lead selection switched from first-chunk-only to best-candidate scoring across section chunks (prose signal vs nav-noise), reducing bad leads from menu-heavy prefixes
+- [x] **P1**: Scout navigation-noise scoring improved with language-agnostic structural signals (sentence-end detection robust to domains, deep heading-path taxonomy signal, bullet/camel-case menu artifacts)
+- [x] **P2**: Relaxed source exclusion policy for noisy web sources: meaningful retained prose sections are downweighted but not dropped by default
+- [x] **P2**: Added regression tests for setext preservation, bullet-nav/js cleanup, deep taxonomy detection, section lead replacement, and non-destructive mixed-source retention
+
+**Round 58 (source management — manual re-ingest from UI):**
+- [x] **P1**: Added backend endpoint `POST /api/sources/{source_id}/reingest` with ownership checks and in-progress guard
+- [x] **P1**: Added explicit re-ingest cleanup path for prior source chunks + Qdrant vectors (`source_id` filter) to prevent duplicate retrieval artifacts
+- [x] **P2**: Added Project Sources UI action (`Re-ingest`) with loading/error states and i18n labels (EN/RU)
+- [x] **P2**: Added unit test for Qdrant source-filtered vector deletion helper
+
+**Round 59 (re-ingest reliability — queue safety + duplicate dispatch guard):**
+- [x] **P1**: Fixed data-loss window on re-ingest enqueue failure: moved destructive cleanup from API handler to worker path after successful Celery enqueue
+- [x] **P1**: Strengthened re-ingest in-progress guard to include `PENDING`, preventing duplicate manual dispatch while initial ingestion is still queued
+- [x] **P1**: Added worker-level idempotency lock (`FOR UPDATE SKIP LOCKED`) + status no-op guard so duplicate Celery deliveries for one source do not run concurrently
+- [x] **P1**: Added rollback-before-fail-status in `ingest_source` error path to avoid committing partial ingestion writes on exceptions
+
+**Round 60 (re-ingest follow-up — FK-safe cleanup + UI/API state alignment):**
+- [x] **P1**: Re-ingest cleanup now detaches `EvidenceSpan.chunk_id` for source before deleting `chunks`, preventing FK failures on projects with existing evidence
+- [x] **P2**: Added regression test for re-ingest reset path ensuring evidence detach + chunk delete ordering contract
+- [x] **P2**: Kept UI re-ingest button disabled for `pending` to align with backend in-progress guard and avoid avoidable `409` errors
+
+**Round 61 (scout lead follow-up — script-agnostic lead extraction):**
+- [x] **P2**: Removed Latin/Cyrillic-only lead start gating in scout and replaced it with Unicode-aware, case-aware first-character checks (keeps lowercase overlap filtering for caseful scripts only)
+- [x] **P2**: Expanded lead content-unit scoring with Unicode word units + alphabetic-density fallback so non-case/non-whitespace scripts are not under-scored
+- [x] **P2**: Added regression test for Arabic lead selection (informative second sentence now preferred over short opener)
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

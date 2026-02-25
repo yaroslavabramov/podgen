@@ -14,12 +14,12 @@ logger = logging.getLogger(__name__)
 
 
 @celery_app.task(name="app.workers.ingestion_tasks.ingest_source", bind=True, max_retries=5)
-def ingest_source(self, source_id: str):
+def ingest_source(self, source_id: str, reset_existing: bool = False):
     """Main ingestion task: extracts text, chunks, embeds."""
     import asyncio
 
     try:
-        found = asyncio.run(_ingest_source_async(source_id))
+        found = asyncio.run(_ingest_source_async(source_id, reset_existing=reset_existing))
     except SQLAlchemyError as exc:
         try:
             raise self.retry(exc=exc, countdown=2)
@@ -41,16 +41,29 @@ def ingest_source(self, source_id: str):
             return
 
 
-async def _ingest_source_async(source_id: str) -> bool:
+async def _ingest_source_async(source_id: str, *, reset_existing: bool = False) -> bool:
     from sqlalchemy import select
     from app.workers.worker_db import worker_session_factory
     from app.models.source import Source, IngestionStatus
 
     async with worker_session_factory() as db:
-        result = await db.execute(select(Source).where(Source.id == uuid.UUID(source_id)))
+        source_uuid = uuid.UUID(source_id)
+
+        # Existence check keeps "not found" retry behavior intact.
+        exists_result = await db.execute(select(Source.id).where(Source.id == source_uuid))
+        if exists_result.scalar_one_or_none() is None:
+            return False
+
+        # Lock source row to prevent duplicate concurrent ingestion for same source_id.
+        result = await db.execute(
+            select(Source)
+            .where(Source.id == source_uuid)
+            .with_for_update(skip_locked=True)
+        )
         source = result.scalar_one_or_none()
         if source is None:
-            return False
+            # Another worker already owns the row lock for this source.
+            return True
 
         trace_ctx = {
             "component": "worker.ingestion",
@@ -58,6 +71,7 @@ async def _ingest_source_async(source_id: str) -> bool:
             "project_id": str(source.project_id),
             "generation_run_id": str(source.generation_run_id) if source.generation_run_id else "",
             "source_type": source.source_type,
+            "reset_existing": reset_existing,
         }
         with push_trace_context(trace_ctx):
             with tracing_scope(metadata=trace_ctx, tags=["worker", "ingestion"]):
@@ -65,13 +79,25 @@ async def _ingest_source_async(source_id: str) -> bool:
                     "worker.ingest_source",
                     run_type="chain",
                     inputs={"source_id": source_id},
-                    metadata={"source_type": source.source_type},
+                    metadata={"source_type": source.source_type, "reset_existing": reset_existing},
                     tags=["celery-task"],
                 ) as task_run:
+                    # Duplicate-dispatch guard: if another task already started, this one exits.
+                    if source.ingestion_status == IngestionStatus.PROCESSING and not reset_existing:
+                        safe_set_run(task_run, outputs={"status": "noop_already_in_progress"})
+                        return True
+
+                    if source.ingestion_status == IngestionStatus.COMPLETED and not reset_existing:
+                        safe_set_run(task_run, outputs={"status": "noop_already_completed"})
+                        return True
+
                     source.ingestion_status = IngestionStatus.PROCESSING
                     await db.commit()
 
                     try:
+                        if reset_existing:
+                            await _reset_source_for_reingestion(source, db)
+
                         from app.ingestion.router import run_ingestion
 
                         await run_ingestion(source, db)
@@ -90,12 +116,55 @@ async def _ingest_source_async(source_id: str) -> bool:
                             },
                         )
                     except Exception as e:
+                        await db.rollback()
+                        refresh_result = await db.execute(select(Source).where(Source.id == source_uuid))
+                        source = refresh_result.scalar_one_or_none()
+                        if source is None:
+                            raise
                         source.ingestion_status = IngestionStatus.FAILED
                         source.metadata_ = {**(source.metadata_ or {}), "error": str(e)}
                         await db.commit()
                         raise
 
     return True
+
+
+async def _reset_source_for_reingestion(source, db) -> None:
+    """Purge source index/chunks and reset source fields before full re-ingestion."""
+    from sqlalchemy import delete, update
+    from app.models.chunk import Chunk
+    from app.models.evidence import EvidenceSpan
+    from app.models.source import SourceType
+    from app.services.embeddings import delete_points_by_source_id
+
+    # Cleanup runs in worker (after enqueue succeeded) to avoid API-side data loss
+    # when broker enqueue fails.
+    delete_points_by_source_id(str(source.id))
+    # Keep evidence rows but detach old chunk references to avoid FK violations
+    # when purging source chunks.
+    await db.execute(
+        update(EvidenceSpan)
+        .where(
+            EvidenceSpan.source_id == source.id,
+            EvidenceSpan.chunk_id.is_not(None),
+        )
+        .values(chunk_id=None)
+    )
+    await db.execute(delete(Chunk).where(Chunk.source_id == source.id))
+
+    source.fully_ingested = False
+    source.raw_text_path = None
+    source.text_preview = None
+    source.published_at = None
+    if source.source_type == SourceType.WEB:
+        source.title = None
+
+    metadata = source.metadata_ if isinstance(source.metadata_, dict) else {}
+    metadata = dict(metadata)
+    metadata.pop("error", None)
+    metadata.pop("web_quality", None)
+    source.metadata_ = metadata or None
+    await db.flush()
 
 
 async def _mark_source_failed(source_id: str, message: str) -> None:

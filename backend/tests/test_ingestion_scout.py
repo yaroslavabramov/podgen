@@ -485,6 +485,17 @@ def test_extract_lead_splits_cjk_sentences_without_spaces() -> None:
     assert lead.startswith("香港金融管理局")
 
 
+def test_extract_lead_prefers_informative_non_case_script_sentence() -> None:
+    text = (
+        "مقدمة قصيرة. "
+        "تتولى سلطة النقد في هونغ كونغ الحفاظ على استقرار العملة عبر نظام مجلس النقد وآليات رقابية واضحة."
+    )
+
+    lead = _extract_lead(text)
+
+    assert lead.startswith("تتولى سلطة النقد")
+
+
 def test_build_source_summaries_downweights_noisy_cjk_source() -> None:
     noisy = uuid.uuid4()
     clean = uuid.uuid4()
@@ -522,3 +533,103 @@ def test_build_source_summaries_downweights_noisy_cjk_source() -> None:
     summaries = _build_source_summaries(rows)
     assert summaries
     assert summaries[0]["source_id"] == str(clean)
+
+
+def test_build_source_summaries_prefers_better_lead_within_same_section() -> None:
+    source_id = uuid.uuid4()
+    rows = [
+        (
+            _chunk(
+                source_id,
+                content="Home Menu Search Sign in Privacy Terms Contact",
+                heading_path=["Overview"],
+                chunk_index=0,
+                token_count=120,
+            ),
+            source_id,
+            "Lead Replacement Source",
+            "web",
+            "https://example.com/lead-replacement",
+            None,
+        ),
+        (
+            _chunk(
+                source_id,
+                content=(
+                    "Hong Kong retained monetary autonomy under the Basic Law, which preserved note-issuing arrangements."
+                ),
+                heading_path=["Overview"],
+                chunk_index=1,
+                token_count=260,
+            ),
+            source_id,
+            "Lead Replacement Source",
+            "web",
+            "https://example.com/lead-replacement",
+            None,
+        ),
+    ]
+
+    summaries = _build_source_summaries(rows)
+    assert len(summaries) == 1
+    assert summaries[0]["section_count"] == 1
+    assert summaries[0]["sections"][0]["lead"].startswith("Hong Kong retained monetary autonomy")
+
+
+def test_navigation_noise_heuristic_detects_deep_taxonomy_section() -> None:
+    section = {
+        "headings": ["Topics", "Countries", "Series", "About", "Resources"],
+        "lead": (
+            "Brochures and PostersCorrectionsEssential ReadingIMF Virtual Publications "
+            "BoothMetadataRights and PermissionsTools for Authors Advanced searchHelp "
+            "Sign inIMF Sites IMF.orgBookstore AREAER OnlineIMF DataMCM Data BrowseTopics"
+        ),
+        "token_count": 11000,
+    }
+    assert _is_navigation_noise_section(section) is True
+
+
+def test_build_source_summaries_filters_deep_taxonomy_navigation_section() -> None:
+    source_id = uuid.uuid4()
+    rows = [
+        (
+            _chunk(
+                source_id,
+                content=(
+                    "Brochures and PostersCorrectionsEssential ReadingIMF Virtual Publications "
+                    "BoothMetadataRights and PermissionsTools for Authors Advanced searchHelp "
+                    "Sign inIMF Sites IMF.orgBookstore AREAER OnlineIMF DataMCM Data BrowseTopics"
+                ),
+                heading_path=["Topics", "Countries", "Series", "About", "Resources"],
+                chunk_index=0,
+                token_count=10849,
+            ),
+            source_id,
+            "Taxonomy Portal",
+            "web",
+            "https://example.com/taxonomy-portal",
+            None,
+        ),
+        (
+            _chunk(
+                source_id,
+                content=(
+                    "Whereas it has been represented to His Majesty that a uniform medium of exchange "
+                    "is required for colonial transactions."
+                ),
+                heading_path=["Appendix"],
+                chunk_index=1,
+                token_count=1200,
+            ),
+            source_id,
+            "Taxonomy Portal",
+            "web",
+            "https://example.com/taxonomy-portal",
+            None,
+        ),
+    ]
+
+    summaries = _build_source_summaries(rows)
+    assert len(summaries) == 1
+    assert summaries[0]["section_count"] == 1
+    assert summaries[0]["sections"][0]["headings"] == ["Appendix"]

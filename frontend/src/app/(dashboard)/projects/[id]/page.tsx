@@ -17,7 +17,7 @@ export default function ProjectDetailPage() {
   const t = useTranslations("projectDetailPage");
   const params = useParams();
   const id = params.id as string;
-  const { currentProject, sources, fetchProject, fetchSources, deleteSource, updateProjectLanguage } = useProjectStore();
+  const { currentProject, sources, fetchProject, fetchSources, deleteSource, reingestSource, updateProjectLanguage } = useProjectStore();
   const [activeTab, setActiveTab] = useState<"sources" | "bible" | "episodes">("sources");
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [episodesLoading, setEpisodesLoading] = useState(false);
@@ -26,6 +26,8 @@ export default function ProjectDetailPage() {
   const [languageError, setLanguageError] = useState<string | null>(null);
   const [deletingSourceId, setDeletingSourceId] = useState<string | null>(null);
   const [deleteSourceError, setDeleteSourceError] = useState<string | null>(null);
+  const [reingestingSourceId, setReingestingSourceId] = useState<string | null>(null);
+  const [reingestSourceError, setReingestSourceError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProject(id);
@@ -91,6 +93,18 @@ export default function ProjectDetailPage() {
       setDeleteSourceError(t("deleteSourceFailed"));
     } finally {
       setDeletingSourceId(null);
+    }
+  };
+
+  const handleReingestSource = async (sourceId: string) => {
+    setReingestSourceError(null);
+    setReingestingSourceId(sourceId);
+    try {
+      await reingestSource(sourceId);
+    } catch {
+      setReingestSourceError(t("reingestSourceFailed"));
+    } finally {
+      setReingestingSourceId(null);
     }
   };
 
@@ -161,6 +175,7 @@ export default function ProjectDetailPage() {
           <div className="space-y-6">
             <SourceUploader projectId={id} onUploaded={() => fetchSources(id)} />
             {deleteSourceError && <p className="text-sm text-destructive">{deleteSourceError}</p>}
+            {reingestSourceError && <p className="text-sm text-destructive">{reingestSourceError}</p>}
 
             <div className="space-y-3">
               {sources.map((source) => (
@@ -181,6 +196,20 @@ export default function ProjectDetailPage() {
                         {source.ingestion_status}
                       </Badge>
                       <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleReingestSource(source.id)}
+                        disabled={
+                          reingestingSourceId === source.id ||
+                          deletingSourceId === source.id ||
+                          source.ingestion_status === "pending" ||
+                          source.ingestion_status === "processing" ||
+                          source.ingestion_status === "enqueued"
+                        }
+                      >
+                        {reingestingSourceId === source.id ? t("reingestingSource") : t("reingestSource")}
+                      </Button>
+                      <Button
                         variant="destructive"
                         size="sm"
                         onClick={() =>
@@ -189,7 +218,7 @@ export default function ProjectDetailPage() {
                             source.title || source.original_url || t("sourceUntitled"),
                           )
                         }
-                        disabled={deletingSourceId === source.id}
+                        disabled={deletingSourceId === source.id || reingestingSourceId === source.id}
                       >
                         {deletingSourceId === source.id ? t("deletingSource") : t("deleteSource")}
                       </Button>

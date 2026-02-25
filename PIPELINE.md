@@ -179,7 +179,8 @@ Web extraction использует каскад extractors:
 
 2. **Gate B — Residual cleanup**
    - Вход: текст после Gate A.
-   - Минимальная очистка: markdown link/image noise (для Jina path), bare URL lines, nav-линии, повторяющиеся короткие строки, whitespace нормализация.
+   - Минимальная очистка: markdown link/image noise (для Jina path), JS-placeholder ссылки (`javascript:void(0)`), bullet-prefixed nav-линии (`* Skip to ...`), bare URL lines, повторяющиеся короткие строки, whitespace нормализация.
+   - Важно: setext подчеркивания заголовков (`===/---`) сохраняются, если они формируют markdown heading-структуру.
    - Основная boilerplate-очистка уже сделана trafilatura на этапе extraction.
 
 3. **Gate C — Metadata extraction gate**
@@ -187,6 +188,8 @@ Web extraction использует каскад extractors:
    - Парсинг structured output: tolerant parser (fenced JSON/partial wrapper), не `json.loads(raw)` напрямую.
 
 **Tracing contract:** отдельные spans `ingestion.web_quality.gate_a|gate_b|gate_c` с компактным payload (state, reason, char_count, skipped=true/false).
+
+**Manual source re-ingest:** `POST /api/sources/{source_id}/reingest` переводит source в `enqueued` и запускает ingestion заново; cleanup старых chunks + векторов выполняется в worker после успешного enqueue (не в API pre-queue path). Перед purge chunk-ов worker обнуляет `evidence_spans.chunk_id` для этого source, чтобы не ловить FK-конфликты.
 
 ### **1.2 Structural chunking**
 
@@ -211,8 +214,9 @@ Web extraction использует каскад extractors:
 - H1/H2/аннотации + (опционально) частотные сущности/термины
 - source summary использует adaptive section cap (выше для few-source проектов, ниже для many-source проектов)
 - lead-сентенции выбираются с фильтрацией обрывков overlap (предпочтение полным предложениям с корректным началом)
+- lead для секции выбирается как лучший кандидат среди chunk-ов секции (а не «первый попавшийся»), чтобы навигационные префиксы не фиксировались как representative lead
 - перед LLM входом применяется section-level noise filter для web-источников (навигационные/портальные секции удаляются) на основе language-agnostic структурных сигналов (heading-depth/prefix dominance, list/link density, prose-vs-index признаки)
-- web-источники с высоким nav-noise ratio получают quality downweight; полностью навигационные источники исключаются из scout prompt
+- web-источники с высоким nav-noise ratio получают quality downweight; полное исключение применяется только при практически полном отсутствии retained prose-сигнала
 
 - output: компактная карта корпуса (3--5k токенов)
 

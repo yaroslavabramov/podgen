@@ -55,21 +55,28 @@ All data queries must filter by `project_id` and/or `user_id`. Never allow cross
 - SSRF DNS pre-check must use bounded retries (`WEB_DNS_RESOLVE_RETRIES`, `WEB_DNS_RESOLVE_RETRY_DELAY_MS`) and raise a retryable DNS error type for worker-level retry handling.
 - Any `WEB` source must pass three gates before canonicalization/scout metadata extraction:
   - `gate_a`: anti-bot/error detection (`403`, captcha, verification walls, empty/low-signal text).
-  - `gate_b`: residual cleanup (markdown link/image noise from Jina path, whitespace normalization, repeated short lines).
+  - `gate_b`: residual cleanup (markdown link/image noise from Jina path, JS-placeholder link stubs, bullet-prefixed nav stubs, repeated short lines, whitespace normalization) while preserving structural markdown cues (including setext heading underlines).
   - `gate_c`: metadata extraction eligibility + parse validation.
 - If `gate_a` marks source as blocked, do not call LLM date extraction for that source.
 - Metadata extractor input must come from cleaned preview text, not raw extracted text.
 - Structured parser rule for metadata extraction: use tolerant parser helpers (for example `parse_llm_json`), never bare `json.loads(raw)` on model output.
 - Each gate must emit a LangSmith span (`ingestion.web_quality.*`) with compact fields: `source_id`, `state`, `reason`, `char_count`, `skipped`.
 - Chunk normalization rule: small-chunk merge is allowed only when adjacent chunks have the same `heading_path`; never merge across section boundaries.
+- Manual source re-ingestion contract: before re-enqueueing ingestion for an existing source, purge prior chunk rows and Qdrant vectors by `source_id` to prevent retrieval duplication.
+- Re-ingestion safety rule: destructive cleanup for re-ingest must run in worker execution path (after successful task enqueue), never in API handler before `delay(...)` confirmation.
+- Ingestion worker must be idempotent per source: use row-level lock (`FOR UPDATE SKIP LOCKED`) and status guard to ensure duplicate Celery dispatches do not run the same source concurrently.
+- Re-ingestion FK safety: before deleting source chunks, detach `EvidenceSpan.chunk_id` references for that source (set to `NULL`) to avoid FK violations during cleanup.
 - Heading inference rules (for non-markdown text):
   - `_SECTION_LABEL_RE` recognizes `chapter`, `section`, `part`, `annex`, `appendix`, `book`, `title`. **`article` is excluded** — articles are document content, not structural headings.
   - `_has_supporting_body()` uses **child-heading transparency**: child headings (level > current) are skipped during lookahead; only sibling/parent headings (level ≤ current) stop the search. This prevents parent headings (e.g. "Chapter IV") from being discarded when followed directly by child headings (e.g. "Section 1") without intermediate body text.
   - `_split_by_inferred_headings()` updates `current_h2` **before** checking for empty body, so bodyless parent headings correctly propagate their heading_path to child sections.
   - Anti-TOC density guard: if heading candidates exceed 35% of non-empty lines, all inferred headings are rejected (likely a table of contents).
 - Scout summarization rule: section cap is adaptive by corpus size/source size (not a single hard cap), and lead extraction should prefer complete sentence starts over overlap fragments.
+- Scout lead extraction/scoring must be script-agnostic: do not gate starts or content-unit counts to Latin/Cyrillic only; preserve lowercase-overlap filtering only for scripts with case.
 - Scout lead extraction must run on chunk text with the overlap prefix removed (derived from previous base chunk tail), so section leads reflect the section body rather than carry-over context.
+- Scout lead selection for a section must be best-candidate based (evaluate leads across section chunks), not first-chunk-only, so navigation preambles do not lock bad leads.
 - Scout web-noise filtering must be language-agnostic by default: rely on structural/statistical signals (heading-path depth/prefix dominance, list/link density, prose-vs-index features) rather than hardcoded per-language keyword dictionaries.
+- Scout source weighting must be conservative: strongly downweight noisy web sources, but only fully exclude a source when retained prose signal is effectively absent.
 
 ---
 

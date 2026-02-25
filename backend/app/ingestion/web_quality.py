@@ -11,6 +11,7 @@ _INLINE_IMAGE_RE = re.compile(r"!\[[^\]]*]\([^)]*\)")
 _INLINE_LINK_RE = re.compile(r"\[([^\]]+)]\((?:https?://|/)[^)]+\)")
 _LINK_REF_DEF_RE = re.compile(r"^\[[^\]]+]:\s+\S+\s*$", re.IGNORECASE)
 _DIVIDER_RE = re.compile(r"^[-=*_]{3,}$")
+_SETEXT_UNDERLINE_RE = re.compile(r"^[-=]{3,}$")
 _MARKDOWN_HEADER_RE = re.compile(r"^#{1,6}\s+(.+)$")
 _TITLE_LINE_RE = re.compile(r"^\s*title:\s*(.+)$", re.IGNORECASE)
 _HAS_WORD_RE = re.compile(r"[A-Za-zА-Яа-я0-9]")
@@ -18,6 +19,8 @@ _URL_ONLY_RE = re.compile(r"^https?://\S+$", re.IGNORECASE)
 _MULTI_SPACE_RE = re.compile(r"[^\S\n]+")
 _TRAILING_SPACE_RE = re.compile(r" +\n")
 _TOO_MANY_NEWLINES_RE = re.compile(r"\n{3,}")
+_JS_LINK_ONLY_RE = re.compile(r"^\[[^\]]*]\(\s*javascript:.*\)$", re.IGNORECASE)
+_BULLET_PREFIX_RE = re.compile(r"^(?:[-*+]\s+|\d+[.)]\s+)*(?:\[[ xX]\]\s*)*")
 _NAV_LINE_RE = re.compile(
     r"^(skip to (main )?content|home|menu|search|sign in|login|subscribe|cookie(s)?|privacy|terms|contact)\b",
     re.IGNORECASE,
@@ -93,7 +96,7 @@ def clean_web_text(text: str) -> str:
 
     lines = cleaned.splitlines()
     filtered_lines: list[str] = []
-    for line in lines:
+    for idx, line in enumerate(lines):
         stripped = line.strip()
         if not stripped:
             filtered_lines.append("")
@@ -101,9 +104,13 @@ def clean_web_text(text: str) -> str:
 
         if _LINK_REF_DEF_RE.match(stripped):
             continue
-        if _DIVIDER_RE.match(stripped):
+        if _JS_LINK_ONLY_RE.match(stripped):
             continue
-        if _NAV_LINE_RE.match(stripped) and len(stripped) <= 80:
+        if _DIVIDER_RE.match(stripped) and not _is_setext_underline(lines, idx):
+            continue
+
+        nav_candidate = _normalize_nav_candidate(stripped)
+        if _NAV_LINE_RE.match(nav_candidate) and len(nav_candidate) <= 80:
             continue
         if _URL_ONLY_RE.match(stripped):
             continue
@@ -196,7 +203,7 @@ def _title_from_first_meaningful_line(text: str) -> str | None:
         stripped = line.strip()
         if not stripped:
             continue
-        if _NAV_LINE_RE.match(stripped):
+        if _NAV_LINE_RE.match(_normalize_nav_candidate(stripped)):
             continue
         if _DIVIDER_RE.match(stripped):
             continue
@@ -237,6 +244,64 @@ def _normalize_title(title: str | None) -> str | None:
     if len(value) < 3:
         return None
     return value[:500]
+
+
+def _normalize_nav_candidate(line: str) -> str:
+    candidate = _BULLET_PREFIX_RE.sub("", line).strip()
+    candidate = re.sub(r"^[>\[\]()\s]+", "", candidate).strip()
+    return candidate
+
+
+def _is_setext_underline(lines: list[str], idx: int) -> bool:
+    """Preserve markdown setext headings (Title + ===/---) for chunk structure."""
+    current = lines[idx].strip()
+    if not _SETEXT_UNDERLINE_RE.match(current):
+        return False
+
+    prev = _previous_non_empty_line(lines, idx - 1)
+    if not prev:
+        return False
+
+    prev_stripped = prev.strip()
+    if not prev_stripped:
+        return False
+    if len(prev_stripped) > 160:
+        return False
+    if _DIVIDER_RE.match(prev_stripped):
+        return False
+    if _URL_ONLY_RE.match(prev_stripped):
+        return False
+    if _JS_LINK_ONLY_RE.match(prev_stripped):
+        return False
+    if _NAV_LINE_RE.match(_normalize_nav_candidate(prev_stripped)):
+        return False
+    if not _HAS_WORD_RE.search(prev_stripped):
+        return False
+
+    # Adjacent divider clusters are usually decorative rules, not headings.
+    nxt = _next_non_empty_line(lines, idx + 1)
+    if nxt and _DIVIDER_RE.match(nxt.strip()):
+        return False
+
+    return True
+
+
+def _previous_non_empty_line(lines: list[str], idx: int) -> str | None:
+    while idx >= 0:
+        line = lines[idx].strip()
+        if line:
+            return lines[idx]
+        idx -= 1
+    return None
+
+
+def _next_non_empty_line(lines: list[str], idx: int) -> str | None:
+    while idx < len(lines):
+        line = lines[idx].strip()
+        if line:
+            return lines[idx]
+        idx += 1
+    return None
 
 
 def _normalize_whitespace(text: str) -> str:

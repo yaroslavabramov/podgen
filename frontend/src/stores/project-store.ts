@@ -12,6 +12,7 @@ interface ProjectStore {
   fetchProject: (id: string) => Promise<void>;
   fetchSources: (projectId: string) => Promise<void>;
   deleteSource: (sourceId: string) => Promise<void>;
+  reingestSource: (sourceId: string) => Promise<void>;
   createProject: (data: { title: string; description?: string; language: string }) => Promise<Project>;
   updateProjectLanguage: (id: string, language: "en" | "ru") => Promise<Project>;
 }
@@ -50,6 +51,13 @@ export const useProjectStore = create<ProjectStore>((set) => ({
   deleteSource: async (sourceId) => {
     await api.delete(`api/sources/${sourceId}`);
     set((state) => ({ sources: state.sources.filter((source) => source.id !== sourceId) }));
+  },
+
+  reingestSource: async (sourceId) => {
+    const updated = await api.post(`api/sources/${sourceId}/reingest`).json<Source>();
+    set((state) => ({
+      sources: state.sources.map((source) => (source.id === sourceId ? updated : source)),
+    }));
   },
 
   createProject: async (data) => {

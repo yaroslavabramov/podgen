@@ -4,6 +4,7 @@ import base64
 import binascii
 import fcntl
 import json
+import logging
 import tempfile
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -19,6 +20,7 @@ from app.schemas.source import SourceURLCreate, SourceResponse, SourceListRespon
 from app.services.storage import get_minio_client, upload_file, generate_object_name
 
 router = APIRouter(prefix="/api", tags=["sources"])
+logger = logging.getLogger(__name__)
 
 TUS_VERSION = "1.0.0"
 TUS_EXPOSE_HEADERS = "Location, Upload-Offset, Upload-Length, Tus-Resumable"
@@ -261,6 +263,45 @@ async def delete_source(source_id: uuid.UUID, user: CurrentUser, db: DB):
     # Verify ownership through project
     await _verify_project_ownership(source.project_id, user.id, db)
     await db.delete(source)
+
+
+@router.post("/sources/{source_id}/reingest", response_model=SourceResponse)
+async def reingest_source(source_id: uuid.UUID, user: CurrentUser, db: DB):
+    result = await db.execute(select(Source).where(Source.id == source_id))
+    source = result.scalar_one_or_none()
+    if source is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source not found")
+    await _verify_project_ownership(source.project_id, user.id, db)
+
+    if source.ingestion_status in {IngestionStatus.PENDING, IngestionStatus.PROCESSING, IngestionStatus.ENQUEUED}:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Source ingestion is already in progress",
+        )
+
+    previous_status = source.ingestion_status
+    source.ingestion_status = IngestionStatus.ENQUEUED
+
+    metadata = source.metadata_ if isinstance(source.metadata_, dict) else {}
+    metadata = dict(metadata)
+    metadata.pop("error", None)
+    source.metadata_ = metadata or None
+
+    await db.commit()
+    await db.refresh(source)
+
+    from app.workers.ingestion_tasks import ingest_source
+
+    try:
+        ingest_source.delay(str(source.id), reset_existing=True)
+    except Exception as exc:
+        logger.exception("Failed to enqueue re-ingestion for source %s", source.id)
+        source.ingestion_status = previous_status
+        source.metadata_ = {**(source.metadata_ or {}), "error": f"Failed to enqueue re-ingestion: {exc}"}
+        await db.commit()
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Failed to enqueue re-ingestion")
+
+    return SourceResponse.model_validate(source)
 
 
 @router.get("/sources/{source_id}/status", response_model=SourceResponse)

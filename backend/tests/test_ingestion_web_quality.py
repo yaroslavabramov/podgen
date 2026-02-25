@@ -82,6 +82,36 @@ def test_clean_web_text_removes_nav_and_url_lines() -> None:
     assert "meaningful content" in cleaned
 
 
+def test_clean_web_text_preserves_setext_heading_structure() -> None:
+    raw = (
+        "Evolution of the Colonial Sterling Exchange Standard\n"
+        "===============\n"
+        "This section contains substantive content.\n"
+    )
+
+    cleaned = clean_web_text(raw)
+
+    assert "Evolution of the Colonial Sterling Exchange Standard" in cleaned
+    assert "===============" in cleaned
+    assert "substantive content" in cleaned
+
+
+def test_clean_web_text_removes_bullet_nav_and_js_placeholder_lines() -> None:
+    raw = (
+        "* [Skip to Main content](https://example.com/#main)\n"
+        "* [Home](https://example.com/)\n"
+        "[](javascript:void(0);)\n"
+        "The article body starts here with real content.\n"
+    )
+
+    cleaned = clean_web_text(raw)
+
+    assert "Skip to Main content" not in cleaned
+    assert "Home" not in cleaned
+    assert "javascript:void(0)" not in cleaned
+    assert "article body starts here" in cleaned.lower()
+
+
 def test_resolve_web_title_falls_back_to_heading() -> None:
     text = (
         "N/A\n"

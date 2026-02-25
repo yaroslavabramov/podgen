@@ -1,7 +1,16 @@
 import uuid
 
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, PointStruct, VectorParams, Filter, FieldCondition, MatchAny
+from qdrant_client.models import (
+    Distance,
+    PointStruct,
+    VectorParams,
+    Filter,
+    FieldCondition,
+    FilterSelector,
+    MatchAny,
+    MatchValue,
+)
 
 from app.config import settings
 from app.services.llm import get_embeddings, EMBEDDING_DIMENSIONS
@@ -94,3 +103,16 @@ async def vector_search(
         }
         for hit in response.points
     ]
+
+
+def delete_points_by_source_id(source_id: str) -> None:
+    """Delete all vectors in Qdrant associated with a source."""
+    client = get_qdrant_client()
+    ensure_collection()
+    source_filter = Filter(
+        must=[FieldCondition(key="source_id", match=MatchValue(value=source_id))]
+    )
+    client.delete(
+        collection_name=settings.qdrant_collection,
+        points_selector=FilterSelector(filter=source_filter),
+    )

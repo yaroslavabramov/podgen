@@ -31,16 +31,15 @@ _MAX_SECTIONS_PER_SOURCE_FEW = 24
 _MAX_LEAD_CHARS = 260
 _MAX_HEADING_CLUSTERS = 40
 _LEAD_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?。！？])\s*")
-_LEAD_GOOD_START_RE = re.compile(r"^[\"“”'‘’(\[]?[A-ZА-Я0-9]")
 _LEAD_BAD_PREFIX_RE = re.compile(r"^[,;:)\]\-]")
-_LEAD_LOWER_START_RE = re.compile(r"^[a-zа-я]")
-_LEAD_WORD_RE = re.compile(r"[A-Za-zА-Яа-я0-9][A-Za-zА-Яа-я0-9'/-]*")
+_LEAD_WORD_RE = re.compile(r"[^\W_]+", re.UNICODE)
 _URL_MARKER_RE = re.compile(r"https?://|www\.", re.IGNORECASE)
 _MARKDOWN_LINK_RE = re.compile(r"\[[^\]]{1,120}\]\([^)]+\)")
-_SENTENCE_PUNCT_RE = re.compile(r"[.!?。！？]")
+_SENTENCE_END_RE = re.compile(r"[!?。！？]|(?<!\d)\.(?=\s|$)")
 _LIST_SEPARATOR_RE = re.compile(r"[,;|•●·，；、｜]")
 _TOKEN_RE = re.compile(r"[A-Za-zА-Яа-я0-9]+|[\u3400-\u9fff]+|[\u3040-\u30ff]+|[\uac00-\ud7af]+")
 _CJK_TEXT_RE = re.compile(r"[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]")
+_BULLET_MARKER_RE = re.compile(r"(?:^|\s)[*•●]\s+")
 _lead_encoder: tiktoken.Encoding | None = None
 
 
@@ -202,6 +201,7 @@ def _build_source_summaries(rows) -> list[dict]:
             source.get("_prev_base_chunk_content"),
         )
         source["_prev_base_chunk_content"] = base_chunk_content
+        candidate_lead = _extract_lead(base_chunk_content)
 
         token_count = int(chunk.token_count or 0)
         source["total_tokens"] += token_count
@@ -219,7 +219,8 @@ def _build_source_summaries(rows) -> list[dict]:
                 {
                     "key": root_key,
                     "headings": [],
-                    "lead": _extract_lead(base_chunk_content),
+                    "lead": candidate_lead,
+                    "_lead_score": _lead_quality_score(candidate_lead, []),
                     "token_count": token_count,
                     "chunk_count": 1,
                     "chunk_index": int(chunk.chunk_index or 0),
@@ -230,14 +231,19 @@ def _build_source_summaries(rows) -> list[dict]:
         if section is None:
             section = {
                 "headings": headings,
-                "lead": _extract_lead(base_chunk_content),
+                "lead": candidate_lead,
+                "_lead_score": _lead_quality_score(candidate_lead, headings),
                 "token_count": 0,
                 "chunk_count": 0,
                 "chunk_index": int(chunk.chunk_index or 0),
             }
             source["_sections"][section_key] = section
-        elif not section.get("lead"):
-            section["lead"] = _extract_lead(base_chunk_content)
+        else:
+            best_score = section.get("_lead_score")
+            candidate_score = _lead_quality_score(candidate_lead, headings)
+            if best_score is None or candidate_score > best_score:
+                section["lead"] = candidate_lead
+                section["_lead_score"] = candidate_score
 
         section["token_count"] += token_count
         section["chunk_count"] += 1
@@ -390,6 +396,31 @@ def _extract_lead(text: str) -> str:
     return parts[0][:_MAX_LEAD_CHARS]
 
 
+def _lead_quality_score(lead: str, headings: list[str]) -> tuple[int, int, int, int, int, int, int]:
+    if not lead:
+        return (0, 0, 0, 0, -999, 0, 0)
+
+    section = {"headings": headings, "lead": lead, "token_count": 0}
+    noise_score = _navigation_noise_score(
+        section,
+        context={"total_sections": 1, "prefix_counts": {}},
+    )
+    preferred = 1 if _is_preferred_lead_candidate(lead) else 0
+    fallback = 1 if preferred or _is_fallback_lead_candidate(lead) else 0
+    prose = 1 if _is_prose_like_section(section) else 0
+    sentence_ends = _count_sentence_end_punct(lead)
+    units = _lead_content_units(lead)
+    return (
+        preferred,
+        fallback,
+        prose,
+        sentence_ends,
+        -noise_score,
+        units,
+        len(lead),
+    )
+
+
 def _is_preferred_lead_candidate(candidate: str) -> bool:
     if len(candidate) < _min_lead_chars(candidate, preferred=True):
         return False
@@ -406,24 +437,50 @@ def _is_fallback_lead_candidate(candidate: str) -> bool:
         return False
     if _LEAD_BAD_PREFIX_RE.match(candidate):
         return False
-    if _LEAD_LOWER_START_RE.match(candidate):
+    if _starts_with_caseful_lower_letter(candidate):
         return False
     units = _lead_content_units(candidate)
     return units >= 5
 
 
 def _has_preferred_start(candidate: str) -> bool:
-    if _LEAD_GOOD_START_RE.match(candidate):
+    first = _first_significant_char(candidate)
+    if first is None:
+        return False
+    if first.isdigit():
         return True
+    if _is_caseful_letter(first):
+        return first.isupper()
+    return first.isalpha() or bool(_CJK_TEXT_RE.match(first))
+
+
+def _first_significant_char(candidate: str) -> str | None:
     stripped = candidate.lstrip("\"“”'‘’([")
-    return bool(stripped and _CJK_TEXT_RE.match(stripped[0]))
+    if not stripped:
+        return None
+    return stripped[0]
+
+
+def _is_caseful_letter(char: str) -> bool:
+    return char.isalpha() and char.lower() != char.upper()
+
+
+def _starts_with_caseful_lower_letter(candidate: str) -> bool:
+    first = _first_significant_char(candidate)
+    if first is None or not _is_caseful_letter(first):
+        return False
+    return first.islower()
 
 
 def _lead_content_units(candidate: str) -> int:
     word_units = len(_LEAD_WORD_RE.findall(candidate))
     cjk_chars = len(_CJK_TEXT_RE.findall(candidate))
     cjk_units = cjk_chars // 2
-    return max(word_units, cjk_units)
+    # For scripts without case and/or whitespace token boundaries (for example Thai),
+    # fall back to alphabetic char density so informative sentences aren't penalized.
+    alpha_chars = sum(1 for char in candidate if char.isalpha())
+    script_units = alpha_chars // 6
+    return max(word_units, cjk_units, script_units)
 
 
 def _lead_candidate_score(candidate: str, position: int) -> tuple[int, int, int]:
@@ -529,13 +586,15 @@ def _is_prose_like_section(section: dict[str, Any]) -> bool:
     token_count = len(tokens)
     if token_count < 8:
         return False
-    sentence_punct_count = len(_SENTENCE_PUNCT_RE.findall(lead))
+    sentence_punct_count = _count_sentence_end_punct(lead)
+    separator_count = len(_LIST_SEPARATOR_RE.findall(lead))
+    titlecase_ratio = _titlecase_ratio(tokens)
     if sentence_punct_count >= 1:
         return True
     # Longer lines can still be prose when sentence punctuation is missing due truncation.
-    if token_count >= 24 and len(_LIST_SEPARATOR_RE.findall(lead)) <= 1:
+    if token_count >= 24 and separator_count <= 1 and titlecase_ratio <= 0.65:
         return True
-    if token_count >= 14 and _CJK_TEXT_RE.search(lead) and len(_LIST_SEPARATOR_RE.findall(lead)) <= 1:
+    if token_count >= 14 and _CJK_TEXT_RE.search(lead) and separator_count <= 1 and sentence_punct_count >= 1:
         return True
     return False
 
@@ -552,7 +611,9 @@ def _navigation_noise_score(section: dict[str, Any], *, context: dict[str, Any] 
 
     headings = _normalized_headings(section.get("headings", []))
     depth = len(headings)
-    if depth >= 4:
+    if depth >= 5:
+        score += 3
+    elif depth == 4:
         score += 2
     elif depth == 3:
         score += 1
@@ -560,6 +621,8 @@ def _navigation_noise_score(section: dict[str, Any], *, context: dict[str, Any] 
     if depth >= 3:
         short_heading_count = sum(1 for heading in headings if _heading_word_count(heading) <= 2)
         if short_heading_count == depth:
+            score += 1
+        elif depth >= 4 and short_heading_count >= depth - 1:
             score += 1
 
     total_sections = int(context.get("total_sections") or 0)
@@ -575,16 +638,24 @@ def _navigation_noise_score(section: dict[str, Any], *, context: dict[str, Any] 
     lead = str(section.get("lead") or "")
     tokens = _tokenize_for_noise(lead)
     token_count = len(tokens)
-    sentence_punct_count = len(_SENTENCE_PUNCT_RE.findall(lead))
+    sentence_punct_count = _count_sentence_end_punct(lead)
     separator_count = len(_LIST_SEPARATOR_RE.findall(lead))
     url_marker_count = len(_URL_MARKER_RE.findall(lead)) + len(_MARKDOWN_LINK_RE.findall(lead))
+    bullet_marker_count = len(_BULLET_MARKER_RE.findall(lead))
     if url_marker_count > 0:
+        score += 2
+    if bullet_marker_count >= 2 and sentence_punct_count == 0:
         score += 2
 
     # List/taxonomy-like signal: many tokens, little prose punctuation.
     if token_count >= 16 and sentence_punct_count == 0 and separator_count >= 2:
         score += 2
     if token_count >= 24 and sentence_punct_count <= 1 and separator_count >= 4:
+        score += 1
+    titlecase_ratio = _titlecase_ratio(tokens)
+    if token_count >= 20 and sentence_punct_count == 0 and separator_count <= 1 and titlecase_ratio >= 0.72:
+        score += 2
+    if _camelcase_noise_tokens(tokens) >= 2 and sentence_punct_count <= 1:
         score += 1
 
     cjk_char_count = len(_CJK_TEXT_RE.findall(lead))
@@ -593,6 +664,8 @@ def _navigation_noise_score(section: dict[str, Any], *, context: dict[str, Any] 
         score += 2
     if cjk_char_count >= 16 and sentence_punct_count <= 1 and separator_count >= 4 and cjk_token_count >= 6:
         score += 2
+    if cjk_char_count >= 16 and sentence_punct_count == 0 and separator_count == 0 and cjk_token_count >= 6:
+        score += 1
 
     alpha_tokens = 0
     titlecase_like = 0
@@ -636,7 +709,7 @@ def _source_quality_weight(
     if kept_sections <= 0 or kept_tokens <= 0:
         return 0.0
 
-    if noise_signal_ratio >= 0.9 and kept_tokens < 2500:
+    if noise_signal_ratio >= 0.9 and kept_tokens < 1200 and prose_section_ratio < 0.5:
         return 0.0
     if noise_signal_ratio >= 0.75 and kept_tokens < 1200:
         return 0.0
@@ -646,7 +719,7 @@ def _source_quality_weight(
         return 0.0
 
     noise_ratio = 1.0 - (kept_tokens / max(1, total_tokens))
-    if noise_ratio >= 0.9 and kept_tokens < 1500:
+    if noise_ratio >= 0.9 and kept_tokens < 900 and prose_section_ratio < 0.5:
         return 0.0
     if kept_sections == 1 and removed_sections >= 4 and kept_tokens < 900:
         return 0.0
@@ -666,6 +739,36 @@ def _source_quality_weight(
     elif noise_signal_ratio >= 0.4:
         weight = min(weight, 0.8)
     return weight
+
+
+def _count_sentence_end_punct(text: str) -> int:
+    return len(_SENTENCE_END_RE.findall(text))
+
+
+def _titlecase_ratio(tokens: list[str]) -> float:
+    alpha_tokens = 0
+    titlecase_like = 0
+    for token in tokens:
+        first_alpha = next((ch for ch in token if ch.isalpha()), "")
+        if not first_alpha:
+            continue
+        alpha_tokens += 1
+        if first_alpha.isupper():
+            titlecase_like += 1
+    return titlecase_like / max(1, alpha_tokens)
+
+
+def _camelcase_noise_tokens(tokens: list[str]) -> int:
+    count = 0
+    for token in tokens:
+        if len(token) < 14:
+            continue
+        if not any(ch.islower() for ch in token) or not any(ch.isupper() for ch in token):
+            continue
+        inner_upper = sum(1 for ch in token[1:] if ch.isupper())
+        if inner_upper >= 2:
+            count += 1
+    return count
 
 
 def _build_heading_clusters(source_summaries: list[dict], top_n: int = _MAX_HEADING_CLUSTERS) -> list[dict]:
