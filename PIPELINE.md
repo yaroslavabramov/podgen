@@ -145,7 +145,7 @@
 
 - PDF → Marker → Markdown
 
-- Web → reader (Jina/FireCrawl) → fallback headless (Browserbase/Playwright)
+- Web → MediaWiki API (for `wikipedia.org/wiki/*`) → trafilatura → Jina Reader → httpx fallback
 
 - Video/Audio → Deepgram + diarization
 
@@ -160,11 +160,12 @@ Raw text сохраняется в MinIO до нормализации (audit tr
 
 ### **1.1c Web Extraction & Quality Gates**
 
-Web extraction использует каскад из трёх extractors:
+Web extraction использует каскад extractors:
 
-1. **trafilatura** (primary) — локальная библиотека, извлекает основной контент из HTML на уровне DOM. Удаляет навигацию, рекламу, footer, boilerplate автоматически. Также извлекает metadata (title, date).
-2. **Jina Reader** (fallback) — hosted API с headless browser, обрабатывает JS-heavy страницы. Возвращает markdown.
-3. **httpx + HTMLParser** (last resort) — stdlib парсер, убирает `<script>/<style>/<nav>/<footer>`.
+1. **MediaWiki API** (special-case для `wikipedia.org/wiki/*`) — забирает чистый article text без UI-навигации и конвертирует wiki headings в markdown-заголовки для chunker.
+2. **trafilatura** (primary для остальных сайтов) — локальная библиотека, извлекает основной контент из HTML на уровне DOM. Удаляет навигацию, рекламу, footer, boilerplate автоматически. Также извлекает metadata (title, date).
+3. **Jina Reader** (fallback) — hosted API с headless browser, обрабатывает JS-heavy страницы. Возвращает markdown.
+4. **httpx + HTMLParser** (last resort) — stdlib парсер, убирает `<script>/<style>/<nav>/<footer>`.
 
 После extraction текст проходит quality gates:
 

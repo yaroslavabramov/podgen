@@ -80,6 +80,8 @@ class Settings(BaseSettings):
     web_max_file_size_mb: int = 50
     web_quality_gate_a_min_chars: int = 160
     web_date_extraction_min_preview_chars: int = 80
+    web_user_agent: str = "PodgenIngestionBot/1.0 (+https://example.com/podgen; ingest@podgen.local)"
+    web_accept_language: str = "en-US,en;q=0.9"
 
     @property
     def database_url_sync_resolved(self) -> str:

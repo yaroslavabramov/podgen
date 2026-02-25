@@ -91,6 +91,7 @@
 - [x] Canonicalizer date extraction hardening: replace any bare `json.loads(raw)` with tolerant parser helper + persist extraction status/reason in source metadata
 - [x] WEB title fallback extraction when `Title:` is missing (H1/HTML `<title>`/domain fallback)
 - [x] Ingestion quality test pack: captcha/403 fixture, noisy whitespace/navigation fixture, markdown-heavy fixture; verify gate decisions and skip behavior
+- [x] Wikipedia ingestion reliability: MediaWiki API fast-path for `wikipedia.org/wiki/*` + shared fetch default headers (`User-Agent`, `Accept-Language`) to reduce 403 fallback to noisy Jina output
 - [ ] LangSmith trace assertions for ingestion quality gates (`ingestion.web_quality.gate_a|gate_b|gate_c`)
 - [ ] Token & Cost Governor enforcement (limits exist in config, enforcement partial)
 - [~] Error handling + retry strategies (ingestion DB retries + explicit ShowBible generation errors done; full coverage pending)
@@ -232,6 +233,17 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P1**: Added lead extraction per section (first informative sentence) instead of `chunk.content[:200]`
 - [x] **P1**: Added cross-source heading clusters for duplicate-theme compression
 - [x] **P1**: Updated scout Haiku prompt/input payload to source-level format and added unit tests for summary aggregation/lead/clusters
+
+**Round 28 (web extraction — Wikipedia reliability):**
+- [x] **P1**: Added MediaWiki API extractor for `wikipedia.org/wiki/*` before trafilatura/Jina/httpx cascade to avoid nav-heavy fallback content
+- [x] **P1**: Added explicit default fetch headers in shared `_safe_fetch` (`User-Agent`, `Accept-Language`) to reduce avoidable 403 responses on article pages
+- [x] **P2**: Added tests for Wikipedia URL parsing, section-heading conversion, and cascade behavior when MediaWiki succeeds/falls back
+
+**Round 35 (web extraction — review follow-ups):**
+- [x] **P2**: Tightened Wikipedia host check to exact domain boundary (`wikipedia.org` or `*.wikipedia.org`) to avoid false positives like `notwikipedia.org`
+- [x] **P2**: Fixed namespace parsing: decode slug before namespace check, reject only known namespace prefixes, allow valid article slugs with `:` (e.g. `Star_Trek:_...`)
+- [x] **P2**: Added regression tests for non-Wikipedia host, encoded namespace (`Category%3A...`), and valid colon article slug
+- [x] **P2**: Wikipedia fast-path now returns date from first revision timestamp (`rvdir=newer&rvlimit=1`) so `published_at` is filled and LLM date extraction is skipped
 
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)

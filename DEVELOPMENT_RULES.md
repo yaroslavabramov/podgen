@@ -47,7 +47,8 @@ All data queries must filter by `project_id` and/or `user_id`. Never allow cross
   - Feature remains opt-in by env (`LANGSMITH_TRACING=true` + API key).
 
 ### Web Extraction & Quality Gates
-- Web extraction cascade: **trafilatura** (primary, local) → **Jina Reader** (JS fallback) → **httpx+HTMLParser** (last resort). Trafilatura handles boilerplate removal at the HTML DOM level — do not add regex hacks for site-specific UI noise.
+- Web extraction cascade: **MediaWiki API** (for `wikipedia.org/wiki/*`) → **trafilatura** (primary, local) → **Jina Reader** (JS fallback) → **httpx+HTMLParser** (last resort). Use domain-specific official APIs where available instead of regex-cleaning generic HTML.
+- All outbound web fetches must send explicit default headers (`User-Agent`, `Accept-Language`) via shared fetch helper (`_safe_fetch`) to reduce avoidable 403/bot blocks.
 - Any `WEB` source must pass three gates before canonicalization/scout metadata extraction:
   - `gate_a`: anti-bot/error detection (`403`, captcha, verification walls, empty/low-signal text).
   - `gate_b`: residual cleanup (markdown link/image noise from Jina path, whitespace normalization, repeated short lines).

@@ -4,7 +4,7 @@ import ipaddress
 import logging
 import socket
 import re
-from urllib.parse import urlparse
+from urllib.parse import quote, unquote, urlparse
 
 import httpx
 
@@ -14,6 +14,25 @@ from app.ingestion.web_quality import contains_blocking_signal
 logger = logging.getLogger(__name__)
 
 _JINA_TITLE_RE = re.compile(r"^\s*Title:\s*(.+)$", re.IGNORECASE)
+_WIKI_SECTION_RE = re.compile(r"^(={2,6})\s*(.*?)\s*\1\s*$", re.MULTILINE)
+_WIKI_TIMESTAMP_DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})T")
+_WIKIPEDIA_NAMESPACE_PREFIXES = {
+    "category",
+    "file",
+    "help",
+    "media",
+    "mediawiki",
+    "module",
+    "portal",
+    "special",
+    "talk",
+    "template",
+    "template talk",
+    "user",
+    "user talk",
+    "wikipedia",
+    "wikipedia talk",
+}
 
 # Private / reserved IP ranges that must be blocked to prevent SSRF
 _BLOCKED_NETWORKS = [
@@ -30,6 +49,11 @@ _BLOCKED_NETWORKS = [
 _MAX_BYTES = settings.web_max_file_size_mb * 1024 * 1024  # 50 MB default
 _TIMEOUT = settings.web_fetch_timeout                      # 30s default
 _MAX_REDIRECTS = 5
+_DEFAULT_FETCH_HEADERS = {
+    "User-Agent": settings.web_user_agent,
+    "Accept-Language": settings.web_accept_language,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+}
 
 
 def _check_ssrf(url: str) -> None:
@@ -70,7 +94,9 @@ async def _safe_fetch(
 
     Sensitive headers (Authorization) are stripped when redirecting cross-origin.
     """
-    current_headers = dict(headers) if headers else {}
+    current_headers = dict(_DEFAULT_FETCH_HEADERS)
+    if headers:
+        current_headers.update(headers)
     initial_origin = _origin(url)
 
     async with httpx.AsyncClient(
@@ -118,6 +144,18 @@ async def extract_web(url: str) -> tuple[str, str | None, str | None]:
         httpx.HTTPError: On network failures after all retries.
     """
     _check_ssrf(url)
+
+    # --- 0. Wikipedia fast-path via official MediaWiki API ----------------------
+    try:
+        wiki_result = await _wikipedia_api_extract(url)
+        if wiki_result:
+            text, title, date = wiki_result
+            if text.strip():
+                logger.info("MediaWiki API succeeded for %s (%d chars)", url, len(text))
+                return text, title, date
+            logger.warning("MediaWiki API returned empty text for %s; falling back", url)
+    except Exception:
+        logger.warning("MediaWiki API failed for %s; falling back", url, exc_info=True)
 
     # --- 1. Try trafilatura (local, free, good quality) -------------------------
     try:
@@ -229,6 +267,105 @@ async def _httpx_extract(url: str) -> tuple[str, str | None]:
         raw, title = _strip_html(raw)
 
     return raw, title
+
+
+async def _wikipedia_api_extract(url: str) -> tuple[str, str | None, str | None] | None:
+    """Extract clean article text from Wikipedia using MediaWiki API.
+
+    Returns:
+        (text, title, published_date_or_none), or None when URL is not a
+        Wikipedia article URL or the API response is missing/invalid.
+    """
+    page = _parse_wikipedia_page(url)
+    if page is None:
+        return None
+
+    host, title_slug = page
+    api_url = (
+        f"https://{host}/w/api.php"
+        f"?action=query&format=json&formatversion=2"
+        f"&prop=extracts|revisions&redirects=1"
+        f"&explaintext=1&exsectionformat=wiki"
+        f"&rvprop=timestamp&rvlimit=1&rvdir=newer"
+        f"&titles={quote(title_slug, safe='')}"
+    )
+    response = await _safe_fetch(api_url)
+    payload = response.json()
+
+    pages = payload.get("query", {}).get("pages", [])
+    if not pages:
+        return None
+
+    page_obj = pages[0]
+    if page_obj.get("missing"):
+        return None
+
+    extract = str(page_obj.get("extract") or "").strip()
+    if not extract:
+        return None
+
+    text = _wikipedia_sections_to_markdown(extract)
+    title = page_obj.get("title")
+    date = _extract_wikipedia_revision_date(page_obj)
+    return text, title, date
+
+
+def _parse_wikipedia_page(url: str) -> tuple[str, str] | None:
+    """Return (host, page_slug) for article URLs like /wiki/Foo_Bar."""
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if host != "wikipedia.org" and not host.endswith(".wikipedia.org"):
+        return None
+
+    path = parsed.path or ""
+    if not path.startswith("/wiki/"):
+        return None
+
+    slug = unquote(path[len("/wiki/"):].strip("/")).replace(" ", "_")
+    if not slug:
+        return None
+
+    # Exclude known namespace pages (Category:, File:, Talk:, etc.),
+    # but keep valid article slugs that contain ":" in the title.
+    prefix, sep, _ = slug.partition(":")
+    if sep and prefix.strip().lower().replace("_", " ") in _WIKIPEDIA_NAMESPACE_PREFIXES:
+        return None
+
+    return host, slug
+
+
+def _wikipedia_sections_to_markdown(text: str) -> str:
+    """Convert MediaWiki heading markers (== ... ==) to markdown for chunking."""
+    def _replace(match: re.Match[str]) -> str:
+        marker = match.group(1)
+        heading = match.group(2).strip()
+        if not heading:
+            return ""
+        level = len(marker)
+        md_level = 2 if level == 2 else 3
+        return f"{'#' * md_level} {heading}"
+
+    return _WIKI_SECTION_RE.sub(_replace, text)
+
+
+def _extract_wikipedia_revision_date(page_obj: dict) -> str | None:
+    """Extract YYYY-MM-DD from the first revision timestamp, if present."""
+    revisions = page_obj.get("revisions")
+    if not isinstance(revisions, list) or not revisions:
+        return None
+
+    first = revisions[0]
+    if not isinstance(first, dict):
+        return None
+
+    timestamp = first.get("timestamp")
+    if not isinstance(timestamp, str):
+        return None
+
+    match = _WIKI_TIMESTAMP_DATE_RE.match(timestamp)
+    if not match:
+        return None
+    return match.group(1)
 
 
 def _strip_html(html: str) -> tuple[str, str | None]:
