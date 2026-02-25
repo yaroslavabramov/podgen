@@ -7,6 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.workers.celery_app import celery_app
 from app.config import settings
+from app.ingestion.web import DNSResolutionError
 from app.observability import push_trace_context, safe_set_run, trace_span, tracing_scope
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,12 @@ def ingest_source(self, source_id: str):
             raise self.retry(exc=exc, countdown=2)
         except MaxRetriesExceededError:
             asyncio.run(_mark_source_failed(source_id, f"Database error after retries: {exc}"))
+            raise
+    except DNSResolutionError as exc:
+        try:
+            raise self.retry(exc=exc, countdown=3)
+        except MaxRetriesExceededError:
+            asyncio.run(_mark_source_failed(source_id, f"DNS resolution error after retries: {exc}"))
             raise
 
     if not found:

@@ -278,6 +278,11 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P1**: Replaced fixed per-source section cap with adaptive cap based on source size and number of sources in prompt
 - [x] **P2**: Added regression tests for heading-preserving merge behavior, lead fragment filtering, and adaptive section cap behavior
 
+**Round 43 (ingestion reliability — transient DNS failures):**
+- [x] **P1**: Added bounded DNS retry in SSRF pre-check (`WEB_DNS_RESOLVE_RETRIES`, `WEB_DNS_RESOLVE_RETRY_DELAY_MS`) with explicit `DNSResolutionError`
+- [x] **P1**: Added Celery retry for `ingest_source` on DNS resolution failures instead of immediate hard failure
+- [x] **P2**: Added unit tests for DNS resolve retry success/failure paths and documented behavior in development rules
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

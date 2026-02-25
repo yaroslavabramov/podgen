@@ -5,6 +5,7 @@ import ipaddress
 import logging
 import re
 import socket
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote, unquote, urlparse
@@ -60,6 +61,10 @@ _DEFAULT_FETCH_HEADERS = {
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
+class DNSResolutionError(ValueError):
+    """Transient DNS resolution failure during SSRF pre-check."""
+
+
 def _check_ssrf(url: str) -> None:
     """Resolve the URL hostname and reject requests to private/reserved IPs."""
     parsed = urlparse(url)
@@ -67,11 +72,7 @@ def _check_ssrf(url: str) -> None:
     if not hostname:
         raise ValueError(f"Cannot parse hostname from URL: {url}")
 
-    # Resolve DNS before connecting
-    try:
-        infos = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
-    except socket.gaierror as exc:
-        raise ValueError(f"DNS resolution failed for {hostname}: {exc}")
+    infos = _resolve_host_infos(hostname)
 
     for family, _, _, _, sockaddr in infos:
         ip = ipaddress.ip_address(sockaddr[0])
@@ -80,6 +81,23 @@ def _check_ssrf(url: str) -> None:
                 raise ValueError(
                     f"SSRF blocked: {hostname} resolves to private address {ip}"
                 )
+
+
+def _resolve_host_infos(hostname: str):
+    """Resolve DNS with bounded retries for transient resolver failures."""
+    retries = max(1, int(settings.web_dns_resolve_retries))
+    retry_delay_sec = max(0, int(settings.web_dns_resolve_retry_delay_ms)) / 1000.0
+    last_error: socket.gaierror | None = None
+
+    for attempt in range(retries):
+        try:
+            return socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        except socket.gaierror as exc:
+            last_error = exc
+            if attempt < retries - 1 and retry_delay_sec > 0:
+                time.sleep(retry_delay_sec)
+
+    raise DNSResolutionError(f"DNS resolution failed for {hostname}: {last_error}")
 
 
 def _origin(url: str) -> str:

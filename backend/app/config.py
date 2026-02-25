@@ -82,6 +82,8 @@ class Settings(BaseSettings):
     web_date_extraction_min_preview_chars: int = 80
     web_user_agent: str = "PodgenIngestionBot/1.0 (+https://example.com/podgen; ingest@podgen.local)"
     web_accept_language: str = "en-US,en;q=0.9"
+    web_dns_resolve_retries: int = 3
+    web_dns_resolve_retry_delay_ms: int = 250
     web_extractor_debug_dump_dir: str = ""
 
     @property

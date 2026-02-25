@@ -1,9 +1,13 @@
+import socket
+
 import pytest
 
 from app.ingestion.web import (
+    DNSResolutionError,
     _dump_extractor_output,
     _extract_wikipedia_revision_date,
     _parse_wikipedia_page,
+    _resolve_host_infos,
     _wikipedia_sections_to_markdown,
     extract_web,
 )
@@ -192,6 +196,39 @@ def test_dump_extractor_output_resolves_relative_path_from_repo_root(
     files = list((tmp_path / "debug" / "web").glob("*.md"))
     assert len(files) == 1
     assert "extractor: httpx" in files[0].read_text(encoding="utf-8")
+
+
+def test_resolve_host_infos_retries_then_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = {"count": 0}
+
+    def _fake_getaddrinfo(*args, **kwargs):
+        calls["count"] += 1
+        if calls["count"] < 3:
+            raise socket.gaierror(8, "temporary")
+        return [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("8.8.8.8", 0))]
+
+    monkeypatch.setattr("app.ingestion.web.socket.getaddrinfo", _fake_getaddrinfo)
+    monkeypatch.setattr("app.ingestion.web.time.sleep", lambda _: None)
+    monkeypatch.setattr("app.ingestion.web.settings.web_dns_resolve_retries", 3, raising=False)
+    monkeypatch.setattr("app.ingestion.web.settings.web_dns_resolve_retry_delay_ms", 0, raising=False)
+
+    infos = _resolve_host_infos("example.com")
+
+    assert calls["count"] == 3
+    assert infos
+
+
+def test_resolve_host_infos_raises_after_retries(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _fake_getaddrinfo(*args, **kwargs):
+        raise socket.gaierror(8, "not known")
+
+    monkeypatch.setattr("app.ingestion.web.socket.getaddrinfo", _fake_getaddrinfo)
+    monkeypatch.setattr("app.ingestion.web.time.sleep", lambda _: None)
+    monkeypatch.setattr("app.ingestion.web.settings.web_dns_resolve_retries", 2, raising=False)
+    monkeypatch.setattr("app.ingestion.web.settings.web_dns_resolve_retry_delay_ms", 0, raising=False)
+
+    with pytest.raises(DNSResolutionError):
+        _resolve_host_infos("example.com")
 
 
 def test_wikipedia_sections_to_markdown_maps_levels() -> None:
