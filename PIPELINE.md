@@ -190,6 +190,8 @@ Web extraction использует каскад extractors:
 
 - логические границы (h2/h3/абзацы)
 - если markdown-заголовков нет: deterministic heading inference (outline prefixes / section labels / title-like lines) с anti-TOC guard
+- **Child-heading transparency:** при проверке supporting body, дочерние заголовки (level > current) пропускаются, а не останавливают lookahead. Это позволяет корректно обрабатывать структуры вида Chapter → Section → body (Chapter не отбрасывается даже без промежуточного текста)
+- **Article exclusion:** `article` исключён из structural heading labels — статьи (Article 1, Article 2...) это контент документа, а не структурные разделители
 - merge маленьких chunk-ов только внутри одного `heading_path` (без смешивания разных секций)
 
 - Parent--Child retrieval

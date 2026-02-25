@@ -194,7 +194,7 @@ Status transitions (step mode):
 - `normalize_text` (`65-66`, `ingestion/normalize.py:16`) — Unicode/whitespace + PDF-specific cleanup.
 
 4. Chunking:
-- `structural_chunk` (`76-78`, `ingestion/chunker.py:44`) — H2/H3 split, merge/split by token budget, overlap 64.
+- `structural_chunk` (`76-78`, `ingestion/chunker.py:44`) — H2/H3 split, merge/split by token budget, overlap 64. For non-markdown text: deterministic heading inference with child-heading transparency, article exclusion from section labels, anti-TOC density guard (>35% → reject).
 
 5. Embeddings + index:
 - `index_chunks` (`84-102`, `services/embeddings.py:29`) -> OpenAI embeddings + upsert в Qdrant.

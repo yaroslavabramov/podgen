@@ -283,6 +283,13 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P1**: Added Celery retry for `ingest_source` on DNS resolution failures instead of immediate hard failure
 - [x] **P2**: Added unit tests for DNS resolve retry success/failure paths and documented behavior in development rules
 
+**Round 44 (chunking quality — nested heading structure):**
+- [x] **P0**: Fixed `_has_supporting_body()` discarding parent headings when child headings follow without intermediate text — child headings (level > current) are now transparent, only siblings/parents stop lookahead
+- [x] **P0**: Fixed `_split_by_inferred_headings()` not updating `current_h2` for bodyless parent headings — heading path now propagates correctly to child sections
+- [x] **P1**: Removed `article` from `_SECTION_LABEL_RE` — articles are document content, not structural headings
+- [x] **P1**: Added explicit guard against `Article N ...` lines passing the generic capitalized-words heuristic in `_infer_heading_level()`
+- [x] **P2**: Added regression tests for nested chapter heading_path, child-heading transparency, TOC rejection, and article exclusion
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

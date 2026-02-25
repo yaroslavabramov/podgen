@@ -59,6 +59,11 @@ All data queries must filter by `project_id` and/or `user_id`. Never allow cross
 - Structured parser rule for metadata extraction: use tolerant parser helpers (for example `parse_llm_json`), never bare `json.loads(raw)` on model output.
 - Each gate must emit a LangSmith span (`ingestion.web_quality.*`) with compact fields: `source_id`, `state`, `reason`, `char_count`, `skipped`.
 - Chunk normalization rule: small-chunk merge is allowed only when adjacent chunks have the same `heading_path`; never merge across section boundaries.
+- Heading inference rules (for non-markdown text):
+  - `_SECTION_LABEL_RE` recognizes `chapter`, `section`, `part`, `annex`, `appendix`, `book`, `title`. **`article` is excluded** — articles are document content, not structural headings.
+  - `_has_supporting_body()` uses **child-heading transparency**: child headings (level > current) are skipped during lookahead; only sibling/parent headings (level ≤ current) stop the search. This prevents parent headings (e.g. "Chapter IV") from being discarded when followed directly by child headings (e.g. "Section 1") without intermediate body text.
+  - `_split_by_inferred_headings()` updates `current_h2` **before** checking for empty body, so bodyless parent headings correctly propagate their heading_path to child sections.
+  - Anti-TOC density guard: if heading candidates exceed 35% of non-empty lines, all inferred headings are rejected (likely a table of contents).
 - Scout summarization rule: section cap is adaptive by corpus size/source size (not a single hard cap), and lead extraction should prefer complete sentence starts over overlap fragments.
 
 ---

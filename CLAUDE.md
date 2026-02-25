@@ -83,6 +83,13 @@ LangGraph state (`backend/app/pipeline/state.py`) contains ONLY ID references �
 
 Phase 1 (Ingestion) runs separately via Celery when sources are uploaded (`backend/app/ingestion/`).
 
+### Chunker (`backend/app/ingestion/chunker.py`)
+Structure-first text chunking: infers headings from plain text when no markdown `##`/`###` present.
+- **Heading hierarchy**: `_SECTION_LABEL_RE` recognizes `chapter`, `section`, `part`, `annex`, `appendix`, `book`, `title`. `article` is intentionally excluded — articles are document content, not structural headings.
+- **Child-heading transparency**: `_has_supporting_body()` skips child headings (level > current) when looking for body text. Only sibling/parent headings (level ≤ current) stop the lookahead. This ensures parent headings like "Chapter IV" aren't discarded when followed directly by "Section 1" without intermediate text.
+- **Heading path propagation**: `_split_by_inferred_headings()` updates `current_h2` before checking for empty body, so bodyless parent headings correctly propagate to child sections' `heading_path`.
+- **Anti-TOC density guard**: if heading candidates exceed 35% of non-empty lines, all inferred headings are rejected (likely a table of contents).
+
 ### Governors
 Rate limits defined in `backend/app/config.py`: max fast web per act (5), max deep ingestion concurrent (3), max writer revolt per act (4), max writer revolt per scene (2), max verifier research loops (2).
 

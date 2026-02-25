@@ -88,7 +88,7 @@ _OUTLINE_PREFIX_RE = re.compile(
     r"^(?P<prefix>(?:\d+(?:\.\d+)+(?:[)\.:-])?|\d+[)\.:-]|(?:[IVXLCM]+|[A-Z])[)\.:-]))\s+(?P<title>.+)$"
 )
 _SECTION_LABEL_RE = re.compile(
-    r"^(?P<label>chapter|section|part|article|annex|appendix|book|title)\b",
+    r"^(?P<label>chapter|section|part|annex|appendix|book|title)\b",
     re.IGNORECASE,
 )
 _WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9'/-]*")
@@ -162,16 +162,20 @@ def _split_by_inferred_headings(text: str) -> list[_RawChunk]:
 
     current_h2: str | None = None
     for i, heading in enumerate(inferred):
+        level = int(heading["level"])
+        heading_text = str(heading["text"]).strip()
+
+        # Always update heading tracking, even if this heading has no body
+        if level == 2:
+            current_h2 = heading_text
+
         start = heading["line_index"] + 1
         end = inferred[i + 1]["line_index"] if i + 1 < len(inferred) else len(lines)
         body = "\n".join(lines[start:end]).strip()
         if not body:
             continue
 
-        level = int(heading["level"])
-        heading_text = str(heading["text"]).strip()
         if level == 2:
-            current_h2 = heading_text
             heading_path = [heading_text]
         else:
             heading_path = [current_h2, heading_text] if current_h2 else [heading_text]
@@ -204,11 +208,18 @@ def _infer_heading_lines(lines: list[str]) -> list[dict]:
     if not candidates:
         return []
 
-    candidate_idx = {item["line_index"] for item in candidates}
+    candidates_by_idx: dict[int, int] = {
+        item["line_index"]: item["level"] for item in candidates
+    }
     supported = [
         item
         for item in candidates
-        if _has_supporting_body(item["line_index"], lines, candidate_idx)
+        if _has_supporting_body(
+            item["line_index"],
+            lines,
+            candidates_by_idx,
+            current_level=item["level"],
+        )
     ]
     if len(supported) < 2:
         return []
@@ -245,6 +256,10 @@ def _infer_heading_level(line: str) -> int | None:
         label = label_match.group("label").lower()
         return 2 if label in {"chapter", "part", "annex", "appendix", "book", "title"} else 3
 
+    # "Article N ..." is document content, not a structural heading
+    if re.match(r"^article\s+\d", line, re.IGNORECASE):
+        return None
+
     words = _WORD_RE.findall(line)
     if not words or len(words) > 12:
         return None
@@ -260,8 +275,20 @@ def _infer_heading_level(line: str) -> int | None:
     return None
 
 
-def _has_supporting_body(index: int, lines: list[str], candidate_indexes: set[int], *, lookahead: int = 12) -> bool:
-    """Check that a heading candidate is followed by substantive non-heading content."""
+def _has_supporting_body(
+    index: int,
+    lines: list[str],
+    candidates_by_idx: dict[int, int],
+    *,
+    current_level: int,
+    lookahead: int = 12,
+) -> bool:
+    """Check that a heading candidate is followed by substantive non-heading content.
+
+    Child headings (level > current_level) are transparent — they are skipped
+    rather than stopping the search.  Only sibling or parent headings
+    (level <= current_level) terminate the lookahead.
+    """
     body_signal = 0
     upper = min(len(lines), index + 1 + lookahead)
 
@@ -269,8 +296,13 @@ def _has_supporting_body(index: int, lines: list[str], candidate_indexes: set[in
         stripped = lines[i].strip()
         if not stripped:
             continue
-        if i in candidate_indexes:
-            return body_signal >= _MIN_BODY_WORDS_FOR_HEADING
+        if i in candidates_by_idx:
+            child_level = candidates_by_idx[i]
+            if child_level <= current_level:
+                # Sibling or parent heading → stop lookahead
+                return body_signal >= _MIN_BODY_WORDS_FOR_HEADING
+            # Child heading → transparent, keep looking
+            continue
         if _URL_ONLY_RE.match(stripped):
             continue
         body_signal += len(_WORD_RE.findall(stripped))

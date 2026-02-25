@@ -744,6 +744,13 @@ class PipelineState(TypedDict):
    - Режем по H2/H3 заголовкам и семантическим разделителям (--- , пустые строки ≥ 2)
    - Каждый структурный блок получает heading_path (хлебные крошки заголовков)
    - Сохраняем parent-child: H1 → H2 → H3
+   - **Heading inference (без markdown):** если markdown-заголовков нет, используется deterministic inference:
+     - **Section labels:** `chapter`, `section`, `part`, `annex`, `appendix`, `book`, `title` (без `article` — статьи это контент)
+     - **Outline prefixes:** `1.`, `1.1`, `IV)`, `A:` и т.п.
+     - **Capitalized title-like lines** (≥60% capitalized words, ≤12 слов)
+     - **Anti-TOC guard:** если >35% non-empty строк — heading candidates, всё отклоняется
+     - **Child-heading transparency:** при проверке supporting body дочерние заголовки (level > current) прозрачны — пропускаются. Только siblings/parents останавливают lookahead
+     - **Heading path propagation:** `current_h2` обновляется даже для bodyless parent headings, чтобы дочерние секции получили корректный heading_path
 
 2. **Второй проход — нормализация размера:**
    - Блоки > 1024 tokens → делим внутри секции по абзацам, НЕ ломая heading_path
