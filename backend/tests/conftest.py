@@ -20,3 +20,6 @@ def disable_langsmith_tracing_for_tests() -> None:
 
     settings.langsmith_tracing = False
     settings.langsmith_sampling_rate = 0.0
+    # Tests should not write extractor debug dumps to project-local folders
+    # even if WEB_EXTRACTOR_DEBUG_DUMP_DIR is set in .env.
+    settings.web_extractor_debug_dump_dir = ""
