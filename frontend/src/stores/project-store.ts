@@ -15,6 +15,7 @@ interface ProjectStore {
   reingestSource: (sourceId: string) => Promise<void>;
   createProject: (data: { title: string; description?: string; language: string }) => Promise<Project>;
   updateProjectLanguage: (id: string, language: "en" | "ru") => Promise<Project>;
+  refreshContentMapNow: (projectId: string) => Promise<{ status: string; task_id?: string | null }>;
 }
 
 export const useProjectStore = create<ProjectStore>((set) => ({
@@ -73,5 +74,9 @@ export const useProjectStore = create<ProjectStore>((set) => ({
       projects: state.projects.map((item) => (item.id === id ? project : item)),
     }));
     return project;
+  },
+
+  refreshContentMapNow: async (projectId) => {
+    return api.post(`api/projects/${projectId}/content-map/refresh`).json<{ status: string; task_id?: string | null }>();
   },
 }));

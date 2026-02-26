@@ -28,6 +28,10 @@ celery_app.conf.update(
             "task": "app.workers.ingestion_tasks.cleanup_expired_temp_sources",
             "schedule": crontab(minute=0),  # Every hour
         },
+        "sweep-dirty-content-maps": {
+            "task": "app.workers.ingestion_tasks.sweep_dirty_content_maps",
+            "schedule": crontab(minute="*"),  # Every minute
+        },
     },
 )
 

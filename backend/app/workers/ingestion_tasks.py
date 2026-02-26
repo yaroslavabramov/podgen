@@ -1,6 +1,6 @@
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from celery.exceptions import MaxRetriesExceededError
 from sqlalchemy.exc import SQLAlchemyError
@@ -11,6 +11,327 @@ from app.ingestion.web import DNSResolutionError
 from app.observability import push_trace_context, safe_set_run, trace_span, tracing_scope
 
 logger = logging.getLogger(__name__)
+
+
+_CONTENT_MAP_REBUILD_MAX_REQUEUE_ATTEMPTS = 5
+
+
+def _utcnow_naive() -> datetime:
+    """UTC naive datetime for DB columns configured without timezone."""
+    return datetime.now(tz=timezone.utc).replace(tzinfo=None)
+
+
+def _remaining_content_map_debounce_seconds(
+    *,
+    latest_requested_at: datetime | None,
+    now: datetime | None = None,
+) -> int:
+    """Compute remaining debounce delay from latest request timestamp."""
+    if latest_requested_at is None:
+        return 0
+    debounce = max(0, int(settings.content_map_rebuild_debounce_seconds))
+    if debounce <= 0:
+        return 0
+    now_dt = now or _utcnow_naive()
+    elapsed = (now_dt - latest_requested_at).total_seconds()
+    if elapsed >= debounce:
+        return 0
+    return int(round(debounce - elapsed))
+
+
+def _parse_requested_at_iso(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _is_non_retryable_content_map_error(exc: Exception) -> bool:
+    if isinstance(exc, ValueError) and "No chunks found for project" in str(exc):
+        return True
+    return False
+
+
+async def request_project_content_map_rebuild(
+    project_id: uuid.UUID | str,
+    db,
+    *,
+    force_now: bool = False,
+) -> str | None:
+    """Mark project content map as dirty and enqueue debounce rebuild task."""
+    from sqlalchemy import select
+    from app.models.project import Project
+
+    project_uuid = uuid.UUID(str(project_id))
+    result = await db.execute(
+        select(Project)
+        .where(Project.id == project_uuid)
+        .with_for_update()
+    )
+    project = result.scalar_one_or_none()
+    if project is None:
+        return None
+
+    requested_at = _utcnow_naive()
+    project.content_map_dirty = True
+    project.content_map_last_requested_at = requested_at
+    await db.commit()
+
+    countdown = 0 if force_now else max(0, int(settings.content_map_rebuild_debounce_seconds))
+    async_result = rebuild_content_map_for_project.apply_async(
+        args=[str(project_uuid)],
+        kwargs={
+            "force_now": force_now,
+            "requested_at_iso": requested_at.isoformat(),
+            "attempt": 0,
+        },
+        countdown=countdown,
+    )
+    return str(async_result.id) if getattr(async_result, "id", None) else None
+
+
+@celery_app.task(
+    name="app.workers.ingestion_tasks.rebuild_content_map_for_project",
+    bind=True,
+    max_retries=5,
+)
+def rebuild_content_map_for_project(
+    self,
+    project_id: str,
+    *,
+    force_now: bool = False,
+    requested_at_iso: str | None = None,
+    attempt: int = 0,
+) -> None:
+    import asyncio
+
+    asyncio.run(
+        _rebuild_content_map_for_project_async(
+            project_id,
+            force_now=force_now,
+            requested_at_iso=requested_at_iso,
+            attempt=attempt,
+        )
+    )
+
+
+async def _rebuild_content_map_for_project_async(
+    project_id: str,
+    *,
+    force_now: bool = False,
+    requested_at_iso: str | None = None,
+    attempt: int = 0,
+) -> None:
+    from sqlalchemy import select
+    from app.ingestion.scout import build_content_map
+    from app.models.project import Project
+    from app.workers.worker_db import worker_session_factory
+
+    task_requested_at = _parse_requested_at_iso(requested_at_iso)
+    project_uuid = uuid.UUID(project_id)
+
+    async with worker_session_factory() as db:
+        result = await db.execute(
+            select(Project)
+            .where(Project.id == project_uuid)
+            .with_for_update(skip_locked=True)
+        )
+        project = result.scalar_one_or_none()
+        if project is None:
+            return
+
+        latest_requested_at = project.content_map_last_requested_at
+        if (
+            task_requested_at is not None
+            and latest_requested_at is not None
+            and latest_requested_at > task_requested_at
+            and not force_now
+        ):
+            # Newer request exists; let the newer scheduled task handle it.
+            return
+
+        if not force_now:
+            wait_seconds = _remaining_content_map_debounce_seconds(
+                latest_requested_at=latest_requested_at,
+            )
+            if wait_seconds > 0:
+                rebuild_content_map_for_project.apply_async(
+                    args=[project_id],
+                    kwargs={
+                        "force_now": False,
+                        "requested_at_iso": latest_requested_at.isoformat() if latest_requested_at else None,
+                        "attempt": 0,
+                    },
+                    countdown=wait_seconds,
+                )
+                await db.commit()
+                return
+
+        if not project.content_map_dirty and not force_now:
+            await db.commit()
+            return
+
+        with trace_span(
+            "worker.rebuild_content_map_for_project",
+            run_type="chain",
+            inputs={
+                "project_id": project_id,
+                "force_now": force_now,
+                "requested_at_iso": requested_at_iso,
+            },
+            tags=["celery-task"],
+        ) as rebuild_run:
+            try:
+                content_map_id = await build_content_map(project_id, db)
+                project.content_map_dirty = False
+                project.content_map_last_built_at = _utcnow_naive()
+                await db.commit()
+                safe_set_run(
+                    rebuild_run,
+                    outputs={
+                        "status": "completed",
+                        "content_map_id": content_map_id,
+                    },
+                )
+            except Exception as exc:
+                await db.rollback()
+                async with worker_session_factory() as policy_db:
+                    policy_result = await policy_db.execute(select(Project).where(Project.id == project_uuid))
+                    policy_project = policy_result.scalar_one_or_none()
+                    if policy_project is None:
+                        safe_set_run(rebuild_run, outputs={"status": "failed_project_missing"})
+                        return
+
+                    if policy_project.content_map_last_requested_at is None:
+                        policy_project.content_map_last_requested_at = _utcnow_naive()
+
+                    if _is_non_retryable_content_map_error(exc):
+                        policy_project.content_map_dirty = False
+                        await policy_db.commit()
+                        logger.warning(
+                            "Content map rebuild failed for project %s with non-retryable error; stopping retries",
+                            project_id,
+                            exc_info=True,
+                        )
+                        safe_set_run(
+                            rebuild_run,
+                            outputs={
+                                "status": "failed_non_retryable",
+                                "attempt": attempt,
+                            },
+                        )
+                        return
+
+                    if attempt >= _CONTENT_MAP_REBUILD_MAX_REQUEUE_ATTEMPTS:
+                        policy_project.content_map_dirty = False
+                        await policy_db.commit()
+                        logger.warning(
+                            "Content map rebuild failed for project %s; max retry attempts reached (%d)",
+                            project_id,
+                            _CONTENT_MAP_REBUILD_MAX_REQUEUE_ATTEMPTS,
+                            exc_info=True,
+                        )
+                        safe_set_run(
+                            rebuild_run,
+                            outputs={
+                                "status": "failed_retry_exhausted",
+                                "attempt": attempt,
+                            },
+                        )
+                        return
+
+                    policy_project.content_map_dirty = True
+                    await policy_db.commit()
+
+                logger.warning(
+                    "Content map rebuild failed for project %s; scheduled retry attempt %d",
+                    project_id,
+                    attempt + 1,
+                    exc_info=True,
+                )
+                rebuild_content_map_for_project.apply_async(
+                    args=[project_id],
+                    kwargs={
+                        "force_now": False,
+                        "requested_at_iso": requested_at_iso,
+                        "attempt": attempt + 1,
+                    },
+                    countdown=max(30, int(settings.content_map_rebuild_debounce_seconds)),
+                )
+                safe_set_run(rebuild_run, outputs={"status": "failed_requeued", "attempt": attempt})
+
+
+@celery_app.task(name="app.workers.ingestion_tasks.sweep_dirty_content_maps")
+def sweep_dirty_content_maps() -> None:
+    import asyncio
+
+    asyncio.run(_sweep_dirty_content_maps_async())
+
+
+async def _sweep_dirty_content_maps_async() -> None:
+    from sqlalchemy import or_, select
+    from app.models.project import Project
+    from app.workers.worker_db import worker_session_factory
+
+    now = _utcnow_naive()
+    debounce_seconds = max(0, int(settings.content_map_rebuild_debounce_seconds))
+    due_cutoff = now - timedelta(seconds=debounce_seconds)
+
+    with trace_span(
+        "worker.sweep_dirty_content_maps",
+        run_type="chain",
+        inputs={"due_cutoff": due_cutoff.isoformat(), "debounce_seconds": debounce_seconds},
+        tags=["celery-task"],
+    ) as sweep_run:
+        async with worker_session_factory() as db:
+            result = await db.execute(
+                select(Project.id, Project.content_map_last_requested_at)
+                .where(
+                    Project.content_map_dirty.is_(True),
+                    Project.content_map_last_requested_at.is_not(None),
+                    Project.content_map_last_requested_at <= due_cutoff,
+                    or_(
+                        Project.content_map_last_built_at.is_(None),
+                        Project.content_map_last_built_at < Project.content_map_last_requested_at,
+                    ),
+                )
+                .order_by(Project.content_map_last_requested_at.asc())
+                .limit(100)
+            )
+            due_projects = result.all()
+
+        scheduled = 0
+        failed = 0
+        for project_id, requested_at in due_projects:
+            try:
+                rebuild_content_map_for_project.apply_async(
+                    args=[str(project_id)],
+                    kwargs={
+                        "force_now": False,
+                        "requested_at_iso": requested_at.isoformat() if requested_at else None,
+                        "attempt": 0,
+                    },
+                    countdown=0,
+                )
+                scheduled += 1
+            except Exception:
+                failed += 1
+                logger.warning(
+                    "Failed to enqueue content-map rebuild from sweep for project %s",
+                    project_id,
+                    exc_info=True,
+                )
+
+        safe_set_run(
+            sweep_run,
+            outputs={
+                "due_projects": len(due_projects),
+                "scheduled": scheduled,
+                "enqueue_failed": failed,
+            },
+        )
 
 
 @celery_app.task(name="app.workers.ingestion_tasks.ingest_source", bind=True, max_retries=5)
@@ -107,12 +428,26 @@ async def _ingest_source_async(source_id: str, *, reset_existing: bool = False) 
                         if source.metadata_ and isinstance(source.metadata_, dict) and "error" in source.metadata_:
                             source.metadata_ = {k: v for k, v in source.metadata_.items() if k != "error"}
                         await db.commit()
+                        content_map_task_id: str | None = None
+                        try:
+                            content_map_task_id = await request_project_content_map_rebuild(
+                                source.project_id,
+                                db,
+                                force_now=False,
+                            )
+                        except Exception:
+                            logger.warning(
+                                "Failed to enqueue debounced content map rebuild for project %s",
+                                source.project_id,
+                                exc_info=True,
+                            )
 
                         safe_set_run(
                             task_run,
                             outputs={
                                 "status": "completed",
                                 "fully_ingested": source.fully_ingested,
+                                "content_map_task_id": content_map_task_id or "",
                             },
                         )
                     except Exception as e:
@@ -243,6 +578,19 @@ async def _deep_ingest_async(source_id: str, generation_run_id: str):
                         if source.metadata_ and isinstance(source.metadata_, dict) and "error" in source.metadata_:
                             source.metadata_ = {k: v for k, v in source.metadata_.items() if k != "error"}
                         await db.commit()
+                        content_map_task_id: str | None = None
+                        try:
+                            content_map_task_id = await request_project_content_map_rebuild(
+                                source.project_id,
+                                db,
+                                force_now=False,
+                            )
+                        except Exception:
+                            logger.warning(
+                                "Failed to enqueue debounced content map rebuild for project %s",
+                                source.project_id,
+                                exc_info=True,
+                            )
 
                         # Upgrade claims referencing evidence from this source
                         try:
@@ -264,6 +612,7 @@ async def _deep_ingest_async(source_id: str, generation_run_id: str):
                             outputs={
                                 "status": "completed",
                                 "source_became_permanent": not source.is_temporary,
+                                "content_map_task_id": content_map_task_id or "",
                             },
                         )
                     except Exception:

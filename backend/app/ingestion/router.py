@@ -9,7 +9,6 @@ from app.ingestion.canonicalizer import canonicalize_sources
 from app.ingestion.chunker import structural_chunk
 from app.ingestion.normalize import normalize_text
 from app.ingestion.pdf import extract_pdf
-from app.ingestion.scout import build_content_map
 from app.ingestion.video import extract_video
 from app.ingestion.web import extract_web_with_profile
 from app.ingestion.web_quality import (
@@ -240,13 +239,6 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
                     except Exception:
                         logger.warning("Source %s: canonicalization failed, continuing", source_id, exc_info=True)
 
-                    try:
-                        with trace_span("ingestion.build_content_map", run_type="chain"):
-                            await build_content_map(str(source.project_id), db)
-                        logger.info("Source %s: content map updated", source_id)
-                    except Exception:
-                        logger.warning("Source %s: content map build failed, continuing", source_id, exc_info=True)
-
                     safe_set_run(
                         ingestion_run,
                         outputs={"chunk_count": 0, "embedded_point_count": 0, "normalized_text_chars": len(text)},
@@ -286,14 +278,6 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
                     logger.info("Source %s: canonicalization complete", source_id)
                 except Exception:
                     logger.warning("Source %s: canonicalization failed, continuing", source_id, exc_info=True)
-
-                # --- 7. Rebuild content map for project ------------------------------------
-                try:
-                    with trace_span("ingestion.build_content_map", run_type="chain"):
-                        await build_content_map(str(source.project_id), db)
-                    logger.info("Source %s: content map updated", source_id)
-                except Exception:
-                    logger.warning("Source %s: content map build failed, continuing", source_id, exc_info=True)
 
                 safe_set_run(
                     ingestion_run,

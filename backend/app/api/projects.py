@@ -7,7 +7,14 @@ from app.api.deps import CurrentUser, DB
 from app.models.project import Project
 from app.models.source import Source
 from app.models.episode import Episode
-from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse, ProjectDetailResponse, ProjectListResponse
+from app.schemas.project import (
+    ContentMapRefreshResponse,
+    ProjectCreate,
+    ProjectDetailResponse,
+    ProjectListResponse,
+    ProjectResponse,
+    ProjectUpdate,
+)
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -131,6 +138,15 @@ async def update_project(project_id: uuid.UUID, data: ProjectUpdate, user: Curre
 async def delete_project(project_id: uuid.UUID, user: CurrentUser, db: DB):
     project = await _get_user_project(project_id, user.id, db)
     await db.delete(project)
+
+
+@router.post("/{project_id}/content-map/refresh", response_model=ContentMapRefreshResponse)
+async def refresh_project_content_map(project_id: uuid.UUID, user: CurrentUser, db: DB):
+    project = await _get_user_project(project_id, user.id, db)
+    from app.workers.ingestion_tasks import request_project_content_map_rebuild
+
+    task_id = await request_project_content_map_rebuild(project.id, db, force_now=True)
+    return ContentMapRefreshResponse(status="scheduled", task_id=task_id, force_now=True)
 
 
 async def _get_user_project(project_id: uuid.UUID, user_id: uuid.UUID, db) -> Project:

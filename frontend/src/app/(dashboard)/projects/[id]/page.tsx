@@ -17,7 +17,7 @@ export default function ProjectDetailPage() {
   const t = useTranslations("projectDetailPage");
   const params = useParams();
   const id = params.id as string;
-  const { currentProject, sources, fetchProject, fetchSources, deleteSource, reingestSource, updateProjectLanguage } = useProjectStore();
+  const { currentProject, sources, fetchProject, fetchSources, deleteSource, reingestSource, updateProjectLanguage, refreshContentMapNow } = useProjectStore();
   const [activeTab, setActiveTab] = useState<"sources" | "bible" | "episodes">("sources");
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [episodesLoading, setEpisodesLoading] = useState(false);
@@ -28,6 +28,9 @@ export default function ProjectDetailPage() {
   const [deleteSourceError, setDeleteSourceError] = useState<string | null>(null);
   const [reingestingSourceId, setReingestingSourceId] = useState<string | null>(null);
   const [reingestSourceError, setReingestSourceError] = useState<string | null>(null);
+  const [refreshingContentMap, setRefreshingContentMap] = useState(false);
+  const [refreshContentMapError, setRefreshContentMapError] = useState<string | null>(null);
+  const [refreshContentMapSuccess, setRefreshContentMapSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProject(id);
@@ -108,6 +111,20 @@ export default function ProjectDetailPage() {
     }
   };
 
+  const handleRefreshContentMapNow = async () => {
+    setRefreshingContentMap(true);
+    setRefreshContentMapError(null);
+    setRefreshContentMapSuccess(null);
+    try {
+      await refreshContentMapNow(id);
+      setRefreshContentMapSuccess(t("refreshContentMapQueued"));
+    } catch {
+      setRefreshContentMapError(t("refreshContentMapFailed"));
+    } finally {
+      setRefreshingContentMap(false);
+    }
+  };
+
   if (!currentProject || currentProject.id !== id) return <div className="p-8 text-muted-foreground">{t("loading")}</div>;
 
   return (
@@ -173,6 +190,21 @@ export default function ProjectDetailPage() {
 
         {activeTab === "sources" && (
           <div className="space-y-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                variant="outline"
+                onClick={handleRefreshContentMapNow}
+                disabled={refreshingContentMap}
+              >
+                {refreshingContentMap ? t("refreshingContentMap") : t("refreshContentMapNow")}
+              </Button>
+              {refreshContentMapSuccess && (
+                <p className="text-sm text-emerald-600">{refreshContentMapSuccess}</p>
+              )}
+              {refreshContentMapError && (
+                <p className="text-sm text-destructive">{refreshContentMapError}</p>
+              )}
+            </div>
             <SourceUploader projectId={id} onUploaded={() => fetchSources(id)} />
             {deleteSourceError && <p className="text-sm text-destructive">{deleteSourceError}</p>}
             {reingestSourceError && <p className="text-sm text-destructive">{reingestSourceError}</p>}

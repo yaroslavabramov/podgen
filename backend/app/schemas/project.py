@@ -40,3 +40,9 @@ class ProjectDetailResponse(ProjectResponse):
 class ProjectListResponse(BaseModel):
     items: list[ProjectResponse]
     total: int
+
+
+class ContentMapRefreshResponse(BaseModel):
+    status: str
+    task_id: str | None = None
+    force_now: bool = True
