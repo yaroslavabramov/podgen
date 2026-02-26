@@ -5,6 +5,7 @@ import pytest
 from app.ingestion.web import (
     DNSResolutionError,
     _dump_extractor_output,
+    _extract_jina_title,
     _extract_wikipedia_revision_date,
     _find_pdf_candidate_url_from_markdown,
     _is_navigation_heavy_jina_text,
@@ -247,6 +248,59 @@ def test_extract_wikipedia_revision_date_returns_none_on_missing_revision() -> N
     assert _extract_wikipedia_revision_date({"revisions": [{"timestamp": "invalid"}]}) is None
 
 
+def test_extract_jina_title_uses_setext_heading_when_title_line_missing() -> None:
+    payload = (
+        "Published Time: 1951-01-01\n"
+        "Open external link\n"
+        "==================\n"
+        "Evolution of the Colonial Sterling Exchange Standard\n"
+        "====================================================\n"
+        "Body starts here.\n"
+    )
+
+    assert _extract_jina_title(payload) == "Evolution of the Colonial Sterling Exchange Standard"
+
+
+def test_extract_jina_title_uses_setext_when_title_line_is_na() -> None:
+    payload = (
+        "Title: N/A\n"
+        "Lessons from history - HSBC History\n"
+        "===================================\n"
+        "Main body.\n"
+    )
+
+    assert _extract_jina_title(payload) == "Lessons from history - HSBC History"
+
+
+def test_extract_jina_title_keeps_explicit_valid_title() -> None:
+    payload = (
+        "Title: Hong Kong Monetary Authority\n"
+        "## Heading\n"
+        "Body.\n"
+    )
+
+    assert _extract_jina_title(payload) == "Hong Kong Monetary Authority"
+
+
+def test_extract_jina_title_fallback_skips_raw_title_metadata_line() -> None:
+    payload = (
+        "Title: N/A\n"
+        "Body content starts here.\n"
+    )
+
+    assert _extract_jina_title(payload) == "Body content starts here."
+
+
+def test_extract_jina_title_allows_legit_search_prefixed_heading() -> None:
+    payload = (
+        "Search Engine Market Structure\n"
+        "==============================\n"
+        "Body.\n"
+    )
+
+    assert _extract_jina_title(payload) == "Search Engine Market Structure"
+
+
 def test_dump_extractor_output_writes_file(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "app.ingestion.web.settings.web_extractor_debug_dump_dir",
@@ -257,18 +311,22 @@ def test_dump_extractor_output_writes_file(tmp_path, monkeypatch: pytest.MonkeyP
     _dump_extractor_output(
         url="https://example.com/article",
         extractor="jina",
-        status="success",
+        status="error",
         text="hello world",
         title="Example",
         date="2026-02-25",
+        error="boom",
+        error_type="RuntimeError",
     )
 
     files = list(tmp_path.glob("*.md"))
     assert len(files) == 1
     content = files[0].read_text(encoding="utf-8")
     assert "extractor: jina" in content
-    assert "status: success" in content
+    assert "status: error" in content
     assert "text_chars: 11" in content
+    assert "error: boom" in content
+    assert "error_type: RuntimeError" in content
     assert "hello world" in content
 
 

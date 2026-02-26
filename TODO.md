@@ -86,6 +86,7 @@
 - [ ] End-to-end tests
 - [ ] Step-mode API/worker integration tests (`/steps/next`, `/steps/rerun`, `/steps/stop`, checkpoint rewind, stop ack path)
 - [ ] Step-mode concurrency hardening (single in-flight action guarantee under concurrent requests)
+- [ ] Ingestion content-map consistency under concurrent source ingests (ensure project map build sees full committed corpus, not a partial subset when multiple ingests finish close together)
 - [ ] Structured-output hardening: migrate rigid JSON nodes from freeform JSON + `parse_llm_json` to Anthropic tool_use/json-schema
 - [x] Web ingestion quality gates (A/B/C): anti-bot detection, web cleaner, metadata eligibility gate before canonicalizer date extraction
 - [x] Canonicalizer date extraction hardening: replace any bare `json.loads(raw)` with tolerant parser helper + persist extraction status/reason in source metadata

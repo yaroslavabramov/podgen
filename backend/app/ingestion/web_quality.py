@@ -9,22 +9,33 @@ from urllib.parse import unquote, urlparse
 _NBSP_CHARS_RE = re.compile(r"[\u00a0\u2007\u202f\u2060\ufeff]")
 _INLINE_IMAGE_RE = re.compile(r"!\[[^\]]*]\([^)]*\)")
 _INLINE_LINK_RE = re.compile(r"\[([^\]]+)]\((?:https?://|/)[^)]+\)")
+_EMPTY_INLINE_LINK_RE = re.compile(r"\[\s*]\((?:https?://|/)[^)]+\)", re.IGNORECASE)
 _LINK_REF_DEF_RE = re.compile(r"^\[[^\]]+]:\s+\S+\s*$", re.IGNORECASE)
 _DIVIDER_RE = re.compile(r"^[-=*_]{3,}$")
 _SETEXT_UNDERLINE_RE = re.compile(r"^[-=]{3,}$")
 _MARKDOWN_HEADER_RE = re.compile(r"^#{1,6}\s+(.+)$")
 _TITLE_LINE_RE = re.compile(r"^\s*title:\s*(.+)$", re.IGNORECASE)
-_HAS_WORD_RE = re.compile(r"[A-Za-zА-Яа-я0-9]")
+_HAS_WORD_RE = re.compile(r"[^\W_]", re.UNICODE)
 _URL_ONLY_RE = re.compile(r"^https?://\S+$", re.IGNORECASE)
 _MULTI_SPACE_RE = re.compile(r"[^\S\n]+")
 _TRAILING_SPACE_RE = re.compile(r" +\n")
 _TOO_MANY_NEWLINES_RE = re.compile(r"\n{3,}")
 _JS_LINK_ONLY_RE = re.compile(r"^\[[^\]]*]\(\s*javascript:.*\)$", re.IGNORECASE)
+_EMPTY_LINK_ONLY_RE = re.compile(r"^\[[^\]]*]\((?:https?://|/)[^)]+\)$", re.IGNORECASE)
 _BULLET_PREFIX_RE = re.compile(r"^(?:[-*+]\s+|\d+[.)]\s+)*(?:\[[ xX]\]\s*)*")
 _NAV_LINE_RE = re.compile(
-    r"^(skip to (main )?content|home|menu|search|sign in|login|subscribe|cookie(s)?|privacy|terms|contact)\b",
+    r"^(skip to(?::|\b)|home|menu|search|sign in|login|subscribe|cookie(s)?|privacy|terms|contact)\b",
     re.IGNORECASE,
 )
+_SERVICE_LINE_RE = re.compile(
+    r"^(published time:\s*\d{4}-\d{2}-\d{2}|loading\s+\[[^\]]+].*|dismiss this warning)$",
+    re.IGNORECASE,
+)
+_TITLE_NOISE_RE = re.compile(
+    r"^(topics|countries|series|resources|about|search|menu|home|open external link|external links?)$",
+    re.IGNORECASE,
+)
+_TITLE_TOKEN_RE = re.compile(r"[^\W_]+", re.UNICODE)
 
 _HTTP_403_ERROR_RE = re.compile(
     r"(target url returned error\s*403|returned error\s*403|status(?: code)?\s*[:=]?\s*403|error\s*[:=]?\s*403|^403\s+forbidden\b|403:\s*forbidden)",
@@ -92,6 +103,7 @@ def clean_web_text(text: str) -> str:
         return text
 
     cleaned = _INLINE_IMAGE_RE.sub(" ", text)
+    cleaned = _EMPTY_INLINE_LINK_RE.sub(" ", cleaned)
     cleaned = _INLINE_LINK_RE.sub(r"\1", cleaned)
 
     lines = cleaned.splitlines()
@@ -106,11 +118,17 @@ def clean_web_text(text: str) -> str:
             continue
         if _JS_LINK_ONLY_RE.match(stripped):
             continue
+        if _EMPTY_LINK_ONLY_RE.match(stripped):
+            continue
         if _DIVIDER_RE.match(stripped) and not _is_setext_underline(lines, idx):
+            continue
+        if _SERVICE_LINE_RE.match(stripped):
             continue
 
         nav_candidate = _normalize_nav_candidate(stripped)
         if _NAV_LINE_RE.match(nav_candidate) and len(nav_candidate) <= 80:
+            continue
+        if _looks_like_top_navigation_cluster_line(stripped, nav_candidate, idx, lines):
             continue
         if _URL_ONLY_RE.match(stripped):
             continue
@@ -129,17 +147,56 @@ def resolve_web_title(
     url: str | None,
 ) -> str | None:
     """Pick the best available title from explicit title, content, or URL."""
-    for candidate in (
+    title, _meta = resolve_web_title_detailed(
         extracted_title,
-        _title_from_title_line(text),
-        _title_from_markdown_heading(text),
-        _title_from_first_meaningful_line(text),
-        _title_from_url(url),
-    ):
-        normalized = _normalize_title(candidate)
-        if normalized:
-            return normalized
-    return None
+        text=text,
+        url=url,
+    )
+    return title
+
+
+def resolve_web_title_detailed(
+    extracted_title: str | None,
+    *,
+    text: str,
+    url: str | None,
+) -> tuple[str | None, dict[str, int | str]]:
+    """Resolve title with scored candidates and include compact diagnostics."""
+    raw_candidates = [
+        ("extracted_title", extracted_title),
+        ("title_line", _title_from_title_line(text)),
+        ("setext_heading", _title_from_setext_heading(text)),
+        ("markdown_heading", _title_from_markdown_heading(text)),
+        ("first_meaningful", _title_from_first_meaningful_line(text)),
+        ("url_slug", _title_from_url(url)),
+    ]
+
+    scored: list[tuple[int, str, str]] = []
+    top_lines = [line.strip() for line in text.splitlines()[:120] if line.strip()]
+    for source, raw in raw_candidates:
+        normalized = _normalize_title(raw)
+        if not normalized:
+            continue
+        score = _score_title_candidate(
+            normalized,
+            source=source,
+            top_lines=top_lines,
+            url=url,
+        )
+        scored.append((score, source, normalized))
+
+    if not scored:
+        return None, {"title_candidate_count": 0, "title_source": "none"}
+
+    scored.sort(key=lambda item: (item[0], len(item[2])), reverse=True)
+    best_score, best_source, best_title = scored[0]
+    if best_score < 0:
+        return None, {"title_candidate_count": len(scored), "title_source": "rejected"}
+    return best_title, {
+        "title_candidate_count": len(scored),
+        "title_source": best_source,
+        "title_score": best_score,
+    }
 
 
 def _drop_repeated_short_lines(lines: list[str], *, threshold: int = 3, max_len: int = 100) -> list[str]:
@@ -198,6 +255,21 @@ def _title_from_markdown_heading(text: str) -> str | None:
     return None
 
 
+def _title_from_setext_heading(text: str) -> str | None:
+    lines = text.splitlines()[:180]
+    for idx in range(len(lines) - 1):
+        current = lines[idx].strip()
+        underline = lines[idx + 1].strip()
+        if not current or not _SETEXT_UNDERLINE_RE.match(underline):
+            continue
+        if _NAV_LINE_RE.match(_normalize_nav_candidate(current)):
+            continue
+        if _SERVICE_LINE_RE.match(current):
+            continue
+        return current
+    return None
+
+
 def _title_from_first_meaningful_line(text: str) -> str | None:
     for line in text.splitlines()[:120]:
         stripped = line.strip()
@@ -206,6 +278,10 @@ def _title_from_first_meaningful_line(text: str) -> str | None:
         if _NAV_LINE_RE.match(_normalize_nav_candidate(stripped)):
             continue
         if _DIVIDER_RE.match(stripped):
+            continue
+        if _SERVICE_LINE_RE.match(stripped):
+            continue
+        if _EMPTY_LINK_ONLY_RE.match(stripped):
             continue
         if not _HAS_WORD_RE.search(stripped):
             continue
@@ -250,6 +326,97 @@ def _normalize_nav_candidate(line: str) -> str:
     candidate = _BULLET_PREFIX_RE.sub("", line).strip()
     candidate = re.sub(r"^[>\[\]()\s]+", "", candidate).strip()
     return candidate
+
+
+def _looks_like_top_navigation_cluster_line(
+    original_line: str,
+    nav_candidate: str,
+    idx: int,
+    lines: list[str],
+) -> bool:
+    """Drop obvious top-of-page nav clusters without removing article headings."""
+    if idx > 80:
+        return False
+    if _is_setext_title_line(lines, idx):
+        return False
+    if len(nav_candidate) < 12 or len(nav_candidate) > 180:
+        return False
+    if re.search(r"[.!?。！？]", nav_candidate):
+        return False
+    if nav_candidate.count("|") >= 2:
+        return True
+
+    tokens = _TITLE_TOKEN_RE.findall(nav_candidate)
+    if len(tokens) < 6:
+        return False
+
+    short_tokens = sum(1 for token in tokens if len(token) <= 4)
+    alpha_tokens = [token for token in tokens if any(ch.isalpha() for ch in token)]
+    if not alpha_tokens:
+        return False
+    titlecase_ratio = _titlecase_ratio(alpha_tokens)
+    camelcase_noise = _camelcase_token_count(tokens)
+    has_bullets = original_line.lstrip().startswith(("*", "-", "+"))
+
+    if has_bullets and short_tokens >= 4 and titlecase_ratio >= 0.6:
+        return True
+    if camelcase_noise >= 2 and short_tokens >= 3:
+        return True
+    return False
+
+
+def _score_title_candidate(
+    title: str,
+    *,
+    source: str,
+    top_lines: list[str],
+    url: str | None,
+) -> int:
+    source_score = {
+        "extracted_title": 40,
+        "title_line": 28,
+        "setext_heading": 24,
+        "markdown_heading": 18,
+        "first_meaningful": 14,
+        "url_slug": 2,
+    }.get(source, 0)
+    score = source_score
+
+    lowered = title.lower().strip()
+    if _TITLE_NOISE_RE.match(title):
+        score -= 80
+    if _NAV_LINE_RE.match(_normalize_nav_candidate(title)):
+        score -= 40
+    if _SERVICE_LINE_RE.match(title):
+        score -= 40
+    if len(title) < 8:
+        score -= 15
+    if len(title) > 180:
+        score -= 12
+    if not _HAS_WORD_RE.search(title):
+        score -= 40
+
+    if re.search(r"\d{4}", title):
+        score += 4
+    if re.search(r"[.!?。！？]", title):
+        score += 2
+
+    repeated = 0
+    for line in top_lines:
+        if line.lower() == lowered:
+            repeated += 1
+    if repeated >= 3:
+        score -= 15
+    elif repeated == 2:
+        score -= 8
+
+    if source != "url_slug" and url:
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
+        if lowered == host:
+            score -= 25
+
+    return score
 
 
 def _is_setext_underline(lines: list[str], idx: int) -> bool:
@@ -302,6 +469,38 @@ def _next_non_empty_line(lines: list[str], idx: int) -> str | None:
             return lines[idx]
         idx += 1
     return None
+
+
+def _is_setext_title_line(lines: list[str], idx: int) -> bool:
+    if idx + 1 >= len(lines):
+        return False
+    return _SETEXT_UNDERLINE_RE.match(lines[idx + 1].strip()) is not None
+
+
+def _titlecase_ratio(tokens: list[str]) -> float:
+    alpha_tokens = 0
+    titlecase_like = 0
+    for token in tokens:
+        first_alpha = next((ch for ch in token if ch.isalpha()), "")
+        if not first_alpha:
+            continue
+        alpha_tokens += 1
+        if first_alpha.isupper():
+            titlecase_like += 1
+    return titlecase_like / max(1, alpha_tokens)
+
+
+def _camelcase_token_count(tokens: list[str]) -> int:
+    count = 0
+    for token in tokens:
+        if len(token) < 10:
+            continue
+        if not any(ch.islower() for ch in token) or not any(ch.isupper() for ch in token):
+            continue
+        inner_upper = sum(1 for ch in token[1:] if ch.isupper())
+        if inner_upper >= 2:
+            count += 1
+    return count
 
 
 def _normalize_whitespace(text: str) -> str:

@@ -1,4 +1,9 @@
-from app.ingestion.web_quality import assess_web_fetch_health, clean_web_text, resolve_web_title
+from app.ingestion.web_quality import (
+    assess_web_fetch_health,
+    clean_web_text,
+    resolve_web_title,
+    resolve_web_title_detailed,
+)
 
 
 def test_gate_a_blocks_captcha_pages() -> None:
@@ -96,6 +101,34 @@ def test_clean_web_text_preserves_setext_heading_structure() -> None:
     assert "substantive content" in cleaned
 
 
+def test_clean_web_text_removes_empty_links_and_service_lines() -> None:
+    raw = (
+        "Published Time: 1951-01-01\n"
+        "Loading [MathJax]/extensions/MathMenu.js\n"
+        "[](https://example.com/track)\n"
+        "The article body starts here.\n"
+    )
+
+    cleaned = clean_web_text(raw)
+
+    assert "Published Time:" not in cleaned
+    assert "Loading [MathJax]" not in cleaned
+    assert "https://example.com/track" not in cleaned
+    assert "article body starts here" in cleaned.lower()
+
+
+def test_clean_web_text_keeps_normal_bullet_sentence() -> None:
+    raw = (
+        "* A practical explanation of the linked exchange rate system is provided below.\n"
+        "This paragraph continues with concrete details.\n"
+    )
+
+    cleaned = clean_web_text(raw)
+
+    assert "practical explanation of the linked exchange rate system" in cleaned.lower()
+    assert "paragraph continues" in cleaned.lower()
+
+
 def test_clean_web_text_removes_bullet_nav_and_js_placeholder_lines() -> None:
     raw = (
         "* [Skip to Main content](https://example.com/#main)\n"
@@ -122,3 +155,49 @@ def test_resolve_web_title_falls_back_to_heading() -> None:
     title = resolve_web_title(None, text=text, url="https://www.hkma.gov.hk/eng/foo/bar/")
 
     assert title == "History of Note-Issuing Banks in Hong Kong"
+
+
+def test_resolve_web_title_prefers_setext_over_generic_heading() -> None:
+    text = (
+        "# Topics\n"
+        "Evolution of the Colonial Sterling Exchange Standard\n"
+        "====================================================\n"
+        "Body content.\n"
+    )
+
+    title = resolve_web_title(None, text=text, url="https://www.elibrary.imf.org/view/...")
+
+    assert title == "Evolution of the Colonial Sterling Exchange Standard"
+
+
+def test_resolve_web_title_keeps_good_extracted_title() -> None:
+    text = (
+        "# Topics\n"
+        "Open external link\n"
+        "Body text.\n"
+    )
+
+    title = resolve_web_title(
+        "Hong Kong Monetary Authority",
+        text=text,
+        url="https://en.wikipedia.org/wiki/Hong_Kong_Monetary_Authority",
+    )
+
+    assert title == "Hong Kong Monetary Authority"
+
+
+def test_resolve_web_title_drops_generic_extracted_title() -> None:
+    text = (
+        "Lessons from history - HSBC History\n"
+        "===================================\n"
+        "Body text.\n"
+    )
+
+    title, meta = resolve_web_title_detailed(
+        "Open external link",
+        text=text,
+        url="https://history.hsbc.com/history/lessons",
+    )
+
+    assert title == "Lessons from history - HSBC History"
+    assert meta["title_source"] == "setext_heading"

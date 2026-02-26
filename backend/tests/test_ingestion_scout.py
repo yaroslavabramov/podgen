@@ -1,9 +1,12 @@
 import uuid
 from datetime import datetime
 
+import pytest
+
 from app.ingestion.scout import (
     _build_heading_clusters,
     _build_source_summaries,
+    _extract_content_map,
     _extract_lead,
     _is_navigation_noise_section,
     _strip_overlap_prefix_for_lead,
@@ -633,3 +636,79 @@ def test_build_source_summaries_filters_deep_taxonomy_navigation_section() -> No
     assert len(summaries) == 1
     assert summaries[0]["section_count"] == 1
     assert summaries[0]["sections"][0]["headings"] == ["Appendix"]
+
+
+def test_build_source_summaries_filters_short_external_links_section() -> None:
+    source_id = uuid.uuid4()
+    rows = [
+        (
+            _chunk(
+                source_id,
+                content="Official website",
+                heading_path=["External links"],
+                chunk_index=0,
+                token_count=80,
+            ),
+            source_id,
+            "Wiki-like Source",
+            "web",
+            "https://example.com/wiki",
+            None,
+        ),
+        (
+            _chunk(
+                source_id,
+                content="The HKMA manages currency stability through the linked exchange rate system.",
+                heading_path=["Monetary stability"],
+                chunk_index=1,
+                token_count=420,
+            ),
+            source_id,
+            "Wiki-like Source",
+            "web",
+            "https://example.com/wiki",
+            None,
+        ),
+    ]
+
+    summaries = _build_source_summaries(rows)
+    assert len(summaries) == 1
+    headings = [section["headings"][-1] for section in summaries[0]["sections"] if section["headings"]]
+    assert "External links" not in headings
+    assert "Monetary stability" in headings
+
+
+@pytest.mark.asyncio
+async def test_extract_content_map_prompt_enforces_groundedness(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, str] = {}
+
+    async def _fake_call_haiku_structured(*, system: str, prompt: str, max_tokens: int, temperature: float) -> str:
+        captured["system"] = system
+        captured["prompt"] = prompt
+        return (
+            '{"topics":[],"entities":[],"key_terms":[],"source_coverage":[],"gaps":[],"summary":"ok"}'
+        )
+
+    monkeypatch.setattr("app.ingestion.scout.call_haiku_structured", _fake_call_haiku_structured)
+
+    result = await _extract_content_map(
+        [
+            {
+                "source_id": "s1",
+                "source": "Source",
+                "type": "web",
+                "url": "https://example.com",
+                "published_at": None,
+                "total_tokens": 100,
+                "chunk_count": 1,
+                "section_count": 1,
+                "structure_depth": 1,
+                "sections": [{"headings": ["History"], "lead": "Fact sentence.", "token_count": 100}],
+            }
+        ],
+        [],
+    )
+
+    assert result["summary"] == "ok"
+    assert "Ground every topic/entity/key_term/gap in the provided source_summaries only." in captured["system"]
+    assert "Do not introduce entities or terms from prior knowledge; if uncertain, omit." in captured["system"]

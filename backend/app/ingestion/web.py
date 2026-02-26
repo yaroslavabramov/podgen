@@ -23,6 +23,18 @@ _JINA_PUBLISHED_TIME_RE = re.compile(r"^\s*Published Time:\s*(\d{4}-\d{2}-\d{2})
 _JINA_LINK_RE = re.compile(
     r"\[([^\]]{1,240})\]\((\S+?)(?:\s+\"[^\"]*\"|\s+'[^']*')?\)"
 )
+_JINA_SETEXT_UNDERLINE_RE = re.compile(r"^\s*[=-]{3,}\s*$")
+_JINA_ATX_HEADING_RE = re.compile(r"^\s*#{1,6}\s+(.+?)\s*$")
+_JINA_EMPTY_LINK_LINE_RE = re.compile(r"^\s*\[[^\]]*]\((?:https?://|/)[^)]+\)\s*$", re.IGNORECASE)
+_JINA_URL_ONLY_RE = re.compile(r"^\s*https?://\S+\s*$", re.IGNORECASE)
+_JINA_SERVICE_LINE_RE = re.compile(
+    r"^\s*(published time:|loading \[|jump to content|dismiss this warning|skip to:)\s*",
+    re.IGNORECASE,
+)
+_JINA_GENERIC_TITLE_RE = re.compile(
+    r"^(open external link|topics|countries|series|resources|about|search|menu|home|external links?)$",
+    re.IGNORECASE,
+)
 _WIKI_SECTION_RE = re.compile(r"^(={2,6})\s*(.*?)\s*\1\s*$", re.MULTILINE)
 _WIKI_TIMESTAMP_DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})T")
 _PDF_URL_HINT_RE = re.compile(r"\.pdf(?:$|[?#])|/downloadpdf/", re.IGNORECASE)
@@ -69,6 +81,7 @@ _BLOCKED_NETWORKS = [
 _MAX_BYTES = settings.web_max_file_size_mb * 1024 * 1024  # 50 MB default
 _TIMEOUT = settings.web_fetch_timeout                      # 30s default
 _MAX_REDIRECTS = 5
+_JINA_TITLE_SCAN_LINES = 200
 _DEFAULT_FETCH_HEADERS = {
     "User-Agent": settings.web_user_agent,
     "Accept-Language": settings.web_accept_language,
@@ -145,6 +158,7 @@ def _dump_extractor_output(
     title: str | None = None,
     date: str | None = None,
     error: str | None = None,
+    error_type: str | None = None,
 ) -> None:
     """Write raw extractor output to disk when debug dump dir is configured."""
     dump_dir = (settings.web_extractor_debug_dump_dir or "").strip()
@@ -171,6 +185,8 @@ def _dump_extractor_output(
         ]
         if error:
             lines.append(f"error: {error}")
+        if error_type:
+            lines.append(f"error_type: {error_type}")
         lines.extend(["", text or ""])
 
         (path / filename).write_text("\n".join(lines), encoding="utf-8")
@@ -249,6 +265,86 @@ def _extract_jina_published_date(text: str) -> str | None:
     return None
 
 
+def _normalize_jina_title_candidate(raw: str | None) -> str | None:
+    if not raw:
+        return None
+    candidate = raw.strip()
+    if not candidate:
+        return None
+    candidate = _JINA_LINK_RE.sub(r"\1", candidate)
+    candidate = re.sub(r"^[#>\-\s]+", "", candidate)
+    candidate = re.sub(r"\s+", " ", candidate).strip(" '\"")
+    if not candidate:
+        return None
+    lowered = candidate.lower()
+    if lowered in {"n/a", "na", "none", "null", "untitled"}:
+        return None
+    if _JINA_GENERIC_TITLE_RE.match(candidate):
+        return None
+    if _JINA_SERVICE_LINE_RE.match(candidate):
+        return None
+    if len(candidate) < 3 or len(candidate) > 220:
+        return None
+    if not any(ch.isalpha() or ch.isdigit() for ch in candidate):
+        return None
+    return candidate
+
+
+def _extract_jina_title(text: str) -> str | None:
+    if not text:
+        return None
+
+    lines = text.splitlines()[:_JINA_TITLE_SCAN_LINES]
+
+    # 1) Explicit "Title: ..." metadata line (when present).
+    for line in lines[:80]:
+        match = _JINA_TITLE_RE.match(line)
+        if not match:
+            continue
+        candidate = _normalize_jina_title_candidate(match.group(1))
+        if candidate:
+            return candidate
+
+    # 2) Setext heading at top of markdown.
+    for idx in range(len(lines) - 1):
+        heading_line = lines[idx].strip()
+        underline = lines[idx + 1].strip()
+        if not heading_line or not _JINA_SETEXT_UNDERLINE_RE.match(underline):
+            continue
+        candidate = _normalize_jina_title_candidate(heading_line)
+        if candidate:
+            return candidate
+
+    # 3) ATX markdown heading (# ...).
+    for line in lines:
+        match = _JINA_ATX_HEADING_RE.match(line)
+        if not match:
+            continue
+        candidate = _normalize_jina_title_candidate(match.group(1))
+        if candidate:
+            return candidate
+
+    # 4) First meaningful line fallback.
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        # Ignore raw metadata rows like "Title: ..."; only the normalized value
+        # from step 1 can be used as a title candidate.
+        if _JINA_TITLE_RE.match(stripped):
+            continue
+        if _JINA_EMPTY_LINK_LINE_RE.match(stripped):
+            continue
+        if _JINA_URL_ONLY_RE.match(stripped):
+            continue
+        if _JINA_SERVICE_LINE_RE.match(stripped):
+            continue
+        candidate = _normalize_jina_title_candidate(stripped)
+        if candidate:
+            return candidate
+    return None
+
+
 def _find_pdf_candidate_url_from_markdown(text: str, *, base_url: str) -> str | None:
     base_host = (urlparse(base_url).hostname or "").lower()
     if not base_host:
@@ -317,6 +413,12 @@ async def _extract_pdf_from_url(url: str) -> tuple[str, str | None, str | None] 
 
 
 async def extract_web(url: str) -> tuple[str, str | None, str | None]:
+    """Backward-compatible wrapper for extraction result without profile."""
+    text, title, date, _profile = await extract_web_with_profile(url)
+    return text, title, date
+
+
+async def extract_web_with_profile(url: str) -> tuple[str, str | None, str | None, str]:
     """Extract content from a URL.
 
     Strategy:
@@ -325,7 +427,7 @@ async def extract_web(url: str) -> tuple[str, str | None, str | None]:
       3. Last resort: raw httpx fetch + basic HTML stripping.
 
     Returns:
-        (text_content, title_or_none, published_date_str_or_none)
+        (text_content, title_or_none, published_date_str_or_none, extraction_profile)
 
     Raises:
         ValueError: On SSRF violation or invalid URL.
@@ -348,13 +450,14 @@ async def extract_web(url: str) -> tuple[str, str | None, str | None]:
                     date=date,
                 )
                 logger.info("Direct PDF extraction succeeded for %s (%d chars)", url, len(text))
-                return text, title, date
-        except Exception:
+                return text, title, date, "web_pdf_direct"
+        except Exception as exc:
             _dump_extractor_output(
                 url=url,
                 extractor="web_pdf_direct",
                 status="error",
-                error="exception during direct pdf extraction",
+                error=str(exc),
+                error_type=type(exc).__name__,
             )
             logger.warning("Direct PDF extraction failed for %s; continuing cascade", url, exc_info=True)
 
@@ -373,7 +476,7 @@ async def extract_web(url: str) -> tuple[str, str | None, str | None]:
                     date=date,
                 )
                 logger.info("MediaWiki API succeeded for %s (%d chars)", url, len(text))
-                return text, title, date
+                return text, title, date, "mediawiki"
             _dump_extractor_output(
                 url=url,
                 extractor="mediawiki",
@@ -383,12 +486,13 @@ async def extract_web(url: str) -> tuple[str, str | None, str | None]:
                 date=date,
             )
             logger.warning("MediaWiki API returned empty text for %s; falling back", url)
-    except Exception:
+    except Exception as exc:
         _dump_extractor_output(
             url=url,
             extractor="mediawiki",
             status="error",
-            error="exception during mediawiki extraction",
+            error=str(exc),
+            error_type=type(exc).__name__,
         )
         logger.warning("MediaWiki API failed for %s; falling back", url, exc_info=True)
 
@@ -408,7 +512,7 @@ async def extract_web(url: str) -> tuple[str, str | None, str | None]:
                     date=date,
                 )
                 logger.info("Trafilatura succeeded for %s (%d chars)", url, len(text))
-                return text, title, date
+                return text, title, date, "trafilatura"
             elif blocked:
                 _dump_extractor_output(
                     url=url,
@@ -429,12 +533,13 @@ async def extract_web(url: str) -> tuple[str, str | None, str | None]:
                     date=date,
                 )
                 logger.warning("Trafilatura returned empty for %s, trying Jina", url)
-    except Exception:
+    except Exception as exc:
         _dump_extractor_output(
             url=url,
             extractor="trafilatura",
             status="error",
-            error="exception during trafilatura extraction",
+            error=str(exc),
+            error_type=type(exc).__name__,
         )
         logger.warning("Trafilatura failed for %s, trying Jina", url, exc_info=True)
 
@@ -479,13 +584,14 @@ async def extract_web(url: str) -> tuple[str, str | None, str | None]:
                                     pdf_candidate_url,
                                     len(pdf_text),
                                 )
-                                return pdf_text, (pdf_title or title), chosen_date
-                        except Exception:
+                                return pdf_text, (pdf_title or title), chosen_date, "web_pdf_promoted"
+                        except Exception as exc:
                             _dump_extractor_output(
                                 url=pdf_candidate_url,
                                 extractor="web_pdf_promoted",
                                 status="error",
-                                error="exception during promoted pdf extraction",
+                                error=str(exc),
+                                error_type=type(exc).__name__,
                             )
                             logger.warning(
                                 "Promoted PDF extraction failed for %s via %s; keeping Jina text",
@@ -502,7 +608,7 @@ async def extract_web(url: str) -> tuple[str, str | None, str | None]:
                         date=jina_date,
                     )
                     logger.info("Jina Reader succeeded for %s (%d chars)", url, len(text))
-                    return text, title, jina_date
+                    return text, title, jina_date, "jina"
             else:
                 _dump_extractor_output(
                     url=url,
@@ -512,12 +618,13 @@ async def extract_web(url: str) -> tuple[str, str | None, str | None]:
                     title=title,
                 )
                 logger.warning("Jina Reader returned empty for %s, falling back", url)
-        except Exception:
+        except Exception as exc:
             _dump_extractor_output(
                 url=url,
                 extractor="jina",
                 status="error",
-                error="exception during jina extraction",
+                error=str(exc),
+                error_type=type(exc).__name__,
             )
             logger.warning("Jina Reader failed for %s, falling back to httpx", url, exc_info=True)
 
@@ -531,7 +638,7 @@ async def extract_web(url: str) -> tuple[str, str | None, str | None]:
         title=title,
     )
     logger.info("httpx fallback succeeded for %s (%d chars)", url, len(text))
-    return text, title, None
+    return text, title, None, "httpx"
 
 
 async def _trafilatura_extract(url: str) -> tuple[str, str | None, str | None] | None:
@@ -583,18 +690,7 @@ async def _jina_extract(url: str) -> tuple[str, str | None]:
 
     response = await _safe_fetch(jina_url, headers=headers)
     text = response.text
-
-    title: str | None = None
-    for line in text.splitlines()[:40]:
-        match = _JINA_TITLE_RE.match(line)
-        if not match:
-            continue
-        candidate = match.group(1).strip()
-        if candidate and candidate.lower() not in {"n/a", "na", "none", "null"}:
-            title = candidate
-            break
-
-    return text, title
+    return text, _extract_jina_title(text)
 
 
 async def _httpx_extract(url: str) -> tuple[str, str | None]:

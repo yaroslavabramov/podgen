@@ -11,8 +11,12 @@ from app.ingestion.normalize import normalize_text
 from app.ingestion.pdf import extract_pdf
 from app.ingestion.scout import build_content_map
 from app.ingestion.video import extract_video
-from app.ingestion.web import extract_web
-from app.ingestion.web_quality import assess_web_fetch_health, clean_web_text, resolve_web_title
+from app.ingestion.web import extract_web_with_profile
+from app.ingestion.web_quality import (
+    assess_web_fetch_health,
+    clean_web_text,
+    resolve_web_title_detailed,
+)
 from app.models.project import Project
 from app.models.source import Source, SourceType
 from app.observability import push_trace_context, safe_set_run, trace_span, tracing_scope
@@ -53,11 +57,16 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
                 text: str
                 extracted_title: str | None = None
                 extracted_date: str | None = None
+                web_extraction_profile: str | None = None
                 web_quality_state: str | None = None
                 web_quality_reasons: list[str] = []
                 blocked_web_source = False
 
-                with trace_span("ingestion.extract", run_type="tool", inputs={"source_type": source.source_type}):
+                with trace_span(
+                    "ingestion.extract",
+                    run_type="tool",
+                    inputs={"source_type": source.source_type},
+                ) as extract_run:
                     match source.source_type:
                         case SourceType.PDF:
                             if not source.file_path:
@@ -67,7 +76,12 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
                         case SourceType.WEB:
                             if not source.original_url:
                                 raise ValueError(f"Source {source_id} is WEB but has no original_url")
-                            text, extracted_title, extracted_date = await extract_web(source.original_url)
+                            (
+                                text,
+                                extracted_title,
+                                extracted_date,
+                                web_extraction_profile,
+                            ) = await extract_web_with_profile(source.original_url)
 
                         case SourceType.VIDEO | SourceType.AUDIO:
                             # Load project language for Deepgram transcription
@@ -80,6 +94,15 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
 
                         case _:
                             raise ValueError(f"Unsupported source type: {source.source_type}")
+                    safe_set_run(
+                        extract_run,
+                        outputs={
+                            "text_chars": len(text) if text else 0,
+                            "extraction_profile": web_extraction_profile or source.source_type,
+                            "extracted_title_present": bool(extracted_title),
+                            "extracted_date_present": bool(extracted_date),
+                        },
+                    )
 
                 if not text or not text.strip():
                     raise ValueError(f"Extraction returned empty text for source {source_id}")
@@ -125,7 +148,11 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
                     source.raw_text_path = object_name
 
                 # --- 2b. Normalize text (raw preserved in MinIO above) --------------------
-                text = normalize_text(text, source.source_type)
+                text = normalize_text(
+                    text,
+                    source.source_type,
+                    extraction_profile=web_extraction_profile,
+                )
 
                 # --- 2c. Gate B: web-specific cleanup ------------------------------------
                 if source.source_type == SourceType.WEB:
@@ -153,15 +180,27 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
                         "reasons": web_quality_reasons,
                         "blocked": blocked_web_source,
                     }
+                    if web_extraction_profile:
+                        metadata["web_extraction_profile"] = web_extraction_profile
                     source.metadata_ = metadata
 
-                resolved_title = (
-                    resolve_web_title(extracted_title, text=text, url=source.original_url)
-                    if source.source_type == SourceType.WEB
-                    else extracted_title
-                )
+                title_debug_meta: dict[str, int | str] = {}
+                if source.source_type == SourceType.WEB:
+                    resolved_title, title_debug_meta = resolve_web_title_detailed(
+                        extracted_title,
+                        text=text,
+                        url=source.original_url,
+                    )
+                else:
+                    resolved_title = extracted_title
                 if resolved_title and not source.title:
                     source.title = resolved_title[:500]
+                if source.source_type == SourceType.WEB:
+                    metadata = source.metadata_ if isinstance(source.metadata_, dict) else {}
+                    metadata = dict(metadata)
+                    if title_debug_meta:
+                        metadata["title_resolution"] = title_debug_meta
+                    source.metadata_ = metadata
                 source.text_preview = text[:500]
 
                 # Use trafilatura-extracted date if available (skips LLM date extraction)

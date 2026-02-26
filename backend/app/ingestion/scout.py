@@ -40,6 +40,14 @@ _LIST_SEPARATOR_RE = re.compile(r"[,;|•●·，；、｜]")
 _TOKEN_RE = re.compile(r"[A-Za-zА-Яа-я0-9]+|[\u3400-\u9fff]+|[\u3040-\u30ff]+|[\uac00-\ud7af]+")
 _CJK_TEXT_RE = re.compile(r"[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]")
 _BULLET_MARKER_RE = re.compile(r"(?:^|\s)[*•●]\s+")
+_NOISY_HEADING_RE = re.compile(
+    r"^(external links?|see also|references?|further reading|topics|countries|series|resources|about|search|menu|home|open external link)$",
+    re.IGNORECASE,
+)
+_SERVICE_LEAD_RE = re.compile(
+    r"^(published time:|loading\s+\[[^\]]+]|dismiss this warning|official website)$",
+    re.IGNORECASE,
+)
 _lead_encoder: tiktoken.Encoding | None = None
 
 
@@ -537,7 +545,7 @@ def _filter_sections_for_source(
         noise_score = _navigation_noise_score(section, context=context)
         if noise_score >= 2:
             noisy_hint_sections += 1
-        if noise_score >= 4:
+        if _should_drop_section_as_navigation_noise(section, noise_score=noise_score):
             removed_count += 1
             removed_tokens += int(section.get("token_count") or 0)
             continue
@@ -624,6 +632,12 @@ def _navigation_noise_score(section: dict[str, Any], *, context: dict[str, Any] 
             score += 1
         elif depth >= 4 and short_heading_count >= depth - 1:
             score += 1
+    if headings:
+        last_heading = headings[-1]
+        if _NOISY_HEADING_RE.match(last_heading):
+            score += 2
+            if depth <= 2:
+                score += 1
 
     total_sections = int(context.get("total_sections") or 0)
     prefix_counts = context.get("prefix_counts", {})
@@ -638,6 +652,8 @@ def _navigation_noise_score(section: dict[str, Any], *, context: dict[str, Any] 
     lead = str(section.get("lead") or "")
     tokens = _tokenize_for_noise(lead)
     token_count = len(tokens)
+    if _SERVICE_LEAD_RE.match(lead.strip()):
+        score += 3
     sentence_punct_count = _count_sentence_end_punct(lead)
     separator_count = len(_LIST_SEPARATOR_RE.findall(lead))
     url_marker_count = len(_URL_MARKER_RE.findall(lead)) + len(_MARKDOWN_LINK_RE.findall(lead))
@@ -692,6 +708,24 @@ def _navigation_noise_score(section: dict[str, Any], *, context: dict[str, Any] 
         score -= 1
 
     return score
+
+
+def _should_drop_section_as_navigation_noise(section: dict[str, Any], *, noise_score: int) -> bool:
+    if noise_score >= 4:
+        return True
+
+    lead = str(section.get("lead") or "").strip()
+    token_count = len(_tokenize_for_noise(lead))
+    sentence_punct_count = _count_sentence_end_punct(lead)
+    headings = _normalized_headings(section.get("headings", []))
+    last_heading = headings[-1] if headings else ""
+
+    if _SERVICE_LEAD_RE.match(lead) and token_count <= 16:
+        return True
+    if last_heading and _NOISY_HEADING_RE.match(last_heading):
+        if token_count <= 20 and sentence_punct_count == 0:
+            return True
+    return False
 
 
 def _source_quality_weight(
@@ -868,7 +902,12 @@ async def _extract_content_map(
             "- source_coverage: Which sources cover which topics.\n"
             "- gaps: Potential information gaps that might need more sources.\n"
             "- summary: A 2-3 sentence overview of the project's content landscape.\n"
-            "- Use heading_clusters to merge duplicate section names across sources."
+            "- Use heading_clusters to merge duplicate section names across sources.\n"
+            "- Ground every topic/entity/key_term/gap in the provided source_summaries only.\n"
+            "- Do not introduce entities or terms from prior knowledge; if uncertain, omit.\n"
+            "- Ignore navigation/service headings and metadata when deriving themes "
+            "(e.g., External links, See also, Topics, Countries, Series, Resources, About, "
+            "Search, Menu, Home, Open external link, Published Time)."
         )
 
         user_prompt = (

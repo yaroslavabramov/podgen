@@ -23,16 +23,17 @@ async def test_blocked_web_source_fails_instead_of_silent_complete(monkeypatch: 
     )
     db = _DummySession()
 
-    async def _fake_extract_web(url: str) -> tuple[str, str | None, str | None]:
+    async def _fake_extract_web(url: str) -> tuple[str, str | None, str | None, str]:
         return (
             "Warning: Target URL returned error 403: Forbidden\n"
             "Just a moment...\n"
             "Performing security verification\n",
             None,
             None,
+            "jina",
         )
 
-    monkeypatch.setattr("app.ingestion.router.extract_web", _fake_extract_web)
+    monkeypatch.setattr("app.ingestion.router.extract_web_with_profile", _fake_extract_web)
     monkeypatch.setattr("app.ingestion.router.get_minio_client", lambda: object())
     monkeypatch.setattr("app.ingestion.router.upload_text", lambda *args, **kwargs: None)
 

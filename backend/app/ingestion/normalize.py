@@ -13,11 +13,15 @@ from app.models.source import SourceType
 logger = logging.getLogger(__name__)
 
 
-def normalize_text(text: str, source_type: str) -> str:
+_CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+_WEB_PDF_EXTRACTION_PROFILES = {"web_pdf_direct", "web_pdf_promoted"}
+
+
+def normalize_text(text: str, source_type: str, *, extraction_profile: str | None = None) -> str:
     """Apply normalization transforms to extracted text.
 
     Universal transforms run for all source types.
-    PDF-specific transforms run only for PDF sources.
+    PDF-specific transforms run for PDF sources and web sources extracted from PDF.
     """
     if not text:
         return text
@@ -26,10 +30,15 @@ def normalize_text(text: str, source_type: str) -> str:
 
     # --- Universal transforms ---
     text = _unicode_nfc(text)
+    text = _CONTROL_CHAR_RE.sub("", text)
     text = _normalize_whitespace(text)
 
     # --- PDF-specific transforms ---
-    if source_type == SourceType.PDF:
+    is_pdf_profile = (
+        source_type == SourceType.PDF
+        or (source_type == SourceType.WEB and extraction_profile in _WEB_PDF_EXTRACTION_PROFILES)
+    )
+    if is_pdf_profile:
         text = _fix_hyphenation(text)
         text = _strip_page_numbers(text)
         text = _remove_boilerplate(text)
