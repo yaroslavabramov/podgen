@@ -2,9 +2,9 @@
 
 import asyncio
 import logging
-import multiprocessing
 import os
-import queue as queue_module
+import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -13,6 +13,7 @@ from app.config import settings
 from app.services.storage import get_minio_client, download_file
 
 logger = logging.getLogger(__name__)
+_BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
 
 async def extract_pdf(file_path: str) -> str:
@@ -96,56 +97,45 @@ def _marker_sync(pdf_path: str) -> str:
     return result.markdown
 
 
-def _marker_subprocess_entry(pdf_path: str, result_queue) -> None:
-    """Subprocess target for marker conversion."""
-    try:
-        markdown = _marker_sync(pdf_path)
-        result_queue.put({"ok": True, "markdown": markdown})
-    except BaseException as exc:  # pragma: no cover - exercised via parent handling
-        try:
-            result_queue.put({"ok": False, "error": repr(exc)})
-        except BaseException:
-            pass
-
-
 def _run_marker_with_hard_timeout(pdf_path: str, timeout_seconds: int) -> str:
     """Run marker conversion in a separate process with a hard timeout.
 
-    Using a subprocess avoids the default-executor shutdown wait from `asyncio.run`
-    in Celery tasks, so total task latency is bounded by this timeout.
+    We intentionally use `subprocess.run` (not multiprocessing.Process), because
+    Celery prefork workers are daemonic and cannot spawn multiprocessing children.
+    A standalone Python subprocess still gives us a hard timeout boundary.
     """
-    ctx = multiprocessing.get_context("spawn")
-    result_queue = ctx.Queue(maxsize=1)
-    process = ctx.Process(target=_marker_subprocess_entry, args=(pdf_path, result_queue), daemon=True)
-    try:
-        process.start()
-        process.join(timeout_seconds)
-
-        if process.is_alive():
-            process.terminate()
-            process.join(2)
-            if process.is_alive() and hasattr(process, "kill"):
-                process.kill()
-                process.join(1)
-            raise TimeoutError(f"marker subprocess timed out after {timeout_seconds}s")
-
-        payload = None
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        output_path = os.path.join(tmp_dir, "marker_output.md")
+        cmd = [
+            sys.executable,
+            "-m",
+            "app.ingestion.marker_worker",
+            "--input",
+            pdf_path,
+            "--output",
+            output_path,
+        ]
         try:
-            payload = result_queue.get_nowait()
-        except queue_module.Empty:
-            payload = None
+            completed = subprocess.run(
+                cmd,
+                cwd=str(_BACKEND_ROOT),
+                capture_output=True,
+                text=True,
+                timeout=timeout_seconds,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise TimeoutError(f"marker subprocess timed out after {timeout_seconds}s") from exc
 
-        if isinstance(payload, dict):
-            if payload.get("ok"):
-                return str(payload.get("markdown", ""))
-            raise RuntimeError(str(payload.get("error", "marker subprocess failed")))
+        if completed.returncode != 0:
+            details = (completed.stderr or completed.stdout or "").strip()
+            if details:
+                raise RuntimeError(f"marker subprocess failed: {details}")
+            raise RuntimeError(f"marker subprocess exited with code {completed.returncode}")
 
-        if process.exitcode == 0:
-            raise RuntimeError("marker subprocess exited without payload")
-        raise RuntimeError(f"marker subprocess exited with code {process.exitcode}")
-    finally:
-        result_queue.close()
-        result_queue.join_thread()
+        if not os.path.exists(output_path):
+            raise RuntimeError("marker subprocess succeeded but produced no output file")
+        return Path(output_path).read_text(encoding="utf-8")
 
 
 def prewarm_marker_models() -> None:

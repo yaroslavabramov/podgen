@@ -1,4 +1,4 @@
-import queue
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -41,60 +41,44 @@ async def test_convert_with_marker_success(monkeypatch) -> None:
     assert result == "marker-ok"
 
 
-def test_run_marker_with_hard_timeout_terminates_stuck_process(monkeypatch) -> None:
-    class FakeQueue:
-        def get_nowait(self):
-            raise queue.Empty
+def test_run_marker_with_hard_timeout_raises_timeout(monkeypatch) -> None:
+    def _fake_run(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=["python"], timeout=1)
 
-        def close(self):
-            return None
+    monkeypatch.setattr(pdf_module.subprocess, "run", _fake_run)
 
-        def join_thread(self):
-            return None
-
-    class FakeProcess:
-        def __init__(self):
-            self._alive = True
-            self.terminate_called = False
-            self.kill_called = False
-            self.exitcode = None
-
-        def start(self):
-            return None
-
-        def join(self, _timeout=None):
-            return None
-
-        def is_alive(self):
-            return self._alive
-
-        def terminate(self):
-            self.terminate_called = True
-            self._alive = False
-            self.exitcode = -15
-
-        def kill(self):
-            self.kill_called = True
-            self._alive = False
-            self.exitcode = -9
-
-    class FakeContext:
-        def __init__(self):
-            self.process = FakeProcess()
-
-        def Queue(self, maxsize=1):  # noqa: N802
-            return FakeQueue()
-
-        def Process(self, *args, **kwargs):  # noqa: N802
-            return self.process
-
-    fake_context = FakeContext()
-    monkeypatch.setattr(pdf_module.multiprocessing, "get_context", lambda _name: fake_context)
-
-    with pytest.raises(TimeoutError):
+    with pytest.raises(TimeoutError, match="timed out"):
         pdf_module._run_marker_with_hard_timeout("dummy.pdf", 1)
 
-    assert fake_context.process.terminate_called is True
+
+def test_run_marker_with_hard_timeout_returns_markdown(monkeypatch) -> None:
+    def _fake_run(cmd, **kwargs):
+        output_path = cmd[cmd.index("--output") + 1]
+        Path(output_path).write_text("marker markdown", encoding="utf-8")
+
+        class _Done:
+            returncode = 0
+            stderr = ""
+            stdout = ""
+
+        return _Done()
+
+    monkeypatch.setattr(pdf_module.subprocess, "run", _fake_run)
+
+    result = pdf_module._run_marker_with_hard_timeout("dummy.pdf", 10)
+    assert result == "marker markdown"
+
+
+def test_run_marker_with_hard_timeout_raises_on_failed_subprocess(monkeypatch) -> None:
+    class _Done:
+        returncode = 1
+        stderr = "marker crashed"
+        stdout = ""
+
+    monkeypatch.setattr(pdf_module.subprocess, "run", lambda *args, **kwargs: _Done())
+
+    with pytest.raises(RuntimeError, match="marker crashed"):
+        pdf_module._run_marker_with_hard_timeout("dummy.pdf", 10)
 
 
 def test_surya_ocr_config_compat_patch_handles_empty_init() -> None:
