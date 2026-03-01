@@ -864,6 +864,8 @@ async def _extract_content_map(
         },
     ) as extract_run:
         payload = {
+            "task": "build_content_map",
+            "output_language": "same_as_sources",
             "source_summaries": source_summaries,
             "heading_clusters": heading_clusters,
         }
@@ -876,6 +878,8 @@ async def _extract_content_map(
             trimmed_count = max(5, int(len(source_summaries) * ratio))
             source_summaries = source_summaries[:trimmed_count]
             payload = {
+                "task": "build_content_map",
+                "output_language": "same_as_sources",
                 "source_summaries": source_summaries,
                 "heading_clusters": heading_clusters,
             }
@@ -883,10 +887,15 @@ async def _extract_content_map(
             trimmed = True
 
         system_prompt = (
-            "You are a content analyst. Given source-level summaries from a research project, "
-            "produce a structured content map that identifies the key themes and information "
-            "available across all sources.\n\n"
-            "Return a JSON object with this schema:\n"
+            "You are a senior research editor building a project-level content map from source summaries.\n\n"
+            "Goal:\n"
+            "- Produce a compact, high-signal map of what the corpus covers and what it does not.\n"
+            "- Prefer broad, reusable themes over narrow one-off details.\n"
+            "- Consolidate duplicates and near-duplicates aggressively.\n\n"
+            "Output contract:\n"
+            "- Return a single JSON object with EXACT keys:\n"
+            "  topics, entities, key_terms, source_coverage, gaps, summary.\n"
+            "- Use this schema:\n"
             "{\n"
             '  "topics": [{"name": str, "description": str, "chunk_count": int}],\n'
             '  "entities": [{"name": str, "type": str, "mentions": int}],\n'
@@ -894,26 +903,36 @@ async def _extract_content_map(
             '  "source_coverage": [{"source": str, "topics_covered": [str]}],\n'
             '  "gaps": [str],\n'
             '  "summary": str\n'
-            "}\n\n"
-            "- Input is source-level: each source contains sections (heading path + lead) and coverage signals.\n"
-            "- topics: Major themes with approximate chunk counts.\n"
-            "- entities: People, organizations, technologies, etc.\n"
-            "- key_terms: Domain-specific terms with brief context.\n"
-            "- source_coverage: Which sources cover which topics.\n"
-            "- gaps: Potential information gaps that might need more sources.\n"
-            "- summary: A 2-3 sentence overview of the project's content landscape.\n"
+            "}\n"
+            "- All keys are required. Use [] or \"\" when there is insufficient grounded signal.\n"
+            "- Keep arrays concise:\n"
+            "  topics: 4-12 items,\n"
+            "  entities: 5-20 items,\n"
+            "  key_terms: 5-20 items,\n"
+            "  gaps: 0-10 items.\n\n"
+            "Language:\n"
+            "- All human-readable output fields must be in output_language from the user payload.\n"
+            "- If output_language is \"same_as_sources\", use the dominant language in source_summaries.\n"
+            "- Do not mix languages inside a single field.\n\n"
+            "Selection rules:\n"
+            "- Input is source-level: each source has sections (heading path + lead) and coverage signals.\n"
             "- Use heading_clusters to merge duplicate section names across sources.\n"
+            "- Rank topics by cross-source coverage and evidence density (section leads + token coverage).\n"
+            "- Do not output near-duplicate topic names.\n"
+            "- Prefer canonical entity names; avoid duplicates caused by formatting or abbreviations.\n"
+            "- Use source titles exactly as given in source_summaries for source_coverage.source.\n\n"
+            "Grounding and safety:\n"
             "- Ground every topic/entity/key_term/gap in the provided source_summaries only.\n"
             "- Do not introduce entities or terms from prior knowledge; if uncertain, omit.\n"
             "- Ignore navigation/service headings and metadata when deriving themes "
             "(e.g., External links, See also, Topics, Countries, Series, Resources, About, "
-            "Search, Menu, Home, Open external link, Published Time)."
+            "Search, Menu, Home, Open external link, Published Time).\n\n"
+            "Failure behavior:\n"
+            "- If grounded signal is insufficient for a section, return empty arrays for that section.\n"
+            "- If overall corpus signal is weak, still return valid JSON and set summary to a brief grounded limitation note."
         )
 
-        user_prompt = (
-            f"Analyze these {len(source_summaries)} source summaries and produce the content map:\n\n"
-            f"{payload_json}"
-        )
+        user_prompt = payload_json
 
         raw = await call_haiku_structured(
             system=system_prompt,
