@@ -903,32 +903,45 @@ class PipelineState(TypedDict):
 - source_ids
 
 **Процесс:**
-- Для каждой ветки research tree:
-  1. Vector search в Qdrant (query = branch.question, top_k=10, filter: source_id ∈ project sources)
-  2. PostgreSQL full-text search по chunks (tsvector)
-  3. Hybrid merge: RRF (Reciprocal Rank Fusion) из обоих результатов
-  4. LLM (Haiku): из top-5 chunks извлечь EvidenceSpan:
+- Для каждой ветки/подветки research tree:
+  1. Vector search в Qdrant (query = question, top_k=40, filter: source_id ∈ project sources)
+  2. PostgreSQL full-text search по chunks (tsvector, top_k=40)
+  3. Hybrid merge: RRF (Reciprocal Rank Fusion)
+  4. Diversity-aware chunk selection:
+     - candidate pool = top-40 merged chunks
+     - greedy re-ranking с penalty за повторяющиеся `source_id` и `parent_chunk_id`
+  5. LLM (Haiku): extraction EvidenceSpan из diversity-selected chunks:
      - verbatim_quote (exact quote from source)
      - locator (page/section/timestamp)
      - asset_type classification
      - narrative_value_score (0-1)
      - tellability_notes
+  6. Gap accounting:
+     - агрегируем `expected_evidence_type` на уровне ветки
+     - сравниваем с фактически найденными asset types
+     - формируем `research_gaps` с `missing_assets`
 
 **Tools (LangGraph ToolNode):**
-- `vector_search(query: str, top_k: int, source_ids: list[str]) → list[{chunk_id, score, preview}]`
-- `keyword_search(query: str, source_ids: list[str]) → list[{chunk_id, score, preview}]`
-- `get_chunk_content(chunk_id: str) → {content, heading_path, source_metadata}`
+- `vector_search(query: str, top_k: int, source_ids: list[str]) → list[{chunk_id, source_id, parent_chunk_id, score, preview}]`
+- `keyword_search(query: str, source_ids: list[str], top_k: int) → list[{chunk_id, source_id, parent_chunk_id, score, preview}]`
+- `get_chunk_content(chunk_id: str) → {content, heading_path, source_id, source_metadata}`
 
 **Выход:**
 - Новые EvidenceSpan records → evidence_ids в state
-- Gap report: ветки research tree где evidence недостаточно
+- Structured gap signal `research_gaps` в state:
+  - `branch_id`
+  - `question`
+  - `priority`
+  - `missing_assets`
+  - `expected_assets`
+  - `found_assets`
 
 #### 3.2A Librarian Fast (Open-web, non-blocking, в цикле)
 
 **LangGraph Node: `research_fast_web`**
 
 **Вход:**
-- Gap report от Hunter (ветки с недостаточным evidence)
+- `research_gaps` от Hunter (ветки + недостающие asset types)
 - evidence_ids (чтобы не дублировать)
 - ShowBible.rigor_policy (для понимания приемлемого quality_need)
 
@@ -938,6 +951,15 @@ class PipelineState(TypedDict):
 - `web_search(query: str) → list[{title, url, snippet, score}]` (Tavily API)
 - `fetch_page(url: str) → {title, content_markdown, published_at?}` (Jina Reader)
 - `create_web_evidence(url: str, quote: str, asset_type: str, ...) → evidence_id` (создаёт Source(type=WEB) + EvidenceSpan)
+
+**Branch selection policy:**
+- Primary: `research_gaps` (сортировка по branch priority, max 3 ветки за проход)
+- Fallback (compat): старая эвристика по `priority <= 2`, если `research_gaps` отсутствуют
+
+**Query policy:**
+- Базовый query = branch question
+- Если есть `missing_assets`, query дополняется целевыми asset tags (`CASE`, `STATISTIC`, etc.)
+- Web extraction приоритетно принимает evidence нужных asset types
 
 **Ограничения (governors):**
 - Макс **5 web-источников на акт** (tracked в iteration_counts.fast_web_per_act)
@@ -958,6 +980,7 @@ class PipelineState(TypedDict):
 **Выход:**
 - Новые Source (is_temporary=true) + EvidenceSpan records
 - evidence_ids обновлены в state
+- `research_gaps` сохраняется в state как текущий gap-сигнал для следующих итераций
 
 #### 3.2B Deep Web Ingestion (Celery async, улучшитель качества)
 

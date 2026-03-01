@@ -265,14 +265,19 @@ Status transitions (step mode):
 - DB read:
   - `EpisodeManifest`, chunks/sources через tools.
 - External/tools:
-  - `vector_search_tool` -> Qdrant (`78`, tools.py `15-33`).
-  - `keyword_search_tool` -> PG FTS (`79`, tools.py `36-66`).
-  - `get_chunk_content` (`91`, tools.py `69-90`).
+  - `vector_search_tool` -> Qdrant (`top_k=40`).
+  - `keyword_search_tool` -> PG FTS (`top_k=40`).
+  - `get_chunk_content`.
   - `call_haiku_structured` для extraction (`106-113`).
+- Retrieval policy:
+  - Hybrid merge via RRF.
+  - Candidate pool expands to top-40 merged chunks.
+  - Diversity-aware selection penalizes repeated `source_id` / `parent_chunk_id` before final extraction set.
 - DB write:
   - `EvidenceSpan` rows (`135-152`).
 - State output:
-  - `evidence_ids`, `current_phase=phase3_research`.
+  - `evidence_ids`, `research_gaps`, `current_phase=phase3_research`.
+  - `research_gaps` contract per branch: `branch_id`, `question`, `priority`, `missing_assets`, `expected_assets`, `found_assets`.
 - Events:
   - `phase_started`, `step_started/completed`, `evidence_found`, progress.
 
@@ -280,7 +285,7 @@ Status transitions (step mode):
 Файл: `phase3_research/librarian_fast.py:41`
 
 - State input:
-  - `generation_run_id`, `manifest_id`, `evidence_ids`, `iteration_counts`, `project_id`.
+  - `generation_run_id`, `manifest_id`, `evidence_ids`, `iteration_counts`, `project_id`, `research_gaps`.
 - DB read:
   - `EpisodeManifest`, temp `Source` для deep candidates.
 - External/tools:
@@ -289,10 +294,13 @@ Status transitions (step mode):
   - `call_sonnet_structured` для evidence extraction (`114-120`).
   - `create_web_evidence` (создаёт temp Source + EvidenceSpan) (`126-133`, tools.py `135-165`).
   - `trigger_deep_ingestion` (`180`, librarian_deep.py `10-15`).
+- Branch/query selection:
+  - Primary signal: `research_gaps` from Hunter (targeted closure of `missing_assets`).
+  - Compatibility fallback: priority-based branch heuristic if `research_gaps` missing.
 - DB write:
   - новые temp `Source`, `EvidenceSpan`, статусы temp source `ENQUEUED`.
 - State output:
-  - `evidence_ids`, `iteration_counts.fast_web_per_act`, `iteration_counts.deep_ingestion_active`, `current_phase`.
+  - `evidence_ids`, `iteration_counts.fast_web_per_act`, `iteration_counts.deep_ingestion_active`, `research_gaps`, `current_phase`.
 - Governors:
   - `max_fast_web_per_act` (`51-53`, config `63`).
   - `max_deep_ingestion_concurrent` (`163`, config `64`).

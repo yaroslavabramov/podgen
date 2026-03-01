@@ -22,7 +22,8 @@ from app.realtime.events import step_started, step_completed, evidence_found, pr
 logger = logging.getLogger(__name__)
 
 EXTRACT_WEB_EVIDENCE_SYSTEM = """You are a web evidence extractor for a podcast research pipeline.
-Given web search results and a research question, identify the most valuable evidence.
+Given web pages, a research question, and optional target_missing_assets, identify the most valuable evidence.
+If target_missing_assets is non-empty, prioritize evidence that matches those asset types.
 
 Return JSON array:
 [
@@ -67,20 +68,25 @@ async def research_fast_web(state: PipelineState) -> dict:
         tree = manifest.research_tree_json
         branches = tree.get("branches", [])
 
-        # Find branches with insufficient evidence (simple heuristic)
-        evidence_per_branch = len(all_evidence_ids) / max(len(branches), 1)
-        gap_branches = [b for b in branches if b.get("priority", 5) <= 2][:3]
-
+        gap_branches = _select_gap_branches(branches, state.get("research_gaps"))
         if not gap_branches:
-            gap_branches = branches[:2]
+            logger.info("No research gaps detected for fast web step")
+            return {
+                "evidence_ids": all_evidence_ids,
+                "iteration_counts": iteration_counts,
+                "research_gaps": state.get("research_gaps", []),
+                "current_phase": "phase3_research",
+            }
 
         new_evidence_count = 0
 
-        for branch in gap_branches:
+        for gap in gap_branches:
             if fast_web_count >= settings.max_fast_web_per_act:
                 break
 
-            query = branch["question"]
+            question = gap["question"]
+            target_missing_assets = _normalize_asset_types(gap.get("missing_assets", []))
+            query = _build_targeted_query(question, target_missing_assets)
 
             try:
                 # Web search
@@ -107,7 +113,8 @@ async def research_fast_web(state: PipelineState) -> dict:
 
                 # Extract evidence with Sonnet
                 prompt = json.dumps({
-                    "research_question": query,
+                    "research_question": question,
+                    "target_missing_assets": target_missing_assets,
                     "web_pages": page_contents,
                 }, ensure_ascii=False)
 
@@ -118,15 +125,23 @@ async def research_fast_web(state: PipelineState) -> dict:
                     temperature=0.3,
                 )
                 evidence_items = parse_llm_json(raw)
+                if not isinstance(evidence_items, list):
+                    continue
 
                 for item in evidence_items:
+                    if not isinstance(item, dict):
+                        continue
                     if not item.get("verbatim_quote") or not item.get("url"):
+                        continue
+
+                    asset_type = str(item.get("asset_type", "mechanism")).upper()
+                    if target_missing_assets and asset_type not in target_missing_assets:
                         continue
 
                     eid = await create_web_evidence(
                         url=item["url"],
                         quote=item["verbatim_quote"],
-                        asset_type=item.get("asset_type", "mechanism").lower(),
+                        asset_type=asset_type.lower(),
                         project_id=state["project_id"],
                         db=db,
                         generation_run_id=state["generation_run_id"],
@@ -195,5 +210,55 @@ async def research_fast_web(state: PipelineState) -> dict:
     return {
         "evidence_ids": all_evidence_ids,
         "iteration_counts": iteration_counts,
+        "research_gaps": state.get("research_gaps", []),
         "current_phase": "phase3_research",
     }
+
+
+def _select_gap_branches(branches: list[dict], research_gaps: list[dict] | None) -> list[dict]:
+    """Prefer explicit Hunter gaps; fallback to priority heuristic for compatibility."""
+    if isinstance(research_gaps, list):
+        if not research_gaps:
+            return []
+
+        normalized = []
+        for gap in research_gaps:
+            if not isinstance(gap, dict):
+                continue
+            question = gap.get("question")
+            if not question:
+                continue
+            normalized.append({
+                "branch_id": gap.get("branch_id", ""),
+                "question": question,
+                "priority": gap.get("priority", 5),
+                "missing_assets": _normalize_asset_types(gap.get("missing_assets", [])),
+            })
+        normalized.sort(key=lambda g: (g.get("priority", 5), g.get("branch_id", "")))
+        return normalized[:3]
+
+    gap_branches = [b for b in branches if b.get("priority", 5) <= 2][:3]
+    if not gap_branches:
+        gap_branches = branches[:2]
+    return [
+        {
+            "branch_id": b.get("id", ""),
+            "question": b.get("question", ""),
+            "priority": b.get("priority", 5),
+            "missing_assets": [],
+        }
+        for b in gap_branches
+        if b.get("question")
+    ]
+
+
+def _normalize_asset_types(asset_types: list[str] | None) -> list[str]:
+    if not asset_types:
+        return []
+    return [str(a).upper() for a in asset_types if isinstance(a, str) and a]
+
+
+def _build_targeted_query(question: str, missing_assets: list[str]) -> str:
+    if not missing_assets:
+        return question
+    return f"{question} {' '.join(missing_assets)}"

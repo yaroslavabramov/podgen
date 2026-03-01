@@ -272,7 +272,11 @@ Web extraction использует каскад extractors:
 
 - hybrid retrieval (vector + keywords)
 
-- собирает EvidenceSpans + предварительные Claims
+- расширенный retrieval pool (`top-40`) + diversity re-ranking (penalty за повторяющиеся `source_id`/`parent_chunk_id`) перед extraction
+
+- собирает EvidenceSpans
+
+- формирует structured gap signal `research_gaps` по веткам (`missing_assets`, `expected_assets`, `found_assets`)
 
 ### **3.2 Librarian / Web Researcher (Open-web, двух режима)**
 
@@ -283,6 +287,8 @@ Web extraction использует каскад extractors:
 - применяем для OPINION/REPORT, OBSERVED facts, quick triangulation
 
 - лимиты на число источников/акт, penalize низкокач домены
+
+- приоритет задаётся `research_gaps` от Hunter (целенаправленное закрытие недостающих `asset_type`), эвристика по `priority` остаётся fallback
 
 #### **B) Deep Web Ingestion (асинхронно)**
 

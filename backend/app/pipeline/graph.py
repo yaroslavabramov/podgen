@@ -70,6 +70,7 @@ def _summarize_state(state: PipelineState) -> dict[str, Any]:
         "claim_count": len(state.get("claim_ids", [])),
         "conflict_brief_count": len(state.get("conflict_brief_ids", [])),
         "script_segment_count": len(state.get("script_segment_ids", [])),
+        "research_gap_count": len(state.get("research_gaps", [])),
         "iteration_keys": sorted((state.get("iteration_counts") or {}).keys()),
         "quality_signal_keys": sorted((state.get("quality_signals") or {}).keys()),
     }
@@ -288,6 +289,7 @@ def _build_initial_state(run: GenerationRun, source_ids: list[str], content_map_
         "current_phase": "",
         "iteration_counts": {},
         "quality_signals": {},
+        "research_gaps": [],
     }
 
 

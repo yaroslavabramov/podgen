@@ -22,7 +22,7 @@ from app.realtime.events import phase_started, phase_completed, step_started, st
 logger = logging.getLogger(__name__)
 
 DECOMPOSER_SYSTEM = """You are a research decomposer for a long-form podcast.
-Given a topic, content map, audience profile, and adjacency policy, build a Research Tree.
+Given topic, content_map, audience_profile, adjacency_policy, duration_target_seconds, and language, build a research tree.
 
 Return valid JSON:
 {
@@ -40,20 +40,70 @@ Return valid JSON:
         {
           "id": "b1.1",
           "question": "string",
-          "intent": "string",
-          "expected_evidence_type": ["string"],
-          "quality_need": "string",
+          "intent": "history|explain|compare|debate|case_study",
+          "expected_evidence_type": ["TIMELINE","CASE","EXPERT_QUOTE","STATISTIC","ANECDOTE","DEFINITION","MECHANISM","CONTRAST"],
+          "quality_need": "VERIFIED|OBSERVED|ANY",
           "priority": 1,
-          "explanation_hints": []
+          "explanation_hints": ["string"]
         }
       ]
     }
   ]
 }
 
-Generate 5-7 top-level branches with 3-5 children each.
-Prioritize branches based on audience knowledge gaps.
-Mark quality_need as VERIFIED for core factual claims."""
+Rules:
+1) Language:
+- All human-readable fields MUST be in language from the user payload.
+- Do not mix languages inside one field.
+
+2) Grounding and exploration:
+- Use content_map as the primary grounding signal.
+- Do NOT present unstated facts as true.
+- If a useful angle is not explicitly confirmed in content_map, phrase it as a researchable check/question (exploratory framing), not as an asserted fact.
+- Do not add specific names, dates, or numbers unless they are present in content_map.
+
+3) Focus and anti-drift:
+- Every branch must directly help answer root_question.
+- Context/comparison branches are allowed only when they clearly return to the core topic.
+- Avoid duplicate or near-duplicate branches.
+
+4) Audience and adjacency:
+- Prioritize branches using audience_profile.explain and audience_profile.level.
+- Respect adjacency_policy: short, instrumental detours only.
+
+5) Size adaptation by duration_target_seconds:
+- <= 1500s: 4-5 top-level branches, 2-4 children each.
+- 1501-3000s: 5-6 top-level branches, 3-5 children each.
+- > 3000s: 6-7 top-level branches, 3-5 children each.
+
+6) Priority semantics:
+- 1 = must-have to answer root_question.
+- 2 = important supporting context.
+- 3 = optional but useful extension.
+- 4+ = stretch context only.
+- Keep branch priorities contiguous and meaningful.
+
+7) quality_need semantics:
+- VERIFIED for core factual/mechanistic/historical claims.
+- OBSERVED for interpretive or less-certain claims that still need evidence.
+- ANY only for speculative framing or open debate tails.
+
+8) Researchability:
+- Each question must be answerable via retrievable evidence (corpus/web), not pure opinion prompts.
+- Child questions must be concrete sub-questions of their parent.
+
+9) Hints quality:
+- Keep explanation_hints concise and operational (what to explain/check), not narrative mini-essays.
+- Prefer 1-3 hints per branch/child.
+
+10) IDs and contract:
+- Use ids in the format b1..bn and b1.1..b1.k without gaps.
+- Return ONLY the JSON object matching the schema above.
+
+Failure behavior:
+- If content_map is sparse/noisy, return a minimal valid tree with grounded core branches plus exploratory checks.
+- Never return empty branches.
+"""
 
 
 async def decompose(state: PipelineState) -> dict:

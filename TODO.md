@@ -384,6 +384,12 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [ ] **P1**: Guarantee that project `ContentMap` is built from a complete committed corpus snapshot under concurrent source ingestion (eliminate race where latest `created_at` map can be built from a partial source set)
 - [ ] **P2**: Add concurrency regression test(s) for simultaneous source ingestions validating that pipeline picks a map containing all completed sources
 
+**Round 63 (research targeting + retrieval diversity):**
+- [x] **P1**: Hunter retrieval upgraded from fixed top-5 extraction to top-40 candidate pool with diversity-aware re-ranking penalties on repeated `source_id` and `parent_chunk_id`
+- [x] **P1**: Hunter keyword retrieval now supports configurable `top_k`; vector+keyword retrieval expanded to 40/40 before merge
+- [x] **P1**: Hunter now emits structured `research_gaps` (`missing_assets`, `expected_assets`, `found_assets`) aggregated per branch
+- [x] **P1**: Librarian Fast now consumes `research_gaps` as primary branch-selection signal and targets missing asset types in web search/extraction (priority heuristic kept as compatibility fallback)
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

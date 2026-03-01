@@ -20,3 +20,4 @@ class PipelineState(TypedDict):
     current_phase: str
     iteration_counts: dict
     quality_signals: dict
+    research_gaps: list[dict]

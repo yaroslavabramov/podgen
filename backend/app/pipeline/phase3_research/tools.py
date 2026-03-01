@@ -36,6 +36,7 @@ async def vector_search_tool(
                     {
                         "chunk_id": str(chunk.id),
                         "source_id": str(chunk.source_id),
+                        "parent_chunk_id": str(chunk.parent_chunk_id) if chunk.parent_chunk_id else None,
                         "score": hit["score"],
                         "preview": chunk.content[:300],
                         "heading_path": chunk.heading_path,
@@ -46,7 +47,7 @@ async def vector_search_tool(
 
 
 async def keyword_search_tool(
-    query: str, source_ids: list[str], db: AsyncSession
+    query: str, source_ids: list[str], db: AsyncSession, top_k: int = 10
 ) -> list[dict]:
     """PostgreSQL full-text search on chunks."""
     source_filter = ", ".join(f"'{s}'" for s in source_ids)
@@ -60,25 +61,26 @@ async def keyword_search_tool(
         tags=["research-tool", "keyword-search"],
     ) as run_tree:
         sql = text(f"""
-            SELECT c.id, c.source_id, c.content, c.heading_path,
+            SELECT c.id, c.source_id, c.parent_chunk_id, c.content, c.heading_path,
                    ts_rank(to_tsvector('english', c.content), plainto_tsquery('english', :query)) as rank
             FROM chunks c
             WHERE c.source_id IN ({source_filter})
               AND to_tsvector('english', c.content) @@ plainto_tsquery('english', :query)
             ORDER BY rank DESC
-            LIMIT 10
+            LIMIT :top_k
         """)
 
-        result = await db.execute(sql, {"query": query})
+        result = await db.execute(sql, {"query": query, "top_k": top_k})
         rows = result.fetchall()
 
         payload = [
             {
                 "chunk_id": str(row[0]),
                 "source_id": str(row[1]),
-                "score": float(row[4]),
-                "preview": row[2][:300],
-                "heading_path": row[3] or [],
+                "parent_chunk_id": str(row[2]) if row[2] else None,
+                "score": float(row[5]),
+                "preview": row[3][:300],
+                "heading_path": row[4] or [],
             }
             for row in rows
         ]
@@ -106,6 +108,8 @@ async def get_chunk_content(chunk_id: str, db: AsyncSession) -> dict:
         chunk, source = row
         payload = {
             "chunk_id": str(chunk.id),
+            "source_id": str(source.id),
+            "parent_chunk_id": str(chunk.parent_chunk_id) if chunk.parent_chunk_id else None,
             "content": chunk.content,
             "heading_path": chunk.heading_path,
             "token_count": chunk.token_count,
