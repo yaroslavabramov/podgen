@@ -194,6 +194,24 @@ export default function GeneratePage() {
     refreshRun(runId).catch(() => undefined);
   }, [runId, activeExecutionMode, lastEvent]);
 
+  useEffect(() => {
+    if (!runId || activeExecutionMode !== "step") return;
+
+    const shouldPoll =
+      stepActionLoading !== null ||
+      status === "running" ||
+      Boolean(stepControl?.requested_action) ||
+      Boolean(stepControl?.stop_requested);
+
+    if (!shouldPoll) return;
+
+    const intervalId = window.setInterval(() => {
+      refreshRun(runId).catch(() => undefined);
+    }, 1500);
+
+    return () => window.clearInterval(intervalId);
+  }, [runId, activeExecutionMode, stepActionLoading, status, stepControl]);
+
   const handleGenerate = async () => {
     setLaunching(true);
     setActionError(null);
