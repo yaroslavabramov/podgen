@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 import time
 import uuid
 from typing import Any
@@ -21,6 +22,21 @@ from app.realtime.events import phase_started, phase_completed, step_started, st
 
 logger = logging.getLogger(__name__)
 
+_ALLOWED_INTENTS = {"history", "explain", "compare", "debate", "case_study"}
+_ALLOWED_QUALITY_NEED = {"VERIFIED", "OBSERVED", "ANY"}
+_ALLOWED_EVIDENCE_TYPES = {
+    "TIMELINE",
+    "CASE",
+    "EXPERT_QUOTE",
+    "STATISTIC",
+    "ANECDOTE",
+    "DEFINITION",
+    "MECHANISM",
+    "CONTRAST",
+}
+_BRANCH_ID_RE = re.compile(r"^b\d+$")
+_CHILD_ID_RE = re.compile(r"^b\d+\.\d+$")
+
 DECOMPOSER_SYSTEM = """You are a research decomposer for a long-form podcast.
 Given topic, content_map, audience_profile, adjacency_policy, duration_target_seconds, and language, build a research tree.
 
@@ -35,7 +51,6 @@ Return valid JSON:
       "expected_evidence_type": ["TIMELINE","CASE","EXPERT_QUOTE","STATISTIC","ANECDOTE","DEFINITION","MECHANISM","CONTRAST"],
       "quality_need": "VERIFIED|OBSERVED|ANY",
       "priority": 1,
-      "explanation_hints": ["string"],
       "children": [
         {
           "id": "b1.1",
@@ -43,8 +58,7 @@ Return valid JSON:
           "intent": "history|explain|compare|debate|case_study",
           "expected_evidence_type": ["TIMELINE","CASE","EXPERT_QUOTE","STATISTIC","ANECDOTE","DEFINITION","MECHANISM","CONTRAST"],
           "quality_need": "VERIFIED|OBSERVED|ANY",
-          "priority": 1,
-          "explanation_hints": ["string"]
+          "priority": 1
         }
       ]
     }
@@ -92,11 +106,7 @@ Rules:
 - Each question must be answerable via retrievable evidence (corpus/web), not pure opinion prompts.
 - Child questions must be concrete sub-questions of their parent.
 
-9) Hints quality:
-- Keep explanation_hints concise and operational (what to explain/check), not narrative mini-essays.
-- Prefer 1-3 hints per branch/child.
-
-10) IDs and contract:
+9) IDs and contract:
 - Use ids in the format b1..bn and b1.1..b1.k without gaps.
 - Return ONLY the JSON object matching the schema above.
 
@@ -158,6 +168,7 @@ async def decompose(state: PipelineState) -> dict:
             temperature=0.6,
         )
         research_tree = parse_llm_json(raw)
+        research_tree = _sanitize_and_validate_research_tree(research_tree)
 
         publish_event(run_id, step_completed("phase2_decomposition", "build_tree"))
 
@@ -264,3 +275,112 @@ def _compact_content_map(content_map_data: Any) -> dict[str, Any]:
         compact["parse_warning"] = "content_map_parse_failed"
 
     return compact
+
+
+def _sanitize_and_validate_research_tree(research_tree: Any) -> dict[str, Any]:
+    """Sanitize legacy fields and fail-fast on schema violations."""
+    if not isinstance(research_tree, dict):
+        raise ValueError("Decomposer output must be a JSON object")
+
+    root_question = research_tree.get("root_question")
+    if not isinstance(root_question, str) or not root_question.strip():
+        raise ValueError("Decomposer output must contain non-empty root_question")
+
+    raw_branches = research_tree.get("branches")
+    if not isinstance(raw_branches, list) or not raw_branches:
+        raise ValueError("Decomposer output must contain non-empty branches array")
+
+    branch_ids: set[str] = set()
+    child_ids: set[str] = set()
+    normalized_branches: list[dict[str, Any]] = []
+
+    for idx, raw_branch in enumerate(raw_branches, start=1):
+        branch = _validate_node(raw_branch, path=f"branches[{idx - 1}]", is_child=False)
+        branch_id = branch["id"]
+        if branch_id in branch_ids:
+            raise ValueError(f"Duplicate branch id: {branch_id}")
+        branch_ids.add(branch_id)
+
+        raw_children = raw_branch.get("children")
+        if not isinstance(raw_children, list):
+            raise ValueError(f"{idx}: children must be a list")
+
+        normalized_children: list[dict[str, Any]] = []
+        for cidx, raw_child in enumerate(raw_children, start=1):
+            child = _validate_node(raw_child, path=f"branches[{idx - 1}].children[{cidx - 1}]", is_child=True)
+            child_id = child["id"]
+            if child_id in child_ids:
+                raise ValueError(f"Duplicate child id: {child_id}")
+            child_ids.add(child_id)
+            normalized_children.append(child)
+
+        branch["children"] = normalized_children
+        normalized_branches.append(branch)
+
+    return {
+        "root_question": root_question.strip(),
+        "branches": normalized_branches,
+    }
+
+
+def _validate_node(raw: Any, *, path: str, is_child: bool) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        raise ValueError(f"{path} must be an object")
+
+    node_id = raw.get("id")
+    if not isinstance(node_id, str) or not node_id.strip():
+        raise ValueError(f"{path}.id must be a non-empty string")
+    node_id = node_id.strip()
+
+    expected_re = _CHILD_ID_RE if is_child else _BRANCH_ID_RE
+    if not expected_re.match(node_id):
+        expected = "bN.M" if is_child else "bN"
+        raise ValueError(f"{path}.id must match {expected}")
+
+    question = raw.get("question")
+    if not isinstance(question, str) or not question.strip():
+        raise ValueError(f"{path}.question must be a non-empty string")
+
+    intent = raw.get("intent")
+    if not isinstance(intent, str):
+        raise ValueError(f"{path}.intent must be a string")
+    intent_normalized = intent.strip().lower()
+    if intent_normalized not in _ALLOWED_INTENTS:
+        raise ValueError(f"{path}.intent is invalid: {intent}")
+
+    expected_evidence = raw.get("expected_evidence_type")
+    if not isinstance(expected_evidence, list) or not expected_evidence:
+        raise ValueError(f"{path}.expected_evidence_type must be a non-empty list")
+
+    normalized_evidence: list[str] = []
+    seen_evidence: set[str] = set()
+    for item in expected_evidence:
+        if not isinstance(item, str):
+            raise ValueError(f"{path}.expected_evidence_type items must be strings")
+        evidence = item.strip().upper()
+        if evidence not in _ALLOWED_EVIDENCE_TYPES:
+            raise ValueError(f"{path}.expected_evidence_type contains invalid value: {item}")
+        if evidence in seen_evidence:
+            continue
+        seen_evidence.add(evidence)
+        normalized_evidence.append(evidence)
+
+    quality_need = raw.get("quality_need")
+    if not isinstance(quality_need, str):
+        raise ValueError(f"{path}.quality_need must be a string")
+    quality_need_normalized = quality_need.strip().upper()
+    if quality_need_normalized not in _ALLOWED_QUALITY_NEED:
+        raise ValueError(f"{path}.quality_need is invalid: {quality_need}")
+
+    priority = raw.get("priority")
+    if isinstance(priority, bool) or not isinstance(priority, int) or priority < 1:
+        raise ValueError(f"{path}.priority must be an integer >= 1")
+
+    return {
+        "id": node_id,
+        "question": question.strip(),
+        "intent": intent_normalized,
+        "expected_evidence_type": normalized_evidence,
+        "quality_need": quality_need_normalized,
+        "priority": priority,
+    }

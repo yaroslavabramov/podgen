@@ -831,7 +831,7 @@ class PipelineState(TypedDict):
   - audience_profile: что нужно объяснять, какие термины определять
   - adjacency_policy: ограничения на уход в сторону
   - duration_target: сколько material нужно
-- Для каждой ветки: intent, expected_evidence_type, quality_need, explanation_hints
+- Для каждой ветки: intent, expected_evidence_type, quality_need
 
 **Выход — Research Tree (5-7 angles, 3-5 drill-downs/angle):**
 ```json
@@ -845,7 +845,6 @@ class PipelineState(TypedDict):
       "expected_evidence_type": ["TIMELINE", "CASE", "EXPERT_QUOTE"],
       "quality_need": "VERIFIED",
       "priority": 1,
-      "explanation_hints": ["объяснить cypherpunk movement для casual аудитории"],
       "children": [
         {
           "id": "b1.1",
@@ -853,8 +852,7 @@ class PipelineState(TypedDict):
           "intent": "explain",
           "expected_evidence_type": ["ANECDOTE", "EXPERT_QUOTE"],
           "quality_need": "OBSERVED",
-          "priority": 1,
-          "explanation_hints": []
+          "priority": 1
         }
       ]
     }
