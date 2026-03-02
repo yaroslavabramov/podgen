@@ -87,6 +87,33 @@ def test_sanitize_and_validate_research_tree_supports_legacy_expected_evidence_t
     assert branch["expected_evidence"] == []
 
 
+def test_sanitize_and_validate_research_tree_demotes_narrative_required_types() -> None:
+    payload = {
+        "root_question": "Q",
+        "branches": [
+            {
+                "id": "b1",
+                "question": "Branch question",
+                "intent": "history",
+                "required_evidence": [
+                    {"type": "anecdote", "min_count": 1},
+                    {"type": "expert_quote", "min_count": 1},
+                    {"type": "timeline", "min_count": 2},
+                ],
+                "expected_evidence": ["case"],
+                "quality_need": "VERIFIED",
+                "priority": 1,
+                "children": [],
+            }
+        ],
+    }
+
+    result = _sanitize_and_validate_research_tree(payload)
+    branch = result["branches"][0]
+    assert branch["required_evidence"] == [{"type": "TIMELINE", "min_count": 2}]
+    assert branch["expected_evidence"] == ["CASE", "ANECDOTE", "EXPERT_QUOTE"]
+
+
 def test_sanitize_and_validate_research_tree_raises_on_missing_required_fields() -> None:
     payload = {
         "root_question": "Q",

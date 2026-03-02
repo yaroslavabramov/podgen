@@ -34,6 +34,14 @@ _ALLOWED_EVIDENCE_TYPES = {
     "MECHANISM",
     "CONTRAST",
 }
+_ALLOWED_REQUIRED_EVIDENCE_TYPES = {
+    "TIMELINE",
+    "CASE",
+    "STATISTIC",
+    "DEFINITION",
+    "MECHANISM",
+    "CONTRAST",
+}
 _BRANCH_ID_RE = re.compile(r"^b\d+$")
 _CHILD_ID_RE = re.compile(r"^b\d+\.\d+$")
 
@@ -50,7 +58,7 @@ Return valid JSON:
       "intent": "history|explain|compare|debate|case_study",
       "required_evidence": [
         {
-          "type": "TIMELINE|CASE|EXPERT_QUOTE|STATISTIC|ANECDOTE|DEFINITION|MECHANISM|CONTRAST",
+          "type": "TIMELINE|CASE|STATISTIC|DEFINITION|MECHANISM|CONTRAST",
           "min_count": 1
         }
       ],
@@ -64,7 +72,7 @@ Return valid JSON:
           "intent": "history|explain|compare|debate|case_study",
           "required_evidence": [
             {
-              "type": "TIMELINE|CASE|EXPERT_QUOTE|STATISTIC|ANECDOTE|DEFINITION|MECHANISM|CONTRAST",
+              "type": "TIMELINE|CASE|STATISTIC|DEFINITION|MECHANISM|CONTRAST",
               "min_count": 1
             }
           ],
@@ -85,7 +93,9 @@ Rules:
 2) Grounding and exploration:
 - Use content_map as the primary grounding signal.
 - Do NOT present unstated facts as true.
-- If a useful angle is not explicitly confirmed in content_map, phrase it as a researchable check/question (exploratory framing), not as an asserted fact.
+- If a useful angle is not explicitly confirmed in content_map, keep it as a neutral evidence-seeking question (not an asserted fact).
+- Do NOT use process/meta wording inside questions.
+- Questions must remain retrieval-friendly and content-first.
 - Do not add specific names, dates, or numbers unless they are present in content_map.
 
 3) Focus and anti-drift:
@@ -118,6 +128,10 @@ Rules:
 - required_evidence = strict minimum evidence assets needed for this question.
 - expected_evidence = useful but non-blocking assets that improve storytelling.
 - Use 1-3 required_evidence items; each min_count must be >= 1.
+- Do NOT default all min_count values to 1.
+- Set min_count = 2 only when the question inherently needs multiple independent pieces of evidence.
+- Typical min_count=2 usage is for inherently plural requirements (multi-period timelines, multiple cases, or explicit multi-contrast questions).
+- Keep min_count=1 for single-mechanism/single-definition questions.
 - Keep expected_evidence concise (0-4 items).
 - Do not duplicate a type across required_evidence and expected_evidence.
 
@@ -381,7 +395,10 @@ def _validate_node(raw: Any, *, path: str, is_child: bool) -> dict[str, Any]:
         required_evidence = [{"type": asset_type, "min_count": 1} for asset_type in legacy_normalized]
         expected_evidence = []
 
-    normalized_required = _normalize_required_evidence(required_evidence, path=f"{path}.required_evidence")
+    normalized_required, demoted_expected = _normalize_required_evidence(
+        required_evidence,
+        path=f"{path}.required_evidence",
+    )
 
     if expected_evidence is None:
         normalized_expected: list[str] = []
@@ -391,6 +408,23 @@ def _validate_node(raw: Any, *, path: str, is_child: bool) -> dict[str, Any]:
             path=f"{path}.expected_evidence",
             require_non_empty=False,
         )
+
+    for demoted in demoted_expected:
+        if demoted not in normalized_expected:
+            normalized_expected.append(demoted)
+
+    if not normalized_required:
+        promoted_type = next(
+            (asset for asset in normalized_expected if asset in _ALLOWED_REQUIRED_EVIDENCE_TYPES),
+            None,
+        )
+        if promoted_type:
+            normalized_required = [{"type": promoted_type, "min_count": 1}]
+            normalized_expected = [asset for asset in normalized_expected if asset != promoted_type]
+        else:
+            raise ValueError(
+                f"{path}.required_evidence must include at least one allowed required type"
+            )
 
     required_types = {item["type"] for item in normalized_required}
     normalized_expected = [item for item in normalized_expected if item not in required_types]
@@ -443,12 +477,18 @@ def _normalize_evidence_type_list(
     return normalized
 
 
-def _normalize_required_evidence(raw_value: Any, *, path: str) -> list[dict[str, int | str]]:
+def _normalize_required_evidence(
+    raw_value: Any,
+    *,
+    path: str,
+) -> tuple[list[dict[str, int | str]], list[str]]:
     if not isinstance(raw_value, list) or not raw_value:
         raise ValueError(f"{path} must be a non-empty list")
 
     dedup: dict[str, int] = {}
     order: list[str] = []
+    demoted: list[str] = []
+    demoted_seen: set[str] = set()
     for idx, item in enumerate(raw_value):
         item_path = f"{path}[{idx}]"
         if not isinstance(item, dict):
@@ -465,10 +505,19 @@ def _normalize_required_evidence(raw_value: Any, *, path: str) -> list[dict[str,
         if isinstance(min_count, bool) or not isinstance(min_count, int) or min_count < 1:
             raise ValueError(f"{item_path}.min_count must be an integer >= 1")
 
+        if evidence_type not in _ALLOWED_REQUIRED_EVIDENCE_TYPES:
+            if evidence_type not in demoted_seen:
+                demoted_seen.add(evidence_type)
+                demoted.append(evidence_type)
+            continue
+
         if evidence_type not in dedup:
             dedup[evidence_type] = min_count
             order.append(evidence_type)
         else:
             dedup[evidence_type] = max(dedup[evidence_type], min_count)
 
-    return [{"type": evidence_type, "min_count": dedup[evidence_type]} for evidence_type in order]
+    return (
+        [{"type": evidence_type, "min_count": dedup[evidence_type]} for evidence_type in order],
+        demoted,
+    )
