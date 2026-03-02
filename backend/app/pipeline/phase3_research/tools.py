@@ -15,6 +15,13 @@ from app.pipeline.step_control import assert_step_not_stopped
 from app.services.embeddings import vector_search as qdrant_search
 
 
+def _clip(value: str, limit: int = 240) -> str:
+    text = value.strip()
+    if len(text) <= limit:
+        return text
+    return text[:limit] + "..."
+
+
 async def vector_search_tool(
     query: str, top_k: int, source_ids: list[str], db: AsyncSession
 ) -> list[dict]:
@@ -22,13 +29,19 @@ async def vector_search_tool(
     with trace_span(
         "research.tool.vector_search",
         run_type="retriever",
-        inputs={"query_chars": len(query), "top_k": top_k, "source_count": len(source_ids)},
+        inputs={
+            "query_chars": len(query),
+            "query_preview": _clip(query),
+            "top_k": top_k,
+            "source_count": len(source_ids),
+            "source_ids_sample": source_ids[:8],
+        },
         tags=["research-tool", "vector-search"],
     ) as run_tree:
         results = await qdrant_search(query, top_k=top_k, source_ids=source_ids)
 
         if not results:
-            safe_set_run(run_tree, outputs={"hit_count": 0})
+            safe_set_run(run_tree, outputs={"hit_count": 0, "top_hits": []})
             return []
 
         chunk_ids_ordered: list[str] = []
@@ -45,7 +58,7 @@ async def vector_search_tool(
             chunk_ids_uuid.append(chunk_uuid)
 
         if not chunk_ids_uuid:
-            safe_set_run(run_tree, outputs={"hit_count": 0})
+            safe_set_run(run_tree, outputs={"hit_count": 0, "top_hits": []})
             return []
 
         chunk_result = await db.execute(select(Chunk).where(Chunk.id.in_(chunk_ids_uuid)))
@@ -72,7 +85,20 @@ async def vector_search_tool(
                     "heading_path": chunk.heading_path,
                 }
             )
-        safe_set_run(run_tree, outputs={"hit_count": len(chunks)})
+        safe_set_run(
+            run_tree,
+            outputs={
+                "hit_count": len(chunks),
+                "top_hits": [
+                    {
+                        "chunk_id": hit["chunk_id"],
+                        "source_id": hit["source_id"],
+                        "score": round(float(hit.get("score", 0.0)), 4),
+                    }
+                    for hit in chunks[:5]
+                ],
+            },
+        )
         return chunks
 
 
@@ -86,7 +112,13 @@ async def keyword_search_tool(
     with trace_span(
         "research.tool.keyword_search",
         run_type="retriever",
-        inputs={"query_chars": len(query), "source_count": len(source_ids)},
+        inputs={
+            "query_chars": len(query),
+            "query_preview": _clip(query),
+            "top_k": top_k,
+            "source_count": len(source_ids),
+            "source_ids_sample": source_ids[:8],
+        },
         tags=["research-tool", "keyword-search"],
     ) as run_tree:
         sql = text("""
@@ -116,7 +148,20 @@ async def keyword_search_tool(
             }
             for row in rows
         ]
-        safe_set_run(run_tree, outputs={"hit_count": len(payload)})
+        safe_set_run(
+            run_tree,
+            outputs={
+                "hit_count": len(payload),
+                "top_hits": [
+                    {
+                        "chunk_id": hit["chunk_id"],
+                        "source_id": hit["source_id"],
+                        "score": round(float(hit.get("score", 0.0)), 4),
+                    }
+                    for hit in payload[:5]
+                ],
+            },
+        )
         return payload
 
 

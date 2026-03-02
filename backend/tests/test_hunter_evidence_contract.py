@@ -1,4 +1,7 @@
+import json
+
 from app.pipeline.phase3_research.hunter import (
+    _dump_hunter_question_debug,
     _extract_node_evidence_contract,
     _find_chunk_for_quote,
     _merge_required_assets,
@@ -94,3 +97,63 @@ def test_resolve_evidence_origin_uses_chunk_id_and_falls_back_to_quote_matching(
 def test_find_chunk_for_quote_returns_none_when_not_found() -> None:
     chunk_texts = [{"content": "No matching quote here."}]
     assert _find_chunk_for_quote("This quote does not exist", chunk_texts) is None
+
+
+def test_dump_hunter_question_debug_writes_file(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.hunter.settings.web_extractor_debug_dump_dir",
+        str(tmp_path),
+        raising=False,
+    )
+
+    _dump_hunter_question_debug(
+        run_id="run-1",
+        question={
+            "id": "b1.1",
+            "branch_id": "b1",
+            "priority": 1,
+            "question": "Как работает механизм эмиссии?",
+            "required_targets": [{"type": "MECHANISM", "min_count": 1}],
+            "expected_types": ["CASE"],
+        },
+        status="ok",
+        vector_results=[{"chunk_id": "c1", "source_id": "s1", "score": 0.7}],
+        keyword_results=[{"chunk_id": "c2", "source_id": "s2", "score": 0.5}],
+        merged_results=[{"chunk_id": "c1", "source_id": "s1", "rrf_score": 0.01}],
+        selected_chunks=[{"chunk_id": "c1", "source_id": "s1", "rrf_score": 0.01}],
+        loaded_chunks=[{"chunk_id": "c1", "source_id": "s1", "source_title": "Source", "content": "Test content"}],
+        extracted_items=[{"asset_type": "MECHANISM", "verbatim_quote": "Quote", "locator": {"type": "section", "value": "H"}}],
+        saved_items=[{"evidence_id": "e1", "asset_type": "mechanism", "source_id": "s1", "chunk_id": "c1", "quote_preview": "Quote"}],
+    )
+
+    files = list((tmp_path / "hunter").glob("*.json"))
+    assert len(files) == 1
+    payload = json.loads(files[0].read_text(encoding="utf-8"))
+    assert payload["run_id"] == "run-1"
+    assert payload["status"] == "ok"
+    assert payload["question"]["id"] == "b1.1"
+    assert payload["retrieval"]["vector_hit_count"] == 1
+    assert payload["extraction"]["saved_evidence_count"] == 1
+
+
+def test_dump_hunter_question_debug_skips_when_disabled(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.hunter.settings.web_extractor_debug_dump_dir",
+        "",
+        raising=False,
+    )
+
+    _dump_hunter_question_debug(
+        run_id="run-1",
+        question={"id": "b1", "question": "Q", "required_targets": [], "expected_types": []},
+        status="ok",
+        vector_results=[],
+        keyword_results=[],
+        merged_results=[],
+        selected_chunks=[],
+        loaded_chunks=[],
+        extracted_items=[],
+        saved_items=[],
+    )
+
+    assert list(tmp_path.glob("**/*.json")) == []

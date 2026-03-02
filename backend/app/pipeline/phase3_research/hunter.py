@@ -1,11 +1,15 @@
 """Phase 3.1: Hunter — closed-book retrieval from project corpus."""
 
+import hashlib
 import json
 import logging
 import uuid
+from datetime import datetime, timezone
+from pathlib import Path
 
 from sqlalchemy import select
 
+from app.config import settings
 from app.workers.worker_db import worker_session_factory as async_session_factory
 from app.models.episode_manifest import EpisodeManifest
 from app.models.evidence import EvidenceSpan
@@ -13,6 +17,7 @@ from app.pipeline.state import PipelineState
 from app.pipeline.phase3_research.tools import vector_search_tool, keyword_search_tool, get_chunk_content
 from app.pipeline.llm_json import parse_llm_json
 from app.services.llm import call_haiku_structured
+from app.observability import safe_set_run, trace_span
 from app.realtime.publisher import publish_event, update_generation_progress
 from app.realtime.events import phase_started, step_started, step_completed, evidence_found, progress
 
@@ -23,6 +28,7 @@ RETRIEVAL_POOL_SIZE = 40
 EXTRACTION_CHUNK_LIMIT = 8
 DIVERSITY_SOURCE_PENALTY = 0.15
 DIVERSITY_PARENT_PENALTY = 0.08
+_REPO_ROOT = Path(__file__).resolve().parents[4]
 
 _ALLOWED_EVIDENCE_TYPES = {
     "TIMELINE",
@@ -123,105 +129,258 @@ async def hunt_closed_book(state: PipelineState) -> dict:
         publish_event(run_id, step_started("phase3_research", "hunter_search", f"Searching {len(questions)} questions across {len(source_ids)} sources"))
 
         for i, q in enumerate(questions):
-            # Hybrid search: vector + keyword, RRF merge
-            vector_results = await vector_search_tool(q["question"], top_k=RETRIEVAL_TOP_K, source_ids=source_ids, db=db)
-            keyword_results = await keyword_search_tool(q["question"], source_ids, db, top_k=RETRIEVAL_TOP_K)
+            with trace_span(
+                "research.hunter.question",
+                run_type="chain",
+                inputs={
+                    "question_id": q["id"],
+                    "branch_id": q["branch_id"],
+                    "priority": q.get("priority", 5),
+                    "question_preview": _clip_text(q["question"]),
+                    "required_evidence": q["required_targets"],
+                    "expected_evidence": q["expected_types"],
+                },
+                tags=["research", "hunter", "hunter-question"],
+            ) as question_run:
+                saved_debug_items: list[dict] = []
 
-            # RRF merge
-            merged = _rrf_merge(vector_results, keyword_results, k=60)
-            top_chunks = _select_diverse_chunks(
-                merged,
-                pool_size=RETRIEVAL_POOL_SIZE,
-                limit=EXTRACTION_CHUNK_LIMIT,
-                source_penalty=DIVERSITY_SOURCE_PENALTY,
-                parent_penalty=DIVERSITY_PARENT_PENALTY,
-            )
+                # Hybrid search: vector + keyword, RRF merge
+                vector_results = await vector_search_tool(q["question"], top_k=RETRIEVAL_TOP_K, source_ids=source_ids, db=db)
+                keyword_results = await keyword_search_tool(q["question"], source_ids, db, top_k=RETRIEVAL_TOP_K)
 
-            if not top_chunks:
-                continue
-
-            # Load full content for top chunks
-            chunk_texts = []
-            for hit in top_chunks:
-                content = await get_chunk_content(hit["chunk_id"], db)
-                if content:
-                    chunk_texts.append(content)
-
-            if not chunk_texts:
-                continue
-
-            # Extract evidence using Haiku
-            prompt = json.dumps({
-                "research_question": q["question"],
-                "required_evidence": q["required_targets"],
-                "expected_evidence_types": q["expected_types"],
-                "chunks": [{"content": c["content"][:2000], "source": c.get("source_title", ""), "heading": c.get("heading_path", [])} for c in chunk_texts],
-            }, ensure_ascii=False)
-
-            try:
-                raw = await call_haiku_structured(
-                    system=EXTRACT_EVIDENCE_SYSTEM,
-                    prompt=prompt,
-                    max_tokens=2048,
-                    temperature=0.2,
+                # RRF merge
+                merged = _rrf_merge(vector_results, keyword_results, k=60)
+                top_chunks = _select_diverse_chunks(
+                    merged,
+                    pool_size=RETRIEVAL_POOL_SIZE,
+                    limit=EXTRACTION_CHUNK_LIMIT,
+                    source_penalty=DIVERSITY_SOURCE_PENALTY,
+                    parent_penalty=DIVERSITY_PARENT_PENALTY,
                 )
-                evidence_items = parse_llm_json(raw)
-            except Exception:
-                logger.warning("Evidence extraction failed for question %s", q["id"], exc_info=True)
-                continue
 
-            if not isinstance(evidence_items, list):
-                continue
-
-            # Create EvidenceSpan records
-            chunk_by_id = {
-                str(ct.get("chunk_id")): ct
-                for ct in chunk_texts
-                if ct.get("chunk_id")
-            }
-            for item in evidence_items:
-                if not isinstance(item, dict):
-                    continue
-                if not item.get("verbatim_quote"):
-                    continue
-
-                normalized_asset_type = _normalize_single_asset_type(item.get("asset_type"))
-                if normalized_asset_type is None:
-                    logger.warning("Skipping evidence with invalid asset_type for question %s", q["id"])
-                    continue
-
-                resolved_origin = _resolve_evidence_origin(item, chunk_texts, chunk_by_id)
-                if resolved_origin is None:
-                    logger.warning("Skipping evidence with unresolved source attribution for question %s", q["id"])
+                if not top_chunks:
+                    safe_set_run(
+                        question_run,
+                        outputs={
+                            "vector_hit_count": len(vector_results),
+                            "keyword_hit_count": len(keyword_results),
+                            "merged_hit_count": len(merged),
+                            "selected_chunk_count": 0,
+                            "saved_evidence_count": 0,
+                        },
+                    )
+                    _dump_hunter_question_debug(
+                        run_id=run_id,
+                        question=q,
+                        status="no_selected_chunks",
+                        vector_results=vector_results,
+                        keyword_results=keyword_results,
+                        merged_results=merged,
+                        selected_chunks=top_chunks,
+                        loaded_chunks=[],
+                        extracted_items=None,
+                        saved_items=saved_debug_items,
+                    )
                     continue
 
-                source_id, chunk_id = resolved_origin
+                # Load full content for top chunks
+                chunk_texts = []
+                for hit in top_chunks:
+                    content = await get_chunk_content(hit["chunk_id"], db)
+                    if content:
+                        chunk_texts.append(content)
 
-                evidence = EvidenceSpan(
-                    id=uuid.uuid4(),
-                    project_id=uuid.UUID(state["project_id"]),
-                    source_id=uuid.UUID(source_id),
-                    chunk_id=uuid.UUID(chunk_id) if chunk_id else None,
-                    verbatim_quote=item["verbatim_quote"],
-                    asset_type=normalized_asset_type,
-                    narrative_value_score=item.get("narrative_value_score", 0.5),
-                    tellability_notes=item.get("tellability_notes"),
-                    locator=item.get("locator"),
-                    reliability_hint=next(
-                        (ct.get("domain_reliability") for ct in chunk_texts if ct.get("chunk_id") == chunk_id),
-                        None,
-                    ),
+                if not chunk_texts:
+                    safe_set_run(
+                        question_run,
+                        outputs={
+                            "vector_hit_count": len(vector_results),
+                            "keyword_hit_count": len(keyword_results),
+                            "merged_hit_count": len(merged),
+                            "selected_chunk_count": len(top_chunks),
+                            "loaded_chunk_count": 0,
+                            "saved_evidence_count": 0,
+                        },
+                    )
+                    _dump_hunter_question_debug(
+                        run_id=run_id,
+                        question=q,
+                        status="no_loaded_chunks",
+                        vector_results=vector_results,
+                        keyword_results=keyword_results,
+                        merged_results=merged,
+                        selected_chunks=top_chunks,
+                        loaded_chunks=[],
+                        extracted_items=None,
+                        saved_items=saved_debug_items,
+                    )
+                    continue
+
+                # Extract evidence using Haiku
+                prompt = json.dumps({
+                    "research_question": q["question"],
+                    "required_evidence": q["required_targets"],
+                    "expected_evidence_types": q["expected_types"],
+                    "chunks": [{"content": c["content"][:2000], "source": c.get("source_title", ""), "heading": c.get("heading_path", [])} for c in chunk_texts],
+                }, ensure_ascii=False)
+
+                try:
+                    raw = await call_haiku_structured(
+                        system=EXTRACT_EVIDENCE_SYSTEM,
+                        prompt=prompt,
+                        max_tokens=2048,
+                        temperature=0.2,
+                    )
+                    evidence_items = parse_llm_json(raw)
+                except Exception:
+                    logger.warning("Evidence extraction failed for question %s", q["id"], exc_info=True)
+                    safe_set_run(
+                        question_run,
+                        outputs={
+                            "vector_hit_count": len(vector_results),
+                            "keyword_hit_count": len(keyword_results),
+                            "merged_hit_count": len(merged),
+                            "selected_chunk_count": len(top_chunks),
+                            "loaded_chunk_count": len(chunk_texts),
+                            "extraction_failed": True,
+                        },
+                    )
+                    _dump_hunter_question_debug(
+                        run_id=run_id,
+                        question=q,
+                        status="extraction_failed",
+                        vector_results=vector_results,
+                        keyword_results=keyword_results,
+                        merged_results=merged,
+                        selected_chunks=top_chunks,
+                        loaded_chunks=chunk_texts,
+                        extracted_items=None,
+                        saved_items=saved_debug_items,
+                    )
+                    continue
+
+                if not isinstance(evidence_items, list):
+                    safe_set_run(
+                        question_run,
+                        outputs={
+                            "vector_hit_count": len(vector_results),
+                            "keyword_hit_count": len(keyword_results),
+                            "merged_hit_count": len(merged),
+                            "selected_chunk_count": len(top_chunks),
+                            "loaded_chunk_count": len(chunk_texts),
+                            "extracted_item_count": 0,
+                            "saved_evidence_count": 0,
+                        },
+                    )
+                    _dump_hunter_question_debug(
+                        run_id=run_id,
+                        question=q,
+                        status="invalid_extractor_payload",
+                        vector_results=vector_results,
+                        keyword_results=keyword_results,
+                        merged_results=merged,
+                        selected_chunks=top_chunks,
+                        loaded_chunks=chunk_texts,
+                        extracted_items=evidence_items,
+                        saved_items=saved_debug_items,
+                    )
+                    continue
+
+                saved_for_question = 0
+                invalid_type_count = 0
+                unresolved_origin_count = 0
+
+                # Create EvidenceSpan records
+                chunk_by_id = {
+                    str(ct.get("chunk_id")): ct
+                    for ct in chunk_texts
+                    if ct.get("chunk_id")
+                }
+                for item in evidence_items:
+                    if not isinstance(item, dict):
+                        continue
+                    if not item.get("verbatim_quote"):
+                        continue
+
+                    normalized_asset_type = _normalize_single_asset_type(item.get("asset_type"))
+                    if normalized_asset_type is None:
+                        invalid_type_count += 1
+                        logger.warning("Skipping evidence with invalid asset_type for question %s", q["id"])
+                        continue
+
+                    resolved_origin = _resolve_evidence_origin(item, chunk_texts, chunk_by_id)
+                    if resolved_origin is None:
+                        unresolved_origin_count += 1
+                        logger.warning("Skipping evidence with unresolved source attribution for question %s", q["id"])
+                        continue
+
+                    source_id, chunk_id = resolved_origin
+
+                    evidence = EvidenceSpan(
+                        id=uuid.uuid4(),
+                        project_id=uuid.UUID(state["project_id"]),
+                        source_id=uuid.UUID(source_id),
+                        chunk_id=uuid.UUID(chunk_id) if chunk_id else None,
+                        verbatim_quote=item["verbatim_quote"],
+                        asset_type=normalized_asset_type,
+                        narrative_value_score=item.get("narrative_value_score", 0.5),
+                        tellability_notes=item.get("tellability_notes"),
+                        locator=item.get("locator"),
+                        reliability_hint=next(
+                            (ct.get("domain_reliability") for ct in chunk_texts if ct.get("chunk_id") == chunk_id),
+                            None,
+                        ),
+                    )
+                    db.add(evidence)
+                    await db.flush()
+                    all_evidence_ids.append(str(evidence.id))
+                    new_evidence_count += 1
+                    saved_for_question += 1
+                    saved_debug_items.append(
+                        {
+                            "evidence_id": str(evidence.id),
+                            "asset_type": normalized_asset_type,
+                            "source_id": source_id,
+                            "chunk_id": chunk_id,
+                            "quote_preview": _clip_text(item["verbatim_quote"], limit=220),
+                        }
+                    )
+
+                    asset_type_upper = normalized_asset_type.upper()
+                    if asset_type_upper:
+                        question_counts = question_found_counts.setdefault(q["id"], {})
+                        question_counts[asset_type_upper] = question_counts.get(asset_type_upper, 0) + 1
+                        new_asset_types_found.add(asset_type_upper)
+
+                safe_set_run(
+                    question_run,
+                    outputs={
+                        "vector_hit_count": len(vector_results),
+                        "keyword_hit_count": len(keyword_results),
+                        "merged_hit_count": len(merged),
+                        "selected_chunk_count": len(top_chunks),
+                        "loaded_chunk_count": len(chunk_texts),
+                        "extracted_item_count": len(evidence_items),
+                        "saved_evidence_count": saved_for_question,
+                        "invalid_asset_type_count": invalid_type_count,
+                        "unresolved_origin_count": unresolved_origin_count,
+                        "selected_chunks_sample": [hit.get("chunk_id") for hit in top_chunks[:5]],
+                    },
                 )
-                db.add(evidence)
-                await db.flush()
-                all_evidence_ids.append(str(evidence.id))
-                new_evidence_count += 1
-
-                asset_type_upper = normalized_asset_type.upper()
-                if asset_type_upper:
-                    question_counts = question_found_counts.setdefault(q["id"], {})
-                    question_counts[asset_type_upper] = question_counts.get(asset_type_upper, 0) + 1
-                    new_asset_types_found.add(asset_type_upper)
+                _dump_hunter_question_debug(
+                    run_id=run_id,
+                    question=q,
+                    status="ok",
+                    vector_results=vector_results,
+                    keyword_results=keyword_results,
+                    merged_results=merged,
+                    selected_chunks=top_chunks,
+                    loaded_chunks=chunk_texts,
+                    extracted_items=evidence_items,
+                    saved_items=saved_debug_items,
+                    invalid_asset_type_count=invalid_type_count,
+                    unresolved_origin_count=unresolved_origin_count,
+                )
 
             update_generation_progress(run_id, "phase3_research", "hunter", 20.0 + (i / len(questions)) * 10)
 
@@ -269,6 +428,153 @@ async def hunt_closed_book(state: PipelineState) -> dict:
         "research_gaps": research_gaps,
         "current_phase": "phase3_research",
     }
+
+
+def _safe_filename_token(value: str) -> str:
+    token = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in value.strip())
+    token = token.strip("-_")
+    return token or "unknown"
+
+
+def _resolve_dump_dir(raw_dir: str) -> Path:
+    path = Path(raw_dir).expanduser()
+    if path.is_absolute():
+        return path
+    return _REPO_ROOT / path
+
+
+def _summarize_hits(hits: list[dict], limit: int = 10) -> list[dict]:
+    summarized: list[dict] = []
+    for hit in hits[:limit]:
+        summarized.append(
+            {
+                "chunk_id": hit.get("chunk_id"),
+                "source_id": hit.get("source_id"),
+                "parent_chunk_id": hit.get("parent_chunk_id"),
+                "score": hit.get("score"),
+                "rrf_score": hit.get("rrf_score"),
+            }
+        )
+    return summarized
+
+
+def _summarize_loaded_chunks(chunks: list[dict], limit: int = 8) -> list[dict]:
+    summarized: list[dict] = []
+    for chunk in chunks[:limit]:
+        summarized.append(
+            {
+                "chunk_id": chunk.get("chunk_id"),
+                "source_id": chunk.get("source_id"),
+                "source_title": chunk.get("source_title"),
+                "heading_path": chunk.get("heading_path") or [],
+                "content_preview": _clip_text(str(chunk.get("content", "")), limit=300),
+            }
+        )
+    return summarized
+
+
+def _summarize_extracted_items(items: object, limit: int = 12) -> list[dict]:
+    if not isinstance(items, list):
+        return []
+
+    summarized: list[dict] = []
+    for item in items[:limit]:
+        if not isinstance(item, dict):
+            continue
+        summarized.append(
+            {
+                "asset_type": item.get("asset_type"),
+                "quote_preview": _clip_text(str(item.get("verbatim_quote", "")), limit=220),
+                "locator": item.get("locator"),
+                "narrative_value_score": item.get("narrative_value_score"),
+            }
+        )
+    return summarized
+
+
+def _dump_hunter_question_debug(
+    *,
+    run_id: str,
+    question: dict,
+    status: str,
+    vector_results: list[dict],
+    keyword_results: list[dict],
+    merged_results: list[dict],
+    selected_chunks: list[dict],
+    loaded_chunks: list[dict],
+    extracted_items: object,
+    saved_items: list[dict],
+    invalid_asset_type_count: int = 0,
+    unresolved_origin_count: int = 0,
+) -> None:
+    dump_dir = (settings.web_extractor_debug_dump_dir or "").strip()
+    if not dump_dir:
+        return
+
+    try:
+        target_dir = _resolve_dump_dir(dump_dir) / "hunter"
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        question_id = str(question.get("id", "question"))
+        question_text = str(question.get("question", ""))
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        q_hash = hashlib.sha1(question_text.encode("utf-8")).hexdigest()[:10]
+        filename = (
+            f"{ts}_run-{_safe_filename_token(run_id)}_"
+            f"{_safe_filename_token(question_id)}_{q_hash}.json"
+        )
+
+        payload = {
+            "run_id": run_id,
+            "status": status,
+            "question": {
+                "id": question_id,
+                "branch_id": question.get("branch_id"),
+                "priority": question.get("priority"),
+                "text": question_text,
+                "required_evidence": question.get("required_targets", []),
+                "expected_evidence": question.get("expected_types", []),
+            },
+            "retrieval": {
+                "vector_hit_count": len(vector_results),
+                "keyword_hit_count": len(keyword_results),
+                "merged_hit_count": len(merged_results),
+                "selected_chunk_count": len(selected_chunks),
+                "loaded_chunk_count": len(loaded_chunks),
+                "vector_top_hits": _summarize_hits(vector_results),
+                "keyword_top_hits": _summarize_hits(keyword_results),
+                "selected_chunks": _summarize_hits(selected_chunks, limit=12),
+                "loaded_chunks": _summarize_loaded_chunks(loaded_chunks),
+            },
+            "extraction": {
+                "extracted_item_count": len(extracted_items) if isinstance(extracted_items, list) else None,
+                "extracted_items_sample": _summarize_extracted_items(extracted_items),
+                "saved_evidence_count": len(saved_items),
+                "saved_evidence": saved_items[:12],
+                "invalid_asset_type_count": invalid_asset_type_count,
+                "unresolved_origin_count": unresolved_origin_count,
+            },
+        }
+
+        (target_dir / filename).write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except Exception:
+        logger.warning(
+            "Failed to write hunter debug dump (run_id=%s, question_id=%s, status=%s)",
+            run_id,
+            question.get("id"),
+            status,
+            exc_info=True,
+        )
+
+
+def _clip_text(value: str, limit: int = 220) -> str:
+    text = value.strip()
+    if len(text) <= limit:
+        return text
+    return text[:limit] + "..."
 
 
 def _rrf_merge(vector_results: list[dict], keyword_results: list[dict], k: int = 60) -> list[dict]:
