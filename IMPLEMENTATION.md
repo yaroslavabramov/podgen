@@ -937,6 +937,7 @@ class PipelineState(TypedDict):
 **Выход:**
 - Новые EvidenceSpan records → evidence_ids в state
 - Structured gap signal `research_gaps` в state:
+  - `question_id` (branch id или child id)
   - `branch_id`
   - `question`
   - `priority`

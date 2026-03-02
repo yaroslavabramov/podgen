@@ -68,7 +68,8 @@ async def hunt_closed_book(state: PipelineState) -> dict:
         return {"evidence_ids": [], "current_phase": "phase3_research"}
 
     all_evidence_ids = list(state.get("evidence_ids", []))
-    all_asset_types_found: set[str] = set()
+    new_asset_types_found: set[str] = set()
+    new_evidence_count = 0
 
     async with async_session_factory() as db:
         # Load research tree
@@ -87,42 +88,36 @@ async def hunt_closed_book(state: PipelineState) -> dict:
 
         # Flatten all questions (branches + children)
         questions = []
-        branch_required_assets: dict[str, dict[str, int]] = {}
-        branch_expected_types: dict[str, set[str]] = {}
-        branch_found_counts: dict[str, dict[str, int]] = {}
-        branch_meta: dict[str, dict] = {}
+        question_required_assets: dict[str, dict[str, int]] = {}
+        question_expected_types: dict[str, set[str]] = {}
+        question_found_counts: dict[str, dict[str, int]] = {}
 
         for branch in branches:
             branch_id = branch["id"]
             required_targets, expected_types = _extract_node_evidence_contract(branch)
-            _merge_required_assets(branch_required_assets, branch_id, required_targets)
-            branch_expected_types.setdefault(branch_id, set()).update(expected_types)
-            branch_found_counts.setdefault(branch_id, {})
-            branch_meta[branch_id] = {
-                "question": branch["question"],
-                "priority": branch.get("priority", 5),
-            }
-            target_types = _merge_target_types(required_targets, expected_types)
+            _merge_required_assets(question_required_assets, branch_id, required_targets)
+            question_expected_types.setdefault(branch_id, set()).update(expected_types)
+            question_found_counts.setdefault(branch_id, {})
             questions.append({
                 "id": branch_id,
                 "branch_id": branch_id,
                 "question": branch["question"],
+                "priority": branch.get("priority", 5),
                 "required_targets": required_targets,
                 "expected_types": expected_types,
-                "target_types": target_types,
             })
             for child in branch.get("children", []):
                 child_required, child_expected = _extract_node_evidence_contract(child)
-                _merge_required_assets(branch_required_assets, branch_id, child_required)
-                branch_expected_types.setdefault(branch_id, set()).update(child_expected)
-                child_target_types = _merge_target_types(child_required, child_expected)
+                _merge_required_assets(question_required_assets, child["id"], child_required)
+                question_expected_types.setdefault(child["id"], set()).update(child_expected)
+                question_found_counts.setdefault(child["id"], {})
                 questions.append({
                     "id": child["id"],
                     "branch_id": branch_id,
                     "question": child["question"],
+                    "priority": child.get("priority", branch.get("priority", 5)),
                     "required_targets": child_required,
                     "expected_types": child_expected,
-                    "target_types": child_target_types,
                 })
 
         publish_event(run_id, step_started("phase3_research", "hunter_search", f"Searching {len(questions)} questions across {len(source_ids)} sources"))
@@ -160,7 +155,6 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                 "research_question": q["question"],
                 "required_evidence": q["required_targets"],
                 "expected_evidence_types": q["expected_types"],
-                "target_evidence_types": q["target_types"],
                 "chunks": [{"content": c["content"][:2000], "source": c.get("source_title", ""), "heading": c.get("heading_path", [])} for c in chunk_texts],
             }, ensure_ascii=False)
 
@@ -180,33 +174,36 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                 continue
 
             # Create EvidenceSpan records
+            chunk_by_id = {
+                str(ct.get("chunk_id")): ct
+                for ct in chunk_texts
+                if ct.get("chunk_id")
+            }
             for item in evidence_items:
                 if not isinstance(item, dict):
                     continue
                 if not item.get("verbatim_quote"):
                     continue
 
-                # Find the source_id from the chunk that contains this quote
-                source_id = chunk_texts[0].get("source_id") if chunk_texts else source_ids[0] if source_ids else None
-                if not source_id:
+                normalized_asset_type = _normalize_single_asset_type(item.get("asset_type"))
+                if normalized_asset_type is None:
+                    logger.warning("Skipping evidence with invalid asset_type for question %s", q["id"])
                     continue
 
-                # Find matching chunk_id
-                chunk_id = None
-                for ct in chunk_texts:
-                    if item["verbatim_quote"][:50] in ct.get("content", ""):
-                        chunk_id = ct.get("chunk_id")
-                        source_id = ct.get("source_id", source_id)
-                        break
+                resolved_origin = _resolve_evidence_origin(item, chunk_texts, chunk_by_id)
+                if resolved_origin is None:
+                    logger.warning("Skipping evidence with unresolved source attribution for question %s", q["id"])
+                    continue
 
-                asset_type_value = str(item.get("asset_type", "mechanism")).lower()
+                source_id, chunk_id = resolved_origin
+
                 evidence = EvidenceSpan(
                     id=uuid.uuid4(),
                     project_id=uuid.UUID(state["project_id"]),
                     source_id=uuid.UUID(source_id),
                     chunk_id=uuid.UUID(chunk_id) if chunk_id else None,
                     verbatim_quote=item["verbatim_quote"],
-                    asset_type=asset_type_value,
+                    asset_type=normalized_asset_type,
                     narrative_value_score=item.get("narrative_value_score", 0.5),
                     tellability_notes=item.get("tellability_notes"),
                     locator=item.get("locator"),
@@ -218,23 +215,24 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                 db.add(evidence)
                 await db.flush()
                 all_evidence_ids.append(str(evidence.id))
+                new_evidence_count += 1
 
-                asset_type_upper = asset_type_value.upper()
+                asset_type_upper = normalized_asset_type.upper()
                 if asset_type_upper:
-                    branch_counts = branch_found_counts.setdefault(q["branch_id"], {})
-                    branch_counts[asset_type_upper] = branch_counts.get(asset_type_upper, 0) + 1
-                    all_asset_types_found.add(asset_type_upper)
+                    question_counts = question_found_counts.setdefault(q["id"], {})
+                    question_counts[asset_type_upper] = question_counts.get(asset_type_upper, 0) + 1
+                    new_asset_types_found.add(asset_type_upper)
 
             update_generation_progress(run_id, "phase3_research", "hunter", 20.0 + (i / len(questions)) * 10)
 
         await db.commit()
 
     research_gaps = []
-    for branch in branches:
-        branch_id = branch["id"]
-        required_assets_map = branch_required_assets.get(branch_id, {})
-        expected_assets = sorted(branch_expected_types.get(branch_id, set()))
-        found_counts = branch_found_counts.get(branch_id, {})
+    for q in questions:
+        question_id = q["id"]
+        required_assets_map = question_required_assets.get(question_id, {})
+        expected_assets = sorted(question_expected_types.get(question_id, set()))
+        found_counts = question_found_counts.get(question_id, {})
         found_assets = sorted(asset for asset, count in found_counts.items() if count > 0)
         required_assets = [
             {
@@ -250,20 +248,21 @@ async def hunt_closed_book(state: PipelineState) -> dict:
             if found_counts.get(asset_type, 0) < min_count
         )
         if missing_assets:
-            meta = branch_meta.get(branch_id, {})
             research_gaps.append({
-                "branch_id": branch_id,
-                "question": meta.get("question", branch.get("question", "")),
-                "priority": meta.get("priority", branch.get("priority", 5)),
+                "question_id": question_id,
+                "branch_id": q["branch_id"],
+                "question": q["question"],
+                "priority": q.get("priority", 5),
                 "missing_assets": missing_assets,
                 "required_assets": required_assets,
                 "expected_assets": expected_assets,
                 "found_assets": found_assets,
             })
 
-    publish_event(run_id, evidence_found(len(all_evidence_ids), sorted(all_asset_types_found)))
+    research_gaps.sort(key=lambda gap: (gap.get("priority", 5), gap.get("branch_id", ""), gap.get("question_id", "")))
+    publish_event(run_id, evidence_found(new_evidence_count, sorted(new_asset_types_found)))
     publish_event(run_id, step_completed("phase3_research", "hunter_search"))
-    publish_event(run_id, progress(30.0, f"Found {len(all_evidence_ids)} evidence spans in corpus"))
+    publish_event(run_id, progress(30.0, f"Found {new_evidence_count} new evidence spans in corpus"))
 
     return {
         "evidence_ids": all_evidence_ids,
@@ -312,6 +311,15 @@ def _normalize_asset_types(asset_types: list[str] | None) -> list[str]:
         seen.add(asset_type)
         normalized.append(asset_type)
     return normalized
+
+
+def _normalize_single_asset_type(asset_type: object) -> str | None:
+    if not isinstance(asset_type, str):
+        return None
+    normalized = asset_type.strip().upper()
+    if not normalized or normalized not in _ALLOWED_EVIDENCE_TYPES:
+        return None
+    return normalized.lower()
 
 
 def _normalize_required_targets(raw_required: list[dict] | None) -> list[dict[str, int | str]]:
@@ -371,24 +379,57 @@ def _merge_required_assets(
         aggregate[asset_type] = max(aggregate.get(asset_type, 0), min_count)
 
 
-def _merge_target_types(required_targets: list[dict[str, int | str]], expected_types: list[str]) -> list[str]:
-    merged: list[str] = []
-    seen: set[str] = set()
+def _resolve_evidence_origin(
+    evidence_item: dict,
+    chunk_texts: list[dict],
+    chunk_by_id: dict[str, dict],
+) -> tuple[str, str | None] | None:
+    chunk_id_raw = evidence_item.get("chunk_id")
+    if isinstance(chunk_id_raw, str):
+        direct_match = chunk_by_id.get(chunk_id_raw.strip())
+        if direct_match and direct_match.get("source_id"):
+            return str(direct_match["source_id"]), str(direct_match.get("chunk_id"))
 
-    for item in required_targets:
-        asset_type = str(item.get("type", "")).upper()
-        if not asset_type or asset_type in seen:
+    quote = evidence_item.get("verbatim_quote")
+    if not isinstance(quote, str) or not quote.strip():
+        return None
+
+    matched_chunk = _find_chunk_for_quote(quote, chunk_texts)
+    if matched_chunk is None or not matched_chunk.get("source_id"):
+        return None
+    return str(matched_chunk["source_id"]), str(matched_chunk.get("chunk_id"))
+
+
+def _normalize_text(value: str) -> str:
+    return " ".join(value.split())
+
+
+def _find_chunk_for_quote(quote: str, chunk_texts: list[dict]) -> dict | None:
+    quote_raw = quote.strip()
+    if not quote_raw:
+        return None
+
+    quote_normalized = _normalize_text(quote_raw)
+    quote_prefix = quote_normalized[:120] if len(quote_normalized) >= 80 else quote_normalized
+
+    for chunk in chunk_texts:
+        content = str(chunk.get("content", ""))
+        if not content:
             continue
-        seen.add(asset_type)
-        merged.append(asset_type)
+        if quote_raw in content:
+            return chunk
 
-    for asset_type in expected_types:
-        if asset_type in seen:
+    for chunk in chunk_texts:
+        content = str(chunk.get("content", ""))
+        if not content:
             continue
-        seen.add(asset_type)
-        merged.append(asset_type)
+        normalized_content = _normalize_text(content)
+        if quote_normalized in normalized_content:
+            return chunk
+        if quote_prefix and quote_prefix in normalized_content:
+            return chunk
 
-    return merged
+    return None
 
 
 def _select_diverse_chunks(

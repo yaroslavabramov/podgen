@@ -280,6 +280,7 @@ Web extraction использует каскад extractors:
   - `missing_assets` рассчитывается только по `required_evidence` (с учетом `min_count`)
   - `required_assets` (type/min_count/found_count)
   - `expected_assets`, `found_assets` как soft coverage сигнал
+  - gap-записи формируются на уровне конкретного question (branch или child), чтобы не терять недопокрытые под-вопросы
 
 ### **3.2 Librarian / Web Researcher (Open-web, двух режима)**
 

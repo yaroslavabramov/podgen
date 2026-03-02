@@ -134,7 +134,11 @@ async def research_fast_web(state: PipelineState) -> dict:
                     if not item.get("verbatim_quote") or not item.get("url"):
                         continue
 
-                    asset_type = str(item.get("asset_type", "mechanism")).upper()
+                    normalized_asset_types = _normalize_asset_types([item.get("asset_type")])
+                    if not normalized_asset_types:
+                        logger.warning("Skipping web evidence with invalid asset_type for question: %s", question)
+                        continue
+                    asset_type = normalized_asset_types[0]
                     if target_missing_assets and asset_type not in target_missing_assets:
                         continue
 
@@ -169,7 +173,7 @@ async def research_fast_web(state: PipelineState) -> dict:
         active_result = await db2.execute(
             select(func.count(Source.id)).where(
                 Source.generation_run_id == uuid.UUID(state["generation_run_id"]),
-                Source.is_temporary == True,
+                Source.is_temporary.is_(True),
                 Source.ingestion_status.in_([IngestionStatus.ENQUEUED, IngestionStatus.PROCESSING]),
             )
         )
@@ -180,8 +184,8 @@ async def research_fast_web(state: PipelineState) -> dict:
             deep_result = await db2.execute(
                 select(Source).where(
                     Source.project_id == uuid.UUID(state["project_id"]),
-                    Source.is_temporary == True,
-                    Source.fully_ingested == False,
+                    Source.is_temporary.is_(True),
+                    Source.fully_ingested.is_(False),
                     Source.generation_run_id == uuid.UUID(state["generation_run_id"]),
                     Source.ingestion_status == IngestionStatus.PENDING,
                 )
@@ -259,6 +263,5 @@ def _normalize_asset_types(asset_types: list[str] | None) -> list[str]:
 
 
 def _build_targeted_query(question: str, missing_assets: list[str]) -> str:
-    if not missing_assets:
-        return question
-    return f"{question} {' '.join(missing_assets)}"
+    # Keep web query natural-language only; missing asset types are enforced during extraction/filtering.
+    return question

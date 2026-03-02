@@ -3,7 +3,7 @@
 import uuid
 from urllib.parse import urlparse
 
-from sqlalchemy import select, text
+from sqlalchemy import bindparam, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -27,21 +27,51 @@ async def vector_search_tool(
     ) as run_tree:
         results = await qdrant_search(query, top_k=top_k, source_ids=source_ids)
 
-        chunks = []
+        if not results:
+            safe_set_run(run_tree, outputs={"hit_count": 0})
+            return []
+
+        chunk_ids_ordered: list[str] = []
+        chunk_ids_uuid: list[uuid.UUID] = []
         for hit in results:
-            result = await db.execute(select(Chunk).where(Chunk.id == uuid.UUID(hit["chunk_id"])))
-            chunk = result.scalar_one_or_none()
-            if chunk:
-                chunks.append(
-                    {
-                        "chunk_id": str(chunk.id),
-                        "source_id": str(chunk.source_id),
-                        "parent_chunk_id": str(chunk.parent_chunk_id) if chunk.parent_chunk_id else None,
-                        "score": hit["score"],
-                        "preview": chunk.content[:300],
-                        "heading_path": chunk.heading_path,
-                    }
-                )
+            chunk_id_raw = hit.get("chunk_id")
+            if not isinstance(chunk_id_raw, str):
+                continue
+            try:
+                chunk_uuid = uuid.UUID(chunk_id_raw)
+            except ValueError:
+                continue
+            chunk_ids_ordered.append(chunk_id_raw)
+            chunk_ids_uuid.append(chunk_uuid)
+
+        if not chunk_ids_uuid:
+            safe_set_run(run_tree, outputs={"hit_count": 0})
+            return []
+
+        chunk_result = await db.execute(select(Chunk).where(Chunk.id.in_(chunk_ids_uuid)))
+        chunk_rows = chunk_result.scalars().all()
+        chunk_by_id = {str(chunk.id): chunk for chunk in chunk_rows}
+        score_by_id = {
+            str(hit["chunk_id"]): hit.get("score", 0.0)
+            for hit in results
+            if isinstance(hit, dict) and isinstance(hit.get("chunk_id"), str)
+        }
+
+        chunks = []
+        for chunk_id in chunk_ids_ordered:
+            chunk = chunk_by_id.get(chunk_id)
+            if chunk is None:
+                continue
+            chunks.append(
+                {
+                    "chunk_id": str(chunk.id),
+                    "source_id": str(chunk.source_id),
+                    "parent_chunk_id": str(chunk.parent_chunk_id) if chunk.parent_chunk_id else None,
+                    "score": score_by_id.get(chunk_id, 0.0),
+                    "preview": chunk.content[:300],
+                    "heading_path": chunk.heading_path,
+                }
+            )
         safe_set_run(run_tree, outputs={"hit_count": len(chunks)})
         return chunks
 
@@ -50,8 +80,7 @@ async def keyword_search_tool(
     query: str, source_ids: list[str], db: AsyncSession, top_k: int = 10
 ) -> list[dict]:
     """PostgreSQL full-text search on chunks."""
-    source_filter = ", ".join(f"'{s}'" for s in source_ids)
-    if not source_filter:
+    if not source_ids:
         return []
 
     with trace_span(
@@ -60,17 +89,20 @@ async def keyword_search_tool(
         inputs={"query_chars": len(query), "source_count": len(source_ids)},
         tags=["research-tool", "keyword-search"],
     ) as run_tree:
-        sql = text(f"""
+        sql = text("""
             SELECT c.id, c.source_id, c.parent_chunk_id, c.content, c.heading_path,
-                   ts_rank(to_tsvector('english', c.content), plainto_tsquery('english', :query)) as rank
+                   ts_rank(to_tsvector('simple', c.content), plainto_tsquery('simple', :query)) as rank
             FROM chunks c
-            WHERE c.source_id IN ({source_filter})
-              AND to_tsvector('english', c.content) @@ plainto_tsquery('english', :query)
+            WHERE c.source_id IN :source_ids
+              AND to_tsvector('simple', c.content) @@ plainto_tsquery('simple', :query)
             ORDER BY rank DESC
             LIMIT :top_k
-        """)
+        """).bindparams(bindparam("source_ids", expanding=True))
 
-        result = await db.execute(sql, {"query": query, "top_k": top_k})
+        result = await db.execute(
+            sql,
+            {"query": query, "top_k": top_k, "source_ids": source_ids},
+        )
         rows = result.fetchall()
 
         payload = [

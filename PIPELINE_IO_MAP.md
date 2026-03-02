@@ -281,8 +281,8 @@ Status transitions (step mode):
   - `EvidenceSpan` rows (`135-152`).
 - State output:
   - `evidence_ids`, `research_gaps`, `current_phase=phase3_research`.
-  - `research_gaps` contract per branch:
-    - `branch_id`, `question`, `priority`
+  - `research_gaps` contract per question:
+    - `question_id`, `branch_id`, `question`, `priority`
     - `missing_assets` (computed only from `required_evidence`, respecting `min_count`)
     - `required_assets` (`type`, `min_count`, `found_count`)
     - `expected_assets`, `found_assets`

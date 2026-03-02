@@ -397,6 +397,17 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P2**: Hunter target-type normalization now filters to allowed asset enums and deduplicates consistently across required/expected signals
 - [x] **P2**: Added regression tests for new decomposer contract + hunter evidence contract helpers; updated pipeline docs (`PIPELINE.md`, `PIPELINE_IO_MAP.md`, `IMPLEMENTATION.md`)
 
+**Round 65 (hunter/librarian retrieval correctness hardening):**
+- [x] **P1**: Hunter source attribution hardened: no silent fallback to first chunk/source; unresolved quote-to-chunk mapping now skips evidence with warning
+- [x] **P1**: Hunter extraction prompt simplified (removed redundant `target_evidence_types` field)
+- [x] **P1**: Hunter now validates `asset_type` before DB write to avoid enum poisoning from malformed LLM outputs
+- [x] **P1**: Hunter `research_gaps` moved to question-level accounting (`question_id`) to avoid masking under-covered child questions
+- [x] **P1**: Hunter progress/event metrics now report newly created evidence in current run (not cumulative state length)
+- [x] **P1**: Keyword retrieval switched from hardcoded English FTS to `simple` config and parameterized `source_ids` binding (no string-built IN clause)
+- [x] **P2**: Vector retrieval tool optimized to batch-load chunks (removed N+1 DB selects)
+- [x] **P2**: Librarian Fast no longer appends raw asset enums to web query string; missing asset targeting remains in extraction/filter stage
+- [x] **P2**: Added/updated regression tests for hunter evidence contract/origin resolution and librarian query behavior
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority
