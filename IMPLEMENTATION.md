@@ -831,7 +831,7 @@ class PipelineState(TypedDict):
   - audience_profile: что нужно объяснять, какие термины определять
   - adjacency_policy: ограничения на уход в сторону
   - duration_target: сколько material нужно
-- Для каждой ветки: intent, expected_evidence_type, quality_need
+- Для каждой ветки: intent, `required_evidence` (must-have + min_count), `expected_evidence` (nice-to-have), quality_need
 
 **Выход — Research Tree (5-7 angles, 3-5 drill-downs/angle):**
 ```json
@@ -842,7 +842,11 @@ class PipelineState(TypedDict):
       "id": "b1",
       "question": "Как и почему появился Bitcoin?",
       "intent": "history",
-      "expected_evidence_type": ["TIMELINE", "CASE", "EXPERT_QUOTE"],
+      "required_evidence": [
+        {"type": "TIMELINE", "min_count": 1},
+        {"type": "CASE", "min_count": 1}
+      ],
+      "expected_evidence": ["EXPERT_QUOTE"],
       "quality_need": "VERIFIED",
       "priority": 1,
       "children": [
@@ -850,7 +854,10 @@ class PipelineState(TypedDict):
           "id": "b1.1",
           "question": "Кто такой Satoshi Nakamoto и почему анонимность?",
           "intent": "explain",
-          "expected_evidence_type": ["ANECDOTE", "EXPERT_QUOTE"],
+          "required_evidence": [
+            {"type": "ANECDOTE", "min_count": 1}
+          ],
+          "expected_evidence": ["EXPERT_QUOTE"],
           "quality_need": "OBSERVED",
           "priority": 1
         }
@@ -915,9 +922,12 @@ class PipelineState(TypedDict):
      - narrative_value_score (0-1)
      - tellability_notes
   6. Gap accounting:
-     - агрегируем `expected_evidence_type` на уровне ветки
-     - сравниваем с фактически найденными asset types
-     - формируем `research_gaps` с `missing_assets`
+     - агрегируем `required_evidence` на уровне ветки (type + min_count)
+     - считаем фактически найденные количества asset types (`found_count`)
+     - формируем `research_gaps`:
+       - `missing_assets` только по required (когда `found_count < min_count`)
+       - `required_assets` (type/min_count/found_count)
+       - `expected_assets`, `found_assets` как soft coverage
 
 **Tools (LangGraph ToolNode):**
 - `vector_search(query: str, top_k: int, source_ids: list[str]) → list[{chunk_id, source_id, parent_chunk_id, score, preview}]`
@@ -931,6 +941,7 @@ class PipelineState(TypedDict):
   - `question`
   - `priority`
   - `missing_assets`
+  - `required_assets`
   - `expected_assets`
   - `found_assets`
 

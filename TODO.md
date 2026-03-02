@@ -390,6 +390,13 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P1**: Hunter now emits structured `research_gaps` (`missing_assets`, `expected_assets`, `found_assets`) aggregated per branch
 - [x] **P1**: Librarian Fast now consumes `research_gaps` as primary branch-selection signal and targets missing asset types in web search/extraction (priority heuristic kept as compatibility fallback)
 
+**Round 64 (decomposer/hunter evidence contract split):**
+- [x] **P1**: Decomposer output schema migrated from single `expected_evidence_type` to dual contract: `required_evidence` (`type`, `min_count`) + `expected_evidence` (soft targets)
+- [x] **P1**: Decomposer sanitization now validates the new schema and keeps backward compatibility by up-converting legacy `expected_evidence_type` into `required_evidence` (`min_count=1`)
+- [x] **P1**: Hunter gap accounting now computes `missing_assets` strictly from `required_evidence` with `min_count` and emits `required_assets` (`type`, `min_count`, `found_count`) in `research_gaps`
+- [x] **P2**: Hunter target-type normalization now filters to allowed asset enums and deduplicates consistently across required/expected signals
+- [x] **P2**: Added regression tests for new decomposer contract + hunter evidence contract helpers; updated pipeline docs (`PIPELINE.md`, `PIPELINE_IO_MAP.md`, `IMPLEMENTATION.md`)
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

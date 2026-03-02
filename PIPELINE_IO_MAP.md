@@ -250,6 +250,10 @@ Status transitions (step mode):
 - External:
   - `call_sonnet_structured` для research tree (`103-108`).
   - `compute_fill_layers` (`112-117`, `duration_strategy.py:29`).
+- Research tree contract:
+  - `required_evidence`: strict must-have assets (`type`, `min_count`) per node.
+  - `expected_evidence`: optional storytelling assets per node.
+  - Legacy `expected_evidence_type` still accepted by sanitization for backward compatibility.
 - DB write:
   - create/update `EpisodeManifest` (`126-141`).
 - State output:
@@ -277,7 +281,11 @@ Status transitions (step mode):
   - `EvidenceSpan` rows (`135-152`).
 - State output:
   - `evidence_ids`, `research_gaps`, `current_phase=phase3_research`.
-  - `research_gaps` contract per branch: `branch_id`, `question`, `priority`, `missing_assets`, `expected_assets`, `found_assets`.
+  - `research_gaps` contract per branch:
+    - `branch_id`, `question`, `priority`
+    - `missing_assets` (computed only from `required_evidence`, respecting `min_count`)
+    - `required_assets` (`type`, `min_count`, `found_count`)
+    - `expected_assets`, `found_assets`
 - Events:
   - `phase_started`, `step_started/completed`, `evidence_found`, progress.
 

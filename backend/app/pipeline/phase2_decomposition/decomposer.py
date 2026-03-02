@@ -48,7 +48,13 @@ Return valid JSON:
       "id": "b1",
       "question": "string",
       "intent": "history|explain|compare|debate|case_study",
-      "expected_evidence_type": ["TIMELINE","CASE","EXPERT_QUOTE","STATISTIC","ANECDOTE","DEFINITION","MECHANISM","CONTRAST"],
+      "required_evidence": [
+        {
+          "type": "TIMELINE|CASE|EXPERT_QUOTE|STATISTIC|ANECDOTE|DEFINITION|MECHANISM|CONTRAST",
+          "min_count": 1
+        }
+      ],
+      "expected_evidence": ["TIMELINE","CASE","EXPERT_QUOTE","STATISTIC","ANECDOTE","DEFINITION","MECHANISM","CONTRAST"],
       "quality_need": "VERIFIED|OBSERVED|ANY",
       "priority": 1,
       "children": [
@@ -56,7 +62,13 @@ Return valid JSON:
           "id": "b1.1",
           "question": "string",
           "intent": "history|explain|compare|debate|case_study",
-          "expected_evidence_type": ["TIMELINE","CASE","EXPERT_QUOTE","STATISTIC","ANECDOTE","DEFINITION","MECHANISM","CONTRAST"],
+          "required_evidence": [
+            {
+              "type": "TIMELINE|CASE|EXPERT_QUOTE|STATISTIC|ANECDOTE|DEFINITION|MECHANISM|CONTRAST",
+              "min_count": 1
+            }
+          ],
+          "expected_evidence": ["TIMELINE","CASE","EXPERT_QUOTE","STATISTIC","ANECDOTE","DEFINITION","MECHANISM","CONTRAST"],
           "quality_need": "VERIFIED|OBSERVED|ANY",
           "priority": 1
         }
@@ -102,11 +114,18 @@ Rules:
 - OBSERVED for interpretive or less-certain claims that still need evidence.
 - ANY only for speculative framing or open debate tails.
 
-8) Researchability:
+8) Evidence contract:
+- required_evidence = strict minimum evidence assets needed for this question.
+- expected_evidence = useful but non-blocking assets that improve storytelling.
+- Use 1-3 required_evidence items; each min_count must be >= 1.
+- Keep expected_evidence concise (0-4 items).
+- Do not duplicate a type across required_evidence and expected_evidence.
+
+9) Researchability:
 - Each question must be answerable via retrievable evidence (corpus/web), not pure opinion prompts.
 - Child questions must be concrete sub-questions of their parent.
 
-9) IDs and contract:
+10) IDs and contract:
 - Use ids in the format b1..bn and b1.1..b1.k without gaps.
 - Return ONLY the JSON object matching the schema above.
 
@@ -348,22 +367,33 @@ def _validate_node(raw: Any, *, path: str, is_child: bool) -> dict[str, Any]:
     if intent_normalized not in _ALLOWED_INTENTS:
         raise ValueError(f"{path}.intent is invalid: {intent}")
 
-    expected_evidence = raw.get("expected_evidence_type")
-    if not isinstance(expected_evidence, list) or not expected_evidence:
-        raise ValueError(f"{path}.expected_evidence_type must be a non-empty list")
+    required_evidence = raw.get("required_evidence")
+    expected_evidence = raw.get("expected_evidence")
+    legacy_expected_evidence = raw.get("expected_evidence_type")
 
-    normalized_evidence: list[str] = []
-    seen_evidence: set[str] = set()
-    for item in expected_evidence:
-        if not isinstance(item, str):
-            raise ValueError(f"{path}.expected_evidence_type items must be strings")
-        evidence = item.strip().upper()
-        if evidence not in _ALLOWED_EVIDENCE_TYPES:
-            raise ValueError(f"{path}.expected_evidence_type contains invalid value: {item}")
-        if evidence in seen_evidence:
-            continue
-        seen_evidence.add(evidence)
-        normalized_evidence.append(evidence)
+    if required_evidence is None and expected_evidence is None and legacy_expected_evidence is not None:
+        # Backward compatibility for older manifests/prompts.
+        legacy_normalized = _normalize_evidence_type_list(
+            legacy_expected_evidence,
+            path=f"{path}.expected_evidence_type",
+            require_non_empty=True,
+        )
+        required_evidence = [{"type": asset_type, "min_count": 1} for asset_type in legacy_normalized]
+        expected_evidence = []
+
+    normalized_required = _normalize_required_evidence(required_evidence, path=f"{path}.required_evidence")
+
+    if expected_evidence is None:
+        normalized_expected: list[str] = []
+    else:
+        normalized_expected = _normalize_evidence_type_list(
+            expected_evidence,
+            path=f"{path}.expected_evidence",
+            require_non_empty=False,
+        )
+
+    required_types = {item["type"] for item in normalized_required}
+    normalized_expected = [item for item in normalized_expected if item not in required_types]
 
     quality_need = raw.get("quality_need")
     if not isinstance(quality_need, str):
@@ -380,7 +410,65 @@ def _validate_node(raw: Any, *, path: str, is_child: bool) -> dict[str, Any]:
         "id": node_id,
         "question": question.strip(),
         "intent": intent_normalized,
-        "expected_evidence_type": normalized_evidence,
+        "required_evidence": normalized_required,
+        "expected_evidence": normalized_expected,
         "quality_need": quality_need_normalized,
         "priority": priority,
     }
+
+
+def _normalize_evidence_type_list(
+    raw_value: Any,
+    *,
+    path: str,
+    require_non_empty: bool,
+) -> list[str]:
+    if not isinstance(raw_value, list):
+        raise ValueError(f"{path} must be a list")
+    if require_non_empty and not raw_value:
+        raise ValueError(f"{path} must be a non-empty list")
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for item in raw_value:
+        if not isinstance(item, str):
+            raise ValueError(f"{path} items must be strings")
+        evidence = item.strip().upper()
+        if evidence not in _ALLOWED_EVIDENCE_TYPES:
+            raise ValueError(f"{path} contains invalid value: {item}")
+        if evidence in seen:
+            continue
+        seen.add(evidence)
+        normalized.append(evidence)
+    return normalized
+
+
+def _normalize_required_evidence(raw_value: Any, *, path: str) -> list[dict[str, int | str]]:
+    if not isinstance(raw_value, list) or not raw_value:
+        raise ValueError(f"{path} must be a non-empty list")
+
+    dedup: dict[str, int] = {}
+    order: list[str] = []
+    for idx, item in enumerate(raw_value):
+        item_path = f"{path}[{idx}]"
+        if not isinstance(item, dict):
+            raise ValueError(f"{item_path} must be an object")
+
+        evidence_type_raw = item.get("type")
+        if not isinstance(evidence_type_raw, str):
+            raise ValueError(f"{item_path}.type must be a string")
+        evidence_type = evidence_type_raw.strip().upper()
+        if evidence_type not in _ALLOWED_EVIDENCE_TYPES:
+            raise ValueError(f"{item_path}.type contains invalid value: {evidence_type_raw}")
+
+        min_count = item.get("min_count")
+        if isinstance(min_count, bool) or not isinstance(min_count, int) or min_count < 1:
+            raise ValueError(f"{item_path}.min_count must be an integer >= 1")
+
+        if evidence_type not in dedup:
+            dedup[evidence_type] = min_count
+            order.append(evidence_type)
+        else:
+            dedup[evidence_type] = max(dedup[evidence_type], min_count)
+
+    return [{"type": evidence_type, "min_count": dedup[evidence_type]} for evidence_type in order]

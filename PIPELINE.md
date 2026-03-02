@@ -236,11 +236,11 @@ Web extraction использует каскад extractors:
 
 - intent (explain/compare/history/mechanism/numbers/controversy/cases)
 
-- expected evidence type
+- required evidence (строгие must-have asset types + min_count)
+
+- expected evidence (nice-to-have asset types для усиления рассказа)
 
 - quality_need (VERIFIED vs допустим OBSERVED/OPINION)
-
-- explanation hints по audience_profile (что точно разъяснить, какие термины определить)
 
 ### **2.2 Duration Fill Strategy (управляемая "глубина")**
 
@@ -276,7 +276,10 @@ Web extraction использует каскад extractors:
 
 - собирает EvidenceSpans
 
-- формирует structured gap signal `research_gaps` по веткам (`missing_assets`, `expected_assets`, `found_assets`)
+- формирует structured gap signal `research_gaps` по веткам:
+  - `missing_assets` рассчитывается только по `required_evidence` (с учетом `min_count`)
+  - `required_assets` (type/min_count/found_count)
+  - `expected_assets`, `found_assets` как soft coverage сигнал
 
 ### **3.2 Librarian / Web Researcher (Open-web, двух режима)**
 
