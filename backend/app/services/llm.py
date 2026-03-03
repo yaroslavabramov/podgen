@@ -1,4 +1,6 @@
+import asyncio
 import logging
+from collections.abc import Callable, Coroutine
 from typing import Any
 
 import anthropic
@@ -9,6 +11,29 @@ from app.observability import safe_set_run, trace_span, wrap_anthropic_client, w
 from app.pipeline.step_control import assert_step_not_stopped
 
 logger = logging.getLogger(__name__)
+
+_OVERLOAD_RETRY_DELAYS = (30, 60)  # seconds between retries on 529
+
+
+async def _call_with_overload_retry(
+    fn: Callable[[], Coroutine[Any, Any, Any]],
+) -> Any:
+    """Retry an Anthropic API call on 529 overloaded with escalating delays."""
+    for attempt, delay in enumerate((*_OVERLOAD_RETRY_DELAYS, None)):
+        try:
+            return await fn()
+        except anthropic.APIStatusError as e:
+            if e.status_code != 529 or delay is None:
+                raise
+            logger.warning(
+                "Anthropic overloaded (529), retrying in %ds (attempt %d/%d)",
+                delay,
+                attempt + 1,
+                len(_OVERLOAD_RETRY_DELAYS) + 1,
+            )
+            await assert_step_not_stopped()
+            await asyncio.sleep(delay)
+            await assert_step_not_stopped()
 
 # Singleton clients
 _anthropic_client: anthropic.AsyncAnthropic | None = None
@@ -91,12 +116,14 @@ async def call_sonnet(system: str, prompt: str, max_tokens: int = 4096, temperat
         metadata={"provider": "anthropic", "model": SONNET_MODEL, "structured": False},
         tags=["llm", "anthropic", "model:sonnet"],
     ) as run_tree:
-        response = await client.messages.create(
-            model=SONNET_MODEL,
-            max_tokens=max_tokens,
-            system=system,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=temperature,
+        response = await _call_with_overload_retry(
+            lambda: client.messages.create(
+                model=SONNET_MODEL,
+                max_tokens=max_tokens,
+                system=system,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=temperature,
+            )
         )
         text = response.content[0].text
         safe_set_run(run_tree, outputs={"response_chars": len(text), **_anthropic_usage(response)})
@@ -113,12 +140,14 @@ async def call_haiku(system: str, prompt: str, max_tokens: int = 4096, temperatu
         metadata={"provider": "anthropic", "model": HAIKU_MODEL, "structured": False},
         tags=["llm", "anthropic", "model:haiku"],
     ) as run_tree:
-        response = await client.messages.create(
-            model=HAIKU_MODEL,
-            max_tokens=max_tokens,
-            system=system,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=temperature,
+        response = await _call_with_overload_retry(
+            lambda: client.messages.create(
+                model=HAIKU_MODEL,
+                max_tokens=max_tokens,
+                system=system,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=temperature,
+            )
         )
         text = response.content[0].text
         safe_set_run(run_tree, outputs={"response_chars": len(text), **_anthropic_usage(response)})
@@ -141,12 +170,14 @@ async def call_sonnet_structured(
         metadata={"provider": "anthropic", "model": SONNET_MODEL, "structured": True},
         tags=["llm", "anthropic", "model:sonnet", "structured"],
     ) as run_tree:
-        response = await client.messages.create(
-            model=SONNET_MODEL,
-            max_tokens=max_tokens,
-            system=system + "\n\nYou MUST respond with valid JSON only. No markdown, no explanation.",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=temperature,
+        response = await _call_with_overload_retry(
+            lambda: client.messages.create(
+                model=SONNET_MODEL,
+                max_tokens=max_tokens,
+                system=system + "\n\nYou MUST respond with valid JSON only. No markdown, no explanation.",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=temperature,
+            )
         )
         if response.stop_reason == "max_tokens":
             logger.warning("Sonnet structured response truncated at %d tokens", max_tokens)
@@ -178,12 +209,14 @@ async def call_haiku_structured(
         metadata={"provider": "anthropic", "model": HAIKU_MODEL, "structured": True},
         tags=["llm", "anthropic", "model:haiku", "structured"],
     ) as run_tree:
-        response = await client.messages.create(
-            model=HAIKU_MODEL,
-            max_tokens=max_tokens,
-            system=system + "\n\nYou MUST respond with valid JSON only. No markdown, no explanation.",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=temperature,
+        response = await _call_with_overload_retry(
+            lambda: client.messages.create(
+                model=HAIKU_MODEL,
+                max_tokens=max_tokens,
+                system=system + "\n\nYou MUST respond with valid JSON only. No markdown, no explanation.",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=temperature,
+            )
         )
         if response.stop_reason == "max_tokens":
             logger.warning("Haiku structured response truncated at %d tokens", max_tokens)

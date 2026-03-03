@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import re
+import unicodedata
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -54,9 +55,12 @@ RELEVANCE: Prefer evidence that DIRECTLY answers the research question. If a dir
 
 VERBATIM RULE: verbatim_quote must be copied character-for-character from the source, including exact capitalisation and punctuation. Think of it as a text highlight: a continuous span from position A to position B with nothing changed, added, or removed. If two relevant sentences are not directly adjacent in the source, return each as a separate item — do not combine them into one quote.
 
+Each input chunk has an "index" field. Return that index in chunk_index so the quote can be attributed to the correct source.
+
 Return JSON array:
 [
   {
+    "chunk_index": 0,
     "verbatim_quote": "exact quote from the text",
     "asset_type": "STATISTIC|ANECDOTE|EXPERT_QUOTE|DEFINITION|MECHANISM|CASE|TIMELINE|CONTRAST",
     "narrative_value_score": 0.0-1.0,
@@ -226,7 +230,7 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                     "research_question": q["question"],
                     "required_evidence": q["required_targets"],
                     "expected_evidence_types": q["expected_types"],
-                    "chunks": [{"content": c["content"], "source": c.get("source_title", ""), "heading": c.get("heading_path", [])} for c in chunk_texts],
+                    "chunks": [{"index": i, "content": c["content"], "source": c.get("source_title", ""), "heading": c.get("heading_path", [])} for i, c in enumerate(chunk_texts)],
                 }, ensure_ascii=False)
 
                 try:
@@ -500,6 +504,7 @@ def _summarize_extracted_items(items: object, limit: int | None = None) -> list[
         quote = str(item.get("verbatim_quote", ""))
         summarized.append(
             {
+                "chunk_index": item.get("chunk_index"),
                 "asset_type": item.get("asset_type"),
                 "verbatim_quote": quote,
                 "quote_preview": _clip_text(quote, limit=220),
@@ -706,32 +711,78 @@ def _merge_required_assets(
         aggregate[asset_type] = max(aggregate.get(asset_type, 0), min_count)
 
 
+def _quote_in_chunk_strict(quote: str, chunk: dict) -> bool:
+    """Full-match only check (no prefix shortcut) used to validate chunk_index."""
+    content = str(chunk.get("content", ""))
+    if not content:
+        return False
+    q = _normalize_text(quote)
+    c = _normalize_text(content)
+    return q in c or q.lower() in c.lower()
+
+
 def _resolve_evidence_origin(
     evidence_item: dict,
     chunk_texts: list[dict],
     chunk_by_id: dict[str, dict],
 ) -> tuple[str, str | None] | None:
-    chunk_id_raw = evidence_item.get("chunk_id")
-    if isinstance(chunk_id_raw, str):
-        direct_match = chunk_by_id.get(chunk_id_raw.strip())
-        if direct_match and direct_match.get("source_id"):
-            return str(direct_match["source_id"]), str(direct_match.get("chunk_id"))
-
     quote = evidence_item.get("verbatim_quote")
-    if not isinstance(quote, str) or not quote.strip():
-        return None
+    quote_str = quote.strip() if isinstance(quote, str) else ""
 
-    matched_chunk = _find_chunk_for_quote(quote, chunk_texts)
+    # Primary path: LLM-provided chunk_index, validated with strict full-match.
+    # Prefix fallback is intentionally excluded here — a partial match must not
+    # prevent the global search from finding the chunk with the complete quote.
+    chunk_index = evidence_item.get("chunk_index")
+    if isinstance(chunk_index, int) and 0 <= chunk_index < len(chunk_texts):
+        candidate = chunk_texts[chunk_index]
+        if candidate.get("source_id"):
+            if not quote_str or _quote_in_chunk_strict(quote_str, candidate):
+                return str(candidate["source_id"]), str(candidate.get("chunk_id"))
+
+    # Fallback: substring search across all chunks (handles wrong/missing chunk_index).
+    if not quote_str:
+        return None
+    matched_chunk = _find_chunk_for_quote(quote_str, chunk_texts)
     if matched_chunk is None or not matched_chunk.get("source_id"):
         return None
     return str(matched_chunk["source_id"]), str(matched_chunk.get("chunk_id"))
 
 
+_UNICODE_NORMALIZE = str.maketrans({
+    # Quotes
+    "\u201c": '"', "\u201d": '"',   # "..." → "..."
+    "\u2018": "'", "\u2019": "'",   # '...' → '...'
+    "\u00ab": '"', "\u00bb": '"',   # «...» → "..."
+    "\u2039": "'", "\u203a": "'",   # ‹...› → '...'
+    # Dashes and minus
+    "\u2014": "-",                  # em dash —
+    "\u2013": "-",                  # en dash –
+    "\u2011": "-",                  # non-breaking hyphen
+    "\u2212": "-",                  # minus sign −
+    # Ellipsis
+    "\u2026": "...",                # … → ...
+    # Invisible / zero-width characters
+    "\u00ad": "",                   # soft hyphen
+    "\u200b": "",                   # zero-width space
+    "\u200c": "",                   # zero-width non-joiner
+    "\u200d": "",                   # zero-width joiner
+    "\ufeff": "",                   # BOM / zero-width no-break space
+})
+
+
 def _normalize_text(value: str) -> str:
-    # Normalize whitespace and markdown-style escaping so quote matching is robust
-    # across variants like "HK$9.60" vs "HK\\$9.60".
+    """Normalize text for robust substring matching across source and LLM output.
+
+    Handles: markdown escaping (\\$), Unicode compatibility (ligatures, fullwidth,
+    superscripts via NFKC), typographic punctuation variants (smart quotes, dashes,
+    ellipsis), invisible characters (soft hyphen, zero-width chars, BOM),
+    and whitespace.
+    """
     deescaped = _ESCAPED_PUNCT_RE.sub(r"\1", value)
-    return " ".join(deescaped.split())
+    # NFKC: ligatures (ﬁ→fi), fullwidth (Ａ→A), superscripts (¹→1), fractions (½→1⁄2)
+    nfkc = unicodedata.normalize("NFKC", deescaped)
+    normalized = nfkc.translate(_UNICODE_NORMALIZE)
+    return " ".join(normalized.split())
 
 
 def _find_chunk_for_quote(quote: str, chunk_texts: list[dict]) -> dict | None:
