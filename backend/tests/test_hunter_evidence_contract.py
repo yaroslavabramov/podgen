@@ -99,6 +99,20 @@ def test_find_chunk_for_quote_returns_none_when_not_found() -> None:
     assert _find_chunk_for_quote("This quote does not exist", chunk_texts) is None
 
 
+def test_find_chunk_for_quote_handles_escaped_currency_symbol() -> None:
+    chunk_texts = [
+        {
+            "chunk_id": "33333333-3333-3333-3333-333333333333",
+            "source_id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+            "content": "At one point in September 1983 the exchange rate dropped to a record low of HK\\$9.60 to the US dollar.",
+        }
+    ]
+    quote = "At one point in September 1983 the exchange rate dropped to a record low of HK$9.60 to the US dollar."
+    matched = _find_chunk_for_quote(quote, chunk_texts)
+    assert matched is not None
+    assert matched["chunk_id"] == "33333333-3333-3333-3333-333333333333"
+
+
 def test_dump_hunter_question_debug_writes_file(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
         "app.pipeline.phase3_research.hunter.settings.web_extractor_debug_dump_dir",

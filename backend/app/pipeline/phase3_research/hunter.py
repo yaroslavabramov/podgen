@@ -3,6 +3,7 @@
 import hashlib
 import json
 import logging
+import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,6 +30,7 @@ EXTRACTION_CHUNK_LIMIT = 8
 DIVERSITY_SOURCE_PENALTY = 0.15
 DIVERSITY_PARENT_PENALTY = 0.08
 _REPO_ROOT = Path(__file__).resolve().parents[4]
+_ESCAPED_PUNCT_RE = re.compile(r"\\([^\w\s])")
 
 _ALLOWED_EVIDENCE_TYPES = {
     "TIMELINE",
@@ -41,13 +43,16 @@ _ALLOWED_EVIDENCE_TYPES = {
     "CONTRAST",
 }
 
-EXTRACT_EVIDENCE_SYSTEM = """You are an evidence extractor. Given a chunk of text and a research question,
-extract relevant evidence spans.
+EXTRACT_EVIDENCE_SYSTEM = """You are an evidence extractor. Given chunks of text and a research question, extract relevant evidence spans.
 
 Input may include:
 - required_evidence: strict evidence types that must be found if present in the text.
-- expected_evidence_types / target_evidence_types: useful but non-blocking evidence targets.
-Prioritize required_evidence first, then expected/target evidence types.
+- expected_evidence_types: useful but non-blocking evidence targets.
+Prioritize required_evidence first, then expected evidence types.
+
+RELEVANCE: Prefer evidence that DIRECTLY answers the research question. If a direct answer exists, do not extract peripheral context instead.
+
+VERBATIM RULE: verbatim_quote must be copied character-for-character from the source, including exact capitalisation and punctuation. Think of it as a text highlight: a continuous span from position A to position B with nothing changed, added, or removed. If two relevant sentences are not directly adjacent in the source, return each as a separate item — do not combine them into one quote.
 
 Return JSON array:
 [
@@ -221,7 +226,7 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                     "research_question": q["question"],
                     "required_evidence": q["required_targets"],
                     "expected_evidence_types": q["expected_types"],
-                    "chunks": [{"content": c["content"][:2000], "source": c.get("source_title", ""), "heading": c.get("heading_path", [])} for c in chunk_texts],
+                    "chunks": [{"content": c["content"], "source": c.get("source_title", ""), "heading": c.get("heading_path", [])} for c in chunk_texts],
                 }, ensure_ascii=False)
 
                 try:
@@ -336,13 +341,20 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                     all_evidence_ids.append(str(evidence.id))
                     new_evidence_count += 1
                     saved_for_question += 1
+                    source_chunk = chunk_by_id.get(chunk_id) if chunk_id else None
                     saved_debug_items.append(
                         {
                             "evidence_id": str(evidence.id),
                             "asset_type": normalized_asset_type,
                             "source_id": source_id,
                             "chunk_id": chunk_id,
+                            "source_title": source_chunk.get("source_title") if isinstance(source_chunk, dict) else None,
+                            "heading_path": source_chunk.get("heading_path") if isinstance(source_chunk, dict) else None,
+                            "verbatim_quote": item["verbatim_quote"],
                             "quote_preview": _clip_text(item["verbatim_quote"], limit=220),
+                            "locator": item.get("locator"),
+                            "narrative_value_score": item.get("narrative_value_score"),
+                            "tellability_notes": item.get("tellability_notes"),
                         }
                     )
 
@@ -461,32 +473,40 @@ def _summarize_hits(hits: list[dict], limit: int = 10) -> list[dict]:
 def _summarize_loaded_chunks(chunks: list[dict], limit: int = 8) -> list[dict]:
     summarized: list[dict] = []
     for chunk in chunks[:limit]:
+        content = str(chunk.get("content", ""))
         summarized.append(
             {
                 "chunk_id": chunk.get("chunk_id"),
                 "source_id": chunk.get("source_id"),
                 "source_title": chunk.get("source_title"),
                 "heading_path": chunk.get("heading_path") or [],
-                "content_preview": _clip_text(str(chunk.get("content", "")), limit=300),
+                "content_chars": len(content),
+                "content_preview": _clip_text(content, limit=300),
+                "content_full": content,
             }
         )
     return summarized
 
 
-def _summarize_extracted_items(items: object, limit: int = 12) -> list[dict]:
+def _summarize_extracted_items(items: object, limit: int | None = None) -> list[dict]:
     if not isinstance(items, list):
         return []
 
+    iterable = items if limit is None else items[:limit]
     summarized: list[dict] = []
-    for item in items[:limit]:
+    for item in iterable:
         if not isinstance(item, dict):
             continue
+        quote = str(item.get("verbatim_quote", ""))
         summarized.append(
             {
                 "asset_type": item.get("asset_type"),
-                "quote_preview": _clip_text(str(item.get("verbatim_quote", "")), limit=220),
+                "verbatim_quote": quote,
+                "quote_preview": _clip_text(quote, limit=220),
                 "locator": item.get("locator"),
                 "narrative_value_score": item.get("narrative_value_score"),
+                "tellability_notes": item.get("tellability_notes"),
+                "chunk_id": item.get("chunk_id"),
             }
         )
     return summarized
@@ -548,7 +568,8 @@ def _dump_hunter_question_debug(
             },
             "extraction": {
                 "extracted_item_count": len(extracted_items) if isinstance(extracted_items, list) else None,
-                "extracted_items_sample": _summarize_extracted_items(extracted_items),
+                "extracted_items": _summarize_extracted_items(extracted_items),
+                "extracted_items_sample": _summarize_extracted_items(extracted_items, limit=12),
                 "saved_evidence_count": len(saved_items),
                 "saved_evidence": saved_items[:12],
                 "invalid_asset_type_count": invalid_asset_type_count,
@@ -707,7 +728,10 @@ def _resolve_evidence_origin(
 
 
 def _normalize_text(value: str) -> str:
-    return " ".join(value.split())
+    # Normalize whitespace and markdown-style escaping so quote matching is robust
+    # across variants like "HK$9.60" vs "HK\\$9.60".
+    deescaped = _ESCAPED_PUNCT_RE.sub(r"\1", value)
+    return " ".join(deescaped.split())
 
 
 def _find_chunk_for_quote(quote: str, chunk_texts: list[dict]) -> dict | None:
@@ -716,23 +740,26 @@ def _find_chunk_for_quote(quote: str, chunk_texts: list[dict]) -> dict | None:
         return None
 
     quote_normalized = _normalize_text(quote_raw)
-    quote_prefix = quote_normalized[:120] if len(quote_normalized) >= 80 else quote_normalized
 
+    # Pass 1: exact match (case-sensitive, normalized whitespace/escaping)
     for chunk in chunk_texts:
         content = str(chunk.get("content", ""))
         if not content:
             continue
-        if quote_raw in content:
+        if quote_normalized in _normalize_text(content):
             return chunk
 
+    # Pass 2: case-insensitive fallback (handles LLM capitalisation variations)
+    quote_lower = quote_normalized.lower()
+    quote_prefix_lower = quote_lower[:120] if len(quote_lower) >= 80 else quote_lower
     for chunk in chunk_texts:
         content = str(chunk.get("content", ""))
         if not content:
             continue
-        normalized_content = _normalize_text(content)
-        if quote_normalized in normalized_content:
+        content_lower = _normalize_text(content).lower()
+        if quote_lower in content_lower:
             return chunk
-        if quote_prefix and quote_prefix in normalized_content:
+        if quote_prefix_lower and quote_prefix_lower in content_lower:
             return chunk
 
     return None
