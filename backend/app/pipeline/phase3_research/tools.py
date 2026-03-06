@@ -284,7 +284,7 @@ async def create_web_evidence(
             project_id=uuid.UUID(project_id),
             source_type=SourceType.WEB,
             original_url=url,
-            ingestion_status=IngestionStatus.COMPLETED,
+            ingestion_status=IngestionStatus.PENDING,
             is_temporary=True,
             fully_ingested=False,
             domain_reliability=DomainReliability.UNKNOWN,

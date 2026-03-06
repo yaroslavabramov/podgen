@@ -187,7 +187,7 @@ async def research_fast_web(state: PipelineState) -> dict:
                     Source.is_temporary.is_(True),
                     Source.fully_ingested.is_(False),
                     Source.generation_run_id == uuid.UUID(state["generation_run_id"]),
-                    Source.ingestion_status == IngestionStatus.PENDING,
+                    Source.ingestion_status.in_([IngestionStatus.PENDING, IngestionStatus.COMPLETED]),
                 )
             )
             deep_candidates = deep_result.scalars().all()
