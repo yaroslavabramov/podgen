@@ -44,6 +44,7 @@ def test_dump_claim_builder_batch_debug_writes_file(tmp_path, monkeypatch) -> No
                 "illustrative_evidence_ids": [],
             }
         ],
+        persist_stats={"skipped_no_support_count": 1, "skipped_empty_statement_count": 0},
     )
 
     files = list((tmp_path / "claims").glob("*.json"))
@@ -54,6 +55,7 @@ def test_dump_claim_builder_batch_debug_writes_file(tmp_path, monkeypatch) -> No
     assert payload["status"] == "ok"
     assert payload["input"]["evidence_count"] == 1
     assert payload["persisted"]["saved_claim_count"] == 1
+    assert payload["persisted"]["persist_stats"]["skipped_no_support_count"] == 1
 
 
 def test_dump_claim_builder_batch_debug_skips_when_disabled(tmp_path, monkeypatch) -> None:
@@ -71,6 +73,7 @@ def test_dump_claim_builder_batch_debug_skips_when_disabled(tmp_path, monkeypatc
         llm_raw_output="[]",
         parsed_claims=[],
         saved_claims=[],
+        persist_stats={},
     )
 
     assert list(tmp_path.glob("**/*.json")) == []

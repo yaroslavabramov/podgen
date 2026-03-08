@@ -143,6 +143,7 @@ async def build_claims(state: PipelineState) -> dict:
                         llm_raw_output=raw,
                         parsed_claims=None,
                         saved_claims=[],
+                        persist_stats={},
                     )
                     continue
 
@@ -156,10 +157,11 @@ async def build_claims(state: PipelineState) -> dict:
                         llm_raw_output=raw,
                         parsed_claims=claims_data,
                         saved_claims=[],
+                        persist_stats={},
                     )
                     continue
 
-                saved_claims_for_batch = await _persist_claim_batch(
+                saved_claims_for_batch, persist_stats = await _persist_claim_batch(
                     db=db,
                     project_id=state["project_id"],
                     claims_data=claims_data,
@@ -175,6 +177,7 @@ async def build_claims(state: PipelineState) -> dict:
                     llm_raw_output=raw,
                     parsed_claims=claims_data,
                     saved_claims=saved_claims_for_batch,
+                    persist_stats=persist_stats,
                 )
 
         await db.commit()
@@ -394,14 +397,19 @@ async def _persist_claim_batch(
     batch_ids: set[str],
     run_id: str,
     all_claim_ids: list[str],
-) -> list[dict]:
+) -> tuple[list[dict], dict[str, int]]:
     saved_claims_for_batch: list[dict] = []
+    persist_stats = {
+        "skipped_no_support_count": 0,
+        "skipped_empty_statement_count": 0,
+    }
     try:
         for cd in claims_data:
             if not isinstance(cd, dict):
                 continue
             statement = cd.get("statement")
             if not isinstance(statement, str) or not statement.strip():
+                persist_stats["skipped_empty_statement_count"] += 1
                 continue
 
             support_ids = {
@@ -415,6 +423,7 @@ async def _persist_claim_batch(
                 if isinstance(evidence_id, str) and evidence_id in batch_ids
             }
             if not support_ids:
+                persist_stats["skipped_no_support_count"] += 1
                 continue
 
             claim = Claim(
@@ -459,7 +468,7 @@ async def _persist_claim_batch(
     except Exception:
         logger.exception("Claim persistence failed")
         raise
-    return saved_claims_for_batch
+    return saved_claims_for_batch, persist_stats
 
 
 def _safe_filename_token(value: str) -> str:
@@ -512,6 +521,7 @@ def _dump_claim_builder_batch_debug(
     llm_raw_output: str,
     parsed_claims: object,
     saved_claims: list[dict],
+    persist_stats: dict,
 ) -> None:
     dump_dir = (settings.web_extractor_debug_dump_dir or "").strip()
     if not dump_dir:
@@ -553,6 +563,7 @@ def _dump_claim_builder_batch_debug(
             "persisted": {
                 "saved_claim_count": len(saved_claims),
                 "saved_claims": saved_claims,
+                "persist_stats": persist_stats,
             },
         }
 
