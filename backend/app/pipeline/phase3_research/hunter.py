@@ -3,8 +3,6 @@
 import hashlib
 import json
 import logging
-import re
-import unicodedata
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,7 +12,12 @@ from sqlalchemy import select
 from app.config import settings
 from app.workers.worker_db import worker_session_factory as async_session_factory
 from app.models.episode_manifest import EpisodeManifest
-from app.models.evidence import EvidenceSpan
+from app.pipeline.phase3_research.normalization import normalize_research_text
+from app.services.evidence_store import (
+    EvidenceProvenanceContext,
+    ensure_evidence_provenance,
+    get_or_create_canonical_evidence,
+)
 from app.pipeline.state import PipelineState
 from app.pipeline.phase3_research.tools import vector_search_tool, keyword_search_tool, get_chunk_content
 from app.pipeline.llm_json import parse_llm_json
@@ -31,7 +34,6 @@ EXTRACTION_CHUNK_LIMIT = 8
 DIVERSITY_SOURCE_PENALTY = 0.15
 DIVERSITY_PARENT_PENALTY = 0.08
 _REPO_ROOT = Path(__file__).resolve().parents[4]
-_ESCAPED_PUNCT_RE = re.compile(r"\\([^\w\s])")
 
 _ALLOWED_EVIDENCE_TYPES = {
     "TIMELINE",
@@ -71,6 +73,16 @@ Return JSON array:
 
 Only extract genuinely relevant evidence. Return [] if nothing relevant found."""
 
+KEYWORD_QUERY_SYSTEM = """Generate up to 3 short keyword retrieval queries for a closed-book corpus search.
+Return JSON:
+{"queries": ["..."]}
+
+Rules:
+- Prefer the language that best matches the sample corpus snippets.
+- Keep queries short and lexical, suitable for PostgreSQL full-text search.
+- Preserve named entities, dates, acronyms, and domain-specific terms.
+- Output only JSON."""
+
 
 async def hunt_closed_book(state: PipelineState) -> dict:
     """LangGraph node: search project corpus for evidence matching research tree."""
@@ -83,6 +95,7 @@ async def hunt_closed_book(state: PipelineState) -> dict:
         return {"evidence_ids": [], "current_phase": "phase3_research"}
 
     all_evidence_ids = list(state.get("evidence_ids", []))
+    seen_evidence_ids = set(all_evidence_ids)
     new_asset_types_found: set[str] = set()
     new_evidence_count = 0
 
@@ -155,7 +168,8 @@ async def hunt_closed_book(state: PipelineState) -> dict:
 
                 # Hybrid search: vector + keyword, RRF merge
                 vector_results = await vector_search_tool(q["question"], top_k=RETRIEVAL_TOP_K, source_ids=source_ids, db=db)
-                keyword_results = await keyword_search_tool(q["question"], source_ids, db, top_k=RETRIEVAL_TOP_K)
+                keyword_queries = await _build_keyword_queries(q["question"], vector_results)
+                keyword_results = await _run_keyword_queries(keyword_queries, source_ids, db, top_k=RETRIEVAL_TOP_K)
 
                 # RRF merge
                 merged = _rrf_merge(vector_results, keyword_results, k=60)
@@ -325,11 +339,11 @@ async def hunt_closed_book(state: PipelineState) -> dict:
 
                     source_id, chunk_id = resolved_origin
 
-                    evidence = EvidenceSpan(
-                        id=uuid.uuid4(),
-                        project_id=uuid.UUID(state["project_id"]),
-                        source_id=uuid.UUID(source_id),
-                        chunk_id=uuid.UUID(chunk_id) if chunk_id else None,
+                    evidence, created = await get_or_create_canonical_evidence(
+                        db=db,
+                        project_id=state["project_id"],
+                        source_id=source_id,
+                        chunk_id=chunk_id,
                         verbatim_quote=item["verbatim_quote"],
                         asset_type=normalized_asset_type,
                         narrative_value_score=item.get("narrative_value_score", 0.5),
@@ -340,18 +354,34 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                             None,
                         ),
                     )
-                    db.add(evidence)
-                    await db.flush()
-                    all_evidence_ids.append(str(evidence.id))
-                    new_evidence_count += 1
+                    await ensure_evidence_provenance(
+                        db=db,
+                        evidence_id=evidence.id,
+                        context=EvidenceProvenanceContext(
+                            generation_run_id=state["generation_run_id"],
+                            manifest_id=state.get("manifest_id"),
+                            question_id=q["id"],
+                            branch_id=q["branch_id"],
+                            asset_type=normalized_asset_type,
+                            retrieved_by="hunter",
+                            query_text=q["question"],
+                        ),
+                    )
+                    evidence_id = str(evidence.id)
+                    if evidence_id not in seen_evidence_ids:
+                        seen_evidence_ids.add(evidence_id)
+                        all_evidence_ids.append(evidence_id)
+                    if created:
+                        new_evidence_count += 1
                     saved_for_question += 1
                     source_chunk = chunk_by_id.get(chunk_id) if chunk_id else None
                     saved_debug_items.append(
                         {
-                            "evidence_id": str(evidence.id),
+                            "evidence_id": evidence_id,
                             "asset_type": normalized_asset_type,
                             "source_id": source_id,
                             "chunk_id": chunk_id,
+                            "canonical_reused": not created,
                             "source_title": source_chunk.get("source_title") if isinstance(source_chunk, dict) else None,
                             "heading_path": source_chunk.get("heading_path") if isinstance(source_chunk, dict) else None,
                             "verbatim_quote": item["verbatim_quote"],
@@ -603,6 +633,72 @@ def _clip_text(value: str, limit: int = 220) -> str:
     return text[:limit] + "..."
 
 
+async def _build_keyword_queries(question: str, vector_results: list[dict]) -> list[str]:
+    sample_chunks = [
+        {
+            "preview": item.get("preview", "")[:300],
+            "heading_path": item.get("heading_path") or [],
+        }
+        for item in vector_results[:3]
+        if isinstance(item, dict)
+    ]
+    if not sample_chunks:
+        return [question]
+
+    try:
+        raw = await call_haiku_structured(
+            system=KEYWORD_QUERY_SYSTEM,
+            prompt=json.dumps(
+                {
+                    "question": question,
+                    "sample_chunks": sample_chunks,
+                },
+                ensure_ascii=False,
+            ),
+            max_tokens=256,
+            temperature=0,
+        )
+        parsed = parse_llm_json(raw)
+    except Exception:
+        logger.warning("Keyword query rewrite failed", exc_info=True)
+        return [question]
+
+    raw_queries = parsed.get("queries", []) if isinstance(parsed, dict) else parsed
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for candidate in [question, *(raw_queries if isinstance(raw_queries, list) else [])]:
+        if not isinstance(candidate, str):
+            continue
+        cleaned = normalize_research_text(candidate).strip()
+        if not cleaned:
+            continue
+        key = cleaned.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(cleaned)
+    return deduped or [question]
+
+
+async def _run_keyword_queries(
+    queries: list[str],
+    source_ids: list[str],
+    db,
+    *,
+    top_k: int,
+) -> list[dict]:
+    merged: dict[str, dict] = {}
+    for query in queries:
+        for hit in await keyword_search_tool(query, source_ids, db, top_k=top_k):
+            chunk_id = hit.get("chunk_id")
+            if not isinstance(chunk_id, str):
+                continue
+            current = merged.get(chunk_id)
+            if current is None or float(hit.get("score", 0.0)) > float(current.get("score", 0.0)):
+                merged[chunk_id] = hit
+    return sorted(merged.values(), key=lambda item: float(item.get("score", 0.0)), reverse=True)
+
+
 def _rrf_merge(vector_results: list[dict], keyword_results: list[dict], k: int = 60) -> list[dict]:
     """Reciprocal Rank Fusion merge of two result lists."""
     scores: dict[str, float] = {}
@@ -748,41 +844,8 @@ def _resolve_evidence_origin(
     return str(matched_chunk["source_id"]), str(matched_chunk.get("chunk_id"))
 
 
-_UNICODE_NORMALIZE = str.maketrans({
-    # Quotes
-    "\u201c": '"', "\u201d": '"',   # "..." → "..."
-    "\u2018": "'", "\u2019": "'",   # '...' → '...'
-    "\u00ab": '"', "\u00bb": '"',   # «...» → "..."
-    "\u2039": "'", "\u203a": "'",   # ‹...› → '...'
-    # Dashes and minus
-    "\u2014": "-",                  # em dash —
-    "\u2013": "-",                  # en dash –
-    "\u2011": "-",                  # non-breaking hyphen
-    "\u2212": "-",                  # minus sign −
-    # Ellipsis
-    "\u2026": "...",                # … → ...
-    # Invisible / zero-width characters
-    "\u00ad": "",                   # soft hyphen
-    "\u200b": "",                   # zero-width space
-    "\u200c": "",                   # zero-width non-joiner
-    "\u200d": "",                   # zero-width joiner
-    "\ufeff": "",                   # BOM / zero-width no-break space
-})
-
-
 def _normalize_text(value: str) -> str:
-    """Normalize text for robust substring matching across source and LLM output.
-
-    Handles: markdown escaping (\\$), Unicode compatibility (ligatures, fullwidth,
-    superscripts via NFKC), typographic punctuation variants (smart quotes, dashes,
-    ellipsis), invisible characters (soft hyphen, zero-width chars, BOM),
-    and whitespace.
-    """
-    deescaped = _ESCAPED_PUNCT_RE.sub(r"\1", value)
-    # NFKC: ligatures (ﬁ→fi), fullwidth (Ａ→A), superscripts (¹→1), fractions (½→1⁄2)
-    nfkc = unicodedata.normalize("NFKC", deescaped)
-    normalized = nfkc.translate(_UNICODE_NORMALIZE)
-    return " ".join(normalized.split())
+    return normalize_research_text(value)
 
 
 def _find_chunk_for_quote(quote: str, chunk_texts: list[dict]) -> dict | None:

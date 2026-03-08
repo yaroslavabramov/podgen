@@ -113,6 +113,13 @@ The podcast generation pipeline has 8 phases orchestrated by LangGraph:
 
 Key principle: **State-by-IDs** — LangGraph state holds only ID references, never full texts. Each node loads from DB and writes back.
 
+Phase 4 now uses explicit lineage and canonical evidence semantics:
+- `EvidenceSpan` is canonical quote-level evidence
+- `EvidenceProvenance` stores which question/branch/run found that evidence and its context-specific `asset_type`
+- claim building batches by research branch, not by flat evidence order
+- duplicate claims are collapsed before verification
+- verifier counts independent sources via canonical source identity and caps temp-only evidence at `OBSERVED`
+
 ## Runtime Reliability Notes (2026-02-23)
 
 - Celery workers use a dedicated DB session factory with `NullPool` (`backend/app/workers/worker_db.py`) to avoid asyncpg event-loop binding issues in worker processes.

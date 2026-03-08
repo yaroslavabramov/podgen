@@ -1,12 +1,19 @@
+from __future__ import annotations
+
 import uuid
 from datetime import datetime
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from sqlalchemy import String, DateTime, ForeignKey, Text, Boolean, Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+if TYPE_CHECKING:
+    from app.models.chunk import Chunk
+    from app.models.project import Project
 
 
 class SourceType(StrEnum):
@@ -31,6 +38,13 @@ class DomainReliability(StrEnum):
     UNKNOWN = "unknown"
 
 
+class AuthorityType(StrEnum):
+    PRIMARY = "primary"
+    SECONDARY = "secondary"
+    TERTIARY = "tertiary"
+    UNKNOWN = "unknown"
+
+
 class Source(Base):
     __tablename__ = "sources"
 
@@ -44,6 +58,10 @@ class Source(Base):
     domain_reliability: Mapped[str] = mapped_column(
         SAEnum(DomainReliability, name="domain_reliability", create_constraint=False, native_enum=False, length=20),
         default=DomainReliability.UNKNOWN,
+    )
+    authority_type: Mapped[str] = mapped_column(
+        SAEnum(AuthorityType, name="authority_type", create_constraint=False, native_enum=False, length=20),
+        default=AuthorityType.UNKNOWN,
     )
     ingestion_status: Mapped[str] = mapped_column(
         SAEnum(IngestionStatus, name="ingestion_status", create_constraint=False, native_enum=False, length=20),

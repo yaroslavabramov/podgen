@@ -4,6 +4,7 @@ import json
 import logging
 
 import uuid
+import re
 
 from sqlalchemy import func, select
 
@@ -37,6 +38,17 @@ Return JSON array:
 ]
 
 Max 3 evidence items per question. Only extract genuinely valuable evidence."""
+
+_ASSET_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "STATISTIC": ("statistics", "data", "figures", "official"),
+    "CASE": ("case", "example", "episode", "incident"),
+    "ANECDOTE": ("anecdote", "story", "example"),
+    "EXPERT_QUOTE": ("expert", "analyst", "quote", "statement"),
+    "DEFINITION": ("definition", "meaning", "what is"),
+    "MECHANISM": ("mechanism", "how it works", "process"),
+    "TIMELINE": ("timeline", "history", "chronology"),
+    "CONTRAST": ("contrast", "difference", "versus", "comparison"),
+}
 
 
 async def research_fast_web(state: PipelineState) -> dict:
@@ -86,11 +98,10 @@ async def research_fast_web(state: PipelineState) -> dict:
 
             question = gap["question"]
             target_missing_assets = _normalize_asset_types(gap.get("missing_assets", []))
-            query = _build_targeted_query(question, target_missing_assets)
+            queries = _build_search_queries(question, target_missing_assets)
 
             try:
-                # Web search
-                search_results = await web_search_tool(query)
+                search_results = await _run_search_queries(queries)
                 if not search_results:
                     continue
 
@@ -149,13 +160,19 @@ async def research_fast_web(state: PipelineState) -> dict:
                         project_id=state["project_id"],
                         db=db,
                         generation_run_id=state["generation_run_id"],
+                        manifest_id=state.get("manifest_id"),
+                        question_id=gap.get("question_id", ""),
+                        branch_id=gap.get("branch_id", ""),
+                        query_text=question,
+                        retrieval_score=item.get("narrative_value_score"),
+                        title=next((page.get("title") for page in page_contents if page.get("url") == item["url"]), None),
                     )
                     all_evidence_ids.append(eid)
                     new_evidence_count += 1
                     fast_web_count += 1
 
             except Exception:
-                logger.warning("Fast web search failed for: %s", query, exc_info=True)
+                logger.warning("Fast web search failed for question: %s", question, exc_info=True)
                 continue
 
         await db.commit()
@@ -186,6 +203,7 @@ async def research_fast_web(state: PipelineState) -> dict:
                     Source.project_id == uuid.UUID(state["project_id"]),
                     Source.is_temporary.is_(True),
                     Source.fully_ingested.is_(False),
+                    Source.is_duplicate_of.is_(None),
                     Source.generation_run_id == uuid.UUID(state["generation_run_id"]),
                     Source.ingestion_status.in_([IngestionStatus.PENDING, IngestionStatus.COMPLETED]),
                 )
@@ -233,6 +251,7 @@ def _select_gap_branches(branches: list[dict], research_gaps: list[dict] | None)
             if not question:
                 continue
             normalized.append({
+                "question_id": gap.get("question_id", ""),
                 "branch_id": gap.get("branch_id", ""),
                 "question": question,
                 "priority": gap.get("priority", 5),
@@ -246,6 +265,7 @@ def _select_gap_branches(branches: list[dict], research_gaps: list[dict] | None)
         gap_branches = branches[:2]
     return [
         {
+            "question_id": b.get("id", ""),
             "branch_id": b.get("id", ""),
             "question": b.get("question", ""),
             "priority": b.get("priority", 5),
@@ -262,6 +282,47 @@ def _normalize_asset_types(asset_types: list[str] | None) -> list[str]:
     return [str(a).upper() for a in asset_types if isinstance(a, str) and a]
 
 
+def _build_search_queries(question: str, missing_assets: list[str]) -> list[str]:
+    queries = [question]
+    targeted = _build_targeted_query(question, missing_assets)
+    if targeted and targeted != question:
+        queries.append(targeted)
+    return queries
+
+
 def _build_targeted_query(question: str, missing_assets: list[str]) -> str:
-    # Keep web query natural-language only; missing asset types are enforced during extraction/filtering.
-    return question
+    keywords: list[str] = []
+    for asset_type in missing_assets:
+        keywords.extend(_ASSET_KEYWORDS.get(asset_type, (asset_type.lower(),)))
+
+    named_tokens = [
+        token
+        for token in re.findall(r"[A-Za-z0-9$.-]{2,}", question)
+        if any(ch.isupper() for ch in token) or any(ch.isdigit() for ch in token)
+    ]
+    parts = [question, *named_tokens, *keywords]
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for part in parts:
+        cleaned = str(part).strip()
+        if not cleaned:
+            continue
+        key = cleaned.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(cleaned)
+    return " ".join(deduped).strip()
+
+
+async def _run_search_queries(queries: list[str]) -> list[dict]:
+    merged: dict[str, dict] = {}
+    for query in queries:
+        for result in await web_search_tool(query):
+            url = result.get("url")
+            if not isinstance(url, str) or not url:
+                continue
+            current = merged.get(url)
+            if current is None or float(result.get("score", 0) or 0) > float(current.get("score", 0) or 0):
+                merged[url] = result
+    return sorted(merged.values(), key=lambda item: float(item.get("score", 0) or 0), reverse=True)

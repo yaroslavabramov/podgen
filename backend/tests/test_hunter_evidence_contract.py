@@ -1,6 +1,9 @@
 import json
 
+import pytest
+
 from app.pipeline.phase3_research.hunter import (
+    _build_keyword_queries,
     _dump_hunter_question_debug,
     _extract_node_evidence_contract,
     _find_chunk_for_quote,
@@ -171,3 +174,19 @@ def test_dump_hunter_question_debug_skips_when_disabled(tmp_path, monkeypatch) -
     )
 
     assert list(tmp_path.glob("**/*.json")) == []
+
+
+@pytest.mark.asyncio
+async def test_build_keyword_queries_uses_llm_variants(monkeypatch) -> None:
+    async def _fake_call(**kwargs) -> str:
+        return '{"queries": ["Hong Kong dollar peg mechanism", "HKD issuance certificates indebtedness"]}'
+
+    monkeypatch.setattr("app.pipeline.phase3_research.hunter.call_haiku_structured", _fake_call)
+
+    queries = await _build_keyword_queries(
+        "Как работает эмиссия HKD?",
+        [{"preview": "Banks issue notes against Certificates of Indebtedness.", "heading_path": ["Mechanism"]}],
+    )
+
+    assert queries[0] == "Как работает эмиссия HKD?"
+    assert "Hong Kong dollar peg mechanism" in queries

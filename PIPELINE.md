@@ -271,10 +271,17 @@ Web extraction использует каскад extractors:
 ### **3.1 Hunter Agent (Closed-book)**
 
 - hybrid retrieval (vector + keywords)
+- keyword retrieval uses language-aware query rewrite based on the research question and sample corpus snippets, so lexical search follows corpus language rather than podcast language
 
 - расширенный retrieval pool (`top-40`) + diversity re-ranking (penalty за повторяющиеся `source_id`/`parent_chunk_id`) перед extraction
 
-- собирает EvidenceSpans
+- собирает canonical `EvidenceSpan`
+- для каждого найденного evidence пишет `EvidenceProvenance`:
+  - `question_id`
+  - `branch_id`
+  - `generation_run_id`
+  - `asset_type` для текущего retrieval-context
+  - `retrieved_by`
 
 - формирует structured gap signal `research_gaps` по веткам:
   - `missing_assets` рассчитывается только по `required_evidence` (с учетом `min_count`)
@@ -286,7 +293,9 @@ Web extraction использует каскад extractors:
 
 #### **A) Fast Web Evidence (внутри цикла, non-blocking)**
 
-- быстрый reader/snippets → temp_source + EvidenceSpans
+- broad query + targeted query union
+- быстрый reader/snippets → reuse canonical `Source` по URL, если он уже есть; иначе создать новый temp source
+- затем сохранить canonical `EvidenceSpan` + `EvidenceProvenance`
 
 - применяем для OPINION/REPORT, OBSERVED facts, quick triangulation
 
@@ -313,20 +322,42 @@ Web extraction использует каскад extractors:
 
 ### **4.1 Claim Builder**
 
-- агрегирует Evidence → Claims
+- собирает branch-based batches по `EvidenceProvenance`, а не режет flat array по фиксированному количеству rows
+- в prompt передаёт не только quote, но и:
+  - source metadata (`title/url/type/domain_reliability/authority_type/is_temporary`)
+  - compact lineage summary (`branch_ids/question_ids/retrieved_by`)
+  - contextual asset types из `EvidenceProvenance` для текущей branch-group
 
-- сохраняет "сок": illustrative_evidence_ids, asset_type
+- сохраняет narrative "сок": illustrative evidence не теряется
+- один и тот же `ClaimEvidence` может быть:
+  - factual support
+  - contradiction
+  - illustration
 
-### **4.2 Verification / Triangulation**
+### **4.2 Global Claim Dedupe**
+
+- после локальной генерации claims запускается deterministic global dedupe
+- схлопываются exact и conservative near-exact duplicates
+- evidence links и narrative flags мерджатся до verifier
+
+### **4.3 Verification / Triangulation**
 
 - FACT в основной линии стремится к VERIFIED:
-  - 2+ независимых подтверждения или 1 первичный авторитетный источник
+  - 2+ независимых canonical sources, или
+  - 1 strong primary/high source при прямом textual support
+
+- verifier считает независимость по canonical source identity (`source.id` / `is_duplicate_of`), а не по сырым source rows
+
+- claims на only-temporary evidence не могут быть `VERIFIED`
 
 - OPINION/REPORT: достаточно 1 источника, но обязательны атрибуция и контекст
+- attribution должен быть содержательным, а не placeholder вида "источник" / "неустановленный эксперт"
 
 - DISPUTED: обе стороны + причины расхождений
 
-### **4.3 Contradiction Resolver**
+- verifier при `needs_research` пишет свежие `research_gaps` по реальным provenance-парам `(branch_id, question_id)`, без synthetic Cartesian product, и fast-web loop работает уже по ним, а не по старым gap’ам Hunter
+
+### **4.4 Contradiction Resolver**
 
 - формирует Conflict Brief:
   - что конфликтует

@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, date
 from enum import StrEnum
 
-from sqlalchemy import String, Text, DateTime, Date, ForeignKey, Enum as SAEnum
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Enum as SAEnum, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -45,7 +45,15 @@ class Claim(Base):
 
 class ClaimEvidence(Base):
     __tablename__ = "claim_evidence"
+    __table_args__ = (
+        CheckConstraint(
+            "NOT (supports_fact AND contradicts_fact)",
+            name="ck_claim_evidence_supports_vs_contradicts",
+        ),
+    )
 
     claim_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("claims.id", ondelete="CASCADE"), primary_key=True)
     evidence_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("evidence_spans.id", ondelete="CASCADE"), primary_key=True)
-    relation: Mapped[str] = mapped_column(String(20), nullable=False, default="supporting")
+    supports_fact: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    contradicts_fact: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    illustrative: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

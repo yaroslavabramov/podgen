@@ -1,126 +1,20 @@
 """Source canonicalization: deduplication, domain reliability, and date extraction."""
 
 import logging
-import re
 from datetime import datetime
-from urllib.parse import urlparse
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.ingestion.web_quality import contains_blocking_signal
+from app.ingestion.source_metadata import canonical_url, classify_domain, classify_source_authority
 from app.models.source import DomainReliability, Source, SourceType
 from app.observability import safe_set_run, trace_span
 from app.pipeline.llm_json import parse_llm_json
 from app.services.llm import call_haiku_structured
 
 logger = logging.getLogger(__name__)
-
-# --- Domain reliability classification ----------------------------------------
-
-_HIGH_RELIABILITY_PATTERNS: list[str] = [
-    # Academic / journals
-    r"\.edu$",
-    r"arxiv\.org$",
-    r"pubmed\.ncbi\.nlm\.nih\.gov$",
-    r"scholar\.google\.com$",
-    r"doi\.org$",
-    r"nature\.com$",
-    r"science\.org$",
-    r"springer\.com$",
-    r"wiley\.com$",
-    r"ieee\.org$",
-    r"acm\.org$",
-    r"jstor\.org$",
-    r"plos\.org$",
-    # Government
-    r"\.gov$",
-    r"\.gov\.\w{2}$",
-    # Standards bodies
-    r"w3\.org$",
-    r"ietf\.org$",
-    r"iso\.org$",
-]
-
-_MEDIUM_RELIABILITY_PATTERNS: list[str] = [
-    # Major news
-    r"nytimes\.com$",
-    r"washingtonpost\.com$",
-    r"bbc\.(com|co\.uk)$",
-    r"reuters\.com$",
-    r"apnews\.com$",
-    r"theguardian\.com$",
-    r"economist\.com$",
-    r"ft\.com$",
-    r"wsj\.com$",
-    r"bloomberg\.com$",
-    # Major tech / reference
-    r"wikipedia\.org$",
-    r"github\.com$",
-    r"stackoverflow\.com$",
-    r"docs\.\w+\.com$",
-    r"developer\.\w+\.com$",
-    # Major publishers
-    r"medium\.com$",
-    r"substack\.com$",
-]
-
-_LOW_RELIABILITY_PATTERNS: list[str] = [
-    r"reddit\.com$",
-    r"quora\.com$",
-    r"facebook\.com$",
-    r"twitter\.com$",
-    r"x\.com$",
-    r"tiktok\.com$",
-    r"instagram\.com$",
-    r"pinterest\.com$",
-    r"tumblr\.com$",
-]
-
-
-def _classify_domain(url: str) -> DomainReliability:
-    """Classify a URL's domain into a reliability tier."""
-    try:
-        hostname = urlparse(url).hostname
-    except Exception:
-        return DomainReliability.UNKNOWN
-    if not hostname:
-        return DomainReliability.UNKNOWN
-
-    hostname = hostname.lower()
-
-    for pattern in _HIGH_RELIABILITY_PATTERNS:
-        if re.search(pattern, hostname):
-            return DomainReliability.HIGH
-
-    for pattern in _MEDIUM_RELIABILITY_PATTERNS:
-        if re.search(pattern, hostname):
-            return DomainReliability.MEDIUM
-
-    for pattern in _LOW_RELIABILITY_PATTERNS:
-        if re.search(pattern, hostname):
-            return DomainReliability.LOW
-
-    return DomainReliability.UNKNOWN
-
-
-# --- URL canonicalization for dedup -------------------------------------------
-
-def _canonical_url(url: str) -> str:
-    """Normalize a URL to a canonical form for dedup comparison."""
-    parsed = urlparse(url)
-
-    # Strip scheme, www prefix, trailing slash, common tracking params
-    host = (parsed.hostname or "").lower()
-    if host.startswith("www."):
-        host = host[4:]
-
-    path = parsed.path.rstrip("/")
-
-    # Drop common tracking query params
-    return f"{host}{path}"
-
 
 # --- Main pipeline ------------------------------------------------------------
 
@@ -148,7 +42,7 @@ async def canonicalize_sources(project_id: str, db: AsyncSession) -> None:
 
     for source in sources:
         if source.source_type == SourceType.WEB and source.original_url:
-            canon = _canonical_url(source.original_url)
+            canon = canonical_url(source.original_url)
             if canon in seen_urls:
                 source.is_duplicate_of = seen_urls[canon].id
                 logger.info(
@@ -160,17 +54,16 @@ async def canonicalize_sources(project_id: str, db: AsyncSession) -> None:
             else:
                 seen_urls[canon] = source
 
-    # --- Step 2: Domain reliability --------------------------------------------
+    # --- Step 2: Domain reliability + authority --------------------------------
     for source in sources:
         if source.is_duplicate_of:
             continue
 
         if source.original_url:
-            source.domain_reliability = _classify_domain(source.original_url)
+            source.domain_reliability = classify_domain(source.original_url)
         elif source.source_type == SourceType.PDF:
-            # PDFs are typically curated uploads; default to MEDIUM
             source.domain_reliability = DomainReliability.MEDIUM
-        # VIDEO/AUDIO default stays UNKNOWN
+        source.authority_type = await classify_source_authority(source)
 
     # --- Step 3: Extract published_at with Haiku (for undated web sources) -----
     undated = [s for s in sources if s.published_at is None and not s.is_duplicate_of and s.source_type == SourceType.WEB]

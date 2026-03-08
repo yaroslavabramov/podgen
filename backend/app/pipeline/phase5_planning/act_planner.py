@@ -16,6 +16,11 @@ from app.models.episode_manifest import EpisodeManifest
 from app.pipeline.state import PipelineState
 from app.models.source import Source
 from app.services.llm import call_sonnet_structured, call_haiku_structured
+from app.services.evidence_store import (
+    EvidenceProvenanceContext,
+    ensure_evidence_provenance,
+    get_or_create_canonical_evidence,
+)
 from app.pipeline.llm_json import parse_llm_json
 from app.pipeline.phase3_research.tools import vector_search_tool
 from app.realtime.publisher import publish_event
@@ -181,7 +186,12 @@ async def plan_act(state: PipelineState) -> dict:
             # Fill evidence gaps from existing corpus
             try:
                 new_ev_ids = await _fill_evidence_gaps(
-                    act, beat_sheet, db, state["project_id"],
+                    act,
+                    beat_sheet,
+                    db,
+                    state["project_id"],
+                    generation_run_id=state["generation_run_id"],
+                    manifest_id=state["manifest_id"],
                 )
                 if new_ev_ids:
                     logger.info("Act %s: filled %d evidence gaps", act_num, len(new_ev_ids))
@@ -209,6 +219,9 @@ NARRATIVE_SCENE_TYPES = {"case_study", "debate", "hook"}
 
 async def _fill_evidence_gaps(
     act: dict, beat_sheet: list[dict], db, project_id: str,
+    *,
+    generation_run_id: str | None = None,
+    manifest_id: str | None = None,
 ) -> list[str]:
     """Detect evidence gaps in beat sheet and fill from existing corpus.
 
@@ -281,17 +294,30 @@ async def _fill_evidence_gaps(
             if extracted.get("relevance_score", 0) < 0.5:
                 continue
 
-            # Create EvidenceSpan
-            evidence = EvidenceSpan(
-                id=uuid.uuid4(),
-                project_id=uuid.UUID(project_id),
-                source_id=uuid.UUID(best_chunk["source_id"]),
+            evidence, _ = await get_or_create_canonical_evidence(
+                db=db,
+                project_id=project_id,
+                source_id=best_chunk["source_id"],
                 verbatim_quote=extracted["quote"][:2000],
                 asset_type=extracted.get("asset_type", "case"),
                 narrative_value_score=extracted.get("relevance_score", 0.5),
             )
-            db.add(evidence)
-            await db.flush()
+            if generation_run_id and manifest_id:
+                act_number = act.get("act_number") or act.get("act") or 0
+                await ensure_evidence_provenance(
+                    db=db,
+                    evidence_id=evidence.id,
+                    context=EvidenceProvenanceContext(
+                        generation_run_id=generation_run_id,
+                        manifest_id=manifest_id,
+                        question_id=f"act:{act_number}:scene:{scene.get('scene')}",
+                        branch_id=f"act:{act_number}",
+                        asset_type=extracted.get("asset_type", "case"),
+                        retrieved_by="act_planner",
+                        query_text=query,
+                        retrieval_score=float(extracted.get("relevance_score", 0.5)),
+                    ),
+                )
 
             eid = str(evidence.id)
             scene.setdefault("evidence_ids", []).append(eid)

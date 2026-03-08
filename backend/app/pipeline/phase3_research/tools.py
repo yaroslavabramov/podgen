@@ -7,12 +7,17 @@ from sqlalchemy import bindparam, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.ingestion.source_metadata import canonical_url, classify_authority_heuristic, classify_domain
 from app.models.chunk import Chunk
-from app.models.source import Source, SourceType, IngestionStatus, DomainReliability
-from app.models.evidence import EvidenceSpan
+from app.models.source import Source, SourceType, IngestionStatus
 from app.observability import safe_set_run, trace_span
 from app.pipeline.step_control import assert_step_not_stopped
 from app.services.embeddings import vector_search as qdrant_search
+from app.services.evidence_store import (
+    EvidenceProvenanceContext,
+    ensure_evidence_provenance,
+    get_or_create_canonical_evidence,
+)
 
 
 def _clip(value: str, limit: int = 240) -> str:
@@ -265,8 +270,15 @@ async def fetch_page_tool(url: str) -> dict:
 async def create_web_evidence(
     url: str, quote: str, asset_type: str, project_id: str, db: AsyncSession,
     generation_run_id: str | None = None,
+    manifest_id: str | None = None,
+    question_id: str = "",
+    branch_id: str = "",
+    query_text: str | None = None,
+    retrieval_score: float | None = None,
+    title: str | None = None,
+    retrieved_by: str = "librarian_fast",
 ) -> str:
-    """Create a temporary web source + evidence span."""
+    """Create web evidence, reusing canonical sources when the URL is already known."""
     await assert_step_not_stopped()
     with trace_span(
         "research.tool.create_web_evidence",
@@ -279,31 +291,72 @@ async def create_web_evidence(
         },
         tags=["research-tool", "create-evidence"],
     ) as run_tree:
-        source = Source(
-            id=uuid.uuid4(),
-            project_id=uuid.UUID(project_id),
-            source_type=SourceType.WEB,
-            original_url=url,
-            ingestion_status=IngestionStatus.PENDING,
-            is_temporary=True,
-            fully_ingested=False,
-            domain_reliability=DomainReliability.UNKNOWN,
-            generation_run_id=uuid.UUID(generation_run_id) if generation_run_id else None,
-        )
-        db.add(source)
-        await db.flush()
+        canonical_source = await _find_canonical_source_by_url(db, project_id=project_id, url=url)
+        if canonical_source is not None:
+            source = canonical_source
+        else:
+            source = Source(
+                id=uuid.uuid4(),
+                project_id=uuid.UUID(project_id),
+                source_type=SourceType.WEB,
+                original_url=url,
+                title=title,
+                ingestion_status=IngestionStatus.PENDING,
+                is_temporary=True,
+                fully_ingested=False,
+                domain_reliability=classify_domain(url),
+                authority_type=classify_authority_heuristic(
+                    source_type=SourceType.WEB,
+                    original_url=url,
+                    title=title,
+                    text_preview=None,
+                ),
+                generation_run_id=uuid.UUID(generation_run_id) if generation_run_id else None,
+                is_duplicate_of=None,
+            )
+            db.add(source)
+            await db.flush()
 
-        evidence = EvidenceSpan(
-            id=uuid.uuid4(),
-            project_id=uuid.UUID(project_id),
+        evidence, _ = await get_or_create_canonical_evidence(
+            db=db,
+            project_id=project_id,
             source_id=source.id,
             verbatim_quote=quote,
             asset_type=asset_type,
             narrative_value_score=0.5,
         )
-        db.add(evidence)
-        await db.flush()
+        if generation_run_id and question_id and branch_id:
+            await ensure_evidence_provenance(
+                db=db,
+                evidence_id=evidence.id,
+                context=EvidenceProvenanceContext(
+                    generation_run_id=generation_run_id,
+                    manifest_id=manifest_id,
+                    question_id=question_id,
+                    branch_id=branch_id,
+                    asset_type=asset_type,
+                    retrieved_by=retrieved_by,
+                    query_text=query_text,
+                    retrieval_score=retrieval_score,
+                ),
+            )
 
         evidence_id = str(evidence.id)
         safe_set_run(run_tree, outputs={"evidence_id": evidence_id, "source_id": str(source.id)})
         return evidence_id
+
+
+async def _find_canonical_source_by_url(db: AsyncSession, *, project_id: str, url: str) -> Source | None:
+    target = canonical_url(url)
+    result = await db.execute(
+        select(Source).where(
+            Source.project_id == uuid.UUID(project_id),
+            Source.source_type == SourceType.WEB,
+            Source.original_url.is_not(None),
+            Source.is_duplicate_of.is_(None),
+        )
+    )
+    for source in result.scalars().all():
+        if source.original_url and canonical_url(source.original_url) == target:
+            return source
+    return None

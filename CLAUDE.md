@@ -100,7 +100,7 @@ Fast web evidence creates `Source(is_temporary=true)`. Claims relying only on te
 Pipeline nodes → Redis pub/sub → FastAPI WebSocket (`backend/app/api/ws.py`) → frontend Zustand store (`frontend/src/stores/generation-store.ts`).
 
 ## Database Models
-`backend/app/models/` — 12 models: User, Project, ShowBible, Source, Chunk, ContentMap, EvidenceSpan, Claim+ClaimEvidence, ConflictBrief, GenerationRun, EpisodeManifest, ScriptSegment, Episode.
+`backend/app/models/` — 13 model groups: User, Project, ShowBible, Source (+ authority_type), Chunk, ContentMap, EvidenceSpan + EvidenceProvenance, Claim+ClaimEvidence, ConflictBrief, GenerationRun, EpisodeManifest, ScriptSegment, Episode.
 
 ## API Routes
 All prefixed `/api/`. Routers in `backend/app/api/`: projects, show_bibles, sources, episodes, generations, ws. Auth via JWT Bearer token (`backend/app/api/deps.py`).

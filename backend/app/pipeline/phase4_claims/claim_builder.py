@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import uuid
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -11,8 +12,9 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.workers.worker_db import worker_session_factory as async_session_factory
-from app.models.evidence import EvidenceSpan
+from app.models.evidence import EvidenceProvenance, EvidenceSpan
 from app.models.claim import Claim, ClaimEvidence
+from app.models.source import Source
 from app.pipeline.state import PipelineState
 from app.services.llm import call_sonnet_structured
 from app.pipeline.llm_json import parse_llm_json
@@ -21,6 +23,7 @@ from app.realtime.events import phase_started, step_started, step_completed, cla
 
 logger = logging.getLogger(__name__)
 _REPO_ROOT = Path(__file__).resolve().parents[4]
+CLAIM_BATCH_CHAR_BUDGET = 14000
 
 BUILD_CLAIMS_SYSTEM = """You are a claim builder for a fact-checked podcast pipeline.
 Given evidence spans, produce a high-precision set of claims.
@@ -51,7 +54,9 @@ Rules:
 - Deduplicate within this batch: if two candidates are semantic paraphrases of the same proposition, keep one claim and merge evidence IDs.
 - If one evidence span supports multiple independent propositions, emit multiple claims.
 - Prefer short statements (single sentence) in the target language; keep each statement concise.
-- Preserve narrative assets in illustrative_evidence_ids.
+- CASE, ANECDOTE, and EXPERT_QUOTE default to illustrative evidence unless they explicitly carry an atomic fact.
+- The same evidence may appear in both supporting_evidence_ids and illustrative_evidence_ids.
+- Use source metadata, lineage, and contextual_asset_types to avoid mixing different research branches into one claim.
 - Use only evidence IDs that are present in the input.
 - Return raw JSON only. Do not use markdown/code fences or extra prose."""
 
@@ -62,183 +67,100 @@ async def build_claims(state: PipelineState) -> dict:
     publish_event(run_id, phase_started("phase4_claims", "Building and categorizing claims"))
     update_generation_progress(run_id, "phase4_claims", "claim_builder", 35.0)
 
-    evidence_ids = state.get("evidence_ids", [])
+    evidence_ids = list(dict.fromkeys(state.get("evidence_ids", [])))
     if not evidence_ids:
         return {"claim_ids": [], "current_phase": "phase4_claims"}
 
-    all_claim_ids = []
+    all_claim_ids: list[str] = []
 
     async with async_session_factory() as db:
-        # Load evidence spans
-        evidence_list = []
-        for eid in evidence_ids:
-            result = await db.execute(select(EvidenceSpan).where(EvidenceSpan.id == uuid.UUID(eid)))
-            ev = result.scalar_one_or_none()
-            if ev:
-                evidence_list.append({
-                    "id": str(ev.id),
-                    "verbatim_quote": ev.verbatim_quote[:500],
-                    "asset_type": ev.asset_type,
-                    "narrative_value_score": ev.narrative_value_score,
-                    "reliability_hint": ev.reliability_hint,
-                    "source_id": str(ev.source_id),
-                })
-
-        if not evidence_list:
+        evidence_index, branch_batches = await _load_branch_batches(
+            db=db,
+            evidence_ids=evidence_ids,
+            generation_run_id=state["generation_run_id"],
+        )
+        if not evidence_index:
             return {"claim_ids": [], "current_phase": "phase4_claims"}
 
-        publish_event(run_id, step_started("phase4_claims", "cluster_evidence", f"Clustering {len(evidence_list)} evidence spans"))
+        publish_event(
+            run_id,
+            step_started(
+                "phase4_claims",
+                "cluster_evidence",
+                f"Clustering {len(evidence_index)} evidence spans across {len(branch_batches)} branch groups",
+            ),
+        )
 
-        # Process in batches if needed
-        # Keep enough context for cross-evidence clustering while staying below output limits.
-        batch_size = 24
-        for batch_start in range(0, len(evidence_list), batch_size):
-            batch_number = (batch_start // batch_size) + 1
-            batch = evidence_list[batch_start:batch_start + batch_size]
-            batch_ids = {e["id"] for e in batch}
-            payload = {
-                "evidence_spans": batch,
-                "target_language": state["language"],
-                "instructions": (
-                    "Build atomic, non-duplicative claims from these evidence spans. "
-                    "Do not introduce new facts. "
-                    "If a statement would contain multiple independent facts, split it into separate claims."
-                ),
-            }
+        batch_number = 0
+        for branch_id, evidence_group in branch_batches:
+            for batch in _split_evidence_batch(evidence_group):
+                batch_number += 1
+                batch_ids = {e["id"] for e in batch}
+                payload = {
+                    "branch_id": branch_id,
+                    "evidence_spans": batch,
+                    "target_language": state["language"],
+                    "instructions": (
+                        "Build atomic, non-duplicative claims from these evidence spans. "
+                        "Do not introduce new facts. "
+                        "Preserve narrative evidence by using illustrative_evidence_ids, "
+                        "and use supporting_evidence_ids only when the quote directly supports the claim."
+                    ),
+                }
 
-            prompt = json.dumps(payload, ensure_ascii=False)
-
-            raw = ""
-            try:
-                raw = await call_sonnet_structured(
-                    system=BUILD_CLAIMS_SYSTEM,
-                    prompt=prompt,
-                    max_tokens=8192,
-                    temperature=0.4,
-                )
-                claims_data = parse_llm_json(raw)
-            except Exception:
-                logger.error("Claim building failed", exc_info=True)
-                _dump_claim_builder_batch_debug(
-                    run_id=run_id,
-                    batch_number=batch_number,
-                    status="llm_or_parse_failed",
-                    input_payload=payload,
-                    llm_raw_output=raw,
-                    parsed_claims=None,
-                    saved_claims=[],
-                )
-                continue
-
-            if not isinstance(claims_data, list):
-                logger.warning("Claim builder returned non-list payload for batch %s", batch_number)
-                _dump_claim_builder_batch_debug(
-                    run_id=run_id,
-                    batch_number=batch_number,
-                    status="invalid_claims_payload",
-                    input_payload=payload,
-                    llm_raw_output=raw,
-                    parsed_claims=claims_data,
-                    saved_claims=[],
-                )
-                continue
-
-            saved_claims_for_batch: list[dict] = []
-            try:
-                for cd in claims_data:
-                    if not isinstance(cd, dict):
-                        continue
-                    statement = cd.get("statement")
-                    if not isinstance(statement, str) or not statement.strip():
-                        continue
-
-                    claim = Claim(
-                        id=uuid.uuid4(),
-                        project_id=uuid.UUID(state["project_id"]),
-                        claim_type=cd.get("claim_type", "fact").lower(),
-                        statement=statement,
-                        attribution=cd.get("attribution"),
+                prompt = json.dumps(payload, ensure_ascii=False)
+                raw = ""
+                try:
+                    raw = await call_sonnet_structured(
+                        system=BUILD_CLAIMS_SYSTEM,
+                        prompt=prompt,
+                        max_tokens=8192,
+                        temperature=0.4,
                     )
-                    db.add(claim)
-                    await db.flush()
-
-                    # Create ClaimEvidence links.
-                    # PK is (claim_id, evidence_id), so a single evidence cannot have
-                    # both "supporting" and "illustrative" links for one claim.
-                    # If both are present, keep the stronger "supporting" relation.
-                    merged_relations: dict[str, str] = {}
-
-                    for se_id in cd.get("supporting_evidence_ids", []):
-                        if isinstance(se_id, str) and se_id in batch_ids:
-                            merged_relations[se_id] = "supporting"
-
-                    for ie_id in cd.get("illustrative_evidence_ids", []):
-                        if (
-                            isinstance(ie_id, str)
-                            and ie_id in batch_ids
-                            and ie_id not in merged_relations
-                        ):
-                            merged_relations[ie_id] = "illustrative"
-
-                    for evidence_id, relation in merged_relations.items():
-                        try:
-                            db.add(
-                                ClaimEvidence(
-                                    claim_id=claim.id,
-                                    evidence_id=uuid.UUID(evidence_id),
-                                    relation=relation,
-                                )
-                            )
-                        except ValueError:
-                            logger.warning(
-                                "Claim builder produced invalid evidence UUID: %s",
-                                evidence_id,
-                            )
-
-                    await db.flush()
-                    all_claim_ids.append(str(claim.id))
-                    saved_claims_for_batch.append(
-                        {
-                            "claim_id": str(claim.id),
-                            "claim_type": claim.claim_type,
-                            "statement": claim.statement,
-                            "statement_preview": _clip_text(claim.statement, limit=240),
-                            "attribution": claim.attribution,
-                            "supporting_evidence_ids": [
-                                evidence_id
-                                for evidence_id, relation in merged_relations.items()
-                                if relation == "supporting"
-                            ],
-                            "illustrative_evidence_ids": [
-                                evidence_id
-                                for evidence_id, relation in merged_relations.items()
-                                if relation == "illustrative"
-                            ],
-                        }
+                    claims_data = parse_llm_json(raw)
+                except Exception:
+                    logger.error("Claim building failed", exc_info=True)
+                    _dump_claim_builder_batch_debug(
+                        run_id=run_id,
+                        batch_number=batch_number,
+                        status="llm_or_parse_failed",
+                        input_payload=payload,
+                        llm_raw_output=raw,
+                        parsed_claims=None,
+                        saved_claims=[],
                     )
+                    continue
 
-                    publish_event(run_id, claim_created(claim.claim_type, claim.statement[:100]))
-            except Exception:
+                if not isinstance(claims_data, list):
+                    logger.warning("Claim builder returned non-list payload for batch %s", batch_number)
+                    _dump_claim_builder_batch_debug(
+                        run_id=run_id,
+                        batch_number=batch_number,
+                        status="invalid_claims_payload",
+                        input_payload=payload,
+                        llm_raw_output=raw,
+                        parsed_claims=claims_data,
+                        saved_claims=[],
+                    )
+                    continue
+
+                saved_claims_for_batch = await _persist_claim_batch(
+                    db=db,
+                    project_id=state["project_id"],
+                    claims_data=claims_data,
+                    batch_ids=batch_ids,
+                    run_id=run_id,
+                    all_claim_ids=all_claim_ids,
+                )
                 _dump_claim_builder_batch_debug(
                     run_id=run_id,
                     batch_number=batch_number,
-                    status="claim_persist_failed",
+                    status="ok",
                     input_payload=payload,
                     llm_raw_output=raw,
                     parsed_claims=claims_data,
                     saved_claims=saved_claims_for_batch,
                 )
-                raise
-
-            _dump_claim_builder_batch_debug(
-                run_id=run_id,
-                batch_number=batch_number,
-                status="ok",
-                input_payload=payload,
-                llm_raw_output=raw,
-                parsed_claims=claims_data,
-                saved_claims=saved_claims_for_batch,
-            )
 
         await db.commit()
 
@@ -247,6 +169,219 @@ async def build_claims(state: PipelineState) -> dict:
     update_generation_progress(run_id, "phase4_claims", "claim_builder_done", 40.0)
 
     return {"claim_ids": all_claim_ids, "current_phase": "phase4_claims"}
+
+
+async def _load_branch_batches(
+    *,
+    db,
+    evidence_ids: list[str],
+    generation_run_id: str,
+) -> tuple[dict[str, dict], list[tuple[str, list[dict]]]]:
+    evidence_uuid_ids = [uuid.UUID(eid) for eid in evidence_ids]
+    evidence_result = await db.execute(
+        select(EvidenceSpan, Source)
+        .join(Source, EvidenceSpan.source_id == Source.id)
+        .where(EvidenceSpan.id.in_(evidence_uuid_ids))
+    )
+
+    evidence_index: dict[str, dict] = {}
+    for evidence, source in evidence_result.all():
+        evidence_index[str(evidence.id)] = {
+            "id": str(evidence.id),
+            "verbatim_quote": evidence.verbatim_quote[:700],
+            "canonical_asset_type": evidence.asset_type,
+            "narrative_value_score": evidence.narrative_value_score,
+            "reliability_hint": evidence.reliability_hint,
+            "source_id": str(evidence.source_id),
+            "source": {
+                "title": source.title or "",
+                "url": source.original_url or "",
+                "type": source.source_type,
+                "domain_reliability": source.domain_reliability,
+                "authority_type": source.authority_type,
+                "is_temporary": source.is_temporary,
+                "published_at": source.published_at.isoformat() if source.published_at else None,
+            },
+            "lineage": {
+                "branch_ids": [],
+                "question_ids": [],
+                "retrieved_by": [],
+            },
+        }
+
+    provenance_result = await db.execute(
+        select(EvidenceProvenance).where(
+            EvidenceProvenance.evidence_id.in_(evidence_uuid_ids),
+            EvidenceProvenance.generation_run_id == uuid.UUID(generation_run_id),
+        )
+    )
+    branch_batches = _build_branch_batches(evidence_index, list(provenance_result.scalars()))
+    return evidence_index, branch_batches
+
+
+def _build_branch_batches(
+    evidence_index: dict[str, dict],
+    provenances: list[EvidenceProvenance],
+) -> list[tuple[str, list[dict]]]:
+    branch_to_ids: dict[str, set[str]] = defaultdict(set)
+    branch_asset_types: dict[tuple[str, str], set[str]] = defaultdict(set)
+
+    for provenance in provenances:
+        evidence_id = str(provenance.evidence_id)
+        evidence_item = evidence_index.get(evidence_id)
+        if evidence_item is None:
+            continue
+        lineage = evidence_item["lineage"]
+        lineage["branch_ids"].append(provenance.branch_id)
+        lineage["question_ids"].append(provenance.question_id)
+        lineage["retrieved_by"].append(provenance.retrieved_by)
+        branch_to_ids[provenance.branch_id].add(evidence_id)
+        branch_asset_types[(provenance.branch_id, evidence_id)].add(str(provenance.asset_type))
+
+    for evidence_id, evidence_item in evidence_index.items():
+        lineage = evidence_item["lineage"]
+        lineage["branch_ids"] = sorted(set(lineage["branch_ids"]))
+        lineage["question_ids"] = sorted(set(lineage["question_ids"]))
+        lineage["retrieved_by"] = sorted(set(lineage["retrieved_by"]))
+        if not lineage["branch_ids"]:
+            branch_to_ids["ungrouped"].add(evidence_id)
+
+    branch_batches: list[tuple[str, list[dict]]] = []
+    for branch_id, batch_ids in sorted(branch_to_ids.items(), key=lambda item: item[0]):
+        items: list[dict] = []
+        for evidence_id in batch_ids:
+            base_item = evidence_index.get(evidence_id)
+            if base_item is None:
+                continue
+            contextual_asset_types = sorted(
+                branch_asset_types.get((branch_id, evidence_id), set())
+            ) or [base_item["canonical_asset_type"]]
+            items.append(
+                {
+                    **base_item,
+                    "asset_type": contextual_asset_types[0],
+                    "contextual_asset_types": contextual_asset_types,
+                    "source": dict(base_item["source"]),
+                    "lineage": {
+                        "branch_ids": list(base_item["lineage"]["branch_ids"]),
+                        "question_ids": list(base_item["lineage"]["question_ids"]),
+                        "retrieved_by": list(base_item["lineage"]["retrieved_by"]),
+                    },
+                }
+            )
+        items.sort(key=lambda item: (item["lineage"]["question_ids"], item["id"]))
+        if items:
+            branch_batches.append((branch_id, items))
+    return branch_batches
+
+
+def _split_evidence_batch(evidence_group: list[dict]) -> list[list[dict]]:
+    batches: list[list[dict]] = []
+    current_batch: list[dict] = []
+    current_chars = 0
+    for item in evidence_group:
+        item_chars = _estimate_evidence_chars(item)
+        if current_batch and current_chars + item_chars > CLAIM_BATCH_CHAR_BUDGET:
+            batches.append(current_batch)
+            current_batch = []
+            current_chars = 0
+        current_batch.append(item)
+        current_chars += item_chars
+    if current_batch:
+        batches.append(current_batch)
+    return batches
+
+
+def _estimate_evidence_chars(item: dict) -> int:
+    source = item.get("source", {})
+    lineage = item.get("lineage", {})
+    return sum(
+        len(str(value))
+        for value in (
+            item.get("verbatim_quote", ""),
+            item.get("asset_type", ""),
+            json.dumps(item.get("contextual_asset_types", []), ensure_ascii=False),
+            source.get("title", "") if isinstance(source, dict) else "",
+            source.get("url", "") if isinstance(source, dict) else "",
+            json.dumps(lineage, ensure_ascii=False, sort_keys=True) if isinstance(lineage, dict) else "",
+        )
+    ) + 200
+
+
+async def _persist_claim_batch(
+    *,
+    db,
+    project_id: str,
+    claims_data: list[dict],
+    batch_ids: set[str],
+    run_id: str,
+    all_claim_ids: list[str],
+) -> list[dict]:
+    saved_claims_for_batch: list[dict] = []
+    try:
+        for cd in claims_data:
+            if not isinstance(cd, dict):
+                continue
+            statement = cd.get("statement")
+            if not isinstance(statement, str) or not statement.strip():
+                continue
+
+            support_ids = {
+                evidence_id
+                for evidence_id in cd.get("supporting_evidence_ids", [])
+                if isinstance(evidence_id, str) and evidence_id in batch_ids
+            }
+            illustrative_ids = {
+                evidence_id
+                for evidence_id in cd.get("illustrative_evidence_ids", [])
+                if isinstance(evidence_id, str) and evidence_id in batch_ids
+            }
+            if not support_ids:
+                continue
+
+            claim = Claim(
+                id=uuid.uuid4(),
+                project_id=uuid.UUID(project_id),
+                claim_type=str(cd.get("claim_type", "fact")).lower(),
+                statement=statement,
+                attribution=cd.get("attribution"),
+            )
+            db.add(claim)
+            await db.flush()
+
+            for evidence_id in sorted(support_ids | illustrative_ids):
+                try:
+                    db.add(
+                        ClaimEvidence(
+                            claim_id=claim.id,
+                            evidence_id=uuid.UUID(evidence_id),
+                            supports_fact=evidence_id in support_ids,
+                            contradicts_fact=False,
+                            illustrative=evidence_id in illustrative_ids,
+                        )
+                    )
+                except ValueError:
+                    logger.warning("Claim builder produced invalid evidence UUID: %s", evidence_id)
+
+            await db.flush()
+            claim_id = str(claim.id)
+            all_claim_ids.append(claim_id)
+            saved_claims_for_batch.append(
+                {
+                    "claim_id": claim_id,
+                    "claim_type": claim.claim_type,
+                    "statement": claim.statement,
+                    "statement_preview": _clip_text(claim.statement, limit=240),
+                    "attribution": claim.attribution,
+                    "supporting_evidence_ids": sorted(support_ids),
+                    "illustrative_evidence_ids": sorted(illustrative_ids),
+                }
+            )
+            publish_event(run_id, claim_created(claim.claim_type, claim.statement[:100]))
+    except Exception:
+        logger.exception("Claim persistence failed")
+        raise
+    return saved_claims_for_batch
 
 
 def _safe_filename_token(value: str) -> str:

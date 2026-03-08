@@ -83,6 +83,13 @@
 
 ## Этап 7: Production Quality
 
+- [x] Claims/Evidence lineage refactor: add `Source.authority_type`, `EvidenceProvenance`, and upgraded `ClaimEvidence` flags (`supports_fact`, `contradicts_fact`, `illustrative`)
+- [x] Claims/Evidence lineage refactor: canonical source identity + exact evidence dedupe path for hunter/librarian/planning-created evidence
+- [x] Claims/Evidence lineage refactor: branch-based claim batching with source+lineage payload enrichment
+- [x] Claims/Evidence lineage refactor: global claim dedupe before verifier
+- [x] Claims/Evidence lineage refactor: verifier hardening (`is_duplicate_of`, `is_temporary`, attribution quality, fresh `research_gaps`)
+- [x] Claims/Evidence lineage refactor: language-aware keyword retrieval and broad+targeted librarian web search
+- [x] Claims/Evidence lineage refactor: tests and docs
 - [ ] End-to-end tests
 - [ ] Step-mode API/worker integration tests (`/steps/next`, `/steps/rerun`, `/steps/stop`, checkpoint rewind, stop ack path)
 - [ ] Step-mode concurrency hardening (single in-flight action guarantee under concurrent requests)

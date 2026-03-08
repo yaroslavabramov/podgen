@@ -23,6 +23,7 @@ from app.pipeline.phase2_decomposition.decomposer import decompose
 from app.pipeline.phase3_research.hunter import hunt_closed_book
 from app.pipeline.phase3_research.librarian_fast import research_fast_web
 from app.pipeline.phase4_claims.claim_builder import build_claims
+from app.pipeline.phase4_claims.dedupe import dedupe_claims
 from app.pipeline.phase4_claims.verifier import verify_claims
 from app.pipeline.phase4_claims.conflict_resolver import resolve_conflicts
 from app.pipeline.phase5_planning.showrunner import plan_episode
@@ -44,6 +45,7 @@ _NODE_PHASES = {
     "hunt_closed_book": "phase3_research",
     "research_fast_web": "phase3_research",
     "build_claims": "phase4_claims",
+    "dedupe_claims": "phase4_claims",
     "verify_claims": "phase4_claims",
     "resolve_conflicts": "phase4_claims",
     "plan_episode": "phase5_planning",
@@ -157,6 +159,7 @@ def build_graph() -> StateGraph:
     graph.add_node("hunt_closed_book", _trace_node("hunt_closed_book", hunt_closed_book))
     graph.add_node("research_fast_web", _trace_node("research_fast_web", research_fast_web))
     graph.add_node("build_claims", _trace_node("build_claims", build_claims))
+    graph.add_node("dedupe_claims", _trace_node("dedupe_claims", dedupe_claims))
     graph.add_node("verify_claims", _trace_node("verify_claims", verify_claims))
     graph.add_node("resolve_conflicts", _trace_node("resolve_conflicts", resolve_conflicts))
     graph.add_node("plan_episode", _trace_node("plan_episode", plan_episode))
@@ -175,7 +178,8 @@ def build_graph() -> StateGraph:
     graph.add_edge("decompose", "hunt_closed_book")
     graph.add_edge("hunt_closed_book", "research_fast_web")
     graph.add_edge("research_fast_web", "build_claims")
-    graph.add_edge("build_claims", "verify_claims")
+    graph.add_edge("build_claims", "dedupe_claims")
+    graph.add_edge("dedupe_claims", "verify_claims")
 
     # Verify can loop to research or proceed
     graph.add_conditional_edges("verify_claims", _should_loop_verify, {
