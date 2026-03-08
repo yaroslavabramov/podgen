@@ -11,6 +11,8 @@ from app.models.show_bible import ShowBible
 from app.models.claim import Claim, VerificationLevel
 from app.models.conflict_brief import ConflictBrief
 from app.models.episode_manifest import EpisodeManifest
+from app.pipeline.phase5_planning.planning_context import load_planning_context
+from app.pipeline.research_context import build_question_context_map
 from app.pipeline.state import PipelineState
 from app.pipeline.llm_json import parse_llm_json
 from app.services.llm import call_sonnet_structured
@@ -48,6 +50,8 @@ Rules:
 - DISPUTED claims MUST have a "debate moment" (conflicts >= 1 in that act's quotas)
 - Act count: 2-6 based on duration and style
 - Verified facts should be front-loaded in acts where audience needs grounding
+- Claims with direct support and stronger source diversity should form the explanatory backbone
+- Claims with illustrative evidence are good candidates for hooks, case-study moments, and act transitions
 - Last act should include takeaways"""
 
 
@@ -63,22 +67,6 @@ async def plan_episode(state: PipelineState) -> dict:
         if state.get("show_bible_id"):
             result = await db.execute(select(ShowBible).where(ShowBible.id == uuid.UUID(state["show_bible_id"])))
             bible = result.scalar_one_or_none()
-
-        # Load claims
-        claims_summary = []
-        disputed_ids = []
-        for cid in state.get("claim_ids", []):
-            result = await db.execute(select(Claim).where(Claim.id == uuid.UUID(cid)))
-            claim = result.scalar_one_or_none()
-            if claim:
-                claims_summary.append({
-                    "id": str(claim.id),
-                    "type": claim.claim_type,
-                    "verification": claim.verification_level,
-                    "statement": claim.statement[:200],
-                })
-                if claim.verification_level == VerificationLevel.DISPUTED:
-                    disputed_ids.append(str(claim.id))
 
         # Load conflict briefs
         conflicts_summary = []
@@ -97,6 +85,48 @@ async def plan_episode(state: PipelineState) -> dict:
         if state.get("manifest_id"):
             result = await db.execute(select(EpisodeManifest).where(EpisodeManifest.id == uuid.UUID(state["manifest_id"])))
             manifest = result.scalar_one_or_none()
+
+        question_context_map = build_question_context_map(
+            manifest.research_tree_json if manifest else None
+        )
+        claim_contexts, _ = await load_planning_context(
+            db=db,
+            claim_ids=state.get("claim_ids", []),
+            generation_run_id=state["generation_run_id"],
+            question_context_map=question_context_map,
+        )
+        claims_summary = []
+        disputed_ids = []
+        for cid in state.get("claim_ids", []):
+            claim_summary = claim_contexts.get(cid)
+            if not claim_summary:
+                result = await db.execute(select(Claim).where(Claim.id == uuid.UUID(cid)))
+                claim = result.scalar_one_or_none()
+                if claim is None:
+                    continue
+                claim_summary = {
+                    "id": str(claim.id),
+                    "type": claim.claim_type,
+                    "verification": claim.verification_level,
+                    "statement": claim.statement[:200],
+                    "supporting_evidence_count": 0,
+                    "illustrative_evidence_count": 0,
+                    "has_illustrative": False,
+                    "branch_ids": [],
+                    "question_ids": [],
+                    "intents": [],
+                    "direct_support_count": 0,
+                    "contextual_support_count": 0,
+                    "source_diversity": 0,
+                    "quality_hints": {
+                        "has_primary_support": False,
+                        "has_high_reliability_support": False,
+                        "temporary_only_support": False,
+                    },
+                }
+            claims_summary.append(claim_summary)
+            if claim_summary["verification"] == VerificationLevel.DISPUTED:
+                disputed_ids.append(str(claim_summary["id"]))
 
         publish_event(run_id, step_started("phase5_planning", "structure", "Creating act structure"))
 

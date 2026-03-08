@@ -46,7 +46,7 @@ async def test_create_web_evidence_creates_temp_source_and_provenance(monkeypatc
     project_id = str(uuid.uuid4())
     run_id = str(uuid.uuid4())
     manifest_id = str(uuid.uuid4())
-    provenance_calls: list[tuple[str, str, str, str]] = []
+    provenance_calls: list[tuple[str, str, str, str, str | None]] = []
 
     async def _fake_find_canonical_source_by_url(*args, **kwargs):
         return None
@@ -65,7 +65,15 @@ async def test_create_web_evidence_creates_temp_source_and_provenance(monkeypatc
         return evidence, True
 
     async def _fake_ensure_evidence_provenance(*, context, **kwargs):
-        provenance_calls.append((context.question_id, context.branch_id, context.asset_type, context.retrieved_by))
+        provenance_calls.append(
+            (
+                context.question_id,
+                context.branch_id,
+                context.asset_type,
+                context.retrieved_by,
+                context.direct_or_contextual,
+            )
+        )
 
     monkeypatch.setattr(
         "app.pipeline.phase3_research.tools._find_canonical_source_by_url",
@@ -91,6 +99,7 @@ async def test_create_web_evidence_creates_temp_source_and_provenance(monkeypatc
         question_id="b6.1",
         branch_id="b6",
         query_text="Why does this matter today?",
+        direct_or_contextual="direct",
         title="Reuters coverage",
     )
 
@@ -111,7 +120,7 @@ async def test_create_web_evidence_creates_temp_source_and_provenance(monkeypatc
     assert source.authority_type == AuthorityType.SECONDARY
     assert evidence.source_id == source.id
     assert evidence_id == str(evidence.id)
-    assert provenance_calls == [("b6.1", "b6", "case", "librarian_fast")]
+    assert provenance_calls == [("b6.1", "b6", "case", "librarian_fast", "direct")]
 
 
 @pytest.mark.asyncio

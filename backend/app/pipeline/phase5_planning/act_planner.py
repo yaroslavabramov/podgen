@@ -9,10 +9,9 @@ from typing import Any
 from sqlalchemy import select
 
 from app.workers.worker_db import worker_session_factory as async_session_factory
-from app.models.claim import Claim
-from app.models.evidence import EvidenceSpan
-from app.models.claim import ClaimEvidence
 from app.models.episode_manifest import EpisodeManifest
+from app.pipeline.phase5_planning.planning_context import load_planning_context
+from app.pipeline.research_context import build_question_context_map
 from app.pipeline.state import PipelineState
 from app.models.source import Source
 from app.services.llm import call_sonnet_structured, call_haiku_structured
@@ -36,7 +35,8 @@ Return JSON:
 {
   "quote": "exact verbatim text from the chunk",
   "asset_type": "anecdote|case|contrast|statistic|expert_quote|definition|mechanism|timeline",
-  "relevance_score": 0.8
+  "relevance_score": 0.8,
+  "direct_or_contextual": "direct|contextual"
 }
 
 If the chunk has no relevant evidence for this scene, return:
@@ -68,7 +68,12 @@ Scene types:
 - case_study: detailed real-world example
 - transition: bridge between topics
 - summary: recap key points
-- takeaway: actionable insight"""
+- takeaway: actionable insight
+
+Use claim/evidence metadata:
+- `has_illustrative` and `illustrative_evidence_count` indicate narrative hooks
+- `direct_support_count` and `source_diversity` indicate factual backbone
+- evidence with `illustrative=true` is good for hooks, case-study beats, and vivid transitions"""
 
 
 async def plan_act(state: PipelineState) -> dict:
@@ -93,6 +98,7 @@ async def plan_act(state: PipelineState) -> dict:
         # Work on a detached copy and assign it back to guarantee persistence.
         acts = copy.deepcopy(manifest.acts_json)
         total_scene_count = 0
+        question_context_map = build_question_context_map(manifest.research_tree_json)
 
         for i, act in enumerate(acts, start=1):
             if not isinstance(act, dict):
@@ -105,28 +111,14 @@ async def plan_act(state: PipelineState) -> dict:
 
             # Load claims for this act
             raw_claim_ids = _uuid_list(act.get("claim_ids"))
-            act_claims = []
-            for cid in raw_claim_ids:
-                r = await db.execute(select(Claim).where(Claim.id == uuid.UUID(cid)))
-                c = r.scalar_one_or_none()
-                if c:
-                    act_claims.append({
-                        "id": str(c.id), "type": c.claim_type,
-                        "verification": c.verification_level, "statement": c.statement[:300],
-                    })
-
-            # Load evidence for act claims
-            act_evidence = []
-            for cid in raw_claim_ids:
-                ce_result = await db.execute(select(ClaimEvidence).where(ClaimEvidence.claim_id == uuid.UUID(cid)))
-                for ce in ce_result.scalars():
-                    ev_result = await db.execute(select(EvidenceSpan).where(EvidenceSpan.id == ce.evidence_id))
-                    ev = ev_result.scalar_one_or_none()
-                    if ev:
-                        act_evidence.append({
-                            "id": str(ev.id), "asset_type": ev.asset_type,
-                            "quote": ev.verbatim_quote[:200], "narrative_score": ev.narrative_value_score,
-                        })
+            claim_contexts, evidence_contexts = await load_planning_context(
+                db=db,
+                claim_ids=raw_claim_ids,
+                generation_run_id=state["generation_run_id"],
+                question_context_map=question_context_map,
+            )
+            act_claims = [claim_contexts[cid] for cid in raw_claim_ids if cid in claim_contexts]
+            act_evidence = list(evidence_contexts.values())
 
             allowed_claim_ids = {c["id"] for c in act_claims}
             allowed_evidence_ids = {e["id"] for e in act_evidence}
@@ -316,6 +308,7 @@ async def _fill_evidence_gaps(
                         retrieved_by="act_planner",
                         query_text=query,
                         retrieval_score=float(extracted.get("relevance_score", 0.5)),
+                        direct_or_contextual=extracted.get("direct_or_contextual"),
                     ),
                 )
 

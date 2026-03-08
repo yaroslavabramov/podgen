@@ -3,8 +3,12 @@ from datetime import datetime
 
 import pytest
 
-from app.ingestion.canonicalizer import _date_extraction_gate, _extract_date
-from app.models.source import Source, SourceType
+from app.ingestion.canonicalizer import (
+    _date_extraction_gate,
+    _extract_date,
+    _propagate_canonical_metadata_to_duplicates,
+)
+from app.models.source import AuthorityType, DomainReliability, Source, SourceType
 
 
 def _make_web_source(*, text_preview: str, metadata: dict | None = None) -> Source:
@@ -81,3 +85,28 @@ async def test_extract_date_handles_invalid_json(monkeypatch: pytest.MonkeyPatch
     assert published_at is None
     assert status == "parse_error"
     assert reason == "invalid_json"
+
+
+def test_propagate_canonical_metadata_to_duplicates() -> None:
+    canonical = Source(
+        id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        source_type=SourceType.WEB,
+        original_url="https://example.com/article",
+        domain_reliability=DomainReliability.MEDIUM,
+        authority_type=AuthorityType.SECONDARY,
+    )
+    duplicate = Source(
+        id=uuid.uuid4(),
+        project_id=canonical.project_id,
+        source_type=SourceType.WEB,
+        original_url="https://www.example.com/article",
+        is_duplicate_of=canonical.id,
+        domain_reliability=DomainReliability.UNKNOWN,
+        authority_type=AuthorityType.UNKNOWN,
+    )
+
+    _propagate_canonical_metadata_to_duplicates([canonical, duplicate])
+
+    assert duplicate.domain_reliability == DomainReliability.MEDIUM
+    assert duplicate.authority_type == AuthorityType.SECONDARY

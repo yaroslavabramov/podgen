@@ -23,7 +23,7 @@ from app.realtime.events import step_started, step_completed, evidence_found, pr
 logger = logging.getLogger(__name__)
 
 EXTRACT_WEB_EVIDENCE_SYSTEM = """You are a web evidence extractor for a podcast research pipeline.
-Given web pages, a research question, and optional target_missing_assets, identify the most valuable evidence.
+Given web pages, a research question, question intent, and optional target_missing_assets, identify the most valuable evidence.
 If target_missing_assets is non-empty, prioritize evidence that matches those asset types.
 
 Return JSON array:
@@ -32,10 +32,14 @@ Return JSON array:
     "url": "source URL",
     "verbatim_quote": "exact quote from the content",
     "asset_type": "STATISTIC|ANECDOTE|EXPERT_QUOTE|DEFINITION|MECHANISM|CASE|TIMELINE|CONTRAST",
+    "direct_or_contextual": "direct|contextual",
     "narrative_value_score": 0.0-1.0,
     "tellability_notes": "why this evidence is valuable for a podcast"
   }
 ]
+
+Use direct_or_contextual="direct" when the quote directly answers the question as asked.
+Use direct_or_contextual="contextual" for background, analogy, or adjacent framing.
 
 Max 3 evidence items per question. Only extract genuinely valuable evidence."""
 
@@ -125,6 +129,9 @@ async def research_fast_web(state: PipelineState) -> dict:
                 # Extract evidence with Sonnet
                 prompt = json.dumps({
                     "research_question": question,
+                    "question_intent": gap.get("intent"),
+                    "required_evidence": gap.get("required_assets", []),
+                    "expected_evidence": gap.get("expected_assets", []),
                     "target_missing_assets": target_missing_assets,
                     "web_pages": page_contents,
                 }, ensure_ascii=False)
@@ -165,6 +172,7 @@ async def research_fast_web(state: PipelineState) -> dict:
                         branch_id=gap.get("branch_id", ""),
                         query_text=question,
                         retrieval_score=item.get("narrative_value_score"),
+                        direct_or_contextual=item.get("direct_or_contextual"),
                         title=next((page.get("title") for page in page_contents if page.get("url") == item["url"]), None),
                     )
                     all_evidence_ids.append(eid)
@@ -254,8 +262,11 @@ def _select_gap_branches(branches: list[dict], research_gaps: list[dict] | None)
                 "question_id": gap.get("question_id", ""),
                 "branch_id": gap.get("branch_id", ""),
                 "question": question,
+                "intent": gap.get("intent", ""),
                 "priority": gap.get("priority", 5),
                 "missing_assets": _normalize_asset_types(gap.get("missing_assets", [])),
+                "required_assets": gap.get("required_assets", []),
+                "expected_assets": _normalize_asset_types(gap.get("expected_assets", [])),
             })
         normalized.sort(key=lambda g: (g.get("priority", 5), g.get("branch_id", "")))
         return normalized[:3]
@@ -268,8 +279,11 @@ def _select_gap_branches(branches: list[dict], research_gaps: list[dict] | None)
             "question_id": b.get("id", ""),
             "branch_id": b.get("id", ""),
             "question": b.get("question", ""),
+            "intent": b.get("intent", ""),
             "priority": b.get("priority", 5),
             "missing_assets": [],
+            "required_assets": b.get("required_evidence", []),
+            "expected_assets": _normalize_asset_types(b.get("expected_evidence", [])),
         }
         for b in gap_branches
         if b.get("question")

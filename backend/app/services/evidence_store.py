@@ -7,7 +7,13 @@ from dataclasses import dataclass
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.evidence import AssetType, EvidenceProvenance, EvidenceRetrievedBy, EvidenceSpan
+from app.models.evidence import (
+    AssetType,
+    EvidenceProvenance,
+    EvidenceQuestionRelevance,
+    EvidenceRetrievedBy,
+    EvidenceSpan,
+)
 from app.models.source import Source
 from app.pipeline.phase3_research.normalization import normalize_research_text
 
@@ -22,6 +28,7 @@ class EvidenceProvenanceContext:
     retrieved_by: str
     query_text: str | None = None
     retrieval_score: float | None = None
+    direct_or_contextual: str | None = None
 
 
 def canonical_source_id(source: Source) -> uuid.UUID:
@@ -41,6 +48,18 @@ def _coerce_asset_type(value: str | AssetType) -> str:
         return value.value
     normalized = str(value).strip().lower()
     return AssetType(normalized).value
+
+
+def normalize_direct_or_contextual(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip().lower()
+    if not normalized:
+        return None
+    try:
+        return EvidenceQuestionRelevance(normalized).value
+    except ValueError:
+        return None
 
 
 async def _load_source(db: AsyncSession, source_id: str | uuid.UUID) -> Source:
@@ -166,6 +185,7 @@ async def ensure_evidence_provenance(
     manifest_uuid = uuid.UUID(context.manifest_id) if context.manifest_id else None
     retrieved_by = EvidenceRetrievedBy(context.retrieved_by)
     asset_type = _coerce_asset_type(context.asset_type)
+    direct_or_contextual = normalize_direct_or_contextual(context.direct_or_contextual)
 
     result = await db.execute(
         select(EvidenceProvenance).where(
@@ -185,6 +205,10 @@ async def ensure_evidence_provenance(
             existing.retrieval_score = context.retrieval_score
         if existing.manifest_id is None and manifest_uuid is not None:
             existing.manifest_id = manifest_uuid
+        if direct_or_contextual:
+            current = normalize_direct_or_contextual(existing.direct_or_contextual)
+            if current is None or (current == EvidenceQuestionRelevance.CONTEXTUAL and direct_or_contextual == EvidenceQuestionRelevance.DIRECT):
+                existing.direct_or_contextual = direct_or_contextual
         return existing
 
     provenance = EvidenceProvenance(
@@ -198,6 +222,7 @@ async def ensure_evidence_provenance(
         retrieved_by=retrieved_by,
         query_text=context.query_text,
         retrieval_score=context.retrieval_score,
+        direct_or_contextual=direct_or_contextual,
     )
     db.add(provenance)
     await db.flush()

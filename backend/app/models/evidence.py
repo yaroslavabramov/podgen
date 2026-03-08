@@ -37,6 +37,11 @@ class EvidenceRetrievedBy(StrEnum):
     ACT_PLANNER = "act_planner"
 
 
+class EvidenceQuestionRelevance(StrEnum):
+    DIRECT = "direct"
+    CONTEXTUAL = "contextual"
+
+
 class EvidenceSpan(Base):
     __tablename__ = "evidence_spans"
 
@@ -108,4 +113,13 @@ class EvidenceProvenance(Base):
     )
     query_text: Mapped[str | None] = mapped_column(Text)
     retrieval_score: Mapped[float | None] = mapped_column(Float)
+    direct_or_contextual: Mapped[str | None] = mapped_column(
+        SAEnum(
+            EvidenceQuestionRelevance,
+            name="evidence_question_relevance",
+            create_constraint=False,
+            native_enum=False,
+            length=20,
+        )
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

@@ -415,6 +415,16 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P2**: Librarian Fast no longer appends raw asset enums to web query string; missing asset targeting remains in extraction/filter stage
 - [x] **P2**: Added/updated regression tests for hunter evidence contract/origin resolution and librarian query behavior
 
+**Round 66 (LLM-first pipeline quality — immediate work):**
+- [x] **P0**: Propagate existing decomposition `intent` (`history|explain|compare|debate|case_study`) into Hunter extraction payload/prompt
+- [x] **P0**: Propagate existing decomposition `intent` into Librarian Fast payload/prompt and branch gap context
+- [x] **P0**: Propagate existing decomposition `intent` into Claim Builder payload/prompt
+- [x] **P0**: Pass `ClaimEvidence.illustrative` through planning payloads so Act Planner can distinguish factual core from narrative hooks
+- [x] **P0**: Ensure `Source.authority_type` is actually populated/finalized for canonical sources during ingestion/canonicalization (not left effectively `unknown`)
+- [x] **P1**: Add question-level `direct_or_contextual` signal in provenance/context layer (not `EvidenceSpan`): Hunter/Librarian generation, schema/migration, and downstream reads
+- [x] **P1**: Enrich Claim Builder and Verifier prompts/payloads with research-aware context: `intent`, source metadata, provenance summary, contextual asset types, and `direct_or_contextual` when available
+- [x] **P1**: Enrich planning payload beyond flat claims: carry verification + illustrative + branch/question context (and lightweight source-quality hints where useful)
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

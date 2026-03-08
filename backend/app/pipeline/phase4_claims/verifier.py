@@ -3,15 +3,18 @@
 import json
 import logging
 import uuid
+from collections import defaultdict
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.claim import Claim, ClaimEvidence, VerificationLevel
+from app.models.episode_manifest import EpisodeManifest
 from app.models.evidence import EvidenceProvenance, EvidenceSpan
 from app.models.source import Source
 from app.pipeline.llm_json import parse_llm_json
+from app.pipeline.research_context import build_question_context_map
 from app.pipeline.state import PipelineState
 from app.realtime.events import claim_verified, progress, step_completed, step_started
 from app.realtime.publisher import publish_event, update_generation_progress
@@ -41,6 +44,7 @@ Rules:
 Evaluate semantic alignment, not just keyword overlap. Respect source metadata:
 - temporary-only evidence cannot justify VERIFIED
 - source authority is a signal, not an automatic proof
+- prefer direct evidence for factual confirmation; contextual evidence can strengthen framing but may not fully verify the statement
 - for REPORT/OPINION, check that attribution and quote alignment are meaningful."""
 
 VERIFY_BATCH_SIZE = 8
@@ -68,21 +72,63 @@ def _index_provenance_asset_types(provenances: list[EvidenceProvenance]) -> dict
     }
 
 
-def _index_provenance_pairs(provenances: list[EvidenceProvenance]) -> list[dict]:
-    pair_assets: dict[tuple[str, str], set[str]] = {}
+def _index_provenance_contexts(
+    provenances: list[EvidenceProvenance],
+    question_context_map: dict[str, dict] | None = None,
+) -> tuple[dict[uuid.UUID, list[dict]], list[dict]]:
+    question_context_map = question_context_map or {}
+    contexts_by_evidence: dict[uuid.UUID, list[dict]] = defaultdict(list)
+    pair_summaries: dict[tuple[str, str], dict] = {}
     for provenance in provenances:
-        pair_assets.setdefault(
-            (provenance.branch_id, provenance.question_id),
-            set(),
-        ).add(str(provenance.asset_type).upper())
-    return [
-        {
-            "branch_id": branch_id,
-            "question_id": question_id,
-            "found_assets": sorted(found_assets),
+        question_context = question_context_map.get(provenance.question_id, {})
+        context = {
+            "branch_id": provenance.branch_id,
+            "question_id": provenance.question_id,
+            "question": question_context.get("question", ""),
+            "intent": question_context.get("intent", ""),
+            "direct_or_contextual": provenance.direct_or_contextual,
         }
-        for (branch_id, question_id), found_assets in sorted(pair_assets.items())
-    ]
+        contexts_by_evidence[provenance.evidence_id].append(context)
+
+        pair_key = (provenance.branch_id, provenance.question_id)
+        summary = pair_summaries.setdefault(
+            pair_key,
+            {
+                "branch_id": provenance.branch_id,
+                "question_id": provenance.question_id,
+                "question": question_context.get("question", ""),
+                "intent": question_context.get("intent", ""),
+                "found_assets": set(),
+                "direct_count": 0,
+                "contextual_count": 0,
+            },
+        )
+        summary["found_assets"].add(str(provenance.asset_type).upper())
+        if provenance.direct_or_contextual == "direct":
+            summary["direct_count"] += 1
+        elif provenance.direct_or_contextual == "contextual":
+            summary["contextual_count"] += 1
+
+    normalized_contexts = {
+        evidence_id: sorted(
+            {
+                json.dumps(item, ensure_ascii=False, sort_keys=True): item
+                for item in items
+            }.values(),
+            key=lambda item: (item.get("branch_id", ""), item.get("question_id", "")),
+        )
+        for evidence_id, items in contexts_by_evidence.items()
+    }
+    normalized_pairs = []
+    for summary in pair_summaries.values():
+        normalized_pairs.append(
+            {
+                **summary,
+                "found_assets": sorted(summary["found_assets"]),
+            }
+        )
+    normalized_pairs.sort(key=lambda item: (item["branch_id"], item["question_id"]))
+    return normalized_contexts, normalized_pairs
 
 
 async def _load_claim_evidence(
@@ -90,6 +136,7 @@ async def _load_claim_evidence(
     db: AsyncSession,
     *,
     generation_run_id: str | None = None,
+    question_context_map: dict[str, dict] | None = None,
 ) -> dict:
     """Load supporting/counter evidence for a claim."""
     ce_result = await db.execute(
@@ -144,19 +191,41 @@ async def _load_claim_evidence(
         )
         provenances = list(provenance_result.scalars())
         asset_types_by_evidence = _index_provenance_asset_types(provenances)
-        provenance_pairs = _index_provenance_pairs(provenances)
+        evidence_question_contexts, provenance_pairs = _index_provenance_contexts(
+            provenances,
+            question_context_map=question_context_map,
+        )
         for item in supporting:
             evidence_id = uuid.UUID(item["evidence_id"])
             contextual_asset_types = asset_types_by_evidence.get(
                 evidence_id,
                 [str(item["canonical_asset_type"]).upper()],
             )
+            question_contexts = evidence_question_contexts.get(evidence_id, [])
             item["asset_types"] = contextual_asset_types
             item["asset_type"] = contextual_asset_types[0].lower()
+            item["question_contexts"] = question_contexts
+            item["question_intents"] = sorted(
+                {
+                    str(context.get("intent", "")).strip()
+                    for context in question_contexts
+                    if str(context.get("intent", "")).strip()
+                }
+            )
+            item["direct_or_contextual"] = sorted(
+                {
+                    str(context.get("direct_or_contextual", "")).strip()
+                    for context in question_contexts
+                    if str(context.get("direct_or_contextual", "")).strip()
+                }
+            )
             found_assets.update(contextual_asset_types)
     else:
         for item in supporting:
             found_assets.update(item["asset_types"])
+            item["question_contexts"] = []
+            item["question_intents"] = []
+            item["direct_or_contextual"] = []
 
     return {
         "supporting": supporting,
@@ -165,14 +234,28 @@ async def _load_claim_evidence(
         "all_supporting_temporary": bool(supporting) and all(item["is_temporary"] for item in supporting),
         "branch_ids": sorted({pair["branch_id"] for pair in provenance_pairs}),
         "question_ids": sorted({pair["question_id"] for pair in provenance_pairs}),
+        "intents": sorted({pair["intent"] for pair in provenance_pairs if pair.get("intent")}),
         "provenance_pairs": provenance_pairs,
         "found_assets": sorted(found_assets),
+        "direct_evidence_count": sum(1 for item in supporting if "direct" in item.get("direct_or_contextual", [])),
+        "contextual_evidence_count": sum(1 for item in supporting if "contextual" in item.get("direct_or_contextual", [])),
     }
 
 
-async def verify_single_claim(claim: Claim, db: AsyncSession) -> VerificationLevel:
+async def verify_single_claim(
+    claim: Claim,
+    db: AsyncSession,
+    *,
+    generation_run_id: str | None = None,
+    question_context_map: dict[str, dict] | None = None,
+) -> VerificationLevel:
     """Verify a single claim using the hybrid approach."""
-    evidence_data = await _load_claim_evidence(claim, db)
+    evidence_data = await _load_claim_evidence(
+        claim,
+        db,
+        generation_run_id=generation_run_id,
+        question_context_map=question_context_map,
+    )
     prefiltered = _prefilter_claim(claim, evidence_data)
     if prefiltered is not None:
         return prefiltered
@@ -184,6 +267,12 @@ async def verify_single_claim(claim: Claim, db: AsyncSession) -> VerificationLev
                 "statement": claim.statement[:500],
                 "evidence": evidence_data["supporting"],
                 "independent_source_count": len(evidence_data["source_ids"]),
+                "branch_ids": evidence_data["branch_ids"],
+                "question_ids": evidence_data["question_ids"],
+                "intents": evidence_data["intents"],
+                "direct_evidence_count": evidence_data["direct_evidence_count"],
+                "contextual_evidence_count": evidence_data["contextual_evidence_count"],
+                "provenance_pairs": evidence_data["provenance_pairs"],
             }
         ]
     )
@@ -301,7 +390,8 @@ def _build_research_gaps(needs_research_claims: list[tuple[Claim, dict]]) -> lis
                 gaps[key] = {
                     "question_id": question_id,
                     "branch_id": branch_id,
-                    "question": claim.statement,
+                    "question": pair.get("question") or claim.statement,
+                    "intent": pair.get("intent", ""),
                     "priority": 1,
                     "missing_assets": [],
                     "required_assets": [],
@@ -329,6 +419,15 @@ async def verify_claims(state: PipelineState) -> dict:
     needs_research_claims: list[tuple[Claim, dict]] = []
 
     async with async_session_factory() as db:
+        question_context_map: dict[str, dict] = {}
+        if state.get("manifest_id"):
+            manifest_result = await db.execute(
+                select(EpisodeManifest).where(EpisodeManifest.id == uuid.UUID(state["manifest_id"]))
+            )
+            manifest = manifest_result.scalar_one_or_none()
+            question_context_map = build_question_context_map(
+                manifest.research_tree_json if manifest else None
+            )
         claims_for_llm: list[tuple[Claim, dict]] = []
 
         for cid in claim_ids:
@@ -341,6 +440,7 @@ async def verify_claims(state: PipelineState) -> dict:
                 claim,
                 db,
                 generation_run_id=run_id,
+                question_context_map=question_context_map,
             )
             prefiltered = _prefilter_claim(claim, evidence_data)
             if prefiltered is not None:
@@ -360,6 +460,12 @@ async def verify_claims(state: PipelineState) -> dict:
                     "statement": claim.statement[:500],
                     "evidence": ev_data["supporting"],
                     "independent_source_count": len(ev_data["source_ids"]),
+                    "branch_ids": ev_data["branch_ids"],
+                    "question_ids": ev_data["question_ids"],
+                    "intents": ev_data["intents"],
+                    "direct_evidence_count": ev_data["direct_evidence_count"],
+                    "contextual_evidence_count": ev_data["contextual_evidence_count"],
+                    "provenance_pairs": ev_data["provenance_pairs"],
                 }
                 for claim, ev_data in batch
             ]

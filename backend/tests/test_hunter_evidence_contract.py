@@ -128,6 +128,7 @@ def test_dump_hunter_question_debug_writes_file(tmp_path, monkeypatch) -> None:
         question={
             "id": "b1.1",
             "branch_id": "b1",
+            "intent": "explain",
             "priority": 1,
             "question": "Как работает механизм эмиссии?",
             "required_targets": [{"type": "MECHANISM", "min_count": 1}],
@@ -139,8 +140,8 @@ def test_dump_hunter_question_debug_writes_file(tmp_path, monkeypatch) -> None:
         merged_results=[{"chunk_id": "c1", "source_id": "s1", "rrf_score": 0.01}],
         selected_chunks=[{"chunk_id": "c1", "source_id": "s1", "rrf_score": 0.01}],
         loaded_chunks=[{"chunk_id": "c1", "source_id": "s1", "source_title": "Source", "content": "Test content"}],
-        extracted_items=[{"asset_type": "MECHANISM", "verbatim_quote": "Quote", "locator": {"type": "section", "value": "H"}}],
-        saved_items=[{"evidence_id": "e1", "asset_type": "mechanism", "source_id": "s1", "chunk_id": "c1", "quote_preview": "Quote"}],
+        extracted_items=[{"asset_type": "MECHANISM", "direct_or_contextual": "direct", "verbatim_quote": "Quote", "locator": {"type": "section", "value": "H"}}],
+        saved_items=[{"evidence_id": "e1", "asset_type": "mechanism", "direct_or_contextual": "direct", "source_id": "s1", "chunk_id": "c1", "quote_preview": "Quote"}],
     )
 
     files = list((tmp_path / "hunter").glob("*.json"))
@@ -149,6 +150,7 @@ def test_dump_hunter_question_debug_writes_file(tmp_path, monkeypatch) -> None:
     assert payload["run_id"] == "run-1"
     assert payload["status"] == "ok"
     assert payload["question"]["id"] == "b1.1"
+    assert payload["question"]["intent"] == "explain"
     assert payload["retrieval"]["vector_hit_count"] == 1
     assert payload["extraction"]["saved_evidence_count"] == 1
 
@@ -178,15 +180,25 @@ def test_dump_hunter_question_debug_skips_when_disabled(tmp_path, monkeypatch) -
 
 @pytest.mark.asyncio
 async def test_build_keyword_queries_uses_llm_variants(monkeypatch) -> None:
+    captured_prompt: dict = {}
+
     async def _fake_call(**kwargs) -> str:
+        nonlocal captured_prompt
+        captured_prompt = json.loads(kwargs["prompt"])
         return '{"queries": ["Hong Kong dollar peg mechanism", "HKD issuance certificates indebtedness"]}'
 
     monkeypatch.setattr("app.pipeline.phase3_research.hunter.call_haiku_structured", _fake_call)
 
     queries = await _build_keyword_queries(
         "Как работает эмиссия HKD?",
+        "explain",
+        [{"type": "MECHANISM", "min_count": 1}],
+        ["CASE"],
         [{"preview": "Banks issue notes against Certificates of Indebtedness.", "heading_path": ["Mechanism"]}],
     )
 
+    assert captured_prompt["question_intent"] == "explain"
+    assert captured_prompt["required_evidence"] == [{"type": "MECHANISM", "min_count": 1}]
+    assert captured_prompt["expected_evidence"] == ["CASE"]
     assert queries[0] == "Как работает эмиссия HKD?"
     assert "Hong Kong dollar peg mechanism" in queries

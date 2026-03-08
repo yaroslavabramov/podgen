@@ -29,7 +29,6 @@ async def canonicalize_sources(project_id: str, db: AsyncSession) -> None:
     result = await db.execute(
         select(Source).where(
             Source.project_id == project_id,
-            Source.is_duplicate_of.is_(None),
         )
     )
     sources = list(result.scalars().all())
@@ -41,6 +40,8 @@ async def canonicalize_sources(project_id: str, db: AsyncSession) -> None:
     seen_urls: dict[str, Source] = {}
 
     for source in sources:
+        if source.is_duplicate_of:
+            continue
         if source.source_type == SourceType.WEB and source.original_url:
             canon = canonical_url(source.original_url)
             if canon in seen_urls:
@@ -64,6 +65,8 @@ async def canonicalize_sources(project_id: str, db: AsyncSession) -> None:
         elif source.source_type == SourceType.PDF:
             source.domain_reliability = DomainReliability.MEDIUM
         source.authority_type = await classify_source_authority(source)
+
+    _propagate_canonical_metadata_to_duplicates(sources)
 
     # --- Step 3: Extract published_at with Haiku (for undated web sources) -----
     undated = [s for s in sources if s.published_at is None and not s.is_duplicate_of and s.source_type == SourceType.WEB]
@@ -136,6 +139,25 @@ async def canonicalize_sources(project_id: str, db: AsyncSession) -> None:
 
     await db.flush()
     logger.info("Canonicalized %d sources for project %s", len(sources), project_id)
+
+
+def _propagate_canonical_metadata_to_duplicates(sources: list[Source]) -> None:
+    canonical_by_id = {
+        source.id: source
+        for source in sources
+        if not source.is_duplicate_of
+    }
+
+    for source in sources:
+        if not source.is_duplicate_of:
+            continue
+        canonical = canonical_by_id.get(source.is_duplicate_of)
+        if canonical is None:
+            continue
+        source.domain_reliability = canonical.domain_reliability
+        source.authority_type = canonical.authority_type
+        if source.published_at is None and canonical.published_at is not None:
+            source.published_at = canonical.published_at
 
 
 def _source_web_quality_state(source: Source) -> str | None:

@@ -594,7 +594,11 @@ async def _deep_ingest_async(source_id: str, generation_run_id: str):
 
                         # Upgrade claims referencing evidence from this source
                         try:
-                            upgraded = await _upgrade_claims_for_source(source.id, db)
+                            upgraded = await _upgrade_claims_for_source(
+                                source.id,
+                                db,
+                                generation_run_id=generation_run_id,
+                            )
                             if upgraded:
                                 logger.info(
                                     "Deep ingestion: upgraded %d claims for source %s",
@@ -694,7 +698,32 @@ async def _cleanup_async():
                 )
 
 
-async def _upgrade_claims_for_source(source_id: uuid.UUID, db) -> int:
+async def _load_reverify_question_context_map(
+    *,
+    generation_run_id: str | uuid.UUID | None,
+    db,
+) -> dict[str, dict]:
+    from sqlalchemy import select
+    from app.models.episode_manifest import EpisodeManifest
+    from app.pipeline.research_context import build_question_context_map
+
+    if not generation_run_id:
+        return {}
+
+    run_uuid = generation_run_id if isinstance(generation_run_id, uuid.UUID) else uuid.UUID(str(generation_run_id))
+    result = await db.execute(
+        select(EpisodeManifest).where(EpisodeManifest.generation_run_id == run_uuid)
+    )
+    manifest = result.scalar_one_or_none()
+    return build_question_context_map(manifest.research_tree_json if manifest else None)
+
+
+async def _upgrade_claims_for_source(
+    source_id: uuid.UUID,
+    db,
+    *,
+    generation_run_id: str | uuid.UUID | None = None,
+) -> int:
     """Re-verify claims that reference evidence from a newly deep-ingested source.
 
     Returns the number of claims whose verification_level changed.
@@ -703,6 +732,11 @@ async def _upgrade_claims_for_source(source_id: uuid.UUID, db) -> int:
     from app.models.claim import Claim, ClaimEvidence
     from app.models.evidence import EvidenceSpan
     from app.pipeline.phase4_claims.verifier import verify_single_claim
+
+    question_context_map = await _load_reverify_question_context_map(
+        generation_run_id=generation_run_id,
+        db=db,
+    )
 
     # Find all evidence spans for this source
     ev_result = await db.execute(
@@ -730,7 +764,12 @@ async def _upgrade_claims_for_source(source_id: uuid.UUID, db) -> int:
             continue
 
         old_level = claim.verification_level
-        new_level = await verify_single_claim(claim, db)
+        new_level = await verify_single_claim(
+            claim,
+            db,
+            generation_run_id=str(generation_run_id) if generation_run_id else None,
+            question_context_map=question_context_map,
+        )
         if new_level != old_level:
             claim.verification_level = new_level
             upgraded += 1

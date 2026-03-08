@@ -234,7 +234,7 @@ Web extraction использует каскад extractors:
 
 - drill-downs (3--5 на angle)
 
-- intent (explain/compare/history/mechanism/numbers/controversy/cases)
+- intent (`history|explain|compare|debate|case_study`)
 
 - required evidence (строгие must-have asset types + min_count)
 
@@ -281,12 +281,16 @@ Web extraction использует каскад extractors:
   - `branch_id`
   - `generation_run_id`
   - `asset_type` для текущего retrieval-context
+  - `direct_or_contextual` для конкретного вопроса
   - `retrieved_by`
+
+- intent из decomposition идёт в keyword rewrite и extractor prompt, чтобы Hunter различал explain/history/compare/debate/case_study вопросы уже на retrieval/extraction слое
 
 - формирует structured gap signal `research_gaps` по веткам:
   - `missing_assets` рассчитывается только по `required_evidence` (с учетом `min_count`)
   - `required_assets` (type/min_count/found_count)
   - `expected_assets`, `found_assets` как soft coverage сигнал
+  - `intent` переносится в gap payload для downstream web-research
   - gap-записи формируются на уровне конкретного question (branch или child), чтобы не терять недопокрытые под-вопросы
 
 ### **3.2 Librarian / Web Researcher (Open-web, двух режима)**
@@ -296,6 +300,8 @@ Web extraction использует каскад extractors:
 - broad query + targeted query union
 - быстрый reader/snippets → reuse canonical `Source` по URL, если он уже есть; иначе создать новый temp source
 - затем сохранить canonical `EvidenceSpan` + `EvidenceProvenance`
+
+- web extractor получает `question_intent`, `required_assets`, `expected_assets` и тоже помечает evidence как `direct` или `contextual`
 
 - применяем для OPINION/REPORT, OBSERVED facts, quick triangulation
 
@@ -324,9 +330,11 @@ Web extraction использует каскад extractors:
 
 - собирает branch-based batches по `EvidenceProvenance`, а не режет flat array по фиксированному количеству rows
 - в prompt передаёт не только quote, но и:
+  - branch context (`branch_question`, `branch_intent`, question contexts)
   - source metadata (`title/url/type/domain_reliability/authority_type/is_temporary`)
-  - compact lineage summary (`branch_ids/question_ids/retrieved_by`)
+  - compact lineage summary (`branch_ids/question_ids/intents/retrieved_by`)
   - contextual asset types из `EvidenceProvenance` для текущей branch-group
+  - `direct_or_contextual` по provenance, когда он доступен
 
 - сохраняет narrative "сок": illustrative evidence не теряется
 - один и тот же `ClaimEvidence` может быть:
@@ -347,6 +355,7 @@ Web extraction использует каскад extractors:
   - 1 strong primary/high source при прямом textual support
 
 - verifier считает независимость по canonical source identity (`source.id` / `is_duplicate_of`), а не по сырым source rows
+- verifier видит provenance question contexts (`question`, `intent`, `direct_or_contextual`) и различает factual backbone vs contextual framing на prompt-слое
 
 - claims на only-temporary evidence не могут быть `VERIFIED`
 
@@ -391,9 +400,20 @@ Web extraction использует каскад extractors:
 
   - takeaway
 
+- Showrunner получает richer claim payload:
+  - `supporting_evidence_count`
+  - `illustrative_evidence_count` / `has_illustrative`
+  - `branch_ids`, `question_ids`, `intents`
+  - `direct_support_count`, `contextual_support_count`
+  - `source_diversity` + lightweight quality hints
+
 ### **5.2 Act/Sect Planners (параллельные)**
 
 - пишут Beat Sheet (таймкоды/сцены)
+- получают claims/evidence не как flat lists, а с narrative/source/question context:
+  - claim-level `has_illustrative`, `illustrative_evidence_count`, `direct_support_count`
+  - evidence-level `illustrative`, `source_reliability`, `authority_type`
+  - branch/question intent and `direct_or_contextual` summaries
 
 - если не хватает материала:
   - Hunter (closed)

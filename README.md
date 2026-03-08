@@ -115,10 +115,11 @@ Key principle: **State-by-IDs** — LangGraph state holds only ID references, ne
 
 Phase 4 now uses explicit lineage and canonical evidence semantics:
 - `EvidenceSpan` is canonical quote-level evidence
-- `EvidenceProvenance` stores which question/branch/run found that evidence and its context-specific `asset_type`
+- `EvidenceProvenance` stores which question/branch/run found that evidence, its context-specific `asset_type`, and whether it was `direct` or `contextual` for that question
 - claim building batches by research branch, not by flat evidence order
 - duplicate claims are collapsed before verification
 - verifier counts independent sources via canonical source identity and caps temp-only evidence at `OBSERVED`
+- planning payloads now carry illustrative/narrative signals plus branch/question intent context instead of flat claim lists only
 
 ## Runtime Reliability Notes (2026-02-23)
 

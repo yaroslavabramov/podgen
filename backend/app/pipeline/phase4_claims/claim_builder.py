@@ -12,9 +12,11 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.workers.worker_db import worker_session_factory as async_session_factory
+from app.models.episode_manifest import EpisodeManifest
 from app.models.evidence import EvidenceProvenance, EvidenceSpan
 from app.models.claim import Claim, ClaimEvidence
 from app.models.source import Source
+from app.pipeline.research_context import build_question_context_map
 from app.pipeline.state import PipelineState
 from app.services.llm import call_sonnet_structured
 from app.pipeline.llm_json import parse_llm_json
@@ -56,7 +58,7 @@ Rules:
 - Prefer short statements (single sentence) in the target language; keep each statement concise.
 - CASE, ANECDOTE, and EXPERT_QUOTE default to illustrative evidence unless they explicitly carry an atomic fact.
 - The same evidence may appear in both supporting_evidence_ids and illustrative_evidence_ids.
-- Use source metadata, lineage, and contextual_asset_types to avoid mixing different research branches into one claim.
+- Use source metadata, branch/question intent, lineage, direct_or_contextual, and contextual_asset_types to avoid mixing different research branches into one claim.
 - Use only evidence IDs that are present in the input.
 - Return raw JSON only. Do not use markdown/code fences or extra prose."""
 
@@ -74,10 +76,20 @@ async def build_claims(state: PipelineState) -> dict:
     all_claim_ids: list[str] = []
 
     async with async_session_factory() as db:
+        question_context_map: dict[str, dict] = {}
+        if state.get("manifest_id"):
+            manifest_result = await db.execute(
+                select(EpisodeManifest).where(EpisodeManifest.id == uuid.UUID(state["manifest_id"]))
+            )
+            manifest = manifest_result.scalar_one_or_none()
+            question_context_map = build_question_context_map(
+                manifest.research_tree_json if manifest else None
+            )
         evidence_index, branch_batches = await _load_branch_batches(
             db=db,
             evidence_ids=evidence_ids,
             generation_run_id=state["generation_run_id"],
+            question_context_map=question_context_map,
         )
         if not evidence_index:
             return {"claim_ids": [], "current_phase": "phase4_claims"}
@@ -96,15 +108,18 @@ async def build_claims(state: PipelineState) -> dict:
             for batch in _split_evidence_batch(evidence_group):
                 batch_number += 1
                 batch_ids = {e["id"] for e in batch}
+                branch_context = _summarize_branch_context(branch_id, batch, question_context_map)
                 payload = {
                     "branch_id": branch_id,
+                    "branch_context": branch_context,
                     "evidence_spans": batch,
                     "target_language": state["language"],
                     "instructions": (
                         "Build atomic, non-duplicative claims from these evidence spans. "
                         "Do not introduce new facts. "
                         "Preserve narrative evidence by using illustrative_evidence_ids, "
-                        "and use supporting_evidence_ids only when the quote directly supports the claim."
+                        "and use supporting_evidence_ids only when the quote directly supports the claim. "
+                        "Prefer direct evidence for factual backbone; use contextual evidence as framing or illustration unless it explicitly carries the proposition."
                     ),
                 }
 
@@ -176,6 +191,7 @@ async def _load_branch_batches(
     db,
     evidence_ids: list[str],
     generation_run_id: str,
+    question_context_map: dict[str, dict] | None = None,
 ) -> tuple[dict[str, dict], list[tuple[str, list[dict]]]]:
     evidence_uuid_ids = [uuid.UUID(eid) for eid in evidence_ids]
     evidence_result = await db.execute(
@@ -205,7 +221,9 @@ async def _load_branch_batches(
             "lineage": {
                 "branch_ids": [],
                 "question_ids": [],
+                "intents": [],
                 "retrieved_by": [],
+                "question_contexts": [],
             },
         }
 
@@ -215,16 +233,23 @@ async def _load_branch_batches(
             EvidenceProvenance.generation_run_id == uuid.UUID(generation_run_id),
         )
     )
-    branch_batches = _build_branch_batches(evidence_index, list(provenance_result.scalars()))
+    branch_batches = _build_branch_batches(
+        evidence_index,
+        list(provenance_result.scalars()),
+        question_context_map=question_context_map or {},
+    )
     return evidence_index, branch_batches
 
 
 def _build_branch_batches(
     evidence_index: dict[str, dict],
     provenances: list[EvidenceProvenance],
+    *,
+    question_context_map: dict[str, dict] | None = None,
 ) -> list[tuple[str, list[dict]]]:
     branch_to_ids: dict[str, set[str]] = defaultdict(set)
     branch_asset_types: dict[tuple[str, str], set[str]] = defaultdict(set)
+    question_context_map = question_context_map or {}
 
     for provenance in provenances:
         evidence_id = str(provenance.evidence_id)
@@ -235,6 +260,19 @@ def _build_branch_batches(
         lineage["branch_ids"].append(provenance.branch_id)
         lineage["question_ids"].append(provenance.question_id)
         lineage["retrieved_by"].append(provenance.retrieved_by)
+        question_context = question_context_map.get(provenance.question_id, {})
+        intent = question_context.get("intent", "")
+        if intent:
+            lineage["intents"].append(intent)
+        lineage["question_contexts"].append(
+            {
+                "branch_id": provenance.branch_id,
+                "question_id": provenance.question_id,
+                "question": question_context.get("question", ""),
+                "intent": intent,
+                "direct_or_contextual": provenance.direct_or_contextual,
+            }
+        )
         branch_to_ids[provenance.branch_id].add(evidence_id)
         branch_asset_types[(provenance.branch_id, evidence_id)].add(str(provenance.asset_type))
 
@@ -242,7 +280,15 @@ def _build_branch_batches(
         lineage = evidence_item["lineage"]
         lineage["branch_ids"] = sorted(set(lineage["branch_ids"]))
         lineage["question_ids"] = sorted(set(lineage["question_ids"]))
+        lineage["intents"] = sorted(set(lineage["intents"]))
         lineage["retrieved_by"] = sorted(set(lineage["retrieved_by"]))
+        lineage["question_contexts"] = sorted(
+            {
+                json.dumps(item, ensure_ascii=False, sort_keys=True): item
+                for item in lineage["question_contexts"]
+            }.values(),
+            key=lambda item: (item.get("branch_id", ""), item.get("question_id", "")),
+        )
         if not lineage["branch_ids"]:
             branch_to_ids["ungrouped"].add(evidence_id)
 
@@ -265,7 +311,9 @@ def _build_branch_batches(
                     "lineage": {
                         "branch_ids": list(base_item["lineage"]["branch_ids"]),
                         "question_ids": list(base_item["lineage"]["question_ids"]),
+                        "intents": list(base_item["lineage"]["intents"]),
                         "retrieved_by": list(base_item["lineage"]["retrieved_by"]),
+                        "question_contexts": list(base_item["lineage"]["question_contexts"]),
                     },
                 }
             )
@@ -306,6 +354,36 @@ def _estimate_evidence_chars(item: dict) -> int:
             json.dumps(lineage, ensure_ascii=False, sort_keys=True) if isinstance(lineage, dict) else "",
         )
     ) + 200
+
+
+def _summarize_branch_context(
+    branch_id: str,
+    batch: list[dict],
+    question_context_map: dict[str, dict],
+) -> dict:
+    branch_question = question_context_map.get(branch_id, {})
+    question_contexts: dict[str, dict] = {}
+    intents: set[str] = set()
+    for item in batch:
+        lineage = item.get("lineage", {})
+        for context in lineage.get("question_contexts", []):
+            if not isinstance(context, dict):
+                continue
+            question_id = str(context.get("question_id", "")).strip()
+            if not question_id:
+                continue
+            question_contexts[question_id] = context
+            intent = context.get("intent")
+            if isinstance(intent, str) and intent:
+                intents.add(intent)
+    return {
+        "branch_id": branch_id,
+        "branch_question": branch_question.get("question", ""),
+        "branch_intent": branch_question.get("intent", ""),
+        "question_ids": sorted(question_contexts),
+        "question_contexts": [question_contexts[qid] for qid in sorted(question_contexts)],
+        "intents": sorted(intents),
+    }
 
 
 async def _persist_claim_batch(
@@ -457,6 +535,8 @@ def _dump_claim_builder_batch_debug(
             "batch_number": batch_number,
             "status": status,
             "input": {
+                "branch_id": input_payload.get("branch_id"),
+                "branch_context": input_payload.get("branch_context"),
                 "target_language": input_payload.get("target_language"),
                 "instructions": input_payload.get("instructions"),
                 "evidence_count": len(input_payload.get("evidence_spans", [])),

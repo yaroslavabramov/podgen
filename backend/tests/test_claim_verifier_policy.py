@@ -6,6 +6,7 @@ from app.pipeline.phase4_claims.verifier import (
     _apply_verification_ceiling,
     _build_research_gaps,
     _index_provenance_asset_types,
+    _index_provenance_contexts,
     _is_meaningful_attribution,
     _rule_based_fallback,
 )
@@ -73,11 +74,15 @@ def test_build_research_gaps_preserves_actual_provenance_pairs() -> None:
                         {
                             "branch_id": "b1",
                             "question_id": "q1",
+                            "question": "How does it work?",
+                            "intent": "explain",
                             "found_assets": ["MECHANISM"],
                         },
                         {
                             "branch_id": "b2",
                             "question_id": "q2",
+                            "question": "Why does it matter?",
+                            "intent": "debate",
                             "found_assets": ["TIMELINE"],
                         },
                     ],
@@ -88,5 +93,44 @@ def test_build_research_gaps_preserves_actual_provenance_pairs() -> None:
     )
 
     assert [(gap["branch_id"], gap["question_id"]) for gap in gaps] == [("b1", "q1"), ("b2", "q2")]
+    assert gaps[0]["question"] == "How does it work?"
+    assert gaps[0]["intent"] == "explain"
     assert gaps[0]["found_assets"] == ["MECHANISM"]
     assert gaps[1]["found_assets"] == ["TIMELINE"]
+
+
+def test_index_provenance_contexts_attaches_intent_and_directness() -> None:
+    evidence_id = uuid.uuid4()
+    contexts_by_evidence, pairs = _index_provenance_contexts(
+        [
+            SimpleNamespace(
+                evidence_id=evidence_id,
+                asset_type="mechanism",
+                branch_id="b1",
+                question_id="q1",
+                direct_or_contextual="direct",
+            ),
+            SimpleNamespace(
+                evidence_id=evidence_id,
+                asset_type="case",
+                branch_id="b1",
+                question_id="q1",
+                direct_or_contextual="contextual",
+            ),
+        ],
+        question_context_map={"q1": {"question": "How does it work?", "intent": "explain"}},
+    )
+
+    assert contexts_by_evidence[evidence_id][0]["intent"] == "explain"
+    assert {item["direct_or_contextual"] for item in contexts_by_evidence[evidence_id]} == {"direct", "contextual"}
+    assert pairs == [
+        {
+            "branch_id": "b1",
+            "question_id": "q1",
+            "question": "How does it work?",
+            "intent": "explain",
+            "found_assets": ["CASE", "MECHANISM"],
+            "direct_count": 1,
+            "contextual_count": 1,
+        }
+    ]

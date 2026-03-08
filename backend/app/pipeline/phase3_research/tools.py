@@ -17,6 +17,7 @@ from app.services.evidence_store import (
     EvidenceProvenanceContext,
     ensure_evidence_provenance,
     get_or_create_canonical_evidence,
+    normalize_direct_or_contextual,
 )
 
 
@@ -275,6 +276,7 @@ async def create_web_evidence(
     branch_id: str = "",
     query_text: str | None = None,
     retrieval_score: float | None = None,
+    direct_or_contextual: str | None = None,
     title: str | None = None,
     retrieved_by: str = "librarian_fast",
 ) -> str:
@@ -338,6 +340,7 @@ async def create_web_evidence(
                     retrieved_by=retrieved_by,
                     query_text=query_text,
                     retrieval_score=retrieval_score,
+                    direct_or_contextual=normalize_direct_or_contextual(direct_or_contextual),
                 ),
             )
 

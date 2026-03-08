@@ -17,6 +17,7 @@ from app.services.evidence_store import (
     EvidenceProvenanceContext,
     ensure_evidence_provenance,
     get_or_create_canonical_evidence,
+    normalize_direct_or_contextual,
 )
 from app.pipeline.state import PipelineState
 from app.pipeline.phase3_research.tools import vector_search_tool, keyword_search_tool, get_chunk_content
@@ -49,6 +50,7 @@ _ALLOWED_EVIDENCE_TYPES = {
 EXTRACT_EVIDENCE_SYSTEM = """You are an evidence extractor. Given chunks of text and a research question, extract relevant evidence spans.
 
 Input may include:
+- question_intent: why this question exists in the episode structure (history/explain/compare/debate/case_study).
 - required_evidence: strict evidence types that must be found if present in the text.
 - expected_evidence_types: useful but non-blocking evidence targets.
 Prioritize required_evidence first, then expected evidence types.
@@ -65,11 +67,15 @@ Return JSON array:
     "chunk_index": 0,
     "verbatim_quote": "exact quote from the text",
     "asset_type": "STATISTIC|ANECDOTE|EXPERT_QUOTE|DEFINITION|MECHANISM|CASE|TIMELINE|CONTRAST",
+    "direct_or_contextual": "direct|contextual",
     "narrative_value_score": 0.0-1.0,
     "tellability_notes": "why this is interesting for a podcast",
     "locator": {"type": "section", "value": "heading path"}
   }
 ]
+
+Use direct_or_contextual="direct" when the quote explicitly answers the question as asked.
+Use direct_or_contextual="contextual" for useful background, analogy, or adjacent framing that does not answer it directly.
 
 Only extract genuinely relevant evidence. Return [] if nothing relevant found."""
 
@@ -79,6 +85,7 @@ Return JSON:
 
 Rules:
 - Prefer the language that best matches the sample corpus snippets.
+- Use question_intent plus required/expected evidence to preserve the search shape.
 - Keep queries short and lexical, suitable for PostgreSQL full-text search.
 - Preserve named entities, dates, acronyms, and domain-specific terms.
 - Output only JSON."""
@@ -130,6 +137,7 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                 "id": branch_id,
                 "branch_id": branch_id,
                 "question": branch["question"],
+                "intent": branch.get("intent", ""),
                 "priority": branch.get("priority", 5),
                 "required_targets": required_targets,
                 "expected_types": expected_types,
@@ -143,6 +151,7 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                     "id": child["id"],
                     "branch_id": branch_id,
                     "question": child["question"],
+                    "intent": child.get("intent", branch.get("intent", "")),
                     "priority": child.get("priority", branch.get("priority", 5)),
                     "required_targets": child_required,
                     "expected_types": child_expected,
@@ -157,6 +166,7 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                 inputs={
                     "question_id": q["id"],
                     "branch_id": q["branch_id"],
+                    "intent": q.get("intent"),
                     "priority": q.get("priority", 5),
                     "question_preview": _clip_text(q["question"]),
                     "required_evidence": q["required_targets"],
@@ -168,7 +178,13 @@ async def hunt_closed_book(state: PipelineState) -> dict:
 
                 # Hybrid search: vector + keyword, RRF merge
                 vector_results = await vector_search_tool(q["question"], top_k=RETRIEVAL_TOP_K, source_ids=source_ids, db=db)
-                keyword_queries = await _build_keyword_queries(q["question"], vector_results)
+                keyword_queries = await _build_keyword_queries(
+                    q["question"],
+                    q.get("intent"),
+                    q["required_targets"],
+                    q["expected_types"],
+                    vector_results,
+                )
                 keyword_results = await _run_keyword_queries(keyword_queries, source_ids, db, top_k=RETRIEVAL_TOP_K)
 
                 # RRF merge
@@ -242,6 +258,7 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                 # Extract evidence using Haiku
                 prompt = json.dumps({
                     "research_question": q["question"],
+                    "question_intent": q.get("intent"),
                     "required_evidence": q["required_targets"],
                     "expected_evidence_types": q["expected_types"],
                     "chunks": [{"index": i, "content": c["content"], "source": c.get("source_title", ""), "heading": c.get("heading_path", [])} for i, c in enumerate(chunk_texts)],
@@ -365,6 +382,7 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                             asset_type=normalized_asset_type,
                             retrieved_by="hunter",
                             query_text=q["question"],
+                            direct_or_contextual=normalize_direct_or_contextual(item.get("direct_or_contextual")),
                         ),
                     )
                     evidence_id = str(evidence.id)
@@ -387,6 +405,7 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                             "verbatim_quote": item["verbatim_quote"],
                             "quote_preview": _clip_text(item["verbatim_quote"], limit=220),
                             "locator": item.get("locator"),
+                            "direct_or_contextual": normalize_direct_or_contextual(item.get("direct_or_contextual")),
                             "narrative_value_score": item.get("narrative_value_score"),
                             "tellability_notes": item.get("tellability_notes"),
                         }
@@ -457,6 +476,7 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                 "question_id": question_id,
                 "branch_id": q["branch_id"],
                 "question": q["question"],
+                "intent": q.get("intent"),
                 "priority": q.get("priority", 5),
                 "missing_assets": missing_assets,
                 "required_assets": required_assets,
@@ -536,6 +556,7 @@ def _summarize_extracted_items(items: object, limit: int | None = None) -> list[
             {
                 "chunk_index": item.get("chunk_index"),
                 "asset_type": item.get("asset_type"),
+                "direct_or_contextual": item.get("direct_or_contextual"),
                 "verbatim_quote": quote,
                 "quote_preview": _clip_text(quote, limit=220),
                 "locator": item.get("locator"),
@@ -585,6 +606,7 @@ def _dump_hunter_question_debug(
             "question": {
                 "id": question_id,
                 "branch_id": question.get("branch_id"),
+                "intent": question.get("intent"),
                 "priority": question.get("priority"),
                 "text": question_text,
                 "required_evidence": question.get("required_targets", []),
@@ -633,7 +655,13 @@ def _clip_text(value: str, limit: int = 220) -> str:
     return text[:limit] + "..."
 
 
-async def _build_keyword_queries(question: str, vector_results: list[dict]) -> list[str]:
+async def _build_keyword_queries(
+    question: str,
+    question_intent: str | None,
+    required_targets: list[dict[str, int | str]],
+    expected_types: list[str],
+    vector_results: list[dict],
+) -> list[str]:
     sample_chunks = [
         {
             "preview": item.get("preview", "")[:300],
@@ -651,6 +679,9 @@ async def _build_keyword_queries(question: str, vector_results: list[dict]) -> l
             prompt=json.dumps(
                 {
                     "question": question,
+                    "question_intent": question_intent,
+                    "required_evidence": required_targets,
+                    "expected_evidence": expected_types,
                     "sample_chunks": sample_chunks,
                 },
                 ensure_ascii=False,
