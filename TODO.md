@@ -425,6 +425,12 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P1**: Enrich Claim Builder and Verifier prompts/payloads with research-aware context: `intent`, source metadata, provenance summary, contextual asset types, and `direct_or_contextual` when available
 - [x] **P1**: Enrich planning payload beyond flat claims: carry verification + illustrative + branch/question context (and lightweight source-quality hints where useful)
 
+**Round 67 (Verifier/Planning debug dumps for analysis):**
+- [x] **P0**: Add file debug dumps for verifier batches and verifier run summary (`input`, raw LLM output, parsed output, final decisions, `research_gaps`)
+- [x] **P0**: Add file debug dump for showrunner (`input`, raw output, parsed output, normalized act plan)
+- [x] **P0**: Add file debug dump for act planner per act (`input`, attempt history, raw outputs, normalized beat sheet, evidence gap fill result)
+- [x] **P1**: Add regression tests for verifier/showrunner/act planner debug dump write path and disabled path
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

@@ -120,6 +120,7 @@ Phase 4 now uses explicit lineage and canonical evidence semantics:
 - duplicate claims are collapsed before verification
 - verifier counts independent sources via canonical source identity and caps temp-only evidence at `OBSERVED`
 - planning payloads now carry illustrative/narrative signals plus branch/question intent context instead of flat claim lists only
+- when `WEB_EXTRACTOR_DEBUG_DUMP_DIR` is set, Hunter / Claim Builder / Verifier / Showrunner / Act Planner write JSON debug dumps for run analysis
 
 ## Runtime Reliability Notes (2026-02-23)
 

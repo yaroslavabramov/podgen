@@ -8,8 +8,10 @@ from typing import Any
 
 from sqlalchemy import select
 
+from app.config import settings
 from app.workers.worker_db import worker_session_factory as async_session_factory
 from app.models.episode_manifest import EpisodeManifest
+from app.pipeline.debug_dump import safe_filename_token, write_json_debug_dump
 from app.pipeline.phase5_planning.planning_context import load_planning_context
 from app.pipeline.research_context import build_question_context_map
 from app.pipeline.state import PipelineState
@@ -138,6 +140,7 @@ async def plan_act(state: PipelineState) -> dict:
 
             beat_sheet: list[dict[str, Any]] = []
             last_error = ""
+            attempt_debugs: list[dict[str, Any]] = []
             for attempt in range(1, ACT_PLANNER_RETRIES + 1):
                 prompt_payload = dict(base_prompt)
                 if attempt > 1:
@@ -147,6 +150,8 @@ async def plan_act(state: PipelineState) -> dict:
                     prompt_payload["previous_error"] = last_error
 
                 prompt = json.dumps(prompt_payload, ensure_ascii=False)
+                raw = ""
+                beat_data = None
                 try:
                     raw = await call_sonnet_structured(system=ACT_PLANNER_SYSTEM, prompt=prompt, temperature=0.5)
                     beat_data = parse_llm_json(raw)
@@ -157,10 +162,38 @@ async def plan_act(state: PipelineState) -> dict:
                         default_duration=per_scene_duration,
                     )
                     if beat_sheet:
+                        attempt_debugs.append(
+                            {
+                                "attempt": attempt,
+                                "status": "ok",
+                                "prompt_payload": prompt_payload,
+                                "llm_output": {
+                                    "raw_chars": len(raw or ""),
+                                    "raw": raw,
+                                    "parsed_type": type(beat_data).__name__ if beat_data is not None else None,
+                                    "parsed": beat_data,
+                                },
+                                "normalized_scene_count": len(beat_sheet),
+                            }
+                        )
                         break
                     raise ValueError("beat_sheet is empty after normalization")
                 except Exception as exc:
                     last_error = f"{type(exc).__name__}: {exc}"
+                    attempt_debugs.append(
+                        {
+                            "attempt": attempt,
+                            "status": "invalid_output",
+                            "prompt_payload": prompt_payload,
+                            "llm_output": {
+                                "raw_chars": len(raw or ""),
+                                "raw": raw,
+                                "parsed_type": type(beat_data).__name__ if beat_data is not None else None,
+                                "parsed": beat_data,
+                            },
+                            "error": last_error,
+                        }
+                    )
                     logger.warning(
                         "Act planning output invalid for act %s (attempt %s/%s): %s",
                         act_num,
@@ -171,6 +204,15 @@ async def plan_act(state: PipelineState) -> dict:
                     )
 
             if not beat_sheet:
+                _dump_act_planner_debug(
+                    run_id=run_id,
+                    act_number=act_num,
+                    status="llm_or_normalize_failed",
+                    base_prompt=base_prompt,
+                    attempts=attempt_debugs,
+                    beat_sheet=None,
+                    gap_fill_result=None,
+                )
                 raise RuntimeError(
                     f"Act planner produced empty beat sheet for act {act_num}. Last error: {last_error}"
                 )
@@ -189,6 +231,20 @@ async def plan_act(state: PipelineState) -> dict:
                     logger.info("Act %s: filled %d evidence gaps", act_num, len(new_ev_ids))
             except Exception:
                 logger.warning("Evidence gap fill failed for act %s, continuing", act_num, exc_info=True)
+                new_ev_ids = []
+
+            _dump_act_planner_debug(
+                run_id=run_id,
+                act_number=act_num,
+                status="ok",
+                base_prompt=base_prompt,
+                attempts=attempt_debugs,
+                beat_sheet=beat_sheet,
+                gap_fill_result={
+                    "new_evidence_ids": new_ev_ids,
+                    "new_evidence_count": len(new_ev_ids),
+                },
+            )
 
             act["beat_sheet"] = beat_sheet
 
@@ -425,6 +481,38 @@ def _normalize_beat_sheet(
         )
 
     return normalized
+
+
+def _dump_act_planner_debug(
+    *,
+    run_id: str,
+    act_number: int,
+    status: str,
+    base_prompt: dict,
+    attempts: list[dict[str, Any]],
+    beat_sheet: list[dict[str, Any]] | None,
+    gap_fill_result: dict[str, Any] | None,
+) -> None:
+    dump_dir = (settings.web_extractor_debug_dump_dir or "").strip()
+    if not dump_dir:
+        return
+    write_json_debug_dump(
+        raw_dir=dump_dir,
+        subdir="planning_acts",
+        filename_stem=(
+            f"run-{safe_filename_token(run_id)}_"
+            f"act-{act_number:02d}_{safe_filename_token(status)}"
+        ),
+        payload={
+            "run_id": run_id,
+            "act_number": act_number,
+            "status": status,
+            "input": base_prompt,
+            "attempts": attempts,
+            "normalized_beat_sheet": beat_sheet,
+            "gap_fill_result": gap_fill_result,
+        },
+    )
 
 
 def _next_available_scene_number(candidate: int, used: set[int]) -> int:

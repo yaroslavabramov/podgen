@@ -6,11 +6,13 @@ import uuid
 
 from sqlalchemy import select
 
+from app.config import settings
 from app.workers.worker_db import worker_session_factory as async_session_factory
 from app.models.show_bible import ShowBible
 from app.models.claim import Claim, VerificationLevel
 from app.models.conflict_brief import ConflictBrief
 from app.models.episode_manifest import EpisodeManifest
+from app.pipeline.debug_dump import safe_filename_token, write_json_debug_dump
 from app.pipeline.phase5_planning.planning_context import load_planning_context
 from app.pipeline.research_context import build_question_context_map
 from app.pipeline.state import PipelineState
@@ -130,7 +132,7 @@ async def plan_episode(state: PipelineState) -> dict:
 
         publish_event(run_id, step_started("phase5_planning", "structure", "Creating act structure"))
 
-        prompt = json.dumps({
+        prompt_payload = {
             "duration_target_seconds": state["duration_target"],
             "show_style": bible.show_style if bible else "Conversational",
             "rigor_policy": bible.rigor_policy if bible else "",
@@ -138,10 +140,24 @@ async def plan_episode(state: PipelineState) -> dict:
             "conflicts": conflicts_summary,
             "disputed_claim_ids": disputed_ids,
             "duration_fill_layers": manifest.duration_fill_layers if manifest else [],
-        }, ensure_ascii=False)
-
-        raw = await call_sonnet_structured(system=SHOWRUNNER_SYSTEM, prompt=prompt, temperature=0.5)
-        plan = _normalize_plan(parse_llm_json(raw), state["duration_target"])
+        }
+        prompt = json.dumps(prompt_payload, ensure_ascii=False)
+        raw = ""
+        parsed_plan = None
+        try:
+            raw = await call_sonnet_structured(system=SHOWRUNNER_SYSTEM, prompt=prompt, temperature=0.5)
+            parsed_plan = parse_llm_json(raw)
+            plan = _normalize_plan(parsed_plan, state["duration_target"])
+        except Exception:
+            _dump_showrunner_debug(
+                run_id=run_id,
+                status="llm_or_normalize_failed",
+                input_payload=prompt_payload,
+                llm_raw_output=raw,
+                parsed_plan=parsed_plan,
+                normalized_plan=None,
+            )
+            raise
 
         # Validate: all disputed claims have debate slots
         for act in plan.get("acts", []):
@@ -154,6 +170,15 @@ async def plan_episode(state: PipelineState) -> dict:
             manifest.act_count = plan.get("act_count", len(plan.get("acts", [])))
             manifest.acts_json = plan.get("acts", [])
             await db.commit()
+
+    _dump_showrunner_debug(
+        run_id=run_id,
+        status="ok",
+        input_payload=prompt_payload,
+        llm_raw_output=raw,
+        parsed_plan=parsed_plan,
+        normalized_plan=plan,
+    )
 
     publish_event(run_id, step_completed("phase5_planning", "structure"))
     publish_event(run_id, progress(55.0, f"Planned {plan.get('act_count', 0)} acts"))
@@ -232,3 +257,37 @@ def _normalize_plan(plan, duration_target: int) -> dict:
         raise RuntimeError("Showrunner produced no valid acts")
 
     return {"act_count": len(normalized_acts), "acts": normalized_acts}
+
+
+def _dump_showrunner_debug(
+    *,
+    run_id: str,
+    status: str,
+    input_payload: dict,
+    llm_raw_output: str,
+    parsed_plan: object,
+    normalized_plan: dict | None,
+) -> None:
+    dump_dir = (settings.web_extractor_debug_dump_dir or "").strip()
+    if not dump_dir:
+        return
+    write_json_debug_dump(
+        raw_dir=dump_dir,
+        subdir="planning_showrunner",
+        filename_stem=(
+            f"run-{safe_filename_token(run_id)}_"
+            f"{safe_filename_token(status)}"
+        ),
+        payload={
+            "run_id": run_id,
+            "status": status,
+            "input": input_payload,
+            "llm_output": {
+                "raw_chars": len(llm_raw_output or ""),
+                "raw": llm_raw_output,
+                "parsed_type": type(parsed_plan).__name__ if parsed_plan is not None else None,
+                "parsed": parsed_plan,
+            },
+            "normalized_plan": normalized_plan,
+        },
+    )

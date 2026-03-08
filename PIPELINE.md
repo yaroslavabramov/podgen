@@ -366,6 +366,11 @@ Web extraction использует каскад extractors:
 
 - verifier при `needs_research` пишет свежие `research_gaps` по реальным provenance-парам `(branch_id, question_id)`, без synthetic Cartesian product, и fast-web loop работает уже по ним, а не по старым gap’ам Hunter
 
+- при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` verifier пишет JSON dumps:
+  - prefiltered claims
+  - LLM batch input/raw output/parsed output/final decisions
+  - run summary с `research_gaps`
+
 ### **4.4 Contradiction Resolver**
 
 - формирует Conflict Brief:
@@ -407,6 +412,8 @@ Web extraction использует каскад extractors:
   - `direct_support_count`, `contextual_support_count`
   - `source_diversity` + lightweight quality hints
 
+- при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` Showrunner пишет JSON dump с input payload, raw/parsed LLM output и normalized act plan
+
 ### **5.2 Act/Sect Planners (параллельные)**
 
 - пишут Beat Sheet (таймкоды/сцены)
@@ -414,6 +421,8 @@ Web extraction использует каскад extractors:
   - claim-level `has_illustrative`, `illustrative_evidence_count`, `direct_support_count`
   - evidence-level `illustrative`, `source_reliability`, `authority_type`
   - branch/question intent and `direct_or_contextual` summaries
+
+- при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` каждый act planner пишет JSON dump с prompt payload, attempt history, raw/parsed outputs, normalized beat sheet и результатом evidence gap fill
 
 - если не хватает материала:
   - Hunter (closed)

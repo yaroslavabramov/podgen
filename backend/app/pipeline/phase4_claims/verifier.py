@@ -13,6 +13,7 @@ from app.models.claim import Claim, ClaimEvidence, VerificationLevel
 from app.models.episode_manifest import EpisodeManifest
 from app.models.evidence import EvidenceProvenance, EvidenceSpan
 from app.models.source import Source
+from app.pipeline.debug_dump import safe_filename_token, write_json_debug_dump
 from app.pipeline.llm_json import parse_llm_json
 from app.pipeline.research_context import build_question_context_map
 from app.pipeline.state import PipelineState
@@ -260,7 +261,7 @@ async def verify_single_claim(
     if prefiltered is not None:
         return prefiltered
 
-    result = await _llm_verify_batch(
+    result, _, _ = await _llm_verify_batch(
         [
             {
                 "claim_id": str(claim.id),
@@ -293,8 +294,10 @@ def _prefilter_claim(claim: Claim, evidence_data: dict) -> VerificationLevel | N
     return None
 
 
-async def _llm_verify_batch(claims_payload: list[dict]) -> list[dict]:
+async def _llm_verify_batch(claims_payload: list[dict]) -> tuple[list[dict], str, object]:
     prompt = json.dumps({"claims": claims_payload}, ensure_ascii=False)
+    raw = ""
+    parsed: object = None
     try:
         raw = await call_sonnet_structured(
             system=VERIFIER_SYSTEM,
@@ -304,13 +307,13 @@ async def _llm_verify_batch(claims_payload: list[dict]) -> list[dict]:
         )
         parsed = parse_llm_json(raw)
         if isinstance(parsed, list):
-            return parsed
+            return parsed, raw, parsed
         if isinstance(parsed, dict) and "results" in parsed:
-            return parsed["results"]
-        return [parsed] if isinstance(parsed, dict) else []
+            return parsed["results"], raw, parsed
+        return ([parsed] if isinstance(parsed, dict) else []), raw, parsed
     except Exception:
         logger.warning("LLM verification failed, falling back to rule-based", exc_info=True)
-        return []
+        return [], raw, parsed
 
 
 def _parse_verification_level(level_str: str) -> VerificationLevel:
@@ -417,6 +420,8 @@ async def verify_claims(state: PipelineState) -> dict:
         return {"claim_ids": claim_ids}
 
     needs_research_claims: list[tuple[Claim, dict]] = []
+    prefiltered_debug_results: list[dict] = []
+    llm_batch_debug_results: list[dict] = []
 
     async with async_session_factory() as db:
         question_context_map: dict[str, dict] = {}
@@ -447,6 +452,18 @@ async def verify_claims(state: PipelineState) -> dict:
                 claim.verification_level = prefiltered
                 if claim.claim_type == "fact" and prefiltered == VerificationLevel.UNVERIFIED:
                     needs_research_claims.append((claim, evidence_data))
+                prefiltered_debug_results.append(
+                    {
+                        "claim_id": cid,
+                        "claim_type": claim.claim_type,
+                        "statement": claim.statement[:500],
+                        "verification_level": prefiltered,
+                        "evidence": evidence_data["supporting"],
+                        "branch_ids": evidence_data["branch_ids"],
+                        "question_ids": evidence_data["question_ids"],
+                        "intents": evidence_data["intents"],
+                    }
+                )
                 publish_event(run_id, claim_verified(cid, prefiltered))
                 continue
 
@@ -470,29 +487,62 @@ async def verify_claims(state: PipelineState) -> dict:
                 for claim, ev_data in batch
             ]
 
-            llm_results = await _llm_verify_batch(batch_payload)
+            llm_results, llm_raw, llm_parsed = await _llm_verify_batch(batch_payload)
             result_map = {
                 r["claim_id"]: r
                 for r in llm_results
                 if isinstance(r, dict) and "claim_id" in r
             }
+            batch_final_results: list[dict] = []
 
             for claim, ev_data in batch:
                 cid = str(claim.id)
                 llm_result = result_map.get(cid)
 
                 if llm_result:
-                    level = _parse_verification_level(llm_result.get("verification_level", "UNVERIFIED"))
-                    level = _apply_verification_ceiling(level, ev_data)
+                    pre_ceiling_level = _parse_verification_level(llm_result.get("verification_level", "UNVERIFIED"))
+                    level = _apply_verification_ceiling(pre_ceiling_level, ev_data)
                     if llm_result.get("needs_research") or level == VerificationLevel.UNVERIFIED:
                         needs_research_claims.append((claim, ev_data))
                 else:
+                    pre_ceiling_level = None
                     level = _rule_based_fallback(ev_data)
                     if level == VerificationLevel.UNVERIFIED:
                         needs_research_claims.append((claim, ev_data))
 
                 claim.verification_level = level
+                batch_final_results.append(
+                    {
+                        "claim_id": cid,
+                        "claim_type": claim.claim_type,
+                        "statement": claim.statement[:500],
+                        "llm_result": llm_result,
+                        "pre_ceiling_level": pre_ceiling_level,
+                        "final_level": level,
+                        "needs_research": bool((llm_result or {}).get("needs_research")) or level == VerificationLevel.UNVERIFIED,
+                        "branch_ids": ev_data["branch_ids"],
+                        "question_ids": ev_data["question_ids"],
+                        "intents": ev_data["intents"],
+                        "direct_evidence_count": ev_data["direct_evidence_count"],
+                        "contextual_evidence_count": ev_data["contextual_evidence_count"],
+                    }
+                )
                 publish_event(run_id, claim_verified(cid, level))
+
+            llm_batch_debug_results.append(
+                {
+                    "batch_number": (batch_start // VERIFY_BATCH_SIZE) + 1,
+                    "status": "ok" if llm_results else "llm_fallback",
+                    "input": {"claims": batch_payload},
+                    "llm_output": {
+                        "raw_chars": len(llm_raw or ""),
+                        "raw": llm_raw,
+                        "parsed_type": type(llm_parsed).__name__ if llm_parsed is not None else None,
+                        "parsed": llm_parsed,
+                    },
+                    "final_results": batch_final_results,
+                }
+            )
 
         await db.commit()
 
@@ -505,10 +555,54 @@ async def verify_claims(state: PipelineState) -> dict:
     if needs_research:
         iteration_counts["verify_research_loops"] = verify_loops + 1
     iteration_counts["verify_needs_research"] = needs_research
+    research_gaps = _build_research_gaps(needs_research_claims) if needs_research else []
+
+    if prefiltered_debug_results:
+        _dump_verifier_debug(
+            run_id=run_id,
+            dump_type="prefiltered",
+            payload={
+                "run_id": run_id,
+                "prefiltered_claim_count": len(prefiltered_debug_results),
+                "claims": prefiltered_debug_results,
+            },
+        )
+    for batch_debug in llm_batch_debug_results:
+        _dump_verifier_debug(
+            run_id=run_id,
+            dump_type=f"batch-{batch_debug['batch_number']:03d}",
+            payload={"run_id": run_id, **batch_debug},
+        )
+    _dump_verifier_debug(
+        run_id=run_id,
+        dump_type="summary",
+        payload={
+            "run_id": run_id,
+            "claim_count": len(claim_ids),
+            "prefiltered_claim_count": len(prefiltered_debug_results),
+            "llm_batch_count": len(llm_batch_debug_results),
+            "needs_research": needs_research,
+            "research_gap_count": len(research_gaps),
+            "research_gaps": research_gaps,
+            "iteration_counts": iteration_counts,
+        },
+    )
 
     return {
         "claim_ids": claim_ids,
         "current_phase": "phase4_claims",
         "iteration_counts": iteration_counts,
-        "research_gaps": _build_research_gaps(needs_research_claims) if needs_research else [],
+        "research_gaps": research_gaps,
     }
+
+
+def _dump_verifier_debug(*, run_id: str, dump_type: str, payload: dict) -> None:
+    dump_dir = (settings.web_extractor_debug_dump_dir or "").strip()
+    if not dump_dir:
+        return
+    write_json_debug_dump(
+        raw_dir=dump_dir,
+        subdir="verifier",
+        filename_stem=f"run-{safe_filename_token(run_id)}_{safe_filename_token(dump_type)}",
+        payload=payload,
+    )
