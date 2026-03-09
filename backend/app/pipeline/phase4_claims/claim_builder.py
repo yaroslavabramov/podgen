@@ -16,6 +16,7 @@ from app.models.episode_manifest import EpisodeManifest
 from app.models.evidence import EvidenceProvenance, EvidenceSpan
 from app.models.claim import Claim, ClaimEvidence
 from app.models.source import Source
+from app.pipeline.phase4_claims.claim_notes import decode_claim_notes_metadata, encode_claim_notes_metadata
 from app.pipeline.research_context import build_question_context_map
 from app.pipeline.state import PipelineState
 from app.services.llm import call_sonnet_structured
@@ -51,12 +52,17 @@ Return JSON array:
 Rules:
 - One claim = one atomic proposition. Do not combine independent facts in one statement.
 - Do not add facts, entities, numbers, dates, motives, or causal links that are not explicitly present in evidence.
+- If a quote is partial, truncated, or only indirectly relevant, keep the claim equally narrow. Do not "complete" the missing part from background knowledge.
+- Do not upgrade contextual framing into a stronger factual claim unless the proposition is explicitly carried by the supporting quote.
 - FACT must be directly supported by supporting_evidence_ids.
 - OPINION/REPORT must have attribution with at least "who" when available.
 - Deduplicate within this batch: if two candidates are semantic paraphrases of the same proposition, keep one claim and merge evidence IDs.
 - If one evidence span supports multiple independent propositions, emit multiple claims.
 - Prefer short statements (single sentence) in the target language; keep each statement concise.
 - CASE, ANECDOTE, and EXPERT_QUOTE default to illustrative evidence unless they explicitly carry an atomic fact.
+- For debate questions, preserve explicit arguments, tradeoffs, criticisms, and attributed positions; do not transform generic background into synthetic argument claims.
+- For compare questions, preserve explicit differences, alternatives, and contrastive framing; avoid flattening them into generic description.
+- For case_study questions, prefer concrete actors, actions, outcomes, and consequences from the episode itself.
 - The same evidence may appear in both supporting_evidence_ids and illustrative_evidence_ids.
 - Use source metadata, branch/question intent, lineage, direct_or_contextual, and contextual_asset_types to avoid mixing different research branches into one claim.
 - Use only evidence IDs that are present in the input.
@@ -74,6 +80,7 @@ async def build_claims(state: PipelineState) -> dict:
         return {"claim_ids": [], "current_phase": "phase4_claims"}
 
     all_claim_ids: list[str] = []
+    rebuild_scope = _derive_targeted_rebuild_scope(state)
 
     async with async_session_factory() as db:
         question_context_map: dict[str, dict] = {}
@@ -93,13 +100,31 @@ async def build_claims(state: PipelineState) -> dict:
         )
         if not evidence_index:
             return {"claim_ids": [], "current_phase": "phase4_claims"}
+        if rebuild_scope is not None:
+            branch_batches = _filter_branch_batches(branch_batches, rebuild_scope["branch_ids"])
+            if not branch_batches:
+                return {"claim_ids": list(dict.fromkeys(state.get("claim_ids", []))), "current_phase": "phase4_claims"}
+
+            impacted_claim_ids, preserved_claim_ids = await _partition_claim_ids_for_targeted_rebuild(
+                db=db,
+                claim_ids=list(dict.fromkeys(state.get("claim_ids", []))),
+                targeted_branch_ids=rebuild_scope["branch_ids"],
+                explicit_claim_ids=rebuild_scope["claim_ids"],
+            )
+            if impacted_claim_ids:
+                await _delete_claims(db, impacted_claim_ids)
+            all_claim_ids.extend(preserved_claim_ids)
 
         publish_event(
             run_id,
             step_started(
                 "phase4_claims",
                 "cluster_evidence",
-                f"Clustering {len(evidence_index)} evidence spans across {len(branch_batches)} branch groups",
+                (
+                    f"Clustering {sum(len(group) for _, group in branch_batches)} evidence spans "
+                    f"across {len(branch_batches)} branch groups"
+                    + (" (targeted rebuild)" if rebuild_scope is not None else "")
+                ),
             ),
         )
 
@@ -110,17 +135,13 @@ async def build_claims(state: PipelineState) -> dict:
                 batch_ids = {e["id"] for e in batch}
                 branch_context = _summarize_branch_context(branch_id, batch, question_context_map)
                 payload = {
+                    "build_mode": "targeted_rebuild" if rebuild_scope is not None else "full",
+                    "targeted_branch_ids": rebuild_scope["branch_ids"] if rebuild_scope is not None else [],
                     "branch_id": branch_id,
                     "branch_context": branch_context,
                     "evidence_spans": batch,
                     "target_language": state["language"],
-                    "instructions": (
-                        "Build atomic, non-duplicative claims from these evidence spans. "
-                        "Do not introduce new facts. "
-                        "Preserve narrative evidence by using illustrative_evidence_ids, "
-                        "and use supporting_evidence_ids only when the quote directly supports the claim. "
-                        "Prefer direct evidence for factual backbone; use contextual evidence as framing or illustration unless it explicitly carries the proposition."
-                    ),
+                    "instructions": _build_claim_builder_instructions(branch_context),
                 }
 
                 prompt = json.dumps(payload, ensure_ascii=False)
@@ -166,6 +187,8 @@ async def build_claims(state: PipelineState) -> dict:
                     project_id=state["project_id"],
                     claims_data=claims_data,
                     batch_ids=batch_ids,
+                    branch_id=branch_id,
+                    branch_question_ids=branch_context.get("question_ids", []),
                     run_id=run_id,
                     all_claim_ids=all_claim_ids,
                 )
@@ -187,6 +210,80 @@ async def build_claims(state: PipelineState) -> dict:
     update_generation_progress(run_id, "phase4_claims", "claim_builder_done", 40.0)
 
     return {"claim_ids": all_claim_ids, "current_phase": "phase4_claims"}
+
+
+def _derive_targeted_rebuild_scope(state: PipelineState) -> dict | None:
+    iteration_counts = state.get("iteration_counts", {}) or {}
+    if iteration_counts.get("verify_research_loops", 0) < 1:
+        return None
+
+    gaps = state.get("research_gaps", []) or []
+    branch_ids = sorted(
+        {
+            str(gap.get("branch_id", "")).strip()
+            for gap in gaps
+            if isinstance(gap, dict) and str(gap.get("branch_id", "")).strip()
+        }
+    )
+    claim_ids = sorted(
+        {
+            str(gap.get("claim_id", "")).strip()
+            for gap in gaps
+            if isinstance(gap, dict) and str(gap.get("claim_id", "")).strip()
+        }
+    )
+    if not branch_ids and not claim_ids:
+        return None
+    return {
+        "branch_ids": branch_ids,
+        "claim_ids": claim_ids,
+    }
+
+
+def _filter_branch_batches(
+    branch_batches: list[tuple[str, list[dict]]],
+    targeted_branch_ids: list[str],
+) -> list[tuple[str, list[dict]]]:
+    if not targeted_branch_ids:
+        return branch_batches
+    targeted = set(targeted_branch_ids)
+    return [(branch_id, items) for branch_id, items in branch_batches if branch_id in targeted]
+
+
+async def _partition_claim_ids_for_targeted_rebuild(
+    *,
+    db,
+    claim_ids: list[str],
+    targeted_branch_ids: list[str],
+    explicit_claim_ids: list[str],
+) -> tuple[list[str], list[str]]:
+    ordered_claim_ids = list(dict.fromkeys(claim_ids))
+    impacted_claim_ids = {
+        claim_id
+        for claim_id in explicit_claim_ids
+        if claim_id in ordered_claim_ids
+    }
+    if targeted_branch_ids and ordered_claim_ids:
+        claim_uuid_ids = [uuid.UUID(claim_id) for claim_id in ordered_claim_ids]
+        result = await db.execute(select(Claim.id, Claim.notes).where(Claim.id.in_(claim_uuid_ids)))
+        for claim_id, notes in result.all():
+            builder_branch_id = str(decode_claim_notes_metadata(notes).get("builder_branch_id", "")).strip()
+            if builder_branch_id and builder_branch_id in targeted_branch_ids:
+                impacted_claim_ids.add(str(claim_id))
+
+    impacted = [claim_id for claim_id in ordered_claim_ids if claim_id in impacted_claim_ids]
+    preserved = [claim_id for claim_id in ordered_claim_ids if claim_id not in impacted_claim_ids]
+    return impacted, preserved
+
+
+async def _delete_claims(db, claim_ids: list[str]) -> None:
+    if not claim_ids:
+        return
+    claim_uuid_ids = [uuid.UUID(claim_id) for claim_id in claim_ids]
+    result = await db.execute(select(Claim).where(Claim.id.in_(claim_uuid_ids)))
+    for claim in result.scalars().all():
+        await db.delete(claim)
+    await db.flush()
 
 
 async def _load_branch_batches(
@@ -389,12 +486,45 @@ def _summarize_branch_context(
     }
 
 
+def _build_claim_builder_instructions(branch_context: dict) -> str:
+    base = (
+        "Build atomic, non-duplicative claims from these evidence spans. "
+        "Do not introduce new facts. "
+        "Preserve narrative evidence by using illustrative_evidence_ids. "
+        "Use supporting_evidence_ids only when the quote directly supports the claim. "
+        "Prefer direct evidence for factual backbone; use contextual evidence as framing or illustration unless it explicitly carries the proposition. "
+        "If a quote is partial or truncated, keep the claim equally narrow. "
+        "Do not infer dates, motives, purposes, or causal links that are not explicitly stated."
+    )
+    branch_intent = str(branch_context.get("branch_intent", "")).strip().lower()
+    if branch_intent == "debate":
+        return (
+            base
+            + " Because this branch is a debate, prefer claims that preserve explicit arguments, tradeoffs, criticisms, or attributed pro/con positions. "
+            + "Do not turn generic background facts into synthetic argumentative claims."
+        )
+    if branch_intent == "compare":
+        return (
+            base
+            + " Because this branch is a comparison, preserve explicit differences, alternatives, and side-by-side contrasts. "
+            + "Avoid flattening contrastive evidence into generic descriptive facts."
+        )
+    if branch_intent == "case_study":
+        return (
+            base
+            + " Because this branch is a case study, prefer claims tied to concrete actors, actions, outcomes, and consequences from the episode itself."
+        )
+    return base
+
+
 async def _persist_claim_batch(
     *,
     db,
     project_id: str,
     claims_data: list[dict],
     batch_ids: set[str],
+    branch_id: str,
+    branch_question_ids: list[str],
     run_id: str,
     all_claim_ids: list[str],
 ) -> tuple[list[dict], dict[str, int]]:
@@ -432,6 +562,10 @@ async def _persist_claim_batch(
                 claim_type=str(cd.get("claim_type", "fact")).lower(),
                 statement=statement,
                 attribution=cd.get("attribution"),
+                notes=encode_claim_notes_metadata(
+                    branch_id=branch_id,
+                    question_ids=branch_question_ids,
+                ),
             )
             db.add(claim)
             await db.flush()
@@ -545,6 +679,8 @@ def _dump_claim_builder_batch_debug(
             "batch_number": batch_number,
             "status": status,
             "input": {
+                "build_mode": input_payload.get("build_mode"),
+                "targeted_branch_ids": input_payload.get("targeted_branch_ids", []),
                 "branch_id": input_payload.get("branch_id"),
                 "branch_context": input_payload.get("branch_context"),
                 "target_language": input_payload.get("target_language"),

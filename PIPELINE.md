@@ -272,6 +272,7 @@ Web extraction использует каскад extractors:
 
 - hybrid retrieval (vector + keywords)
 - keyword retrieval uses language-aware query rewrite based on the research question and sample corpus snippets, so lexical search follows corpus language rather than podcast language
+- Hunter retrieval now adds intent-aware seed queries before vector/keyword merge, so `debate`/`compare`/`case_study` branches surface evaluative, contrastive, and episode-specific material instead of only topical background
 
 - расширенный retrieval pool (`top-40`) + diversity re-ranking (penalty за повторяющиеся `source_id`/`parent_chunk_id`) перед extraction
 
@@ -285,6 +286,7 @@ Web extraction использует каскад extractors:
   - `retrieved_by`
 
 - intent из decomposition идёт в keyword rewrite и extractor prompt, чтобы Hunter различал explain/history/compare/debate/case_study вопросы уже на retrieval/extraction слое
+- для `debate`/`compare`/`case_study` intent влияет не только на extraction prompt, но и на query generation: Hunter ищет pro/con positions, explicit contrasts, alternatives, named episodes, actors, outcomes
 
 - формирует structured gap signal `research_gaps` по веткам:
   - `missing_assets` рассчитывается только по `required_evidence` (с учетом `min_count`)
@@ -329,6 +331,7 @@ Web extraction использует каскад extractors:
 ### **4.1 Claim Builder**
 
 - собирает branch-based batches по `EvidenceProvenance`, а не режет flat array по фиксированному количеству rows
+- если verifier-loop вернул `research_gaps`, Claim Builder делает targeted rebuild только для затронутых branch groups и сохраняет unaffected claims вместо полного глобального rebuild’а
 - в prompt передаёт не только quote, но и:
   - branch context (`branch_question`, `branch_intent`, question contexts)
   - source metadata (`title/url/type/domain_reliability/authority_type/is_temporary`)
@@ -337,6 +340,14 @@ Web extraction использует каскад extractors:
   - `direct_or_contextual` по provenance, когда он доступен
 
 - сохраняет narrative "сок": illustrative evidence не теряется
+- prompt ужесточён против semantic overshoot:
+  - partial/truncated quotes не расширяются до более сильных claims
+  - contextual framing не апгрейдится в stronger fact без явной пропозиции
+  - ANECDOTE / CASE / EXPERT_QUOTE по умолчанию идут в illustrative, если не несут самостоятельный атомарный факт
+- branch intent влияет на shape claims:
+  - `debate` -> arguments / tradeoffs / criticisms / attributed positions
+  - `compare` -> explicit differences / alternatives / side-by-side contrast
+  - `case_study` -> concrete actors / actions / outcomes / consequences
 - один и тот же `ClaimEvidence` может быть:
   - factual support
   - contradiction
@@ -365,6 +376,7 @@ Web extraction использует каскад extractors:
 - DISPUTED: обе стороны + причины расхождений
 
 - verifier при `needs_research` пишет свежие `research_gaps` по реальным provenance-парам `(branch_id, question_id)`, без synthetic Cartesian product, и fast-web loop работает уже по ним, а не по старым gap’ам Hunter
+- verifier reasoning принудительно держится коротким и evidence-bound: без спекуляций о "future dates", скрытых metadata-анomalies и прочих неявных выводов
 
 - при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` verifier пишет JSON dumps:
   - prefiltered claims

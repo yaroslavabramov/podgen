@@ -42,6 +42,12 @@ Rules:
 - DISPUTED: evidence contains contradictory information
 - needs_research=true: claim is important but current evidence is insufficient — request more research
 
+Reasoning rules:
+- Keep reasoning to one short evidence-bound explanation.
+- Do not speculate about the current date, whether a source date is in the future, hidden metadata anomalies, or anything not explicitly present in the payload.
+- If evidence is partial or truncated, say that directly instead of inferring the missing part.
+- If a source is weak, explain it using only provided fields such as single-source, temporary, authority_type, or source_reliability.
+
 Evaluate semantic alignment, not just keyword overlap. Respect source metadata:
 - temporary-only evidence cannot justify VERIFIED
 - source authority is a signal, not an automatic proof

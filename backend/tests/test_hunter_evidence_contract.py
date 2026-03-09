@@ -4,9 +4,11 @@ import pytest
 
 from app.pipeline.phase3_research.hunter import (
     _build_keyword_queries,
+    _build_intent_seed_queries,
     _dump_hunter_question_debug,
     _extract_node_evidence_contract,
     _find_chunk_for_quote,
+    _intent_retrieval_goal,
     _merge_required_assets,
     _normalize_single_asset_type,
     _resolve_evidence_origin,
@@ -195,10 +197,49 @@ async def test_build_keyword_queries_uses_llm_variants(monkeypatch) -> None:
         [{"type": "MECHANISM", "min_count": 1}],
         ["CASE"],
         [{"preview": "Banks issue notes against Certificates of Indebtedness.", "heading_path": ["Mechanism"]}],
+        intent_seed_queries=["How does HKD issuance work mechanism backing"],
     )
 
     assert captured_prompt["question_intent"] == "explain"
+    assert captured_prompt["intent_retrieval_goal"] == "surface direct mechanism and definitions rather than adjacent commentary"
+    assert captured_prompt["intent_seed_queries"] == ["How does HKD issuance work mechanism backing"]
     assert captured_prompt["required_evidence"] == [{"type": "MECHANISM", "min_count": 1}]
     assert captured_prompt["expected_evidence"] == ["CASE"]
     assert queries[0] == "Как работает эмиссия HKD?"
     assert "Hong Kong dollar peg mechanism" in queries
+
+
+@pytest.mark.asyncio
+async def test_build_keyword_queries_keeps_intent_seed_queries_when_vector_results_empty() -> None:
+    queries = await _build_keyword_queries(
+        "Why is private note issuance more reliable?",
+        "debate",
+        [{"type": "MECHANISM", "min_count": 1}],
+        ["CONTRAST"],
+        [],
+        intent_seed_queries=[
+            "Why is private note issuance more reliable arguments tradeoffs criticism reliability versus monopoly",
+            "Why is private note issuance more reliable supporters opponents comparison advantages disadvantages",
+        ],
+    )
+
+    assert queries[0] == "Why is private note issuance more reliable?"
+    assert len(queries) == 3
+    assert any("tradeoffs" in query.lower() for query in queries[1:])
+
+
+def test_build_intent_seed_queries_for_debate_include_argument_language() -> None:
+    queries = _build_intent_seed_queries(
+        "Why is private note issuance more reliable?",
+        "debate",
+    )
+
+    assert len(queries) == 2
+    assert any("arguments" in query.lower() for query in queries)
+    assert any("tradeoffs" in query.lower() or "opponents" in query.lower() for query in queries)
+
+
+def test_intent_retrieval_goal_for_case_study_mentions_concrete_episodes() -> None:
+    goal = _intent_retrieval_goal("case_study")
+    assert "concrete episodes" in goal
+    assert "consequences" in goal

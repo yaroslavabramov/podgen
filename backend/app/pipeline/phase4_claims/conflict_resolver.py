@@ -9,6 +9,7 @@ from sqlalchemy import select
 from app.workers.worker_db import worker_session_factory as async_session_factory
 from app.models.claim import Claim, VerificationLevel
 from app.models.conflict_brief import ConflictBrief
+from app.pipeline.phase4_claims.claim_notes import extract_editor_claim_notes
 from app.pipeline.state import PipelineState
 from app.services.llm import call_sonnet_structured
 from app.pipeline.llm_json import parse_llm_json
@@ -58,7 +59,7 @@ async def resolve_conflicts(state: PipelineState) -> dict:
             prompt = json.dumps({
                 "disputed_claim": claim.statement,
                 "claim_type": claim.claim_type,
-                "notes": claim.notes or "",
+                "notes": extract_editor_claim_notes(claim.notes),
             }, ensure_ascii=False)
 
             try:

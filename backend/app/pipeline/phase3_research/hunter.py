@@ -47,6 +47,14 @@ _ALLOWED_EVIDENCE_TYPES = {
     "CONTRAST",
 }
 
+_INTENT_RETRIEVAL_GOALS = {
+    "history": "surface chronology, origin, and turning points rather than generic background",
+    "explain": "surface direct mechanism and definitions rather than adjacent commentary",
+    "compare": "surface explicit alternatives, differences, contrasts, and versus framing",
+    "debate": "surface evaluative arguments, tradeoffs, criticism, and explicit pro/con positions",
+    "case_study": "surface concrete episodes with actors, actions, consequences, and outcomes",
+}
+
 EXTRACT_EVIDENCE_SYSTEM = """You are an evidence extractor. Given chunks of text and a research question, extract relevant evidence spans.
 
 Input may include:
@@ -56,6 +64,12 @@ Input may include:
 Prioritize required_evidence first, then expected evidence types.
 
 RELEVANCE: Prefer evidence that DIRECTLY answers the research question. If a direct answer exists, do not extract peripheral context instead.
+
+INTENT RULES:
+- For debate questions, prefer explicit arguments, comparative advantages/disadvantages, criticisms, tradeoffs, and attributed pro/con positions over generic background.
+- For compare questions, prefer explicit side-by-side differences, alternatives, and contrastive framing over adjacent description.
+- For case_study questions, prefer concrete episodes with actors, actions, consequences, and outcomes over general thematic background.
+- Do not flatten evaluative or comparative material into generic mechanism/history evidence when the question intent asks for argument, comparison, or case analysis.
 
 VERBATIM RULE: verbatim_quote must be copied character-for-character from the source, including exact capitalisation and punctuation. Think of it as a text highlight: a continuous span from position A to position B with nothing changed, added, or removed. If two relevant sentences are not directly adjacent in the source, return each as a separate item — do not combine them into one quote.
 
@@ -86,6 +100,10 @@ Return JSON:
 Rules:
 - Prefer the language that best matches the sample corpus snippets.
 - Use question_intent plus required/expected evidence to preserve the search shape.
+- Use intent_retrieval_goal and intent_seed_queries to surface the right evidence shape:
+  - debate -> arguments, tradeoffs, criticism, pro/con positions, reliability comparisons
+  - compare -> explicit alternatives, versus framing, differences, side-by-side contrasts
+  - case_study -> named episodes, incidents, interventions, actors, consequences, aftermath
 - Keep queries short and lexical, suitable for PostgreSQL full-text search.
 - Preserve named entities, dates, acronyms, and domain-specific terms.
 - Output only JSON."""
@@ -177,13 +195,16 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                 saved_debug_items: list[dict] = []
 
                 # Hybrid search: vector + keyword, RRF merge
-                vector_results = await vector_search_tool(q["question"], top_k=RETRIEVAL_TOP_K, source_ids=source_ids, db=db)
+                intent_seed_queries = _build_intent_seed_queries(q["question"], q.get("intent"))
+                vector_queries = _merge_query_candidates(q["question"], intent_seed_queries)
+                vector_results = await _run_vector_queries(vector_queries, source_ids, db, top_k=RETRIEVAL_TOP_K)
                 keyword_queries = await _build_keyword_queries(
                     q["question"],
                     q.get("intent"),
                     q["required_targets"],
                     q["expected_types"],
                     vector_results,
+                    intent_seed_queries=intent_seed_queries,
                 )
                 keyword_results = await _run_keyword_queries(keyword_queries, source_ids, db, top_k=RETRIEVAL_TOP_K)
 
@@ -661,6 +682,8 @@ async def _build_keyword_queries(
     required_targets: list[dict[str, int | str]],
     expected_types: list[str],
     vector_results: list[dict],
+    *,
+    intent_seed_queries: list[str] | None = None,
 ) -> list[str]:
     sample_chunks = [
         {
@@ -671,7 +694,7 @@ async def _build_keyword_queries(
         if isinstance(item, dict)
     ]
     if not sample_chunks:
-        return [question]
+        return _merge_query_candidates(question, intent_seed_queries or [])
 
     try:
         raw = await call_haiku_structured(
@@ -680,6 +703,8 @@ async def _build_keyword_queries(
                 {
                     "question": question,
                     "question_intent": question_intent,
+                    "intent_retrieval_goal": _intent_retrieval_goal(question_intent),
+                    "intent_seed_queries": intent_seed_queries or [],
                     "required_evidence": required_targets,
                     "expected_evidence": expected_types,
                     "sample_chunks": sample_chunks,
@@ -697,7 +722,13 @@ async def _build_keyword_queries(
     raw_queries = parsed.get("queries", []) if isinstance(parsed, dict) else parsed
     deduped: list[str] = []
     seen: set[str] = set()
-    for candidate in [question, *(raw_queries if isinstance(raw_queries, list) else [])]:
+    for candidate in _merge_query_candidates(
+        question,
+        [
+            *(intent_seed_queries or []),
+            *(raw_queries if isinstance(raw_queries, list) else []),
+        ],
+    ):
         if not isinstance(candidate, str):
             continue
         cleaned = normalize_research_text(candidate).strip()
@@ -709,6 +740,74 @@ async def _build_keyword_queries(
         seen.add(key)
         deduped.append(cleaned)
     return deduped or [question]
+
+
+async def _run_vector_queries(
+    queries: list[str],
+    source_ids: list[str],
+    db,
+    *,
+    top_k: int,
+) -> list[dict]:
+    merged: dict[str, dict] = {}
+    for query in queries:
+        for hit in await vector_search_tool(query, top_k=top_k, source_ids=source_ids, db=db):
+            chunk_id = hit.get("chunk_id")
+            if not isinstance(chunk_id, str):
+                continue
+            current = merged.get(chunk_id)
+            if current is None or float(hit.get("score", 0.0)) > float(current.get("score", 0.0)):
+                merged[chunk_id] = hit
+    return sorted(merged.values(), key=lambda item: float(item.get("score", 0.0)), reverse=True)
+
+
+def _intent_retrieval_goal(question_intent: str | None) -> str:
+    return _INTENT_RETRIEVAL_GOALS.get((question_intent or "").strip().lower(), "")
+
+
+def _build_intent_seed_queries(question: str, question_intent: str | None) -> list[str]:
+    base_question = normalize_research_text(question).strip()
+    if not base_question:
+        return []
+
+    intent = (question_intent or "").strip().lower()
+    variants: list[str]
+    if intent == "debate":
+        variants = [
+            f"{base_question} arguments tradeoffs criticism reliability versus monopoly",
+            f"{base_question} supporters opponents comparison advantages disadvantages",
+        ]
+    elif intent == "compare":
+        variants = [
+            f"{base_question} versus difference compared with alternative contrast",
+            f"{base_question} comparison advantages disadvantages alternative system",
+        ]
+    elif intent == "case_study":
+        variants = [
+            f"{base_question} case study episode incident intervention consequences",
+            f"{base_question} named example actors outcome aftermath",
+        ]
+    else:
+        variants = []
+
+    return _merge_query_candidates("", variants)
+
+
+def _merge_query_candidates(base_query: str, candidates: list[str]) -> list[str]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for candidate in [base_query, *candidates]:
+        if not isinstance(candidate, str):
+            continue
+        cleaned = normalize_research_text(candidate).strip()
+        if not cleaned:
+            continue
+        key = cleaned.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(cleaned)
+    return deduped
 
 
 async def _run_keyword_queries(

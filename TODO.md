@@ -431,6 +431,17 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P0**: Add file debug dump for act planner per act (`input`, attempt history, raw outputs, normalized beat sheet, evidence gap fill result)
 - [x] **P1**: Add regression tests for verifier/showrunner/act planner debug dump write path and disabled path
 
+**Round 68 (production readiness — research/claims/verifier quality):**
+- [x] **P0**: Replace full `verify -> research_fast_web -> build_claims` rebuild with an incremental targeted-update loop that preserves unaffected claims and only rebuilds impacted branch/question groups
+- [x] **P0**: Harden Claim Builder prompt/payload/examples so claims stay minimal and auditable: no unsupported dates, motives, causal links, or contextual-to-fact upgrades
+- [x] **P0**: Improve non-history intent quality (`debate`, `compare`, `case_study`) in Hunter and Claim Builder so retrieval/extraction/claim shaping follows editorial intent rather than drifting into generic historical background
+- [x] **P1**: Tighten verifier reasoning prompt so explanations stay grounded and evidence-bound without speculative temporal/source commentary
+- [x] **P1**: Improve Claim Builder illustrative-evidence behavior so ANECDOTE/CASE/EXPERT_QUOTE default more consistently to illustrative unless they truly carry the proposition
+- [ ] **P1**: Run cross-topic production-readiness evaluation passes on several intentionally different corpora and document remaining universal failure modes
+
+Deferred after Round 68:
+- [ ] **P2**: Add typed verifier gap routing (`weak_source`, `truncated_quote`, `claim_overshoot`, etc.) with separate remediation paths instead of sending all `needs_research` cases through the same fast-web loop
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

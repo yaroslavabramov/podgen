@@ -1,7 +1,21 @@
 from types import SimpleNamespace
 import uuid
 
-from app.pipeline.phase4_claims.claim_builder import _build_branch_batches
+import pytest
+
+from app.pipeline.phase4_claims.claim_builder import (
+    _build_branch_batches,
+    _build_claim_builder_instructions,
+    _derive_targeted_rebuild_scope,
+    _filter_branch_batches,
+    _partition_claim_ids_for_targeted_rebuild,
+    build_claims,
+)
+from app.pipeline.phase4_claims.claim_notes import (
+    decode_claim_notes_metadata,
+    encode_claim_notes_metadata,
+    extract_editor_claim_notes,
+)
 
 
 def test_build_branch_batches_uses_contextual_asset_types_per_branch() -> None:
@@ -72,3 +86,206 @@ def test_build_branch_batches_uses_contextual_asset_types_per_branch() -> None:
     assert batches["b6"][0]["contextual_asset_types"] == ["contrast"]
     assert batches["b6"][0]["lineage"]["branch_ids"] == ["b3", "b6"]
     assert batches["b6"][0]["lineage"]["question_contexts"][1]["direct_or_contextual"] == "contextual"
+
+
+def test_derive_targeted_rebuild_scope_only_activates_inside_verify_loop() -> None:
+    assert _derive_targeted_rebuild_scope({"iteration_counts": {}, "research_gaps": []}) is None
+
+    scope = _derive_targeted_rebuild_scope(
+        {
+            "iteration_counts": {"verify_research_loops": 1},
+            "research_gaps": [
+                {"branch_id": "b3", "claim_id": "c1"},
+                {"branch_id": "b6", "claim_id": "c2"},
+            ],
+        }
+    )
+
+    assert scope == {"branch_ids": ["b3", "b6"], "claim_ids": ["c1", "c2"]}
+
+
+def test_filter_branch_batches_keeps_only_targeted_branches() -> None:
+    branch_batches = [("b1", [{"id": "e1"}]), ("b3", [{"id": "e2"}]), ("b6", [{"id": "e3"}])]
+    assert _filter_branch_batches(branch_batches, ["b3", "b6"]) == [("b3", [{"id": "e2"}]), ("b6", [{"id": "e3"}])]
+
+
+def test_build_claim_builder_instructions_adds_debate_specific_guardrails() -> None:
+    instructions = _build_claim_builder_instructions({"branch_intent": "debate"})
+    assert "tradeoffs" in instructions
+    assert "synthetic argumentative claims" in instructions
+    assert "Do not infer dates, motives, purposes, or causal links" in instructions
+
+
+@pytest.mark.asyncio
+async def test_partition_claim_ids_for_targeted_rebuild_drops_all_claims_from_targeted_branch_metadata() -> None:
+    class _FakeResult:
+        def all(self):
+            return [
+                (
+                    uuid.UUID("11111111-1111-1111-1111-111111111111"),
+                    encode_claim_notes_metadata(branch_id="b1", question_ids=["b1.1"]),
+                ),
+                (
+                    uuid.UUID("22222222-2222-2222-2222-222222222222"),
+                    encode_claim_notes_metadata(branch_id="b6", question_ids=["b6.1"]),
+                ),
+                (
+                    uuid.UUID("33333333-3333-3333-3333-333333333333"),
+                    encode_claim_notes_metadata(branch_id="b6", question_ids=["b6.2"]),
+                ),
+            ]
+
+    class _FakeDB:
+        async def execute(self, *args, **kwargs):
+            return _FakeResult()
+
+    impacted, preserved = await _partition_claim_ids_for_targeted_rebuild(
+        db=_FakeDB(),
+        claim_ids=[
+            "11111111-1111-1111-1111-111111111111",
+            "22222222-2222-2222-2222-222222222222",
+            "33333333-3333-3333-3333-333333333333",
+        ],
+        targeted_branch_ids=["b6"],
+        explicit_claim_ids=["22222222-2222-2222-2222-222222222222"],
+    )
+
+    assert impacted == [
+        "22222222-2222-2222-2222-222222222222",
+        "33333333-3333-3333-3333-333333333333",
+    ]
+    assert preserved == ["11111111-1111-1111-1111-111111111111"]
+
+
+def test_claim_notes_metadata_roundtrip_and_editor_notes_extraction() -> None:
+    encoded = encode_claim_notes_metadata(branch_id="b6", question_ids=["b6.2", "b6.1"])
+    decoded = decode_claim_notes_metadata(encoded)
+
+    assert decoded["builder_branch_id"] == "b6"
+    assert decoded["builder_question_ids"] == ["b6.1", "b6.2"]
+    assert extract_editor_claim_notes(encoded) == ""
+    assert extract_editor_claim_notes("Human note") == "Human note"
+
+
+class _FakeScalarResult:
+    def __init__(self, value):
+        self._value = value
+
+    def scalar_one_or_none(self):
+        return self._value
+
+
+class _FakeSession:
+    def __init__(self) -> None:
+        self.deleted_claim_ids: list[str] = []
+        self.commit_calls = 0
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def execute(self, *args, **kwargs):
+        return _FakeScalarResult(None)
+
+    async def commit(self) -> None:
+        self.commit_calls += 1
+
+
+@pytest.mark.asyncio
+async def test_build_claims_targeted_rebuild_preserves_unaffected_claims(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = _FakeSession()
+    processed_branch_ids: list[str] = []
+    deleted_claim_ids: list[str] = []
+
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder.async_session_factory",
+        lambda: session,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder.publish_event",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder.update_generation_progress",
+        lambda *args, **kwargs: None,
+    )
+
+    async def _fake_load_branch_batches(**kwargs):
+        return (
+            {"e1": {"id": "e1"}, "e2": {"id": "e2"}},
+            [
+                ("b1", [{"id": "e1", "lineage": {"question_contexts": []}, "source": {}, "contextual_asset_types": [], "verbatim_quote": "A", "asset_type": "timeline"}]),
+                ("b6", [{"id": "e2", "lineage": {"question_contexts": []}, "source": {}, "contextual_asset_types": [], "verbatim_quote": "B", "asset_type": "contrast"}]),
+            ],
+        )
+
+    async def _fake_partition(**kwargs):
+        return (["claim-drop"], ["claim-keep"])
+
+    async def _fake_delete_claims(db, claim_ids):
+        deleted_claim_ids.extend(claim_ids)
+
+    def _fake_split(batch):
+        return [batch]
+
+    async def _fake_call_sonnet_structured(**kwargs):
+        payload = __import__("json").loads(kwargs["prompt"])
+        processed_branch_ids.append(payload["branch_id"])
+        return '[{"claim_type":"FACT","statement":"Rebuilt claim","supporting_evidence_ids":["e2"],"illustrative_evidence_ids":[],"attribution":null}]'
+
+    async def _fake_persist_claim_batch(**kwargs):
+        kwargs["all_claim_ids"].append("claim-new")
+        return (
+            [{
+                "claim_id": "claim-new",
+                "claim_type": "fact",
+                "statement": "Rebuilt claim",
+                "supporting_evidence_ids": ["e2"],
+                "illustrative_evidence_ids": [],
+            }],
+            {"skipped_no_support_count": 0, "skipped_empty_statement_count": 0},
+        )
+
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._load_branch_batches",
+        _fake_load_branch_batches,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._partition_claim_ids_for_targeted_rebuild",
+        _fake_partition,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._delete_claims",
+        _fake_delete_claims,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._split_evidence_batch",
+        _fake_split,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder.call_sonnet_structured",
+        _fake_call_sonnet_structured,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._persist_claim_batch",
+        _fake_persist_claim_batch,
+    )
+
+    result = await build_claims(
+        {
+            "generation_run_id": str(uuid.uuid4()),
+            "project_id": str(uuid.uuid4()),
+            "language": "ru",
+            "manifest_id": "",
+            "evidence_ids": ["e1", "e2"],
+            "claim_ids": ["claim-keep", "claim-drop"],
+            "iteration_counts": {"verify_research_loops": 1},
+            "research_gaps": [{"branch_id": "b6", "claim_id": "claim-drop"}],
+        }
+    )
+
+    assert deleted_claim_ids == ["claim-drop"]
+    assert processed_branch_ids == ["b6"]
+    assert result["claim_ids"] == ["claim-keep", "claim-new"]

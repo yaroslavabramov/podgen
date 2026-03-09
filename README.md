@@ -117,9 +117,11 @@ Phase 4 now uses explicit lineage and canonical evidence semantics:
 - `EvidenceSpan` is canonical quote-level evidence
 - `EvidenceProvenance` stores which question/branch/run found that evidence, its context-specific `asset_type`, and whether it was `direct` or `contextual` for that question
 - claim building batches by research branch, not by flat evidence order
+- verifier-triggered fast-web loops now rebuild only impacted claim groups instead of re-running claim generation over the full evidence set
 - duplicate claims are collapsed before verification
 - verifier counts independent sources via canonical source identity and caps temp-only evidence at `OBSERVED`
 - planning payloads now carry illustrative/narrative signals plus branch/question intent context instead of flat claim lists only
+- Hunter retrieval and Claim Builder instructions are intent-aware for `debate` / `compare` / `case_study`, with stricter guardrails against claim overshoot from partial or contextual evidence
 - when `WEB_EXTRACTOR_DEBUG_DUMP_DIR` is set, Hunter / Claim Builder / Verifier / Showrunner / Act Planner write JSON debug dumps for run analysis
 
 ## Runtime Reliability Notes (2026-02-23)
