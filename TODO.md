@@ -218,6 +218,14 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 
 **Round 24 (step controls hardening + stop):**
 - [x] **P1**: Fixed step-mode failed retry action in UI: `retryFailedRun` now retries failed `next` step (not rerun previous step)
+
+**Round 69 (fast-web retrieval + quote truncation hardening):**
+- [x] **P0**: Remove fast-web `[:3]` gap cap and switch governor semantics to processed gaps instead of evidence items
+- [x] **P0**: Add language-aware fast-web query generation with explicit English rewrite for non-English questions
+- [x] **P0**: Stop truncating verifier supporting quotes to 300 chars; verifier must see the real quote text
+- [x] **P1**: Rework claim-builder batching to budget against real quote lengths instead of pre-truncated `[:700]` payloads
+- [x] **P1**: Add regression tests for fast-web gap selection/governor/query rewrite and verifier/claim-builder quote handling
+- [x] **P1**: Update docs for fast-web retrieval strategy, governor semantics, and quote payload policy
 - [x] **P1**: Added API precondition for `/steps/rerun` to prevent invalid rerun without completed checkpointed step
 - [x] **P1**: Added `POST /api/generations/{id}/steps/stop` with stop-request flagging in step control
 - [x] **P1**: Added cooperative stop handling in worker (`StepExecutionStopped` -> `queued` + `generation_paused(stopped=true)`, no forced `FAILED`)

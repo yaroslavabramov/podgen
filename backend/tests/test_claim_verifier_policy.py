@@ -3,12 +3,16 @@ import uuid
 
 from app.models.claim import VerificationLevel
 from app.pipeline.phase4_claims.verifier import (
+    VERIFY_BATCH_CHAR_BUDGET,
     _apply_verification_ceiling,
+    _build_verifier_claim_payload,
     _build_research_gaps,
+    _estimate_verifier_payload_chars,
     _index_provenance_asset_types,
     _index_provenance_contexts,
     _is_meaningful_attribution,
     _rule_based_fallback,
+    _split_verifier_batches,
 )
 
 
@@ -134,3 +138,170 @@ def test_index_provenance_contexts_attaches_intent_and_directness() -> None:
             "contextual_count": 1,
         }
     ]
+
+
+def test_build_verifier_claim_payload_keeps_full_quote_text() -> None:
+    long_quote = "A" * 1200
+    claim = SimpleNamespace(id=uuid.uuid4(), statement="Claim statement")
+    payload = _build_verifier_claim_payload(
+        claim,
+        {
+            "supporting": [{"quote": long_quote}],
+            "source_ids": {"source-1"},
+            "branch_ids": ["b1"],
+            "question_ids": ["q1"],
+            "intents": ["history"],
+            "direct_evidence_count": 1,
+            "contextual_evidence_count": 0,
+            "provenance_pairs": [],
+        },
+    )
+
+    assert payload["evidence"][0]["quote"] == long_quote
+
+
+def test_split_verifier_batches_uses_char_budget() -> None:
+    claims_for_llm = [
+        (
+            SimpleNamespace(id=uuid.uuid4(), statement="Claim 1"),
+            {
+                "supporting": [{"quote": "A" * 10000}],
+                "source_ids": {"source-1"},
+                "branch_ids": ["b1"],
+                "question_ids": ["q1"],
+                "intents": ["history"],
+                "direct_evidence_count": 1,
+                "contextual_evidence_count": 0,
+                "provenance_pairs": [],
+            },
+        ),
+        (
+            SimpleNamespace(id=uuid.uuid4(), statement="Claim 2"),
+            {
+                "supporting": [{"quote": "B" * 10000}],
+                "source_ids": {"source-2"},
+                "branch_ids": ["b2"],
+                "question_ids": ["q2"],
+                "intents": ["explain"],
+                "direct_evidence_count": 1,
+                "contextual_evidence_count": 0,
+                "provenance_pairs": [],
+            },
+        ),
+    ]
+
+    batches = _split_verifier_batches(claims_for_llm)
+
+    assert len(batches) == 2
+    assert [item[0].statement for item in batches[0]] == ["Claim 1"]
+    assert [item[0].statement for item in batches[1]] == ["Claim 2"]
+
+
+def test_build_verifier_claim_payload_clips_oversized_single_claim_to_budget() -> None:
+    huge_quote = "Q" * 50000
+    claim = SimpleNamespace(id=uuid.uuid4(), statement="Claim statement")
+
+    payload = _build_verifier_claim_payload(
+        claim,
+        {
+            "supporting": [{"quote": huge_quote, "asset_type": "mechanism"}],
+            "source_ids": {"source-1"},
+            "branch_ids": ["b1"],
+            "question_ids": ["q1"],
+            "intents": ["explain"],
+            "direct_evidence_count": 1,
+            "contextual_evidence_count": 0,
+            "provenance_pairs": [],
+        },
+    )
+
+    assert len(payload["evidence"][0]["quote"]) < len(huge_quote)
+    assert "excerpt clipped for verifier budget" in payload["evidence"][0]["quote"]
+    assert len(payload["evidence"][0]["quote"]) < VERIFY_BATCH_CHAR_BUDGET
+    assert _estimate_verifier_payload_chars(payload) <= VERIFY_BATCH_CHAR_BUDGET
+
+
+def test_build_verifier_claim_payload_trims_metadata_heavy_claim_to_budget() -> None:
+    claim = SimpleNamespace(id=uuid.uuid4(), statement="Claim statement")
+    supporting = []
+    for index in range(24):
+        supporting.append(
+            {
+                "quote": f"Quote {index} " + ("Q" * 400),
+                "asset_type": "mechanism",
+                "asset_types": ["MECHANISM", "CASE"],
+                "source_reliability": "medium",
+                "authority_type": "secondary",
+                "is_temporary": False,
+                "canonical_source_id": f"source-{index}",
+                "direct_or_contextual": ["direct" if index % 2 == 0 else "contextual"],
+            }
+        )
+    provenance_pairs = []
+    for index in range(40):
+        provenance_pairs.append(
+            {
+                "branch_id": f"b{index}",
+                "question_id": f"q{index}",
+                "intent": "debate" if index % 2 else "compare",
+                "found_assets": ["MECHANISM", "CONTRAST", "CASE"],
+                "direct_count": 1,
+                "contextual_count": 2,
+            }
+        )
+
+    payload = _build_verifier_claim_payload(
+        claim,
+        {
+            "supporting": supporting,
+            "source_ids": {f"source-{index}" for index in range(24)},
+            "branch_ids": [f"b{index}" for index in range(12)],
+            "question_ids": [f"q{index}" for index in range(12)],
+            "intents": ["debate", "compare"],
+            "direct_evidence_count": 12,
+            "contextual_evidence_count": 12,
+            "provenance_pairs": provenance_pairs,
+        },
+    )
+
+    assert payload.get("supporting_evidence_count") == 24
+    assert payload.get("provenance_pair_count") == 40
+    assert payload.get("omitted_supporting_evidence_count", 0) > 0
+    assert payload.get("omitted_provenance_pair_count", 0) > 0
+    assert _estimate_verifier_payload_chars(payload) <= VERIFY_BATCH_CHAR_BUDGET
+
+
+def test_build_verifier_claim_payload_trims_large_top_level_context_lists() -> None:
+    claim = SimpleNamespace(id=uuid.uuid4(), statement="Claim statement")
+    long_branch_ids = [f"branch-{idx}-" + ("x" * 180) for idx in range(200)]
+    long_question_ids = [f"question-{idx}-" + ("y" * 180) for idx in range(200)]
+    long_intents = [f"intent-{idx}-" + ("z" * 80) for idx in range(20)]
+    payload = _build_verifier_claim_payload(
+        claim,
+        {
+            "supporting": [
+                {
+                    "quote": "Short quote",
+                    "asset_type": "mechanism",
+                    "asset_types": ["MECHANISM"],
+                    "source_reliability": "high",
+                    "authority_type": "primary",
+                    "is_temporary": False,
+                    "canonical_source_id": "source-1",
+                    "direct_or_contextual": ["direct"],
+                }
+            ],
+            "source_ids": {"source-1"},
+            "branch_ids": long_branch_ids,
+            "question_ids": long_question_ids,
+            "intents": long_intents,
+            "direct_evidence_count": 1,
+            "contextual_evidence_count": 0,
+            "provenance_pairs": [],
+        },
+    )
+
+    assert payload.get("omitted_branch_id_count", 0) > 0
+    assert payload.get("omitted_question_id_count", 0) > 0
+    assert payload.get("omitted_intent_count", 0) > 0
+    assert _estimate_verifier_payload_chars(payload) <= VERIFY_BATCH_CHAR_BUDGET

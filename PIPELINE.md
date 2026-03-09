@@ -300,6 +300,8 @@ Web extraction использует каскад extractors:
 #### **A) Fast Web Evidence (внутри цикла, non-blocking)**
 
 - broad query + targeted query union
+- для неанглоязычных вопросов fast-web сначала делает небольшой LLM-based rewrite в English query variants, чтобы open-web retrieval не был привязан к языку подкаста
+- governor fast-web считает `processed gaps`, а не количество созданных evidence items; `top-2 pages` и `max-3 evidence items per gap` остаются локальными ограничителями
 - быстрый reader/snippets → reuse canonical `Source` по URL, если он уже есть; иначе создать новый temp source
 - затем сохранить canonical `EvidenceSpan` + `EvidenceProvenance`
 
@@ -332,6 +334,7 @@ Web extraction использует каскад extractors:
 
 - собирает branch-based batches по `EvidenceProvenance`, а не режет flat array по фиксированному количеству rows
 - если verifier-loop вернул `research_gaps`, Claim Builder делает targeted rebuild только для затронутых branch groups и сохраняет unaffected claims вместо полного глобального rebuild’а
+- batching считает budget по реальному prompt payload; длинные quotes упаковываются адаптивно, а не слепо через fixed `[:700]` prefix
 - в prompt передаёт не только quote, но и:
   - branch context (`branch_question`, `branch_intent`, question contexts)
   - source metadata (`title/url/type/domain_reliability/authority_type/is_temporary`)
@@ -367,6 +370,7 @@ Web extraction использует каскад extractors:
 
 - verifier считает независимость по canonical source identity (`source.id` / `is_duplicate_of`), а не по сырым source rows
 - verifier видит provenance question contexts (`question`, `intent`, `direct_or_contextual`) и различает factual backbone vs contextual framing на prompt-слое
+- verifier больше не режет каждый supporting quote до фиксированных `300` символов; batching ограничивается char-budget’ом на batch
 
 - claims на only-temporary evidence не могут быть `VERIFIED`
 

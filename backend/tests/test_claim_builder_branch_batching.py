@@ -9,6 +9,7 @@ from app.pipeline.phase4_claims.claim_builder import (
     _derive_targeted_rebuild_scope,
     _filter_branch_batches,
     _partition_claim_ids_for_targeted_rebuild,
+    _prepare_claim_builder_quote,
     build_claims,
 )
 from app.pipeline.phase4_claims.claim_notes import (
@@ -114,6 +115,16 @@ def test_build_claim_builder_instructions_adds_debate_specific_guardrails() -> N
     assert "tradeoffs" in instructions
     assert "synthetic argumentative claims" in instructions
     assert "Do not infer dates, motives, purposes, or causal links" in instructions
+
+
+def test_prepare_claim_builder_quote_preserves_head_and_tail_for_long_quotes() -> None:
+    quote = ("HEAD " * 500) + ("MIDDLE " * 500) + ("TAIL " * 500)
+
+    prepared = _prepare_claim_builder_quote(quote)
+
+    assert prepared.startswith("HEAD ")
+    assert "middle omitted for prompt budget" in prepared
+    assert prepared.endswith("TAIL ")
 
 
 @pytest.mark.asyncio

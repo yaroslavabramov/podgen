@@ -27,6 +27,7 @@ from app.realtime.events import phase_started, step_started, step_completed, cla
 logger = logging.getLogger(__name__)
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 CLAIM_BATCH_CHAR_BUDGET = 14000
+CLAIM_BUILDER_MAX_QUOTE_CHARS = 3200
 
 BUILD_CLAIMS_SYSTEM = """You are a claim builder for a fact-checked podcast pipeline.
 Given evidence spans, produce a high-precision set of claims.
@@ -304,7 +305,7 @@ async def _load_branch_batches(
     for evidence, source in evidence_result.all():
         evidence_index[str(evidence.id)] = {
             "id": str(evidence.id),
-            "verbatim_quote": evidence.verbatim_quote[:700],
+            "verbatim_quote": _prepare_claim_builder_quote(evidence.verbatim_quote),
             "canonical_asset_type": evidence.asset_type,
             "narrative_value_score": evidence.narrative_value_score,
             "reliability_hint": evidence.reliability_hint,
@@ -421,6 +422,14 @@ def _build_branch_batches(
         if items:
             branch_batches.append((branch_id, items))
     return branch_batches
+
+
+def _prepare_claim_builder_quote(quote: str) -> str:
+    if len(quote) <= CLAIM_BUILDER_MAX_QUOTE_CHARS:
+        return quote
+    head = quote[:2000].rstrip()
+    tail = quote[-1000:].lstrip()
+    return f"{head}\n...[middle omitted for prompt budget]...\n{tail}"
 
 
 def _split_evidence_batch(evidence_group: list[dict]) -> list[list[dict]]:

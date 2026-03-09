@@ -2,9 +2,9 @@
 
 import json
 import logging
-
 import uuid
 import re
+import unicodedata
 
 from sqlalchemy import func, select
 
@@ -14,7 +14,7 @@ from app.models.source import Source
 from app.pipeline.state import PipelineState
 from app.pipeline.phase3_research.tools import web_search_tool, fetch_page_tool, create_web_evidence
 from app.pipeline.phase3_research.librarian_deep import trigger_deep_ingestion
-from app.services.llm import call_sonnet_structured
+from app.services.llm import call_haiku_structured, call_sonnet_structured
 from app.pipeline.llm_json import parse_llm_json
 from app.config import settings
 from app.realtime.publisher import publish_event
@@ -43,6 +43,23 @@ Use direct_or_contextual="contextual" for background, analogy, or adjacent frami
 
 Max 3 evidence items per question. Only extract genuinely valuable evidence."""
 
+FAST_WEB_QUERY_REWRITE_SYSTEM = """You generate concise English web search queries for finding strong public sources.
+
+Return JSON:
+{
+  "english_query": "best general English query",
+  "english_entity_query": "short high-precision English query or empty string",
+  "english_official_query": "English query biased toward official / institutional / archival / legal sources or empty string"
+}
+
+Rules:
+- All output queries must be in English.
+- Preserve named entities, acronyms, currencies, and dates.
+- Keep queries concise and search-oriented.
+- Prefer wording that surfaces authoritative sources, not generic explainers.
+- If a variant is not useful, return an empty string for that field.
+- Return JSON only."""
+
 _ASSET_KEYWORDS: dict[str, tuple[str, ...]] = {
     "STATISTIC": ("statistics", "data", "figures", "official"),
     "CASE": ("case", "example", "episode", "incident"),
@@ -62,11 +79,13 @@ async def research_fast_web(state: PipelineState) -> dict:
 
     all_evidence_ids = list(state.get("evidence_ids", []))
     iteration_counts = dict(state.get("iteration_counts", {}))
-    fast_web_count = iteration_counts.get("fast_web_per_act", 0)
+    processed_gap_count = int(
+        iteration_counts.get("fast_web_gap_count", iteration_counts.get("fast_web_per_act", 0)) or 0
+    )
 
-    # Governor: max web sources per act
-    if fast_web_count >= settings.max_fast_web_per_act:
-        logger.info("Fast web governor hit: %d sources used", fast_web_count)
+    # Governor: max fast-web gap attempts per act/run loop.
+    if processed_gap_count >= settings.max_fast_web_per_act:
+        logger.info("Fast web governor hit: %d gaps processed", processed_gap_count)
         return {"evidence_ids": all_evidence_ids, "iteration_counts": iteration_counts}
 
     async with async_session_factory() as db:
@@ -97,12 +116,18 @@ async def research_fast_web(state: PipelineState) -> dict:
         new_evidence_count = 0
 
         for gap in gap_branches:
-            if fast_web_count >= settings.max_fast_web_per_act:
+            if processed_gap_count >= settings.max_fast_web_per_act:
                 break
+            processed_gap_count += 1
 
             question = gap["question"]
             target_missing_assets = _normalize_asset_types(gap.get("missing_assets", []))
-            queries = _build_search_queries(question, target_missing_assets)
+            queries = await _build_search_queries(
+                question,
+                question_intent=gap.get("intent", ""),
+                missing_assets=target_missing_assets,
+                podcast_language=state.get("language", ""),
+            )
 
             try:
                 search_results = await _run_search_queries(queries)
@@ -118,6 +143,7 @@ async def research_fast_web(state: PipelineState) -> dict:
                             page_contents.append({
                                 "url": sr["url"],
                                 "title": sr["title"],
+                                "query_text": sr.get("query_text", ""),
                                 "content": page.get("content_markdown", "")[:5000],
                             })
                     except Exception:
@@ -139,7 +165,7 @@ async def research_fast_web(state: PipelineState) -> dict:
                 raw = await call_sonnet_structured(
                     system=EXTRACT_WEB_EVIDENCE_SYSTEM,
                     prompt=prompt,
-                    max_tokens=2048,
+                    max_tokens=3072,
                     temperature=0.3,
                 )
                 evidence_items = parse_llm_json(raw)
@@ -170,14 +196,16 @@ async def research_fast_web(state: PipelineState) -> dict:
                         manifest_id=state.get("manifest_id"),
                         question_id=gap.get("question_id", ""),
                         branch_id=gap.get("branch_id", ""),
-                        query_text=question,
+                        query_text=next(
+                            (page.get("query_text") for page in page_contents if page.get("url") == item["url"]),
+                            question,
+                        ),
                         retrieval_score=item.get("narrative_value_score"),
                         direct_or_contextual=item.get("direct_or_contextual"),
                         title=next((page.get("title") for page in page_contents if page.get("url") == item["url"]), None),
                     )
                     all_evidence_ids.append(eid)
                     new_evidence_count += 1
-                    fast_web_count += 1
 
             except Exception:
                 logger.warning("Fast web search failed for question: %s", question, exc_info=True)
@@ -231,7 +259,8 @@ async def research_fast_web(state: PipelineState) -> dict:
             await db2.commit()
 
     iteration_counts["deep_ingestion_active"] = deep_active
-    iteration_counts["fast_web_per_act"] = fast_web_count
+    iteration_counts["fast_web_gap_count"] = processed_gap_count
+    iteration_counts["fast_web_per_act"] = processed_gap_count
     publish_event(run_id, step_completed("phase3_research", "fast_web"))
     if new_evidence_count > 0:
         publish_event(run_id, evidence_found(new_evidence_count, ["web"]))
@@ -269,11 +298,11 @@ def _select_gap_branches(branches: list[dict], research_gaps: list[dict] | None)
                 "expected_assets": _normalize_asset_types(gap.get("expected_assets", [])),
             })
         normalized.sort(key=lambda g: (g.get("priority", 5), g.get("branch_id", "")))
-        return normalized[:3]
+        return normalized
 
-    gap_branches = [b for b in branches if b.get("priority", 5) <= 2][:3]
+    gap_branches = [b for b in branches if b.get("priority", 5) <= 2]
     if not gap_branches:
-        gap_branches = branches[:2]
+        gap_branches = list(branches)
     return [
         {
             "question_id": b.get("id", ""),
@@ -296,12 +325,36 @@ def _normalize_asset_types(asset_types: list[str] | None) -> list[str]:
     return [str(a).upper() for a in asset_types if isinstance(a, str) and a]
 
 
-def _build_search_queries(question: str, missing_assets: list[str]) -> list[str]:
+async def _build_search_queries(
+    question: str,
+    *,
+    question_intent: str,
+    missing_assets: list[str],
+    podcast_language: str,
+) -> list[str]:
+    native_queries = _build_native_search_queries(question, missing_assets)
+    if not _needs_english_web_rewrite(question, podcast_language):
+        return native_queries
+
+    try:
+        english_queries = await _rewrite_queries_to_english(
+            question=question,
+            question_intent=question_intent,
+            missing_assets=missing_assets,
+        )
+    except Exception:
+        logger.warning("Fast web English query rewrite failed for question: %s", question, exc_info=True)
+        english_queries = []
+
+    return _dedupe_queries([*english_queries, *native_queries])
+
+
+def _build_native_search_queries(question: str, missing_assets: list[str]) -> list[str]:
     queries = [question]
     targeted = _build_targeted_query(question, missing_assets)
     if targeted and targeted != question:
         queries.append(targeted)
-    return queries
+    return _dedupe_queries(queries)
 
 
 def _build_targeted_query(question: str, missing_assets: list[str]) -> str:
@@ -311,7 +364,7 @@ def _build_targeted_query(question: str, missing_assets: list[str]) -> str:
 
     named_tokens = [
         token
-        for token in re.findall(r"[A-Za-z0-9$.-]{2,}", question)
+        for token in re.findall(r"[\w$.-]{2,}", question, flags=re.UNICODE)
         if any(ch.isupper() for ch in token) or any(ch.isdigit() for ch in token)
     ]
     parts = [question, *named_tokens, *keywords]
@@ -329,6 +382,67 @@ def _build_targeted_query(question: str, missing_assets: list[str]) -> str:
     return " ".join(deduped).strip()
 
 
+def _needs_english_web_rewrite(question: str, podcast_language: str) -> bool:
+    if str(podcast_language or "").strip().lower() not in {"", "en"}:
+        return True
+    for char in question:
+        if not char.isalpha():
+            continue
+        try:
+            if "LATIN" not in unicodedata.name(char):
+                return True
+        except ValueError:
+            return True
+    return False
+
+
+async def _rewrite_queries_to_english(
+    *,
+    question: str,
+    question_intent: str,
+    missing_assets: list[str],
+) -> list[str]:
+    prompt = json.dumps(
+        {
+            "question": question,
+            "question_intent": question_intent,
+            "missing_assets": missing_assets,
+        },
+        ensure_ascii=False,
+    )
+    raw = await call_haiku_structured(
+        system=FAST_WEB_QUERY_REWRITE_SYSTEM,
+        prompt=prompt,
+        max_tokens=512,
+        temperature=0.2,
+    )
+    parsed = parse_llm_json(raw)
+    if not isinstance(parsed, dict):
+        return []
+    return _dedupe_queries(
+        [
+            str(parsed.get("english_query", "")).strip(),
+            str(parsed.get("english_entity_query", "")).strip(),
+            str(parsed.get("english_official_query", "")).strip(),
+        ]
+    )
+
+
+def _dedupe_queries(queries: list[str]) -> list[str]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for query in queries:
+        cleaned = str(query).strip()
+        if not cleaned:
+            continue
+        key = re.sub(r"\s+", " ", cleaned).strip().lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(cleaned)
+    return deduped
+
+
 async def _run_search_queries(queries: list[str]) -> list[dict]:
     merged: dict[str, dict] = {}
     for query in queries:
@@ -338,5 +452,8 @@ async def _run_search_queries(queries: list[str]) -> list[dict]:
                 continue
             current = merged.get(url)
             if current is None or float(result.get("score", 0) or 0) > float(current.get("score", 0) or 0):
-                merged[url] = result
+                merged[url] = {
+                    **result,
+                    "query_text": query,
+                }
     return sorted(merged.values(), key=lambda item: float(item.get("score", 0) or 0), reverse=True)

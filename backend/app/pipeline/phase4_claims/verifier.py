@@ -47,6 +47,7 @@ Reasoning rules:
 - Do not speculate about the current date, whether a source date is in the future, hidden metadata anomalies, or anything not explicitly present in the payload.
 - If evidence is partial or truncated, say that directly instead of inferring the missing part.
 - If a source is weak, explain it using only provided fields such as single-source, temporary, authority_type, or source_reliability.
+- The payload may include a representative subset of support/provenance when there are many items; use summary counts and omitted-item counters rather than assuming the list is exhaustive.
 
 Evaluate semantic alignment, not just keyword overlap. Respect source metadata:
 - temporary-only evidence cannot justify VERIFIED
@@ -55,6 +56,15 @@ Evaluate semantic alignment, not just keyword overlap. Respect source metadata:
 - for REPORT/OPINION, check that attribution and quote alignment are meaningful."""
 
 VERIFY_BATCH_SIZE = 8
+VERIFY_BATCH_CHAR_BUDGET = 18000
+VERIFIER_MAX_EVIDENCE_ITEMS = 12
+VERIFIER_MAX_PROVENANCE_PAIRS = 12
+VERIFIER_MAX_BRANCH_IDS = 16
+VERIFIER_MAX_QUESTION_IDS = 24
+VERIFIER_MAX_INTENTS = 8
+VERIFIER_MIN_QUOTE_EXCERPT_CHARS = 240
+VERIFIER_HARD_QUOTE_FLOOR_CHARS = 32
+VERIFIER_QUOTE_OMISSION_MARKER = "\n...[excerpt clipped for verifier budget]...\n"
 _ATTRIBUTION_PLACEHOLDERS = {
     "unknown",
     "unspecified expert",
@@ -171,7 +181,7 @@ async def _load_claim_evidence(
         supporting.append(
             {
                 "evidence_id": str(ev.id),
-                "quote": ev.verbatim_quote[:300],
+                "quote": ev.verbatim_quote,
                 "asset_type": ev.asset_type,
                 "asset_types": [str(ev.asset_type).upper()],
                 "canonical_asset_type": ev.asset_type,
@@ -267,21 +277,9 @@ async def verify_single_claim(
     if prefiltered is not None:
         return prefiltered
 
+    payload = _build_verifier_claim_payload(claim, evidence_data)
     result, _, _ = await _llm_verify_batch(
-        [
-            {
-                "claim_id": str(claim.id),
-                "statement": claim.statement[:500],
-                "evidence": evidence_data["supporting"],
-                "independent_source_count": len(evidence_data["source_ids"]),
-                "branch_ids": evidence_data["branch_ids"],
-                "question_ids": evidence_data["question_ids"],
-                "intents": evidence_data["intents"],
-                "direct_evidence_count": evidence_data["direct_evidence_count"],
-                "contextual_evidence_count": evidence_data["contextual_evidence_count"],
-                "provenance_pairs": evidence_data["provenance_pairs"],
-            }
-        ]
+        [payload]
     )
     if result:
         level = _parse_verification_level(result[0].get("verification_level", "UNVERIFIED"))
@@ -415,6 +413,322 @@ def _build_research_gaps(needs_research_claims: list[tuple[Claim, dict]]) -> lis
     return sorted(gaps.values(), key=lambda gap: (gap["branch_id"], gap["question_id"]))
 
 
+def _build_verifier_claim_payload(claim: Claim, evidence_data: dict) -> dict:
+    payload = {
+        "claim_id": str(claim.id),
+        "statement": claim.statement[:500],
+        "evidence": [_compact_verifier_evidence_item(item) for item in evidence_data["supporting"]],
+        "independent_source_count": len(evidence_data["source_ids"]),
+        "branch_ids": evidence_data["branch_ids"],
+        "question_ids": evidence_data["question_ids"],
+        "intents": evidence_data["intents"],
+        "direct_evidence_count": evidence_data["direct_evidence_count"],
+        "contextual_evidence_count": evidence_data["contextual_evidence_count"],
+        "provenance_pairs": [_compact_verifier_provenance_pair(item) for item in evidence_data["provenance_pairs"]],
+    }
+    return _fit_verifier_payload_to_budget(payload)
+
+
+def _estimate_verifier_payload_chars(payload: dict) -> int:
+    return len(json.dumps(payload, ensure_ascii=False, sort_keys=True)) + 64
+
+
+def _clip_verifier_quote(quote: str, max_chars: int) -> str:
+    if len(quote) <= max_chars:
+        return quote
+    if max_chars <= len(VERIFIER_QUOTE_OMISSION_MARKER) + 80:
+        return quote[:max_chars]
+    available = max_chars - len(VERIFIER_QUOTE_OMISSION_MARKER)
+    head_chars = max(60, int(available * 0.6))
+    tail_chars = max(20, available - head_chars)
+    if head_chars + tail_chars > available:
+        tail_chars = max(20, available - head_chars)
+    if head_chars + tail_chars >= len(quote):
+        return quote
+    head = quote[:head_chars].rstrip()
+    tail = quote[-tail_chars:].lstrip()
+    return f"{head}{VERIFIER_QUOTE_OMISSION_MARKER}{tail}"
+
+
+def _compact_verifier_evidence_item(item: dict) -> dict:
+    direct_or_contextual = item.get("direct_or_contextual", [])
+    if isinstance(direct_or_contextual, list):
+        normalized_directness = sorted({str(value).strip() for value in direct_or_contextual if str(value).strip()})
+    else:
+        normalized_directness = []
+    asset_types = item.get("asset_types", [])
+    return {
+        "quote": str(item.get("quote", "")),
+        "asset_type": str(item.get("asset_type", "")),
+        "asset_types": list(asset_types) if isinstance(asset_types, list) else [],
+        "source_reliability": item.get("source_reliability"),
+        "authority_type": item.get("authority_type"),
+        "is_temporary": bool(item.get("is_temporary", False)),
+        "canonical_source_id": str(item.get("canonical_source_id", "")),
+        "direct_or_contextual": normalized_directness,
+    }
+
+
+def _compact_verifier_provenance_pair(item: dict) -> dict:
+    found_assets = item.get("found_assets", [])
+    return {
+        "branch_id": str(item.get("branch_id", "")),
+        "question_id": str(item.get("question_id", "")),
+        "intent": str(item.get("intent", "")),
+        "found_assets": list(found_assets) if isinstance(found_assets, list) else [],
+        "direct_count": int(item.get("direct_count", 0) or 0),
+        "contextual_count": int(item.get("contextual_count", 0) or 0),
+    }
+
+
+def _verifier_evidence_rank(item: dict) -> tuple[int, int, int, int, str]:
+    directness = item.get("direct_or_contextual", [])
+    source_reliability = str(item.get("source_reliability", "")).lower()
+    authority_type = str(item.get("authority_type", "")).lower()
+    reliability_rank = {"high": 0, "medium": 1, "low": 2, "unknown": 3}.get(source_reliability, 4)
+    authority_rank = {"primary": 0, "secondary": 1, "tertiary": 2, "unknown": 3}.get(authority_type, 4)
+    direct_rank = 0 if "direct" in directness else 1
+    temporary_rank = 1 if item.get("is_temporary") else 0
+    return (
+        direct_rank,
+        temporary_rank,
+        reliability_rank,
+        authority_rank,
+        str(item.get("canonical_source_id", "")),
+    )
+
+
+def _normalize_verifier_list_budget(
+    payload: dict,
+    *,
+    evidence_limit: int,
+    provenance_limit: int,
+) -> dict:
+    fitted_payload = dict(payload)
+    evidence = [dict(item) for item in payload.get("evidence", []) if isinstance(item, dict)]
+    provenance_pairs = [dict(item) for item in payload.get("provenance_pairs", []) if isinstance(item, dict)]
+
+    total_evidence = len(evidence)
+    total_provenance = len(provenance_pairs)
+
+    if total_evidence > evidence_limit:
+        evidence = sorted(evidence, key=_verifier_evidence_rank)[:evidence_limit]
+        fitted_payload["omitted_supporting_evidence_count"] = total_evidence - len(evidence)
+    else:
+        fitted_payload.pop("omitted_supporting_evidence_count", None)
+
+    if total_provenance > provenance_limit:
+        provenance_pairs = provenance_pairs[:provenance_limit]
+        fitted_payload["omitted_provenance_pair_count"] = total_provenance - len(provenance_pairs)
+    else:
+        fitted_payload.pop("omitted_provenance_pair_count", None)
+
+    fitted_payload["supporting_evidence_count"] = total_evidence
+    fitted_payload["provenance_pair_count"] = total_provenance
+    fitted_payload["evidence"] = evidence
+    fitted_payload["provenance_pairs"] = provenance_pairs
+    return fitted_payload
+
+
+def _normalize_verifier_top_level_context(payload: dict) -> dict:
+    fitted_payload = dict(payload)
+
+    branch_ids = [str(item) for item in payload.get("branch_ids", [])]
+    question_ids = [str(item) for item in payload.get("question_ids", [])]
+    intents = [str(item) for item in payload.get("intents", [])]
+
+    if len(branch_ids) > VERIFIER_MAX_BRANCH_IDS:
+        fitted_payload["branch_ids"] = branch_ids[:VERIFIER_MAX_BRANCH_IDS]
+        fitted_payload["omitted_branch_id_count"] = len(branch_ids) - VERIFIER_MAX_BRANCH_IDS
+    else:
+        fitted_payload["branch_ids"] = branch_ids
+        fitted_payload.pop("omitted_branch_id_count", None)
+
+    if len(question_ids) > VERIFIER_MAX_QUESTION_IDS:
+        fitted_payload["question_ids"] = question_ids[:VERIFIER_MAX_QUESTION_IDS]
+        fitted_payload["omitted_question_id_count"] = len(question_ids) - VERIFIER_MAX_QUESTION_IDS
+    else:
+        fitted_payload["question_ids"] = question_ids
+        fitted_payload.pop("omitted_question_id_count", None)
+
+    if len(intents) > VERIFIER_MAX_INTENTS:
+        fitted_payload["intents"] = intents[:VERIFIER_MAX_INTENTS]
+        fitted_payload["omitted_intent_count"] = len(intents) - VERIFIER_MAX_INTENTS
+    else:
+        fitted_payload["intents"] = intents
+        fitted_payload.pop("omitted_intent_count", None)
+
+    return fitted_payload
+
+
+def _apply_quote_budget(
+    payload: dict,
+    *,
+    budget: int,
+    min_excerpt_chars: int,
+    hard_floor_chars: int,
+) -> dict:
+    evidence = payload.get("evidence", [])
+    if not isinstance(evidence, list) or not evidence:
+        return payload
+
+    normalized_evidence = [dict(item) for item in evidence if isinstance(item, dict)]
+    if not normalized_evidence:
+        return payload
+
+    original_quotes = [str(item.get("quote", "")) for item in normalized_evidence]
+    blank_quote_payload = {
+        **payload,
+        "evidence": [{**item, "quote": ""} for item in normalized_evidence],
+    }
+    non_quote_chars = _estimate_verifier_payload_chars(blank_quote_payload)
+    available_for_quotes = budget - non_quote_chars
+    total_quote_chars = sum(len(quote) for quote in original_quotes)
+
+    if total_quote_chars <= 0:
+        return {**payload, "evidence": normalized_evidence}
+
+    min_total = min_excerpt_chars * len(original_quotes)
+    if available_for_quotes >= min_total:
+        remaining_budget = available_for_quotes
+        remaining_quote_chars = total_quote_chars
+        allocated: list[int] = []
+        remaining_slots = len(original_quotes)
+        for quote in original_quotes:
+            remaining_slots -= 1
+            if remaining_quote_chars <= 0:
+                target = min_excerpt_chars
+            else:
+                proportional = int(remaining_budget * len(quote) / remaining_quote_chars)
+                min_reserved_for_rest = min_excerpt_chars * remaining_slots
+                max_for_current = max(min_excerpt_chars, remaining_budget - min_reserved_for_rest)
+                target = max(min_excerpt_chars, min(proportional, max_for_current))
+            target = min(target, len(quote))
+            allocated.append(target)
+            remaining_budget -= target
+            remaining_quote_chars -= len(quote)
+    else:
+        even_target = max(hard_floor_chars, available_for_quotes // len(original_quotes)) if available_for_quotes > 0 else hard_floor_chars
+        allocated = [min(len(quote), even_target) for quote in original_quotes]
+
+    for item, quote, target_chars in zip(normalized_evidence, original_quotes, allocated, strict=False):
+        item["quote"] = _clip_verifier_quote(quote, target_chars)
+
+    fitted_payload = {**payload, "evidence": normalized_evidence}
+
+    while _estimate_verifier_payload_chars(fitted_payload) > budget:
+        longest_index = max(
+            range(len(normalized_evidence)),
+            key=lambda idx: len(str(normalized_evidence[idx].get("quote", ""))),
+            default=-1,
+        )
+        if longest_index < 0:
+            break
+        current_quote = str(normalized_evidence[longest_index].get("quote", ""))
+        if len(current_quote) <= hard_floor_chars:
+            break
+        overshoot = _estimate_verifier_payload_chars(fitted_payload) - budget
+        next_target = max(hard_floor_chars, len(current_quote) - max(overshoot + 32, 120))
+        normalized_evidence[longest_index]["quote"] = _clip_verifier_quote(original_quotes[longest_index], next_target)
+
+    return fitted_payload
+
+
+def _fit_verifier_payload_to_budget(payload: dict, budget: int = VERIFY_BATCH_CHAR_BUDGET) -> dict:
+    if _estimate_verifier_payload_chars(payload) <= budget:
+        return payload
+
+    fitted_payload = _normalize_verifier_top_level_context(payload)
+    if _estimate_verifier_payload_chars(fitted_payload) <= budget:
+        return fitted_payload
+
+    fitted_payload = _normalize_verifier_list_budget(
+        fitted_payload,
+        evidence_limit=VERIFIER_MAX_EVIDENCE_ITEMS,
+        provenance_limit=VERIFIER_MAX_PROVENANCE_PAIRS,
+    )
+    fitted_payload = _apply_quote_budget(
+        fitted_payload,
+        budget=budget,
+        min_excerpt_chars=VERIFIER_MIN_QUOTE_EXCERPT_CHARS,
+        hard_floor_chars=VERIFIER_HARD_QUOTE_FLOOR_CHARS,
+    )
+    if _estimate_verifier_payload_chars(fitted_payload) <= budget:
+        return fitted_payload
+
+    compact_provenance_pairs = [
+        {
+            "branch_id": item.get("branch_id", ""),
+            "question_id": item.get("question_id", ""),
+            "intent": item.get("intent", ""),
+        }
+        for item in fitted_payload.get("provenance_pairs", [])
+        if isinstance(item, dict)
+    ]
+    fitted_payload = {
+        **fitted_payload,
+        "provenance_pairs": compact_provenance_pairs,
+    }
+    fitted_payload = _apply_quote_budget(
+        fitted_payload,
+        budget=budget,
+        min_excerpt_chars=120,
+        hard_floor_chars=VERIFIER_HARD_QUOTE_FLOOR_CHARS,
+    )
+    if _estimate_verifier_payload_chars(fitted_payload) <= budget:
+        return fitted_payload
+
+    while len(fitted_payload.get("evidence", [])) > 1 and _estimate_verifier_payload_chars(fitted_payload) > budget:
+        evidence = list(fitted_payload.get("evidence", []))
+        evidence.pop()
+        fitted_payload["evidence"] = evidence
+        fitted_payload["omitted_supporting_evidence_count"] = max(
+            int(fitted_payload.get("supporting_evidence_count", len(evidence))) - len(evidence),
+            0,
+        )
+        fitted_payload = _apply_quote_budget(
+            fitted_payload,
+            budget=budget,
+            min_excerpt_chars=80,
+            hard_floor_chars=VERIFIER_HARD_QUOTE_FLOOR_CHARS,
+        )
+    if _estimate_verifier_payload_chars(fitted_payload) <= budget:
+        return fitted_payload
+
+    if fitted_payload.get("provenance_pairs"):
+        fitted_payload["omitted_provenance_pair_count"] = int(fitted_payload.get("provenance_pair_count", 0))
+        fitted_payload["provenance_pairs"] = []
+        fitted_payload = _apply_quote_budget(
+            fitted_payload,
+            budget=budget,
+            min_excerpt_chars=80,
+            hard_floor_chars=VERIFIER_HARD_QUOTE_FLOOR_CHARS,
+        )
+
+    return fitted_payload
+
+
+def _split_verifier_batches(claims_for_llm: list[tuple[Claim, dict]]) -> list[list[tuple[Claim, dict, dict]]]:
+    batches: list[list[tuple[Claim, dict, dict]]] = []
+    current_batch: list[tuple[Claim, dict, dict]] = []
+    current_chars = 0
+    for claim, evidence_data in claims_for_llm:
+        payload = _build_verifier_claim_payload(claim, evidence_data)
+        payload_chars = _estimate_verifier_payload_chars(payload)
+        if current_batch and (
+            len(current_batch) >= VERIFY_BATCH_SIZE
+            or current_chars + payload_chars > VERIFY_BATCH_CHAR_BUDGET
+        ):
+            batches.append(current_batch)
+            current_batch = []
+            current_chars = 0
+        current_batch.append((claim, evidence_data, payload))
+        current_chars += payload_chars
+    if current_batch:
+        batches.append(current_batch)
+    return batches
+
+
 async def verify_claims(state: PipelineState) -> dict:
     """LangGraph node: verify claims using hybrid rule-based + LLM approach."""
     run_id = state["generation_run_id"]
@@ -475,23 +789,9 @@ async def verify_claims(state: PipelineState) -> dict:
 
             claims_for_llm.append((claim, evidence_data))
 
-        for batch_start in range(0, len(claims_for_llm), VERIFY_BATCH_SIZE):
-            batch = claims_for_llm[batch_start:batch_start + VERIFY_BATCH_SIZE]
-            batch_payload = [
-                {
-                    "claim_id": str(claim.id),
-                    "statement": claim.statement[:500],
-                    "evidence": ev_data["supporting"],
-                    "independent_source_count": len(ev_data["source_ids"]),
-                    "branch_ids": ev_data["branch_ids"],
-                    "question_ids": ev_data["question_ids"],
-                    "intents": ev_data["intents"],
-                    "direct_evidence_count": ev_data["direct_evidence_count"],
-                    "contextual_evidence_count": ev_data["contextual_evidence_count"],
-                    "provenance_pairs": ev_data["provenance_pairs"],
-                }
-                for claim, ev_data in batch
-            ]
+        verifier_batches = _split_verifier_batches(claims_for_llm)
+        for batch_number, batch in enumerate(verifier_batches, start=1):
+            batch_payload = [payload for _, _, payload in batch]
 
             llm_results, llm_raw, llm_parsed = await _llm_verify_batch(batch_payload)
             result_map = {
@@ -501,7 +801,7 @@ async def verify_claims(state: PipelineState) -> dict:
             }
             batch_final_results: list[dict] = []
 
-            for claim, ev_data in batch:
+            for claim, ev_data, _ in batch:
                 cid = str(claim.id)
                 llm_result = result_map.get(cid)
 
@@ -537,7 +837,7 @@ async def verify_claims(state: PipelineState) -> dict:
 
             llm_batch_debug_results.append(
                 {
-                    "batch_number": (batch_start // VERIFY_BATCH_SIZE) + 1,
+                    "batch_number": batch_number,
                     "status": "ok" if llm_results else "llm_fallback",
                     "input": {"claims": batch_payload},
                     "llm_output": {
