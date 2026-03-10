@@ -5,7 +5,7 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.ingestion.canonicalizer import canonicalize_sources
+from app.ingestion.canonicalizer import canonicalize_source
 from app.ingestion.chunker import structural_chunk
 from app.ingestion.normalize import normalize_text
 from app.ingestion.pdf import extract_pdf
@@ -233,9 +233,9 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
                 if not chunks:
                     logger.warning("Source %s: no chunks produced, skipping embedding", source_id)
                     try:
-                        with trace_span("ingestion.canonicalize_sources", run_type="chain"):
-                            await canonicalize_sources(str(source.project_id), db)
-                        logger.info("Source %s: canonicalization complete", source_id)
+                        with trace_span("ingestion.canonicalize_source", run_type="chain"):
+                            await canonicalize_source(source.id, db)
+                        logger.info("Source %s: source-scoped canonicalization complete", source_id)
                     except Exception:
                         logger.warning("Source %s: canonicalization failed, continuing", source_id, exc_info=True)
 
@@ -273,9 +273,9 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
 
                 # --- 6. Canonicalize source metadata ----------------------------------------
                 try:
-                    with trace_span("ingestion.canonicalize_sources", run_type="chain"):
-                        await canonicalize_sources(str(source.project_id), db)
-                    logger.info("Source %s: canonicalization complete", source_id)
+                    with trace_span("ingestion.canonicalize_source", run_type="chain"):
+                        await canonicalize_source(source.id, db)
+                    logger.info("Source %s: source-scoped canonicalization complete", source_id)
                 except Exception:
                     logger.warning("Source %s: canonicalization failed, continuing", source_id, exc_info=True)
 

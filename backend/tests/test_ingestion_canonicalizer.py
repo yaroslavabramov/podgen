@@ -4,6 +4,7 @@ from datetime import datetime
 import pytest
 
 from app.ingestion.canonicalizer import (
+    canonicalize_source,
     _date_extraction_gate,
     _extract_date,
     _propagate_canonical_metadata_to_duplicates,
@@ -110,3 +111,154 @@ def test_propagate_canonical_metadata_to_duplicates() -> None:
 
     assert duplicate.domain_reliability == DomainReliability.MEDIUM
     assert duplicate.authority_type == AuthorityType.SECONDARY
+
+
+class _FakeScalarResult:
+    def __init__(self, scalar=None, rows=None) -> None:
+        self._scalar = scalar
+        self._rows = rows or []
+
+    def scalar_one_or_none(self):
+        return self._scalar
+
+    def scalars(self):
+        return self
+
+    def all(self):
+        return list(self._rows)
+
+
+class _FakeCanonicalizeDB:
+    def __init__(self, results) -> None:
+        self._results = list(results)
+        self.flush_calls = 0
+
+    async def execute(self, statement):
+        return self._results.pop(0)
+
+    async def flush(self) -> None:
+        self.flush_calls += 1
+
+
+@pytest.mark.asyncio
+async def test_canonicalize_source_only_updates_matching_duplicate_group(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_id = uuid.uuid4()
+    canonical = Source(
+        id=uuid.uuid4(),
+        project_id=project_id,
+        source_type=SourceType.WEB,
+        original_url="https://example.com/article",
+        title="Canonical",
+        text_preview="",
+        created_at=datetime(2024, 1, 1),
+        domain_reliability=DomainReliability.UNKNOWN,
+        authority_type=AuthorityType.UNKNOWN,
+    )
+    duplicate = Source(
+        id=uuid.uuid4(),
+        project_id=project_id,
+        source_type=SourceType.WEB,
+        original_url="https://www.example.com/article",
+        title="Duplicate",
+        text_preview="",
+        created_at=datetime(2024, 1, 2),
+        domain_reliability=DomainReliability.UNKNOWN,
+        authority_type=AuthorityType.UNKNOWN,
+    )
+    unrelated = Source(
+        id=uuid.uuid4(),
+        project_id=project_id,
+        source_type=SourceType.WEB,
+        original_url="https://other.example.com/post",
+        title="Other",
+        text_preview="",
+        created_at=datetime(2024, 1, 3),
+        domain_reliability=DomainReliability.UNKNOWN,
+        authority_type=AuthorityType.UNKNOWN,
+    )
+    db = _FakeCanonicalizeDB(
+        [
+            _FakeScalarResult(scalar=duplicate),
+            _FakeScalarResult(rows=[canonical, duplicate, unrelated]),
+        ]
+    )
+
+    async def _fake_classify(source):
+        assert source.id == canonical.id
+        return AuthorityType.SECONDARY
+
+    monkeypatch.setattr(
+        "app.ingestion.canonicalizer.classify_source_authority",
+        _fake_classify,
+    )
+
+    await canonicalize_source(duplicate.id, db)
+
+    assert db.flush_calls == 1
+    assert canonical.is_duplicate_of is None
+    assert duplicate.is_duplicate_of == canonical.id
+    assert canonical.domain_reliability == DomainReliability.UNKNOWN
+    assert canonical.authority_type == AuthorityType.SECONDARY
+    assert duplicate.authority_type == AuthorityType.SECONDARY
+    assert unrelated.is_duplicate_of is None
+    assert unrelated.authority_type == AuthorityType.UNKNOWN
+
+
+@pytest.mark.asyncio
+async def test_canonicalize_source_propagates_extracted_date_to_duplicates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_id = uuid.uuid4()
+    long_preview = "Long enough preview for extraction. " * 6
+    canonical = Source(
+        id=uuid.uuid4(),
+        project_id=project_id,
+        source_type=SourceType.WEB,
+        original_url="https://example.com/article",
+        title="Canonical",
+        text_preview=long_preview,
+        created_at=datetime(2024, 1, 1),
+        domain_reliability=DomainReliability.UNKNOWN,
+        authority_type=AuthorityType.UNKNOWN,
+        published_at=None,
+    )
+    duplicate = Source(
+        id=uuid.uuid4(),
+        project_id=project_id,
+        source_type=SourceType.WEB,
+        original_url="https://www.example.com/article",
+        title="Duplicate",
+        text_preview=long_preview,
+        created_at=datetime(2024, 1, 2),
+        domain_reliability=DomainReliability.UNKNOWN,
+        authority_type=AuthorityType.UNKNOWN,
+        published_at=None,
+    )
+    db = _FakeCanonicalizeDB(
+        [
+            _FakeScalarResult(scalar=duplicate),
+            _FakeScalarResult(rows=[canonical, duplicate]),
+        ]
+    )
+
+    async def _fake_classify(source):
+        return AuthorityType.SECONDARY
+
+    async def _fake_extract_date(source):
+        return datetime(2024, 5, 1), "success", "extracted"
+
+    monkeypatch.setattr(
+        "app.ingestion.canonicalizer.classify_source_authority",
+        _fake_classify,
+    )
+    monkeypatch.setattr(
+        "app.ingestion.canonicalizer._extract_date",
+        _fake_extract_date,
+    )
+
+    await canonicalize_source(duplicate.id, db)
+
+    assert canonical.published_at == datetime(2024, 5, 1)
+    assert duplicate.published_at == datetime(2024, 5, 1)

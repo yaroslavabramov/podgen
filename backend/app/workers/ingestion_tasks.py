@@ -619,9 +619,14 @@ async def _deep_ingest_async(source_id: str, generation_run_id: str):
                                 "content_map_task_id": content_map_task_id or "",
                             },
                         )
-                    except Exception:
-                        source.ingestion_status = IngestionStatus.FAILED
-                        await db.commit()
+                    except Exception as exc:
+                        await db.rollback()
+                        refresh_result = await db.execute(select(Source).where(Source.id == uuid.UUID(source_id)))
+                        source = refresh_result.scalar_one_or_none()
+                        if source is not None:
+                            source.ingestion_status = IngestionStatus.FAILED
+                            source.metadata_ = {**(source.metadata_ or {}), "error": str(exc)}
+                            await db.commit()
                         raise
 
 

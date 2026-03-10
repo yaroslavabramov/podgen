@@ -5,7 +5,7 @@ import pytest
 
 from app.models.claim import VerificationLevel
 from app.models.source import SourceType
-from app.workers.ingestion_tasks import _reset_source_for_reingestion, _upgrade_claims_for_source
+from app.workers.ingestion_tasks import _deep_ingest_async, _reset_source_for_reingestion, _upgrade_claims_for_source
 
 
 class _FakeAsyncDB:
@@ -53,6 +53,38 @@ class _FakeUpgradeDB:
 
     async def commit(self) -> None:
         self.commits += 1
+
+
+class _FakeDeepIngestResult:
+    def __init__(self, scalar) -> None:
+        self._scalar = scalar
+
+    def scalar_one_or_none(self):
+        return self._scalar
+
+
+class _FakeDeepIngestDB:
+    def __init__(self, source) -> None:
+        self.source = source
+        self.commit_calls = 0
+        self.rollback_calls = 0
+        self.execute_calls = 0
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def execute(self, statement):
+        self.execute_calls += 1
+        return _FakeDeepIngestResult(self.source)
+
+    async def commit(self) -> None:
+        self.commit_calls += 1
+
+    async def rollback(self) -> None:
+        self.rollback_calls += 1
 
 
 @pytest.mark.asyncio
@@ -157,3 +189,42 @@ async def test_upgrade_claims_for_source_reuses_generation_run_verifier_context(
     assert captured["verify_question_context_map"] == {
         "q1": {"question": "How does it work?", "intent": "explain"}
     }
+
+
+@pytest.mark.asyncio
+async def test_deep_ingest_async_rolls_back_then_marks_source_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = SimpleNamespace(
+        id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        source_type=SourceType.WEB,
+        ingestion_status="pending",
+        metadata_={},
+        is_temporary=True,
+        fully_ingested=False,
+        title="Temp source",
+    )
+    db = _FakeDeepIngestDB(source)
+
+    monkeypatch.setattr(
+        "app.workers.worker_db.worker_session_factory",
+        lambda: db,
+    )
+    monkeypatch.setattr(
+        "app.realtime.publisher.publish_event",
+        lambda *args, **kwargs: None,
+    )
+
+    async def _fake_run_ingestion(source_arg, db_arg):
+        raise RuntimeError("deadlock while canonicalizing")
+
+    monkeypatch.setattr("app.ingestion.router.run_ingestion", _fake_run_ingestion)
+
+    with pytest.raises(RuntimeError, match="deadlock while canonicalizing"):
+        await _deep_ingest_async(str(source.id), str(uuid.uuid4()))
+
+    assert db.rollback_calls == 1
+    assert db.commit_calls == 2
+    assert source.ingestion_status == "failed"
+    assert source.metadata_["error"] == "deadlock while canonicalizing"
