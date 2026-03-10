@@ -1,5 +1,6 @@
 """Phase 4.2: Verifier — hybrid rule-based + LLM claim verification."""
 
+import hashlib
 import json
 import logging
 import uuid
@@ -379,7 +380,148 @@ def _is_meaningful_attribution(attribution: dict | None) -> bool:
     return len(normalized) >= 3
 
 
-def _build_research_gaps(needs_research_claims: list[tuple[Claim, dict]]) -> list[dict]:
+def _normalize_required_assets(required_assets: list[dict] | None) -> list[dict]:
+    normalized: list[dict] = []
+    for item in required_assets or []:
+        if not isinstance(item, dict):
+            continue
+        asset_type = str(item.get("type", "")).strip().upper()
+        if not asset_type:
+            continue
+        try:
+            min_count = int(item.get("min_count", 1) or 1)
+        except Exception:
+            min_count = 1
+        normalized.append({"type": asset_type, "min_count": max(min_count, 1)})
+    return normalized
+
+
+def _support_strength(evidence_data: dict) -> str:
+    direct_count = int(evidence_data.get("direct_evidence_count", 0) or 0)
+    contextual_count = int(evidence_data.get("contextual_evidence_count", 0) or 0)
+    source_count = len(evidence_data.get("source_ids", set()) or set())
+    supporting = evidence_data.get("supporting", []) or []
+    authority_types = {str(item.get("authority_type", "")).lower() for item in supporting}
+
+    if direct_count == 0 and contextual_count > 0:
+        return "contextual_only"
+    if source_count <= 1 and authority_types and authority_types <= {"tertiary", "unknown"}:
+        return "weak_authority"
+    if source_count <= 1:
+        return "single_source"
+    return "needs_independent_confirmation"
+
+
+def _existing_support_summary(evidence_data: dict) -> str:
+    support_strength = _support_strength(evidence_data)
+    source_count = len(evidence_data.get("source_ids", set()) or set())
+    supporting = evidence_data.get("supporting", []) or []
+    authority_types = sorted(
+        {
+            str(item.get("authority_type", "")).lower()
+            for item in supporting
+            if str(item.get("authority_type", "")).strip()
+        }
+    )
+    direct_count = int(evidence_data.get("direct_evidence_count", 0) or 0)
+    contextual_count = int(evidence_data.get("contextual_evidence_count", 0) or 0)
+    authority_label = ", ".join(authority_types) if authority_types else "unknown-authority"
+    return (
+        f"{support_strength}; {source_count} source(s); "
+        f"{direct_count} direct / {contextual_count} contextual; "
+        f"authority={authority_label}"
+    )
+
+
+def _search_objective_for_gap(claim: Claim, evidence_data: dict) -> str:
+    strength = _support_strength(evidence_data)
+    if strength == "contextual_only":
+        return f"Find a direct source that explicitly confirms: {claim.statement}"
+    if strength == "weak_authority":
+        return f"Find a more authoritative direct source that confirms: {claim.statement}"
+    if strength == "single_source":
+        return f"Find an independent second source that confirms: {claim.statement}"
+    return f"Find independent corroboration for: {claim.statement}"
+
+
+def _build_gap_claim_context(claim: Claim, evidence_data: dict) -> dict:
+    return {
+        "claim_id": str(claim.id),
+        "claim_statement": claim.statement,
+        "support_strength": _support_strength(evidence_data),
+        "search_objective": _search_objective_for_gap(claim, evidence_data),
+        "existing_support_summary": _existing_support_summary(evidence_data),
+    }
+
+
+def _merge_gap_claim_contexts(existing_contexts: list[dict], new_context: dict) -> list[dict]:
+    merged_by_claim_id: dict[str, dict] = {
+        str(context.get("claim_id", "")).strip(): context
+        for context in existing_contexts
+        if isinstance(context, dict) and str(context.get("claim_id", "")).strip()
+    }
+    claim_id = str(new_context.get("claim_id", "")).strip()
+    if claim_id:
+        merged_by_claim_id[claim_id] = new_context
+    return [
+        merged_by_claim_id[key]
+        for key in sorted(merged_by_claim_id)
+    ]
+
+
+def _summarize_gap_claim_contexts(claim_contexts: list[dict]) -> tuple[str, str, str, str, list[str]]:
+    statements = []
+    objectives = []
+    strengths = []
+    support_summaries = []
+    claim_ids = []
+    for context in claim_contexts:
+        if not isinstance(context, dict):
+            continue
+        claim_id = str(context.get("claim_id", "")).strip()
+        if claim_id:
+            claim_ids.append(claim_id)
+        statement = str(context.get("claim_statement", "")).strip()
+        if statement:
+            statements.append(statement)
+        objective = str(context.get("search_objective", "")).strip()
+        if objective:
+            objectives.append(objective)
+        strength = str(context.get("support_strength", "")).strip()
+        if strength:
+            strengths.append(strength)
+        summary = str(context.get("existing_support_summary", "")).strip()
+        if summary:
+            support_summaries.append(summary)
+
+    def _dedupe_keep_order(values: list[str]) -> list[str]:
+        seen: set[str] = set()
+        ordered: list[str] = []
+        for value in values:
+            if value in seen:
+                continue
+            seen.add(value)
+            ordered.append(value)
+        return ordered
+
+    ordered_statements = _dedupe_keep_order(statements)
+    ordered_objectives = _dedupe_keep_order(objectives)
+    ordered_strengths = _dedupe_keep_order(strengths)
+    ordered_support_summaries = _dedupe_keep_order(support_summaries)
+
+    summary_statement = " | ".join(ordered_statements[:3])
+    summary_objective = " | ".join(ordered_objectives[:3])
+    summary_strength = ", ".join(ordered_strengths)
+    summary_support = " || ".join(ordered_support_summaries[:3])
+    return summary_statement, summary_objective, summary_strength, summary_support, _dedupe_keep_order(claim_ids)
+
+
+def _build_research_gaps(
+    needs_research_claims: list[tuple[Claim, dict]],
+    *,
+    question_context_map: dict[str, dict] | None = None,
+) -> list[dict]:
+    question_context_map = question_context_map or {}
     gaps: dict[tuple[str, str], dict] = {}
     for claim, evidence_data in needs_research_claims:
         pair_contexts = evidence_data.get("provenance_pairs") or [
@@ -393,24 +535,137 @@ def _build_research_gaps(needs_research_claims: list[tuple[Claim, dict]]) -> lis
             branch_id = pair["branch_id"]
             question_id = pair["question_id"]
             key = (branch_id, question_id)
+            question_context = question_context_map.get(question_id, {})
+            required_assets = _normalize_required_assets(question_context.get("required_evidence", []))
+            expected_assets = sorted(
+                str(asset).upper()
+                for asset in (question_context.get("expected_evidence", []) or [])
+                if isinstance(asset, str) and asset
+            )
+            found_assets = list(pair.get("found_assets", evidence_data.get("found_assets", [])))
+            missing_assets = sorted(
+                asset["type"]
+                for asset in required_assets
+                if asset["type"] not in found_assets
+            )
+            claim_context = _build_gap_claim_context(claim, evidence_data)
             if key not in gaps:
                 gaps[key] = {
                     "question_id": question_id,
                     "branch_id": branch_id,
-                    "question": pair.get("question") or claim.statement,
-                    "intent": pair.get("intent", ""),
+                    "question": pair.get("question") or question_context.get("question") or claim.statement,
+                    "intent": pair.get("intent", "") or question_context.get("intent", ""),
                     "priority": 1,
-                    "missing_assets": [],
-                    "required_assets": [],
-                    "expected_assets": [],
-                    "found_assets": list(pair.get("found_assets", evidence_data.get("found_assets", []))),
-                    "claim_id": str(claim.id),
+                    "missing_assets": missing_assets,
+                    "required_assets": required_assets,
+                    "expected_assets": expected_assets,
+                    "found_assets": found_assets,
+                    "gap_origin": "verifier",
+                    "claim_contexts": [claim_context],
                 }
+                (
+                    gaps[key]["claim_statement"],
+                    gaps[key]["search_objective"],
+                    gaps[key]["support_strength"],
+                    gaps[key]["existing_support_summary"],
+                    claim_ids,
+                ) = _summarize_gap_claim_contexts(gaps[key]["claim_contexts"])
+                gaps[key]["claim_ids"] = claim_ids
+                gaps[key]["claim_id"] = claim_ids[0] if claim_ids else ""
                 continue
             merged_assets = set(gaps[key].get("found_assets", []))
-            merged_assets.update(pair.get("found_assets", evidence_data.get("found_assets", [])))
+            merged_assets.update(found_assets)
             gaps[key]["found_assets"] = sorted(merged_assets)
+            gaps[key]["missing_assets"] = sorted(
+                asset["type"]
+                for asset in gaps[key].get("required_assets", [])
+                if asset["type"] not in gaps[key]["found_assets"]
+            )
+            gaps[key]["claim_contexts"] = _merge_gap_claim_contexts(
+                gaps[key].get("claim_contexts", []),
+                claim_context,
+            )
+            (
+                gaps[key]["claim_statement"],
+                gaps[key]["search_objective"],
+                gaps[key]["support_strength"],
+                gaps[key]["existing_support_summary"],
+                claim_ids,
+            ) = _summarize_gap_claim_contexts(gaps[key]["claim_contexts"])
+            gaps[key]["claim_ids"] = claim_ids
+            gaps[key]["claim_id"] = claim_ids[0] if claim_ids else ""
     return sorted(gaps.values(), key=lambda gap: (gap["branch_id"], gap["question_id"]))
+
+
+def _compute_verification_fingerprint(claim: Claim, evidence_data: dict) -> str:
+    supporting = []
+    for item in evidence_data.get("supporting", []):
+        direct_or_contextual = item.get("direct_or_contextual", [])
+        supporting.append(
+            {
+                "evidence_id": str(item.get("evidence_id", "")),
+                "quote": str(item.get("quote", "")),
+                "asset_types": sorted(str(asset).upper() for asset in (item.get("asset_types", []) or [])),
+                "canonical_source_id": str(item.get("canonical_source_id", "")),
+                "source_reliability": str(item.get("source_reliability", "")),
+                "authority_type": str(item.get("authority_type", "")),
+                "is_temporary": bool(item.get("is_temporary", False)),
+                "direct_or_contextual": sorted(str(value) for value in direct_or_contextual if str(value).strip()),
+            }
+        )
+    supporting.sort(key=lambda item: (item["evidence_id"], item["canonical_source_id"]))
+
+    provenance_pairs = [
+        {
+            "branch_id": str(item.get("branch_id", "")),
+            "question_id": str(item.get("question_id", "")),
+            "intent": str(item.get("intent", "")),
+            "found_assets": sorted(str(asset).upper() for asset in (item.get("found_assets", []) or [])),
+            "direct_count": int(item.get("direct_count", 0) or 0),
+            "contextual_count": int(item.get("contextual_count", 0) or 0),
+        }
+        for item in evidence_data.get("provenance_pairs", [])
+    ]
+    provenance_pairs.sort(key=lambda item: (item["branch_id"], item["question_id"]))
+
+    fingerprint_payload = {
+        "statement": claim.statement,
+        "claim_type": claim.claim_type,
+        "has_counter": bool(evidence_data.get("has_counter", False)),
+        "supporting": supporting,
+        "branch_ids": sorted(str(item) for item in (evidence_data.get("branch_ids", []) or [])),
+        "question_ids": sorted(str(item) for item in (evidence_data.get("question_ids", []) or [])),
+        "intents": sorted(str(item) for item in (evidence_data.get("intents", []) or [])),
+        "provenance_pairs": provenance_pairs,
+    }
+    encoded = json.dumps(fingerprint_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha1(encoded.encode("utf-8")).hexdigest()
+
+
+def _derive_verify_scope(state: PipelineState, claim_ids: list[str]) -> list[str]:
+    ordered_claim_ids = list(dict.fromkeys(claim_ids))
+    iteration_counts = state.get("iteration_counts", {}) or {}
+    if iteration_counts.get("verify_research_loops", 0) < 1:
+        return ordered_claim_ids
+
+    scope_ids = {
+        str(claim_id).strip()
+        for claim_id in (state.get("rebuilt_claim_ids", []) or [])
+        if str(claim_id).strip()
+    }
+    scope_ids.update(
+        str(claim_id).strip()
+        for claim_id in (state.get("dedupe_merged_into_claim_ids", []) or [])
+        if str(claim_id).strip()
+    )
+    scope_ids.update(
+        str(gap.get("claim_id", "")).strip()
+        for gap in (state.get("research_gaps", []) or [])
+        if isinstance(gap, dict) and str(gap.get("claim_id", "")).strip()
+    )
+    if not scope_ids:
+        return ordered_claim_ids
+    return [claim_id for claim_id in ordered_claim_ids if claim_id in scope_ids]
 
 
 def _build_verifier_claim_payload(claim: Claim, evidence_data: dict) -> dict:
@@ -737,11 +992,27 @@ async def verify_claims(state: PipelineState) -> dict:
 
     claim_ids = state.get("claim_ids", [])
     if not claim_ids:
-        return {"claim_ids": claim_ids}
+        return {
+            "claim_ids": claim_ids,
+            "rebuilt_claim_ids": [],
+            "preserved_claim_ids": [],
+            "targeted_branch_ids": [],
+            "dedupe_deleted_claim_ids": [],
+            "dedupe_merged_into_claim_ids": [],
+            "dedupe_untouched_claim_ids": [],
+        }
 
     needs_research_claims: list[tuple[Claim, dict]] = []
     prefiltered_debug_results: list[dict] = []
     llm_batch_debug_results: list[dict] = []
+    previous_gap_claim_ids = {
+        str(gap.get("claim_id", "")).strip()
+        for gap in (state.get("research_gaps", []) or [])
+        if isinstance(gap, dict) and str(gap.get("claim_id", "")).strip()
+    }
+    verify_scope_claim_ids = set(_derive_verify_scope(state, claim_ids))
+    processed_claim_ids: list[str] = []
+    skipped_unchanged_claim_ids: list[str] = []
 
     async with async_session_factory() as db:
         question_context_map: dict[str, dict] = {}
@@ -756,6 +1027,8 @@ async def verify_claims(state: PipelineState) -> dict:
         claims_for_llm: list[tuple[Claim, dict]] = []
 
         for cid in claim_ids:
+            if verify_scope_claim_ids and cid not in verify_scope_claim_ids:
+                continue
             result = await db.execute(select(Claim).where(Claim.id == uuid.UUID(cid)))
             claim = result.scalar_one_or_none()
             if not claim:
@@ -767,9 +1040,19 @@ async def verify_claims(state: PipelineState) -> dict:
                 generation_run_id=run_id,
                 question_context_map=question_context_map,
             )
+            fingerprint = _compute_verification_fingerprint(claim, evidence_data)
+            processed_claim_ids.append(cid)
+
+            if claim.verification_fingerprint and claim.verification_fingerprint == fingerprint:
+                skipped_unchanged_claim_ids.append(cid)
+                if cid in previous_gap_claim_ids and claim.claim_type == "fact":
+                    needs_research_claims.append((claim, evidence_data))
+                continue
+
             prefiltered = _prefilter_claim(claim, evidence_data)
             if prefiltered is not None:
                 claim.verification_level = prefiltered
+                claim.verification_fingerprint = fingerprint
                 if claim.claim_type == "fact" and prefiltered == VerificationLevel.UNVERIFIED:
                     needs_research_claims.append((claim, evidence_data))
                 prefiltered_debug_results.append(
@@ -787,6 +1070,7 @@ async def verify_claims(state: PipelineState) -> dict:
                 publish_event(run_id, claim_verified(cid, prefiltered))
                 continue
 
+            claim.verification_fingerprint = fingerprint
             claims_for_llm.append((claim, evidence_data))
 
         verifier_batches = _split_verifier_batches(claims_for_llm)
@@ -853,7 +1137,7 @@ async def verify_claims(state: PipelineState) -> dict:
         await db.commit()
 
     publish_event(run_id, step_completed("phase4_claims", "verify"))
-    publish_event(run_id, progress(45.0, f"Verified {len(claim_ids)} claims"))
+    publish_event(run_id, progress(45.0, f"Verified {len(processed_claim_ids) or len(claim_ids)} claims"))
 
     iteration_counts = dict(state.get("iteration_counts", {}))
     verify_loops = iteration_counts.get("verify_research_loops", 0)
@@ -861,7 +1145,10 @@ async def verify_claims(state: PipelineState) -> dict:
     if needs_research:
         iteration_counts["verify_research_loops"] = verify_loops + 1
     iteration_counts["verify_needs_research"] = needs_research
-    research_gaps = _build_research_gaps(needs_research_claims) if needs_research else []
+    research_gaps = _build_research_gaps(
+        needs_research_claims,
+        question_context_map=question_context_map if 'question_context_map' in locals() else {},
+    ) if needs_research else []
 
     if prefiltered_debug_results:
         _dump_verifier_debug(
@@ -885,6 +1172,9 @@ async def verify_claims(state: PipelineState) -> dict:
         payload={
             "run_id": run_id,
             "claim_count": len(claim_ids),
+            "verify_scope_claim_count": len(verify_scope_claim_ids) if verify_scope_claim_ids else len(claim_ids),
+            "processed_claim_count": len(processed_claim_ids),
+            "skipped_unchanged_claim_count": len(skipped_unchanged_claim_ids),
             "prefiltered_claim_count": len(prefiltered_debug_results),
             "llm_batch_count": len(llm_batch_debug_results),
             "needs_research": needs_research,
@@ -899,6 +1189,12 @@ async def verify_claims(state: PipelineState) -> dict:
         "current_phase": "phase4_claims",
         "iteration_counts": iteration_counts,
         "research_gaps": research_gaps,
+        "rebuilt_claim_ids": [],
+        "preserved_claim_ids": [],
+        "targeted_branch_ids": [],
+        "dedupe_deleted_claim_ids": [],
+        "dedupe_merged_into_claim_ids": [],
+        "dedupe_untouched_claim_ids": [],
     }
 
 

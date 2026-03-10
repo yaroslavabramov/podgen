@@ -31,7 +31,13 @@ async def dedupe_claims(state: PipelineState) -> dict:
     run_id = state["generation_run_id"]
     claim_ids = list(dict.fromkeys(state.get("claim_ids", [])))
     if not claim_ids:
-        return {"claim_ids": claim_ids, "current_phase": "phase4_claims"}
+        return {
+            "claim_ids": claim_ids,
+            "dedupe_deleted_claim_ids": [],
+            "dedupe_merged_into_claim_ids": [],
+            "dedupe_untouched_claim_ids": [],
+            "current_phase": "phase4_claims",
+        }
 
     publish_event(run_id, step_started("phase4_claims", "dedupe_claims", "Collapsing duplicate claims"))
     update_generation_progress(run_id, "phase4_claims", "claim_dedupe", 41.0)
@@ -39,7 +45,9 @@ async def dedupe_claims(state: PipelineState) -> dict:
     async with async_session_factory() as db:
         claims, contexts = await _load_claim_context(db, claim_ids, run_id)
         duplicate_map: dict[str, str] = {}
+        merged_into_claim_ids: set[str] = set()
         ordered_ids = [str(claim.id) for claim in claims]
+        rebuilt_claim_ids = set(str(cid) for cid in state.get("rebuilt_claim_ids", []) or [])
 
         for idx, claim in enumerate(claims):
             claim_id = str(claim.id)
@@ -52,6 +60,7 @@ async def dedupe_claims(state: PipelineState) -> dict:
                 if _claims_match(contexts[claim_id], contexts[candidate_id]):
                     await _merge_claims(db, keep_claim_id=claim.id, drop_claim_id=candidate.id)
                     duplicate_map[candidate_id] = claim_id
+                    merged_into_claim_ids.add(claim_id)
 
         if duplicate_map:
             for dropped_id in duplicate_map:
@@ -61,13 +70,23 @@ async def dedupe_claims(state: PipelineState) -> dict:
             await db.commit()
 
         kept_claim_ids = [cid for cid in ordered_ids if cid not in duplicate_map]
+        untouched_claim_ids = [
+            cid for cid in kept_claim_ids
+            if cid not in rebuilt_claim_ids and cid not in merged_into_claim_ids
+        ]
 
     publish_event(run_id, step_completed("phase4_claims", "dedupe_claims"))
     publish_event(
         run_id,
         progress(42.0, f"Collapsed {len(claim_ids) - len(kept_claim_ids)} duplicate claims"),
     )
-    return {"claim_ids": kept_claim_ids, "current_phase": "phase4_claims"}
+    return {
+        "claim_ids": kept_claim_ids,
+        "dedupe_deleted_claim_ids": sorted(duplicate_map.keys()),
+        "dedupe_merged_into_claim_ids": [cid for cid in kept_claim_ids if cid in merged_into_claim_ids],
+        "dedupe_untouched_claim_ids": untouched_claim_ids,
+        "current_phase": "phase4_claims",
+    }
 
 
 async def _load_claim_context(db, claim_ids: list[str], generation_run_id: str) -> tuple[list[Claim], dict[str, dict]]:

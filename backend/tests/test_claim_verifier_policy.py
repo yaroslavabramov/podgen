@@ -1,18 +1,23 @@
 from types import SimpleNamespace
 import uuid
 
+import pytest
+
 from app.models.claim import VerificationLevel
 from app.pipeline.phase4_claims.verifier import (
     VERIFY_BATCH_CHAR_BUDGET,
     _apply_verification_ceiling,
     _build_verifier_claim_payload,
     _build_research_gaps,
+    _compute_verification_fingerprint,
+    _derive_verify_scope,
     _estimate_verifier_payload_chars,
     _index_provenance_asset_types,
     _index_provenance_contexts,
     _is_meaningful_attribution,
     _rule_based_fallback,
     _split_verifier_batches,
+    verify_claims,
 )
 
 
@@ -93,14 +98,260 @@ def test_build_research_gaps_preserves_actual_provenance_pairs() -> None:
                     "found_assets": ["MECHANISM", "TIMELINE"],
                 },
             )
-        ]
+        ],
+        question_context_map={
+            "q1": {
+                "question": "How does it work?",
+                "intent": "explain",
+                "required_evidence": [{"type": "MECHANISM", "min_count": 1}],
+                "expected_evidence": ["TIMELINE"],
+            },
+            "q2": {
+                "question": "Why does it matter?",
+                "intent": "debate",
+                "required_evidence": [{"type": "CONTRAST", "min_count": 1}],
+                "expected_evidence": ["CASE"],
+            },
+        },
     )
 
     assert [(gap["branch_id"], gap["question_id"]) for gap in gaps] == [("b1", "q1"), ("b2", "q2")]
     assert gaps[0]["question"] == "How does it work?"
     assert gaps[0]["intent"] == "explain"
     assert gaps[0]["found_assets"] == ["MECHANISM"]
+    assert gaps[0]["required_assets"] == [{"type": "MECHANISM", "min_count": 1}]
+    assert gaps[0]["expected_assets"] == ["TIMELINE"]
+    assert gaps[0]["gap_origin"] == "verifier"
+    assert gaps[0]["claim_statement"] == "Explain the bridge role"
+    assert gaps[0]["support_strength"] == "single_source"
+    assert "independent second source" in gaps[0]["search_objective"]
+    assert gaps[0]["claim_contexts"] == [
+        {
+            "claim_id": str(claim.id),
+            "claim_statement": "Explain the bridge role",
+            "support_strength": "single_source",
+            "search_objective": "Find an independent second source that confirms: Explain the bridge role",
+            "existing_support_summary": "single_source; 0 source(s); 0 direct / 0 contextual; authority=unknown-authority",
+        }
+    ]
     assert gaps[1]["found_assets"] == ["TIMELINE"]
+
+
+def test_build_research_gaps_aggregates_multiple_claim_contexts_for_same_pair() -> None:
+    claim_one = SimpleNamespace(id=uuid.uuid4(), statement="Claim one")
+    claim_two = SimpleNamespace(id=uuid.uuid4(), statement="Claim two")
+
+    gaps = _build_research_gaps(
+        [
+            (
+                claim_one,
+                {
+                    "provenance_pairs": [
+                        {
+                            "branch_id": "b6",
+                            "question_id": "q6",
+                            "question": "Why did the system survive?",
+                            "intent": "debate",
+                            "found_assets": ["MECHANISM"],
+                        }
+                    ],
+                    "found_assets": ["MECHANISM"],
+                    "source_ids": {"source-1"},
+                    "supporting": [{"authority_type": "secondary"}],
+                    "direct_evidence_count": 1,
+                    "contextual_evidence_count": 0,
+                },
+            ),
+            (
+                claim_two,
+                {
+                    "provenance_pairs": [
+                        {
+                            "branch_id": "b6",
+                            "question_id": "q6",
+                            "question": "Why did the system survive?",
+                            "intent": "debate",
+                            "found_assets": ["CONTRAST"],
+                        }
+                    ],
+                    "found_assets": ["CONTRAST"],
+                    "source_ids": {"source-2"},
+                    "supporting": [{"authority_type": "tertiary"}],
+                    "direct_evidence_count": 0,
+                    "contextual_evidence_count": 1,
+                },
+            ),
+        ],
+        question_context_map={
+            "q6": {
+                "question": "Why did the system survive?",
+                "intent": "debate",
+                "required_evidence": [{"type": "CONTRAST", "min_count": 1}],
+                "expected_evidence": ["CASE"],
+            }
+        },
+    )
+
+    assert len(gaps) == 1
+    assert set(gaps[0]["claim_ids"]) == {str(claim_one.id), str(claim_two.id)}
+    assert {context["claim_id"] for context in gaps[0]["claim_contexts"]} == {str(claim_one.id), str(claim_two.id)}
+    assert "Claim one" in gaps[0]["claim_statement"]
+    assert "Claim two" in gaps[0]["claim_statement"]
+    assert "Find an independent second source that confirms: Claim one" in gaps[0]["search_objective"]
+    assert "Find a direct source that explicitly confirms: Claim two" in gaps[0]["search_objective"]
+
+
+def test_derive_verify_scope_prefers_rebuilt_and_merged_claims_after_first_loop() -> None:
+    scope = _derive_verify_scope(
+        {
+            "iteration_counts": {"verify_research_loops": 1},
+            "rebuilt_claim_ids": ["c2", "c3"],
+            "dedupe_merged_into_claim_ids": ["c1"],
+            "research_gaps": [{"claim_id": "c4"}],
+        },
+        ["c1", "c2", "c3", "c4", "c5"],
+    )
+
+    assert scope == ["c1", "c2", "c3", "c4"]
+
+
+class _FakeScalarResult:
+    def __init__(self, value):
+        self._value = value
+
+    def scalar_one_or_none(self):
+        return self._value
+
+
+class _FakeVerifySession:
+    def __init__(self, claim):
+        self._claim = claim
+        self.commit_calls = 0
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def execute(self, *args, **kwargs):
+        return _FakeScalarResult(self._claim)
+
+    async def commit(self):
+        self.commit_calls += 1
+
+
+@pytest.mark.asyncio
+async def test_verify_claims_skips_unchanged_gap_claim_without_llm(monkeypatch: pytest.MonkeyPatch) -> None:
+    claim_id = str(uuid.uuid4())
+    claim = SimpleNamespace(
+        id=uuid.UUID(claim_id),
+        claim_type="fact",
+        statement="The colonial government delegated note issuance to private banks.",
+        verification_level=VerificationLevel.OBSERVED,
+        verification_fingerprint="",
+    )
+    evidence_data = {
+        "supporting": [
+            {
+                "evidence_id": str(uuid.uuid4()),
+                "quote": "The colonial government delegated note issuance to private banks under an ordinance.",
+                "asset_type": "mechanism",
+                "asset_types": ["MECHANISM"],
+                "source_reliability": "medium",
+                "authority_type": "secondary",
+                "is_temporary": False,
+                "source_id": "source-1",
+                "canonical_source_id": "source-1",
+                "direct_or_contextual": ["direct"],
+            }
+        ],
+        "has_counter": False,
+        "source_ids": {"source-1"},
+        "all_supporting_temporary": False,
+        "branch_ids": ["b1"],
+        "question_ids": ["q1"],
+        "intents": ["explain"],
+        "provenance_pairs": [
+            {
+                "branch_id": "b1",
+                "question_id": "q1",
+                "question": "How did it work?",
+                "intent": "explain",
+                "found_assets": ["MECHANISM"],
+                "direct_count": 1,
+                "contextual_count": 0,
+            }
+        ],
+        "found_assets": ["MECHANISM"],
+        "direct_evidence_count": 1,
+        "contextual_evidence_count": 0,
+    }
+    claim.verification_fingerprint = _compute_verification_fingerprint(claim, evidence_data)
+
+    session = _FakeVerifySession(claim)
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.verifier.async_session_factory",
+        lambda: session,
+    )
+    async def _fake_load_claim_evidence(*args, **kwargs):
+        return evidence_data
+
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.verifier._load_claim_evidence",
+        _fake_load_claim_evidence,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.verifier.publish_event",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.verifier.update_generation_progress",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.verifier._dump_verifier_debug",
+        lambda *args, **kwargs: None,
+    )
+
+    async def _llm_should_not_run(*args, **kwargs):
+        raise AssertionError("LLM verifier should not run for unchanged claim payload")
+
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.verifier._llm_verify_batch",
+        _llm_should_not_run,
+    )
+
+    result = await verify_claims(
+        {
+            "generation_run_id": str(uuid.uuid4()),
+            "manifest_id": "",
+            "claim_ids": [claim_id],
+            "iteration_counts": {"verify_research_loops": 1},
+            "research_gaps": [
+                {
+                    "claim_id": claim_id,
+                    "branch_id": "b1",
+                    "question_id": "q1",
+                    "question": "How did it work?",
+                    "intent": "explain",
+                    "gap_origin": "verifier",
+                }
+            ],
+            "rebuilt_claim_ids": [claim_id],
+            "dedupe_merged_into_claim_ids": [],
+            "preserved_claim_ids": [],
+            "targeted_branch_ids": ["b1"],
+            "dedupe_deleted_claim_ids": [],
+            "dedupe_untouched_claim_ids": [],
+        }
+    )
+
+    assert session.commit_calls == 1
+    assert claim.verification_level == VerificationLevel.OBSERVED
+    assert result["research_gaps"][0]["claim_id"] == claim_id
+    assert result["rebuilt_claim_ids"] == []
+    assert result["dedupe_merged_into_claim_ids"] == []
 
 
 def test_index_provenance_contexts_attaches_intent_and_directness() -> None:

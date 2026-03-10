@@ -231,6 +231,28 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P1**: Added cooperative stop handling in worker (`StepExecutionStopped` -> `queued` + `generation_paused(stopped=true)`, no forced `FAILED`)
 - [x] **P1**: Added stop checks before costly calls (LLM/embeddings, web tools, TTS lines) to reduce unnecessary spend after stop request
 
+**Round 70 (fast-web rework + incremental verifier):**
+- [x] **P0**: Replace Jina-only fast-web fetch path with shared lightweight extraction stack (`mediawiki -> trafilatura -> jina`) plus `clean_web_text(...)` before extractor LLM
+- [x] **P0**: Replace blind `content[:5000]` prompt payload with relevance-based excerpt windows built from cleaned page text
+- [x] **P0**: Skip known canonical sources before fetch/extract when source is already fully ingested and local content/chunks are available
+- [x] **P0**: Enrich verifier-generated `research_gaps` with useful search guidance (`claim_statement`, `support_strength`, `search_objective`, etc.)
+- [x] **P0**: Make verifier-loop fast-web query generation corroboration-oriented, using claim-level signals instead of only question text
+- [x] **P1**: Split fast-web policies into `hunter_gap_fill` vs `verifier_corroboration`
+- [x] **P1**: Split fast-web governors/budgets for initial gap fill vs verifier-loop follow-up
+- [x] **P1**: Add cheap page reranking before fetch using novelty, domain preference, and overlap with search objective
+- [x] **P1**: Expand extractor prompt payload with verifier-loop context (`gap_origin`, `claim_statement`, `existing_support_summary`, `search_objective`)
+- [x] **P1**: Strengthen fast-web query generation from `question + claim_statement + structured search objective`
+- [x] **P1**: Improve fast-web observability/debug dumps to show selected gaps, query variants, skipped known URLs, excerpt windows, filter reasons, and accepted/rejected evidence
+- [x] **P0**: Make verifier incremental after `dedupe_claims`, so loop iterations verify only claims whose verifier-relevant payload changed
+- [x] **P0**: Have `build_claims` return explicit rebuild scope metadata (`rebuilt_claim_ids`, `preserved_claim_ids`, `targeted_branch_ids`) for downstream verifier scoping
+- [x] **P0**: Have `dedupe_claims` return touched-scope metadata (`dedupe_deleted_claim_ids`, `dedupe_merged_into_claim_ids`, `dedupe_untouched_claim_ids`)
+- [x] **P0**: Add `verification_fingerprint` and verifier scope selection after dedupe based on changed payload, not just new claim IDs
+- [x] **P1**: Ensure all rebuild/dedupe coordination fields are ephemeral and cleared from state after verifier consumes them
+- [x] **P2**: Add cheap low-value page filter after cleanup to avoid spending extractor LLM budget on boilerplate/shell pages
+- [x] **P2**: Add adaptive fetch depth for verifier corroboration gaps
+- [x] **P2**: Add cross-gap source-family diversification pressure for repeated explainer/Wikipedia-heavy loops
+- [x] **P2**: Persist `verification_fingerprint` on `Claim` for future retry/resume optimization across runs
+
 **Round 25 (web extraction — trafilatura):**
 - [x] **P1**: Replaced regex-based boilerplate cleanup with trafilatura as primary web extractor: trafilatura (local, free) → Jina (JS fallback) → httpx+HTMLParser (last resort)
 - [x] **P1**: Simplified Gate B (`clean_web_text`): removed site-specific regex hacks (HKMA checklist, search UI, lang toggle, font-size buttons), kept only markdown link cleanup + whitespace normalization for Jina fallback path

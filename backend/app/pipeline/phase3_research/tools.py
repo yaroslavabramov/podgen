@@ -1,4 +1,4 @@
-"""Research tools: vector search, keyword search, web search, page fetch."""
+"""Research tools: vector search, keyword search, web search, and fast-web extraction."""
 
 import uuid
 from urllib.parse import urlparse
@@ -7,6 +7,8 @@ from sqlalchemy import bindparam, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.ingestion.web import extract_web_with_profile
+from app.ingestion.web_quality import clean_web_text, resolve_web_title_detailed
 from app.ingestion.source_metadata import canonical_url, classify_authority_heuristic, classify_domain
 from app.models.chunk import Chunk
 from app.models.source import Source, SourceType, IngestionStatus
@@ -232,39 +234,49 @@ async def web_search_tool(query: str) -> list[dict]:
 
 
 async def fetch_page_tool(url: str) -> dict:
-    """Fetch page content using Jina Reader API."""
-    import httpx
-    from app.ingestion.web import _check_ssrf
-
+    """Fetch page content using the shared web extraction stack plus cleanup."""
     await assert_step_not_stopped()
     domain = urlparse(url).netloc
     with trace_span(
         "research.tool.fetch_page",
         run_type="tool",
         inputs={"url": url, "domain": domain},
-        metadata={"provider": "jina-reader"},
+        metadata={"provider": "shared-web-extractor"},
         tags=["research-tool", "fetch-page"],
     ) as run_tree:
         try:
-            _check_ssrf(url)
-        except ValueError as e:
-            return {"error": str(e)}
+            text, extracted_title, extracted_date, extraction_profile = await extract_web_with_profile(url)
+        except Exception as exc:
+            safe_set_run(
+                run_tree,
+                outputs={
+                    "error": str(exc),
+                    "error_type": type(exc).__name__,
+                },
+            )
+            return {"error": str(exc)}
 
-        headers = {"Accept": "text/markdown"}
-        if settings.jina_api_key:
-            headers["Authorization"] = f"Bearer {settings.jina_api_key}"
-
-        async with httpx.AsyncClient(timeout=settings.web_fetch_timeout) as client:
-            response = await client.get(f"https://r.jina.ai/{url}", headers=headers)
-            response.raise_for_status()
-
-        content = response.text
+        cleaned_text = clean_web_text(text or "")
+        resolved_title, _title_meta = resolve_web_title_detailed(
+            extracted_title,
+            text=cleaned_text,
+            url=url,
+        )
         payload = {
-            "title": "",
-            "content_markdown": content[:50000],
+            "title": resolved_title or extracted_title or "",
+            "content_markdown": cleaned_text,
             "url": url,
+            "published_at": extracted_date,
+            "extraction_profile": extraction_profile,
         }
-        safe_set_run(run_tree, outputs={"content_chars": len(payload["content_markdown"])})
+        safe_set_run(
+            run_tree,
+            outputs={
+                "content_chars": len(payload["content_markdown"]),
+                "extraction_profile": extraction_profile,
+                "published_at_present": bool(extracted_date),
+            },
+        )
         return payload
 
 

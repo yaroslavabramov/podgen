@@ -301,8 +301,16 @@ Web extraction использует каскад extractors:
 
 - broad query + targeted query union
 - для неанглоязычных вопросов fast-web сначала делает небольшой LLM-based rewrite в English query variants, чтобы open-web retrieval не был привязан к языку подкаста
-- governor fast-web считает `processed gaps`, а не количество созданных evidence items; `top-2 pages` и `max-3 evidence items per gap` остаются локальными ограничителями
-- быстрый reader/snippets → reuse canonical `Source` по URL, если он уже есть; иначе создать новый temp source
+- есть два fast-web режима с раздельными budgets/counters:
+  - `hunter_gap_fill`
+  - `verifier_corroboration`
+- governor fast-web считает `processed gaps`, а не количество созданных evidence items; локальные ограничители остаются отдельно (`page_limit`, `max evidence per gap`)
+- fetch path использует shared lightweight extractor stack: `mediawiki -> trafilatura -> jina` + `clean_web_text(...)`, а не сырой Jina-prefix
+- extractor prompt получает не `content[:5000]`, а `excerpt_windows`: релевантные окна из очищенного текста
+- search results cheap-rerank'ятся до fetch по novelty, domain/authority quality, overlap с search objective и source-family diversification
+- если canonical source уже известен проекту и fully ingested с доступными chunks/content, fast-web skip'ает такой URL до fetch/extract и идёт к следующему novel candidate
+- если source уже известен, но не fully ingested, fast-web может reuse preview только когда он уже достаточен; иначе не крутит слепой duplicate fetch loop
+- verifier-loop fast-web использует `claim_statement`, `support_strength`, `search_objective`, `existing_support_summary` и строит corroboration-oriented queries, а не просто ещё один broad query по question
 - затем сохранить canonical `EvidenceSpan` + `EvidenceProvenance`
 
 - web extractor получает `question_intent`, `required_assets`, `expected_assets` и тоже помечает evidence как `direct` или `contextual`
@@ -312,6 +320,12 @@ Web extraction использует каскад extractors:
 - лимиты на число источников/акт, penalize низкокач домены
 
 - приоритет задаётся `research_gaps` от Hunter (целенаправленное закрытие недостающих `asset_type`), эвристика по `priority` остаётся fallback
+- при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` fast-web пишет per-gap и summary JSON dumps:
+  - selected gaps
+  - query variants
+  - skipped known URLs / page handling
+  - excerpt windows
+  - accepted/rejected evidence
 
 #### **B) Deep Web Ingestion (асинхронно)**
 
@@ -371,6 +385,11 @@ Web extraction использует каскад extractors:
 - verifier считает независимость по canonical source identity (`source.id` / `is_duplicate_of`), а не по сырым source rows
 - verifier видит provenance question contexts (`question`, `intent`, `direct_or_contextual`) и различает factual backbone vs contextual framing на prompt-слое
 - verifier больше не режет каждый supporting quote до фиксированных `300` символов; batching ограничивается char-budget’ом на batch
+- после `dedupe_claims` verifier работает incremental:
+  - `build_claims` пишет rebuild scope (`rebuilt_claim_ids`, `preserved_claim_ids`, `targeted_branch_ids`)
+  - `dedupe_claims` пишет touched scope (`dedupe_deleted_claim_ids`, `dedupe_merged_into_claim_ids`, `dedupe_untouched_claim_ids`)
+  - verifier пересчитывает только claims, у которых реально изменился verifier payload
+- для этого на `Claim` хранится `verification_fingerprint`; unchanged claims сохраняют прежний `verification_level` без повторного LLM-вызова
 
 - claims на only-temporary evidence не могут быть `VERIFIED`
 
@@ -380,6 +399,12 @@ Web extraction использует каскад extractors:
 - DISPUTED: обе стороны + причины расхождений
 
 - verifier при `needs_research` пишет свежие `research_gaps` по реальным provenance-парам `(branch_id, question_id)`, без synthetic Cartesian product, и fast-web loop работает уже по ним, а не по старым gap’ам Hunter
+- verifier gaps теперь несут не только branch/question, но и search guidance для loop:
+  - `claim_statement`
+  - `support_strength`
+  - `search_objective`
+  - `existing_support_summary`
+  - `required_assets` / `expected_assets` / `missing_assets` из research context, когда они доступны
 - verifier reasoning принудительно держится коротким и evidence-bound: без спекуляций о "future dates", скрытых metadata-анomalies и прочих неявных выводов
 
 - при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` verifier пишет JSON dumps:

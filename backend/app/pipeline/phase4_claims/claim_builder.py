@@ -78,9 +78,17 @@ async def build_claims(state: PipelineState) -> dict:
 
     evidence_ids = list(dict.fromkeys(state.get("evidence_ids", [])))
     if not evidence_ids:
-        return {"claim_ids": [], "current_phase": "phase4_claims"}
+        return {
+            "claim_ids": [],
+            "rebuilt_claim_ids": [],
+            "preserved_claim_ids": [],
+            "targeted_branch_ids": [],
+            "current_phase": "phase4_claims",
+        }
 
     all_claim_ids: list[str] = []
+    rebuilt_claim_ids: list[str] = []
+    preserved_claim_ids: list[str] = []
     rebuild_scope = _derive_targeted_rebuild_scope(state)
 
     async with async_session_factory() as db:
@@ -100,11 +108,24 @@ async def build_claims(state: PipelineState) -> dict:
             question_context_map=question_context_map,
         )
         if not evidence_index:
-            return {"claim_ids": [], "current_phase": "phase4_claims"}
+            return {
+                "claim_ids": [],
+                "rebuilt_claim_ids": [],
+                "preserved_claim_ids": [],
+                "targeted_branch_ids": rebuild_scope["branch_ids"] if rebuild_scope is not None else [],
+                "current_phase": "phase4_claims",
+            }
         if rebuild_scope is not None:
             branch_batches = _filter_branch_batches(branch_batches, rebuild_scope["branch_ids"])
             if not branch_batches:
-                return {"claim_ids": list(dict.fromkeys(state.get("claim_ids", []))), "current_phase": "phase4_claims"}
+                existing_claim_ids = list(dict.fromkeys(state.get("claim_ids", [])))
+                return {
+                    "claim_ids": existing_claim_ids,
+                    "rebuilt_claim_ids": [],
+                    "preserved_claim_ids": existing_claim_ids,
+                    "targeted_branch_ids": rebuild_scope["branch_ids"],
+                    "current_phase": "phase4_claims",
+                }
 
             impacted_claim_ids, preserved_claim_ids = await _partition_claim_ids_for_targeted_rebuild(
                 db=db,
@@ -193,6 +214,7 @@ async def build_claims(state: PipelineState) -> dict:
                     run_id=run_id,
                     all_claim_ids=all_claim_ids,
                 )
+                rebuilt_claim_ids.extend(claim["claim_id"] for claim in saved_claims_for_batch if claim.get("claim_id"))
                 _dump_claim_builder_batch_debug(
                     run_id=run_id,
                     batch_number=batch_number,
@@ -210,7 +232,17 @@ async def build_claims(state: PipelineState) -> dict:
     publish_event(run_id, progress(40.0, f"Created {len(all_claim_ids)} claims from evidence"))
     update_generation_progress(run_id, "phase4_claims", "claim_builder_done", 40.0)
 
-    return {"claim_ids": all_claim_ids, "current_phase": "phase4_claims"}
+    if rebuild_scope is None:
+        rebuilt_claim_ids = list(all_claim_ids)
+        preserved_claim_ids = []
+
+    return {
+        "claim_ids": all_claim_ids,
+        "rebuilt_claim_ids": list(dict.fromkeys(rebuilt_claim_ids)),
+        "preserved_claim_ids": list(dict.fromkeys(preserved_claim_ids)),
+        "targeted_branch_ids": rebuild_scope["branch_ids"] if rebuild_scope is not None else [],
+        "current_phase": "phase4_claims",
+    }
 
 
 def _derive_targeted_rebuild_scope(state: PipelineState) -> dict | None:

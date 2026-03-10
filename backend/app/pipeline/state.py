@@ -21,3 +21,9 @@ class PipelineState(TypedDict):
     iteration_counts: dict
     quality_signals: dict
     research_gaps: list[dict]
+    rebuilt_claim_ids: list[str]
+    preserved_claim_ids: list[str]
+    targeted_branch_ids: list[str]
+    dedupe_deleted_claim_ids: list[str]
+    dedupe_merged_into_claim_ids: list[str]
+    dedupe_untouched_claim_ids: list[str]

@@ -40,7 +40,7 @@ AI-powered podcast generation platform. Upload sources (PDFs, web articles, vide
 | TTS | ElevenLabs |
 | Frontend | Next.js 15, TypeScript, Tailwind CSS 4, shadcn/ui |
 | State Management | Zustand |
-| Ingestion | Marker (PDF), Jina Reader (web), Deepgram (audio/video) |
+| Ingestion | Marker (PDF), MediaWiki/trafilatura/Jina (web), Deepgram (audio/video) |
 
 ## Quick Start
 
@@ -118,10 +118,13 @@ Phase 4 now uses explicit lineage and canonical evidence semantics:
 - `EvidenceProvenance` stores which question/branch/run found that evidence, its context-specific `asset_type`, and whether it was `direct` or `contextual` for that question
 - claim building batches by research branch, not by flat evidence order
 - verifier-triggered fast-web loops now rebuild only impacted claim groups instead of re-running claim generation over the full evidence set
-- fast-web now budgets by processed gap attempts, not by evidence-item count, and non-English questions get explicit English web-query variants before Tavily search
+- fast-web now budgets by processed gap attempts, not by evidence-item count; initial Hunter gap-fill and verifier corroboration loops keep separate budgets/counters
+- fast-web uses the shared lightweight web extraction stack (`mediawiki -> trafilatura -> jina`) plus `clean_web_text(...)`, builds relevance excerpt windows, and skips already-ingested fully known URLs before fetch/extract
+- verifier-loop fast-web queries are now corroboration-oriented: they use `claim_statement`, `support_strength`, and `search_objective`, plus cheap reranking by novelty/domain quality/source-family diversity before fetch
 - duplicate claims are collapsed before verification
 - verifier counts independent sources via canonical source identity and caps temp-only evidence at `OBSERVED`
 - verifier sees full supporting quotes and splits LLM batches by char budget instead of truncating every quote to 300 chars
+- verifier is incremental after `dedupe_claims`: it only re-checks changed claims, stores `verification_fingerprint` on `Claim`, and clears rebuild/dedupe coordination metadata after each pass
 - claim builder now budgets against real prompt-quote lengths and uses adaptive long-quote packing instead of a blind `[:700]` prefix cut
 - planning payloads now carry illustrative/narrative signals plus branch/question intent context instead of flat claim lists only
 - Hunter retrieval and Claim Builder instructions are intent-aware for `debate` / `compare` / `case_study`, with stricter guardrails against claim overshoot from partial or contextual evidence

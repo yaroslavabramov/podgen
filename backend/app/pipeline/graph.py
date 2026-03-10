@@ -294,6 +294,12 @@ def _build_initial_state(run: GenerationRun, source_ids: list[str], content_map_
         "iteration_counts": {},
         "quality_signals": {},
         "research_gaps": [],
+        "rebuilt_claim_ids": [],
+        "preserved_claim_ids": [],
+        "targeted_branch_ids": [],
+        "dedupe_deleted_claim_ids": [],
+        "dedupe_merged_into_claim_ids": [],
+        "dedupe_untouched_claim_ids": [],
     }
 
 

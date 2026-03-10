@@ -10,6 +10,9 @@ from app.models.source import AuthorityType, DomainReliability, IngestionStatus,
 from app.pipeline.phase3_research.librarian_fast import (
     _build_search_queries,
     _build_targeted_query,
+    _extra_query_terms,
+    _rerank_search_results,
+    _select_excerpt_windows,
     _select_gap_branches,
     research_fast_web,
 )
@@ -68,6 +71,7 @@ def test_select_gap_branches_returns_all_explicit_gaps_sorted() -> None:
         ("b2", "q2"),
         ("b3", "q3"),
     ]
+    assert all(gap["gap_origin"] == "hunter" for gap in gaps)
 
 
 def test_select_gap_branches_fallback_keeps_all_priority_branches() -> None:
@@ -115,6 +119,152 @@ async def test_build_search_queries_adds_english_rewrite_for_non_english_questio
         "Hong Kong dollar silver standard official history",
     ]
     assert any("1863" in query for query in queries)
+
+
+@pytest.mark.asyncio
+async def test_build_search_queries_uses_claim_and_objective_in_verifier_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fake_call_haiku_structured(**kwargs):
+        payload = json.loads(kwargs["prompt"])
+        assert payload["mode"] == "verifier_corroboration"
+        assert "claim_statement" in payload
+        assert "search_objective" in payload
+        assert "claim_contexts" in payload
+        return json.dumps(
+            {
+                "english_query": "Hong Kong note issuance delegated to private banks legal basis official",
+                "english_entity_query": "",
+                "english_official_query": "",
+            }
+        )
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.call_haiku_structured",
+        _fake_call_haiku_structured,
+    )
+
+    queries = await _build_search_queries(
+        "Почему правительство делегировало эмиссию банкам?",
+        question_intent="debate",
+        missing_assets=["MECHANISM"],
+        podcast_language="ru",
+        mode="verifier_corroboration",
+        gap_origin="verifier",
+        claim_statement="The colonial government delegated note issuance to private banks for administrative efficiency.",
+        search_objective="Find an independent official source that confirms the legal basis.",
+        existing_support_summary="single-source; authority=secondary",
+    )
+
+    assert any("legal basis" in query.lower() for query in queries)
+    assert any("private banks" in query.lower() for query in queries)
+
+
+@pytest.mark.asyncio
+async def test_build_search_queries_uses_aggregated_claim_contexts_in_verifier_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fake_call_haiku_structured(**kwargs):
+        payload = json.loads(kwargs["prompt"])
+        assert len(payload["claim_contexts"]) == 2
+        return json.dumps(
+            {
+                "english_query": "Hong Kong note issuance legal basis and banknote committee role official",
+                "english_entity_query": "",
+                "english_official_query": "",
+            }
+        )
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.call_haiku_structured",
+        _fake_call_haiku_structured,
+    )
+
+    queries = await _build_search_queries(
+        "Почему частная эмиссия выжила?",
+        question_intent="debate",
+        missing_assets=["MECHANISM"],
+        podcast_language="ru",
+        mode="verifier_corroboration",
+        gap_origin="verifier",
+        claim_contexts=[
+            {
+                "claim_id": "c1",
+                "claim_statement": "The colonial government delegated note issuance to private banks.",
+                "support_strength": "single_source",
+                "search_objective": "Find an independent official source that confirms the legal basis.",
+                "existing_support_summary": "single_source; authority=secondary",
+            },
+            {
+                "claim_id": "c2",
+                "claim_statement": "The Exchange Fund Advisory Committee coordinates note issuance governance.",
+                "support_strength": "single_source",
+                "search_objective": "Find an independent official source that confirms committee governance.",
+                "existing_support_summary": "single_source; authority=secondary",
+            },
+        ],
+    )
+
+    assert any("private banks" in query.lower() for query in queries)
+    assert any("committee" in query.lower() for query in queries)
+
+
+def test_select_excerpt_windows_prefers_relevant_middle_section() -> None:
+    text = (
+        "Intro boilerplate. " * 120
+        + "\n\n"
+        + "Historical context without the target terms. " * 80
+        + "\n\n"
+        + "The colonial government delegated note issuance to private banks under Ordinance 5. "
+        * 60
+        + "\n\n"
+        + "Trailing section. " * 60
+    )
+
+    windows = _select_excerpt_windows(
+        text,
+        gap={
+            "question": "Why did the government delegate note issuance to private banks?",
+            "claim_statement": "The colonial government delegated note issuance to private banks under Ordinance 5.",
+            "search_objective": "Find the legal basis for delegated note issuance.",
+            "missing_assets": ["MECHANISM"],
+        },
+        query_text="delegated note issuance private banks legal basis",
+    )
+
+    assert windows
+    assert "private banks" in windows[0].lower()
+    assert "ordinance 5" in windows[0].lower()
+
+
+def test_rerank_search_results_penalizes_reused_source_family_across_gaps() -> None:
+    ranked = _rerank_search_results(
+        [
+            {"url": "https://repeat.example.com/article-a", "title": "Repeat", "score": 0.8, "query_text": "query"},
+            {"url": "https://novel.example.org/article-b", "title": "Novel", "score": 0.8, "query_text": "query"},
+        ],
+        gap={
+            "question": "Why did the government delegate note issuance to banks?",
+            "claim_statement": "The government delegated note issuance to banks under colonial law.",
+            "search_objective": "Find an independent corroborating source.",
+            "missing_assets": ["MECHANISM"],
+        },
+        known_web_sources={},
+        used_source_families={"repeat.example.com": 1},
+    )
+
+    assert ranked[0]["source_family"] == "novel.example.org"
+    assert ranked[1]["source_family"] == "repeat.example.com"
+
+
+def test_extra_query_terms_add_official_hints_for_verifier_support_strength_tokens() -> None:
+    terms = _extra_query_terms(
+        "Find independent corroboration for the legal basis.",
+        "single_source; 1 source(s); 1 direct / 0 contextual; authority=unknown",
+    )
+
+    assert "legal" in [term.lower() for term in terms]
+    assert "official" in [term.lower() for term in terms]
 
 
 class _FakeAsyncDB:
@@ -349,9 +499,6 @@ async def test_research_fast_web_governor_counts_processed_gaps_not_evidence_ite
             {"url": "https://example.com/b", "title": "B", "score": 0.8, "query_text": queries[0]},
         ]
 
-    async def _fake_fetch_page_tool(url):
-        return {"content_markdown": "content", "url": url}
-
     async def _fake_call_sonnet_structured(**kwargs):
         payload = json.loads(kwargs["prompt"])
         question = payload["research_question"]
@@ -400,10 +547,6 @@ async def test_research_fast_web_governor_counts_processed_gaps_not_evidence_ite
         _fake_run_search_queries,
     )
     monkeypatch.setattr(
-        "app.pipeline.phase3_research.librarian_fast.fetch_page_tool",
-        _fake_fetch_page_tool,
-    )
-    monkeypatch.setattr(
         "app.pipeline.phase3_research.librarian_fast.call_sonnet_structured",
         _fake_call_sonnet_structured,
     )
@@ -411,9 +554,50 @@ async def test_research_fast_web_governor_counts_processed_gaps_not_evidence_ite
         "app.pipeline.phase3_research.librarian_fast.create_web_evidence",
         _fake_create_web_evidence,
     )
+    async def _fake_load_known_web_source_index(*args, **kwargs):
+        return {}
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast._load_known_web_source_index",
+        _fake_load_known_web_source_index,
+    )
+
+    async def _fake_prepare_gap_pages(*, ranked_results, **kwargs):
+        return (
+            [
+                {
+                    "url": ranked_results[0]["url"],
+                    "title": ranked_results[0]["title"],
+                    "query_text": ranked_results[0]["query_text"],
+                    "extraction_profile": "stub",
+                    "content_strategy": "relevance_windows",
+                    "excerpt_windows": ["Question-aligned evidence window " * 30],
+                },
+                {
+                    "url": ranked_results[1]["url"],
+                    "title": ranked_results[1]["title"],
+                    "query_text": ranked_results[1]["query_text"],
+                    "extraction_profile": "stub",
+                    "content_strategy": "relevance_windows",
+                    "excerpt_windows": ["Second evidence window " * 30],
+                },
+            ],
+            [],
+        )
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast._prepare_gap_pages",
+        _fake_prepare_gap_pages,
+    )
     monkeypatch.setattr(
         "app.pipeline.phase3_research.librarian_fast.settings",
-        SimpleNamespace(max_fast_web_per_act=2, max_deep_ingestion_concurrent=0),
+        SimpleNamespace(
+            max_fast_web_per_act=2,
+            max_fast_web_initial_gaps=2,
+            max_fast_web_verifier_gaps=2,
+            max_deep_ingestion_concurrent=0,
+            web_extractor_debug_dump_dir="",
+        ),
     )
 
     result = await research_fast_web(
@@ -432,6 +616,144 @@ async def test_research_fast_web_governor_counts_processed_gaps_not_evidence_ite
         }
     )
 
+    assert result["iteration_counts"]["fast_web_initial_gap_count"] == 2
     assert result["iteration_counts"]["fast_web_gap_count"] == 2
     assert result["iteration_counts"]["fast_web_per_act"] == 2
     assert created_for_questions == ["q1", "q1", "q1", "q2", "q2", "q2"]
+
+
+@pytest.mark.asyncio
+async def test_research_fast_web_skips_known_fully_ingested_urls_before_fetch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = EpisodeManifest(id=uuid.uuid4(), research_tree_json={"branches": []})
+    research_session = _FakeSession([_FakeScalarResult(manifest)])
+    deep_session = _FakeSession([_FakeScalarResult(0), _FakeListResult([])])
+    sessions = [research_session, deep_session]
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.async_session_factory",
+        lambda: sessions.pop(0),
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.publish_event",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.settings",
+        SimpleNamespace(
+            max_fast_web_per_act=5,
+            max_fast_web_initial_gaps=5,
+            max_fast_web_verifier_gaps=5,
+            max_deep_ingestion_concurrent=0,
+            web_extractor_debug_dump_dir="",
+        ),
+    )
+
+    async def _fake_build_search_queries(*args, **kwargs):
+        return ["query"]
+
+    async def _fake_run_search_queries(queries):
+        return [
+            {"url": "https://known.example.com/article", "title": "Known", "score": 0.9, "query_text": queries[0]},
+            {"url": "https://novel.example.com/article", "title": "Novel", "score": 0.8, "query_text": queries[0]},
+        ]
+
+    fetch_calls: list[str] = []
+
+    async def _fake_fetch_page_tool(url):
+        fetch_calls.append(url)
+        return {
+            "content_markdown": "The colonial government delegated note issuance to private banks under Ordinance 5. " * 30,
+            "url": url,
+            "title": "Novel article",
+            "extraction_profile": "trafilatura",
+        }
+
+    async def _fake_call_sonnet_structured(**kwargs):
+        payload = json.loads(kwargs["prompt"])
+        assert payload["web_pages"][0]["url"] == "https://novel.example.com/article"
+        return json.dumps(
+            [
+                {
+                    "url": "https://novel.example.com/article",
+                    "verbatim_quote": "The colonial government delegated note issuance to private banks under Ordinance 5.",
+                    "asset_type": "MECHANISM",
+                    "direct_or_contextual": "direct",
+                    "narrative_value_score": 0.6,
+                    "tellability_notes": "direct corroboration",
+                }
+            ]
+        )
+
+    created_urls: list[str] = []
+
+    async def _fake_create_web_evidence(*, url, **kwargs):
+        created_urls.append(url)
+        return str(uuid.uuid4())
+
+    async def _fake_load_known_sources(*args, **kwargs):
+        return {
+            "known.example.com/article": {
+                "source_id": str(uuid.uuid4()),
+                "url": "https://known.example.com/article",
+                "title": "Known canonical source",
+                "fully_ingested": True,
+                "chunk_count": 8,
+                "has_local_content": True,
+                "text_preview": "Known preview",
+                "authority_type": "secondary",
+                "domain_reliability": "medium",
+            }
+        }
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast._build_search_queries",
+        _fake_build_search_queries,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast._run_search_queries",
+        _fake_run_search_queries,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast._load_known_web_source_index",
+        _fake_load_known_sources,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.fetch_page_tool",
+        _fake_fetch_page_tool,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.call_sonnet_structured",
+        _fake_call_sonnet_structured,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.create_web_evidence",
+        _fake_create_web_evidence,
+    )
+
+    result = await research_fast_web(
+        {
+            "generation_run_id": str(uuid.uuid4()),
+            "project_id": str(uuid.uuid4()),
+            "manifest_id": str(manifest.id),
+            "language": "en",
+            "evidence_ids": [],
+            "iteration_counts": {},
+            "research_gaps": [
+                {
+                    "question_id": "q1",
+                    "branch_id": "b1",
+                    "question": "Why did the government delegate note issuance to private banks?",
+                    "priority": 1,
+                    "gap_origin": "verifier",
+                    "claim_statement": "The colonial government delegated note issuance to private banks under Ordinance 5.",
+                    "search_objective": "Find an independent official source that confirms the legal basis.",
+                }
+            ],
+        }
+    )
+
+    assert fetch_calls == ["https://novel.example.com/article"]
+    assert created_urls == ["https://novel.example.com/article"]
+    assert result["iteration_counts"]["fast_web_verifier_gap_count"] == 1

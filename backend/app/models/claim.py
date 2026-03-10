@@ -38,6 +38,7 @@ class Claim(Base):
     statement: Mapped[str] = mapped_column(Text, nullable=False)
     attribution: Mapped[dict | None] = mapped_column(JSONB)
     as_of_date: Mapped[date | None] = mapped_column(Date)
+    verification_fingerprint: Mapped[str | None] = mapped_column(Text)
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

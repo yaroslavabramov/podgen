@@ -300,3 +300,6 @@ async def test_build_claims_targeted_rebuild_preserves_unaffected_claims(monkeyp
     assert deleted_claim_ids == ["claim-drop"]
     assert processed_branch_ids == ["b6"]
     assert result["claim_ids"] == ["claim-keep", "claim-new"]
+    assert result["rebuilt_claim_ids"] == ["claim-new"]
+    assert result["preserved_claim_ids"] == ["claim-keep"]
+    assert result["targeted_branch_ids"] == ["b6"]

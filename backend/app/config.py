@@ -69,6 +69,8 @@ class Settings(BaseSettings):
 
     # Governors
     max_fast_web_per_act: int = 5
+    max_fast_web_initial_gaps: int = 5
+    max_fast_web_verifier_gaps: int = 5
     max_deep_ingestion_concurrent: int = 3
     max_writer_revolt_per_act: int = 4
     max_writer_revolt_per_scene: int = 2
