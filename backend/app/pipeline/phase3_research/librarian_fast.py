@@ -19,6 +19,7 @@ from app.models.source import Source, SourceType
 from app.pipeline.debug_dump import safe_filename_token, write_json_debug_dump
 from app.pipeline.phase3_research.librarian_deep import trigger_deep_ingestion
 from app.pipeline.phase3_research.tools import create_web_evidence, fetch_page_tool, web_search_tool
+from app.pipeline.step_control import StepExecutionStopped
 from app.pipeline.research_context import build_question_context_map
 from app.pipeline.state import PipelineState
 from app.pipeline.llm_json import parse_llm_json
@@ -49,6 +50,7 @@ Rules:
 - If extractor_mode="question_gap_fill", prioritize evidence that directly helps answer the research question and fills target_missing_assets when they are present.
 - If extractor_mode="claim_corroboration", prioritize evidence that directly supports one of the claim_contexts / claim_statement.
 - In claim_corroboration mode, treat question_background_assets as secondary context only; do not choose evidence merely because it matches broad question-level asset hints.
+- In claim_corroboration mode, use corroboration_goals to understand whether you need a direct source, an independent second source, or a stronger authority source.
 - Use direct_or_contextual="direct" when the quote directly answers the question as asked.
 - Use direct_or_contextual="contextual" for background, analogy, or adjacent framing.
 - For verifier gaps, prioritize independent corroboration and stronger source families over generic explainers.
@@ -152,7 +154,11 @@ async def research_fast_web(state: PipelineState) -> dict:
             for gap in gap_branches
         ]
 
-        new_evidence_count = 0
+        accepted_item_count = 0
+        new_canonical_evidence_count = 0
+        new_provenance_links_count = 0
+        new_linked_evidence_count = 0
+        new_source_count = 0
         used_source_families: dict[str, int] = {}
         for gap in gap_branches:
             if processed_gap_count >= gap_budget:
@@ -162,6 +168,14 @@ async def research_fast_web(state: PipelineState) -> dict:
             question = gap["question"]
             extractor_mode = _extractor_mode_for_gap(gap)
             target_missing_assets = _normalize_asset_types(gap.get("missing_assets", []))
+            extractor_claim_contexts = _build_extractor_claim_contexts(gap)
+            corroboration_goals = sorted(
+                {
+                    str(context.get("corroboration_goal", "")).strip()
+                    for context in extractor_claim_contexts
+                    if isinstance(context, dict) and str(context.get("corroboration_goal", "")).strip()
+                }
+            )
             queries = await _build_search_queries(
                 question,
                 question_intent=gap.get("intent", ""),
@@ -187,7 +201,7 @@ async def research_fast_web(state: PipelineState) -> dict:
                 "required_assets": gap.get("required_assets", []),
                 "expected_assets": gap.get("expected_assets", []),
                 "support_strength": gap.get("support_strength", ""),
-                "search_objective": gap.get("search_objective", ""),
+                "corroboration_goals": corroboration_goals,
                 "queries": queries,
                 "mode": mode,
             }
@@ -226,9 +240,9 @@ async def research_fast_web(state: PipelineState) -> dict:
                     "question_intent": gap.get("intent"),
                     "gap_origin": gap.get("gap_origin", "hunter"),
                     "claim_statement": gap.get("claim_statement", ""),
-                    "search_objective": gap.get("search_objective", ""),
                     "existing_support_summary": gap.get("existing_support_summary", ""),
-                    "claim_contexts": gap.get("claim_contexts", []),
+                    "claim_contexts": extractor_claim_contexts,
+                    "corroboration_goals": corroboration_goals,
                     "required_evidence": gap.get("required_assets", []) if extractor_mode == "question_gap_fill" else [],
                     "expected_evidence": gap.get("expected_assets", []) if extractor_mode == "question_gap_fill" else [],
                     "target_missing_assets": target_missing_assets if extractor_mode == "question_gap_fill" else [],
@@ -265,6 +279,11 @@ async def research_fast_web(state: PipelineState) -> dict:
 
                 accepted_items: list[dict] = []
                 rejected_items: list[dict] = []
+                gap_accepted_item_count = 0
+                gap_new_canonical_evidence_count = 0
+                gap_new_provenance_links_count = 0
+                gap_new_linked_evidence_count = 0
+                gap_new_source_count = 0
                 for item in evidence_items:
                     if not isinstance(item, dict):
                         rejected_items.append({"reason": "non_dict_item", "item": item})
@@ -278,7 +297,11 @@ async def research_fast_web(state: PipelineState) -> dict:
                         rejected_items.append({"reason": "invalid_asset_type", "item": item})
                         continue
                     asset_type = normalized_asset_types[0]
-                    if target_missing_assets and asset_type not in target_missing_assets:
+                    if (
+                        extractor_mode == "question_gap_fill"
+                        and target_missing_assets
+                        and asset_type not in target_missing_assets
+                    ):
                         rejected_items.append({"reason": "asset_type_not_targeted", "item": item})
                         continue
 
@@ -286,7 +309,7 @@ async def research_fast_web(state: PipelineState) -> dict:
                         (page for page in page_contents if page.get("url") == item["url"]),
                         None,
                     )
-                    eid = await create_web_evidence(
+                    created = await create_web_evidence(
                         url=item["url"],
                         quote=item["verbatim_quote"],
                         asset_type=asset_type.lower(),
@@ -301,19 +324,40 @@ async def research_fast_web(state: PipelineState) -> dict:
                         direct_or_contextual=item.get("direct_or_contextual"),
                         title=str(source_page.get("title", "")) if isinstance(source_page, dict) else None,
                     )
-                    all_evidence_ids.append(eid)
-                    new_evidence_count += 1
+                    all_evidence_ids.append(created.evidence_id)
+                    accepted_item_count += 1
+                    gap_accepted_item_count += 1
+                    if created.created_evidence:
+                        new_canonical_evidence_count += 1
+                        gap_new_canonical_evidence_count += 1
+                    if created.created_provenance:
+                        new_provenance_links_count += 1
+                        gap_new_provenance_links_count += 1
+                    if created.created_evidence or created.created_provenance:
+                        new_linked_evidence_count += 1
+                        gap_new_linked_evidence_count += 1
+                    if created.created_source:
+                        new_source_count += 1
+                        gap_new_source_count += 1
                     accepted_items.append(
                         {
-                            "evidence_id": eid,
+                            "evidence_id": created.evidence_id,
                             "asset_type": asset_type,
                             "url": item["url"],
                             "direct_or_contextual": item.get("direct_or_contextual"),
+                            "created_source": created.created_source,
+                            "created_evidence": created.created_evidence,
+                            "created_provenance": created.created_provenance,
                             "quote_preview": _clip_text(str(item.get("verbatim_quote", "")), 220),
                         }
                     )
 
                 gap_debug["accepted_items"] = accepted_items
+                gap_debug["accepted_item_count"] = gap_accepted_item_count
+                gap_debug["new_canonical_evidence_count"] = gap_new_canonical_evidence_count
+                gap_debug["new_provenance_links_count"] = gap_new_provenance_links_count
+                gap_debug["new_linked_evidence_count"] = gap_new_linked_evidence_count
+                gap_debug["new_source_count"] = gap_new_source_count
                 gap_debug["rejected_items"] = rejected_items
                 gap_debug["status"] = "ok"
                 for source_url in (
@@ -329,6 +373,8 @@ async def research_fast_web(state: PipelineState) -> dict:
                     dump_type=f"gap-{gap.get('branch_id', 'unknown')}-{gap.get('question_id', 'unknown')}",
                     payload=gap_debug,
                 )
+            except StepExecutionStopped:
+                raise
             except Exception:
                 logger.warning("Fast web search failed for question: %s", question, exc_info=True)
                 gap_debug["status"] = "exception"
@@ -384,9 +430,12 @@ async def research_fast_web(state: PipelineState) -> dict:
     iteration_counts["deep_ingestion_active"] = deep_active
 
     publish_event(run_id, step_completed("phase3_research", "fast_web"))
-    if new_evidence_count > 0:
-        publish_event(run_id, evidence_found(new_evidence_count, ["web"]))
-        publish_event(run_id, progress(33.0, f"Found {new_evidence_count} additional web evidence"))
+    if new_linked_evidence_count > 0:
+        publish_event(run_id, evidence_found(new_linked_evidence_count, ["web"]))
+        publish_event(
+            run_id,
+            progress(33.0, f"Found {new_linked_evidence_count} additional web evidence"),
+        )
 
     _dump_fast_web_debug(
         run_id=run_id,
@@ -397,7 +446,12 @@ async def research_fast_web(state: PipelineState) -> dict:
             "gap_budget": gap_budget,
             "processed_gap_count": processed_gap_count,
             "selected_gaps": selected_gap_payloads,
-            "new_evidence_count": new_evidence_count,
+            "accepted_item_count": accepted_item_count,
+            "new_evidence_count": new_canonical_evidence_count,
+            "new_canonical_evidence_count": new_canonical_evidence_count,
+            "new_provenance_links_count": new_provenance_links_count,
+            "new_linked_evidence_count": new_linked_evidence_count,
+            "new_source_count": new_source_count,
             "deep_ingestion_active": deep_active,
             "iteration_counts": iteration_counts,
             "attempt_count": len(debug_attempts),
@@ -848,6 +902,8 @@ async def _run_search_queries(queries: list[str]) -> tuple[list[dict], list[dict
     for query in queries:
         try:
             results = await web_search_tool(query)
+        except StepExecutionStopped:
+            raise
         except Exception as exc:
             logger.warning("Fast web search query failed: %s", query, exc_info=True)
             failures.append(
@@ -1189,10 +1245,71 @@ def _gap_objective_terms(gap: dict, *, query_text: str = "") -> set[str]:
             if isinstance(context, dict)
         ]
         claim_texts = [text for text in claim_texts if text]
-        terms = _overlap_terms(query_text, *claim_texts, gap.get("claim_statement", ""))
+        terms = _overlap_terms(*claim_texts, gap.get("claim_statement", ""))
         if terms:
             return terms
+        return _overlap_terms(gap.get("question", ""))
     return _overlap_terms(query_text, gap.get("question", ""))
+
+
+def _corroboration_goal_for_support_strength(
+    support_strength: str,
+    existing_support_summary: str = "",
+    search_objective: str = "",
+) -> str:
+    normalized_strength = str(support_strength or "").strip().lower().replace("-", "_")
+    normalized_summary = str(existing_support_summary or "").strip().lower().replace("-", "_")
+    normalized_objective = str(search_objective or "").strip().lower()
+    if "independent second source" in normalized_objective:
+        return "independent_second_source"
+    if "independent " in normalized_objective or normalized_objective.startswith("find independent"):
+        return "independent_second_source"
+    if "more authoritative" in normalized_objective:
+        return "stronger_authority_needed"
+    if "authoritative" in normalized_objective:
+        return "stronger_authority_needed"
+    if "direct source" in normalized_objective or "explicitly confirms" in normalized_objective:
+        return "direct_source_needed"
+    if normalized_strength == "contextual_only" or "contextual_only" in normalized_summary:
+        return "direct_source_needed"
+    if normalized_strength == "weak_authority" or "weak_authority" in normalized_summary:
+        return "stronger_authority_needed"
+    if normalized_strength == "single_source" or "single_source" in normalized_summary:
+        return "independent_second_source"
+    return "general_corroboration"
+
+
+def _build_extractor_claim_contexts(gap: dict) -> list[dict]:
+    claim_contexts = _normalize_claim_contexts(
+        gap.get("claim_contexts"),
+        fallback_claim_id=str(gap.get("claim_id", "")).strip(),
+        fallback_claim_statement=str(gap.get("claim_statement", "")).strip(),
+        fallback_support_strength=str(gap.get("support_strength", "")).strip(),
+        fallback_search_objective=str(gap.get("search_objective", "")).strip(),
+        fallback_existing_support_summary=str(gap.get("existing_support_summary", "")).strip(),
+    )
+    normalized: list[dict] = []
+    for context in claim_contexts:
+        claim_statement = str(context.get("claim_statement", "")).strip()
+        support_strength = str(context.get("support_strength", "")).strip()
+        existing_support_summary = str(context.get("existing_support_summary", "")).strip()
+        search_objective = str(context.get("search_objective", "")).strip()
+        if not any((claim_statement, support_strength, existing_support_summary)):
+            continue
+        normalized.append(
+            {
+                "claim_id": str(context.get("claim_id", "")).strip(),
+                "claim_statement": claim_statement,
+                "support_strength": support_strength,
+                "existing_support_summary": existing_support_summary,
+                "corroboration_goal": _corroboration_goal_for_support_strength(
+                    support_strength,
+                    existing_support_summary,
+                    search_objective,
+                ),
+            }
+        )
+    return normalized
 
 
 def _gap_anchor_terms(gap: dict, *, query_text: str = "") -> set[str]:

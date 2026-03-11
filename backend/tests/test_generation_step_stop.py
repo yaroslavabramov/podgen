@@ -1,0 +1,195 @@
+from __future__ import annotations
+
+import uuid
+from contextlib import nullcontext
+from types import SimpleNamespace
+
+import pytest
+
+from app.models.generation_run import GenerationStatus
+from app.pipeline.step_control import StepExecutionStopped
+from app.workers.generation_tasks import _run_step_async
+
+
+class _FakeResult:
+    def __init__(self, scalar) -> None:
+        self._scalar = scalar
+
+    def scalar_one_or_none(self):
+        return self._scalar
+
+
+class _FakeWorkerDB:
+    def __init__(self, run) -> None:
+        self.run = run
+        self.commit_calls = 0
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def execute(self, statement):
+        return _FakeResult(self.run)
+
+    async def commit(self) -> None:
+        self.commit_calls += 1
+
+
+def _step_run(*, requested_action: str, stop_requested: bool) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        user_id=uuid.uuid4(),
+        status=GenerationStatus.QUEUED,
+        config={
+            "execution_mode": "step",
+            "language": "en",
+            "step_control": {
+                "last_action": requested_action,
+                "last_node": "verify_claims",
+                "executed_node": "verify_claims",
+                "next_node": "research_fast_web",
+                "checkpoint_id": "chk-123",
+                "is_complete": False,
+                "can_rerun": True,
+                "requested_action": requested_action,
+                "requested_at": "2026-03-11T00:00:00",
+                "stop_requested": stop_requested,
+                "stop_requested_at": "2026-03-11T00:00:01" if stop_requested else None,
+                "stop_acknowledged_at": None,
+                "stop_reason": "user_requested_stop" if stop_requested else None,
+                "updated_at": "2026-03-11T00:00:00",
+            },
+        },
+        langgraph_thread_id=str(uuid.uuid4()),
+        started_at=None,
+        current_phase="phase4_claims",
+        current_step="verify_claims",
+        completed_at=None,
+        error_message=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_run_step_stop_before_start_preserves_resume_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run = _step_run(requested_action="next", stop_requested=True)
+    db = _FakeWorkerDB(run)
+    published = []
+
+    monkeypatch.setattr("app.workers.worker_db.worker_session_factory", lambda: db)
+    monkeypatch.setattr("app.realtime.publisher.publish_event", lambda run_id, event: published.append((run_id, event)))
+    monkeypatch.setattr("app.workers.generation_tasks.push_trace_context", lambda *_args, **_kwargs: nullcontext())
+    monkeypatch.setattr("app.workers.generation_tasks.tracing_scope", lambda *_args, **_kwargs: nullcontext())
+    monkeypatch.setattr("app.workers.generation_tasks.trace_span", lambda *_args, **_kwargs: nullcontext(None))
+    monkeypatch.setattr("app.workers.generation_tasks.safe_set_run", lambda *_args, **_kwargs: None)
+
+    await _run_step_async(str(run.id), action="next")
+
+    step_control = run.config["step_control"]
+    assert run.status == GenerationStatus.QUEUED
+    assert run.current_step == "research_fast_web"
+    assert run.current_phase == "phase3_research"
+    assert step_control["last_node"] == "verify_claims"
+    assert step_control["executed_node"] == "verify_claims"
+    assert step_control["next_node"] == "research_fast_web"
+    assert step_control["requested_action"] is None
+    assert step_control["stop_requested"] is False
+    assert step_control["stop_requested_at"] is None
+    assert step_control["stop_reason"] == "stopped_before_start"
+    assert db.commit_calls == 1
+
+    assert len(published) == 1
+    _, event = published[0]
+    assert event.type == "generation_paused"
+    assert event.data["executed_node"] == "verify_claims"
+    assert event.data["next_node"] == "research_fast_web"
+    assert event.data["stopped"] is True
+    assert event.data["reason"] == "stopped_before_start"
+
+
+@pytest.mark.asyncio
+async def test_run_step_stop_during_execution_resets_step_control_to_interrupted_node(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run = _step_run(requested_action="next", stop_requested=False)
+    db = _FakeWorkerDB(run)
+    published = []
+
+    async def _fake_execute_pipeline_step(*_args, **_kwargs):
+        raise StepExecutionStopped("Step execution stopped by user request.")
+
+    monkeypatch.setattr("app.workers.worker_db.worker_session_factory", lambda: db)
+    monkeypatch.setattr("app.pipeline.graph.execute_pipeline_step", _fake_execute_pipeline_step)
+    monkeypatch.setattr("app.realtime.publisher.publish_event", lambda run_id, event: published.append((run_id, event)))
+    monkeypatch.setattr("app.workers.generation_tasks.push_trace_context", lambda *_args, **_kwargs: nullcontext())
+    monkeypatch.setattr("app.workers.generation_tasks.tracing_scope", lambda *_args, **_kwargs: nullcontext())
+    monkeypatch.setattr("app.workers.generation_tasks.trace_span", lambda *_args, **_kwargs: nullcontext(None))
+    monkeypatch.setattr("app.workers.generation_tasks.safe_set_run", lambda *_args, **_kwargs: None)
+
+    await _run_step_async(str(run.id), action="next")
+
+    step_control = run.config["step_control"]
+    assert run.status == GenerationStatus.QUEUED
+    assert run.current_step == "research_fast_web"
+    assert run.current_phase == "phase3_research"
+    assert step_control["last_node"] == "verify_claims"
+    assert step_control["executed_node"] == "research_fast_web"
+    assert step_control["next_node"] == "research_fast_web"
+    assert step_control["checkpoint_id"] == "chk-123"
+    assert step_control["requested_action"] is None
+    assert step_control["stop_requested"] is False
+    assert step_control["stop_requested_at"] is None
+    assert step_control["stop_reason"] == "Step execution stopped by user request."
+    assert db.commit_calls == 2
+
+    assert len(published) == 1
+    _, event = published[0]
+    assert event.type == "generation_paused"
+    assert event.data["executed_node"] == "research_fast_web"
+    assert event.data["next_node"] == "research_fast_web"
+    assert event.data["stopped"] is True
+    assert event.data["reason"] == "Step execution stopped by user request."
+
+
+@pytest.mark.asyncio
+async def test_run_step_stop_during_rerun_keeps_rerun_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run = _step_run(requested_action="rerun", stop_requested=False)
+    db = _FakeWorkerDB(run)
+    published = []
+
+    async def _fake_execute_pipeline_step(*_args, **_kwargs):
+        raise StepExecutionStopped("Step execution stopped by user request.")
+
+    monkeypatch.setattr("app.workers.worker_db.worker_session_factory", lambda: db)
+    monkeypatch.setattr("app.pipeline.graph.execute_pipeline_step", _fake_execute_pipeline_step)
+    monkeypatch.setattr("app.realtime.publisher.publish_event", lambda run_id, event: published.append((run_id, event)))
+    monkeypatch.setattr("app.workers.generation_tasks.push_trace_context", lambda *_args, **_kwargs: nullcontext())
+    monkeypatch.setattr("app.workers.generation_tasks.tracing_scope", lambda *_args, **_kwargs: nullcontext())
+    monkeypatch.setattr("app.workers.generation_tasks.trace_span", lambda *_args, **_kwargs: nullcontext(None))
+    monkeypatch.setattr("app.workers.generation_tasks.safe_set_run", lambda *_args, **_kwargs: None)
+
+    await _run_step_async(str(run.id), action="rerun")
+
+    step_control = run.config["step_control"]
+    assert run.status == GenerationStatus.QUEUED
+    assert run.current_step == "research_fast_web"
+    assert run.current_phase == "phase3_research"
+    assert step_control["last_node"] == "verify_claims"
+    assert step_control["executed_node"] == "verify_claims"
+    assert step_control["next_node"] == "research_fast_web"
+    assert step_control["requested_action"] is None
+    assert step_control["stop_requested"] is False
+    assert step_control["stop_reason"] == "Step execution stopped by user request."
+
+    assert len(published) == 1
+    _, event = published[0]
+    assert event.type == "generation_paused"
+    assert event.data["executed_node"] == "verify_claims"
+    assert event.data["next_node"] == "research_fast_web"
+    assert event.data["stopped"] is True

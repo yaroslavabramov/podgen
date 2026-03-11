@@ -1,5 +1,6 @@
 """Research tools: vector search, keyword search, web search, and fast-web extraction."""
 
+from dataclasses import dataclass
 import uuid
 from urllib.parse import urlparse
 
@@ -21,6 +22,14 @@ from app.services.evidence_store import (
     get_or_create_canonical_evidence,
     normalize_direct_or_contextual,
 )
+
+
+@dataclass(frozen=True)
+class CreatedWebEvidenceResult:
+    evidence_id: str
+    created_source: bool
+    created_evidence: bool
+    created_provenance: bool
 
 
 def _clip(value: str, limit: int = 240) -> str:
@@ -291,7 +300,7 @@ async def create_web_evidence(
     direct_or_contextual: str | None = None,
     title: str | None = None,
     retrieved_by: str = "librarian_fast",
-) -> str:
+) -> CreatedWebEvidenceResult:
     """Create web evidence, reusing canonical sources when the URL is already known."""
     await assert_step_not_stopped()
     with trace_span(
@@ -306,6 +315,7 @@ async def create_web_evidence(
         tags=["research-tool", "create-evidence"],
     ) as run_tree:
         canonical_source = await _find_canonical_source_by_url(db, project_id=project_id, url=url)
+        created_source = False
         if canonical_source is not None:
             source = canonical_source
         else:
@@ -330,8 +340,9 @@ async def create_web_evidence(
             )
             db.add(source)
             await db.flush()
+            created_source = True
 
-        evidence, _ = await get_or_create_canonical_evidence(
+        evidence, created_evidence = await get_or_create_canonical_evidence(
             db=db,
             project_id=project_id,
             source_id=source.id,
@@ -339,8 +350,9 @@ async def create_web_evidence(
             asset_type=asset_type,
             narrative_value_score=0.5,
         )
+        created_provenance = False
         if generation_run_id and question_id and branch_id:
-            await ensure_evidence_provenance(
+            _, created_provenance = await ensure_evidence_provenance(
                 db=db,
                 evidence_id=evidence.id,
                 context=EvidenceProvenanceContext(
@@ -357,8 +369,22 @@ async def create_web_evidence(
             )
 
         evidence_id = str(evidence.id)
-        safe_set_run(run_tree, outputs={"evidence_id": evidence_id, "source_id": str(source.id)})
-        return evidence_id
+        safe_set_run(
+            run_tree,
+            outputs={
+                "evidence_id": evidence_id,
+                "source_id": str(source.id),
+                "created_source": created_source,
+                "created_evidence": created_evidence,
+                "created_provenance": created_provenance,
+            },
+        )
+        return CreatedWebEvidenceResult(
+            evidence_id=evidence_id,
+            created_source=created_source,
+            created_evidence=created_evidence,
+            created_provenance=created_provenance,
+        )
 
 
 async def _find_canonical_source_by_url(db: AsyncSession, *, project_id: str, url: str) -> Source | None:

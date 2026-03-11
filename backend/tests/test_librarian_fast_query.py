@@ -17,7 +17,8 @@ from app.pipeline.phase3_research.librarian_fast import (
     _select_gap_branches,
     research_fast_web,
 )
-from app.pipeline.phase3_research.tools import create_web_evidence
+from app.pipeline.phase3_research.tools import CreatedWebEvidenceResult, create_web_evidence
+from app.pipeline.step_control import StepExecutionStopped
 
 
 @pytest.mark.asyncio
@@ -431,6 +432,24 @@ async def test_run_search_queries_keeps_partial_results_when_one_query_fails(
     ]
 
 
+@pytest.mark.asyncio
+async def test_run_search_queries_reraises_step_execution_stop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fake_web_search_tool(query: str):
+        if query == "stop":
+            raise StepExecutionStopped()
+        return []
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.web_search_tool",
+        _fake_web_search_tool,
+    )
+
+    with pytest.raises(StepExecutionStopped):
+        await _run_search_queries(["ok", "stop", "never"])
+
+
 class _FakeAsyncDB:
     def __init__(self) -> None:
         self.added: list[object] = []
@@ -477,6 +496,7 @@ async def test_create_web_evidence_creates_temp_source_and_provenance(monkeypatc
                 context.direct_or_contextual,
             )
         )
+        return object(), True
 
     monkeypatch.setattr(
         "app.pipeline.phase3_research.tools._find_canonical_source_by_url",
@@ -491,7 +511,7 @@ async def test_create_web_evidence_creates_temp_source_and_provenance(monkeypatc
         _fake_ensure_evidence_provenance,
     )
 
-    evidence_id = await create_web_evidence(
+    result = await create_web_evidence(
         url="https://reuters.com/article",
         quote="A concrete quote.",
         asset_type="case",
@@ -522,7 +542,10 @@ async def test_create_web_evidence_creates_temp_source_and_provenance(monkeypatc
     assert source.domain_reliability == DomainReliability.MEDIUM
     assert source.authority_type == AuthorityType.SECONDARY
     assert evidence.source_id == source.id
-    assert evidence_id == str(evidence.id)
+    assert result.evidence_id == str(evidence.id)
+    assert result.created_source is True
+    assert result.created_evidence is True
+    assert result.created_provenance is True
     assert provenance_calls == [("b6.1", "b6", "case", "librarian_fast", "direct")]
 
 
@@ -560,7 +583,7 @@ async def test_create_web_evidence_reuses_canonical_source(monkeypatch: pytest.M
         return evidence, True
 
     async def _fake_ensure_evidence_provenance(**kwargs):
-        return None
+        return object(), True
 
     monkeypatch.setattr(
         "app.pipeline.phase3_research.tools._find_canonical_source_by_url",
@@ -575,7 +598,7 @@ async def test_create_web_evidence_reuses_canonical_source(monkeypatch: pytest.M
         _fake_ensure_evidence_provenance,
     )
 
-    evidence_id = await create_web_evidence(
+    result = await create_web_evidence(
         url="https://reuters.com/article",
         quote="A concrete quote.",
         asset_type="case",
@@ -593,7 +616,10 @@ async def test_create_web_evidence_reuses_canonical_source(monkeypatch: pytest.M
     assert sources == []
     assert len(evidence_rows) == 1
     assert evidence_rows[0].source_id == canonical_source.id
-    assert evidence_id == str(evidence_rows[0].id)
+    assert result.evidence_id == str(evidence_rows[0].id)
+    assert result.created_source is False
+    assert result.created_evidence is True
+    assert result.created_provenance is True
 
 
 class _FakeScalarResult:
@@ -703,7 +729,12 @@ async def test_research_fast_web_governor_counts_processed_gaps_not_evidence_ite
     async def _fake_create_web_evidence(*, query_text, **kwargs):
         created_for_questions.append(kwargs["question_id"])
         assert query_text == "query"
-        return str(uuid.uuid4())
+        return CreatedWebEvidenceResult(
+            evidence_id=str(uuid.uuid4()),
+            created_source=False,
+            created_evidence=True,
+            created_provenance=True,
+        )
 
     monkeypatch.setattr(
         "app.pipeline.phase3_research.librarian_fast._build_search_queries",
@@ -846,7 +877,11 @@ async def test_research_fast_web_skips_known_fully_ingested_urls_before_fetch(
         assert payload["required_evidence"] == []
         assert payload["expected_evidence"] == []
         assert payload["target_missing_assets"] == []
+        assert "search_objective" not in payload
+        assert payload["corroboration_goals"] == ["independent_second_source"]
         assert payload["question_background_assets"]["required_evidence"] == [{"type": "MECHANISM", "min_count": 1}]
+        assert payload["claim_contexts"][0]["corroboration_goal"] == "independent_second_source"
+        assert "search_objective" not in payload["claim_contexts"][0]
         assert payload["web_pages"][0]["url"] == "https://novel.example.com/article"
         return json.dumps(
             [
@@ -865,7 +900,12 @@ async def test_research_fast_web_skips_known_fully_ingested_urls_before_fetch(
 
     async def _fake_create_web_evidence(*, url, **kwargs):
         created_urls.append(url)
-        return str(uuid.uuid4())
+        return CreatedWebEvidenceResult(
+            evidence_id=str(uuid.uuid4()),
+            created_source=False,
+            created_evidence=True,
+            created_provenance=True,
+        )
 
     async def _fake_load_known_sources(*args, **kwargs):
         return {
@@ -935,3 +975,491 @@ async def test_research_fast_web_skips_known_fully_ingested_urls_before_fetch(
     assert fetch_calls == ["https://novel.example.com/article"]
     assert created_urls == ["https://novel.example.com/article"]
     assert result["iteration_counts"]["fast_web_verifier_gap_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_research_fast_web_claim_corroboration_does_not_reject_non_target_asset_type(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = EpisodeManifest(id=uuid.uuid4(), research_tree_json={"branches": []})
+    research_session = _FakeSession([_FakeScalarResult(manifest)])
+    deep_session = _FakeSession([_FakeScalarResult(0), _FakeListResult([])])
+    sessions = [research_session, deep_session]
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.async_session_factory",
+        lambda: sessions.pop(0),
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.publish_event",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.settings",
+        SimpleNamespace(
+            max_fast_web_per_act=5,
+            max_fast_web_initial_gaps=5,
+            max_fast_web_verifier_gaps=5,
+            max_deep_ingestion_concurrent=0,
+            web_extractor_debug_dump_dir="",
+        ),
+    )
+
+    async def _fake_build_search_queries(*args, **kwargs):
+        return ["query"]
+
+    async def _fake_run_search_queries(queries):
+        return (
+            [
+                {"url": "https://novel.example.com/article", "title": "Novel", "score": 0.8, "query_text": queries[0]},
+            ],
+            [],
+        )
+
+    async def _fake_prepare_gap_pages(**kwargs):
+        return (
+            [
+                {
+                    "url": "https://novel.example.com/article",
+                    "title": "Novel",
+                    "query_text": "query",
+                    "extraction_profile": "stub",
+                    "content_strategy": "relevance_windows",
+                    "excerpt_windows": ["Historical corroboration window " * 30],
+                }
+            ],
+            [],
+        )
+
+    async def _fake_call_sonnet_structured(**kwargs):
+        return json.dumps(
+            [
+                {
+                    "url": "https://novel.example.com/article",
+                    "verbatim_quote": "By 1860 around 1,500 to 1,600 banks issued notes in the United States.",
+                    "asset_type": "STATISTIC",
+                    "direct_or_contextual": "direct",
+                    "narrative_value_score": 0.7,
+                    "tellability_notes": "direct corroboration",
+                }
+            ]
+        )
+
+    created_asset_types: list[str] = []
+
+    async def _fake_create_web_evidence(*, asset_type, **kwargs):
+        created_asset_types.append(asset_type)
+        return CreatedWebEvidenceResult(
+            evidence_id=str(uuid.uuid4()),
+            created_source=False,
+            created_evidence=True,
+            created_provenance=True,
+        )
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast._build_search_queries",
+        _fake_build_search_queries,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast._run_search_queries",
+        _fake_run_search_queries,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast._prepare_gap_pages",
+        _fake_prepare_gap_pages,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.call_sonnet_structured",
+        _fake_call_sonnet_structured,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.create_web_evidence",
+        _fake_create_web_evidence,
+    )
+    async def _fake_load_known_sources(*args, **kwargs):
+        return {}
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast._load_known_web_source_index",
+        _fake_load_known_sources,
+    )
+
+    result = await research_fast_web(
+        {
+            "generation_run_id": str(uuid.uuid4()),
+            "project_id": str(uuid.uuid4()),
+            "manifest_id": str(manifest.id),
+            "language": "en",
+            "evidence_ids": [],
+            "iteration_counts": {},
+            "research_gaps": [
+                {
+                    "question_id": "q1",
+                    "branch_id": "b3",
+                    "question": "What is a currency board and why can private banks issue notes safely?",
+                    "priority": 1,
+                    "gap_origin": "verifier",
+                    "claim_statement": "By 1860 around 1,500 to 1,600 banks issued notes in the United States.",
+                    "search_objective": "Find an independent second source that confirms the number of banks.",
+                    "required_assets": [{"type": "DEFINITION", "min_count": 1}],
+                    "expected_assets": ["CONTRAST"],
+                    "missing_assets": ["DEFINITION"],
+                }
+            ],
+        }
+    )
+
+    assert created_asset_types == ["statistic"]
+    assert len(result["evidence_ids"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_research_fast_web_propagates_step_stop_without_writing_summary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = EpisodeManifest(id=uuid.uuid4(), research_tree_json={"branches": []})
+    research_session = _FakeSession([_FakeScalarResult(manifest)])
+    deep_session = _FakeSession([_FakeScalarResult(0), _FakeListResult([])])
+    sessions = [research_session, deep_session]
+    dump_calls: list[str] = []
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.async_session_factory",
+        lambda: sessions.pop(0),
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.publish_event",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.settings",
+        SimpleNamespace(
+            max_fast_web_per_act=5,
+            max_fast_web_initial_gaps=5,
+            max_fast_web_verifier_gaps=5,
+            max_deep_ingestion_concurrent=0,
+            web_extractor_debug_dump_dir="",
+        ),
+    )
+    async def _fake_load_known_sources(*args, **kwargs):
+        return {}
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast._load_known_web_source_index",
+        _fake_load_known_sources,
+    )
+
+    async def _fake_build_search_queries(*args, **kwargs):
+        return ["query"]
+
+    async def _fake_run_search_queries(queries):
+        raise StepExecutionStopped()
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast._build_search_queries",
+        _fake_build_search_queries,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast._run_search_queries",
+        _fake_run_search_queries,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast._dump_fast_web_debug",
+        lambda *, dump_type, **kwargs: dump_calls.append(dump_type),
+    )
+
+    with pytest.raises(StepExecutionStopped):
+        await research_fast_web(
+            {
+                "generation_run_id": str(uuid.uuid4()),
+                "project_id": str(uuid.uuid4()),
+                "manifest_id": str(manifest.id),
+                "language": "en",
+                "evidence_ids": [],
+                "iteration_counts": {},
+                "research_gaps": [
+                    {"question_id": "q1", "branch_id": "b1", "question": "Question 1", "priority": 1}
+                ],
+            }
+        )
+
+    assert dump_calls == []
+
+
+@pytest.mark.asyncio
+async def test_research_fast_web_summary_counts_accepted_vs_new_canonical_and_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = EpisodeManifest(id=uuid.uuid4(), research_tree_json={"branches": []})
+    research_session = _FakeSession([_FakeScalarResult(manifest)])
+    deep_session = _FakeSession([_FakeScalarResult(0), _FakeListResult([])])
+    sessions = [research_session, deep_session]
+    summary_payloads: list[dict] = []
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.async_session_factory",
+        lambda: sessions.pop(0),
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.publish_event",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.settings",
+        SimpleNamespace(
+            max_fast_web_per_act=5,
+            max_fast_web_initial_gaps=5,
+            max_fast_web_verifier_gaps=5,
+            max_deep_ingestion_concurrent=0,
+            web_extractor_debug_dump_dir="",
+        ),
+    )
+    async def _fake_load_known_sources(*args, **kwargs):
+        return {}
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast._load_known_web_source_index",
+        _fake_load_known_sources,
+    )
+
+    async def _fake_build_search_queries(*args, **kwargs):
+        return ["query"]
+
+    async def _fake_run_search_queries(queries):
+        return (
+            [{"url": "https://example.com/a", "title": "A", "score": 0.9, "query_text": queries[0]}],
+            [],
+        )
+
+    async def _fake_prepare_gap_pages(**kwargs):
+        return (
+            [
+                {
+                    "url": "https://example.com/a",
+                    "title": "A",
+                    "query_text": "query",
+                    "extraction_profile": "stub",
+                    "content_strategy": "relevance_windows",
+                    "excerpt_windows": ["Relevant corroboration window " * 20],
+                }
+            ],
+            [],
+        )
+
+    async def _fake_call_sonnet_structured(**kwargs):
+        return json.dumps(
+            [
+                {
+                    "url": "https://example.com/a",
+                    "verbatim_quote": "Quote one.",
+                    "asset_type": "CASE",
+                    "direct_or_contextual": "direct",
+                    "narrative_value_score": 0.4,
+                    "tellability_notes": "one",
+                },
+                {
+                    "url": "https://example.com/a",
+                    "verbatim_quote": "Quote two.",
+                    "asset_type": "CASE",
+                    "direct_or_contextual": "direct",
+                    "narrative_value_score": 0.5,
+                    "tellability_notes": "two",
+                },
+                {
+                    "url": "https://example.com/a",
+                    "verbatim_quote": "Quote three.",
+                    "asset_type": "CASE",
+                    "direct_or_contextual": "direct",
+                    "narrative_value_score": 0.6,
+                    "tellability_notes": "three",
+                },
+            ]
+        )
+
+    results = [
+        CreatedWebEvidenceResult(str(uuid.uuid4()), True, True, True),
+        CreatedWebEvidenceResult(str(uuid.uuid4()), False, False, True),
+        CreatedWebEvidenceResult(str(uuid.uuid4()), False, False, False),
+    ]
+
+    async def _fake_create_web_evidence(**kwargs):
+        return results.pop(0)
+
+    def _fake_dump_fast_web_debug(*, dump_type, payload, **kwargs):
+        if dump_type == "summary":
+            summary_payloads.append(payload)
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast._build_search_queries",
+        _fake_build_search_queries,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast._run_search_queries",
+        _fake_run_search_queries,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast._prepare_gap_pages",
+        _fake_prepare_gap_pages,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.call_sonnet_structured",
+        _fake_call_sonnet_structured,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.create_web_evidence",
+        _fake_create_web_evidence,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast._dump_fast_web_debug",
+        _fake_dump_fast_web_debug,
+    )
+
+    await research_fast_web(
+        {
+            "generation_run_id": str(uuid.uuid4()),
+            "project_id": str(uuid.uuid4()),
+            "manifest_id": str(manifest.id),
+            "language": "en",
+            "evidence_ids": [],
+            "iteration_counts": {},
+            "research_gaps": [
+                {"question_id": "q1", "branch_id": "b1", "question": "Question 1", "priority": 1}
+            ],
+        }
+    )
+
+    assert summary_payloads
+    summary = summary_payloads[0]
+    assert summary["accepted_item_count"] == 3
+    assert summary["new_evidence_count"] == 1
+    assert summary["new_canonical_evidence_count"] == 1
+    assert summary["new_provenance_links_count"] == 2
+    assert summary["new_linked_evidence_count"] == 2
+    assert summary["new_source_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_research_fast_web_emits_event_for_provenance_only_useful_delta(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = EpisodeManifest(id=uuid.uuid4(), research_tree_json={"branches": []})
+    research_session = _FakeSession([_FakeScalarResult(manifest)])
+    deep_session = _FakeSession([_FakeScalarResult(0), _FakeListResult([])])
+    sessions = [research_session, deep_session]
+    events = []
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.async_session_factory",
+        lambda: sessions.pop(0),
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.publish_event",
+        lambda run_id, event: events.append(event),
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.settings",
+        SimpleNamespace(
+            max_fast_web_per_act=5,
+            max_fast_web_initial_gaps=5,
+            max_fast_web_verifier_gaps=5,
+            max_deep_ingestion_concurrent=0,
+            web_extractor_debug_dump_dir="",
+        ),
+    )
+
+    async def _fake_load_known_sources(*args, **kwargs):
+        return {}
+
+    async def _fake_build_search_queries(*args, **kwargs):
+        return ["query"]
+
+    async def _fake_run_search_queries(queries):
+        return (
+            [{"url": "https://example.com/a", "title": "A", "score": 0.9, "query_text": queries[0]}],
+            [],
+        )
+
+    async def _fake_prepare_gap_pages(**kwargs):
+        return (
+            [
+                {
+                    "url": "https://example.com/a",
+                    "title": "A",
+                    "query_text": "query",
+                    "extraction_profile": "stub",
+                    "content_strategy": "relevance_windows",
+                    "excerpt_windows": ["Relevant corroboration window " * 20],
+                }
+            ],
+            [],
+        )
+
+    async def _fake_call_sonnet_structured(**kwargs):
+        return json.dumps(
+            [
+                {
+                    "url": "https://example.com/a",
+                    "verbatim_quote": "Quote one.",
+                    "asset_type": "CASE",
+                    "direct_or_contextual": "direct",
+                    "narrative_value_score": 0.4,
+                    "tellability_notes": "one",
+                }
+            ]
+        )
+
+    async def _fake_create_web_evidence(**kwargs):
+        return CreatedWebEvidenceResult(
+            evidence_id=str(uuid.uuid4()),
+            created_source=False,
+            created_evidence=False,
+            created_provenance=True,
+        )
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast._load_known_web_source_index",
+        _fake_load_known_sources,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast._build_search_queries",
+        _fake_build_search_queries,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast._run_search_queries",
+        _fake_run_search_queries,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast._prepare_gap_pages",
+        _fake_prepare_gap_pages,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.call_sonnet_structured",
+        _fake_call_sonnet_structured,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.create_web_evidence",
+        _fake_create_web_evidence,
+    )
+
+    result = await research_fast_web(
+        {
+            "generation_run_id": str(uuid.uuid4()),
+            "project_id": str(uuid.uuid4()),
+            "manifest_id": str(manifest.id),
+            "language": "en",
+            "evidence_ids": [],
+            "iteration_counts": {},
+            "research_gaps": [
+                {"question_id": "q1", "branch_id": "b1", "question": "Question 1", "priority": 1}
+            ],
+        }
+    )
+
+    evidence_events = [event for event in events if getattr(event, "type", "") == "evidence_found"]
+    progress_events = [event for event in events if getattr(event, "type", "") == "progress"]
+
+    assert len(result["evidence_ids"]) == 1
+    assert evidence_events
+    assert evidence_events[-1].data["count"] == 1
+    assert progress_events
+    assert "Found 1 additional web evidence" in progress_events[-1].data["message"]

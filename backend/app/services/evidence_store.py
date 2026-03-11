@@ -179,7 +179,7 @@ async def ensure_evidence_provenance(
     db: AsyncSession,
     evidence_id: str | uuid.UUID,
     context: EvidenceProvenanceContext,
-) -> EvidenceProvenance:
+) -> tuple[EvidenceProvenance, bool]:
     evidence_uuid = evidence_id if isinstance(evidence_id, uuid.UUID) else uuid.UUID(str(evidence_id))
     generation_run_uuid = uuid.UUID(context.generation_run_id)
     manifest_uuid = uuid.UUID(context.manifest_id) if context.manifest_id else None
@@ -209,7 +209,7 @@ async def ensure_evidence_provenance(
             current = normalize_direct_or_contextual(existing.direct_or_contextual)
             if current is None or (current == EvidenceQuestionRelevance.CONTEXTUAL and direct_or_contextual == EvidenceQuestionRelevance.DIRECT):
                 existing.direct_or_contextual = direct_or_contextual
-        return existing
+        return existing, False
 
     provenance = EvidenceProvenance(
         id=uuid.uuid4(),
@@ -226,4 +226,4 @@ async def ensure_evidence_provenance(
     )
     db.add(provenance)
     await db.flush()
-    return provenance
+    return provenance, True

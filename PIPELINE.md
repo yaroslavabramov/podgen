@@ -313,7 +313,11 @@ Web extraction использует каскад extractors:
 - если canonical source уже известен проекту и fully ingested с доступными chunks/content, fast-web skip'ает такой URL до fetch/extract и идёт к следующему novel candidate
 - если source уже известен, но не fully ingested, fast-web может reuse preview только когда он уже достаточен; иначе не крутит слепой duplicate fetch loop
 - verifier-loop fast-web работает в явном extractor mode `claim_corroboration`: primary target — слабые `claim_contexts`, а question-level `required/expected/missing assets` остаются только background context
+- verifier-mode extractor payload не дублирует verbose `search_objective`; вместо этого он передаёт компактные `corroboration_goals` (`independent_second_source`, `direct_source_needed`, `stronger_authority_needed`) и sanitized `claim_contexts`
+- verifier-mode post-filter больше не режет extracted items по question-level `target_missing_assets`; asset targeting остаётся только для `question_gap_fill`
 - verifier-mode reranking и excerpt selection claim-anchor-first: broad question overlap сам по себе не должен поднимать страницу/окно в prompt
+- stop signal в fast-web не деградирует в `search_failures`: `StepExecutionStopped` пробрасывается вверх и останавливает весь node
+- fast-web summary/accounting различает `accepted_item_count`, `new_canonical_evidence_count`, `new_provenance_links_count`, `new_source_count`; realtime `evidence_found` считается по run-usable linked evidence, а не только по brand-new canonical quotes
 - затем сохранить canonical `EvidenceSpan` + `EvidenceProvenance`
 
 - web extractor получает `question_intent` и тоже помечает evidence как `direct` или `contextual`; для verifier-mode он больше не обязан искусственно подгонять evidence под question-level asset accounting
@@ -408,6 +412,7 @@ Web extraction использует каскад extractors:
   - `search_objective`
   - `existing_support_summary`
   - `required_assets` / `expected_assets` / `missing_assets` из research context, когда они доступны
+- fast-web claim-corroboration path использует эти поля как input context, но не обязан механически копировать их в extractor prompt; top-level verbose `search_objective` заменяется compact corroboration goals layer
 - verifier reasoning принудительно держится коротким и evidence-bound: без спекуляций о "future dates", скрытых metadata-анomalies и прочих неявных выводов
 
 - при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` verifier пишет JSON dumps:

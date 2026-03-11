@@ -51,18 +51,79 @@ def _merge_step_control(config: dict[str, Any] | None, action: str, result: dict
     return merged
 
 
-def _mark_step_stopped(config: dict[str, Any] | None, action: str, reason: str) -> dict[str, Any]:
+_NODE_PHASES = {
+    "setup_show": "phase0_setup",
+    "decompose": "phase2_decomposition",
+    "hunt_closed_book": "phase3_research",
+    "research_fast_web": "phase3_research",
+    "build_claims": "phase4_claims",
+    "dedupe_claims": "phase4_claims",
+    "verify_claims": "phase4_claims",
+    "resolve_conflicts": "phase4_claims",
+    "plan_episode": "phase5_planning",
+    "plan_acts": "phase5_planning",
+    "integrate_acts": "phase5_planning",
+    "write_screenplay": "phase6_writing",
+    "evaluate_and_revolt": "phase6_writing",
+    "audit_citations": "phase6_writing",
+    "generate_audio": "phase7_audio",
+    "build_shownotes": "phase7_audio",
+}
+
+
+def _node_from_step_control(step_control: dict[str, Any], key: str) -> str | None:
+    candidate = step_control.get(key)
+    return candidate if isinstance(candidate, str) and candidate else None
+
+
+def _stopped_step_position(step_control: dict[str, Any], action: str, *, started: bool) -> dict[str, Any]:
+    last_completed_node = _node_from_step_control(step_control, "last_node")
+    interrupted_node = (
+        _node_from_step_control(step_control, "last_node")
+        if action == "rerun"
+        else _node_from_step_control(step_control, "next_node")
+    )
+    next_action_node = _node_from_step_control(step_control, "next_node")
+    checkpoint_id = _node_from_step_control(step_control, "checkpoint_id")
+
+    return {
+        "last_node": last_completed_node,
+        "executed_node": interrupted_node if started else last_completed_node,
+        "next_node": next_action_node,
+        "checkpoint_id": checkpoint_id,
+        "is_complete": False,
+        "can_rerun": bool(last_completed_node),
+        "resume_node": interrupted_node,
+        "resume_phase": _NODE_PHASES.get(next_action_node or interrupted_node or last_completed_node or "", ""),
+    }
+
+
+def _mark_step_stopped(
+    config: dict[str, Any] | None,
+    action: str,
+    reason: str,
+    *,
+    started: bool,
+) -> dict[str, Any]:
     merged = dict(config or {})
     merged["execution_mode"] = "step"
 
     step_control = dict(merged.get("step_control") or {})
+    position = _stopped_step_position(step_control, action, started=started)
     step_control["last_action"] = action
     step_control["updated_at"] = datetime.utcnow().isoformat()
     step_control["requested_action"] = None
     step_control["requested_at"] = None
     step_control["stop_requested"] = False
+    step_control["stop_requested_at"] = None
     step_control["stop_acknowledged_at"] = datetime.utcnow().isoformat()
     step_control["stop_reason"] = reason
+    step_control["last_node"] = position["last_node"]
+    step_control["executed_node"] = position["executed_node"]
+    step_control["next_node"] = position["next_node"]
+    step_control["checkpoint_id"] = position["checkpoint_id"]
+    step_control["is_complete"] = position["is_complete"]
+    step_control["can_rerun"] = position["can_rerun"]
 
     merged["step_control"] = step_control
     return merged
@@ -70,14 +131,6 @@ def _mark_step_stopped(config: dict[str, Any] | None, action: str, reason: str) 
 
 def _step_control(config: dict[str, Any] | None) -> dict[str, Any]:
     return dict((config or {}).get("step_control") or {})
-
-
-def _next_node_for_stop(step_control: dict[str, Any], action: str) -> str | None:
-    if action == "rerun":
-        candidate = step_control.get("last_node")
-    else:
-        candidate = step_control.get("next_node")
-    return candidate if isinstance(candidate, str) and candidate else None
 
 
 async def _run_pipeline_async(generation_run_id: str, resume: bool = False):
@@ -176,14 +229,24 @@ async def _run_step_async(generation_run_id: str, action: str = "next"):
             run.status = GenerationStatus.QUEUED
             run.error_message = None
             run.completed_at = None
-            run.config = _mark_step_stopped(run.config, action, "stopped_before_start")
+            run.config = _mark_step_stopped(
+                run.config,
+                action,
+                "stopped_before_start",
+                started=False,
+            )
+            stopped_control = _step_control(run.config)
+            run.current_step = stopped_control.get("next_node") or run.current_step
+            resume_phase = _stopped_step_position(step_control, action, started=False).get("resume_phase")
+            if isinstance(resume_phase, str) and resume_phase:
+                run.current_phase = resume_phase
             await db.commit()
 
             publish_event(
                 generation_run_id,
                 generation_paused(
-                    step_control.get("executed_node"),
-                    _next_node_for_stop(step_control, action),
+                    stopped_control.get("executed_node"),
+                    stopped_control.get("next_node"),
                     stopped=True,
                     reason="stopped_before_start",
                 ),
@@ -266,15 +329,24 @@ async def _run_step_async(generation_run_id: str, action: str = "next"):
                         run.status = GenerationStatus.QUEUED
                         run.error_message = None
                         run.completed_at = None
-                        run.config = _mark_step_stopped(run.config, action, str(stop_exc))
+                        run.config = _mark_step_stopped(
+                            run.config,
+                            action,
+                            str(stop_exc),
+                            started=True,
+                        )
+                        stopped_control = _step_control(run.config)
+                        run.current_step = stopped_control.get("next_node") or run.current_step
+                        resume_phase = _stopped_step_position(step_control, action, started=True).get("resume_phase")
+                        if isinstance(resume_phase, str) and resume_phase:
+                            run.current_phase = resume_phase
                         await db.commit()
 
-                        stopped_control = _step_control(run.config)
                         publish_event(
                             generation_run_id,
                             generation_paused(
                                 stopped_control.get("executed_node"),
-                                _next_node_for_stop(stopped_control, action),
+                                stopped_control.get("next_node"),
                                 stopped=True,
                                 reason=str(stop_exc),
                             ),
@@ -286,7 +358,7 @@ async def _run_step_async(generation_run_id: str, action: str = "next"):
                                 "action": action,
                                 "reason": str(stop_exc),
                                 "executed_node": stopped_control.get("executed_node"),
-                                "next_node": _next_node_for_stop(stopped_control, action),
+                                "next_node": stopped_control.get("next_node"),
                             },
                         )
 

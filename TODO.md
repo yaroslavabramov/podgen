@@ -481,6 +481,13 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 Deferred after Round 68:
 - [ ] **P2**: Add typed verifier gap routing (`weak_source`, `truncated_quote`, `claim_overshoot`, etc.) with separate remediation paths instead of sending all `needs_research` cases through the same fast-web loop
 
+**Round 72 (fast-web verifier-mode correctness after live run):**
+- [x] **P0**: In `claim_corroboration` mode, stop rejecting extractor output via question-level `target_missing_assets`; asset-type targeting should remain only for `question_gap_fill`
+- [x] **P0**: Stop swallowing `StepExecutionStopped` inside fast-web query loop; step-mode stop must abort the node instead of degrading into `search_failures`
+- [x] **P0**: Remove top-level verbose verifier `search_objective` duplication from fast-web extractor payload; replace with compact corroboration-goal signal
+- [x] **P1**: Fix fast-web success accounting to distinguish `accepted_extractor_items`, `new_canonical_evidence_count`, and `new_provenance_links_count`
+- [x] **P1**: Revisit verifier-mode page retention for broad history/legal context pages that survive rerank/window selection without direct claim corroboration
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority
