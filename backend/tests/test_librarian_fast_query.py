@@ -360,6 +360,26 @@ def test_select_excerpt_windows_prefers_relevant_middle_section() -> None:
     assert "ordinance 5" in windows[0].lower()
 
 
+def test_select_excerpt_windows_returns_empty_for_pure_reference_text() -> None:
+    text = (
+        "Greenwood, J. (2007). Banking crises and liquidity. Journal of Finance, vol. 12, pp. 14-33.\n\n"
+        "Kwan, C. (1999). Hong Kong exchange rate regimes. doi:10.1000/example.\n\n"
+        "Lui, T. (2001). Monetary stability in colonial Hong Kong. Journal of Economic History, vol. 5, pp. 8-19."
+    )
+
+    windows = _select_excerpt_windows(
+        text,
+        gap={
+            "question": "How did the monetary regime work?",
+            "claim_statement": "The regime shifted from silver to sterling.",
+            "search_objective": "Find a direct corroborating source.",
+        },
+        query_text="monetary regime colonial Hong Kong silver sterling",
+    )
+
+    assert windows == []
+
+
 def test_rerank_search_results_penalizes_reused_source_family_across_gaps() -> None:
     ranked = _rerank_search_results(
         [
@@ -431,6 +451,31 @@ def test_is_low_value_page_allows_high_authority_page_with_some_overlap() -> Non
     assert meta["overlap_score"] > 0
 
 
+def test_is_low_value_page_allows_high_authority_short_page_with_overlap() -> None:
+    gap = {
+        "gap_origin": "verifier",
+        "question": "Why did note issuance move to three banks?",
+        "claim_statement": "The Bank of China became a note-issuing bank in 1994.",
+    }
+    short_formal_page = (
+        "Official records state that Bank of China became a note-issuing bank in Hong Kong in 1994. "
+        "The institutional change was formalized by the authorities."
+    )
+
+    is_low_value, meta = _is_low_value_page(
+        short_formal_page,
+        gap,
+        query_text="Bank of China note-issuing bank 1994 Hong Kong official record",
+        authority_type="primary",
+        domain_reliability="high",
+    )
+
+    assert len(short_formal_page) < 220
+    assert is_low_value is False
+    assert meta["short_page_bypass"] is True
+    assert meta["overlap_score"] > 0
+
+
 def test_reference_like_window_detects_bibliography_patterns() -> None:
     window = (
         "Greenwood, J. (2007). Banking crises and liquidity. Journal of Finance, vol. 12, pp. 14-33. "
@@ -489,6 +534,37 @@ def test_claim_corroboration_quality_ceiling_drops_weaker_pages_when_stronger_av
 
     assert [item["url"] for item in kept] == ["https://official.example/doc"]
     assert rejected[0]["reason"] == "weaker_than_available_stronger_source"
+
+
+def test_claim_corroboration_quality_ceiling_does_not_cross_drop_multi_claim_gap() -> None:
+    kept, rejected = _apply_claim_corroboration_quality_ceiling(
+        [
+            {
+                "url": "https://official.example/doc",
+                "authority_type": "primary",
+                "domain_reliability": "high",
+            },
+            {
+                "url": "https://medium.com/post",
+                "authority_type": "tertiary",
+                "domain_reliability": "unknown",
+            },
+        ],
+        {
+            "https://official.example/doc": {"authority_type": "primary", "domain_reliability": "high"},
+            "https://medium.com/post": {"authority_type": "tertiary", "domain_reliability": "unknown"},
+        },
+        claim_contexts=[
+            {"claim_id": "c1", "claim_statement": "Claim A"},
+            {"claim_id": "c2", "claim_statement": "Claim B"},
+        ],
+    )
+
+    assert [item["url"] for item in kept] == [
+        "https://official.example/doc",
+        "https://medium.com/post",
+    ]
+    assert rejected == []
 
 
 def test_normalize_search_query_caps_monster_query_length() -> None:

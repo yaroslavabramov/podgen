@@ -337,6 +337,7 @@ async def research_fast_web(state: PipelineState) -> dict:
                     candidate_items, quality_rejections = _apply_claim_corroboration_quality_ceiling(
                         candidate_items,
                         page_metadata_by_url,
+                        claim_contexts=extractor_claim_contexts,
                     )
                     if quality_rejections:
                         rejected_items.extend(quality_rejections)
@@ -1249,15 +1250,22 @@ def _is_low_value_page(
     domain_reliability: str = "",
 ) -> tuple[bool, dict]:
     stripped = text.strip()
-    if len(stripped) < _FAST_WEB_MIN_PAGE_CHARS:
-        return True, {"drop_reason": "too_short", "page_chars": len(stripped)}
+    authority = str(authority_type or "").strip().lower()
+    reliability = str(domain_reliability or "").strip().lower()
+    high_trust = authority in {"primary", "secondary"} or reliability == "high"
     overlap = _token_overlap_score(
         _overlap_terms(text[:4000]),
         _gap_objective_terms(gap, query_text=query_text),
     )
-    authority = str(authority_type or "").strip().lower()
-    reliability = str(domain_reliability or "").strip().lower()
-    high_trust = authority in {"primary", "secondary"} or reliability == "high"
+    if len(stripped) < _FAST_WEB_MIN_PAGE_CHARS:
+        if high_trust and overlap > 0:
+            return False, {
+                "overlap_score": overlap,
+                "page_chars": len(stripped),
+                "authority_bypass": True,
+                "short_page_bypass": True,
+            }
+        return True, {"drop_reason": "too_short", "page_chars": len(stripped)}
     if overlap < _FAST_WEB_LOW_VALUE_OVERLAP_MIN and len(stripped) < 1000 and not high_trust:
         return True, {"drop_reason": "low_overlap_short_page", "overlap_score": overlap, "page_chars": len(stripped)}
     anchor_terms = _gap_anchor_terms(gap, query_text=query_text)
@@ -1276,8 +1284,7 @@ def _select_excerpt_windows(text: str, *, gap: dict, query_text: str) -> list[st
     anchor_terms = _gap_anchor_terms(gap, query_text=query_text)
     blocks = [block.strip() for block in re.split(r"\n{2,}", text) if block.strip()]
     if not blocks:
-        fallback = text.strip()
-        return [fallback[:_FAST_WEB_WINDOW_FALLBACK_CHARS]] if fallback else []
+        return _fallback_excerpt_windows(text)
 
     windows: list[tuple[float, int, int, str]] = []
     for start_index in range(len(blocks)):
@@ -1300,8 +1307,7 @@ def _select_excerpt_windows(text: str, *, gap: dict, query_text: str) -> list[st
             break
 
     if not windows:
-        fallback = text.strip()
-        return [fallback[:_FAST_WEB_WINDOW_FALLBACK_CHARS]] if fallback else []
+        return _fallback_excerpt_windows(text)
 
     selected: list[str] = []
     used_block_indexes: set[int] = set()
@@ -1317,9 +1323,18 @@ def _select_excerpt_windows(text: str, *, gap: dict, query_text: str) -> list[st
             break
 
     if not selected:
-        fallback = text.strip()
-        return [fallback[:_FAST_WEB_WINDOW_FALLBACK_CHARS]] if fallback else []
+        return _fallback_excerpt_windows(text)
     return selected
+
+
+def _fallback_excerpt_windows(text: str) -> list[str]:
+    fallback = text.strip()
+    if not fallback:
+        return []
+    clipped = fallback[:_FAST_WEB_WINDOW_FALLBACK_CHARS]
+    if _is_reference_like_window(clipped):
+        return []
+    return [clipped]
 
 
 def _score_excerpt_window(text: str, objective_terms: set[str], *, anchor_terms: set[str] | None = None) -> float:
@@ -1495,8 +1510,17 @@ def _page_quality_rank(page: dict | None) -> tuple[int, int]:
 def _apply_claim_corroboration_quality_ceiling(
     accepted_items: list[dict],
     page_metadata_by_url: dict[str, dict],
+    *,
+    claim_contexts: list[dict] | None = None,
 ) -> tuple[list[dict], list[dict]]:
     if len(accepted_items) <= 1:
+        return accepted_items, []
+    distinct_claim_ids = {
+        str(context.get("claim_id", "")).strip()
+        for context in (claim_contexts or [])
+        if isinstance(context, dict) and str(context.get("claim_id", "")).strip()
+    }
+    if len(distinct_claim_ids) > 1:
         return accepted_items, []
 
     strongest_rank = min(

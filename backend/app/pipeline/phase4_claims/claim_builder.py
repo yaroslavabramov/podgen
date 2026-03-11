@@ -92,11 +92,21 @@ async def build_claims(state: PipelineState) -> dict:
     rebuilt_claim_ids: list[str] = []
     preserved_claim_ids: list[str] = []
     rebuild_scope = _derive_targeted_rebuild_scope(state)
-    previous_gap_claim_ids = {
-        str(gap.get("claim_id", "")).strip()
-        for gap in (state.get("research_gaps", []) or [])
-        if isinstance(gap, dict) and str(gap.get("claim_id", "")).strip()
-    }
+    previous_gap_claim_ids: set[str] = set()
+    for gap in (state.get("research_gaps", []) or []):
+        if not isinstance(gap, dict):
+            continue
+        gap_claim_ids = [
+            str(claim_id).strip()
+            for claim_id in (gap.get("claim_ids", []) or [])
+            if str(claim_id).strip()
+        ]
+        if gap_claim_ids:
+            previous_gap_claim_ids.update(gap_claim_ids)
+            continue
+        claim_id = str(gap.get("claim_id", "")).strip()
+        if claim_id:
+            previous_gap_claim_ids.add(claim_id)
     previous_rebuild_lookup: dict[str, list[dict]] = {}
 
     async with async_session_factory() as db:

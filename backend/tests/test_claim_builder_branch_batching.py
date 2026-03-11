@@ -323,6 +323,56 @@ async def test_persist_claim_batch_reuses_previous_verification_state_and_semant
     assert all_claim_ids == [saved_claims[0]["claim_id"]]
 
 
+@pytest.mark.asyncio
+async def test_persist_claim_batch_does_not_reuse_verification_state_for_non_lead_gap_claim() -> None:
+    db = _FakePersistDB()
+    all_claim_ids: list[str] = []
+    evidence_id = str(uuid.uuid4())
+    signature = _claim_rebuild_signature(
+        statement="The Exchange Fund constrains discretionary monetary policy under the linked exchange rate system.",
+        claim_type="fact",
+        support_ids={evidence_id},
+        illustrative_ids=set(),
+    )
+
+    await _persist_claim_batch(
+        db=db,
+        project_id=str(uuid.uuid4()),
+        claims_data=[
+            {
+                "claim_type": "FACT",
+                "statement": "The Exchange Fund constrains discretionary monetary policy under the linked exchange rate system.",
+                "supporting_evidence_ids": [evidence_id],
+                "illustrative_evidence_ids": [],
+                "attribution": None,
+            }
+        ],
+        batch_ids={evidence_id},
+        branch_id="b6",
+        branch_question_ids=["b6.3"],
+        batch_evidence_index={
+            evidence_id: {
+                "lineage": {"question_contexts": []}
+            }
+        },
+        previous_rebuild_lookup={
+            signature: [
+                {
+                    "claim_id": "c2",
+                    "verification_level": VerificationLevel.OBSERVED,
+                    "verification_fingerprint": "fp-gap",
+                    "was_gap_claim": True,
+                }
+            ]
+        },
+        run_id=str(uuid.uuid4()),
+        all_claim_ids=all_claim_ids,
+    )
+
+    created_claim = next(item for item in db.added if isinstance(item, Claim))
+    assert created_claim.verification_fingerprint is None
+
+
 class _FakeScalarResult:
     def __init__(self, value):
         self._value = value
@@ -447,4 +497,83 @@ async def test_build_claims_targeted_rebuild_preserves_unaffected_claims(monkeyp
     assert result["claim_ids"] == ["claim-keep", "claim-new"]
     assert result["rebuilt_claim_ids"] == ["claim-new"]
     assert result["preserved_claim_ids"] == ["claim-keep"]
+    assert result["targeted_branch_ids"] == ["b6"]
+
+
+@pytest.mark.asyncio
+async def test_build_claims_passes_full_merged_gap_claim_ids_to_previous_rebuild_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _FakeSession()
+    captured_previous_gap_claim_ids: list[str] = []
+
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder.async_session_factory",
+        lambda: session,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder.publish_event",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder.update_generation_progress",
+        lambda *args, **kwargs: None,
+    )
+
+    async def _fake_load_branch_batches(**kwargs):
+        return (
+            {"e1": {"id": "e1"}},
+            [
+                ("b6", [{"id": "e1", "lineage": {"question_contexts": []}, "source": {}, "contextual_asset_types": [], "verbatim_quote": "A", "asset_type": "contrast"}]),
+            ],
+        )
+
+    async def _fake_partition(**kwargs):
+        return (["claim-drop"], [])
+
+    async def _fake_load_previous_claim_rebuild_state(**kwargs):
+        captured_previous_gap_claim_ids.extend(sorted(kwargs["previous_gap_claim_ids"]))
+        return {}
+
+    async def _fake_delete_claims(db, claim_ids):
+        return None
+
+    def _fake_split(batch):
+        return []
+
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._load_branch_batches",
+        _fake_load_branch_batches,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._partition_claim_ids_for_targeted_rebuild",
+        _fake_partition,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._load_previous_claim_rebuild_state",
+        _fake_load_previous_claim_rebuild_state,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._delete_claims",
+        _fake_delete_claims,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._split_evidence_batch",
+        _fake_split,
+    )
+
+    result = await build_claims(
+        {
+            "generation_run_id": str(uuid.uuid4()),
+            "project_id": str(uuid.uuid4()),
+            "language": "ru",
+            "manifest_id": "",
+            "evidence_ids": ["e1"],
+            "claim_ids": ["claim-drop"],
+            "iteration_counts": {"verify_research_loops": 1},
+            "research_gaps": [{"branch_id": "b6", "claim_id": "c1", "claim_ids": ["c1", "c2"]}],
+        }
+    )
+
+    assert set(captured_previous_gap_claim_ids) == {"c1", "c2"}
     assert result["targeted_branch_ids"] == ["b6"]
