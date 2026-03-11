@@ -516,6 +516,193 @@ def _summarize_gap_claim_contexts(claim_contexts: list[dict]) -> tuple[str, str,
     return summary_statement, summary_objective, summary_strength, summary_support, _dedupe_keep_order(claim_ids)
 
 
+def _merge_question_contexts(existing_contexts: list[dict], new_context: dict) -> list[dict]:
+    keyed: dict[tuple[str, str], dict] = {}
+    for context in existing_contexts:
+        if not isinstance(context, dict):
+            continue
+        key = (
+            str(context.get("branch_id", "")).strip(),
+            str(context.get("question_id", "")).strip(),
+        )
+        if not any(key):
+            continue
+        keyed[key] = {
+            **context,
+            "required_assets": _normalize_required_assets(context.get("required_assets", [])),
+            "expected_assets": sorted(
+                str(asset).upper()
+                for asset in (context.get("expected_assets", []) or [])
+                if isinstance(asset, str) and asset
+            ),
+            "found_assets": sorted(
+                str(asset).upper()
+                for asset in (context.get("found_assets", []) or [])
+                if isinstance(asset, str) and asset
+            ),
+            "missing_assets": sorted(
+                str(asset).upper()
+                for asset in (context.get("missing_assets", []) or [])
+                if isinstance(asset, str) and asset
+            ),
+        }
+
+    key = (
+        str(new_context.get("branch_id", "")).strip(),
+        str(new_context.get("question_id", "")).strip(),
+    )
+    if not any(key):
+        return sorted(keyed.values(), key=lambda item: (item.get("branch_id", ""), item.get("question_id", "")))
+
+    normalized_new = {
+        **new_context,
+        "required_assets": _normalize_required_assets(new_context.get("required_assets", [])),
+        "expected_assets": sorted(
+            str(asset).upper()
+            for asset in (new_context.get("expected_assets", []) or [])
+            if isinstance(asset, str) and asset
+        ),
+        "found_assets": sorted(
+            str(asset).upper()
+            for asset in (new_context.get("found_assets", []) or [])
+            if isinstance(asset, str) and asset
+        ),
+        "missing_assets": sorted(
+            str(asset).upper()
+            for asset in (new_context.get("missing_assets", []) or [])
+            if isinstance(asset, str) and asset
+        ),
+    }
+    current = keyed.get(key)
+    if current is None:
+        keyed[key] = normalized_new
+    else:
+        merged_required: dict[str, int] = {
+            asset["type"]: int(asset.get("min_count", 1) or 1)
+            for asset in current.get("required_assets", [])
+        }
+        for asset in normalized_new.get("required_assets", []):
+            asset_type = asset["type"]
+            merged_required[asset_type] = max(merged_required.get(asset_type, 0), int(asset.get("min_count", 1) or 1))
+        merged_found = sorted(set(current.get("found_assets", [])) | set(normalized_new.get("found_assets", [])))
+        keyed[key] = {
+            "branch_id": key[0],
+            "question_id": key[1],
+            "question": normalized_new.get("question") or current.get("question") or "",
+            "intent": normalized_new.get("intent") or current.get("intent") or "",
+            "required_assets": [
+                {"type": asset_type, "min_count": min_count}
+                for asset_type, min_count in sorted(merged_required.items())
+            ],
+            "expected_assets": sorted(set(current.get("expected_assets", [])) | set(normalized_new.get("expected_assets", []))),
+            "found_assets": merged_found,
+            "missing_assets": sorted(
+                asset_type
+                for asset_type, min_count in merged_required.items()
+                if merged_found.count(asset_type) < 1 and asset_type not in merged_found
+            ),
+        }
+
+    return sorted(keyed.values(), key=lambda item: (item.get("branch_id", ""), item.get("question_id", "")))
+
+
+def _merge_overlapping_research_gaps(gaps: list[dict]) -> list[dict]:
+    remaining = [gap for gap in gaps if isinstance(gap, dict)]
+    merged_groups: list[dict] = []
+
+    while remaining:
+        seed = remaining.pop(0)
+        group = [seed]
+        claim_ids = {str(claim_id).strip() for claim_id in (seed.get("claim_ids", []) or []) if str(claim_id).strip()}
+        expanded = True
+        while expanded:
+            expanded = False
+            next_remaining: list[dict] = []
+            for candidate in remaining:
+                candidate_claim_ids = {
+                    str(claim_id).strip()
+                    for claim_id in (candidate.get("claim_ids", []) or [])
+                    if str(claim_id).strip()
+                }
+                if claim_ids and candidate_claim_ids and claim_ids & candidate_claim_ids:
+                    group.append(candidate)
+                    claim_ids.update(candidate_claim_ids)
+                    expanded = True
+                else:
+                    next_remaining.append(candidate)
+            remaining = next_remaining
+
+        if len(group) == 1:
+            merged_groups.append(seed)
+            continue
+
+        merged_claim_contexts: list[dict] = []
+        merged_question_contexts: list[dict] = []
+        merged_required: dict[str, int] = {}
+        merged_expected: set[str] = set()
+        merged_found: set[str] = set()
+        priorities: list[int] = []
+
+        for gap in group:
+            priorities.append(int(gap.get("priority", 1) or 1))
+            for context in gap.get("claim_contexts", []) or []:
+                if isinstance(context, dict):
+                    merged_claim_contexts = _merge_gap_claim_contexts(merged_claim_contexts, context)
+            for question_context in gap.get("question_contexts", []) or []:
+                if isinstance(question_context, dict):
+                    merged_question_contexts = _merge_question_contexts(merged_question_contexts, question_context)
+            for asset in gap.get("required_assets", []) or []:
+                if not isinstance(asset, dict):
+                    continue
+                asset_type = str(asset.get("type", "")).strip().upper()
+                if not asset_type:
+                    continue
+                merged_required[asset_type] = max(merged_required.get(asset_type, 0), int(asset.get("min_count", 1) or 1))
+            merged_expected.update(
+                str(asset).upper()
+                for asset in (gap.get("expected_assets", []) or [])
+                if isinstance(asset, str) and asset
+            )
+            merged_found.update(
+                str(asset).upper()
+                for asset in (gap.get("found_assets", []) or [])
+                if isinstance(asset, str) and asset
+            )
+
+        lead_question_context = (
+            sorted(merged_question_contexts, key=lambda item: (item.get("branch_id", ""), item.get("question_id", "")))[0]
+            if merged_question_contexts else {}
+        )
+        statement, objective, strength, support_summary, merged_claim_ids = _summarize_gap_claim_contexts(merged_claim_contexts)
+        merged_groups.append(
+            {
+                "question_id": str(lead_question_context.get("question_id", "")).strip(),
+                "branch_id": str(lead_question_context.get("branch_id", "")).strip(),
+                "question": lead_question_context.get("question") or statement,
+                "intent": lead_question_context.get("intent", ""),
+                "priority": min(priorities) if priorities else 1,
+                "missing_assets": sorted(asset_type for asset_type in merged_required if asset_type not in merged_found),
+                "required_assets": [
+                    {"type": asset_type, "min_count": min_count}
+                    for asset_type, min_count in sorted(merged_required.items())
+                ],
+                "expected_assets": sorted(merged_expected),
+                "found_assets": sorted(merged_found),
+                "gap_origin": "verifier",
+                "claim_contexts": merged_claim_contexts,
+                "claim_statement": statement,
+                "search_objective": objective,
+                "support_strength": strength,
+                "existing_support_summary": support_summary,
+                "claim_ids": merged_claim_ids,
+                "claim_id": merged_claim_ids[0] if merged_claim_ids else "",
+                "question_contexts": merged_question_contexts,
+            }
+        )
+
+    return sorted(merged_groups, key=lambda gap: (gap.get("branch_id", ""), gap.get("question_id", "")))
+
+
 def _build_research_gaps(
     needs_research_claims: list[tuple[Claim, dict]],
     *,
@@ -562,6 +749,18 @@ def _build_research_gaps(
                     "found_assets": found_assets,
                     "gap_origin": "verifier",
                     "claim_contexts": [claim_context],
+                    "question_contexts": [
+                        {
+                            "question_id": question_id,
+                            "branch_id": branch_id,
+                            "question": pair.get("question") or question_context.get("question") or claim.statement,
+                            "intent": pair.get("intent", "") or question_context.get("intent", ""),
+                            "required_assets": required_assets,
+                            "expected_assets": expected_assets,
+                            "found_assets": found_assets,
+                            "missing_assets": missing_assets,
+                        }
+                    ],
                 }
                 (
                     gaps[key]["claim_statement"],
@@ -585,6 +784,19 @@ def _build_research_gaps(
                 gaps[key].get("claim_contexts", []),
                 claim_context,
             )
+            gaps[key]["question_contexts"] = _merge_question_contexts(
+                gaps[key].get("question_contexts", []),
+                {
+                    "question_id": question_id,
+                    "branch_id": branch_id,
+                    "question": pair.get("question") or question_context.get("question") or claim.statement,
+                    "intent": pair.get("intent", "") or question_context.get("intent", ""),
+                    "required_assets": required_assets,
+                    "expected_assets": expected_assets,
+                    "found_assets": gaps[key]["found_assets"],
+                    "missing_assets": gaps[key]["missing_assets"],
+                },
+            )
             (
                 gaps[key]["claim_statement"],
                 gaps[key]["search_objective"],
@@ -594,7 +806,7 @@ def _build_research_gaps(
             ) = _summarize_gap_claim_contexts(gaps[key]["claim_contexts"])
             gaps[key]["claim_ids"] = claim_ids
             gaps[key]["claim_id"] = claim_ids[0] if claim_ids else ""
-    return sorted(gaps.values(), key=lambda gap: (gap["branch_id"], gap["question_id"]))
+    return _merge_overlapping_research_gaps(list(gaps.values()))
 
 
 def _compute_verification_fingerprint(claim: Claim, evidence_data: dict) -> str:
@@ -658,11 +870,20 @@ def _derive_verify_scope(state: PipelineState, claim_ids: list[str]) -> list[str
         for claim_id in (state.get("dedupe_merged_into_claim_ids", []) or [])
         if str(claim_id).strip()
     )
-    scope_ids.update(
-        str(gap.get("claim_id", "")).strip()
-        for gap in (state.get("research_gaps", []) or [])
-        if isinstance(gap, dict) and str(gap.get("claim_id", "")).strip()
-    )
+    for gap in (state.get("research_gaps", []) or []):
+        if not isinstance(gap, dict):
+            continue
+        gap_claim_ids = [
+            str(claim_id).strip()
+            for claim_id in (gap.get("claim_ids", []) or [])
+            if str(claim_id).strip()
+        ]
+        if gap_claim_ids:
+            scope_ids.update(gap_claim_ids)
+            continue
+        claim_id = str(gap.get("claim_id", "")).strip()
+        if claim_id:
+            scope_ids.add(claim_id)
     if not scope_ids:
         return ordered_claim_ids
     return [claim_id for claim_id in ordered_claim_ids if claim_id in scope_ids]
@@ -1005,11 +1226,21 @@ async def verify_claims(state: PipelineState) -> dict:
     needs_research_claims: list[tuple[Claim, dict]] = []
     prefiltered_debug_results: list[dict] = []
     llm_batch_debug_results: list[dict] = []
-    previous_gap_claim_ids = {
-        str(gap.get("claim_id", "")).strip()
-        for gap in (state.get("research_gaps", []) or [])
-        if isinstance(gap, dict) and str(gap.get("claim_id", "")).strip()
-    }
+    previous_gap_claim_ids: set[str] = set()
+    for gap in (state.get("research_gaps", []) or []):
+        if not isinstance(gap, dict):
+            continue
+        gap_claim_ids = [
+            str(claim_id).strip()
+            for claim_id in (gap.get("claim_ids", []) or [])
+            if str(claim_id).strip()
+        ]
+        if gap_claim_ids:
+            previous_gap_claim_ids.update(gap_claim_ids)
+            continue
+        claim_id = str(gap.get("claim_id", "")).strip()
+        if claim_id:
+            previous_gap_claim_ids.add(claim_id)
     verify_scope_claim_ids = set(_derive_verify_scope(state, claim_ids))
     processed_claim_ids: list[str] = []
     skipped_unchanged_claim_ids: list[str] = []

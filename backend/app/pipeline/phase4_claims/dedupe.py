@@ -6,12 +6,13 @@ import re
 import uuid
 from collections import defaultdict
 
-from sqlalchemy import select
+from sqlalchemy import bindparam, select, text, update
 
 from app.models.claim import Claim, ClaimEvidence
 from app.models.evidence import EvidenceProvenance, EvidenceSpan
 from app.models.source import Source
 from app.pipeline.phase3_research.normalization import normalize_research_text
+from app.pipeline.phase4_claims.claim_type_utils import VALID_CLAIM_TYPES, normalize_claim_type
 from app.pipeline.state import PipelineState
 from app.realtime.events import progress, step_completed, step_started
 from app.realtime.publisher import publish_event, update_generation_progress
@@ -91,6 +92,7 @@ async def dedupe_claims(state: PipelineState) -> dict:
 
 async def _load_claim_context(db, claim_ids: list[str], generation_run_id: str) -> tuple[list[Claim], dict[str, dict]]:
     claim_uuid_ids = [uuid.UUID(cid) for cid in claim_ids]
+    await _repair_invalid_claim_types(db, claim_uuid_ids)
     claim_result = await db.execute(select(Claim).where(Claim.id.in_(claim_uuid_ids)))
     claims = list(claim_result.scalars().all())
     claims.sort(key=lambda claim: (claim.created_at, claim.id))
@@ -140,6 +142,34 @@ async def _load_claim_context(db, claim_ids: list[str], generation_run_id: str) 
                 context[claim_id]["question_ids"].add(provenance.question_id)
 
     return claims, context
+
+
+async def _repair_invalid_claim_types(db, claim_ids: list[uuid.UUID]) -> None:
+    if not claim_ids:
+        return
+
+    select_invalid = text(
+        """
+        SELECT id, claim_type, attribution
+        FROM claims
+        WHERE id IN :claim_ids
+          AND lower(claim_type) NOT IN ('fact', 'opinion', 'report')
+        """
+    ).bindparams(bindparam("claim_ids", expanding=True))
+    invalid_rows = (await db.execute(select_invalid, {"claim_ids": claim_ids})).mappings().all()
+    if not invalid_rows:
+        return
+
+    for row in invalid_rows:
+        normalized_claim_type, _ = normalize_claim_type(row["claim_type"], row.get("attribution"))
+        if normalized_claim_type not in VALID_CLAIM_TYPES:
+            normalized_claim_type = "fact"
+        await db.execute(
+            update(Claim.__table__)
+            .where(Claim.__table__.c.id == row["id"])
+            .values(claim_type=normalized_claim_type)
+        )
+    await db.flush()
 
 
 def _normalize_attribution(attribution: dict | None) -> str:

@@ -55,6 +55,8 @@ _INTENT_RETRIEVAL_GOALS = {
     "case_study": "surface concrete episodes with actors, actions, consequences, and outcomes",
 }
 
+HUNTER_RETRY_CHUNK_LIMIT = 4
+
 EXTRACT_EVIDENCE_SYSTEM = """You are an evidence extractor. Given chunks of text and a research question, extract relevant evidence spans.
 
 Input may include:
@@ -144,6 +146,7 @@ async def hunt_closed_book(state: PipelineState) -> dict:
         question_required_assets: dict[str, dict[str, int]] = {}
         question_expected_types: dict[str, set[str]] = {}
         question_found_counts: dict[str, dict[str, int]] = {}
+        question_expected_found_counts: dict[str, dict[str, int]] = {}
 
         for branch in branches:
             branch_id = branch["id"]
@@ -151,6 +154,7 @@ async def hunt_closed_book(state: PipelineState) -> dict:
             _merge_required_assets(question_required_assets, branch_id, required_targets)
             question_expected_types.setdefault(branch_id, set()).update(expected_types)
             question_found_counts.setdefault(branch_id, {})
+            question_expected_found_counts.setdefault(branch_id, {})
             questions.append({
                 "id": branch_id,
                 "branch_id": branch_id,
@@ -165,6 +169,7 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                 _merge_required_assets(question_required_assets, child["id"], child_required)
                 question_expected_types.setdefault(child["id"], set()).update(child_expected)
                 question_found_counts.setdefault(child["id"], {})
+                question_expected_found_counts.setdefault(child["id"], {})
                 questions.append({
                     "id": child["id"],
                     "branch_id": branch_id,
@@ -276,25 +281,13 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                     )
                     continue
 
-                # Extract evidence using Haiku
-                prompt = json.dumps({
-                    "research_question": q["question"],
-                    "question_intent": q.get("intent"),
-                    "required_evidence": q["required_targets"],
-                    "expected_evidence_types": q["expected_types"],
-                    "chunks": [{"index": i, "content": c["content"], "source": c.get("source_title", ""), "heading": c.get("heading_path", [])} for i, c in enumerate(chunk_texts)],
-                }, ensure_ascii=False)
+                evidence_items, extraction_status, extraction_meta = await _extract_evidence_items_with_retry(
+                    question=q,
+                    chunk_texts=chunk_texts,
+                )
 
-                try:
-                    raw = await call_haiku_structured(
-                        system=EXTRACT_EVIDENCE_SYSTEM,
-                        prompt=prompt,
-                        max_tokens=2048,
-                        temperature=0.2,
-                    )
-                    evidence_items = parse_llm_json(raw)
-                except Exception:
-                    logger.warning("Evidence extraction failed for question %s", q["id"], exc_info=True)
+                if extraction_status == "extraction_failed":
+                    logger.warning("Evidence extraction failed for question %s", q["id"])
                     safe_set_run(
                         question_run,
                         outputs={
@@ -304,6 +297,7 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                             "selected_chunk_count": len(top_chunks),
                             "loaded_chunk_count": len(chunk_texts),
                             "extraction_failed": True,
+                            "extraction_attempt_count": extraction_meta.get("attempt_count", 1),
                         },
                     )
                     _dump_hunter_question_debug(
@@ -317,10 +311,11 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                         loaded_chunks=chunk_texts,
                         extracted_items=None,
                         saved_items=saved_debug_items,
+                        extraction_meta=extraction_meta,
                     )
                     continue
 
-                if not isinstance(evidence_items, list):
+                if extraction_status == "invalid_extractor_payload" or not isinstance(evidence_items, list):
                     safe_set_run(
                         question_run,
                         outputs={
@@ -331,6 +326,7 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                             "loaded_chunk_count": len(chunk_texts),
                             "extracted_item_count": 0,
                             "saved_evidence_count": 0,
+                            "extraction_attempt_count": extraction_meta.get("attempt_count", 1),
                         },
                     )
                     _dump_hunter_question_debug(
@@ -344,12 +340,14 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                         loaded_chunks=chunk_texts,
                         extracted_items=evidence_items,
                         saved_items=saved_debug_items,
+                        extraction_meta=extraction_meta,
                     )
                     continue
 
                 saved_for_question = 0
                 invalid_type_count = 0
                 unresolved_origin_count = 0
+                expected_asset_hits: dict[str, int] = {}
 
                 # Create EvidenceSpan records
                 chunk_by_id = {
@@ -436,6 +434,10 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                     if asset_type_upper:
                         question_counts = question_found_counts.setdefault(q["id"], {})
                         question_counts[asset_type_upper] = question_counts.get(asset_type_upper, 0) + 1
+                        if asset_type_upper in set(q["expected_types"]):
+                            expected_counts = question_expected_found_counts.setdefault(q["id"], {})
+                            expected_counts[asset_type_upper] = expected_counts.get(asset_type_upper, 0) + 1
+                            expected_asset_hits[asset_type_upper] = expected_counts[asset_type_upper]
                         new_asset_types_found.add(asset_type_upper)
 
                 safe_set_run(
@@ -448,9 +450,11 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                         "loaded_chunk_count": len(chunk_texts),
                         "extracted_item_count": len(evidence_items),
                         "saved_evidence_count": saved_for_question,
+                        "expected_evidence_hit_count": sum(expected_asset_hits.values()),
                         "invalid_asset_type_count": invalid_type_count,
                         "unresolved_origin_count": unresolved_origin_count,
                         "selected_chunks_sample": [hit.get("chunk_id") for hit in top_chunks[:5]],
+                        "extraction_attempt_count": extraction_meta.get("attempt_count", 1),
                     },
                 )
                 _dump_hunter_question_debug(
@@ -466,6 +470,8 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                     saved_items=saved_debug_items,
                     invalid_asset_type_count=invalid_type_count,
                     unresolved_origin_count=unresolved_origin_count,
+                    expected_found_counts=question_expected_found_counts.get(q["id"], {}),
+                    extraction_meta=extraction_meta,
                 )
 
             update_generation_progress(run_id, "phase3_research", "hunter", 20.0 + (i / len(questions)) * 10)
@@ -503,6 +509,9 @@ async def hunt_closed_book(state: PipelineState) -> dict:
                 "required_assets": required_assets,
                 "expected_assets": expected_assets,
                 "found_assets": found_assets,
+                "found_expected_assets": sorted(
+                    asset for asset, count in question_expected_found_counts.get(question_id, {}).items() if count > 0
+                ),
             })
 
     research_gaps.sort(key=lambda gap: (gap.get("priority", 5), gap.get("branch_id", ""), gap.get("question_id", "")))
@@ -603,6 +612,8 @@ def _dump_hunter_question_debug(
     saved_items: list[dict],
     invalid_asset_type_count: int = 0,
     unresolved_origin_count: int = 0,
+    expected_found_counts: dict[str, int] | None = None,
+    extraction_meta: dict | None = None,
 ) -> None:
     dump_dir = (settings.web_extractor_debug_dump_dir or "").strip()
     if not dump_dir:
@@ -650,8 +661,10 @@ def _dump_hunter_question_debug(
                 "extracted_items_sample": _summarize_extracted_items(extracted_items, limit=12),
                 "saved_evidence_count": len(saved_items),
                 "saved_evidence": saved_items[:12],
+                "found_expected_evidence": expected_found_counts or {},
                 "invalid_asset_type_count": invalid_asset_type_count,
                 "unresolved_origin_count": unresolved_origin_count,
+                "retry": extraction_meta or {"attempts": [], "attempt_count": 0},
             },
         }
 
@@ -674,6 +687,154 @@ def _clip_text(value: str, limit: int = 220) -> str:
     if len(text) <= limit:
         return text
     return text[:limit] + "..."
+
+
+async def _extract_evidence_items_with_retry(
+    *,
+    question: dict,
+    chunk_texts: list[dict],
+) -> tuple[object, str, dict]:
+    attempts: list[dict] = []
+    variants = [
+        {
+            "chunks": chunk_texts,
+            "retry_reason": "initial",
+            "strict_format": False,
+            "directness_push": False,
+        }
+    ]
+    if len(chunk_texts) > HUNTER_RETRY_CHUNK_LIMIT:
+        narrowed_chunks = chunk_texts[:HUNTER_RETRY_CHUNK_LIMIT]
+        variants.append(
+            {
+                "chunks": narrowed_chunks,
+                "retry_reason": "retry_after_exception_or_empty",
+                "strict_format": False,
+                "directness_push": True,
+            }
+        )
+        variants.append(
+            {
+                "chunks": narrowed_chunks,
+                "retry_reason": "retry_after_invalid_payload",
+                "strict_format": True,
+                "directness_push": True,
+            }
+        )
+    else:
+        variants.append(
+            {
+                "chunks": chunk_texts,
+                "retry_reason": "retry_same_payload_strict_format",
+                "strict_format": True,
+                "directness_push": True,
+            }
+        )
+
+    last_result: object = None
+    last_status = "extraction_failed"
+    for variant in variants:
+        prompt = json.dumps(
+            _build_hunter_extraction_prompt_payload(
+                question=question,
+                chunk_texts=variant["chunks"],
+                directness_push=variant["directness_push"],
+            ),
+            ensure_ascii=False,
+        )
+        system = EXTRACT_EVIDENCE_SYSTEM
+        if variant["strict_format"]:
+            system += "\nSTRICT FORMAT: Return a raw JSON array only. No wrapper object, no markdown, no prose."
+
+        try:
+            raw = await call_haiku_structured(
+                system=system,
+                prompt=prompt,
+                max_tokens=2048,
+                temperature=0.2,
+            )
+            parsed = parse_llm_json(raw)
+        except Exception as exc:
+            attempts.append(
+                {
+                    "retry_reason": variant["retry_reason"],
+                    "chunk_count": len(variant["chunks"]),
+                    "strict_format": variant["strict_format"],
+                    "status": "exception",
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                }
+            )
+            last_status = "extraction_failed"
+            continue
+
+        if not isinstance(parsed, list):
+            attempts.append(
+                {
+                    "retry_reason": variant["retry_reason"],
+                    "chunk_count": len(variant["chunks"]),
+                    "strict_format": variant["strict_format"],
+                    "status": "invalid_payload",
+                    "parsed_type": type(parsed).__name__ if parsed is not None else None,
+                }
+            )
+            last_result = parsed
+            last_status = "invalid_extractor_payload"
+            continue
+
+        if parsed or variant["retry_reason"] == variants[-1]["retry_reason"]:
+            attempts.append(
+                {
+                    "retry_reason": variant["retry_reason"],
+                    "chunk_count": len(variant["chunks"]),
+                    "strict_format": variant["strict_format"],
+                    "status": "ok",
+                    "extracted_item_count": len(parsed),
+                }
+            )
+            return parsed, "ok", {"attempts": attempts, "attempt_count": len(attempts)}
+
+        attempts.append(
+            {
+                "retry_reason": variant["retry_reason"],
+                "chunk_count": len(variant["chunks"]),
+                "strict_format": variant["strict_format"],
+                "status": "empty_list",
+                "extracted_item_count": 0,
+            }
+        )
+        last_result = parsed
+
+    return last_result, last_status, {"attempts": attempts, "attempt_count": len(attempts)}
+
+
+def _build_hunter_extraction_prompt_payload(
+    *,
+    question: dict,
+    chunk_texts: list[dict],
+    directness_push: bool,
+) -> dict:
+    payload = {
+        "research_question": question["question"],
+        "question_intent": question.get("intent"),
+        "required_evidence": question["required_targets"],
+        "expected_evidence_types": question["expected_types"],
+        "chunks": [
+            {
+                "index": i,
+                "content": c["content"],
+                "source": c.get("source_title", ""),
+                "heading": c.get("heading_path", []),
+            }
+            for i, c in enumerate(chunk_texts)
+        ],
+    }
+    if directness_push:
+        payload["retry_focus"] = (
+            "The previous attempt failed or returned no useful items. Prefer only the clearest direct evidence. "
+            "If the chunks contain a direct answer, do not return an empty list."
+        )
+    return payload
 
 
 async def _build_keyword_queries(

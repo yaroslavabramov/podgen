@@ -6,10 +6,13 @@ import pytest
 from app.pipeline.phase4_claims.claim_builder import (
     _build_branch_batches,
     _build_claim_builder_instructions,
+    _claim_rebuild_signature,
     _derive_targeted_rebuild_scope,
     _filter_branch_batches,
+    _persist_claim_batch,
     _partition_claim_ids_for_targeted_rebuild,
     _prepare_claim_builder_quote,
+    _select_claim_assignment,
     build_claims,
 )
 from app.pipeline.phase4_claims.claim_notes import (
@@ -17,6 +20,7 @@ from app.pipeline.phase4_claims.claim_notes import (
     encode_claim_notes_metadata,
     extract_editor_claim_notes,
 )
+from app.models.claim import Claim, ClaimEvidence, VerificationLevel
 
 
 def test_build_branch_batches_uses_contextual_asset_types_per_branch() -> None:
@@ -105,6 +109,27 @@ def test_derive_targeted_rebuild_scope_only_activates_inside_verify_loop() -> No
     assert scope == {"branch_ids": ["b3", "b6"], "claim_ids": ["c1", "c2"]}
 
 
+def test_derive_targeted_rebuild_scope_expands_merged_gap_branch_and_claim_ids() -> None:
+    scope = _derive_targeted_rebuild_scope(
+        {
+            "iteration_counts": {"verify_research_loops": 1},
+            "research_gaps": [
+                {
+                    "branch_id": "b6",
+                    "claim_id": "c1",
+                    "claim_ids": ["c1", "c2"],
+                    "question_contexts": [
+                        {"branch_id": "b6", "question_id": "b6.2"},
+                        {"branch_id": "b7", "question_id": "b7.1"},
+                    ],
+                }
+            ],
+        }
+    )
+
+    assert scope == {"branch_ids": ["b6", "b7"], "claim_ids": ["c1", "c2"]}
+
+
 def test_filter_branch_batches_keeps_only_targeted_branches() -> None:
     branch_batches = [("b1", [{"id": "e1"}]), ("b3", [{"id": "e2"}]), ("b6", [{"id": "e3"}])]
     assert _filter_branch_batches(branch_batches, ["b3", "b6"]) == [("b3", [{"id": "e2"}]), ("b6", [{"id": "e3"}])]
@@ -176,6 +201,126 @@ def test_claim_notes_metadata_roundtrip_and_editor_notes_extraction() -> None:
     assert decoded["builder_question_ids"] == ["b6.1", "b6.2"]
     assert extract_editor_claim_notes(encoded) == ""
     assert extract_editor_claim_notes("Human note") == "Human note"
+
+
+def test_select_claim_assignment_prefers_semantic_direct_question_context() -> None:
+    evidence_id = str(uuid.uuid4())
+    selected_branch_id, selected_question_ids = _select_claim_assignment(
+        statement="HKMA undertakes to buy US dollars at HK$7.75 under the convertibility undertaking.",
+        support_ids={evidence_id},
+        branch_id="b3",
+        default_question_ids=["b3"],
+        batch_evidence_index={
+            evidence_id: {
+                "lineage": {
+                    "question_contexts": [
+                        {
+                            "branch_id": "b3",
+                            "question_id": "b3",
+                            "question": "How did the peg change from silver to sterling to USD?",
+                            "direct_or_contextual": "contextual",
+                        },
+                        {
+                            "branch_id": "b4",
+                            "question_id": "b4.1",
+                            "question": "How does the 7.75 / 7.85 convertibility corridor work?",
+                            "direct_or_contextual": "direct",
+                        },
+                    ]
+                }
+            }
+        },
+    )
+
+    assert selected_branch_id == "b4"
+    assert selected_question_ids == ["b4.1", "b3"]
+
+
+class _FakePersistDB:
+    def __init__(self) -> None:
+        self.added: list[object] = []
+        self.flush_calls = 0
+
+    def add(self, item: object) -> None:
+        self.added.append(item)
+
+    async def flush(self) -> None:
+        self.flush_calls += 1
+
+
+@pytest.mark.asyncio
+async def test_persist_claim_batch_reuses_previous_verification_state_and_semantic_assignment() -> None:
+    db = _FakePersistDB()
+    all_claim_ids: list[str] = []
+    evidence_id = str(uuid.uuid4())
+    signature = _claim_rebuild_signature(
+        statement="HKMA undertakes to buy US dollars at HK$7.75 under the convertibility undertaking.",
+        claim_type="fact",
+        support_ids={evidence_id},
+        illustrative_ids=set(),
+    )
+
+    saved_claims, stats = await _persist_claim_batch(
+        db=db,
+        project_id=str(uuid.uuid4()),
+        claims_data=[
+            {
+                "claim_type": "FACT",
+                "statement": "HKMA undertakes to buy US dollars at HK$7.75 under the convertibility undertaking.",
+                "supporting_evidence_ids": [evidence_id],
+                "illustrative_evidence_ids": [],
+                "attribution": None,
+            }
+        ],
+        batch_ids={evidence_id},
+        branch_id="b3",
+        branch_question_ids=["b3"],
+        batch_evidence_index={
+            evidence_id: {
+                "lineage": {
+                    "question_contexts": [
+                        {
+                            "branch_id": "b3",
+                            "question_id": "b3",
+                            "question": "How did the peg change from silver to sterling to USD?",
+                            "direct_or_contextual": "contextual",
+                        },
+                        {
+                            "branch_id": "b4",
+                            "question_id": "b4.1",
+                            "question": "How does the 7.75 / 7.85 convertibility corridor work?",
+                            "direct_or_contextual": "direct",
+                        },
+                    ]
+                }
+            }
+        },
+        previous_rebuild_lookup={
+            signature: [
+                {
+                    "claim_id": str(uuid.uuid4()),
+                    "verification_level": VerificationLevel.OBSERVED,
+                    "verification_fingerprint": "fp-same",
+                    "was_gap_claim": False,
+                }
+            ]
+        },
+        run_id=str(uuid.uuid4()),
+        all_claim_ids=all_claim_ids,
+    )
+
+    created_claims = [item for item in db.added if isinstance(item, Claim)]
+    created_links = [item for item in db.added if isinstance(item, ClaimEvidence)]
+
+    assert len(saved_claims) == 1
+    assert len(created_claims) == 1
+    assert len(created_links) == 1
+    assert stats["reused_verification_state_count"] == 1
+    assert created_claims[0].verification_level == VerificationLevel.OBSERVED
+    assert created_claims[0].verification_fingerprint == "fp-same"
+    assert decode_claim_notes_metadata(created_claims[0].notes)["builder_branch_id"] == "b4"
+    assert decode_claim_notes_metadata(created_claims[0].notes)["builder_question_ids"] == ["b3", "b4.1"]
+    assert all_claim_ids == [saved_claims[0]["claim_id"]]
 
 
 class _FakeScalarResult:

@@ -8,7 +8,10 @@ from app.models.evidence import EvidenceSpan
 from app.models.episode_manifest import EpisodeManifest
 from app.models.source import AuthorityType, DomainReliability, IngestionStatus, Source, SourceType
 from app.pipeline.phase3_research.librarian_fast import (
+    _apply_claim_corroboration_quality_ceiling,
+    _gap_budget_for_mode,
     _build_search_queries,
+    _is_reference_like_window,
     _is_low_value_page,
     _normalize_search_query,
     _rerank_search_results,
@@ -159,6 +162,23 @@ def test_select_gap_branches_returns_all_explicit_gaps_sorted() -> None:
         ("b3", "q3"),
     ]
     assert all(gap["gap_origin"] == "hunter" for gap in gaps)
+
+
+def test_select_gap_branches_prioritizes_interpretive_intents_with_same_priority() -> None:
+    gaps = _select_gap_branches(
+        [],
+        [
+            {"question_id": "q1", "branch_id": "b1", "question": "History question", "priority": 1, "intent": "history"},
+            {"question_id": "q2", "branch_id": "b2", "question": "Debate question", "priority": 1, "intent": "debate"},
+            {"question_id": "q3", "branch_id": "b3", "question": "Compare question", "priority": 1, "intent": "compare"},
+        ],
+    )
+
+    assert [(gap["branch_id"], gap["question_id"]) for gap in gaps] == [
+        ("b2", "q2"),
+        ("b3", "q3"),
+        ("b1", "q1"),
+    ]
 
 
 def test_select_gap_branches_fallback_keeps_all_priority_branches() -> None:
@@ -379,12 +399,96 @@ def test_is_low_value_page_requires_claim_anchor_overlap_in_verifier_mode() -> N
         noisy_general_page,
         gap,
         query_text="Bank of China note issuer Hong Kong 1994 HKMA",
-    )
+    )[0]
     assert not _is_low_value_page(
         direct_page,
         gap,
         query_text="Bank of China note issuer Hong Kong 1994 HKMA",
+    )[0]
+
+
+def test_is_low_value_page_allows_high_authority_page_with_some_overlap() -> None:
+    gap = {
+        "gap_origin": "verifier",
+        "question": "Why did note issuance move to three banks?",
+        "claim_statement": "The Bank of China became a note-issuing bank in 1994.",
+    }
+    formal_page = (
+        "The legal and institutional framework governing note issue in Hong Kong evolved over time. "
+        "Official records note the role of Bank of China in the 1990s and subsequent coordination arrangements. "
+    ) * 10
+
+    is_low_value, meta = _is_low_value_page(
+        formal_page,
+        gap,
+        query_text="Bank of China note-issuing bank 1994 Hong Kong official record",
+        authority_type="primary",
+        domain_reliability="high",
     )
+
+    assert is_low_value is False
+    assert meta["anchor_hits"] >= 1
+    assert meta["overlap_score"] > 0
+
+
+def test_reference_like_window_detects_bibliography_patterns() -> None:
+    window = (
+        "Greenwood, J. (2007). Banking crises and liquidity. Journal of Finance, vol. 12, pp. 14-33. "
+        "Kwan, C. (1999). Hong Kong exchange rate regimes. doi:10.1000/example."
+    )
+
+    assert _is_reference_like_window(window) is True
+
+
+def test_gap_budget_for_verifier_mode_is_adaptive_and_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.settings",
+        SimpleNamespace(
+            max_fast_web_initial_gaps=5,
+            max_fast_web_verifier_gaps=5,
+        ),
+    )
+
+    budget = _gap_budget_for_mode(
+        "verifier_corroboration",
+        [
+            {"intent": "debate"},
+            {"intent": "debate"},
+            {"intent": "compare"},
+            {"intent": "history"},
+            {"intent": "history"},
+            {"intent": "history"},
+            {"intent": "history"},
+            {"intent": "history"},
+            {"intent": "history"},
+        ],
+    )
+
+    assert budget == 10
+
+
+def test_claim_corroboration_quality_ceiling_drops_weaker_pages_when_stronger_available() -> None:
+    kept, rejected = _apply_claim_corroboration_quality_ceiling(
+        [
+            {
+                "url": "https://official.example/doc",
+                "authority_type": "primary",
+                "domain_reliability": "high",
+            },
+            {
+                "url": "https://medium.com/post",
+                "authority_type": "tertiary",
+                "domain_reliability": "unknown",
+            },
+        ],
+        {
+            "https://official.example/doc": {"authority_type": "primary", "domain_reliability": "high"},
+            "https://medium.com/post": {"authority_type": "tertiary", "domain_reliability": "unknown"},
+        },
+    )
+
+    assert [item["url"] for item in kept] == ["https://official.example/doc"]
+    assert rejected[0]["reason"] == "weaker_than_available_stronger_source"
 
 
 def test_normalize_search_query_caps_monster_query_length() -> None:

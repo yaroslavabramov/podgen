@@ -287,6 +287,10 @@ Web extraction использует каскад extractors:
 
 - intent из decomposition идёт в keyword rewrite и extractor prompt, чтобы Hunter различал explain/history/compare/debate/case_study вопросы уже на retrieval/extraction слое
 - для `debate`/`compare`/`case_study` intent влияет не только на extraction prompt, но и на query generation: Hunter ищет pro/con positions, explicit contrasts, alternatives, named episodes, actors, outcomes
+- extraction в Hunter теперь имеет retry path:
+  - `extraction_failed` / exception -> narrower retry с меньшим числом чанков и явным directness-focus
+  - `invalid_extractor_payload` -> strict-format retry
+- `expected_evidence` больше не остаётся prompt-only hint: Hunter ведёт explicit tracking найденных soft editorial assets в debug/summary output
 
 - формирует structured gap signal `research_gaps` по веткам:
   - `missing_assets` рассчитывается только по `required_evidence` (с учетом `min_count`)
@@ -310,12 +314,19 @@ Web extraction использует каскад extractors:
 - verifier-mode fast-web больше не превращает `search_objective` и `missing_assets` в deterministic query-string glue; эти сигналы используются только как контекст для LLM query synthesis
 - verifier-mode query synthesis не получает question-level `required_assets` / `expected_assets` / `missing_assets`; они остаются только background context для extractor, а не таргетом web search
 - search results cheap-rerank'ятся до fetch по novelty, domain/authority quality, overlap с objective terms и source-family diversification
+- verifier-gaps со взаимно пересекающимися `claim_ids` схлопываются в один corroboration target c union `claim_contexts` / `question_contexts` / coverage signals, чтобы не тратить несколько slots на одну и ту же группу слабых claims
+- verifier fast-web budget теперь adaptive и upper-bounded: учитывает число remaining gaps и даёт extra priority interpretive intents (`debate` / `compare`), но не разрастается бесконтрольно
 - если canonical source уже известен проекту и fully ingested с доступными chunks/content, fast-web skip'ает такой URL до fetch/extract и идёт к следующему novel candidate
 - если source уже известен, но не fully ingested, fast-web может reuse preview только когда он уже достаточен; иначе не крутит слепой duplicate fetch loop
 - verifier-loop fast-web работает в явном extractor mode `claim_corroboration`: primary target — слабые `claim_contexts`, а question-level `required/expected/missing assets` остаются только background context
 - verifier-mode extractor payload не дублирует verbose `search_objective`; вместо этого он передаёт компактные `corroboration_goals` (`independent_second_source`, `direct_source_needed`, `stronger_authority_needed`) и sanitized `claim_contexts`
 - verifier-mode post-filter больше не режет extracted items по question-level `target_missing_assets`; asset targeting остаётся только для `question_gap_fill`
 - verifier-mode reranking и excerpt selection claim-anchor-first: broad question overlap сам по себе не должен поднимать страницу/окно в prompt
+- trust-aware retention работает end-to-end, а не только в cheap rerank:
+  - weak source families получают penalty
+  - `_is_low_value_page` пишет explicit drop reason / overlap stats
+  - higher-trust pages не должны так же легко отбрасываться, как unknown pages
+- reference/bibliography-like excerpt windows отсекаются до extractor LLM по citation-style signals (`doi`, `vol.`, `pp.`, author-year patterns)
 - stop signal в fast-web не деградирует в `search_failures`: `StepExecutionStopped` пробрасывается вверх и останавливает весь node
 - fast-web summary/accounting различает `accepted_item_count`, `new_canonical_evidence_count`, `new_provenance_links_count`, `new_source_count`; realtime `evidence_found` считается по run-usable linked evidence, а не только по brand-new canonical quotes
 - затем сохранить canonical `EvidenceSpan` + `EvidenceProvenance`
@@ -362,6 +373,7 @@ Web extraction использует каскад extractors:
   - compact lineage summary (`branch_ids/question_ids/intents/retrieved_by`)
   - contextual asset types из `EvidenceProvenance` для текущей branch-group
   - `direct_or_contextual` по provenance, когда он доступен
+- при сохранении claim получает semantic branch/question assignment из support-lineage question contexts, а не только broad batch branch
 
 - сохраняет narrative "сок": illustrative evidence не теряется
 - prompt ужесточён против semantic overshoot:
@@ -397,6 +409,9 @@ Web extraction использует каскад extractors:
   - `dedupe_claims` пишет touched scope (`dedupe_deleted_claim_ids`, `dedupe_merged_into_claim_ids`, `dedupe_untouched_claim_ids`)
   - verifier пересчитывает только claims, у которых реально изменился verifier payload
 - для этого на `Claim` хранится `verification_fingerprint`; unchanged claims сохраняют прежний `verification_level` без повторного LLM-вызова
+- verify scope учитывает полный union `claim_ids` из merged research gaps, а не только lead claim каждой gap-group
+- targeted rebuild scope для claim builder тоже расширяется по merged gap lineage: rebuild включает все branch/question contexts, разделяющие overlap-claims в verifier gaps
+- targeted rebuild умеет переносить прежний verification state/fingerprint на rebuilt claim, если statement+evidence signature не изменился и claim не был прошлым unresolved gap
 
 - claims на only-temporary evidence не могут быть `VERIFIED`
 
@@ -414,6 +429,7 @@ Web extraction использует каскад extractors:
   - `required_assets` / `expected_assets` / `missing_assets` из research context, когда они доступны
 - fast-web claim-corroboration path использует эти поля как input context, но не обязан механически копировать их в extractor prompt; top-level verbose `search_objective` заменяется compact corroboration goals layer
 - verifier reasoning принудительно держится коротким и evidence-bound: без спекуляций о "future dates", скрытых metadata-анomalies и прочих неявных выводов
+- numeric conflicts (курсы, даты, counts, ranges) ловятся lightweight pass'ом до showrunner, чтобы corroboration/planning могли переключаться с naive `confirm` на `resolve`
 
 - при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` verifier пишет JSON dumps:
   - prefiltered claims
@@ -460,6 +476,10 @@ Web extraction использует каскад extractors:
   - `branch_ids`, `question_ids`, `intents`
   - `direct_support_count`, `contextual_support_count`
   - `source_diversity` + lightweight quality hints
+- перед showrunner input пополняется synthetic numeric conflicts
+- после normalization вводится density cap на claim pool per act, чтобы акты вели себя как curated editorial layer, а не как почти полный research dump
+- disputed claims и claims из synthetic/manual conflicts сохраняются через density cap и не могут быть молча выкинуты до conflict validation
+- preserve-path для disputed/conflict claims остаётся bounded самим act cap: конфликтно-насыщенные акты не пробивают cap полностью
 
 - при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` Showrunner пишет JSON dump с input payload, raw/parsed LLM output и normalized act plan
 

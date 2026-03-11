@@ -127,9 +127,17 @@ Phase 4 now uses explicit lineage and canonical evidence semantics:
 - verifier counts independent sources via canonical source identity and caps temp-only evidence at `OBSERVED`
 - verifier sees full supporting quotes and splits LLM batches by char budget instead of truncating every quote to 300 chars
 - verifier is incremental after `dedupe_claims`: it only re-checks changed claims, stores `verification_fingerprint` on `Claim`, and clears rebuild/dedupe coordination metadata after each pass
+- incremental verifier scope now honors the full merged `claim_ids` set from overlapping research gaps, not just a lead claim
+- targeted rebuild now reuses prior verification state/fingerprint for semantically unchanged rebuilt claims and assigns rebuilt claims to the best-fitting branch/question using support-lineage semantics instead of flat provenance only
+- targeted rebuild scope now expands merged verifier gaps across all participating `claim_ids` and branch/question contexts before rebuilding
 - claim builder now budgets against real prompt-quote lengths and uses adaptive long-quote packing instead of a blind `[:700]` prefix cut
+- Hunter extraction now retries failed/invalid extraction passes with a narrower payload and tracks `expected_evidence` hits explicitly in debug/summary output
+- fast-web page retention now filters bibliography-like windows, records explicit drop reasons, and uses authority-aware retention plus weak-source-family penalties before extractor spend
 - planning payloads now carry illustrative/narrative signals plus branch/question intent context instead of flat claim lists only
 - Hunter retrieval and Claim Builder instructions are intent-aware for `debate` / `compare` / `case_study`, with stricter guardrails against claim overshoot from partial or contextual evidence
+- showrunner adds lightweight numeric-conflict detection before planning and caps per-act claim density so planning acts behave like curated story layers instead of near-complete research dumps
+- density capping preserves disputed/conflict claims so planning cannot silently drop debate moments before validation
+- preserved disputed/conflict claims still remain inside a bounded act cap; conflict-heavy acts stay curated instead of bypassing density control entirely
 - when `WEB_EXTRACTOR_DEBUG_DUMP_DIR` is set, Hunter / Claim Builder / Verifier / Showrunner / Act Planner write JSON debug dumps for run analysis
 
 ## Runtime Reliability Notes (2026-02-23)

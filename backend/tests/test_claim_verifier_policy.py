@@ -115,12 +115,16 @@ def test_build_research_gaps_preserves_actual_provenance_pairs() -> None:
         },
     )
 
-    assert [(gap["branch_id"], gap["question_id"]) for gap in gaps] == [("b1", "q1"), ("b2", "q2")]
+    assert len(gaps) == 1
+    assert (gaps[0]["branch_id"], gaps[0]["question_id"]) == ("b1", "q1")
     assert gaps[0]["question"] == "How does it work?"
     assert gaps[0]["intent"] == "explain"
-    assert gaps[0]["found_assets"] == ["MECHANISM"]
-    assert gaps[0]["required_assets"] == [{"type": "MECHANISM", "min_count": 1}]
-    assert gaps[0]["expected_assets"] == ["TIMELINE"]
+    assert set(gaps[0]["found_assets"]) == {"MECHANISM", "TIMELINE"}
+    assert gaps[0]["required_assets"] == [
+        {"type": "CONTRAST", "min_count": 1},
+        {"type": "MECHANISM", "min_count": 1},
+    ]
+    assert gaps[0]["expected_assets"] == ["CASE", "TIMELINE"]
     assert gaps[0]["gap_origin"] == "verifier"
     assert gaps[0]["claim_statement"] == "Explain the bridge role"
     assert gaps[0]["support_strength"] == "single_source"
@@ -134,7 +138,7 @@ def test_build_research_gaps_preserves_actual_provenance_pairs() -> None:
             "existing_support_summary": "single_source; 0 source(s); 0 direct / 0 contextual; authority=unknown-authority",
         }
     ]
-    assert gaps[1]["found_assets"] == ["TIMELINE"]
+    assert {ctx["question_id"] for ctx in gaps[0]["question_contexts"]} == {"q1", "q2"}
 
 
 def test_build_research_gaps_aggregates_multiple_claim_contexts_for_same_pair() -> None:
@@ -201,18 +205,104 @@ def test_build_research_gaps_aggregates_multiple_claim_contexts_for_same_pair() 
     assert "Find a direct source that explicitly confirms: Claim two" in gaps[0]["search_objective"]
 
 
+def test_build_research_gaps_merges_overlapping_claim_groups_by_union_of_claim_ids() -> None:
+    shared_claim = SimpleNamespace(id=uuid.uuid4(), statement="Shared claim")
+    extra_claim = SimpleNamespace(id=uuid.uuid4(), statement="Extra claim")
+
+    gaps = _build_research_gaps(
+        [
+            (
+                shared_claim,
+                {
+                    "provenance_pairs": [
+                        {
+                            "branch_id": "b6",
+                            "question_id": "q62",
+                            "question": "Why did three-bank issuance persist?",
+                            "intent": "debate",
+                            "found_assets": ["CONTRAST"],
+                        }
+                    ],
+                    "found_assets": ["CONTRAST"],
+                    "source_ids": {"source-1"},
+                    "supporting": [{"authority_type": "secondary"}],
+                    "direct_evidence_count": 1,
+                    "contextual_evidence_count": 0,
+                },
+            ),
+            (
+                shared_claim,
+                {
+                    "provenance_pairs": [
+                        {
+                            "branch_id": "b6",
+                            "question_id": "q63",
+                            "question": "What constraints did the system create?",
+                            "intent": "debate",
+                            "found_assets": ["MECHANISM"],
+                        }
+                    ],
+                    "found_assets": ["MECHANISM"],
+                    "source_ids": {"source-1"},
+                    "supporting": [{"authority_type": "secondary"}],
+                    "direct_evidence_count": 1,
+                    "contextual_evidence_count": 0,
+                },
+            ),
+            (
+                extra_claim,
+                {
+                    "provenance_pairs": [
+                        {
+                            "branch_id": "b6",
+                            "question_id": "q63",
+                            "question": "What constraints did the system create?",
+                            "intent": "debate",
+                            "found_assets": ["MECHANISM"],
+                        }
+                    ],
+                    "found_assets": ["MECHANISM"],
+                    "source_ids": {"source-2"},
+                    "supporting": [{"authority_type": "primary"}],
+                    "direct_evidence_count": 1,
+                    "contextual_evidence_count": 0,
+                },
+            ),
+        ],
+        question_context_map={
+            "q62": {
+                "question": "Why did three-bank issuance persist?",
+                "intent": "debate",
+                "required_evidence": [{"type": "CONTRAST", "min_count": 1}],
+                "expected_evidence": ["CASE"],
+            },
+            "q63": {
+                "question": "What constraints did the system create?",
+                "intent": "debate",
+                "required_evidence": [{"type": "MECHANISM", "min_count": 1}],
+                "expected_evidence": ["CONTRAST"],
+            },
+        },
+    )
+
+    assert len(gaps) == 1
+    assert set(gaps[0]["claim_ids"]) == {str(shared_claim.id), str(extra_claim.id)}
+    assert {ctx["question_id"] for ctx in gaps[0]["question_contexts"]} == {"q62", "q63"}
+    assert set(gaps[0]["found_assets"]) == {"CONTRAST", "MECHANISM"}
+
+
 def test_derive_verify_scope_prefers_rebuilt_and_merged_claims_after_first_loop() -> None:
     scope = _derive_verify_scope(
         {
             "iteration_counts": {"verify_research_loops": 1},
             "rebuilt_claim_ids": ["c2", "c3"],
             "dedupe_merged_into_claim_ids": ["c1"],
-            "research_gaps": [{"claim_id": "c4"}],
+            "research_gaps": [{"claim_id": "c4", "claim_ids": ["c4", "c5"]}],
         },
         ["c1", "c2", "c3", "c4", "c5"],
     )
 
-    assert scope == ["c1", "c2", "c3", "c4"]
+    assert scope == ["c1", "c2", "c3", "c4", "c5"]
 
 
 class _FakeScalarResult:

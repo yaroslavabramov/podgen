@@ -488,6 +488,20 @@ Deferred after Round 68:
 - [x] **P1**: Fix fast-web success accounting to distinguish `accepted_extractor_items`, `new_canonical_evidence_count`, and `new_provenance_links_count`
 - [x] **P1**: Revisit verifier-mode page retention for broad history/legal context pages that survive rerank/window selection without direct claim corroboration
 
+**Round 73 (systemic follow-ups from run 11a4826f):**
+- [x] **P0**: Add Hunter retry paths for extraction failures, distinguishing `exception/extraction_failed` from `invalid_extractor_payload` and retrying with narrower payload/prompt strategy
+- [x] **P0**: Make fast-web page retention trust-aware end-to-end: keep authority-sensitive bypass/threshold logic in `_is_low_value_page`, log explicit drop reasons, and penalize weak source families more consistently
+- [x] **P0**: Deduplicate overlapping verifier `research_gaps` by union of all intersecting `claim_ids`, merging `claim_contexts`, coverage signals, and asset summaries instead of spending multiple gap slots on the same corroboration target
+- [x] **P0**: Replace fixed verifier fast-web budget with adaptive, upper-bounded, intent-aware budgeting/prioritization based on remaining gap count, with extra weight for `debate`/`compare` gaps
+- [x] **P1**: Strengthen `claim_corroboration` source-quality policy so primary/secondary candidates are preferred over tertiary/unknown pages in both reranking and extractor selection
+- [x] **P1**: Add explicit `expected_evidence` tracking in Hunter extraction/summary/debug output so soft editorial targets become measurable coverage signals instead of prompt-only hints
+- [x] **P1**: Add bibliography/reference-window filtering in fast-web excerpt selection using citation-like heuristics/regex signals before extractor LLM spends budget on them
+- [x] **P1**: Add lightweight numeric-conflict detection before showrunner so corroboration objectives can switch from `confirm` to `resolve` when claims contain incompatible dates/rates/counts
+- [x] **P1**: Fix semantic claim-to-branch/question assignment so verifier-loop corroborates the right research target instead of following only broad provenance lineage
+- [x] **P1**: Rework targeted rebuild / verifier reuse so fingerprint-based skipping can actually save LLM calls for unchanged rebuilt claims (prefer update-over-delete semantics where feasible)
+- [x] **P1**: Add stronger showrunner claim-density caps and curated selection pressure so act pools stop behaving like near-complete research dumps
+- [ ] **P2**: Improve claim-level multi-source diversity via post-build merge/corroboration or richer builder prompting, instead of leaving almost all planning claims at `source_diversity = 1`
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

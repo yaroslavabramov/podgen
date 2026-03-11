@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 import uuid
 
 from sqlalchemy import select
@@ -54,6 +55,8 @@ Rules:
 - Verified facts should be front-loaded in acts where audience needs grounding
 - Claims with direct support and stronger source diversity should form the explanatory backbone
 - Claims with illustrative evidence are good candidates for hooks, case-study moments, and act transitions
+- Curate aggressively: each act should keep only the most important claims for its duration and role, not the full research pool
+- As a rule of thumb, the curated layer should usually stay around 6-15 claims per act depending on act duration
 - Last act should include takeaways"""
 
 
@@ -130,6 +133,21 @@ async def plan_episode(state: PipelineState) -> dict:
             if claim_summary["verification"] == VerificationLevel.DISPUTED:
                 disputed_ids.append(str(claim_summary["id"]))
 
+        synthetic_conflicts = _detect_numeric_conflicts(claims_summary)
+        if synthetic_conflicts:
+            conflicts_summary.extend(synthetic_conflicts)
+
+        preserved_claim_ids = set(disputed_ids)
+        conflict_claim_ids: set[str] = set()
+        for conflict in conflicts_summary:
+            conflict_ids = {
+                str(claim_id).strip()
+                for claim_id in (conflict.get("claim_ids", []) or [])
+                if str(claim_id).strip()
+            }
+            conflict_claim_ids.update(conflict_ids)
+            preserved_claim_ids.update(conflict_ids)
+
         publish_event(run_id, step_started("phase5_planning", "structure", "Creating act structure"))
 
         prompt_payload = {
@@ -148,6 +166,13 @@ async def plan_episode(state: PipelineState) -> dict:
             raw = await call_sonnet_structured(system=SHOWRUNNER_SYSTEM, prompt=prompt, temperature=0.5)
             parsed_plan = parse_llm_json(raw)
             plan = _normalize_plan(parsed_plan, state["duration_target"])
+            plan = _cap_act_claim_density(
+                plan,
+                claims_summary,
+                preserved_claim_ids=preserved_claim_ids,
+                disputed_claim_ids=set(disputed_ids),
+                conflict_claim_ids=conflict_claim_ids,
+            )
         except Exception:
             _dump_showrunner_debug(
                 run_id=run_id,
@@ -162,8 +187,13 @@ async def plan_episode(state: PipelineState) -> dict:
         # Validate: all disputed claims have debate slots
         for act in plan.get("acts", []):
             act_disputed = [c for c in act.get("claim_ids", []) if c in disputed_ids]
-            if act_disputed and act.get("content_quotas", {}).get("conflicts", 0) < 1:
-                act.setdefault("content_quotas", {})["conflicts"] = len(act_disputed)
+            act_conflicts = [
+                conflict
+                for conflict in conflicts_summary
+                if set(conflict.get("claim_ids", [])) & set(act.get("claim_ids", []))
+            ]
+            if (act_disputed or act_conflicts) and act.get("content_quotas", {}).get("conflicts", 0) < 1:
+                act.setdefault("content_quotas", {})["conflicts"] = max(1, len(act_disputed) or len(act_conflicts))
 
         # Update manifest
         if manifest:
@@ -257,6 +287,166 @@ def _normalize_plan(plan, duration_target: int) -> dict:
         raise RuntimeError("Showrunner produced no valid acts")
 
     return {"act_count": len(normalized_acts), "acts": normalized_acts}
+
+
+def _extract_numeric_tokens(statement: str) -> set[str]:
+    return set(re.findall(r"\b\d[\d,.:/-]*\b", str(statement or "")))
+
+
+def _normalize_conflict_token(token: str) -> str:
+    normalized = token.lower()
+    for suffix in ("ing", "ed", "es", "s"):
+        if len(normalized) > 4 and normalized.endswith(suffix):
+            normalized = normalized[: -len(suffix)]
+            if len(normalized) >= 2 and normalized[-1] == normalized[-2]:
+                normalized = normalized[:-1]
+            break
+    return normalized
+
+
+def _content_tokens(statement: str) -> set[str]:
+    tokens = {
+        _normalize_conflict_token(token)
+        for token in re.findall(r"[\w$.-]+", str(statement or "").lower())
+        if len(token) > 2 and not any(ch.isdigit() for ch in token)
+    }
+    return tokens
+
+
+def _token_overlap(left: set[str], right: set[str]) -> float:
+    if not left or not right:
+        return 0.0
+    return len(left & right) / max(len(left), len(right))
+
+
+def _detect_numeric_conflicts(claims_summary: list[dict]) -> list[dict]:
+    conflicts: list[dict] = []
+    seen_pairs: set[tuple[str, str]] = set()
+    for index, left in enumerate(claims_summary):
+        left_id = str(left.get("id", "")).strip()
+        left_numbers = _extract_numeric_tokens(left.get("statement", ""))
+        if not left_id or not left_numbers:
+            continue
+        left_branches = set(left.get("branch_ids", []) or [])
+        left_questions = set(left.get("question_ids", []) or [])
+        left_tokens = _content_tokens(left.get("statement", ""))
+        for right in claims_summary[index + 1:]:
+            right_id = str(right.get("id", "")).strip()
+            if not right_id:
+                continue
+            pair_key = tuple(sorted((left_id, right_id)))
+            if pair_key in seen_pairs:
+                continue
+            right_numbers = _extract_numeric_tokens(right.get("statement", ""))
+            if not right_numbers or left_numbers == right_numbers:
+                continue
+            if not (left_branches & set(right.get("branch_ids", []) or []) or left_questions & set(right.get("question_ids", []) or [])):
+                continue
+            overlap = _token_overlap(left_tokens, _content_tokens(right.get("statement", "")))
+            if overlap < 0.15:
+                continue
+            seen_pairs.add(pair_key)
+            conflicts.append(
+                {
+                    "id": f"numeric:{pair_key[0]}:{pair_key[1]}",
+                    "what": (
+                        "Conflicting numeric claims require resolution before writing: "
+                        f"{left.get('statement', '')[:140]} | {right.get('statement', '')[:140]}"
+                    ),
+                    "claim_ids": [pair_key[0], pair_key[1]],
+                }
+            )
+    return conflicts
+
+
+def _claim_priority_score(claim_summary: dict) -> tuple[int, int, int, int, int]:
+    verification = claim_summary.get("verification")
+    verification_rank = {
+        VerificationLevel.VERIFIED: 3,
+        VerificationLevel.OBSERVED: 2,
+        VerificationLevel.UNVERIFIED: 1,
+        VerificationLevel.DISPUTED: 1,
+    }.get(verification, 0)
+    source_diversity = int(claim_summary.get("source_diversity", 0) or 0)
+    direct_support = int(claim_summary.get("direct_support_count", 0) or 0)
+    illustrative = 1 if claim_summary.get("has_illustrative") else 0
+    claim_type_rank = 1 if str(claim_summary.get("type", "")).lower() in {"report", "opinion"} else 0
+    return (
+        verification_rank,
+        min(source_diversity, 3),
+        direct_support,
+        illustrative,
+        claim_type_rank,
+    )
+
+
+def _preserved_claim_priority_score(
+    claim_summary: dict,
+    *,
+    disputed_ids: set[str],
+    conflict_claim_ids: set[str],
+) -> tuple[int, int, int, int, int, int]:
+    claim_id = str(claim_summary.get("id", "")).strip()
+    disputed_rank = 1 if claim_id in disputed_ids else 0
+    conflict_rank = 1 if claim_id in conflict_claim_ids else 0
+    base_score = _claim_priority_score(claim_summary)
+    return (
+        disputed_rank,
+        conflict_rank,
+        *base_score,
+    )
+
+
+def _max_claims_for_act(estimated_duration_seconds: int) -> int:
+    return max(6, min(15, round(max(estimated_duration_seconds, 180) / 45)))
+
+
+def _cap_act_claim_density(
+    plan: dict,
+    claims_summary: list[dict],
+    *,
+    preserved_claim_ids: set[str] | None = None,
+    disputed_claim_ids: set[str] | None = None,
+    conflict_claim_ids: set[str] | None = None,
+) -> dict:
+    claim_index = {str(claim["id"]): claim for claim in claims_summary if isinstance(claim, dict) and claim.get("id")}
+    preserved_claim_ids = {str(claim_id).strip() for claim_id in (preserved_claim_ids or set()) if str(claim_id).strip()}
+    disputed_claim_ids = {str(claim_id).strip() for claim_id in (disputed_claim_ids or set()) if str(claim_id).strip()}
+    conflict_claim_ids = {str(claim_id).strip() for claim_id in (conflict_claim_ids or set()) if str(claim_id).strip()}
+    capped_acts: list[dict] = []
+    for act in plan.get("acts", []):
+        claim_ids = [str(claim_id) for claim_id in (act.get("claim_ids", []) or []) if str(claim_id)]
+        max_claims = _max_claims_for_act(int(act.get("estimated_duration_seconds", 0) or 0))
+        if len(claim_ids) <= max_claims:
+            capped_acts.append(act)
+            continue
+        preserved_in_act = [claim_id for claim_id in claim_ids if claim_id in preserved_claim_ids]
+        preserved_in_act = list(dict.fromkeys(preserved_in_act))
+        if len(preserved_in_act) > max_claims:
+            preserved_in_act = sorted(
+                preserved_in_act,
+                key=lambda claim_id: (
+                    _preserved_claim_priority_score(
+                        claim_index.get(claim_id, {}),
+                        disputed_ids=disputed_claim_ids,
+                        conflict_claim_ids=conflict_claim_ids,
+                    ),
+                    -claim_ids.index(claim_id),
+                ),
+                reverse=True,
+            )[:max_claims]
+        ranked = sorted(
+            [claim_id for claim_id in claim_ids if claim_id not in preserved_claim_ids],
+            key=lambda claim_id: (
+                _claim_priority_score(claim_index.get(claim_id, {})),
+                -claim_ids.index(claim_id),
+            ),
+            reverse=True,
+        )
+        remaining_slots = max(0, max_claims - len(preserved_in_act))
+        kept_ids = preserved_in_act + ranked[:remaining_slots]
+        capped_acts.append({**act, "claim_ids": kept_ids})
+    return {**plan, "acts": capped_acts}
 
 
 def _dump_showrunner_debug(

@@ -16,7 +16,9 @@ from app.models.episode_manifest import EpisodeManifest
 from app.models.evidence import EvidenceProvenance, EvidenceSpan
 from app.models.claim import Claim, ClaimEvidence
 from app.models.source import Source
+from app.pipeline.phase3_research.normalization import normalize_research_text
 from app.pipeline.phase4_claims.claim_notes import decode_claim_notes_metadata, encode_claim_notes_metadata
+from app.pipeline.phase4_claims.claim_type_utils import normalize_claim_type
 from app.pipeline.research_context import build_question_context_map
 from app.pipeline.state import PipelineState
 from app.services.llm import call_sonnet_structured
@@ -90,6 +92,12 @@ async def build_claims(state: PipelineState) -> dict:
     rebuilt_claim_ids: list[str] = []
     preserved_claim_ids: list[str] = []
     rebuild_scope = _derive_targeted_rebuild_scope(state)
+    previous_gap_claim_ids = {
+        str(gap.get("claim_id", "")).strip()
+        for gap in (state.get("research_gaps", []) or [])
+        if isinstance(gap, dict) and str(gap.get("claim_id", "")).strip()
+    }
+    previous_rebuild_lookup: dict[str, list[dict]] = {}
 
     async with async_session_factory() as db:
         question_context_map: dict[str, dict] = {}
@@ -134,6 +142,12 @@ async def build_claims(state: PipelineState) -> dict:
                 explicit_claim_ids=rebuild_scope["claim_ids"],
             )
             if impacted_claim_ids:
+                previous_rebuild_lookup = await _load_previous_claim_rebuild_state(
+                    db=db,
+                    claim_ids=impacted_claim_ids,
+                    previous_gap_claim_ids=previous_gap_claim_ids,
+                )
+            if impacted_claim_ids:
                 await _delete_claims(db, impacted_claim_ids)
             all_claim_ids.extend(preserved_claim_ids)
 
@@ -155,6 +169,7 @@ async def build_claims(state: PipelineState) -> dict:
             for batch in _split_evidence_batch(evidence_group):
                 batch_number += 1
                 batch_ids = {e["id"] for e in batch}
+                batch_evidence_index = {str(item["id"]): item for item in batch}
                 branch_context = _summarize_branch_context(branch_id, batch, question_context_map)
                 payload = {
                     "build_mode": "targeted_rebuild" if rebuild_scope is not None else "full",
@@ -211,6 +226,8 @@ async def build_claims(state: PipelineState) -> dict:
                     batch_ids=batch_ids,
                     branch_id=branch_id,
                     branch_question_ids=branch_context.get("question_ids", []),
+                    batch_evidence_index=batch_evidence_index,
+                    previous_rebuild_lookup=previous_rebuild_lookup,
                     run_id=run_id,
                     all_claim_ids=all_claim_ids,
                 )
@@ -251,25 +268,35 @@ def _derive_targeted_rebuild_scope(state: PipelineState) -> dict | None:
         return None
 
     gaps = state.get("research_gaps", []) or []
-    branch_ids = sorted(
-        {
-            str(gap.get("branch_id", "")).strip()
-            for gap in gaps
-            if isinstance(gap, dict) and str(gap.get("branch_id", "")).strip()
-        }
-    )
-    claim_ids = sorted(
-        {
-            str(gap.get("claim_id", "")).strip()
-            for gap in gaps
-            if isinstance(gap, dict) and str(gap.get("claim_id", "")).strip()
-        }
-    )
+    branch_ids: set[str] = set()
+    claim_ids: set[str] = set()
+    for gap in gaps:
+        if not isinstance(gap, dict):
+            continue
+        branch_id = str(gap.get("branch_id", "")).strip()
+        if branch_id:
+            branch_ids.add(branch_id)
+        for context in (gap.get("question_contexts", []) or []):
+            if not isinstance(context, dict):
+                continue
+            contextual_branch_id = str(context.get("branch_id", "")).strip()
+            if contextual_branch_id:
+                branch_ids.add(contextual_branch_id)
+        gap_claim_ids = [
+            str(claim_id).strip()
+            for claim_id in (gap.get("claim_ids", []) or [])
+            if str(claim_id).strip()
+        ]
+        if gap_claim_ids:
+            claim_ids.update(gap_claim_ids)
+        claim_id = str(gap.get("claim_id", "")).strip()
+        if claim_id:
+            claim_ids.add(claim_id)
     if not branch_ids and not claim_ids:
         return None
     return {
-        "branch_ids": branch_ids,
-        "claim_ids": claim_ids,
+        "branch_ids": sorted(branch_ids),
+        "claim_ids": sorted(claim_ids),
     }
 
 
@@ -317,6 +344,59 @@ async def _delete_claims(db, claim_ids: list[str]) -> None:
     for claim in result.scalars().all():
         await db.delete(claim)
     await db.flush()
+
+
+async def _load_previous_claim_rebuild_state(
+    *,
+    db,
+    claim_ids: list[str],
+    previous_gap_claim_ids: set[str],
+) -> dict[str, list[dict]]:
+    if not claim_ids:
+        return {}
+
+    claim_uuid_ids: list[uuid.UUID] = []
+    for claim_id in claim_ids:
+        try:
+            claim_uuid_ids.append(uuid.UUID(claim_id))
+        except (TypeError, ValueError):
+            logger.warning("Skipping invalid claim ID in previous rebuild lookup: %s", claim_id)
+    if not claim_uuid_ids:
+        return {}
+    result = await db.execute(select(Claim).where(Claim.id.in_(claim_uuid_ids)))
+    claims = {str(claim.id): claim for claim in result.scalars().all()}
+    evidence_result = await db.execute(
+        select(ClaimEvidence).where(ClaimEvidence.claim_id.in_(claim_uuid_ids))
+    )
+    links_by_claim: dict[str, list[ClaimEvidence]] = defaultdict(list)
+    for link in evidence_result.scalars().all():
+        links_by_claim[str(link.claim_id)].append(link)
+
+    lookup: dict[str, list[dict]] = defaultdict(list)
+    for claim_id, claim in claims.items():
+        signature = _claim_rebuild_signature(
+            statement=claim.statement,
+            claim_type=claim.claim_type,
+            support_ids={
+                str(link.evidence_id)
+                for link in links_by_claim.get(claim_id, [])
+                if link.supports_fact
+            },
+            illustrative_ids={
+                str(link.evidence_id)
+                for link in links_by_claim.get(claim_id, [])
+                if link.illustrative
+            },
+        )
+        lookup[signature].append(
+            {
+                "claim_id": claim_id,
+                "verification_level": claim.verification_level,
+                "verification_fingerprint": claim.verification_fingerprint,
+                "was_gap_claim": claim_id in previous_gap_claim_ids,
+            }
+        )
+    return lookup
 
 
 async def _load_branch_batches(
@@ -558,6 +638,86 @@ def _build_claim_builder_instructions(branch_context: dict) -> str:
     return base
 
 
+def _claim_rebuild_signature(
+    *,
+    statement: str,
+    claim_type: str,
+    support_ids: set[str],
+    illustrative_ids: set[str],
+) -> str:
+    payload = {
+        "statement": normalize_research_text(statement).strip().lower(),
+        "claim_type": str(claim_type or "").strip().lower(),
+        "support_ids": sorted(str(eid) for eid in support_ids),
+        "illustrative_ids": sorted(str(eid) for eid in illustrative_ids),
+    }
+    return hashlib.sha1(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def _select_claim_assignment(
+    *,
+    statement: str,
+    support_ids: set[str],
+    branch_id: str,
+    default_question_ids: list[str],
+    batch_evidence_index: dict[str, dict],
+) -> tuple[str, list[str]]:
+    statement_terms = {
+        token
+        for token in normalize_research_text(statement).lower().split()
+        if len(token) > 2
+    }
+    candidate_scores: dict[str, dict] = {}
+    branch_scores: dict[str, float] = defaultdict(float)
+
+    for evidence_id in support_ids:
+        evidence_item = batch_evidence_index.get(str(evidence_id))
+        if not isinstance(evidence_item, dict):
+            continue
+        lineage = evidence_item.get("lineage", {})
+        for context in lineage.get("question_contexts", []):
+            if not isinstance(context, dict):
+                continue
+            question_id = str(context.get("question_id", "")).strip()
+            context_branch_id = str(context.get("branch_id", "")).strip()
+            if not question_id:
+                continue
+            question_terms = {
+                token
+                for token in normalize_research_text(str(context.get("question", ""))).lower().split()
+                if len(token) > 2
+            }
+            overlap = len(statement_terms & question_terms) / max(len(question_terms), 1) if question_terms else 0.0
+            direct_bonus = 0.4 if str(context.get("direct_or_contextual", "")).strip().lower() == "direct" else 0.0
+            branch_bonus = 0.2 if context_branch_id == branch_id else 0.0
+            score = overlap + direct_bonus + branch_bonus
+            current = candidate_scores.get(question_id)
+            if current is None or score > current["score"]:
+                candidate_scores[question_id] = {
+                    "score": score,
+                    "branch_id": context_branch_id or branch_id,
+                }
+            branch_scores[context_branch_id or branch_id] += score
+
+    if candidate_scores:
+        ranked_question_ids = [
+            question_id
+            for question_id, _ in sorted(
+                candidate_scores.items(),
+                key=lambda item: (item[1]["score"], item[0]),
+                reverse=True,
+            )
+        ]
+        selected_branch_id = candidate_scores[ranked_question_ids[0]]["branch_id"] or branch_id
+        return selected_branch_id, ranked_question_ids[:3]
+
+    if branch_scores:
+        selected_branch_id = max(branch_scores.items(), key=lambda item: item[1])[0]
+        return selected_branch_id or branch_id, default_question_ids
+
+    return branch_id, default_question_ids
+
+
 async def _persist_claim_batch(
     *,
     db,
@@ -566,6 +726,8 @@ async def _persist_claim_batch(
     batch_ids: set[str],
     branch_id: str,
     branch_question_ids: list[str],
+    batch_evidence_index: dict[str, dict],
+    previous_rebuild_lookup: dict[str, list[dict]],
     run_id: str,
     all_claim_ids: list[str],
 ) -> tuple[list[dict], dict[str, int]]:
@@ -573,6 +735,8 @@ async def _persist_claim_batch(
     persist_stats = {
         "skipped_no_support_count": 0,
         "skipped_empty_statement_count": 0,
+        "coerced_claim_type_count": 0,
+        "reused_verification_state_count": 0,
     }
     try:
         for cd in claims_data:
@@ -597,17 +761,41 @@ async def _persist_claim_batch(
                 persist_stats["skipped_no_support_count"] += 1
                 continue
 
+            claim_type, was_coerced = normalize_claim_type(cd.get("claim_type", "fact"), cd.get("attribution"))
+            if was_coerced:
+                persist_stats["coerced_claim_type_count"] += 1
+
+            selected_branch_id, selected_question_ids = _select_claim_assignment(
+                statement=statement,
+                support_ids=support_ids,
+                branch_id=branch_id,
+                default_question_ids=branch_question_ids,
+                batch_evidence_index=batch_evidence_index,
+            )
+            rebuild_signature = _claim_rebuild_signature(
+                statement=statement,
+                claim_type=claim_type,
+                support_ids=support_ids,
+                illustrative_ids=illustrative_ids,
+            )
+            previous_rebuild_candidates = previous_rebuild_lookup.get(rebuild_signature, [])
+            previous_rebuild_state = previous_rebuild_candidates.pop(0) if previous_rebuild_candidates else None
+
             claim = Claim(
                 id=uuid.uuid4(),
                 project_id=uuid.UUID(project_id),
-                claim_type=str(cd.get("claim_type", "fact")).lower(),
+                claim_type=claim_type,
                 statement=statement,
                 attribution=cd.get("attribution"),
                 notes=encode_claim_notes_metadata(
-                    branch_id=branch_id,
-                    question_ids=branch_question_ids,
+                    branch_id=selected_branch_id,
+                    question_ids=selected_question_ids,
                 ),
             )
+            if previous_rebuild_state and not previous_rebuild_state.get("was_gap_claim"):
+                claim.verification_level = previous_rebuild_state.get("verification_level", claim.verification_level)
+                claim.verification_fingerprint = previous_rebuild_state.get("verification_fingerprint")
+                persist_stats["reused_verification_state_count"] += 1
             db.add(claim)
             await db.flush()
 

@@ -5,7 +5,9 @@ import pytest
 from app.pipeline.phase3_research.hunter import (
     _build_keyword_queries,
     _build_intent_seed_queries,
+    _build_hunter_extraction_prompt_payload,
     _dump_hunter_question_debug,
+    _extract_evidence_items_with_retry,
     _extract_node_evidence_contract,
     _find_chunk_for_quote,
     _intent_retrieval_goal,
@@ -155,6 +157,8 @@ def test_dump_hunter_question_debug_writes_file(tmp_path, monkeypatch) -> None:
     assert payload["question"]["intent"] == "explain"
     assert payload["retrieval"]["vector_hit_count"] == 1
     assert payload["extraction"]["saved_evidence_count"] == 1
+    assert payload["extraction"]["found_expected_evidence"] == {}
+    assert payload["extraction"]["retry"]["attempts"] == []
 
 
 def test_dump_hunter_question_debug_skips_when_disabled(tmp_path, monkeypatch) -> None:
@@ -243,3 +247,104 @@ def test_intent_retrieval_goal_for_case_study_mentions_concrete_episodes() -> No
     goal = _intent_retrieval_goal("case_study")
     assert "concrete episodes" in goal
     assert "consequences" in goal
+
+
+@pytest.mark.asyncio
+async def test_extract_evidence_items_with_retry_retries_after_exception_with_narrower_payload(monkeypatch) -> None:
+    calls: list[dict] = []
+
+    async def _fake_call(**kwargs) -> str:
+        prompt = json.loads(kwargs["prompt"])
+        calls.append(
+            {
+                "system": kwargs["system"],
+                "chunk_count": len(prompt["chunks"]),
+                "has_retry_focus": "retry_focus" in prompt,
+            }
+        )
+        if len(calls) == 1:
+            raise RuntimeError("LLM timeout")
+        return '[{"chunk_index": 0, "verbatim_quote": "Quote", "asset_type": "TIMELINE"}]'
+
+    monkeypatch.setattr("app.pipeline.phase3_research.hunter.call_haiku_structured", _fake_call)
+
+    items, status, meta = await _extract_evidence_items_with_retry(
+        question={
+            "question": "How did the exchange-rate regime change?",
+            "intent": "history",
+            "required_targets": [{"type": "TIMELINE", "min_count": 1}],
+            "expected_types": ["CASE"],
+        },
+        chunk_texts=[
+            {"content": f"Chunk {i}", "source_title": "Source", "heading_path": []}
+            for i in range(8)
+        ],
+    )
+
+    assert status == "ok"
+    assert isinstance(items, list) and len(items) == 1
+    assert calls[0]["chunk_count"] == 8
+    assert calls[1]["chunk_count"] == 4
+    assert calls[1]["has_retry_focus"] is True
+    assert meta["attempt_count"] == 2
+    assert meta["attempts"][0]["status"] == "exception"
+    assert meta["attempts"][1]["status"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_extract_evidence_items_with_retry_uses_strict_format_after_invalid_payload(monkeypatch) -> None:
+    systems: list[str] = []
+
+    async def _fake_call(**kwargs) -> str:
+        systems.append(kwargs["system"])
+        if len(systems) == 1:
+            return '{"not":"a-list"}'
+        return '[{"chunk_index": 0, "verbatim_quote": "Quote", "asset_type": "CASE"}]'
+
+    monkeypatch.setattr("app.pipeline.phase3_research.hunter.call_haiku_structured", _fake_call)
+
+    items, status, meta = await _extract_evidence_items_with_retry(
+        question={
+            "question": "Which episode illustrates the policy shift?",
+            "intent": "case_study",
+            "required_targets": [{"type": "CASE", "min_count": 1}],
+            "expected_types": ["ANECDOTE"],
+        },
+        chunk_texts=[
+            {"content": "Chunk 1", "source_title": "Source", "heading_path": []},
+            {"content": "Chunk 2", "source_title": "Source", "heading_path": []},
+        ],
+    )
+
+    assert status == "ok"
+    assert isinstance(items, list) and len(items) == 1
+    assert "STRICT FORMAT" not in systems[0]
+    assert "STRICT FORMAT" in systems[1]
+    assert meta["attempts"][0]["status"] == "invalid_payload"
+    assert meta["attempts"][1]["status"] == "ok"
+
+
+def test_build_hunter_extraction_prompt_payload_adds_retry_focus_only_for_retry() -> None:
+    payload = _build_hunter_extraction_prompt_payload(
+        question={
+            "question": "How does the mechanism work?",
+            "intent": "explain",
+            "required_targets": [{"type": "MECHANISM", "min_count": 1}],
+            "expected_types": ["CASE"],
+        },
+        chunk_texts=[{"content": "Chunk", "source_title": "Source", "heading_path": ["H1"]}],
+        directness_push=False,
+    )
+    retry_payload = _build_hunter_extraction_prompt_payload(
+        question={
+            "question": "How does the mechanism work?",
+            "intent": "explain",
+            "required_targets": [{"type": "MECHANISM", "min_count": 1}],
+            "expected_types": ["CASE"],
+        },
+        chunk_texts=[{"content": "Chunk", "source_title": "Source", "heading_path": ["H1"]}],
+        directness_push=True,
+    )
+
+    assert "retry_focus" not in payload
+    assert "retry_focus" in retry_payload

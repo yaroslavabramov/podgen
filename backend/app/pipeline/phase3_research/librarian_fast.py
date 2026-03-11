@@ -51,6 +51,8 @@ Rules:
 - If extractor_mode="claim_corroboration", prioritize evidence that directly supports one of the claim_contexts / claim_statement.
 - In claim_corroboration mode, treat question_background_assets as secondary context only; do not choose evidence merely because it matches broad question-level asset hints.
 - In claim_corroboration mode, use corroboration_goals to understand whether you need a direct source, an independent second source, or a stronger authority source.
+- In claim_corroboration mode, prefer excerpt windows from pages marked as primary/secondary authority when they provide sufficient overlap.
+- If both strong and weak pages support the same proposition, prefer the stronger page and treat tertiary/unknown pages as fallback only.
 - Use direct_or_contextual="direct" when the quote directly answers the question as asked.
 - Use direct_or_contextual="contextual" for background, analogy, or adjacent framing.
 - For verifier gaps, prioritize independent corroboration and stronger source families over generic explainers.
@@ -86,6 +88,7 @@ _FAST_WEB_WINDOW_MIN_CHARS = 800
 _FAST_WEB_WINDOW_MAX_CHARS = 1600
 _FAST_WEB_WINDOW_FALLBACK_CHARS = 1400
 _FAST_WEB_MAX_QUERY_CHARS = 320
+_FAST_WEB_VERIFIER_BUDGET_MULTIPLIER = 2
 _FAST_WEB_STOPWORDS = {
     "the", "a", "an", "and", "or", "to", "of", "in", "on", "for", "that", "this", "is", "was", "were",
     "with", "from", "into", "about", "what", "when", "where", "why", "how", "which", "who", "does", "did",
@@ -103,11 +106,7 @@ async def research_fast_web(state: PipelineState) -> dict:
     research_gaps = state.get("research_gaps", []) or []
     mode = _determine_fast_web_mode(research_gaps)
     processed_gap_count = _current_gap_count(iteration_counts, mode)
-    gap_budget = _gap_budget_for_mode(mode)
-
-    if processed_gap_count >= gap_budget:
-        logger.info("Fast web governor hit for mode %s: %d gaps processed", mode, processed_gap_count)
-        return {"evidence_ids": all_evidence_ids, "iteration_counts": iteration_counts}
+    gap_budget = 0
 
     debug_attempts: list[dict] = []
     selected_gap_payloads: list[dict] = []
@@ -134,6 +133,15 @@ async def research_fast_web(state: PipelineState) -> dict:
         )
         if not gap_branches:
             logger.info("No research gaps detected for fast web step")
+            return {
+                "evidence_ids": all_evidence_ids,
+                "iteration_counts": iteration_counts,
+                "research_gaps": research_gaps,
+                "current_phase": "phase3_research",
+            }
+        gap_budget = _gap_budget_for_mode(mode, gap_branches)
+        if processed_gap_count >= gap_budget:
+            logger.info("Fast web governor hit for mode %s: %d gaps processed", mode, processed_gap_count)
             return {
                 "evidence_ids": all_evidence_ids,
                 "iteration_counts": iteration_counts,
@@ -279,6 +287,12 @@ async def research_fast_web(state: PipelineState) -> dict:
 
                 accepted_items: list[dict] = []
                 rejected_items: list[dict] = []
+                page_metadata_by_url = {
+                    str(page.get("url", "")).strip(): page
+                    for page in page_contents
+                    if isinstance(page, dict) and str(page.get("url", "")).strip()
+                }
+                candidate_items: list[dict] = []
                 gap_accepted_item_count = 0
                 gap_new_canonical_evidence_count = 0
                 gap_new_provenance_links_count = 0
@@ -305,14 +319,35 @@ async def research_fast_web(state: PipelineState) -> dict:
                         rejected_items.append({"reason": "asset_type_not_targeted", "item": item})
                         continue
 
-                    source_page = next(
-                        (page for page in page_contents if page.get("url") == item["url"]),
-                        None,
+                    source_page = page_metadata_by_url.get(str(item["url"]).strip())
+                    candidate_items.append(
+                        {
+                            "raw_item": item,
+                            "asset_type": asset_type,
+                            "url": item["url"],
+                            "direct_or_contextual": item.get("direct_or_contextual"),
+                            "authority_type": str(source_page.get("authority_type", "")) if isinstance(source_page, dict) else "",
+                            "domain_reliability": str(source_page.get("domain_reliability", "")) if isinstance(source_page, dict) else "",
+                            "quote_preview": _clip_text(str(item.get("verbatim_quote", "")), 220),
+                            "source_page": source_page,
+                        }
                     )
+
+                if extractor_mode == "claim_corroboration" and candidate_items:
+                    candidate_items, quality_rejections = _apply_claim_corroboration_quality_ceiling(
+                        candidate_items,
+                        page_metadata_by_url,
+                    )
+                    if quality_rejections:
+                        rejected_items.extend(quality_rejections)
+
+                for candidate in candidate_items:
+                    raw_item = candidate["raw_item"]
+                    source_page = candidate.get("source_page")
                     created = await create_web_evidence(
-                        url=item["url"],
-                        quote=item["verbatim_quote"],
-                        asset_type=asset_type.lower(),
+                        url=candidate["url"],
+                        quote=raw_item["verbatim_quote"],
+                        asset_type=str(candidate["asset_type"]).lower(),
                         project_id=state["project_id"],
                         db=db,
                         generation_run_id=state["generation_run_id"],
@@ -320,8 +355,8 @@ async def research_fast_web(state: PipelineState) -> dict:
                         question_id=gap.get("question_id", ""),
                         branch_id=gap.get("branch_id", ""),
                         query_text=str(source_page.get("query_text", question)) if isinstance(source_page, dict) else question,
-                        retrieval_score=item.get("narrative_value_score"),
-                        direct_or_contextual=item.get("direct_or_contextual"),
+                        retrieval_score=raw_item.get("narrative_value_score"),
+                        direct_or_contextual=raw_item.get("direct_or_contextual"),
                         title=str(source_page.get("title", "")) if isinstance(source_page, dict) else None,
                     )
                     all_evidence_ids.append(created.evidence_id)
@@ -342,13 +377,15 @@ async def research_fast_web(state: PipelineState) -> dict:
                     accepted_items.append(
                         {
                             "evidence_id": created.evidence_id,
-                            "asset_type": asset_type,
-                            "url": item["url"],
-                            "direct_or_contextual": item.get("direct_or_contextual"),
+                            "asset_type": candidate["asset_type"],
+                            "url": candidate["url"],
+                            "direct_or_contextual": candidate.get("direct_or_contextual"),
+                            "authority_type": candidate.get("authority_type", ""),
+                            "domain_reliability": candidate.get("domain_reliability", ""),
                             "created_source": created.created_source,
                             "created_evidence": created.created_evidence,
                             "created_provenance": created.created_provenance,
-                            "quote_preview": _clip_text(str(item.get("verbatim_quote", "")), 220),
+                            "quote_preview": candidate["quote_preview"],
                         }
                     )
 
@@ -483,10 +520,20 @@ def _fast_web_counter_key(mode: str) -> str:
     return "fast_web_verifier_gap_count" if mode == "verifier_corroboration" else "fast_web_initial_gap_count"
 
 
-def _gap_budget_for_mode(mode: str) -> int:
-    if mode == "verifier_corroboration":
-        return settings.max_fast_web_verifier_gaps
-    return settings.max_fast_web_initial_gaps
+def _gap_budget_for_mode(mode: str, gap_branches: list[dict]) -> int:
+    if mode != "verifier_corroboration":
+        return settings.max_fast_web_initial_gaps
+
+    base_budget = int(settings.max_fast_web_verifier_gaps)
+    remaining_gap_count = len(gap_branches)
+    interpretive_count = sum(
+        1
+        for gap in gap_branches
+        if str(gap.get("intent", "")).strip().lower() in {"debate", "compare"}
+    )
+    adaptive_target = max(base_budget, min(remaining_gap_count, base_budget * _FAST_WEB_VERIFIER_BUDGET_MULTIPLIER))
+    adaptive_target = min(adaptive_target + min(interpretive_count, base_budget), base_budget * _FAST_WEB_VERIFIER_BUDGET_MULTIPLIER)
+    return max(base_budget, adaptive_target)
 
 
 def _current_gap_count(iteration_counts: dict, mode: str) -> int:
@@ -593,7 +640,14 @@ def _select_gap_branches(
                     ),
                 }
             )
-        normalized.sort(key=lambda g: (g.get("priority", 5), g.get("branch_id", ""), g.get("question_id", "")))
+        normalized.sort(
+            key=lambda g: (
+                g.get("priority", 5),
+                _gap_intent_sort_key(g.get("intent", "")),
+                g.get("branch_id", ""),
+                g.get("question_id", ""),
+            )
+        )
         return normalized
 
     gap_branches = [b for b in branches if b.get("priority", 5) <= 2]
@@ -1001,6 +1055,7 @@ def _rerank_search_results(
         rerank_score += _source_quality_bonus(domain_reliability, authority_type)
         rerank_score += _novelty_bonus(known)
         rerank_score += _source_family_diversification_bonus(source_family, used_source_families)
+        rerank_score += _weak_source_family_penalty(source_family, authority_type)
 
         ranked.append(
             {
@@ -1093,16 +1148,20 @@ async def _prepare_gap_pages(
 
         if known_source and not known_source.get("fully_ingested") and len(str(known_source.get("text_preview", "")).strip()) >= _FAST_WEB_MIN_PREVIEW_REUSE_CHARS:
             preview_text = str(known_source.get("text_preview", "")).strip()
-            page_payload = _build_page_payload(
+            page_payload, drop_meta = _build_page_payload(
                 url=url,
                 title=str(known_source.get("title", result.get("title", ""))),
                 query_text=str(result.get("query_text", "")),
                 text=preview_text,
                 extraction_profile="known_source_preview",
                 gap=gap,
+                authority_type=str(result.get("authority_type", known_source.get("authority_type", ""))),
+                domain_reliability=str(result.get("domain_reliability", known_source.get("domain_reliability", ""))),
+                source_family=str(result.get("source_family", "")),
+                rerank_score=float(result.get("rerank_score", 0) or 0),
             )
             if page_payload is None:
-                handling.append({"url": url, "action": "drop_known_preview_low_value"})
+                handling.append({"url": url, "action": "drop_known_preview_low_value", **drop_meta})
                 continue
             page_contents.append(page_payload)
             handling.append({"url": url, "action": "reuse_known_preview"})
@@ -1117,16 +1176,20 @@ async def _prepare_gap_pages(
             handling.append({"url": url, "action": "fetch_failed", "error": page.get("error") if isinstance(page, dict) else ""})
             continue
 
-        page_payload = _build_page_payload(
+        page_payload, drop_meta = _build_page_payload(
             url=url,
             title=str(page.get("title", result.get("title", ""))),
             query_text=str(result.get("query_text", "")),
             text=str(page.get("content_markdown", "")),
             extraction_profile=str(page.get("extraction_profile", "")),
             gap=gap,
+            authority_type=str(result.get("authority_type", "")),
+            domain_reliability=str(result.get("domain_reliability", "")),
+            source_family=str(result.get("source_family", "")),
+            rerank_score=float(result.get("rerank_score", 0) or 0),
         )
         if page_payload is None:
-            handling.append({"url": url, "action": "drop_low_value_page"})
+            handling.append({"url": url, "action": "drop_low_value_page", **drop_meta})
             continue
 
         page_contents.append(page_payload)
@@ -1143,15 +1206,26 @@ def _build_page_payload(
     text: str,
     extraction_profile: str,
     gap: dict,
-) -> dict | None:
+    authority_type: str,
+    domain_reliability: str,
+    source_family: str,
+    rerank_score: float,
+) -> tuple[dict | None, dict]:
     cleaned = str(text or "").strip()
     if not cleaned or contains_blocking_signal(cleaned):
-        return None
-    if _is_low_value_page(cleaned, gap, query_text=query_text):
-        return None
+        return None, {"drop_reason": "blocked_or_empty"}
+    is_low_value, low_value_meta = _is_low_value_page(
+        cleaned,
+        gap,
+        query_text=query_text,
+        authority_type=authority_type,
+        domain_reliability=domain_reliability,
+    )
+    if is_low_value:
+        return None, low_value_meta
     excerpt_windows = _select_excerpt_windows(cleaned, gap=gap, query_text=query_text)
     if not excerpt_windows:
-        return None
+        return None, {"drop_reason": "no_excerpt_windows"}
     return {
         "url": url,
         "title": title,
@@ -1159,25 +1233,42 @@ def _build_page_payload(
         "extraction_profile": extraction_profile,
         "content_strategy": "relevance_windows",
         "excerpt_windows": excerpt_windows,
-    }
+        "authority_type": authority_type,
+        "domain_reliability": domain_reliability,
+        "source_family": source_family,
+        "rerank_score": rerank_score,
+    }, {}
 
 
-def _is_low_value_page(text: str, gap: dict, *, query_text: str = "") -> bool:
+def _is_low_value_page(
+    text: str,
+    gap: dict,
+    *,
+    query_text: str = "",
+    authority_type: str = "",
+    domain_reliability: str = "",
+) -> tuple[bool, dict]:
     stripped = text.strip()
     if len(stripped) < _FAST_WEB_MIN_PAGE_CHARS:
-        return True
+        return True, {"drop_reason": "too_short", "page_chars": len(stripped)}
     overlap = _token_overlap_score(
         _overlap_terms(text[:4000]),
         _gap_objective_terms(gap, query_text=query_text),
     )
-    if overlap < _FAST_WEB_LOW_VALUE_OVERLAP_MIN and len(stripped) < 1000:
-        return True
+    authority = str(authority_type or "").strip().lower()
+    reliability = str(domain_reliability or "").strip().lower()
+    high_trust = authority in {"primary", "secondary"} or reliability == "high"
+    if overlap < _FAST_WEB_LOW_VALUE_OVERLAP_MIN and len(stripped) < 1000 and not high_trust:
+        return True, {"drop_reason": "low_overlap_short_page", "overlap_score": overlap, "page_chars": len(stripped)}
     anchor_terms = _gap_anchor_terms(gap, query_text=query_text)
     if str(gap.get("gap_origin", "")).strip().lower() == "verifier" and anchor_terms:
         anchor_hits = len(_overlap_terms(text[:5000]) & anchor_terms)
         if anchor_hits < 1:
-            return True
-    return False
+            if high_trust and overlap > 0:
+                return False, {"overlap_score": overlap, "anchor_hits": anchor_hits, "authority_bypass": True}
+            return True, {"drop_reason": "no_claim_anchor_hits", "overlap_score": overlap, "anchor_hits": anchor_hits}
+        return False, {"overlap_score": overlap, "anchor_hits": anchor_hits}
+    return False, {"overlap_score": overlap}
 
 
 def _select_excerpt_windows(text: str, *, gap: dict, query_text: str) -> list[str]:
@@ -1202,6 +1293,8 @@ def _select_excerpt_windows(text: str, *, gap: dict, query_text: str) -> list[st
             if total_chars < _FAST_WEB_WINDOW_MIN_CHARS and end_index < len(blocks) - 1:
                 continue
             window_text = "\n\n".join(parts).strip()
+            if _is_reference_like_window(window_text):
+                continue
             score = _score_excerpt_window(window_text, objective_terms, anchor_terms=anchor_terms)
             windows.append((score, start_index, end_index, window_text))
             break
@@ -1232,9 +1325,28 @@ def _select_excerpt_windows(text: str, *, gap: dict, query_text: str) -> list[st
 def _score_excerpt_window(text: str, objective_terms: set[str], *, anchor_terms: set[str] | None = None) -> float:
     tokens = _overlap_terms(text)
     overlap = _token_overlap_score(tokens, objective_terms)
-    named_bonus = 0.1 * len(_named_and_keyword_terms(text[:1200]))
+    named_bonus = 0.0 if _is_reference_like_window(text) else 0.1 * len(_named_and_keyword_terms(text[:1200]))
     anchor_bonus = _token_overlap_score(tokens, anchor_terms or set()) * 1.2
     return overlap + named_bonus + anchor_bonus
+
+
+def _is_reference_like_window(text: str) -> bool:
+    sample = str(text or "")[:2000]
+    lowered = sample.lower()
+    regex_hits = sum(
+        1
+        for pattern in (
+            r"\(\d{4}\)\.",
+            r"\bpp\.\s*\d",
+            r"\bvol\.\s*\d",
+            r"\bdoi[:/]",
+            r"\bjournal\b",
+        )
+        if re.search(pattern, lowered)
+    )
+    year_hits = len(re.findall(r"\b(?:19|20)\d{2}\b", sample))
+    surname_commas = len(re.findall(r"\b[A-Z][a-z]+,\s+[A-Z]\.", sample))
+    return regex_hits >= 2 or (year_hits >= 4 and surname_commas >= 2)
 
 
 def _gap_objective_terms(gap: dict, *, query_text: str = "") -> set[str]:
@@ -1338,6 +1450,80 @@ def _gap_anchor_terms(gap: dict, *, query_text: str = "") -> set[str]:
             if any(ch.isdigit() for ch in token):
                 anchors.add(lowered)
     return anchors
+
+
+def _gap_intent_sort_key(intent: str) -> int:
+    normalized = str(intent or "").strip().lower()
+    if normalized == "debate":
+        return 0
+    if normalized == "compare":
+        return 1
+    if normalized == "case_study":
+        return 2
+    if normalized == "explain":
+        return 3
+    return 4
+
+
+def _weak_source_family_penalty(source_family: str, authority_type: str) -> float:
+    if str(authority_type or "").strip().lower() in {"primary", "secondary"}:
+        return 0.0
+    family = str(source_family or "").lower()
+    if any(token in family for token in ("medium.com", "substack.com", "wordpress.com", "blogspot.", "fandom.com", "wikia.com")):
+        return -0.4
+    return 0.0
+
+
+def _page_quality_rank(page: dict | None) -> tuple[int, int]:
+    if not isinstance(page, dict):
+        return (4, 4)
+    authority_rank = {
+        "primary": 0,
+        "secondary": 1,
+        "tertiary": 2,
+        "unknown": 3,
+    }.get(str(page.get("authority_type", "")).strip().lower(), 4)
+    reliability_rank = {
+        "high": 0,
+        "medium": 1,
+        "low": 2,
+        "unknown": 3,
+    }.get(str(page.get("domain_reliability", "")).strip().lower(), 4)
+    return (authority_rank, reliability_rank)
+
+
+def _apply_claim_corroboration_quality_ceiling(
+    accepted_items: list[dict],
+    page_metadata_by_url: dict[str, dict],
+) -> tuple[list[dict], list[dict]]:
+    if len(accepted_items) <= 1:
+        return accepted_items, []
+
+    strongest_rank = min(
+        _page_quality_rank(page_metadata_by_url.get(str(item.get("url", "")).strip()))
+        for item in accepted_items
+    )
+    stronger_available = strongest_rank <= (1, 1)
+    if not stronger_available:
+        return accepted_items, []
+
+    kept: list[dict] = []
+    rejected: list[dict] = []
+    for item in accepted_items:
+        page = page_metadata_by_url.get(str(item.get("url", "")).strip())
+        page_rank = _page_quality_rank(page)
+        if page_rank > (1, 1):
+            rejected.append(
+                {
+                    "reason": "weaker_than_available_stronger_source",
+                    "item": item,
+                    "page_authority_type": str(page.get("authority_type", "")) if isinstance(page, dict) else "",
+                    "page_domain_reliability": str(page.get("domain_reliability", "")) if isinstance(page, dict) else "",
+                }
+            )
+            continue
+        kept.append(item)
+    return kept or accepted_items, rejected
 
 
 def _overlap_terms(*parts: object) -> set[str]:
