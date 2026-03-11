@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-import unicodedata
 import uuid
 from urllib.parse import urlparse
 
@@ -31,8 +30,7 @@ from app.workers.worker_db import worker_session_factory as async_session_factor
 logger = logging.getLogger(__name__)
 
 EXTRACT_WEB_EVIDENCE_SYSTEM = """You are a web evidence extractor for a podcast research pipeline.
-Given web pages, a research question, question intent, gap context, and curated excerpt windows, identify the most valuable evidence.
-If target_missing_assets is non-empty, prioritize evidence that matches those asset types.
+Given web pages, a research question, extractor mode, gap context, and curated excerpt windows, identify the most valuable evidence.
 
 Return JSON array:
 [
@@ -48,6 +46,9 @@ Return JSON array:
 
 Rules:
 - Use only the provided excerpt windows, not outside assumptions.
+- If extractor_mode="question_gap_fill", prioritize evidence that directly helps answer the research question and fills target_missing_assets when they are present.
+- If extractor_mode="claim_corroboration", prioritize evidence that directly supports one of the claim_contexts / claim_statement.
+- In claim_corroboration mode, treat question_background_assets as secondary context only; do not choose evidence merely because it matches broad question-level asset hints.
 - Use direct_or_contextual="direct" when the quote directly answers the question as asked.
 - Use direct_or_contextual="contextual" for background, analogy, or adjacent framing.
 - For verifier gaps, prioritize independent corroboration and stronger source families over generic explainers.
@@ -55,35 +56,23 @@ Rules:
 - Max 3 evidence items per question. Only extract genuinely valuable evidence.
 - Return raw JSON only."""
 
-FAST_WEB_QUERY_REWRITE_SYSTEM = """You generate concise English web search queries for finding strong public sources.
+FAST_WEB_QUERY_SYNTHESIS_SYSTEM = """You generate concise web search queries for open-web research.
 
 Return JSON:
 {
-  "english_query": "best general English query",
-  "english_entity_query": "short high-precision English query or empty string",
-  "english_official_query": "English query biased toward official / institutional / archival / legal sources or empty string"
+  "queries": ["query 1", "query 2", "query 3"]
 }
 
 Rules:
-- All output queries must be in English.
-- Preserve named entities, acronyms, currencies, and dates.
-- Keep queries concise and search-oriented.
-- Prefer wording that surfaces authoritative sources, not generic explainers.
-- For verifier corroboration mode, use claim_statement/search_objective and any provided claim_contexts to search for direct independent confirmation.
-- If a variant is not useful, return an empty string for that field.
+- Return 2-4 concise search-oriented queries.
+- Prefer English queries for global open-web retrieval unless exact non-English wording is essential.
+- Preserve named entities, acronyms, currencies, dates, law names, and exact numbers.
+- Do not copy the full research question, full claim, or full search objective verbatim.
+- Do not mechanically expand queries with generic scaffolding such as "definition", "mechanism", "how it works", "find a source that confirms", unless that phrase is part of a named concept.
+- For question_gap_fill mode, queries should help answer the research question directly.
+- For claim_corroboration mode, queries should center on claim anchors and direct corroboration, not broad thematic wording.
+- When needs_source_diversification is true, include at least one authoritative / institutional / archival query variant.
 - Return JSON only."""
-
-_ASSET_KEYWORDS: dict[str, tuple[str, ...]] = {
-    "STATISTIC": ("statistics", "data", "figures", "official"),
-    "CASE": ("case", "example", "episode", "incident"),
-    "ANECDOTE": ("anecdote", "story", "example"),
-    "EXPERT_QUOTE": ("expert", "analyst", "quote", "statement"),
-    "DEFINITION": ("definition", "meaning", "what is"),
-    "MECHANISM": ("mechanism", "how it works", "process"),
-    "TIMELINE": ("timeline", "history", "chronology"),
-    "CONTRAST": ("contrast", "difference", "versus", "comparison"),
-}
-_OFFICIAL_QUERY_HINTS = ("official", "archive", "legal", "regulator", "institutional", "report", "statute")
 _FAST_WEB_MAX_RESULTS_PER_QUERY = 5
 _FAST_WEB_INITIAL_PAGE_LIMIT = 2
 _FAST_WEB_VERIFIER_PAGE_LIMIT = 3
@@ -94,6 +83,7 @@ _FAST_WEB_LOW_VALUE_OVERLAP_MIN = 0.04
 _FAST_WEB_WINDOW_MIN_CHARS = 800
 _FAST_WEB_WINDOW_MAX_CHARS = 1600
 _FAST_WEB_WINDOW_FALLBACK_CHARS = 1400
+_FAST_WEB_MAX_QUERY_CHARS = 320
 _FAST_WEB_STOPWORDS = {
     "the", "a", "an", "and", "or", "to", "of", "in", "on", "for", "that", "this", "is", "was", "were",
     "with", "from", "into", "about", "what", "when", "where", "why", "how", "which", "who", "does", "did",
@@ -170,11 +160,14 @@ async def research_fast_web(state: PipelineState) -> dict:
             processed_gap_count += 1
 
             question = gap["question"]
+            extractor_mode = _extractor_mode_for_gap(gap)
             target_missing_assets = _normalize_asset_types(gap.get("missing_assets", []))
             queries = await _build_search_queries(
                 question,
                 question_intent=gap.get("intent", ""),
-                missing_assets=target_missing_assets,
+                missing_assets=target_missing_assets if extractor_mode == "question_gap_fill" else [],
+                required_assets=gap.get("required_assets", []),
+                expected_assets=gap.get("expected_assets", []),
                 podcast_language=state.get("language", ""),
                 mode=mode,
                 gap_origin=str(gap.get("gap_origin", "hunter")),
@@ -200,7 +193,7 @@ async def research_fast_web(state: PipelineState) -> dict:
             }
 
             try:
-                search_results = await _run_search_queries(queries)
+                search_results, search_failures = await _run_search_queries(queries)
                 ranked_results = _rerank_search_results(
                     search_results,
                     gap=gap,
@@ -208,6 +201,7 @@ async def research_fast_web(state: PipelineState) -> dict:
                     used_source_families=used_source_families,
                 )
                 gap_debug["search_results"] = ranked_results
+                gap_debug["search_failures"] = search_failures
 
                 page_contents, page_handling = await _prepare_gap_pages(
                     gap=gap,
@@ -227,6 +221,7 @@ async def research_fast_web(state: PipelineState) -> dict:
                     continue
 
                 prompt_payload = {
+                    "extractor_mode": extractor_mode,
                     "research_question": question,
                     "question_intent": gap.get("intent"),
                     "gap_origin": gap.get("gap_origin", "hunter"),
@@ -234,9 +229,14 @@ async def research_fast_web(state: PipelineState) -> dict:
                     "search_objective": gap.get("search_objective", ""),
                     "existing_support_summary": gap.get("existing_support_summary", ""),
                     "claim_contexts": gap.get("claim_contexts", []),
-                    "required_evidence": gap.get("required_assets", []),
-                    "expected_evidence": gap.get("expected_assets", []),
-                    "target_missing_assets": target_missing_assets,
+                    "required_evidence": gap.get("required_assets", []) if extractor_mode == "question_gap_fill" else [],
+                    "expected_evidence": gap.get("expected_assets", []) if extractor_mode == "question_gap_fill" else [],
+                    "target_missing_assets": target_missing_assets if extractor_mode == "question_gap_fill" else [],
+                    "question_background_assets": {
+                        "required_evidence": gap.get("required_assets", []),
+                        "expected_evidence": gap.get("expected_assets", []),
+                        "target_missing_assets": target_missing_assets,
+                    } if extractor_mode == "claim_corroboration" else {},
                     "web_pages": page_contents,
                 }
                 gap_debug["prompt_payload"] = prompt_payload
@@ -419,6 +419,12 @@ def _determine_fast_web_mode(research_gaps: list[dict] | None) -> str:
     return "hunter_gap_fill"
 
 
+def _extractor_mode_for_gap(gap: dict) -> str:
+    if str(gap.get("gap_origin", "")).strip().lower() == "verifier":
+        return "claim_corroboration"
+    return "question_gap_fill"
+
+
 def _fast_web_counter_key(mode: str) -> str:
     return "fast_web_verifier_gap_count" if mode == "verifier_corroboration" else "fast_web_initial_gap_count"
 
@@ -575,6 +581,8 @@ async def _build_search_queries(
     *,
     question_intent: str,
     missing_assets: list[str],
+    required_assets: list[dict] | None = None,
+    expected_assets: list[str] | None = None,
     podcast_language: str,
     mode: str = "hunter_gap_fill",
     gap_origin: str = "hunter",
@@ -598,23 +606,14 @@ async def _build_search_queries(
     combined_support_summary = " || ".join(
         context["existing_support_summary"] for context in claim_contexts if context.get("existing_support_summary")
     )
-    native_queries = _build_native_search_queries(
-        question=question,
-        missing_assets=missing_assets,
-        mode=mode,
-        claim_contexts=claim_contexts,
-        claim_statement=combined_claim_statement or claim_statement,
-        search_objective=combined_search_objective or search_objective,
-        existing_support_summary=combined_support_summary or existing_support_summary,
-    )
-    if not _needs_english_web_rewrite(question, podcast_language):
-        return native_queries
-
     try:
-        english_queries = await _rewrite_queries_to_english(
+        synthesized_queries = await _synthesize_search_queries(
             question=question,
             question_intent=question_intent,
             missing_assets=missing_assets,
+            required_assets=required_assets or [],
+            expected_assets=expected_assets or [],
+            podcast_language=podcast_language,
             mode=mode,
             gap_origin=gap_origin,
             claim_statement=combined_claim_statement or claim_statement,
@@ -623,81 +622,17 @@ async def _build_search_queries(
             claim_contexts=claim_contexts,
         )
     except Exception:
-        logger.warning("Fast web English query rewrite failed for question: %s", question, exc_info=True)
-        english_queries = []
+        logger.warning("Fast web query synthesis failed for question: %s", question, exc_info=True)
+        synthesized_queries = []
 
-    return _dedupe_queries([*english_queries, *native_queries])
-
-
-def _build_native_search_queries(
-    *,
-    question: str,
-    missing_assets: list[str],
-    mode: str,
-    claim_contexts: list[dict],
-    claim_statement: str,
-    search_objective: str,
-    existing_support_summary: str,
-) -> list[str]:
-    queries = [question]
-    question_targeted = _build_targeted_query(
-        question,
-        missing_assets,
-        extra_terms=_extra_query_terms(search_objective, existing_support_summary),
+    if synthesized_queries:
+        return synthesized_queries
+    return _fallback_search_queries(
+        question=question,
+        mode=mode,
+        claim_contexts=claim_contexts,
+        claim_statement=combined_claim_statement or claim_statement,
     )
-    if question_targeted and question_targeted != question:
-        queries.append(question_targeted)
-
-    if mode == "verifier_corroboration":
-        for context in claim_contexts[:3]:
-            context_statement = str(context.get("claim_statement", "")).strip()
-            context_objective = str(context.get("search_objective", "")).strip()
-            context_support_summary = str(context.get("existing_support_summary", "")).strip()
-            if context_statement:
-                queries.append(context_statement)
-                claim_targeted = _build_targeted_query(
-                    context_statement,
-                    missing_assets,
-                    extra_terms=_extra_query_terms(context_objective, context_support_summary),
-                )
-                if claim_targeted and claim_targeted != context_statement:
-                    queries.append(claim_targeted)
-            if context_objective:
-                queries.append(f"{question} {context_objective}".strip())
-
-    if search_objective.strip():
-        queries.append(f"{question} {search_objective}".strip())
-
-    return _dedupe_queries(queries)
-
-
-def _extra_query_terms(search_objective: str, existing_support_summary: str) -> list[str]:
-    terms: list[str] = []
-    if search_objective:
-        terms.extend(_named_and_keyword_terms(search_objective))
-    if _needs_source_family_diversification(existing_support_summary):
-        terms.extend(_OFFICIAL_QUERY_HINTS)
-    return terms
-
-
-def _build_targeted_query(question: str, missing_assets: list[str], extra_terms: list[str] | None = None) -> str:
-    keywords: list[str] = []
-    for asset_type in missing_assets:
-        keywords.extend(_ASSET_KEYWORDS.get(asset_type, (asset_type.lower(),)))
-
-    parts = [question, *_named_and_keyword_terms(question), *keywords, *(extra_terms or [])]
-    deduped: list[str] = []
-    seen: set[str] = set()
-    for part in parts:
-        cleaned = str(part).strip()
-        if not cleaned:
-            continue
-        key = cleaned.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        deduped.append(cleaned)
-    return " ".join(deduped).strip()
 
 
 def _named_and_keyword_terms(text: str) -> list[str]:
@@ -707,6 +642,8 @@ def _named_and_keyword_terms(text: str) -> list[str]:
         if not (any(ch.isupper() for ch in token) or any(ch.isdigit() for ch in token)):
             continue
         key = token.lower()
+        if key in _FAST_WEB_STOPWORDS:
+            continue
         if key in seen:
             continue
         seen.add(key)
@@ -714,25 +651,14 @@ def _named_and_keyword_terms(text: str) -> list[str]:
     return deduped
 
 
-def _needs_english_web_rewrite(question: str, podcast_language: str) -> bool:
-    if str(podcast_language or "").strip().lower() not in {"", "en"}:
-        return True
-    for char in question:
-        if not char.isalpha():
-            continue
-        try:
-            if "LATIN" not in unicodedata.name(char):
-                return True
-        except ValueError:
-            return True
-    return False
-
-
-async def _rewrite_queries_to_english(
+async def _synthesize_search_queries(
     *,
     question: str,
     question_intent: str,
     missing_assets: list[str],
+    required_assets: list[dict],
+    expected_assets: list[str],
+    podcast_language: str,
     mode: str,
     gap_origin: str,
     claim_statement: str,
@@ -740,22 +666,30 @@ async def _rewrite_queries_to_english(
     existing_support_summary: str,
     claim_contexts: list[dict],
 ) -> list[str]:
+    if mode == "verifier_corroboration" or str(gap_origin).strip().lower() == "verifier":
+        missing_assets = []
+        required_assets = []
+        expected_assets = []
     prompt = json.dumps(
         {
             "question": question,
             "question_intent": question_intent,
             "missing_assets": missing_assets,
+            "required_assets": required_assets,
+            "expected_assets": expected_assets,
+            "podcast_language": podcast_language,
             "mode": mode,
             "gap_origin": gap_origin,
             "claim_statement": claim_statement,
             "search_objective": search_objective,
             "existing_support_summary": existing_support_summary,
             "claim_contexts": claim_contexts[:3],
+            "needs_source_diversification": _needs_source_family_diversification(existing_support_summary),
         },
         ensure_ascii=False,
     )
     raw = await call_haiku_structured(
-        system=FAST_WEB_QUERY_REWRITE_SYSTEM,
+        system=FAST_WEB_QUERY_SYNTHESIS_SYSTEM,
         prompt=prompt,
         max_tokens=512,
         temperature=0.1,
@@ -763,28 +697,98 @@ async def _rewrite_queries_to_english(
     parsed = parse_llm_json(raw)
     if not isinstance(parsed, dict):
         return []
-    return _dedupe_queries(
-        [
-            str(parsed.get("english_query", "")).strip(),
-            str(parsed.get("english_entity_query", "")).strip(),
-            str(parsed.get("english_official_query", "")).strip(),
-        ]
-    )
+    queries = parsed.get("queries", [])
+    if not isinstance(queries, list):
+        return []
+    return _dedupe_queries([str(query).strip() for query in queries if str(query).strip()])
+
+
+def _fallback_search_queries(
+    *,
+    question: str,
+    mode: str,
+    claim_contexts: list[dict],
+    claim_statement: str,
+) -> list[str]:
+    queries: list[str] = []
+    if mode == "verifier_corroboration":
+        for context in claim_contexts[:2]:
+            compact = _compact_search_query(str(context.get("claim_statement", "")).strip())
+            if compact:
+                queries.append(compact)
+        if not queries and claim_statement.strip():
+            queries.append(_compact_search_query(claim_statement))
+    if not queries:
+        queries.append(_compact_search_query(question))
+    return _dedupe_queries([query for query in queries if query])
+
+
+def _compact_search_query(text: str, *, max_terms: int = 10) -> str:
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for token in _named_and_keyword_terms(text):
+        key = token.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        ordered.append(token)
+        if len(ordered) >= max_terms:
+            return _normalize_search_query(" ".join(ordered), max_chars=_FAST_WEB_MAX_QUERY_CHARS)
+    for token in re.findall(r"[\w$.-]+", text, flags=re.UNICODE):
+        cleaned = str(token).strip()
+        lower = cleaned.lower()
+        if len(lower) < 3 or lower in _FAST_WEB_STOPWORDS or lower in seen:
+            continue
+        seen.add(lower)
+        ordered.append(cleaned)
+        if len(ordered) >= max_terms:
+            break
+    if len(ordered) < 2:
+        return _normalize_search_query(text, max_chars=_FAST_WEB_MAX_QUERY_CHARS)
+    return _normalize_search_query(" ".join(ordered), max_chars=_FAST_WEB_MAX_QUERY_CHARS)
 
 
 def _dedupe_queries(queries: list[str]) -> list[str]:
     deduped: list[str] = []
     seen: set[str] = set()
     for query in queries:
-        cleaned = str(query).strip()
+        cleaned = _normalize_search_query(str(query))
         if not cleaned:
             continue
-        key = re.sub(r"\s+", " ", cleaned).strip().lower()
+        key = cleaned.lower()
         if key in seen:
             continue
         seen.add(key)
         deduped.append(cleaned)
     return deduped
+
+
+def _normalize_search_query(query: str, *, max_chars: int = _FAST_WEB_MAX_QUERY_CHARS) -> str:
+    cleaned = re.sub(r"\s+", " ", str(query or "")).strip()
+    if not cleaned:
+        return ""
+    if len(cleaned) <= max_chars:
+        return cleaned
+
+    tokens = re.findall(r"\S+", cleaned)
+    kept: list[str] = []
+    current_len = 0
+    for token in tokens:
+        normalized_token = token.strip()
+        if not normalized_token:
+            continue
+        token_len = len(normalized_token) + (1 if kept else 0)
+        if kept and current_len + token_len > max_chars:
+            break
+        if not kept and len(normalized_token) > max_chars:
+            return normalized_token[:max_chars]
+        kept.append(normalized_token)
+        current_len += token_len
+
+    normalized = " ".join(kept).strip()
+    if normalized:
+        return normalized
+    return cleaned[:max_chars]
 
 
 def _normalize_claim_contexts(
@@ -838,17 +842,30 @@ def _normalize_claim_contexts(
     return []
 
 
-async def _run_search_queries(queries: list[str]) -> list[dict]:
+async def _run_search_queries(queries: list[str]) -> tuple[list[dict], list[dict]]:
     merged: dict[str, dict] = {}
+    failures: list[dict] = []
     for query in queries:
-        for result in await web_search_tool(query):
+        try:
+            results = await web_search_tool(query)
+        except Exception as exc:
+            logger.warning("Fast web search query failed: %s", query, exc_info=True)
+            failures.append(
+                {
+                    "query": query,
+                    "error": str(exc),
+                    "error_type": type(exc).__name__,
+                }
+            )
+            continue
+        for result in results:
             url = result.get("url")
             if not isinstance(url, str) or not url:
                 continue
             current = merged.get(url)
             if current is None or float(result.get("score", 0) or 0) > float(current.get("score", 0) or 0):
                 merged[url] = {**result, "query_text": query}
-    return list(merged.values())
+    return list(merged.values()), failures
 
 
 async def _load_known_web_source_index(db, *, project_id: str) -> dict[str, dict]:
@@ -901,12 +918,7 @@ def _rerank_search_results(
     used_source_families: dict[str, int] | None = None,
 ) -> list[dict]:
     used_source_families = used_source_families or {}
-    objective_terms = _overlap_terms(
-        gap.get("question", ""),
-        gap.get("claim_statement", ""),
-        gap.get("search_objective", ""),
-        " ".join(gap.get("missing_assets", []) or []),
-    )
+    objective_terms = _gap_objective_terms(gap)
 
     ranked: list[dict] = []
     for result in search_results:
@@ -1079,7 +1091,7 @@ def _build_page_payload(
     cleaned = str(text or "").strip()
     if not cleaned or contains_blocking_signal(cleaned):
         return None
-    if _is_low_value_page(cleaned, gap):
+    if _is_low_value_page(cleaned, gap, query_text=query_text):
         return None
     excerpt_windows = _select_excerpt_windows(cleaned, gap=gap, query_text=query_text)
     if not excerpt_windows:
@@ -1094,32 +1106,27 @@ def _build_page_payload(
     }
 
 
-def _is_low_value_page(text: str, gap: dict) -> bool:
+def _is_low_value_page(text: str, gap: dict, *, query_text: str = "") -> bool:
     stripped = text.strip()
     if len(stripped) < _FAST_WEB_MIN_PAGE_CHARS:
         return True
     overlap = _token_overlap_score(
         _overlap_terms(text[:4000]),
-        _overlap_terms(
-            gap.get("question", ""),
-            gap.get("claim_statement", ""),
-            gap.get("search_objective", ""),
-            " ".join(gap.get("missing_assets", []) or []),
-        ),
+        _gap_objective_terms(gap, query_text=query_text),
     )
     if overlap < _FAST_WEB_LOW_VALUE_OVERLAP_MIN and len(stripped) < 1000:
         return True
+    anchor_terms = _gap_anchor_terms(gap, query_text=query_text)
+    if str(gap.get("gap_origin", "")).strip().lower() == "verifier" and anchor_terms:
+        anchor_hits = len(_overlap_terms(text[:5000]) & anchor_terms)
+        if anchor_hits < 1:
+            return True
     return False
 
 
 def _select_excerpt_windows(text: str, *, gap: dict, query_text: str) -> list[str]:
-    objective_terms = _overlap_terms(
-        gap.get("question", ""),
-        gap.get("claim_statement", ""),
-        gap.get("search_objective", ""),
-        query_text,
-        " ".join(gap.get("missing_assets", []) or []),
-    )
+    objective_terms = _gap_objective_terms(gap, query_text=query_text)
+    anchor_terms = _gap_anchor_terms(gap, query_text=query_text)
     blocks = [block.strip() for block in re.split(r"\n{2,}", text) if block.strip()]
     if not blocks:
         fallback = text.strip()
@@ -1139,7 +1146,7 @@ def _select_excerpt_windows(text: str, *, gap: dict, query_text: str) -> list[st
             if total_chars < _FAST_WEB_WINDOW_MIN_CHARS and end_index < len(blocks) - 1:
                 continue
             window_text = "\n\n".join(parts).strip()
-            score = _score_excerpt_window(window_text, objective_terms)
+            score = _score_excerpt_window(window_text, objective_terms, anchor_terms=anchor_terms)
             windows.append((score, start_index, end_index, window_text))
             break
 
@@ -1166,11 +1173,54 @@ def _select_excerpt_windows(text: str, *, gap: dict, query_text: str) -> list[st
     return selected
 
 
-def _score_excerpt_window(text: str, objective_terms: set[str]) -> float:
+def _score_excerpt_window(text: str, objective_terms: set[str], *, anchor_terms: set[str] | None = None) -> float:
     tokens = _overlap_terms(text)
     overlap = _token_overlap_score(tokens, objective_terms)
     named_bonus = 0.1 * len(_named_and_keyword_terms(text[:1200]))
-    return overlap + named_bonus
+    anchor_bonus = _token_overlap_score(tokens, anchor_terms or set()) * 1.2
+    return overlap + named_bonus + anchor_bonus
+
+
+def _gap_objective_terms(gap: dict, *, query_text: str = "") -> set[str]:
+    if str(gap.get("gap_origin", "")).strip().lower() == "verifier":
+        claim_texts = [
+            str(context.get("claim_statement", "")).strip()
+            for context in (gap.get("claim_contexts", []) or [])
+            if isinstance(context, dict)
+        ]
+        claim_texts = [text for text in claim_texts if text]
+        terms = _overlap_terms(query_text, *claim_texts, gap.get("claim_statement", ""))
+        if terms:
+            return terms
+    return _overlap_terms(query_text, gap.get("question", ""))
+
+
+def _gap_anchor_terms(gap: dict, *, query_text: str = "") -> set[str]:
+    claim_texts = [
+        str(context.get("claim_statement", "")).strip()
+        for context in (gap.get("claim_contexts", []) or [])
+        if isinstance(context, dict)
+    ]
+    claim_texts = [text for text in claim_texts if text]
+    if not claim_texts and gap.get("claim_statement"):
+        claim_texts = [str(gap.get("claim_statement", "")).strip()]
+    if not claim_texts:
+        return set()
+
+    anchors: set[str] = set()
+    for text in claim_texts:
+        for token in _named_and_keyword_terms(text):
+            lowered = token.lower()
+            if lowered in _FAST_WEB_STOPWORDS:
+                continue
+            anchors.add(lowered)
+        for token in re.findall(r"[\w$.-]+", text, flags=re.UNICODE):
+            lowered = token.lower()
+            if len(lowered) < 3 or lowered in _FAST_WEB_STOPWORDS:
+                continue
+            if any(ch.isdigit() for ch in token):
+                anchors.add(lowered)
+    return anchors
 
 
 def _overlap_terms(*parts: object) -> set[str]:

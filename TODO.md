@@ -253,6 +253,15 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P2**: Add cross-gap source-family diversification pressure for repeated explainer/Wikipedia-heavy loops
 - [x] **P2**: Persist `verification_fingerprint` on `Claim` for future retry/resume optimization across runs
 
+**Round 71 (fast-web verifier-mode retrieval redesign):**
+- [x] **P0**: Replace mixed native/deterministic fast-web query building with universal LLM query synthesis for all web-search modes and languages
+- [x] **P0**: Remove deterministic `search_objective + asset keywords` query expansion from final search queries
+- [x] **P0**: Separate fast-web extractor payload semantics into `question_gap_fill` vs `claim_corroboration`
+- [x] **P0**: For verifier-origin gaps, stop using question-level `required/expected/missing assets` as primary extraction targets
+- [x] **P1**: Make verifier-mode reranking and excerpt selection claim-anchor-first instead of blended question+claim overlap
+- [x] **P1**: Add regression tests for universal query synthesis, verifier extractor payload contract, and verifier-mode page/window filtering
+- [x] **P1**: Update docs for fast-web verifier-mode redesign and LLM-first query policy
+
 **Round 25 (web extraction — trafilatura):**
 - [x] **P1**: Replaced regex-based boilerplate cleanup with trafilatura as primary web extractor: trafilatura (local, free) → Jina (JS fallback) → httpx+HTMLParser (last resort)
 - [x] **P1**: Simplified Gate B (`clean_web_text`): removed site-specific regex hacks (HKMA checklist, search UI, lang toggle, font-size buttons), kept only markdown link cleanup + whitespace normalization for Jina fallback path

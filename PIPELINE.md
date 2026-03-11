@@ -299,21 +299,24 @@ Web extraction использует каскад extractors:
 
 #### **A) Fast Web Evidence (внутри цикла, non-blocking)**
 
-- broad query + targeted query union
-- для неанглоязычных вопросов fast-web сначала делает небольшой LLM-based rewrite в English query variants, чтобы open-web retrieval не был привязан к языку подкаста
+- fast-web не использует raw question / raw claim как финальные search queries; вместо этого всегда делает короткий LLM query synthesis layer
+- query synthesis работает для всех языков и обоих режимов (`hunter_gap_fill`, `verifier_corroboration`), а не только как translation/rewrite для non-English
 - есть два fast-web режима с раздельными budgets/counters:
   - `hunter_gap_fill`
   - `verifier_corroboration`
 - governor fast-web считает `processed gaps`, а не количество созданных evidence items; локальные ограничители остаются отдельно (`page_limit`, `max evidence per gap`)
 - fetch path использует shared lightweight extractor stack: `mediawiki -> trafilatura -> jina` + `clean_web_text(...)`, а не сырой Jina-prefix
 - extractor prompt получает не `content[:5000]`, а `excerpt_windows`: релевантные окна из очищенного текста
-- search results cheap-rerank'ятся до fetch по novelty, domain/authority quality, overlap с search objective и source-family diversification
+- verifier-mode fast-web больше не превращает `search_objective` и `missing_assets` в deterministic query-string glue; эти сигналы используются только как контекст для LLM query synthesis
+- verifier-mode query synthesis не получает question-level `required_assets` / `expected_assets` / `missing_assets`; они остаются только background context для extractor, а не таргетом web search
+- search results cheap-rerank'ятся до fetch по novelty, domain/authority quality, overlap с objective terms и source-family diversification
 - если canonical source уже известен проекту и fully ingested с доступными chunks/content, fast-web skip'ает такой URL до fetch/extract и идёт к следующему novel candidate
 - если source уже известен, но не fully ingested, fast-web может reuse preview только когда он уже достаточен; иначе не крутит слепой duplicate fetch loop
-- verifier-loop fast-web использует `claim_statement`, `support_strength`, `search_objective`, `existing_support_summary` и строит corroboration-oriented queries, а не просто ещё один broad query по question
+- verifier-loop fast-web работает в явном extractor mode `claim_corroboration`: primary target — слабые `claim_contexts`, а question-level `required/expected/missing assets` остаются только background context
+- verifier-mode reranking и excerpt selection claim-anchor-first: broad question overlap сам по себе не должен поднимать страницу/окно в prompt
 - затем сохранить canonical `EvidenceSpan` + `EvidenceProvenance`
 
-- web extractor получает `question_intent`, `required_assets`, `expected_assets` и тоже помечает evidence как `direct` или `contextual`
+- web extractor получает `question_intent` и тоже помечает evidence как `direct` или `contextual`; для verifier-mode он больше не обязан искусственно подгонять evidence под question-level asset accounting
 
 - применяем для OPINION/REPORT, OBSERVED facts, quick triangulation
 

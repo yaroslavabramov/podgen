@@ -120,7 +120,8 @@ Phase 4 now uses explicit lineage and canonical evidence semantics:
 - verifier-triggered fast-web loops now rebuild only impacted claim groups instead of re-running claim generation over the full evidence set
 - fast-web now budgets by processed gap attempts, not by evidence-item count; initial Hunter gap-fill and verifier corroboration loops keep separate budgets/counters
 - fast-web uses the shared lightweight web extraction stack (`mediawiki -> trafilatura -> jina`) plus `clean_web_text(...)`, builds relevance excerpt windows, and skips already-ingested fully known URLs before fetch/extract
-- verifier-loop fast-web queries are now corroboration-oriented: they use `claim_statement`, `support_strength`, and `search_objective`, plus cheap reranking by novelty/domain quality/source-family diversity before fetch
+- fast-web query generation is now universal LLM query synthesis for all languages and both modes; raw question/claim strings are no longer sent as final search queries
+- verifier-loop fast-web now runs in explicit `claim_corroboration` mode: query synthesis, reranking, and excerpt filtering are claim-anchor-first, while question-level asset hints are excluded from verifier-mode query generation and stay only as background extractor context
 - duplicate claims are collapsed before verification
 - verifier counts independent sources via canonical source identity and caps temp-only evidence at `OBSERVED`
 - verifier sees full supporting quotes and splits LLM batches by char budget instead of truncating every quote to 300 chars

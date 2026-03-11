@@ -9,9 +9,10 @@ from app.models.episode_manifest import EpisodeManifest
 from app.models.source import AuthorityType, DomainReliability, IngestionStatus, Source, SourceType
 from app.pipeline.phase3_research.librarian_fast import (
     _build_search_queries,
-    _build_targeted_query,
-    _extra_query_terms,
+    _is_low_value_page,
+    _normalize_search_query,
     _rerank_search_results,
+    _run_search_queries,
     _select_excerpt_windows,
     _select_gap_branches,
     research_fast_web,
@@ -19,39 +20,124 @@ from app.pipeline.phase3_research.librarian_fast import (
 from app.pipeline.phase3_research.tools import create_web_evidence
 
 
-def test_build_targeted_query_appends_asset_keywords() -> None:
-    question = "How does the HKD issuance mechanism work?"
-    missing_assets = ["CASE", "STATISTIC"]
-
-    targeted = _build_targeted_query(question, missing_assets)
-
-    assert targeted.startswith(question)
-    assert "case" in targeted.lower()
-    assert "statistics" in targeted.lower()
-
-
-def test_build_targeted_query_extracts_non_ascii_named_tokens() -> None:
-    question = "Почему HKMA держал долларовый коридор в 1983 году?"
-
-    targeted = _build_targeted_query(question, [])
-
-    assert "HKMA" in targeted
-    assert "1983" in targeted
-
-
 @pytest.mark.asyncio
-async def test_build_search_queries_adds_targeted_variant_only_when_distinct() -> None:
+async def test_build_search_queries_uses_llm_synthesis_for_english_questions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fake_call_haiku_structured(**kwargs):
+        payload = json.loads(kwargs["prompt"])
+        assert payload["podcast_language"] == "en"
+        assert payload["mode"] == "hunter_gap_fill"
+        return json.dumps(
+            {
+                "queries": [
+                    "Hong Kong dollar 1983 peg history",
+                    "HKD linked exchange rate 1983 official timeline",
+                ]
+            }
+        )
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.call_haiku_structured",
+        _fake_call_haiku_structured,
+    )
+
     question = "What happened in 1983?"
     queries = await _build_search_queries(
         question,
         question_intent="history",
         missing_assets=["TIMELINE"],
+        required_assets=[],
+        expected_assets=[],
         podcast_language="en",
     )
 
-    assert queries[0] == question
-    assert len(queries) == 2
-    assert queries[1] != question
+    assert queries == [
+        "Hong Kong dollar 1983 peg history",
+        "HKD linked exchange rate 1983 official timeline",
+    ]
+    assert all(query != question for query in queries)
+
+
+@pytest.mark.asyncio
+async def test_build_search_queries_falls_back_to_compact_query_on_synthesis_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fake_call_haiku_structured(**kwargs):
+        raise RuntimeError("llm down")
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.call_haiku_structured",
+        _fake_call_haiku_structured,
+    )
+
+    queries = await _build_search_queries(
+        "Почему HKMA держал долларовый коридор в 1983 году?",
+        question_intent="history",
+        missing_assets=["TIMELINE"],
+        required_assets=[],
+        expected_assets=[],
+        podcast_language="ru",
+    )
+
+    assert queries
+    assert any("HKMA" in query for query in queries)
+    assert any("1983" in query for query in queries)
+    assert all(len(query) <= 320 for query in queries)
+
+
+@pytest.mark.asyncio
+async def test_build_search_queries_fallback_keeps_short_sentence_case_question_readable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fake_call_haiku_structured(**kwargs):
+        raise RuntimeError("llm down")
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.call_haiku_structured",
+        _fake_call_haiku_structured,
+    )
+
+    queries = await _build_search_queries(
+        "How did it work?",
+        question_intent="explain",
+        missing_assets=["MECHANISM"],
+        required_assets=[],
+        expected_assets=[],
+        podcast_language="en",
+    )
+
+    assert queries == ["How did it work?"]
+
+
+@pytest.mark.asyncio
+async def test_build_search_queries_fallback_caps_long_named_token_queries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fake_call_haiku_structured(**kwargs):
+        raise RuntimeError("llm down")
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.call_haiku_structured",
+        _fake_call_haiku_structured,
+    )
+
+    long_claim = " ".join(f"ORDINANCE{idx:02d}SECTION{idx:02d}" for idx in range(1, 25))
+
+    queries = await _build_search_queries(
+        "Почему система работала?",
+        question_intent="debate",
+        missing_assets=[],
+        required_assets=[{"type": "MECHANISM", "min_count": 1}],
+        expected_assets=["CONTRAST"],
+        podcast_language="ru",
+        mode="verifier_corroboration",
+        gap_origin="verifier",
+        claim_statement=long_claim,
+    )
+
+    assert queries
+    assert all(len(query) <= 320 for query in queries)
 
 
 def test_select_gap_branches_returns_all_explicit_gaps_sorted() -> None:
@@ -95,9 +181,11 @@ async def test_build_search_queries_adds_english_rewrite_for_non_english_questio
         assert "question_intent" in kwargs["prompt"]
         return json.dumps(
             {
-                "english_query": "Hong Kong dollar silver standard early colonial period",
-                "english_entity_query": "Hong Kong silver standard 1863",
-                "english_official_query": "Hong Kong dollar silver standard official history",
+                "queries": [
+                    "Hong Kong dollar silver standard early colonial period",
+                    "Hong Kong silver standard 1863",
+                    "Hong Kong dollar silver standard official history",
+                ]
             }
         )
 
@@ -110,15 +198,16 @@ async def test_build_search_queries_adds_english_rewrite_for_non_english_questio
         "Что такое серебряный долларовый стандарт и как он функционировал в раннем Гонконге до 1863 года?",
         question_intent="explain",
         missing_assets=[],
+        required_assets=[],
+        expected_assets=[],
         podcast_language="ru",
     )
 
-    assert queries[:3] == [
+    assert queries == [
         "Hong Kong dollar silver standard early colonial period",
         "Hong Kong silver standard 1863",
         "Hong Kong dollar silver standard official history",
     ]
-    assert any("1863" in query for query in queries)
 
 
 @pytest.mark.asyncio
@@ -131,11 +220,15 @@ async def test_build_search_queries_uses_claim_and_objective_in_verifier_mode(
         assert "claim_statement" in payload
         assert "search_objective" in payload
         assert "claim_contexts" in payload
+        assert payload["missing_assets"] == []
+        assert payload["required_assets"] == []
+        assert payload["expected_assets"] == []
         return json.dumps(
             {
-                "english_query": "Hong Kong note issuance delegated to private banks legal basis official",
-                "english_entity_query": "",
-                "english_official_query": "",
+                "queries": [
+                    "Hong Kong note issuance private banks legal basis official",
+                    "colonial note issuance private banks ordinance Hong Kong",
+                ]
             }
         )
 
@@ -148,6 +241,8 @@ async def test_build_search_queries_uses_claim_and_objective_in_verifier_mode(
         "Почему правительство делегировало эмиссию банкам?",
         question_intent="debate",
         missing_assets=["MECHANISM"],
+        required_assets=[{"type": "MECHANISM", "min_count": 1}],
+        expected_assets=["CASE"],
         podcast_language="ru",
         mode="verifier_corroboration",
         gap_origin="verifier",
@@ -158,6 +253,7 @@ async def test_build_search_queries_uses_claim_and_objective_in_verifier_mode(
 
     assert any("legal basis" in query.lower() for query in queries)
     assert any("private banks" in query.lower() for query in queries)
+    assert all("почему правительство" not in query.lower() for query in queries)
 
 
 @pytest.mark.asyncio
@@ -167,11 +263,15 @@ async def test_build_search_queries_uses_aggregated_claim_contexts_in_verifier_m
     async def _fake_call_haiku_structured(**kwargs):
         payload = json.loads(kwargs["prompt"])
         assert len(payload["claim_contexts"]) == 2
+        assert payload["missing_assets"] == []
+        assert payload["required_assets"] == []
+        assert payload["expected_assets"] == []
         return json.dumps(
             {
-                "english_query": "Hong Kong note issuance legal basis and banknote committee role official",
-                "english_entity_query": "",
-                "english_official_query": "",
+                "queries": [
+                    "Hong Kong note issuance legal basis banknote committee official",
+                    "private banks Hong Kong note issuance committee governance",
+                ]
             }
         )
 
@@ -184,6 +284,8 @@ async def test_build_search_queries_uses_aggregated_claim_contexts_in_verifier_m
         "Почему частная эмиссия выжила?",
         question_intent="debate",
         missing_assets=["MECHANISM"],
+        required_assets=[{"type": "MECHANISM", "min_count": 1}],
+        expected_assets=["CASE"],
         podcast_language="ru",
         mode="verifier_corroboration",
         gap_origin="verifier",
@@ -257,14 +359,76 @@ def test_rerank_search_results_penalizes_reused_source_family_across_gaps() -> N
     assert ranked[1]["source_family"] == "repeat.example.com"
 
 
-def test_extra_query_terms_add_official_hints_for_verifier_support_strength_tokens() -> None:
-    terms = _extra_query_terms(
-        "Find independent corroboration for the legal basis.",
-        "single_source; 1 source(s); 1 direct / 0 contextual; authority=unknown",
+def test_is_low_value_page_requires_claim_anchor_overlap_in_verifier_mode() -> None:
+    gap = {
+        "gap_origin": "verifier",
+        "question": "Did the Bank of China become a note issuer after 1997?",
+        "claim_statement": "In 1994 HKMA granted Bank of China note-issuing rights.",
+    }
+
+    noisy_general_page = (
+        "Hong Kong's monetary system remained stable after 1997. "
+        "The currency board supports confidence and banking stability. "
+    ) * 20
+    direct_page = (
+        "In 1994 the Hong Kong Monetary Authority approved Bank of China as a note-issuing bank in Hong Kong. "
+    ) * 20
+
+    assert _is_low_value_page(
+        noisy_general_page,
+        gap,
+        query_text="Bank of China note issuer Hong Kong 1994 HKMA",
+    )
+    assert not _is_low_value_page(
+        direct_page,
+        gap,
+        query_text="Bank of China note issuer Hong Kong 1994 HKMA",
     )
 
-    assert "legal" in [term.lower() for term in terms]
-    assert "official" in [term.lower() for term in terms]
+
+def test_normalize_search_query_caps_monster_query_length() -> None:
+    long_query = " ".join(["Hong", "Kong", "currency", "board", "legal", "basis"] * 120)
+
+    normalized = _normalize_search_query(long_query)
+
+    assert len(normalized) <= 320
+    assert normalized.startswith("Hong Kong currency board legal basis")
+
+
+@pytest.mark.asyncio
+async def test_run_search_queries_keeps_partial_results_when_one_query_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fake_web_search_tool(query: str):
+        if "bad" in query:
+            raise RuntimeError("query too long")
+        return [
+            {
+                "url": f"https://example.com/{query}",
+                "title": query,
+                "snippet": f"snippet {query}",
+                "score": 0.7,
+            }
+        ]
+
+    monkeypatch.setattr(
+        "app.pipeline.phase3_research.librarian_fast.web_search_tool",
+        _fake_web_search_tool,
+    )
+
+    results, failures = await _run_search_queries(["good-a", "bad-query", "good-b"])
+
+    assert {item["url"] for item in results} == {
+        "https://example.com/good-a",
+        "https://example.com/good-b",
+    }
+    assert failures == [
+        {
+            "query": "bad-query",
+            "error": "query too long",
+            "error_type": "RuntimeError",
+        }
+    ]
 
 
 class _FakeAsyncDB:
@@ -494,10 +658,13 @@ async def test_research_fast_web_governor_counts_processed_gaps_not_evidence_ite
         return ["query"]
 
     async def _fake_run_search_queries(queries):
-        return [
-            {"url": "https://example.com/a", "title": "A", "score": 0.9, "query_text": queries[0]},
-            {"url": "https://example.com/b", "title": "B", "score": 0.8, "query_text": queries[0]},
-        ]
+        return (
+            [
+                {"url": "https://example.com/a", "title": "A", "score": 0.9, "query_text": queries[0]},
+                {"url": "https://example.com/b", "title": "B", "score": 0.8, "query_text": queries[0]},
+            ],
+            [],
+        )
 
     async def _fake_call_sonnet_structured(**kwargs):
         payload = json.loads(kwargs["prompt"])
@@ -654,10 +821,13 @@ async def test_research_fast_web_skips_known_fully_ingested_urls_before_fetch(
         return ["query"]
 
     async def _fake_run_search_queries(queries):
-        return [
-            {"url": "https://known.example.com/article", "title": "Known", "score": 0.9, "query_text": queries[0]},
-            {"url": "https://novel.example.com/article", "title": "Novel", "score": 0.8, "query_text": queries[0]},
-        ]
+        return (
+            [
+                {"url": "https://known.example.com/article", "title": "Known", "score": 0.9, "query_text": queries[0]},
+                {"url": "https://novel.example.com/article", "title": "Novel", "score": 0.8, "query_text": queries[0]},
+            ],
+            [],
+        )
 
     fetch_calls: list[str] = []
 
@@ -672,6 +842,11 @@ async def test_research_fast_web_skips_known_fully_ingested_urls_before_fetch(
 
     async def _fake_call_sonnet_structured(**kwargs):
         payload = json.loads(kwargs["prompt"])
+        assert payload["extractor_mode"] == "claim_corroboration"
+        assert payload["required_evidence"] == []
+        assert payload["expected_evidence"] == []
+        assert payload["target_missing_assets"] == []
+        assert payload["question_background_assets"]["required_evidence"] == [{"type": "MECHANISM", "min_count": 1}]
         assert payload["web_pages"][0]["url"] == "https://novel.example.com/article"
         return json.dumps(
             [
@@ -749,6 +924,9 @@ async def test_research_fast_web_skips_known_fully_ingested_urls_before_fetch(
                     "gap_origin": "verifier",
                     "claim_statement": "The colonial government delegated note issuance to private banks under Ordinance 5.",
                     "search_objective": "Find an independent official source that confirms the legal basis.",
+                    "required_assets": [{"type": "MECHANISM", "min_count": 1}],
+                    "expected_assets": ["CASE"],
+                    "missing_assets": ["MECHANISM"],
                 }
             ],
         }
