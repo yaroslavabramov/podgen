@@ -79,6 +79,10 @@ export const useGenerationStore = create<GenerationStore>((set, get) => ({
             updates.status = "failed";
             updates.error = (event.error as string) || "Unknown error";
             break;
+          case "generation_cancelled":
+            updates.status = "cancelled";
+            updates.error = null;
+            break;
         }
 
         return updates;

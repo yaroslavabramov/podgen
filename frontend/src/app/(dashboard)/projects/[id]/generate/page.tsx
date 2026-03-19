@@ -38,6 +38,11 @@ interface StepControlState {
   stop_reason: string | null;
 }
 
+interface RunStopState {
+  stop_requested: boolean;
+  stop_reason: string | null;
+}
+
 export default function GeneratePage() {
   const t = useTranslations("generatePage");
   const params = useParams();
@@ -53,7 +58,9 @@ export default function GeneratePage() {
   const [executionMode, setExecutionMode] = useState<ExecutionMode>("full");
   const [activeExecutionMode, setActiveExecutionMode] = useState<ExecutionMode | null>(null);
   const [stepControl, setStepControl] = useState<StepControlState | null>(null);
+  const [runStopState, setRunStopState] = useState<RunStopState>({ stop_requested: false, stop_reason: null });
   const [stepActionLoading, setStepActionLoading] = useState<"next" | "rerun" | "stop" | null>(null);
+  const [fullStopLoading, setFullStopLoading] = useState(false);
   const [launching, setLaunching] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -82,6 +89,17 @@ export default function GeneratePage() {
     return (config as { execution_mode?: string }).execution_mode === "step" ? "step" : "full";
   };
 
+  const parseRunStopState = (config: unknown): RunStopState => {
+    if (!config || typeof config !== "object") {
+      return { stop_requested: false, stop_reason: null };
+    }
+    const configData = config as Record<string, unknown>;
+    return {
+      stop_requested: Boolean(configData.stop_requested),
+      stop_reason: typeof configData.stop_reason === "string" ? configData.stop_reason : null,
+    };
+  };
+
   const applyRunData = (run: GenerationRun) => {
     applyRunSnapshot({
       status: run.status,
@@ -91,6 +109,7 @@ export default function GeneratePage() {
     });
     const mode = parseExecutionMode(run.config);
     setActiveExecutionMode(mode);
+    setRunStopState(mode === "full" ? parseRunStopState(run.config) : { stop_requested: false, stop_reason: null });
     setStepControl(mode === "step" ? parseStepControl(run.config) : null);
   };
 
@@ -231,6 +250,7 @@ export default function GeneratePage() {
       } else {
         setActiveExecutionMode("full");
         setStepControl(null);
+        setRunStopState({ stop_requested: false, stop_reason: null });
       }
     } catch (err) {
       console.error("Failed to start generation:", err);
@@ -249,6 +269,7 @@ export default function GeneratePage() {
       startListening(run.id);
       setActiveExecutionMode("full");
       setStepControl(null);
+      setRunStopState({ stop_requested: false, stop_reason: null });
     } catch (err) {
       setActionError(await extractApiError(err, t("resumeFailed")));
     } finally {
@@ -298,10 +319,25 @@ export default function GeneratePage() {
     }
   };
 
+  const handleStopGeneration = async () => {
+    if (!runId) return;
+    setFullStopLoading(true);
+    setActionError(null);
+    try {
+      const run = await api.post(`api/generations/${runId}/cancel`).json<GenerationRun>();
+      applyRunData(run);
+    } catch (err) {
+      setActionError(await extractApiError(err, t("stopFailed")));
+    } finally {
+      setFullStopLoading(false);
+    }
+  };
+
   const handleResetRun = () => {
     reset();
     setActiveExecutionMode(null);
     setStepControl(null);
+    setRunStopState({ stop_requested: false, stop_reason: null });
     setActionError(null);
   };
 
@@ -312,6 +348,13 @@ export default function GeneratePage() {
   const canRunNextStep = isStepModeRun && !stepBusy && !stepControl?.is_complete;
   const canRerunStep = isStepModeRun && !stepBusy && Boolean(stepControl?.can_rerun && stepControl?.last_node);
   const canStopStep = isStepModeRun && !stepActionLoading && (status === "running" || hasQueuedStepAction) && !stopRequested;
+  const isFullModeRun = activeExecutionMode === "full";
+  const fullStopRequested = Boolean(runStopState.stop_requested);
+  const canStopGeneration =
+    isFullModeRun &&
+    !fullStopLoading &&
+    !fullStopRequested &&
+    (status === "running" || status === "connecting");
 
   if (runId && status !== "idle") {
     return (
@@ -371,8 +414,33 @@ export default function GeneratePage() {
             </Card>
           )}
 
+          {isFullModeRun && (status === "running" || status === "connecting") && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>{t("runControlsTitle")}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleStopGeneration}
+                    disabled={!canStopGeneration}
+                  >
+                    {fullStopLoading || fullStopRequested ? t("stopStopping") : t("stopGeneration")}
+                  </Button>
+                </div>
+                {fullStopRequested && (
+                  <p className="text-sm text-muted-foreground">
+                    {t("stopRequested")}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           <GenerationProgress />
-          {(status === "failed" || status === "completed" || isStepModeRun) && (
+          {(status === "failed" || status === "completed" || status === "cancelled" || isStepModeRun) && (
             <Card className="mt-6">
               <CardContent className="py-4 space-y-3">
                 <div className="flex flex-wrap gap-3">

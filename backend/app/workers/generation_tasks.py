@@ -2,6 +2,8 @@ import uuid
 from datetime import datetime
 from typing import Any
 
+from sqlalchemy import select, update
+
 from app.observability import push_trace_context, safe_set_run, trace_span, tracing_scope
 from app.workers.celery_app import celery_app
 
@@ -134,11 +136,11 @@ def _step_control(config: dict[str, Any] | None) -> dict[str, Any]:
 
 
 async def _run_pipeline_async(generation_run_id: str, resume: bool = False):
-    from sqlalchemy import select
     from app.workers.worker_db import worker_session_factory
     from app.models.generation_run import GenerationRun, GenerationStatus
     from app.realtime.publisher import publish_event
-    from app.realtime.events import generation_completed, generation_failed
+    from app.realtime.events import generation_cancelled, generation_completed, generation_failed
+    from app.pipeline.step_control import StepExecutionStopped, assert_step_not_stopped
 
     async with worker_session_factory() as db:
         result = await db.execute(
@@ -157,6 +159,7 @@ async def _run_pipeline_async(generation_run_id: str, resume: bool = False):
             "project_id": str(run.project_id),
             "user_id": str(run.user_id),
             "language": (run.config or {}).get("language", "en"),
+            "execution_mode": (run.config or {}).get("execution_mode", "full"),
         }
 
         with push_trace_context(trace_ctx):
@@ -168,17 +171,45 @@ async def _run_pipeline_async(generation_run_id: str, resume: bool = False):
                     metadata={"langgraph_thread_id": run.langgraph_thread_id or str(run.id)},
                     tags=["celery-task"],
                 ) as task_run:
-                    if not run.langgraph_thread_id:
-                        run.langgraph_thread_id = str(run.id)
+                    # Claim the queued run atomically so an API-side queued cancel wins
+                    # even if this worker loaded a stale QUEUED row just beforehand.
+                    thread_id = run.langgraph_thread_id or str(run.id)
+                    start_at = datetime.utcnow()
+                    claimed = await db.execute(
+                        update(GenerationRun)
+                        .where(
+                            GenerationRun.id == run.id,
+                            GenerationRun.status == GenerationStatus.QUEUED,
+                        )
+                        .values(
+                            status=GenerationStatus.RUNNING,
+                            error_message=None,
+                            started_at=start_at,
+                            langgraph_thread_id=thread_id,
+                        )
+                    )
+                    if (claimed.rowcount or 0) == 0:
+                        result = await db.execute(
+                            select(GenerationRun).where(GenerationRun.id == uuid.UUID(generation_run_id))
+                        )
+                        run = result.scalar_one_or_none()
+                        if run is None or run.status == GenerationStatus.CANCELLED:
+                            return
+                        # Another worker or API transition already won this run state.
+                        return
 
-                    run.status = GenerationStatus.RUNNING
-                    run.error_message = None
-                    run.started_at = datetime.utcnow()
                     await db.commit()
+                    result = await db.execute(
+                        select(GenerationRun).where(GenerationRun.id == uuid.UUID(generation_run_id))
+                    )
+                    run = result.scalar_one_or_none()
+                    if run is None or run.status == GenerationStatus.CANCELLED:
+                        return
 
                     try:
                         from app.pipeline.graph import execute_pipeline
 
+                        await assert_step_not_stopped()
                         episode_id = await execute_pipeline(run, db, resume=resume)
 
                         run.status = GenerationStatus.COMPLETED
@@ -188,6 +219,16 @@ async def _run_pipeline_async(generation_run_id: str, resume: bool = False):
                         publish_event(generation_run_id, generation_completed(str(episode_id)))
                         safe_set_run(task_run, outputs={"status": "completed", "episode_id": str(episode_id)})
 
+                    except StepExecutionStopped as stop_exc:
+                        run.status = GenerationStatus.CANCELLED
+                        run.error_message = None
+                        run.completed_at = datetime.utcnow()
+                        run.config = _ack_run_stop_requested(run.config, str(stop_exc))
+                        await db.commit()
+
+                        publish_event(generation_run_id, generation_cancelled(str(stop_exc)))
+                        safe_set_run(task_run, outputs={"status": "cancelled", "reason": str(stop_exc)})
+
                     except Exception as e:
                         run.status = GenerationStatus.FAILED
                         run.error_message = str(e)
@@ -196,6 +237,14 @@ async def _run_pipeline_async(generation_run_id: str, resume: bool = False):
 
                         publish_event(generation_run_id, generation_failed(str(e)))
                         raise
+
+
+def _ack_run_stop_requested(config: dict[str, Any] | None, reason: str) -> dict[str, Any]:
+    merged = dict(config or {})
+    merged["stop_requested"] = False
+    merged["stop_acknowledged_at"] = datetime.utcnow().isoformat()
+    merged["stop_reason"] = reason
+    return merged
 
 
 async def _run_step_async(generation_run_id: str, action: str = "next"):

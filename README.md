@@ -131,6 +131,7 @@ Phase 4 now uses explicit lineage and canonical evidence semantics:
 - targeted rebuild now reuses prior verification state/fingerprint for semantically unchanged rebuilt claims and assigns rebuilt claims to the best-fitting branch/question using support-lineage semantics instead of flat provenance only
 - targeted rebuild scope now expands merged verifier gaps across all participating `claim_ids` and branch/question contexts before rebuilding
 - claim builder now budgets against real prompt-quote lengths and uses adaptive long-quote packing instead of a blind `[:700]` prefix cut
+- claim builder prompt now optimizes for a compact writer-usable backbone: it prefers fewer stronger claims, merges evidence by proposition core, and avoids `one evidence span -> one micro-claim`
 - Hunter extraction now retries failed/invalid extraction passes with a narrower payload and tracks `expected_evidence` hits explicitly in debug/summary output
 - fast-web page retention now filters bibliography-like windows, records explicit drop reasons, and uses authority-aware retention plus weak-source-family penalties before extractor spend
 - planning payloads now carry illustrative/narrative signals plus branch/question intent context instead of flat claim lists only

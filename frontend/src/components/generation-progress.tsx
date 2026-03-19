@@ -13,6 +13,7 @@ function pickEventText(event: Record<string, unknown>, t: (key: string, values?:
 
   const direct =
     asString(event.message) ||
+    asString(event.reason) ||
     asString(event.description) ||
     asString(event.detail) ||
     asString(event.statement_preview);
@@ -95,6 +96,14 @@ export function GenerationProgress() {
           <CardContent className="py-6 text-center">
             <p className="text-lg font-semibold text-destructive">{t("failed")}</p>
             <p className="text-sm text-muted-foreground mt-1">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {status === "cancelled" && (
+        <Card className="border-amber-500/50 bg-amber-500/5">
+          <CardContent className="py-6 text-center">
+            <p className="text-lg font-semibold text-amber-600">{t("cancelled")}</p>
           </CardContent>
         </Card>
       )}

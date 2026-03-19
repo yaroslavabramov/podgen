@@ -4,6 +4,7 @@ import uuid
 import pytest
 
 from app.pipeline.phase4_claims.claim_builder import (
+    BUILD_CLAIMS_SYSTEM,
     _build_branch_batches,
     _build_claim_builder_instructions,
     _claim_rebuild_signature,
@@ -137,9 +138,19 @@ def test_filter_branch_batches_keeps_only_targeted_branches() -> None:
 
 def test_build_claim_builder_instructions_adds_debate_specific_guardrails() -> None:
     instructions = _build_claim_builder_instructions({"branch_intent": "debate"})
+    assert "writer-usable claims" in instructions
+    assert "Do not turn every evidence span or supporting detail into its own claim" in instructions
     assert "tradeoffs" in instructions
     assert "synthetic argumentative claims" in instructions
+    assert "Preserve one argumentative position as one claim" in instructions
     assert "Do not infer dates, motives, purposes, or causal links" in instructions
+
+
+def test_build_claims_system_prefers_compact_non_micro_claims() -> None:
+    assert "smallest high-value, non-redundant set of claims" in BUILD_CLAIMS_SYSTEM
+    assert "Do not create one claim per evidence span by default" in BUILD_CLAIMS_SYSTEM
+    assert "micro-variants of the same proposition" in BUILD_CLAIMS_SYSTEM
+    assert "prefer merge if the resulting claim remains semantically clean and directly auditable" in BUILD_CLAIMS_SYSTEM
 
 
 def test_prepare_claim_builder_quote_preserves_head_and_tail_for_long_quotes() -> None:
@@ -249,7 +260,13 @@ class _FakePersistDB:
 
 
 @pytest.mark.asyncio
-async def test_persist_claim_batch_reuses_previous_verification_state_and_semantic_assignment() -> None:
+async def test_persist_claim_batch_reuses_previous_verification_state_and_semantic_assignment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder.publish_event",
+        lambda *args, **kwargs: None,
+    )
     db = _FakePersistDB()
     all_claim_ids: list[str] = []
     evidence_id = str(uuid.uuid4())
@@ -324,7 +341,13 @@ async def test_persist_claim_batch_reuses_previous_verification_state_and_semant
 
 
 @pytest.mark.asyncio
-async def test_persist_claim_batch_does_not_reuse_verification_state_for_non_lead_gap_claim() -> None:
+async def test_persist_claim_batch_does_not_reuse_verification_state_for_non_lead_gap_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder.publish_event",
+        lambda *args, **kwargs: None,
+    )
     db = _FakePersistDB()
     all_claim_ids: list[str] = []
     evidence_id = str(uuid.uuid4())

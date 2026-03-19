@@ -79,6 +79,14 @@ def generation_failed(error: str) -> PipelineEvent:
     return PipelineEvent("generation_failed", {"error": error})
 
 
+def generation_cancelled(reason: str | None = None) -> PipelineEvent:
+    payload: dict[str, Any] = {}
+    if reason:
+        payload["reason"] = reason
+        payload["message"] = reason
+    return PipelineEvent("generation_cancelled", payload)
+
+
 def generation_paused(
     executed_node: str | None,
     next_node: str | None,

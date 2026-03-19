@@ -32,7 +32,10 @@ CLAIM_BATCH_CHAR_BUDGET = 14000
 CLAIM_BUILDER_MAX_QUOTE_CHARS = 3200
 
 BUILD_CLAIMS_SYSTEM = """You are a claim builder for a fact-checked podcast pipeline.
-Given evidence spans, produce a high-precision set of claims.
+Given evidence spans, produce the smallest high-value, non-redundant set of claims that preserves the factual backbone needed by downstream verification, planning, and writing.
+
+Claims are not an exhaustive inventory of every extractable fact fragment.
+Prefer fewer, stronger, writer-usable claims over many thin micro-claims.
 
 Each claim must have:
 - claim_type: "FACT" (verifiable), "OPINION" (someone's view), "REPORT" (recount of event)
@@ -53,21 +56,25 @@ Return JSON array:
 ]
 
 Rules:
-- One claim = one atomic proposition. Do not combine independent facts in one statement.
+- One claim should express one semantically clean, writer-usable proposition that can be verified as a unit.
+- Do not combine unrelated propositions in one statement, but do not split one coherent proposition into multiple micro-claims just because the evidence mentions several details.
+- Do not create one claim per evidence span by default. Merge evidence whenever spans support the same proposition core, even if they differ in wording, emphasis, examples, or supporting detail.
+- Split only when the pieces would matter independently to verification, planning, or writing, or when one could be true while the other false.
+- Treat dates, numbers, actors, examples, qualifiers, and consequences as supporting detail unless they materially change the proposition's downstream meaning.
 - Do not add facts, entities, numbers, dates, motives, or causal links that are not explicitly present in evidence.
 - If a quote is partial, truncated, or only indirectly relevant, keep the claim equally narrow. Do not "complete" the missing part from background knowledge.
 - Do not upgrade contextual framing into a stronger factual claim unless the proposition is explicitly carried by the supporting quote.
 - FACT must be directly supported by supporting_evidence_ids.
 - OPINION/REPORT must have attribution with at least "who" when available.
-- Deduplicate within this batch: if two candidates are semantic paraphrases of the same proposition, keep one claim and merge evidence IDs.
-- If one evidence span supports multiple independent propositions, emit multiple claims.
-- Prefer short statements (single sentence) in the target language; keep each statement concise.
-- CASE, ANECDOTE, and EXPERT_QUOTE default to illustrative evidence unless they explicitly carry an atomic fact.
-- For debate questions, preserve explicit arguments, tradeoffs, criticisms, and attributed positions; do not transform generic background into synthetic argument claims.
-- For compare questions, preserve explicit differences, alternatives, and contrastive framing; avoid flattening them into generic description.
-- For case_study questions, prefer concrete actors, actions, outcomes, and consequences from the episode itself.
+- Deduplicate within this batch: if two candidates are semantic paraphrases or micro-variants of the same proposition, keep one claim and merge evidence IDs.
+- Prefer concise statements in the target language, usually one sentence; two tightly connected clauses are acceptable when they still express one coherent proposition.
+- CASE, ANECDOTE, and EXPERT_QUOTE default to illustrative evidence unless they explicitly carry a standalone proposition that would be useful independently downstream.
+- For debate questions, preserve explicit arguments, tradeoffs, criticisms, and attributed positions. Prefer one argumentative position as one claim when possible; do not fragment one position into multiple narrow claims unless the sub-points matter independently.
+- For compare questions, preserve explicit differences, alternatives, and contrastive framing. Prefer one meaningful contrast as one claim when possible; do not create separate claims for every compared attribute unless each attribute matters independently.
+- For case_study questions, prefer concrete actors, actions, outcomes, and consequences from the episode itself. Preserve one coherent episode or outcome as one claim when possible; do not fragment actor, action, and result into separate claims unless they need to stand alone downstream.
 - The same evidence may appear in both supporting_evidence_ids and illustrative_evidence_ids.
 - Use source metadata, branch/question intent, lineage, direct_or_contextual, and contextual_asset_types to avoid mixing different research branches into one claim.
+- When unsure whether to split or merge, prefer merge if the resulting claim remains semantically clean and directly auditable.
 - Use only evidence IDs that are present in the input.
 - Return raw JSON only. Do not use markdown/code fences or extra prose."""
 
@@ -619,7 +626,12 @@ def _summarize_branch_context(
 
 def _build_claim_builder_instructions(branch_context: dict) -> str:
     base = (
-        "Build atomic, non-duplicative claims from these evidence spans. "
+        "Build a compact, non-duplicative set of writer-usable claims from these evidence spans. "
+        "Claims are a factual backbone for downstream verification, planning, and writing, not an exhaustive inventory of every extractable fact fragment. "
+        "Prefer fewer, stronger claims over many thin restatements. "
+        "Do not turn every evidence span or supporting detail into its own claim. "
+        "Merge spans that support the same proposition core, even when they add different details or examples. "
+        "Split only when the parts would matter independently downstream or when one could be true without the other. "
         "Do not introduce new facts. "
         "Preserve narrative evidence by using illustrative_evidence_ids. "
         "Use supporting_evidence_ids only when the quote directly supports the claim. "
@@ -632,18 +644,21 @@ def _build_claim_builder_instructions(branch_context: dict) -> str:
         return (
             base
             + " Because this branch is a debate, prefer claims that preserve explicit arguments, tradeoffs, criticisms, or attributed pro/con positions. "
-            + "Do not turn generic background facts into synthetic argumentative claims."
+            + "Do not turn generic background facts into synthetic argumentative claims. "
+            + "Preserve one argumentative position as one claim when possible; do not split it into multiple narrow claims unless the sub-points matter independently."
         )
     if branch_intent == "compare":
         return (
             base
             + " Because this branch is a comparison, preserve explicit differences, alternatives, and side-by-side contrasts. "
-            + "Avoid flattening contrastive evidence into generic descriptive facts."
+            + "Avoid flattening contrastive evidence into generic descriptive facts. "
+            + "Prefer one meaningful contrast as one claim when possible instead of separate claims for every compared attribute."
         )
     if branch_intent == "case_study":
         return (
             base
-            + " Because this branch is a case study, prefer claims tied to concrete actors, actions, outcomes, and consequences from the episode itself."
+            + " Because this branch is a case study, prefer claims tied to concrete actors, actions, outcomes, and consequences from the episode itself. "
+            + "Preserve one coherent episode or outcome as one claim when possible instead of splitting actor, action, and result into separate micro-claims."
         )
     return base
 

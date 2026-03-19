@@ -379,7 +379,10 @@ Web extraction использует каскад extractors:
 - prompt ужесточён против semantic overshoot:
   - partial/truncated quotes не расширяются до более сильных claims
   - contextual framing не апгрейдится в stronger fact без явной пропозиции
-  - ANECDOTE / CASE / EXPERT_QUOTE по умолчанию идут в illustrative, если не несут самостоятельный атомарный факт
+  - claims строятся как compact factual backbone для verifier/planner/writer, а не как exhaustive inventory каждого извлекаемого факта
+  - по умолчанию prompt предпочитает fewer, stronger claims и merge'ит evidence по shared proposition core вместо `one span -> one claim`
+  - supporting details (даты, числа, qualifiers, examples) не должны автоматически становиться отдельными claims, если не меняют downstream meaning
+  - ANECDOTE / CASE / EXPERT_QUOTE по умолчанию идут в illustrative, если не несут самостоятельную writer-usable proposition
 - branch intent влияет на shape claims:
   - `debate` -> arguments / tradeoffs / criticisms / attributed positions
   - `compare` -> explicit differences / alternatives / side-by-side contrast

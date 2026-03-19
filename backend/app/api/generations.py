@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, status
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 
 from app.api.deps import CurrentUser, DB
 from app.models.project import Project
@@ -176,9 +176,63 @@ async def cancel_generation(run_id: uuid.UUID, user: CurrentUser, db: DB):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Generation run not found")
     if run.status not in (GenerationStatus.QUEUED, GenerationStatus.RUNNING):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot cancel a completed run")
-    run.status = GenerationStatus.CANCELLED
+
+    if (run.config or {}).get("execution_mode") == "step":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Use step controls for runs started in step mode.",
+        )
+
+    if run.status == GenerationStatus.RUNNING:
+        if bool((run.config or {}).get("stop_requested")):
+            return GenerationRunResponse.model_validate(run)
+        run.error_message = None
+        run.config = _mark_run_stop_requested(run.config)
+        await db.flush()
+        await db.refresh(run)
+        return GenerationRunResponse.model_validate(run)
+
+    cancelled_at = datetime.utcnow()
+    queued_cancel = await db.execute(
+        update(GenerationRun)
+        .where(
+            GenerationRun.id == run.id,
+            GenerationRun.status == GenerationStatus.QUEUED,
+        )
+        .values(
+            status=GenerationStatus.CANCELLED,
+            error_message=None,
+            completed_at=cancelled_at,
+            config=_mark_run_stop_requested(run.config),
+        )
+    )
+    if (queued_cancel.rowcount or 0) == 0:
+        result = await db.execute(
+            select(GenerationRun)
+            .join(Project, GenerationRun.project_id == Project.id)
+            .where(GenerationRun.id == run_id, Project.user_id == user.id)
+        )
+        run = result.scalar_one_or_none()
+        if run is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Generation run not found")
+        if run.status == GenerationStatus.RUNNING:
+            if not bool((run.config or {}).get("stop_requested")):
+                run.error_message = None
+                run.config = _mark_run_stop_requested(run.config)
+                await db.flush()
+                await db.refresh(run)
+            return GenerationRunResponse.model_validate(run)
+        if run.status == GenerationStatus.CANCELLED:
+            return GenerationRunResponse.model_validate(run)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot cancel a completed run")
+
     await db.flush()
     await db.refresh(run)
+
+    from app.realtime.publisher import publish_event
+    from app.realtime.events import generation_cancelled
+
+    publish_event(str(run.id), generation_cancelled("Generation cancelled before start."))
     return GenerationRunResponse.model_validate(run)
 
 
@@ -367,6 +421,23 @@ def _mark_step_action_requested(config: dict | None, action: str) -> dict:
     step_control["stop_acknowledged_at"] = None
     step_control["stop_reason"] = None
     merged["step_control"] = step_control
+    return merged
+
+
+def _mark_run_stop_requested(config: dict | None) -> dict:
+    merged = dict(config or {})
+    merged["stop_requested"] = True
+    merged["stop_requested_at"] = datetime.utcnow().isoformat()
+    merged["stop_acknowledged_at"] = None
+    merged["stop_reason"] = "user_requested_stop"
+    return merged
+
+
+def _ack_run_stop_requested(config: dict | None, reason: str) -> dict:
+    merged = dict(config or {})
+    merged["stop_requested"] = False
+    merged["stop_acknowledged_at"] = datetime.utcnow().isoformat()
+    merged["stop_reason"] = reason
     return merged
 
 
