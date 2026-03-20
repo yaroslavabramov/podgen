@@ -139,7 +139,8 @@ Phase 4 now uses explicit lineage and canonical evidence semantics:
 - showrunner caps per-act claim density so planning acts behave like curated story layers instead of near-complete research dumps, but no longer invents synthetic numeric conflicts from nearby claims
 - density capping preserves disputed/conflict claims so planning cannot silently drop debate moments before validation
 - preserved disputed/conflict claims still remain inside a bounded act cap; conflict-heavy acts stay curated instead of bypassing density control entirely
-- showrunner now plans explicit act story contracts (`story_role`, `purpose`, `opening_question`, `ending_turn`, `focus_branch_ids`) so planning works from editorial intent, not only from grouped claim IDs
+- showrunner now plans explicit act story contracts (`story_role`, `purpose`, `internal_arc`, `opening_question`, `ending_turn`, `focus_branch_ids`) so planning works from editorial intent and act movement, not only from grouped claim IDs
+- planning payloads now carry `output_language`, so showrunner and act planner keep human-readable output in the podcast language instead of drifting into English
 - act planner now uses the act story contract, branch-focus summary, and scene-count guidance to build compact beat cards instead of long pseudo-script scenes; it now asks the model to declare a short `scene_strategy`, explicitly warns against the default `hook -> explanation -> case_study -> takeaway` skeleton, and treats `case_study` as optional rather than mandatory
 - when `WEB_EXTRACTOR_DEBUG_DUMP_DIR` is set, Hunter / Claim Builder / Verifier / Showrunner / Act Planner write JSON debug dumps for run analysis
 

@@ -35,6 +35,7 @@ Return a JSON object shaped like:
       "story_role": "setup|complicate|explain|resolve|payoff",
       "title": "Act title",
       "purpose": "one-sentence editorial function of this act",
+      "internal_arc": "short phrase describing how this act moves internally",
       "opening_question": "listener-facing question or tension that opens this act",
       "ending_turn": "what changes, lands, or becomes clearer by the end of the act",
       "focus_branch_ids": ["b1", "b3"],
@@ -53,10 +54,15 @@ Return a JSON object shaped like:
 }
 
 Rules:
+- Language:
+  - All human-readable fields (`title`, `purpose`, `internal_arc`, `opening_question`, `ending_turn`) MUST be in `output_language` from the user payload.
+  - Do not mix languages inside one field.
 - Plan an episode, not an outline dump. Every act must have a distinct job in the listener experience.
 - Prefer a clean macro-arc: setup -> complication -> explanation -> consequence/payoff. Choose the act count that best fits the material and duration; do not default to 3 acts just because it is common.
 - Start from the strongest episode-level question: why is this system strange, how does it work, and why does it matter?
 - Each act should answer one part of that question and hand off naturally to the next act.
+- For each act, define a short `internal_arc` that describes how the act moves, not just what topic it covers.
+- Adjacent acts should usually have different `internal_arc` shapes. Do not make every act feel like question -> explanation -> takeaway.
 - Each claim appears in exactly ONE act (no duplication)
 - Do not spread the same proposition core across multiple acts just because it is relevant in several places. Pick the best act for it.
 - Avoid acts that all do the same thing. Do not make every act a generic explanation block.
@@ -159,15 +165,16 @@ async def plan_episode(state: PipelineState) -> dict:
 
         publish_event(run_id, step_started("phase5_planning", "structure", "Creating act structure"))
 
-        prompt_payload = {
-            "duration_target_seconds": state["duration_target"],
-            "show_style": bible.show_style if bible else "Conversational",
-            "rigor_policy": bible.rigor_policy if bible else "",
-            "claims": claims_summary,
-            "conflicts": conflicts_summary,
-            "disputed_claim_ids": disputed_ids,
-            "duration_fill_layers": manifest.duration_fill_layers if manifest else [],
-        }
+        prompt_payload = _build_showrunner_prompt_payload(
+            duration_target_seconds=state["duration_target"],
+            output_language=state.get("language", "en"),
+            show_style=bible.show_style if bible else "Conversational",
+            rigor_policy=bible.rigor_policy if bible else "",
+            claims=claims_summary,
+            conflicts=conflicts_summary,
+            disputed_claim_ids=disputed_ids,
+            duration_fill_layers=manifest.duration_fill_layers if manifest else [],
+        )
         prompt = json.dumps(prompt_payload, ensure_ascii=False)
         raw = ""
         parsed_plan = None
@@ -233,6 +240,29 @@ def _positive_int(value, default: int) -> int:
     return parsed if parsed > 0 else default
 
 
+def _build_showrunner_prompt_payload(
+    *,
+    duration_target_seconds: int,
+    output_language: str,
+    show_style: str,
+    rigor_policy: str,
+    claims: list[dict],
+    conflicts: list[dict],
+    disputed_claim_ids: list[str],
+    duration_fill_layers: list | None,
+) -> dict:
+    return {
+        "duration_target_seconds": duration_target_seconds,
+        "output_language": str(output_language or "en").strip() or "en",
+        "show_style": show_style,
+        "rigor_policy": rigor_policy,
+        "claims": claims,
+        "conflicts": conflicts,
+        "disputed_claim_ids": disputed_claim_ids,
+        "duration_fill_layers": duration_fill_layers or [],
+    }
+
+
 def _uuid_list(value) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -286,6 +316,10 @@ def _normalize_plan(plan, duration_target: int) -> dict:
         if not isinstance(purpose, str) or not purpose.strip():
             purpose = title.strip()
 
+        internal_arc = act.get("internal_arc")
+        if not isinstance(internal_arc, str):
+            internal_arc = ""
+
         opening_question = act.get("opening_question")
         if not isinstance(opening_question, str):
             opening_question = ""
@@ -300,6 +334,7 @@ def _normalize_plan(plan, duration_target: int) -> dict:
                 "story_role": story_role.strip(),
                 "title": title.strip(),
                 "purpose": purpose.strip(),
+                "internal_arc": internal_arc.strip(),
                 "opening_question": opening_question.strip(),
                 "ending_turn": ending_turn.strip(),
                 "focus_branch_ids": _string_list(act.get("focus_branch_ids")),

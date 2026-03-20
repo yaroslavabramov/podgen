@@ -13,6 +13,7 @@ def test_build_act_prompt_payload_carries_story_contract_and_branch_focus() -> N
         "story_role": "explain",
         "title": "How the machine holds together",
         "purpose": "Explain the mechanism and remove the mystery from the system.",
+        "internal_arc": "mystery -> mechanism -> constraint -> resolution",
         "opening_question": "What stops private note issuance from spinning out of control?",
         "ending_turn": "The listener sees that trust comes from the rules, not the logos on the notes.",
         "focus_branch_ids": ["b3", "b2"],
@@ -31,10 +32,13 @@ def test_build_act_prompt_payload_carries_story_contract_and_branch_focus() -> N
         act_number=2,
         act_claims=act_claims,
         act_evidence=act_evidence,
+        output_language="ru",
     )
 
+    assert payload["output_language"] == "ru"
     assert payload["story_role"] == "explain"
     assert payload["purpose"].startswith("Explain the mechanism")
+    assert payload["internal_arc"] == "mystery -> mechanism -> constraint -> resolution"
     assert payload["opening_question"].startswith("What stops private note issuance")
     assert payload["ending_turn"].startswith("The listener sees")
     assert payload["focus_branch_ids"] == ["b3", "b2"]
@@ -75,6 +79,8 @@ def test_scene_count_guidance_tracks_duration_bands() -> None:
 
 def test_act_planner_prompt_demands_compact_beats_and_real_conflict_gate() -> None:
     assert '"scene_strategy": "short phrase describing the act\'s internal movement"' in ACT_PLANNER_SYSTEM
+    assert "`internal_arc` says how the act should move internally" in ACT_PLANNER_SYSTEM
+    assert "All human-readable output fields (`scene_strategy`, `description`, `transition_note`, `notes`) MUST be in `output_language`" in ACT_PLANNER_SYSTEM
     assert "first scene must explicitly open the act's `opening_question`" in ACT_PLANNER_SYSTEM
     assert "final scene must clearly deliver the act's `ending_turn`" in ACT_PLANNER_SYSTEM
     assert "Prefer compact beat cards, not mini-script paragraphs." in ACT_PLANNER_SYSTEM

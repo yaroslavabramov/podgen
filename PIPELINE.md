@@ -482,11 +482,13 @@ Web extraction использует каскад extractors:
 - Showrunner теперь планирует и editorial contract каждого акта:
   - `story_role`
   - `purpose`
+  - `internal_arc`
   - `opening_question`
   - `ending_turn`
   - `focus_branch_ids`
 - после normalization вводится density cap на claim pool per act, чтобы акты вели себя как curated editorial layer, а не как почти полный research dump
 - disputed claims и claims из real/manual conflicts сохраняются через density cap и не могут быть молча выкинуты до conflict validation
+- planning payloads now carry `output_language`, so showrunner and act planner keep human-readable output in the podcast language instead of drifting into English
 - preserve-path для disputed/conflict claims остаётся bounded самим act cap: конфликтно-насыщенные акты не пробивают cap полностью
 
 - при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` Showrunner пишет JSON dump с input payload, raw/parsed LLM output и normalized act plan
@@ -499,7 +501,7 @@ Web extraction использует каскад extractors:
   - evidence-level `illustrative`, `source_reliability`, `authority_type`
   - branch/question intent and `direct_or_contextual` summaries
 - дополнительно получают act-level story contract, `branch_focus_summary`, `conflict_count` и `scene_count_guidance`, чтобы строить сцены как движение внутри акта, а не как flat list of explanation beats
-- planner теперь нацелен на compact beat cards, а не на длинные pseudo-script paragraphs; он просит модель сначала выбрать короткую `scene_strategy`, явно запрещает default-скелет `hook -> explanation -> case_study -> takeaway` и трактует `case_study` как optional scene function, а не обязательный средний блок
+- planner теперь нацелен на compact beat cards, а не на длинные pseudo-script paragraphs; он просит модель сначала выбрать короткую `scene_strategy`, явно запрещает default-скелет `hook -> explanation -> case_study -> takeaway`, трактует `case_study` как optional scene function и держит все human-readable поля в `output_language`
 
 - при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` каждый act planner пишет JSON dump с prompt payload, attempt history, raw/parsed outputs, normalized beat sheet и результатом evidence gap fill
 

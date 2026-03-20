@@ -79,11 +79,16 @@ Use claim/evidence metadata:
 - evidence with `illustrative=true` is good for hooks, case-study beats, and vivid transitions
 
 Rules:
+- Language:
+  - All human-readable output fields (`scene_strategy`, `description`, `transition_note`, `notes`) MUST be in `output_language` from the user payload.
+  - Keep the output in the same language as the act contract unless `output_language` says otherwise.
+  - Do not mix languages inside one field.
 - The act must feel like it goes somewhere. Scenes should create setup -> development -> turn -> landing, not just restate adjacent facts.
 - Before drafting scenes, choose a short `scene_strategy` that captures how this act moves internally.
 - Respect the act contract:
   - `story_role` says what kind of movement this act should deliver
   - `purpose` says why the act exists
+  - `internal_arc` says how the act should move internally
   - the first scene must explicitly open the act's `opening_question`
   - the final scene must clearly deliver the act's `ending_turn`
 - Avoid the default podcast skeleton of hook -> explanation -> case_study -> takeaway unless the act genuinely needs it. Reusing the same internal shape across acts makes the episode feel mechanically repetitive.
@@ -166,6 +171,7 @@ async def plan_act(state: PipelineState) -> dict:
                 act_number=act_num,
                 act_claims=act_claims,
                 act_evidence=act_evidence,
+                output_language=state.get("language", "en"),
             )
 
             beat_sheet: list[dict[str, Any]] = []
@@ -483,14 +489,17 @@ def _build_act_prompt_payload(
     act_number: int,
     act_claims: list[dict[str, Any]],
     act_evidence: list[dict[str, Any]],
+    output_language: str,
 ) -> dict[str, Any]:
     estimated_duration = _positive_int(act.get("estimated_duration_seconds"), 300)
     conflict_ids = _uuid_list(act.get("conflict_brief_ids"))
     return {
         "act_number": act_number,
+        "output_language": str(output_language or "en").strip() or "en",
         "story_role": str(act.get("story_role") or "").strip(),
         "act_title": act.get("title", ""),
         "purpose": str(act.get("purpose") or "").strip(),
+        "internal_arc": str(act.get("internal_arc") or "").strip(),
         "opening_question": str(act.get("opening_question") or "").strip(),
         "ending_turn": str(act.get("ending_turn") or "").strip(),
         "focus_branch_ids": [

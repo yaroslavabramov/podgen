@@ -1,6 +1,7 @@
 from app.models.claim import VerificationLevel
 from app.pipeline.phase5_planning.showrunner import (
     SHOWRUNNER_SYSTEM,
+    _build_showrunner_prompt_payload,
     _cap_act_claim_density,
     _normalize_plan,
 )
@@ -137,6 +138,7 @@ def test_normalize_plan_preserves_story_fields() -> None:
                     "story_role": "setup",
                     "title": "How the money got weird",
                     "purpose": "Establish the strange starting point and why the listener should care.",
+                    "internal_arc": "paradox -> failed fix -> institutional turn",
                     "opening_question": "Why would a city let private banks print money?",
                     "ending_turn": "The historical oddity becomes an institutional design puzzle.",
                     "focus_branch_ids": ["b1", "b2", "b1"],
@@ -153,6 +155,7 @@ def test_normalize_plan_preserves_story_fields() -> None:
     act = plan["acts"][0]
     assert act["story_role"] == "setup"
     assert act["purpose"].startswith("Establish the strange starting point")
+    assert act["internal_arc"] == "paradox -> failed fix -> institutional turn"
     assert act["opening_question"] == "Why would a city let private banks print money?"
     assert act["ending_turn"] == "The historical oddity becomes an institutional design puzzle."
     assert act["focus_branch_ids"] == ["b1", "b2"]
@@ -162,3 +165,23 @@ def test_showrunner_prompt_does_not_hardcode_three_acts() -> None:
     assert '"act_count": 3' not in SHOWRUNNER_SYSTEM
     assert "compress this to 3 acts" not in SHOWRUNNER_SYSTEM
     assert "do not default to 3 acts" in SHOWRUNNER_SYSTEM
+    assert '"internal_arc": "short phrase describing how this act moves internally"' in SHOWRUNNER_SYSTEM
+    assert "Adjacent acts should usually have different `internal_arc` shapes." in SHOWRUNNER_SYSTEM
+    assert "All human-readable fields (`title`, `purpose`, `internal_arc`, `opening_question`, `ending_turn`) MUST be in `output_language`" in SHOWRUNNER_SYSTEM
+
+
+def test_build_showrunner_prompt_payload_carries_output_language() -> None:
+    payload = _build_showrunner_prompt_payload(
+        duration_target_seconds=1800,
+        output_language="ru",
+        show_style="Conversational",
+        rigor_policy="",
+        claims=[],
+        conflicts=[],
+        disputed_claim_ids=[],
+        duration_fill_layers=[],
+    )
+
+    assert payload["duration_target_seconds"] == 1800
+    assert payload["output_language"] == "ru"
+    assert payload["duration_fill_layers"] == []
