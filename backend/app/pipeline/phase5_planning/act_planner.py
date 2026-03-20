@@ -96,6 +96,9 @@ Rules:
   - `internal_arc` says how the act should move internally
   - the first scene must explicitly open the act's `opening_question`
   - the final scene must clearly deliver the act's `ending_turn`
+- Opening the act question does not require a `hook`. The first scene may be `case_study`, `explanation`, or `transition` when that creates a stronger entrance for this act.
+- Landing the act turn does not require a `takeaway`. The final scene may land through `case_study`, `summary`, `explanation`, or `transition` when that better fits the act.
+- Do not default every act to `hook` at the start and `takeaway` at the end.
 - Avoid the default podcast skeleton of hook -> explanation -> case_study -> takeaway unless the act genuinely needs it. Reusing the same internal shape across acts makes the episode feel mechanically repetitive.
 - Act-to-act variety matters. Do not default every act to the same internal shape.
 - Within an act, adjacent scenes should usually do different work: open a question, sharpen it, ground it in an example, reveal a mechanism, stress-test it, or land a consequence.

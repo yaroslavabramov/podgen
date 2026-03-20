@@ -236,6 +236,9 @@ def test_act_planner_prompt_demands_compact_beats_and_real_conflict_gate() -> No
     assert "All human-readable output fields (`scene_strategy`, `description`, `transition_note`, `notes`) MUST be in `output_language`" in ACT_PLANNER_SYSTEM
     assert "first scene must explicitly open the act's `opening_question`" in ACT_PLANNER_SYSTEM
     assert "final scene must clearly deliver the act's `ending_turn`" in ACT_PLANNER_SYSTEM
+    assert "Opening the act question does not require a `hook`." in ACT_PLANNER_SYSTEM
+    assert "Landing the act turn does not require a `takeaway`." in ACT_PLANNER_SYSTEM
+    assert "Do not default every act to `hook` at the start and `takeaway` at the end." in ACT_PLANNER_SYSTEM
     assert "Prefer compact beat cards, not mini-script paragraphs." in ACT_PLANNER_SYSTEM
     assert "Use `debate` only when the act has real conflict pressure" in ACT_PLANNER_SYSTEM
     assert "Use `scene_count_guidance` as the default size target" in ACT_PLANNER_SYSTEM
