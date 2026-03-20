@@ -8,8 +8,10 @@ import uuid
 
 from sqlalchemy import select
 
+from app.config import settings
 from app.workers.worker_db import worker_session_factory as async_session_factory
 from app.models.episode_manifest import EpisodeManifest
+from app.pipeline.debug_dump import safe_filename_token, write_json_debug_dump
 from app.pipeline.state import PipelineState
 from app.pipeline.phase5_planning.act_planner import plan_act
 from app.services.llm import call_sonnet_structured
@@ -18,6 +20,7 @@ from app.realtime.publisher import publish_event
 from app.realtime.events import step_started, step_completed, phase_completed, progress
 
 logger = logging.getLogger(__name__)
+INTEGRATOR_RETRIES = 2
 
 INTEGRATOR_SYSTEM = """You are a podcast episode integrator checking the flow between acts.
 Given all beat sheets, check:
@@ -29,12 +32,19 @@ Given all beat sheets, check:
 Return JSON:
 {
   "transitions": [
-    {"from_act": 1, "to_act": 2, "transition_note": "Bridge from history to mechanics"}
+    {"from_act": 1, "to_act": 2, "transition_note": "Short bridge from history to mechanics"}
   ],
   "issues_found": [
     {"type": "duplicate_claim|pacing|complexity", "description": "...", "suggestion": "..."}
   ]
-}"""
+}
+
+Rules:
+- Return strict JSON only. No markdown fences, no prose before or after the JSON.
+- Keep `transition_note` compact: usually 1-2 sentences, enough to bridge acts without rewriting them.
+- Keep `issues_found` concise and high-signal. Do not write essay-length diagnostics.
+- If no important issue exists, return an empty `issues_found` list.
+- Prefer fewer stronger notes over many repetitive ones."""
 
 
 async def integrate_acts(state: PipelineState) -> dict:
@@ -75,24 +85,113 @@ async def integrate_acts(state: PipelineState) -> dict:
                     + ", ".join(str(a) for a in missing_beat_sheet_acts)
                 )
 
-        prompt = json.dumps({"acts": acts}, ensure_ascii=False)
+        base_prompt_payload = _build_integrator_prompt_payload(acts)
+        raw = ""
+        parsed = None
+        attempt_debugs: list[dict] = []
+        integration = None
+        last_error = ""
 
-        try:
-            raw = await call_sonnet_structured(system=INTEGRATOR_SYSTEM, prompt=prompt, max_tokens=2048, temperature=0.4)
-            integration = parse_llm_json(raw)
+        for attempt in range(1, INTEGRATOR_RETRIES + 1):
+            prompt_payload = dict(base_prompt_payload)
+            if attempt > 1:
+                prompt_payload["strict_output_contract"] = (
+                    "Return valid JSON only with top-level keys transitions and issues_found. No markdown fences."
+                )
+                prompt_payload["previous_error"] = last_error
+            prompt = json.dumps(prompt_payload, ensure_ascii=False)
 
-            # Apply transition notes
+            try:
+                raw = await call_sonnet_structured(
+                    system=INTEGRATOR_SYSTEM,
+                    prompt=prompt,
+                    max_tokens=4096,
+                    temperature=0.3,
+                )
+                parsed = parse_llm_json(raw)
+                if not isinstance(parsed, dict):
+                    raise ValueError(f"integrator output must be a JSON object, got {type(parsed).__name__}")
+                integration = parsed
+                attempt_debugs.append(
+                    {
+                        "attempt": attempt,
+                        "status": "ok",
+                        "prompt_payload": prompt_payload,
+                        "llm_output": {
+                            "raw_chars": len(raw or ""),
+                            "raw": raw,
+                            "parsed_type": type(parsed).__name__ if parsed is not None else None,
+                            "parsed": parsed,
+                        },
+                    }
+                )
+                break
+            except Exception as exc:
+                last_error = f"{type(exc).__name__}: {exc}"
+                attempt_debugs.append(
+                    {
+                        "attempt": attempt,
+                        "status": "invalid_output",
+                        "prompt_payload": prompt_payload,
+                        "llm_output": {
+                            "raw_chars": len(raw or ""),
+                            "raw": raw,
+                            "parsed_type": type(parsed).__name__ if parsed is not None else None,
+                            "parsed": parsed,
+                        },
+                        "error": last_error,
+                    }
+                )
+                logger.warning(
+                    "Integration output invalid (attempt %s/%s): %s",
+                    attempt,
+                    INTEGRATOR_RETRIES,
+                    last_error,
+                    exc_info=True,
+                )
+                raw = ""
+                parsed = None
+
+        if integration is None:
+            _dump_integrator_debug(
+                run_id=run_id,
+                status="llm_or_parse_failed",
+                input_payload=base_prompt_payload,
+                attempts=attempt_debugs,
+                applied_transitions=None,
+            )
+            logger.warning("Integration step failed after retries")
+        else:
+            applied_transitions = []
             for tr in integration.get("transitions", []):
-                from_idx = tr["from_act"] - 1
+                if not isinstance(tr, dict):
+                    continue
+                try:
+                    from_idx = int(tr.get("from_act", 0)) - 1
+                except (TypeError, ValueError):
+                    continue
                 if 0 <= from_idx < len(acts):
                     beat_sheet = acts[from_idx].get("beat_sheet", [])
                     if beat_sheet:
-                        beat_sheet[-1]["transition_note"] = tr.get("transition_note", "")
+                        transition_note = str(tr.get("transition_note") or "").strip()
+                        beat_sheet[-1]["transition_note"] = transition_note
+                        applied_transitions.append(
+                            {
+                                "from_act": from_idx + 1,
+                                "to_act": tr.get("to_act"),
+                                "transition_note": transition_note,
+                            }
+                        )
 
             manifest.acts_json = acts
             await db.commit()
-        except Exception:
-            logger.warning("Integration step failed", exc_info=True)
+            _dump_integrator_debug(
+                run_id=run_id,
+                status="ok",
+                input_payload=base_prompt_payload,
+                attempts=attempt_debugs,
+                applied_transitions=applied_transitions,
+            )
 
     publish_event(run_id, step_completed("phase5_planning", "integrate"))
     duration_ms = int((time.time() - t0) * 1000)
@@ -110,3 +209,32 @@ def _missing_beat_sheet_acts(acts: list) -> list[int]:
         if not isinstance(beat_sheet, list) or not beat_sheet:
             missing.append(act_num)
     return missing
+
+
+def _build_integrator_prompt_payload(acts: list[dict]) -> dict:
+    return {"acts": acts}
+
+
+def _dump_integrator_debug(
+    *,
+    run_id: str,
+    status: str,
+    input_payload: dict,
+    attempts: list[dict],
+    applied_transitions: list[dict] | None,
+) -> None:
+    dump_dir = (settings.web_extractor_debug_dump_dir or "").strip()
+    if not dump_dir:
+        return
+    write_json_debug_dump(
+        raw_dir=dump_dir,
+        subdir="planning_integrator",
+        filename_stem=f"run-{safe_filename_token(run_id)}_{safe_filename_token(status)}",
+        payload={
+            "run_id": run_id,
+            "status": status,
+            "input": input_payload,
+            "attempts": attempts,
+            "applied_transitions": applied_transitions,
+        },
+    )

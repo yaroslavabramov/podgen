@@ -507,6 +507,13 @@ Web extraction использует каскад extractors:
 
 - при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` каждый act planner пишет JSON dump с prompt payload, attempt history, raw/parsed outputs, normalized beat sheet и результатом evidence gap fill
 
+### **5.3 Integrator**
+
+- проверяет межактовые переходы, pacing и complexity на уровне всего эпизода
+- пишет короткие `transition_note` в последнюю сцену каждого акта, когда переход действительно нужен
+- теперь работает через stricter structured-output contract с retry, чтобы длинный integrator output не деградировал в silent no-op из-за truncation
+- при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` пишет JSON dump в `planning_integrator` с prompt payload, attempt history и реально применёнными переходами
+
 - если не хватает материала:
   - Hunter (closed)
 

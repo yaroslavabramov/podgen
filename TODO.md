@@ -513,6 +513,11 @@ Deferred after Round 68:
 - [x] **P1**: Add explicit screenwriter language lock and anti-explainer prompt rules so dialogue stays in the podcast language and does not collapse into generic Host A explains / Host B asks loops
 - [x] **P1**: Pass `transition_note` and scene-level timing context into `screenwriter` payload so scene handoffs survive phase 5 -> phase 6
 
+**Round 76 (integrator reliability hardening):**
+- [x] **P1**: Raise `integrator` structured-output budget, add strict JSON retry, and stop relying on a single `2048`-token pass that truncates long transition diagnostics
+- [x] **P1**: Add `planning_integrator` debug dumps so integration failures are inspectable instead of degrading into silent no-ops
+- [x] **P1**: Add regression tests for integrator prompt/output contract and missing-beat-sheet validation helper
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority
