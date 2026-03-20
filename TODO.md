@@ -508,6 +508,11 @@ Deferred after Round 68:
 - [x] **P1**: Reduce act-planner payload noise by dropping flat evidence/provenance blobs and keeping compact claim bundles (`type`, support counts, branch/intents, `support_bundle`)
 - [x] **P1**: Budget claim support in prompt packaging as `1` best direct quote per claim plus `1` optional illustrative quote, instead of sending an unstructured evidence bag
 
+**Round 75 (screenwriter act-contract handoff):**
+- [x] **P0**: Pass act-level contract into `screenwriter` (`story_role`, `act_purpose`, `internal_arc`, `opening_question`, `ending_turn`, `scene_strategy`) instead of writing scenes from bare beat descriptions only
+- [x] **P1**: Add explicit screenwriter language lock and anti-explainer prompt rules so dialogue stays in the podcast language and does not collapse into generic Host A explains / Host B asks loops
+- [x] **P1**: Pass `transition_note` and scene-level timing context into `screenwriter` payload so scene handoffs survive phase 5 -> phase 6
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

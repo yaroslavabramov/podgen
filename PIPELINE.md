@@ -538,6 +538,19 @@ Web extraction использует каскад extractors:
 
 - использует не только Claims, но и illustrative_evidence_ids (анекдоты, метафоры, кейсы)
 
+- получает не только scene description, но и act-level contract:
+  - `story_role`
+  - `act_purpose`
+  - `internal_arc`
+  - `opening_question`
+  - `ending_turn`
+  - `scene_strategy`
+  - `transition_note`
+
+- держит dialogue в `language` подкаста, а не дрейфует в английский или смешанный output
+
+- использует `description` и `transition_note` как scene goal, а не как текст для тупого paraphrase
+
 - ставит теги для TTS (direction/mood), но без ломания смысловой структуры
 
 ### **6.2 Writer Revolt (расширенные причины)**

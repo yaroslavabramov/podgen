@@ -24,7 +24,7 @@ SCENE_GENERATION_ATTEMPTS = 3
 SCENE_RETRY_BASE_DELAY_SECONDS = 1.0
 
 SCREENWRITER_SYSTEM = """You are a podcast screenwriter creating natural dialogue between two hosts.
-Given a scene description, claims, evidence, and host personas, write the dialogue.
+Given an act contract, scene brief, claims, evidence, and host personas, write the dialogue.
 
 Return JSON array:
 [
@@ -47,6 +47,26 @@ Speech rules by verification level:
 
 Host A = Guide: leads narrative, explains, summarizes
 Host B = Challenger: questions, demands proof, plays devil's advocate
+
+Writing rules:
+- Language:
+  - All dialogue lines MUST be in the `language` from the user payload.
+  - Do not mix languages inside one line unless the evidence itself requires a short quoted term.
+- Use the act contract (`story_role`, `act_purpose`, `internal_arc`, `scene_strategy`) to make the scene feel like part of a larger arc, not an isolated explainer.
+- Use `description` and `transition_note` as scene goals, not text to paraphrase verbatim.
+- Keep the scene moving. Do not let both hosts restate the same point in slightly different words.
+- Avoid dry explanatory dialogue by default. Prefer a concrete opening move, a turn, and a landing.
+- Let `scene_type` shape the scene:
+  - `hook`: open with surprise, tension, or a vivid listener-facing question
+  - `case_study`: ground the scene in a concrete event, example, or episode
+  - `explanation`: clarify only the mechanism needed for this beat; do not drift into lecture mode
+  - `debate`: surface real tension or tradeoff, not a fake argument
+  - `transition`: pivot the listener cleanly from one framing to another
+  - `summary`: compress what changed in understanding without sounding like bullet points
+  - `takeaway`: land the consequence or implication, not just a generic recap
+- Do not make Host A always explain and Host B always ask for proof in the same rhythm. Vary who initiates and who reframes.
+- Use evidence organically. Do not dump raw quotes or source language into dialogue unless quoting is the point of the beat.
+- When claims are OBSERVED, UNVERIFIED, DISPUTED, OPINION, or REPORT, make the line sound appropriately attributed or qualified.
 
 Keep replies under __MAX_REPLY_TOKENS__ tokens. Natural, conversational tone.
 Treat host/policy fields as abstract constraints; do not copy their wording verbatim into dialogue.
@@ -191,19 +211,21 @@ async def write_screenplay(state: PipelineState) -> dict:
                             "asset_type": e.asset_type, "tellability": e.tellability_notes,
                         })
 
-                prompt = json.dumps({
-                    "act_number": act_num,
-                    "scene_number": scene_num,
-                    "scene_type": scene.get("type", "explanation"),
-                    "description": scene.get("description", ""),
-                    "notes": scene.get("notes", ""),
-                    "claims": scene_claims,
-                    "evidence": scene_evidence,
-                    "hosts": hosts,
-                    "forbidden_phrases": forbidden,
-                    "max_reply_tokens": max_tokens,
-                    "language": state["language"],
-                }, ensure_ascii=False)
+                prompt = json.dumps(
+                    _build_scene_prompt_payload(
+                        act=act,
+                        act_number=act_num,
+                        scene=scene,
+                        scene_number=scene_num,
+                        scene_claims=scene_claims,
+                        scene_evidence=scene_evidence,
+                        hosts=hosts,
+                        forbidden_phrases=forbidden,
+                        max_reply_tokens=max_tokens,
+                        language=state["language"],
+                    ),
+                    ensure_ascii=False,
+                )
 
                 dialogue = []
                 last_error: Exception | None = None
@@ -322,3 +344,40 @@ def _normalized_scene_number(value: object, fallback: int) -> int:
     except (TypeError, ValueError):
         return fallback
     return scene_number if scene_number > 0 else fallback
+
+
+def _build_scene_prompt_payload(
+    *,
+    act: dict,
+    act_number: int,
+    scene: dict,
+    scene_number: int,
+    scene_claims: list[dict],
+    scene_evidence: list[dict],
+    hosts: list[dict],
+    forbidden_phrases: list[str],
+    max_reply_tokens: int,
+    language: str,
+) -> dict:
+    return {
+        "language": str(language or "en").strip() or "en",
+        "act_number": act_number,
+        "act_title": act.get("title", ""),
+        "story_role": act.get("story_role", ""),
+        "act_purpose": act.get("purpose", ""),
+        "internal_arc": act.get("internal_arc", ""),
+        "opening_question": act.get("opening_question", ""),
+        "ending_turn": act.get("ending_turn", ""),
+        "scene_strategy": act.get("scene_strategy", ""),
+        "scene_number": scene_number,
+        "scene_type": scene.get("type", "explanation"),
+        "description": scene.get("description", ""),
+        "transition_note": scene.get("transition_note", ""),
+        "notes": scene.get("notes", ""),
+        "estimated_duration_seconds": scene.get("estimated_duration_seconds"),
+        "claims": scene_claims,
+        "evidence": scene_evidence,
+        "hosts": hosts,
+        "forbidden_phrases": forbidden_phrases,
+        "max_reply_tokens": max_reply_tokens,
+    }
