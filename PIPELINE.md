@@ -545,20 +545,25 @@ Web extraction использует каскад extractors:
 
 - использует не только Claims, но и illustrative_evidence_ids (анекдоты, метафоры, кейсы)
 
-- получает не только scene description, но и act-level contract:
-  - `story_role`
-  - `act_purpose`
-  - `internal_arc`
-  - `opening_question`
-  - `ending_turn`
-  - `scene_strategy`
+- получает компактный локальный context вместо полного act contract:
+  - `act_title`
+  - `previous_scene`
+  - `already_covered_claims`
   - `transition_note`
 
 - держит dialogue в `language` подкаста, а не дрейфует в английский или смешанный output
 
-- использует `description` и `transition_note` как scene goal, а не как текст для тупого paraphrase
+- использует `description` как main job сцены, а `transition_note` только как лёгкий landing/bridge
+
+- если текущая сцена пересекается с `already_covered_claims`, делает callback и двигается к новому смыслу вместо полного re-explain
 
 - ставит теги для TTS (direction/mood), но без ломания смысловой структуры
+
+- при включённом debug dump пишет per-scene JSON-артефакты в `tmp/debug/screenwriter`:
+  - input payload
+  - все LLM attempts
+  - raw/parsed output
+  - финальный dialogue
 
 ### **6.2 Writer Revolt (расширенные причины)**
 

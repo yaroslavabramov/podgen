@@ -161,6 +161,9 @@ async def integrate_acts(state: PipelineState) -> dict:
                 applied_transitions=None,
             )
             logger.warning("Integration step failed after retries")
+            raise RuntimeError(
+                f"Integrator failed after {INTEGRATOR_RETRIES} attempts: {last_error or 'unknown_error'}"
+            )
         else:
             applied_transitions = []
             for tr in integration.get("transitions", []):

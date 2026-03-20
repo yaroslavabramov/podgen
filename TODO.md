@@ -108,6 +108,8 @@
 - [ ] Cost tracking (actual vs estimated)
 - [ ] Temp source cleanup tied to generation_run (currently age-based only)
 - [x] LangSmith tracing baseline (workers + pipeline root/nodes + LLM + ingestion/research tools)
+- [x] Screenwriter prompt payload reduction: remove redundant act-level abstractions, add `previous_scene` + `already_covered_claims` local memory, and bias scene writing toward callbacks over re-explanations
+- [x] Screenwriter scene-level debug dumps: persist prompt payload, attempt history, raw/parsed LLM output, and final dialogue for each scene
 
 ---
 

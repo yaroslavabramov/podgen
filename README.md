@@ -143,7 +143,8 @@ Phase 4 now uses explicit lineage and canonical evidence semantics:
 - planning payloads now carry `output_language`, so showrunner and act planner keep human-readable output in the podcast language instead of drifting into English
 - act planner now uses the act story contract, branch-focus summary, scene-count guidance, and claim-first support bundles to build compact beat cards instead of long pseudo-script scenes; it asks the model to declare a short `scene_strategy`, explicitly warns against the default `hook -> explanation -> case_study -> takeaway` skeleton, treats `case_study` as optional rather than mandatory, and deterministically reuses bundled claim evidence before falling back to vector-search rescue
 - integrator now uses a stricter structured-output contract with retry and debug dumps, so long transition diagnostics do not silently truncate into a no-op at `2048` tokens
-- screenwriter now receives the act contract and scene handoff context (`story_role`, `act_purpose`, `internal_arc`, `opening_question`, `ending_turn`, `scene_strategy`, `transition_note`) instead of writing from bare scene descriptions only, and its prompt hard-locks dialogue to the podcast language
+- screenwriter now receives a trimmed scene-writing payload (`act_title`, `previous_scene`, `already_covered_claims`, `transition_note`) instead of the full act contract, so it keeps dialogue in the podcast language while avoiding scene-to-scene re-explanations of already covered material
+- screenwriter now writes per-scene JSON debug dumps (`tmp/debug/screenwriter`) with input payload, attempt history, raw/parsed LLM output, and final dialogue, so phase 6 regressions can be inspected directly from artifacts instead of only from final DB rows
 - when `WEB_EXTRACTOR_DEBUG_DUMP_DIR` is set, Hunter / Claim Builder / Verifier / Showrunner / Act Planner write JSON debug dumps for run analysis
 
 ## Runtime Reliability Notes (2026-02-23)

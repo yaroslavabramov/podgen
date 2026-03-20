@@ -4,14 +4,17 @@ import asyncio
 import json
 import logging
 import uuid
+from typing import Any
 
 from sqlalchemy import select
 
+from app.config import settings
 from app.workers.worker_db import worker_session_factory as async_session_factory
 from app.models.show_bible import ShowBible
 from app.models.claim import Claim
 from app.models.evidence import EvidenceSpan
 from app.models.episode_manifest import EpisodeManifest
+from app.pipeline.debug_dump import safe_filename_token, write_json_debug_dump
 from app.pipeline.llm_json import parse_llm_json
 from app.models.script_segment import ScriptSegment, AuditStatus
 from app.pipeline.state import PipelineState
@@ -24,7 +27,7 @@ SCENE_GENERATION_ATTEMPTS = 3
 SCENE_RETRY_BASE_DELAY_SECONDS = 1.0
 
 SCREENWRITER_SYSTEM = """You are a podcast screenwriter creating natural dialogue between two hosts.
-Given an act contract, scene brief, claims, evidence, and host personas, write the dialogue.
+Given a scene brief, local act context, claims, evidence, and host personas, write the dialogue.
 
 Return JSON array:
 [
@@ -52,8 +55,9 @@ Writing rules:
 - Language:
   - All dialogue lines MUST be in the `language` from the user payload.
   - Do not mix languages inside one line unless the evidence itself requires a short quoted term.
-- Use the act contract (`story_role`, `act_purpose`, `internal_arc`, `scene_strategy`) to make the scene feel like part of a larger arc, not an isolated explainer.
-- Use `description` and `transition_note` as scene goals, not text to paraphrase verbatim.
+- Use `description` as the main job of the scene. Use `transition_note` only as a light landing/bridge if it helps the ending.
+- Use `act_title`, `previous_scene`, and `already_covered_claims` only as local context. Do not restate material that the listener already heard unless this scene is explicitly reframing or paying it off.
+- If the current scene overlaps with `already_covered_claims`, briefly refer back and move to what is new in this scene.
 - Keep the scene moving. Do not let both hosts restate the same point in slightly different words.
 - Avoid dry explanatory dialogue by default. Prefer a concrete opening move, a turn, and a landing.
 - Let `scene_type` shape the scene:
@@ -67,6 +71,7 @@ Writing rules:
 - Do not make Host A always explain and Host B always ask for proof in the same rhythm. Vary who initiates and who reframes.
 - Use evidence organically. Do not dump raw quotes or source language into dialogue unless quoting is the point of the beat.
 - When claims are OBSERVED, UNVERIFIED, DISPUTED, OPINION, or REPORT, make the line sound appropriately attributed or qualified.
+- Prefer callbacks over re-explanations. If a prior scene already established the mechanism, this scene should build on it rather than teach it from scratch again.
 
 Keep replies under __MAX_REPLY_TOKENS__ tokens. Natural, conversational tone.
 Treat host/policy fields as abstract constraints; do not copy their wording verbatim into dialogue.
@@ -144,6 +149,17 @@ async def write_screenplay(state: PipelineState) -> dict:
                 logger.warning("Act %s beat_sheet has invalid type: %s", act_num, type(beat_sheet).__name__)
                 continue
 
+            act_claim_ids: list[str] = []
+            for act_scene in beat_sheet:
+                if not isinstance(act_scene, dict):
+                    continue
+                for cid in act_scene.get("claim_ids", []):
+                    if isinstance(cid, str) and cid not in act_claim_ids:
+                        act_claim_ids.append(cid)
+            act_claim_lookup = await _load_claim_prompt_payloads(db, act_claim_ids)
+            covered_claim_ids_in_act: list[str] = []
+            covered_claim_ids_set: set[str] = set()
+
             seen_scene_numbers_in_act: set[int] = set()
             for scene_idx, scene in enumerate(beat_sheet, start=1):
                 if not isinstance(scene, dict):
@@ -185,21 +201,21 @@ async def write_screenplay(state: PipelineState) -> dict:
                 if should_reuse_scene:
                     _append_unique_segment_id(str(existing_segment.id), all_segment_ids, all_segment_ids_set)
                     total_dialogue_lines += existing_line_count
+                    _extend_unique_ids(
+                        ordered=covered_claim_ids_in_act,
+                        seen=covered_claim_ids_set,
+                        new_values=_extract_dialogue_claim_ids(existing_segment.dialogue_json),
+                    )
                     publish_event(run_id, scene_written(act_num, scene_num))
                     publish_event(run_id, step_completed("phase6_writing", f"write_{act_num}_{scene_num}"))
                     continue
 
                 # Gather claims and evidence for this scene
-                scene_claims = []
-                for cid in scene.get("claim_ids", []):
-                    r = await db.execute(select(Claim).where(Claim.id == uuid.UUID(cid)))
-                    c = r.scalar_one_or_none()
-                    if c:
-                        scene_claims.append({
-                            "id": str(c.id), "type": c.claim_type,
-                            "verification": c.verification_level, "statement": c.statement[:300],
-                            "attribution": c.attribution,
-                        })
+                scene_claims = [
+                    act_claim_lookup[cid]
+                    for cid in scene.get("claim_ids", [])
+                    if isinstance(cid, str) and cid in act_claim_lookup
+                ]
 
                 scene_evidence = []
                 for eid in scene.get("evidence_ids", []):
@@ -211,25 +227,31 @@ async def write_screenplay(state: PipelineState) -> dict:
                             "asset_type": e.asset_type, "tellability": e.tellability_notes,
                         })
 
-                prompt = json.dumps(
-                    _build_scene_prompt_payload(
-                        act=act,
-                        act_number=act_num,
-                        scene=scene,
-                        scene_number=scene_num,
-                        scene_claims=scene_claims,
-                        scene_evidence=scene_evidence,
-                        hosts=hosts,
-                        forbidden_phrases=forbidden,
-                        max_reply_tokens=max_tokens,
-                        language=state["language"],
+                prompt_payload = _build_scene_prompt_payload(
+                    act=act,
+                    act_number=act_num,
+                    scene=scene,
+                    scene_number=scene_num,
+                    scene_claims=scene_claims,
+                    scene_evidence=scene_evidence,
+                    hosts=hosts,
+                    forbidden_phrases=forbidden,
+                    max_reply_tokens=max_tokens,
+                    language=state["language"],
+                    previous_scene=_build_previous_scene_payload(beat_sheet, scene_idx),
+                    already_covered_claims=_build_already_covered_claims_payload(
+                        covered_claim_ids=covered_claim_ids_in_act,
+                        claim_lookup=act_claim_lookup,
                     ),
-                    ensure_ascii=False,
                 )
+                prompt = json.dumps(prompt_payload, ensure_ascii=False)
 
                 dialogue = []
                 last_error: Exception | None = None
+                attempt_debugs: list[dict[str, Any]] = []
                 for attempt in range(1, SCENE_GENERATION_ATTEMPTS + 1):
+                    raw = ""
+                    parsed = None
                     try:
                         raw = await call_sonnet_structured(
                             system=system_prompt,
@@ -262,9 +284,35 @@ async def write_screenplay(state: PipelineState) -> dict:
 
                         if not dialogue:
                             raise ValueError("screenwriter output contains no valid dialogue lines")
+                        attempt_debugs.append(
+                            {
+                                "attempt": attempt,
+                                "status": "ok",
+                                "llm_output": {
+                                    "raw_chars": len(raw or ""),
+                                    "raw": raw,
+                                    "parsed_type": type(parsed).__name__ if parsed is not None else None,
+                                    "parsed": parsed,
+                                },
+                                "dialogue_line_count": len(dialogue),
+                            }
+                        )
                         break
                     except Exception as exc:
                         last_error = exc
+                        attempt_debugs.append(
+                            {
+                                "attempt": attempt,
+                                "status": "invalid_output",
+                                "llm_output": {
+                                    "raw_chars": len(raw or ""),
+                                    "raw": raw,
+                                    "parsed_type": type(parsed).__name__ if parsed is not None else None,
+                                    "parsed": parsed,
+                                },
+                                "error": f"{type(exc).__name__}: {exc}",
+                            }
+                        )
                         logger.warning(
                             "Screenwriting attempt %s/%s failed for act %s scene %s",
                             attempt,
@@ -277,6 +325,16 @@ async def write_screenplay(state: PipelineState) -> dict:
                             await asyncio.sleep(SCENE_RETRY_BASE_DELAY_SECONDS * attempt)
 
                 if not dialogue:
+                    _dump_screenwriter_debug(
+                        run_id=run_id,
+                        act_number=act_num,
+                        scene_number=scene_num,
+                        status="llm_or_parse_failed",
+                        prompt_payload=prompt_payload,
+                        attempts=attempt_debugs,
+                        dialogue=None,
+                        error=f"{type(last_error).__name__}: {last_error}" if last_error else "unknown_error",
+                    )
                     raise RuntimeError(
                         f"Screenwriting failed for act {act_num} scene {scene_num} "
                         f"after {SCENE_GENERATION_ATTEMPTS} attempts: {last_error}"
@@ -303,6 +361,21 @@ async def write_screenplay(state: PipelineState) -> dict:
                 await db.commit()
                 _append_unique_segment_id(str(segment.id), all_segment_ids, all_segment_ids_set)
                 total_dialogue_lines += len(dialogue)
+                _extend_unique_ids(
+                    ordered=covered_claim_ids_in_act,
+                    seen=covered_claim_ids_set,
+                    new_values=_extract_dialogue_claim_ids(dialogue),
+                )
+                _dump_screenwriter_debug(
+                    run_id=run_id,
+                    act_number=act_num,
+                    scene_number=scene_num,
+                    status="ok",
+                    prompt_payload=prompt_payload,
+                    attempts=attempt_debugs,
+                    dialogue=dialogue,
+                    error=None,
+                )
 
                 publish_event(run_id, scene_written(act_num, scene_num))
                 publish_event(run_id, step_completed("phase6_writing", f"write_{act_num}_{scene_num}"))
@@ -338,6 +411,14 @@ def _append_unique_segment_id(segment_id: str, ordered: list[str], seen: set[str
     ordered.append(segment_id)
 
 
+def _extend_unique_ids(*, ordered: list[str], seen: set[str], new_values: list[str]) -> None:
+    for value in new_values:
+        if value in seen:
+            continue
+        seen.add(value)
+        ordered.append(value)
+
+
 def _normalized_scene_number(value: object, fallback: int) -> int:
     try:
         scene_number = int(value)
@@ -348,8 +429,8 @@ def _normalized_scene_number(value: object, fallback: int) -> int:
 
 def _build_scene_prompt_payload(
     *,
-    act: dict,
     act_number: int,
+    act: dict,
     scene: dict,
     scene_number: int,
     scene_claims: list[dict],
@@ -358,26 +439,140 @@ def _build_scene_prompt_payload(
     forbidden_phrases: list[str],
     max_reply_tokens: int,
     language: str,
+    previous_scene: dict | None,
+    already_covered_claims: list[dict],
 ) -> dict:
     return {
         "language": str(language or "en").strip() or "en",
         "act_number": act_number,
         "act_title": act.get("title", ""),
-        "story_role": act.get("story_role", ""),
-        "act_purpose": act.get("purpose", ""),
-        "internal_arc": act.get("internal_arc", ""),
-        "opening_question": act.get("opening_question", ""),
-        "ending_turn": act.get("ending_turn", ""),
-        "scene_strategy": act.get("scene_strategy", ""),
         "scene_number": scene_number,
         "scene_type": scene.get("type", "explanation"),
         "description": scene.get("description", ""),
         "transition_note": scene.get("transition_note", ""),
         "notes": scene.get("notes", ""),
         "estimated_duration_seconds": scene.get("estimated_duration_seconds"),
+        "previous_scene": previous_scene,
+        "already_covered_claims": already_covered_claims,
         "claims": scene_claims,
         "evidence": scene_evidence,
         "hosts": hosts,
         "forbidden_phrases": forbidden_phrases,
         "max_reply_tokens": max_reply_tokens,
     }
+
+
+async def _load_claim_prompt_payloads(db, claim_ids: list[str]) -> dict[str, dict]:
+    payloads: dict[str, dict] = {}
+    claim_uuid_map: dict[uuid.UUID, str] = {}
+    for cid in claim_ids:
+        try:
+            claim_uuid = uuid.UUID(cid)
+        except (TypeError, ValueError):
+            continue
+        claim_uuid_map[claim_uuid] = cid
+
+    if not claim_uuid_map:
+        return payloads
+
+    result = await db.execute(select(Claim).where(Claim.id.in_(list(claim_uuid_map.keys()))))
+    for claim in result.scalars().all():
+        original_id = claim_uuid_map.get(claim.id)
+        if original_id is None:
+            continue
+        payloads[original_id] = {
+            "id": str(claim.id),
+            "type": claim.claim_type,
+            "verification": claim.verification_level,
+            "statement": claim.statement[:300],
+            "attribution": claim.attribution,
+        }
+    return payloads
+
+
+def _build_previous_scene_payload(beat_sheet: list[dict], current_scene_idx: int) -> dict | None:
+    if current_scene_idx <= 1:
+        return None
+    previous = beat_sheet[current_scene_idx - 2]
+    if not isinstance(previous, dict):
+        return None
+    return {
+        "scene_number": _normalized_scene_number(previous.get("scene"), current_scene_idx - 1),
+        "scene_type": previous.get("type", "explanation"),
+        "description": previous.get("description", ""),
+        "transition_note": previous.get("transition_note", ""),
+    }
+
+
+def _build_already_covered_claims_payload(
+    *,
+    covered_claim_ids: list[str],
+    claim_lookup: dict[str, dict],
+) -> list[dict]:
+    covered: list[dict] = []
+    for cid in covered_claim_ids:
+        claim_payload = claim_lookup.get(cid)
+        if claim_payload is None:
+            continue
+        covered.append({
+            "id": cid,
+            "statement": claim_payload.get("statement", ""),
+        })
+    return covered
+
+
+def _extract_dialogue_claim_ids(dialogue_json: object) -> list[str]:
+    ordered: list[str] = []
+    seen: set[str] = set()
+    if not isinstance(dialogue_json, list):
+        return ordered
+    for line in dialogue_json:
+        if not isinstance(line, dict):
+            continue
+        claim_ids = line.get("claim_ids")
+        if not isinstance(claim_ids, list):
+            continue
+        for claim_id in claim_ids:
+            if not isinstance(claim_id, str) or not claim_id or claim_id in seen:
+                continue
+            seen.add(claim_id)
+            ordered.append(claim_id)
+    return ordered
+
+
+def _dump_screenwriter_debug(
+    *,
+    run_id: str,
+    act_number: int,
+    scene_number: int,
+    status: str,
+    prompt_payload: dict,
+    attempts: list[dict[str, Any]],
+    dialogue: list[dict] | None,
+    error: str | None,
+) -> None:
+    dump_dir = (settings.web_extractor_debug_dump_dir or "").strip()
+    if not dump_dir:
+        return
+
+    write_json_debug_dump(
+        raw_dir=dump_dir,
+        subdir="screenwriter",
+        filename_stem=(
+            f"run-{safe_filename_token(run_id)}_"
+            f"act-{act_number:02d}_scene-{scene_number:02d}_{safe_filename_token(status)}"
+        ),
+        payload={
+            "run_id": run_id,
+            "act_number": act_number,
+            "scene_number": scene_number,
+            "status": status,
+            "input": prompt_payload,
+            "attempts": attempts,
+            "output": {
+                "dialogue_line_count": len(dialogue or []),
+                "dialogue": dialogue,
+            },
+            "error": error,
+        },
+    )
