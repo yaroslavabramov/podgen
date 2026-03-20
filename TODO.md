@@ -502,6 +502,12 @@ Deferred after Round 68:
 - [x] **P1**: Add stronger showrunner claim-density caps and curated selection pressure so act pools stop behaving like near-complete research dumps
 - [ ] **P2**: Improve claim-level multi-source diversity via post-build merge/corroboration or richer builder prompting, instead of leaving almost all planning claims at `source_diversity = 1`
 
+**Round 74 (act-planner claim-first evidence packaging):**
+- [x] **P0**: Remove flat `evidence[:20]` payload capping from `act_planner`; scene planning now receives claim-first support bundles instead of a lossy global evidence list
+- [x] **P0**: Add deterministic claim-first evidence hydration for beat scenes before `vector_search` rescue, so claim-anchored scenes reuse bundled support from the act payload
+- [x] **P1**: Reduce act-planner payload noise by dropping flat evidence/provenance blobs and keeping compact claim bundles (`type`, support counts, branch/intents, `support_bundle`)
+- [x] **P1**: Budget claim support in prompt packaging as `1` best direct quote per claim plus `1` optional illustrative quote, instead of sending an unstructured evidence bag
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

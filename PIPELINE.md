@@ -496,12 +496,14 @@ Web extraction использует каскад extractors:
 ### **5.2 Act/Sect Planners (параллельные)**
 
 - пишут Beat Sheet (таймкоды/сцены)
-- получают claims/evidence не как flat lists, а с narrative/source/question context:
-  - claim-level `has_illustrative`, `illustrative_evidence_count`, `direct_support_count`
-  - evidence-level `illustrative`, `source_reliability`, `authority_type`
-  - branch/question intent and `direct_or_contextual` summaries
+- получают claims не как flat statement list и не как lossy `evidence[:20]`, а как compact claim bundles:
+  - claim-level `type`, `verification`, `has_illustrative`, `illustrative_evidence_count`, `direct_support_count`, `source_diversity`
+  - `branch_ids` / `intents`
+  - `support_bundle.direct` (1 лучший factual quote)
+  - `support_bundle.illustrative` (0-1 vivid quote when available)
 - дополнительно получают act-level story contract, `branch_focus_summary`, `conflict_count` и `scene_count_guidance`, чтобы строить сцены как движение внутри акта, а не как flat list of explanation beats
 - planner теперь нацелен на compact beat cards, а не на длинные pseudo-script paragraphs; он просит модель сначала выбрать короткую `scene_strategy`, явно запрещает default-скелет `hook -> explanation -> case_study -> takeaway`, трактует `case_study` как optional scene function и держит все human-readable поля в `output_language`
+- если сцена выбрала claim, но LLM не приклеил `evidence_ids`, act planner сначала детерминированно подставляет bundled claim support и только потом идёт в `vector_search` rescue
 
 - при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` каждый act planner пишет JSON dump с prompt payload, attempt history, raw/parsed outputs, normalized beat sheet и результатом evidence gap fill
 

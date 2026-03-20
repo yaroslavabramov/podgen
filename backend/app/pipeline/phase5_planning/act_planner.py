@@ -30,6 +30,10 @@ from app.realtime.events import act_planned, step_started, step_completed
 logger = logging.getLogger(__name__)
 ACT_PLANNER_RETRIES = 2
 MAX_EVIDENCE_SEARCHES_PER_ACT = 3
+MAX_SUPPORT_EVIDENCE_PER_ACT = 30
+MAX_DIRECT_SUPPORT_PER_CLAIM = 1
+MAX_ILLUSTRATIVE_SUPPORT_PER_CLAIM = 1
+MAX_EXISTING_EVIDENCE_IDS_PER_SCENE = 2
 
 EVIDENCE_EXTRACT_SYSTEM = """You are an evidence extractor. Given a chunk of text and a scene description, extract a relevant verbatim quote that could serve as evidence for the scene.
 
@@ -45,7 +49,7 @@ If the chunk has no relevant evidence for this scene, return:
 {"quote": null, "asset_type": null, "relevance_score": 0.0}"""
 
 ACT_PLANNER_SYSTEM = """You are a podcast act planner creating a beat sheet (scene list).
-Given an act's role, purpose, claims, evidence, and quotas, create a detailed beat sheet that feels like story movement, not a flat list of explanations.
+Given an act's role, purpose, claims with support bundles, and quotas, create a detailed beat sheet that feels like story movement, not a flat list of explanations.
 
 Return JSON:
 {
@@ -76,7 +80,8 @@ Scene types:
 Use claim/evidence metadata:
 - `has_illustrative` and `illustrative_evidence_count` indicate narrative hooks
 - `direct_support_count` and `source_diversity` indicate factual backbone
-- evidence with `illustrative=true` is good for hooks, case-study beats, and vivid transitions
+- each claim includes `support_bundle.direct` and optional `support_bundle.illustrative`
+- bundled illustrative evidence is good for hooks, case-study beats, and vivid transitions
 
 Rules:
 - Language:
@@ -101,6 +106,8 @@ Rules:
 - Avoid repeating the same proposition core across multiple scenes in the same act.
 - Use `scene_count_guidance` as the default size target for the act. Do not exceed it unless the act would otherwise feel structurally incomplete.
 - Prefer compact beat cards, not mini-script paragraphs. `description` should describe the beat, not write the scene. `notes` should stay short.
+- When a scene uses a claim, attach one or more `evidence_ids` from that claim's bundled support whenever available.
+- Prefer bundled claim support over improvising unsupported scenes or assuming an evidence search will rescue the beat later.
 - Alternate dense explanation with a vivid example, hook, case, contrast, or transition whenever the evidence allows it.
 - A `case_study` scene is optional, not mandatory. Use it only when a concrete episode materially advances the act.
 - If the act has illustrative material, use it early or at key pivots instead of burying it at the end.
@@ -173,6 +180,7 @@ async def plan_act(state: PipelineState) -> dict:
                 act_evidence=act_evidence,
                 output_language=state.get("language", "en"),
             )
+            claim_support_lookup = _claim_support_lookup(base_prompt["claims"])
 
             beat_sheet: list[dict[str, Any]] = []
             scene_strategy = ""
@@ -260,6 +268,11 @@ async def plan_act(state: PipelineState) -> dict:
             else:
                 act.pop("scene_strategy", None)
 
+            hydrated_existing_evidence_ids = _hydrate_scene_evidence_ids_from_claim_support(
+                beat_sheet,
+                claim_support_lookup,
+            )
+
             # Fill evidence gaps from existing corpus
             try:
                 new_ev_ids = await _fill_evidence_gaps(
@@ -284,6 +297,8 @@ async def plan_act(state: PipelineState) -> dict:
                 attempts=attempt_debugs,
                 beat_sheet=beat_sheet,
                 gap_fill_result={
+                    "hydrated_existing_evidence_ids": hydrated_existing_evidence_ids,
+                    "hydrated_existing_evidence_count": len(hydrated_existing_evidence_ids),
                     "new_evidence_ids": new_ev_ids,
                     "new_evidence_count": len(new_ev_ids),
                 },
@@ -493,6 +508,11 @@ def _build_act_prompt_payload(
 ) -> dict[str, Any]:
     estimated_duration = _positive_int(act.get("estimated_duration_seconds"), 300)
     conflict_ids = _uuid_list(act.get("conflict_brief_ids"))
+    prompt_claims = _build_claim_prompt_payloads(
+        act_claims=act_claims,
+        act_evidence=act_evidence,
+        max_support_evidence=MAX_SUPPORT_EVIDENCE_PER_ACT,
+    )
     return {
         "act_number": act_number,
         "output_language": str(output_language or "en").strip() or "en",
@@ -511,11 +531,241 @@ def _build_act_prompt_payload(
         "estimated_duration_seconds": estimated_duration,
         "scene_count_guidance": _scene_count_guidance(estimated_duration),
         "content_quotas": act.get("content_quotas", {}) if isinstance(act.get("content_quotas"), dict) else {},
-        "conflict_brief_ids": conflict_ids,
         "conflict_count": len(conflict_ids),
-        "claims": act_claims,
-        "evidence": act_evidence[:20],
+        "claims": prompt_claims,
     }
+
+
+def _build_claim_prompt_payloads(
+    *,
+    act_claims: list[dict[str, Any]],
+    act_evidence: list[dict[str, Any]],
+    max_support_evidence: int,
+) -> list[dict[str, Any]]:
+    evidence_by_claim: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    for claim in act_claims:
+        claim_id = claim.get("id")
+        if isinstance(claim_id, str) and claim_id.strip():
+            evidence_by_claim[claim_id] = {
+                "direct": _rank_support_candidates(
+                    act_evidence,
+                    claim_id=claim_id,
+                    mode="direct",
+                ),
+                "illustrative": _rank_support_candidates(
+                    act_evidence,
+                    claim_id=claim_id,
+                    mode="illustrative",
+                ),
+            }
+
+    prompt_claims: list[dict[str, Any]] = []
+    support_slots_used = 0
+    support_cap = max(max_support_evidence, len(act_claims))
+
+    for claim in act_claims:
+        claim_id = str(claim.get("id") or "").strip()
+        candidates = evidence_by_claim.get(claim_id, {"direct": [], "illustrative": []})
+        direct_bundle = candidates["direct"][:MAX_DIRECT_SUPPORT_PER_CLAIM]
+        support_slots_used += len(direct_bundle)
+        prompt_claims.append(
+            {
+                "id": claim_id,
+                "type": str(claim.get("type") or "").strip(),
+                "verification": str(claim.get("verification") or "").strip(),
+                "statement": str(claim.get("statement") or "").strip(),
+                "has_illustrative": bool(claim.get("has_illustrative")),
+                "illustrative_evidence_count": _positive_int(claim.get("illustrative_evidence_count"), 0),
+                "direct_support_count": _positive_int(claim.get("direct_support_count"), 0),
+                "source_diversity": _positive_int(claim.get("source_diversity"), 0),
+                "branch_ids": [
+                    branch_id
+                    for branch_id in (claim.get("branch_ids") or [])
+                    if isinstance(branch_id, str) and branch_id.strip()
+                ],
+                "intents": [
+                    intent
+                    for intent in (claim.get("intents") or [])
+                    if isinstance(intent, str) and intent.strip()
+                ],
+                "support_bundle": {
+                    "direct": direct_bundle,
+                    "illustrative": [],
+                },
+            }
+        )
+
+    for prompt_claim in prompt_claims:
+        if support_slots_used >= support_cap:
+            break
+        claim_id = prompt_claim["id"]
+        direct_ids = {item["id"] for item in prompt_claim["support_bundle"]["direct"]}
+        illustrative_candidates = [
+            item
+            for item in evidence_by_claim.get(claim_id, {}).get("illustrative", [])
+            if item["id"] not in direct_ids
+        ][:MAX_ILLUSTRATIVE_SUPPORT_PER_CLAIM]
+        if not illustrative_candidates:
+            continue
+        prompt_claim["support_bundle"]["illustrative"] = illustrative_candidates
+        support_slots_used += len(illustrative_candidates)
+
+    return prompt_claims
+
+
+def _rank_support_candidates(
+    act_evidence: list[dict[str, Any]],
+    *,
+    claim_id: str,
+    mode: str,
+) -> list[dict[str, Any]]:
+    ranked: list[tuple[float, dict[str, Any]]] = []
+    seen_ids: set[str] = set()
+    for evidence in act_evidence:
+        evidence_id = str(evidence.get("id") or "").strip()
+        if not evidence_id or evidence_id in seen_ids:
+            continue
+
+        claim_refs = evidence.get("supporting_claim_ids") if mode == "direct" else evidence.get("illustrative_claim_ids")
+        if claim_id not in (claim_refs or []):
+            continue
+
+        compact = {
+            "id": evidence_id,
+            "quote": str(evidence.get("quote") or "").strip(),
+            "asset_type": str(evidence.get("asset_type") or "").strip(),
+            "source_title": str(evidence.get("source_title") or "").strip(),
+            "authority_type": str(evidence.get("authority_type") or "").strip(),
+        }
+        if not compact["quote"]:
+            continue
+
+        ranked.append((_support_score(evidence, mode=mode), compact))
+        seen_ids.add(evidence_id)
+
+    ranked.sort(key=lambda item: (-item[0], item[1]["id"]))
+    return [item for _, item in ranked]
+
+
+def _support_score(evidence: dict[str, Any], *, mode: str) -> float:
+    score = 0.0
+    authority_type = str(evidence.get("authority_type") or "").strip()
+    source_reliability = str(evidence.get("source_reliability") or "").strip()
+    direct_or_contextual = set(evidence.get("direct_or_contextual") or [])
+    narrative_score = float(evidence.get("narrative_score") or 0.0)
+    asset_type = str(evidence.get("asset_type") or "").strip()
+
+    if authority_type == "primary":
+        score += 2.0
+    elif authority_type == "secondary":
+        score += 1.0
+
+    if source_reliability == "high":
+        score += 1.5
+    elif source_reliability == "medium":
+        score += 0.75
+
+    if not bool(evidence.get("is_temporary")):
+        score += 0.25
+
+    if mode == "direct":
+        if bool(evidence.get("supports_fact")):
+            score += 3.0
+        if "direct" in direct_or_contextual:
+            score += 2.0
+        elif "contextual" in direct_or_contextual:
+            score += 0.5
+        score += min(narrative_score, 1.0) * 0.25
+    else:
+        if bool(evidence.get("illustrative")):
+            score += 2.5
+        if asset_type in {"anecdote", "case", "contrast", "timeline"}:
+            score += 1.0
+        score += min(narrative_score, 1.0) * 2.0
+
+    return score
+
+
+def _claim_support_lookup(prompt_claims: list[dict[str, Any]]) -> dict[str, dict[str, list[str]]]:
+    lookup: dict[str, dict[str, list[str]]] = {}
+    for claim in prompt_claims:
+        claim_id = str(claim.get("id") or "").strip()
+        if not claim_id:
+            continue
+        support_bundle = claim.get("support_bundle") or {}
+        lookup[claim_id] = {
+            "direct": _bundle_evidence_ids(support_bundle.get("direct")),
+            "illustrative": _bundle_evidence_ids(support_bundle.get("illustrative")),
+        }
+    return lookup
+
+
+def _bundle_evidence_ids(items: Any) -> list[str]:
+    if not isinstance(items, list):
+        return []
+    evidence_ids: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        evidence_id = str(item.get("id") or "").strip()
+        if not evidence_id or evidence_id in seen:
+            continue
+        seen.add(evidence_id)
+        evidence_ids.append(evidence_id)
+    return evidence_ids
+
+
+def _hydrate_scene_evidence_ids_from_claim_support(
+    beat_sheet: list[dict[str, Any]],
+    claim_support_lookup: dict[str, dict[str, list[str]]],
+) -> list[str]:
+    hydrated_ids: list[str] = []
+    seen: set[str] = set()
+    for scene in beat_sheet:
+        existing_ids = _uuid_list(scene.get("evidence_ids"))
+        claim_ids = _uuid_list(scene.get("claim_ids"))
+        scene["evidence_ids"] = existing_ids
+        if not claim_ids:
+            continue
+
+        scene_type = str(scene.get("type") or "").strip()
+        preferred_modes = (
+            ("illustrative", "direct")
+            if scene_type in {"hook", "case_study", "transition"}
+            else ("direct", "illustrative")
+        )
+        attached = list(existing_ids)
+        attached_set = set(existing_ids)
+        existing_set = set(existing_ids)
+        if len(attached) >= MAX_EXISTING_EVIDENCE_IDS_PER_SCENE:
+            continue
+
+        for mode in preferred_modes:
+            for claim_id in claim_ids:
+                for evidence_id in claim_support_lookup.get(claim_id, {}).get(mode, []):
+                    if evidence_id in attached_set:
+                        continue
+                    attached.append(evidence_id)
+                    attached_set.add(evidence_id)
+                    if len(attached) >= MAX_EXISTING_EVIDENCE_IDS_PER_SCENE:
+                        break
+                if len(attached) >= MAX_EXISTING_EVIDENCE_IDS_PER_SCENE:
+                    break
+            if len(attached) >= MAX_EXISTING_EVIDENCE_IDS_PER_SCENE:
+                break
+
+        if not attached:
+            continue
+
+        scene["evidence_ids"] = attached
+        for evidence_id in attached:
+            if evidence_id in existing_set or evidence_id in seen:
+                continue
+            seen.add(evidence_id)
+            hydrated_ids.append(evidence_id)
+
+    return hydrated_ids
 
 
 def _scene_count_guidance(estimated_duration_seconds: int) -> dict[str, int]:

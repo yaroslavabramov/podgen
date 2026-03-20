@@ -134,14 +134,14 @@ Phase 4 now uses explicit lineage and canonical evidence semantics:
 - claim builder prompt now optimizes for a compact writer-usable backbone: it prefers fewer stronger claims, merges evidence by proposition core, and avoids `one evidence span -> one micro-claim`
 - Hunter extraction now retries failed/invalid extraction passes with a narrower payload and tracks `expected_evidence` hits explicitly in debug/summary output
 - fast-web page retention now filters bibliography-like windows, records explicit drop reasons, and uses authority-aware retention plus weak-source-family penalties before extractor spend
-- planning payloads now carry illustrative/narrative signals plus branch/question intent context instead of flat claim lists only
+- planning payloads now carry claim-level narrative/support signals, and `act_planner` no longer depends on a flat lossy `evidence[:20]` bag
 - Hunter retrieval and Claim Builder instructions are intent-aware for `debate` / `compare` / `case_study`, with stricter guardrails against claim overshoot from partial or contextual evidence
 - showrunner caps per-act claim density so planning acts behave like curated story layers instead of near-complete research dumps, but no longer invents synthetic numeric conflicts from nearby claims
 - density capping preserves disputed/conflict claims so planning cannot silently drop debate moments before validation
 - preserved disputed/conflict claims still remain inside a bounded act cap; conflict-heavy acts stay curated instead of bypassing density control entirely
 - showrunner now plans explicit act story contracts (`story_role`, `purpose`, `internal_arc`, `opening_question`, `ending_turn`, `focus_branch_ids`) so planning works from editorial intent and act movement, not only from grouped claim IDs
 - planning payloads now carry `output_language`, so showrunner and act planner keep human-readable output in the podcast language instead of drifting into English
-- act planner now uses the act story contract, branch-focus summary, and scene-count guidance to build compact beat cards instead of long pseudo-script scenes; it now asks the model to declare a short `scene_strategy`, explicitly warns against the default `hook -> explanation -> case_study -> takeaway` skeleton, and treats `case_study` as optional rather than mandatory
+- act planner now uses the act story contract, branch-focus summary, scene-count guidance, and claim-first support bundles to build compact beat cards instead of long pseudo-script scenes; it asks the model to declare a short `scene_strategy`, explicitly warns against the default `hook -> explanation -> case_study -> takeaway` skeleton, treats `case_study` as optional rather than mandatory, and deterministically reuses bundled claim evidence before falling back to vector-search rescue
 - when `WEB_EXTRACTOR_DEBUG_DUMP_DIR` is set, Hunter / Claim Builder / Verifier / Showrunner / Act Planner write JSON debug dumps for run analysis
 
 ## Runtime Reliability Notes (2026-02-23)
