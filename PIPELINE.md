@@ -432,7 +432,7 @@ Web extraction использует каскад extractors:
   - `required_assets` / `expected_assets` / `missing_assets` из research context, когда они доступны
 - fast-web claim-corroboration path использует эти поля как input context, но не обязан механически копировать их в extractor prompt; top-level verbose `search_objective` заменяется compact corroboration goals layer
 - verifier reasoning принудительно держится коротким и evidence-bound: без спекуляций о "future dates", скрытых metadata-анomalies и прочих неявных выводов
-- numeric conflicts (курсы, даты, counts, ranges) ловятся lightweight pass'ом до showrunner, чтобы corroboration/planning могли переключаться с naive `confirm` на `resolve`
+- showrunner больше не генерирует synthetic numeric conflicts из соседних claims; planning видит только реальные upstream conflict briefs / disputed claims
 
 - при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` verifier пишет JSON dumps:
   - prefiltered claims
@@ -485,9 +485,8 @@ Web extraction использует каскад extractors:
   - `opening_question`
   - `ending_turn`
   - `focus_branch_ids`
-- перед showrunner input пополняется synthetic numeric conflicts
 - после normalization вводится density cap на claim pool per act, чтобы акты вели себя как curated editorial layer, а не как почти полный research dump
-- disputed claims и claims из synthetic/manual conflicts сохраняются через density cap и не могут быть молча выкинуты до conflict validation
+- disputed claims и claims из real/manual conflicts сохраняются через density cap и не могут быть молча выкинуты до conflict validation
 - preserve-path для disputed/conflict claims остаётся bounded самим act cap: конфликтно-насыщенные акты не пробивают cap полностью
 
 - при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` Showrunner пишет JSON dump с input payload, raw/parsed LLM output и normalized act plan

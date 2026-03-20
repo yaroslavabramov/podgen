@@ -496,7 +496,7 @@ Deferred after Round 68:
 - [x] **P1**: Strengthen `claim_corroboration` source-quality policy so primary/secondary candidates are preferred over tertiary/unknown pages in both reranking and extractor selection
 - [x] **P1**: Add explicit `expected_evidence` tracking in Hunter extraction/summary/debug output so soft editorial targets become measurable coverage signals instead of prompt-only hints
 - [x] **P1**: Add bibliography/reference-window filtering in fast-web excerpt selection using citation-like heuristics/regex signals before extractor LLM spends budget on them
-- [x] **P1**: Add lightweight numeric-conflict detection before showrunner so corroboration objectives can switch from `confirm` to `resolve` when claims contain incompatible dates/rates/counts
+- [ ] **P1**: Reintroduce claim-vs-claim conflict detection as an upstream LLM adjudication pass instead of showrunner-side numeric heuristics
 - [x] **P1**: Fix semantic claim-to-branch/question assignment so verifier-loop corroborates the right research target instead of following only broad provenance lineage
 - [x] **P1**: Rework targeted rebuild / verifier reuse so fingerprint-based skipping can actually save LLM calls for unchanged rebuilt claims (prefer update-over-delete semantics where feasible)
 - [x] **P1**: Add stronger showrunner claim-density caps and curated selection pressure so act pools stop behaving like near-complete research dumps

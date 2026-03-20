@@ -136,7 +136,7 @@ Phase 4 now uses explicit lineage and canonical evidence semantics:
 - fast-web page retention now filters bibliography-like windows, records explicit drop reasons, and uses authority-aware retention plus weak-source-family penalties before extractor spend
 - planning payloads now carry illustrative/narrative signals plus branch/question intent context instead of flat claim lists only
 - Hunter retrieval and Claim Builder instructions are intent-aware for `debate` / `compare` / `case_study`, with stricter guardrails against claim overshoot from partial or contextual evidence
-- showrunner adds lightweight numeric-conflict detection before planning and caps per-act claim density so planning acts behave like curated story layers instead of near-complete research dumps
+- showrunner caps per-act claim density so planning acts behave like curated story layers instead of near-complete research dumps, but no longer invents synthetic numeric conflicts from nearby claims
 - density capping preserves disputed/conflict claims so planning cannot silently drop debate moments before validation
 - preserved disputed/conflict claims still remain inside a bounded act cap; conflict-heavy acts stay curated instead of bypassing density control entirely
 - showrunner now plans explicit act story contracts (`story_role`, `purpose`, `opening_question`, `ending_turn`, `focus_branch_ids`) so planning works from editorial intent, not only from grouped claim IDs

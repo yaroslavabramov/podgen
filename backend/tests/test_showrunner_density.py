@@ -2,37 +2,8 @@ from app.models.claim import VerificationLevel
 from app.pipeline.phase5_planning.showrunner import (
     SHOWRUNNER_SYSTEM,
     _cap_act_claim_density,
-    _detect_numeric_conflicts,
     _normalize_plan,
 )
-
-
-def test_detect_numeric_conflicts_finds_incompatible_rates_with_shared_branch() -> None:
-    conflicts = _detect_numeric_conflicts(
-        [
-            {
-                "id": "c1",
-                "statement": "Hong Kong pegged HKD so that 1 HKD = 15 pence.",
-                "branch_ids": ["b1"],
-                "question_ids": ["q1"],
-            },
-            {
-                "id": "c2",
-                "statement": "The peg implied £1 = HK$15.36 to HK$15.45.",
-                "branch_ids": ["b1"],
-                "question_ids": ["q1"],
-            },
-            {
-                "id": "c3",
-                "statement": "Banknotes were issued by private banks.",
-                "branch_ids": ["b5"],
-                "question_ids": ["q5"],
-            },
-        ]
-    )
-
-    assert len(conflicts) == 1
-    assert conflicts[0]["claim_ids"] == ["c1", "c2"]
 
 
 def test_cap_act_claim_density_keeps_high_priority_claims() -> None:

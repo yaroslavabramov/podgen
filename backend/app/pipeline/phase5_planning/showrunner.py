@@ -2,7 +2,6 @@
 
 import json
 import logging
-import re
 import uuid
 
 from sqlalchemy import select
@@ -146,10 +145,6 @@ async def plan_episode(state: PipelineState) -> dict:
             claims_summary.append(claim_summary)
             if claim_summary["verification"] == VerificationLevel.DISPUTED:
                 disputed_ids.append(str(claim_summary["id"]))
-
-        synthetic_conflicts = _detect_numeric_conflicts(claims_summary)
-        if synthetic_conflicts:
-            conflicts_summary.extend(synthetic_conflicts)
 
         preserved_claim_ids = set(disputed_ids)
         conflict_claim_ids: set[str] = set()
@@ -338,76 +333,6 @@ def _string_list(value) -> list[str]:
         seen.add(token)
         out.append(token)
     return out
-
-
-def _extract_numeric_tokens(statement: str) -> set[str]:
-    return set(re.findall(r"\b\d[\d,.:/-]*\b", str(statement or "")))
-
-
-def _normalize_conflict_token(token: str) -> str:
-    normalized = token.lower()
-    for suffix in ("ing", "ed", "es", "s"):
-        if len(normalized) > 4 and normalized.endswith(suffix):
-            normalized = normalized[: -len(suffix)]
-            if len(normalized) >= 2 and normalized[-1] == normalized[-2]:
-                normalized = normalized[:-1]
-            break
-    return normalized
-
-
-def _content_tokens(statement: str) -> set[str]:
-    tokens = {
-        _normalize_conflict_token(token)
-        for token in re.findall(r"[\w$.-]+", str(statement or "").lower())
-        if len(token) > 2 and not any(ch.isdigit() for ch in token)
-    }
-    return tokens
-
-
-def _token_overlap(left: set[str], right: set[str]) -> float:
-    if not left or not right:
-        return 0.0
-    return len(left & right) / max(len(left), len(right))
-
-
-def _detect_numeric_conflicts(claims_summary: list[dict]) -> list[dict]:
-    conflicts: list[dict] = []
-    seen_pairs: set[tuple[str, str]] = set()
-    for index, left in enumerate(claims_summary):
-        left_id = str(left.get("id", "")).strip()
-        left_numbers = _extract_numeric_tokens(left.get("statement", ""))
-        if not left_id or not left_numbers:
-            continue
-        left_branches = set(left.get("branch_ids", []) or [])
-        left_questions = set(left.get("question_ids", []) or [])
-        left_tokens = _content_tokens(left.get("statement", ""))
-        for right in claims_summary[index + 1:]:
-            right_id = str(right.get("id", "")).strip()
-            if not right_id:
-                continue
-            pair_key = tuple(sorted((left_id, right_id)))
-            if pair_key in seen_pairs:
-                continue
-            right_numbers = _extract_numeric_tokens(right.get("statement", ""))
-            if not right_numbers or left_numbers == right_numbers:
-                continue
-            if not (left_branches & set(right.get("branch_ids", []) or []) or left_questions & set(right.get("question_ids", []) or [])):
-                continue
-            overlap = _token_overlap(left_tokens, _content_tokens(right.get("statement", "")))
-            if overlap < 0.15:
-                continue
-            seen_pairs.add(pair_key)
-            conflicts.append(
-                {
-                    "id": f"numeric:{pair_key[0]}:{pair_key[1]}",
-                    "what": (
-                        "Conflicting numeric claims require resolution before writing: "
-                        f"{left.get('statement', '')[:140]} | {right.get('statement', '')[:140]}"
-                    ),
-                    "claim_ids": [pair_key[0], pair_key[1]],
-                }
-            )
-    return conflicts
 
 
 def _claim_priority_score(claim_summary: dict) -> tuple[int, int, int, int, int]:
