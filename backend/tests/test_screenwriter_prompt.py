@@ -8,6 +8,7 @@ from app.pipeline.phase6_writing.screenwriter import (
     _build_scene_prompt_payload,
     _dump_screenwriter_debug,
     _extract_dialogue_claim_ids,
+    _should_force_rewrite_for_node_rerun,
 )
 
 
@@ -179,3 +180,52 @@ def test_dump_screenwriter_debug_writes_scene_dump(tmp_path) -> None:
         assert payload["output"]["dialogue_line_count"] == 1
     finally:
         settings.web_extractor_debug_dump_dir = original_dir
+
+
+def test_should_force_rewrite_for_targeted_screenwriter_rerun() -> None:
+    assert _should_force_rewrite_for_node_rerun(
+        {
+            "step_control": {
+                "requested_action": "rerun",
+                "requested_target_node": "write_screenplay",
+                "last_node": "integrate_acts",
+            }
+        },
+        node_name="write_screenplay",
+    )
+
+
+def test_should_force_rewrite_for_last_node_rerun_without_explicit_target() -> None:
+    assert _should_force_rewrite_for_node_rerun(
+        {
+            "step_control": {
+                "requested_action": "rerun",
+                "requested_target_node": None,
+                "last_node": "write_screenplay",
+            }
+        },
+        node_name="write_screenplay",
+    )
+
+
+def test_should_not_force_rewrite_for_non_rerun_or_other_target() -> None:
+    assert not _should_force_rewrite_for_node_rerun(
+        {
+            "step_control": {
+                "requested_action": "next",
+                "requested_target_node": "write_screenplay",
+                "last_node": "write_screenplay",
+            }
+        },
+        node_name="write_screenplay",
+    )
+    assert not _should_force_rewrite_for_node_rerun(
+        {
+            "step_control": {
+                "requested_action": "rerun",
+                "requested_target_node": "plan_acts",
+                "last_node": "write_screenplay",
+            }
+        },
+        node_name="write_screenplay",
+    )

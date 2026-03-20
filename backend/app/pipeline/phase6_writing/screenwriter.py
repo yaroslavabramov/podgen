@@ -14,6 +14,7 @@ from app.models.show_bible import ShowBible
 from app.models.claim import Claim
 from app.models.evidence import EvidenceSpan
 from app.models.episode_manifest import EpisodeManifest
+from app.models.generation_run import GenerationRun
 from app.pipeline.debug_dump import safe_filename_token, write_json_debug_dump
 from app.pipeline.llm_json import parse_llm_json
 from app.models.script_segment import ScriptSegment, AuditStatus
@@ -92,6 +93,12 @@ async def write_screenplay(state: PipelineState) -> dict:
 
     async with async_session_factory() as db:
         run_uuid = uuid.UUID(run_id)
+        run_result = await db.execute(select(GenerationRun).where(GenerationRun.id == run_uuid))
+        run = run_result.scalar_one_or_none()
+        force_rewrite_on_step_rerun = _should_force_rewrite_for_node_rerun(
+            config=(run.config if run is not None else None),
+            node_name="write_screenplay",
+        )
 
         # Load ShowBible
         bible = None
@@ -182,7 +189,10 @@ async def write_screenplay(state: PipelineState) -> dict:
                 )
                 should_rewrite_scene = (
                     existing_segment is not None
-                    and existing_segment.audit_status == AuditStatus.REVISED
+                    and (
+                        existing_segment.audit_status == AuditStatus.REVISED
+                        or force_rewrite_on_step_rerun
+                    )
                 )
                 should_reuse_scene = (
                     existing_segment is not None
@@ -402,6 +412,22 @@ def _dialogue_line_count(dialogue_json: object) -> int:
         if isinstance(text, str) and text.strip():
             count += 1
     return count
+
+
+def _should_force_rewrite_for_node_rerun(config: dict | None, *, node_name: str) -> bool:
+    if not isinstance(config, dict):
+        return False
+    step_control = config.get("step_control")
+    if not isinstance(step_control, dict):
+        return False
+    requested_action = step_control.get("requested_action")
+    if requested_action != "rerun":
+        return False
+    requested_target_node = step_control.get("requested_target_node")
+    if isinstance(requested_target_node, str) and requested_target_node.strip():
+        return requested_target_node.strip() == node_name
+    last_node = step_control.get("last_node")
+    return isinstance(last_node, str) and last_node == node_name
 
 
 def _append_unique_segment_id(segment_id: str, ordered: list[str], seen: set[str]) -> None:
