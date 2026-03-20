@@ -45,7 +45,7 @@ If the chunk has no relevant evidence for this scene, return:
 {"quote": null, "asset_type": null, "relevance_score": 0.0}"""
 
 ACT_PLANNER_SYSTEM = """You are a podcast act planner creating a beat sheet (scene list).
-Given an act's claims, evidence, and quotas, create a detailed scene breakdown.
+Given an act's role, purpose, claims, evidence, and quotas, create a detailed beat sheet that feels like story movement, not a flat list of explanations.
 
 Return JSON:
 {
@@ -75,7 +75,22 @@ Scene types:
 Use claim/evidence metadata:
 - `has_illustrative` and `illustrative_evidence_count` indicate narrative hooks
 - `direct_support_count` and `source_diversity` indicate factual backbone
-- evidence with `illustrative=true` is good for hooks, case-study beats, and vivid transitions"""
+- evidence with `illustrative=true` is good for hooks, case-study beats, and vivid transitions
+
+Rules:
+- The act must feel like it goes somewhere. Scenes should create setup -> development -> turn -> landing, not just restate adjacent facts.
+- Respect the act contract:
+  - `story_role` says what kind of movement this act should deliver
+  - `purpose` says why the act exists
+  - `opening_question` should shape the first scene
+  - `ending_turn` should be felt by the final scene
+- Do not turn the act into a laundry list of explanations.
+- Keep one clear job per scene. Split only when the listener would feel a meaningful shift.
+- Avoid repeating the same proposition core across multiple scenes in the same act.
+- Alternate dense explanation with a vivid example, hook, case, contrast, or transition whenever the evidence allows it.
+- If the act has illustrative material, use it early or at key pivots instead of burying it at the end.
+- A good beat sheet usually has roughly 4-8 scenes depending on act duration.
+- The first scene should earn attention; the last scene should change the listener's understanding or leave a deliberate question."""
 
 
 async def plan_act(state: PipelineState) -> dict:
@@ -129,14 +144,12 @@ async def plan_act(state: PipelineState) -> dict:
                 _positive_int(act.get("estimated_duration_seconds"), 300) // 6,
             )
 
-            base_prompt = {
-                "act_number": act_num,
-                "act_title": act.get("title", ""),
-                "estimated_duration_seconds": _positive_int(act.get("estimated_duration_seconds"), 300),
-                "content_quotas": act.get("content_quotas", {}) if isinstance(act.get("content_quotas"), dict) else {},
-                "claims": act_claims,
-                "evidence": act_evidence[:20],
-            }
+            base_prompt = _build_act_prompt_payload(
+                act=act,
+                act_number=act_num,
+                act_claims=act_claims,
+                act_evidence=act_evidence,
+            )
 
             beat_sheet: list[dict[str, Any]] = []
             last_error = ""
@@ -418,6 +431,44 @@ def _extract_raw_scenes(payload: Any) -> list[Any]:
             if isinstance(candidate, list):
                 return candidate
     return []
+
+
+def _branch_focus_summary(act_claims: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    branch_counts: dict[str, int] = {}
+    for claim in act_claims:
+        for branch_id in claim.get("branch_ids", []) or []:
+            branch_counts[branch_id] = branch_counts.get(branch_id, 0) + 1
+    return [
+        {"branch_id": branch_id, "claim_count": count}
+        for branch_id, count in sorted(branch_counts.items(), key=lambda item: (-item[1], item[0]))
+    ]
+
+
+def _build_act_prompt_payload(
+    *,
+    act: dict[str, Any],
+    act_number: int,
+    act_claims: list[dict[str, Any]],
+    act_evidence: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "act_number": act_number,
+        "story_role": str(act.get("story_role") or "").strip(),
+        "act_title": act.get("title", ""),
+        "purpose": str(act.get("purpose") or "").strip(),
+        "opening_question": str(act.get("opening_question") or "").strip(),
+        "ending_turn": str(act.get("ending_turn") or "").strip(),
+        "focus_branch_ids": [
+            branch_id
+            for branch_id in (act.get("focus_branch_ids") or [])
+            if isinstance(branch_id, str) and branch_id.strip()
+        ],
+        "branch_focus_summary": _branch_focus_summary(act_claims),
+        "estimated_duration_seconds": _positive_int(act.get("estimated_duration_seconds"), 300),
+        "content_quotas": act.get("content_quotas", {}) if isinstance(act.get("content_quotas"), dict) else {},
+        "claims": act_claims,
+        "evidence": act_evidence[:20],
+    }
 
 
 def _normalize_beat_sheet(

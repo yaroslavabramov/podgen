@@ -9,7 +9,13 @@ from app.models.project import Project
 from app.models.source import Source
 from app.models.show_bible import ShowBible
 from app.models.generation_run import GenerationRun, GenerationStatus
-from app.schemas.generation import GenerationCreate, CostEstimateRequest, CostEstimateResponse, GenerationRunResponse
+from app.schemas.generation import (
+    CostEstimateRequest,
+    CostEstimateResponse,
+    GenerationCreate,
+    GenerationRunResponse,
+    StepRerunRequest,
+)
 from app.services.cost_estimator import estimate_cost
 
 router = APIRouter(prefix="/api", tags=["generations"])
@@ -164,6 +170,38 @@ async def get_generation(run_id: uuid.UUID, user: CurrentUser, db: DB):
     return GenerationRunResponse.model_validate(run)
 
 
+@router.get("/projects/{project_id}/generations/latest", response_model=GenerationRunResponse)
+async def get_latest_project_generation(project_id: uuid.UUID, user: CurrentUser, db: DB):
+    await _verify_project_ownership(project_id, user.id, db)
+    active_result = await db.execute(
+        select(GenerationRun)
+        .where(
+            GenerationRun.project_id == project_id,
+            GenerationRun.status.in_([
+                GenerationStatus.QUEUED,
+                GenerationStatus.RUNNING,
+            ]),
+        )
+        .order_by(GenerationRun.created_at.desc())
+        .limit(1)
+    )
+    run = active_result.scalar_one_or_none()
+    if run is None:
+        failed_result = await db.execute(
+            select(GenerationRun)
+            .where(
+                GenerationRun.project_id == project_id,
+                GenerationRun.status == GenerationStatus.FAILED,
+            )
+            .order_by(GenerationRun.created_at.desc())
+            .limit(1)
+        )
+        run = failed_result.scalar_one_or_none()
+    if run is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Generation run not found")
+    return GenerationRunResponse.model_validate(run)
+
+
 @router.post("/generations/{run_id}/cancel", response_model=GenerationRunResponse)
 async def cancel_generation(run_id: uuid.UUID, user: CurrentUser, db: DB):
     result = await db.execute(
@@ -277,8 +315,19 @@ async def run_next_generation_step(run_id: uuid.UUID, user: CurrentUser, db: DB)
 
 
 @router.post("/generations/{run_id}/steps/rerun", response_model=GenerationRunResponse)
-async def rerun_generation_step(run_id: uuid.UUID, user: CurrentUser, db: DB):
-    return await _enqueue_step_action(run_id, user.id, db, action="rerun")
+async def rerun_generation_step(
+    run_id: uuid.UUID,
+    user: CurrentUser,
+    db: DB,
+    data: StepRerunRequest | None = None,
+):
+    return await _enqueue_step_action(
+        run_id,
+        user.id,
+        db,
+        action="rerun",
+        target_node=(data.target_node if data else None),
+    )
 
 
 @router.post("/generations/{run_id}/steps/stop", response_model=GenerationRunResponse)
@@ -326,9 +375,16 @@ async def _get_user_project(project_id, user_id, db) -> Project:
     return project
 
 
-async def _enqueue_step_action(run_id: uuid.UUID, user_id: uuid.UUID, db: DB, action: str) -> GenerationRunResponse:
+async def _enqueue_step_action(
+    run_id: uuid.UUID,
+    user_id: uuid.UUID,
+    db: DB,
+    action: str,
+    target_node: str | None = None,
+) -> GenerationRunResponse:
     run = await _get_user_run(run_id, user_id, db)
     step_control = dict(((run.config or {}).get("step_control") or {}))
+    requested_target_node = target_node.strip() if isinstance(target_node, str) and target_node.strip() else None
 
     if (run.config or {}).get("execution_mode") != "step":
         raise HTTPException(
@@ -360,6 +416,15 @@ async def _enqueue_step_action(run_id: uuid.UUID, user_id: uuid.UUID, db: DB, ac
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot rerun before at least one completed step. Run next step first.",
             )
+        available_rerun_nodes = [
+            node for node in (step_control.get("available_rerun_nodes") or [])
+            if isinstance(node, str) and node
+        ]
+        if requested_target_node and available_rerun_nodes and requested_target_node not in available_rerun_nodes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Selected step is not available for rerun on this run.",
+            )
     if run.status == GenerationStatus.COMPLETED and action != "rerun":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -369,7 +434,7 @@ async def _enqueue_step_action(run_id: uuid.UUID, user_id: uuid.UUID, db: DB, ac
     run.status = GenerationStatus.QUEUED
     run.error_message = None
     run.completed_at = None
-    run.config = _mark_step_action_requested(run.config, action)
+    run.config = _mark_step_action_requested(run.config, action, requested_target_node)
     await db.flush()
     await db.refresh(run)
 
@@ -397,10 +462,12 @@ def _initial_step_control() -> dict:
         "last_node": None,
         "executed_node": None,
         "next_node": "setup_show",
+        "available_rerun_nodes": [],
         "checkpoint_id": None,
         "is_complete": False,
         "can_rerun": False,
         "requested_action": None,
+        "requested_target_node": None,
         "requested_at": None,
         "stop_requested": False,
         "stop_requested_at": None,
@@ -410,11 +477,12 @@ def _initial_step_control() -> dict:
     }
 
 
-def _mark_step_action_requested(config: dict | None, action: str) -> dict:
+def _mark_step_action_requested(config: dict | None, action: str, target_node: str | None = None) -> dict:
     merged = dict(config or {})
     merged["execution_mode"] = "step"
     step_control = dict(merged.get("step_control") or {})
     step_control["requested_action"] = action
+    step_control["requested_target_node"] = target_node
     step_control["requested_at"] = datetime.utcnow().isoformat()
     step_control["stop_requested"] = False
     step_control["stop_requested_at"] = None

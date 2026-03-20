@@ -32,6 +32,7 @@ def _merge_step_control(config: dict[str, Any] | None, action: str, result: dict
     step_control["last_action"] = action
     step_control["updated_at"] = datetime.utcnow().isoformat()
     step_control["requested_action"] = None
+    step_control["requested_target_node"] = None
     step_control["requested_at"] = None
     step_control["stop_requested"] = False
     step_control["stop_requested_at"] = None
@@ -44,6 +45,7 @@ def _merge_step_control(config: dict[str, Any] | None, action: str, result: dict
                 "last_node": result.get("last_node"),
                 "executed_node": result.get("executed_node"),
                 "next_node": result.get("next_node"),
+                "available_rerun_nodes": result.get("available_rerun_nodes", []),
                 "checkpoint_id": result.get("checkpoint_id"),
                 "is_complete": bool(result.get("completed", False)),
                 "can_rerun": bool(result.get("last_node")),
@@ -80,8 +82,9 @@ def _node_from_step_control(step_control: dict[str, Any], key: str) -> str | Non
 
 def _stopped_step_position(step_control: dict[str, Any], action: str, *, started: bool) -> dict[str, Any]:
     last_completed_node = _node_from_step_control(step_control, "last_node")
+    requested_target_node = _node_from_step_control(step_control, "requested_target_node")
     interrupted_node = (
-        _node_from_step_control(step_control, "last_node")
+        requested_target_node or _node_from_step_control(step_control, "last_node")
         if action == "rerun"
         else _node_from_step_control(step_control, "next_node")
     )
@@ -115,6 +118,7 @@ def _mark_step_stopped(
     step_control["last_action"] = action
     step_control["updated_at"] = datetime.utcnow().isoformat()
     step_control["requested_action"] = None
+    step_control["requested_target_node"] = None
     step_control["requested_at"] = None
     step_control["stop_requested"] = False
     step_control["stop_requested_at"] = None
@@ -270,6 +274,7 @@ async def _run_step_async(generation_run_id: str, action: str = "next"):
 
         step_control = _step_control(run.config)
         requested_action = step_control.get("requested_action")
+        requested_target_node = step_control.get("requested_target_node")
         if not (isinstance(requested_action, str) and requested_action == action):
             # Stale queued task or action already cleared.
             return
@@ -333,7 +338,16 @@ async def _run_step_async(generation_run_id: str, action: str = "next"):
                     try:
                         from app.pipeline.graph import execute_pipeline_step
 
-                        step_result = await execute_pipeline_step(run, db, action=action)
+                        step_result = await execute_pipeline_step(
+                            run,
+                            db,
+                            action=action,
+                            target_node=(
+                                requested_target_node
+                                if isinstance(requested_target_node, str) and requested_target_node
+                                else None
+                            ),
+                        )
                         run.config = _merge_step_control(run.config, action, step_result)
 
                         if step_result.get("completed"):

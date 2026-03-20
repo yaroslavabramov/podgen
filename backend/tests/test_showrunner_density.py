@@ -1,5 +1,10 @@
 from app.models.claim import VerificationLevel
-from app.pipeline.phase5_planning.showrunner import _cap_act_claim_density, _detect_numeric_conflicts
+from app.pipeline.phase5_planning.showrunner import (
+    SHOWRUNNER_SYSTEM,
+    _cap_act_claim_density,
+    _detect_numeric_conflicts,
+    _normalize_plan,
+)
 
 
 def test_detect_numeric_conflicts_finds_incompatible_rates_with_shared_branch() -> None:
@@ -150,3 +155,39 @@ def test_cap_act_claim_density_still_honors_cap_when_preserved_claims_exceed_lim
     )
 
     assert len(capped["acts"][0]["claim_ids"]) == 8
+
+
+def test_normalize_plan_preserves_story_fields() -> None:
+    plan = _normalize_plan(
+        {
+            "acts": [
+                {
+                    "act_number": 1,
+                    "story_role": "setup",
+                    "title": "How the money got weird",
+                    "purpose": "Establish the strange starting point and why the listener should care.",
+                    "opening_question": "Why would a city let private banks print money?",
+                    "ending_turn": "The historical oddity becomes an institutional design puzzle.",
+                    "focus_branch_ids": ["b1", "b2", "b1"],
+                    "estimated_duration_seconds": 420,
+                    "claim_ids": [],
+                    "conflict_brief_ids": [],
+                    "content_quotas": {},
+                }
+            ]
+        },
+        duration_target=1800,
+    )
+
+    act = plan["acts"][0]
+    assert act["story_role"] == "setup"
+    assert act["purpose"].startswith("Establish the strange starting point")
+    assert act["opening_question"] == "Why would a city let private banks print money?"
+    assert act["ending_turn"] == "The historical oddity becomes an institutional design puzzle."
+    assert act["focus_branch_ids"] == ["b1", "b2"]
+
+
+def test_showrunner_prompt_does_not_hardcode_three_acts() -> None:
+    assert '"act_count": 3' not in SHOWRUNNER_SYSTEM
+    assert "compress this to 3 acts" not in SHOWRUNNER_SYSTEM
+    assert "do not default to 3 acts" in SHOWRUNNER_SYSTEM

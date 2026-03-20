@@ -58,6 +58,7 @@ _NODE_PHASES = {
     "build_shownotes": "phase7_audio",
 }
 _ENTRY_NODE = "setup_show"
+_STEP_HISTORY_LIMIT = 64
 
 
 def _summarize_state(state: PipelineState) -> dict[str, Any]:
@@ -264,6 +265,33 @@ async def _load_state_history(compiled: Any, config: dict[str, Any], limit: int)
     return snapshots
 
 
+def _latest_step_snapshot(latest_state: Any, history: list[Any]) -> Any:
+    """Prefer the newest history snapshot when step-mode reruns lag in aget_state()."""
+    return history[0] if history else latest_state
+
+
+def _find_rerun_target_snapshot(history: list[Any], target_node: str) -> Any | None:
+    """Find the newest checkpoint immediately before the requested node ran."""
+    for snapshot in history[1:]:
+        if _first_next_node(getattr(snapshot, "next", None)) == target_node:
+            return snapshot
+    return None
+
+
+def _available_rerun_nodes_from_history(history: list[Any]) -> list[str]:
+    """List completed nodes that can be re-executed, oldest to newest."""
+    newest_unique: list[str] = []
+    seen: set[str] = set()
+    for snapshot in history[1:]:
+        node = _first_next_node(getattr(snapshot, "next", None))
+        if not node or node in seen:
+            continue
+        seen.add(node)
+        newest_unique.append(node)
+    newest_unique.reverse()
+    return newest_unique
+
+
 async def _ensure_checkpointer_schema(checkpointer: Any) -> None:
     global _checkpointer_schema_ready
     if _checkpointer_schema_ready:
@@ -380,7 +408,12 @@ async def _resolve_episode_id(
     return str(episode.id)
 
 
-async def execute_pipeline_step(run: GenerationRun, db: AsyncSession, action: str = "next") -> dict[str, Any]:
+async def execute_pipeline_step(
+    run: GenerationRun,
+    db: AsyncSession,
+    action: str = "next",
+    target_node: str | None = None,
+) -> dict[str, Any]:
     """Execute exactly one pipeline node using LangGraph checkpoints."""
     if action not in {"next", "rerun"}:
         raise RuntimeError(f"Unsupported step action: {action}")
@@ -429,29 +462,42 @@ async def execute_pipeline_step(run: GenerationRun, db: AsyncSession, action: st
                 graph_input = initial_state
             else:
                 latest = await compiled.aget_state(base_config)
-                executed_node = _first_next_node(latest.next)
+                latest_history = await _load_state_history(compiled, base_config, limit=1)
+                latest_snapshot = _latest_step_snapshot(latest, latest_history)
+                executed_node = _first_next_node(getattr(latest_snapshot, "next", None))
                 if executed_node is None:
                     episode_id = await _resolve_episode_id(run, db, None, resume=True)
                     return {
                         "executed_node": None,
                         "last_node": None,
                         "next_node": None,
-                        "checkpoint_id": _checkpoint_id_from_config(latest.config),
+                        "checkpoint_id": _checkpoint_id_from_config(
+                            getattr(latest_snapshot, "config", None)
+                        ),
                         "completed": True,
                         "episode_id": episode_id,
                     }
-                run_config = latest.config or base_config
+                run_config = getattr(latest_snapshot, "config", None) or base_config
         else:
             if saved is None:
                 raise RuntimeError("Cannot rerun step: checkpoint is missing. Run next step first.")
-            history = await _load_state_history(compiled, base_config, limit=3)
+            history = await _load_state_history(compiled, base_config, limit=_STEP_HISTORY_LIMIT)
             if len(history) < 2:
                 raise RuntimeError("Cannot rerun step: no executed step found in checkpoint history.")
-            before_last = history[1]
-            executed_node = _first_next_node(before_last.next)
-            if executed_node is None:
-                raise RuntimeError("Cannot rerun step: unable to determine last executed node.")
-            run_config = before_last.config or base_config
+            if isinstance(target_node, str) and target_node:
+                target_snapshot = _find_rerun_target_snapshot(history, target_node)
+                if target_snapshot is None:
+                    raise RuntimeError(
+                        f"Cannot rerun step: {target_node} is not available in checkpoint history."
+                    )
+                executed_node = target_node
+                run_config = getattr(target_snapshot, "config", None) or base_config
+            else:
+                before_last = history[1]
+                executed_node = _first_next_node(before_last.next)
+                if executed_node is None:
+                    raise RuntimeError("Cannot rerun step: unable to determine last executed node.")
+                run_config = before_last.config or base_config
 
         final_state = None
         async for state in compiled.astream(
@@ -467,12 +513,14 @@ async def execute_pipeline_step(run: GenerationRun, db: AsyncSession, action: st
                     run.current_phase = node_output["current_phase"]
 
         latest_after = await compiled.aget_state(base_config)
-        history_after = await _load_state_history(compiled, base_config, limit=3)
+        history_after = await _load_state_history(compiled, base_config, limit=_STEP_HISTORY_LIMIT)
 
-    next_node = _first_next_node(latest_after.next)
+    latest_snapshot = _latest_step_snapshot(latest_after, history_after)
+    next_node = _first_next_node(getattr(latest_snapshot, "next", None))
     last_node = None
     if len(history_after) >= 2:
         last_node = _first_next_node(history_after[1].next)
+    available_rerun_nodes = _available_rerun_nodes_from_history(history_after)
 
     run.current_phase = _NODE_PHASES.get(executed_node, run.current_phase)
     run.current_step = executed_node
@@ -486,9 +534,10 @@ async def execute_pipeline_step(run: GenerationRun, db: AsyncSession, action: st
         "executed_node": executed_node,
         "last_node": last_node or executed_node,
         "next_node": next_node,
-        "checkpoint_id": _checkpoint_id_from_config(latest_after.config),
+        "checkpoint_id": _checkpoint_id_from_config(getattr(latest_snapshot, "config", None)),
         "completed": completed,
         "episode_id": episode_id,
+        "available_rerun_nodes": available_rerun_nodes,
     }
 
 

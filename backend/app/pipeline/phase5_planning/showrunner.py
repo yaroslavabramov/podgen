@@ -25,15 +25,20 @@ from app.realtime.events import phase_started, step_started, step_completed, pro
 logger = logging.getLogger(__name__)
 
 SHOWRUNNER_SYSTEM = """You are a podcast showrunner planning the episode structure.
-Given claims, conflicts, duration target, and show bible, create an act structure.
+Given claims, conflicts, duration target, and show bible, create an act structure that feels like a strong episode arc, not a bucket of claims.
 
-Return JSON:
+Return a JSON object shaped like:
 {
-  "act_count": 3,
+  "act_count": <integer from 2 to 6>,
   "acts": [
     {
       "act_number": 1,
+      "story_role": "setup|complicate|explain|resolve|payoff",
       "title": "Act title",
+      "purpose": "one-sentence editorial function of this act",
+      "opening_question": "listener-facing question or tension that opens this act",
+      "ending_turn": "what changes, lands, or becomes clearer by the end of the act",
+      "focus_branch_ids": ["b1", "b3"],
       "estimated_duration_seconds": 600,
       "claim_ids": ["id1", "id2"],
       "conflict_brief_ids": [],
@@ -49,15 +54,24 @@ Return JSON:
 }
 
 Rules:
+- Plan an episode, not an outline dump. Every act must have a distinct job in the listener experience.
+- Prefer a clean macro-arc: setup -> complication -> explanation -> consequence/payoff. Choose the act count that best fits the material and duration; do not default to 3 acts just because it is common.
+- Start from the strongest episode-level question: why is this system strange, how does it work, and why does it matter?
+- Each act should answer one part of that question and hand off naturally to the next act.
 - Each claim appears in exactly ONE act (no duplication)
+- Do not spread the same proposition core across multiple acts just because it is relevant in several places. Pick the best act for it.
+- Avoid acts that all do the same thing. Do not make every act a generic explanation block.
+- Prefer acts organized around one dominant branch or a tight pair of related branches, not a random mix of distant topics.
 - DISPUTED claims MUST have a "debate moment" (conflicts >= 1 in that act's quotas)
 - Act count: 2-6 based on duration and style
 - Verified facts should be front-loaded in acts where audience needs grounding
 - Claims with direct support and stronger source diversity should form the explanatory backbone
 - Claims with illustrative evidence are good candidates for hooks, case-study moments, and act transitions
+- Use claims with illustrative evidence to create vivid openings, examples, and pivots instead of stacking abstract explanation.
 - Curate aggressively: each act should keep only the most important claims for its duration and role, not the full research pool
 - As a rule of thumb, the curated layer should usually stay around 6-15 claims per act depending on act duration
-- Last act should include takeaways"""
+- Last act should include takeaways and a clear "why this matters" payoff
+- Titles should sound like editorial sections of a strong episode, not generic chapter labels"""
 
 
 async def plan_episode(state: PipelineState) -> dict:
@@ -269,10 +283,31 @@ def _normalize_plan(plan, duration_target: int) -> dict:
         if not isinstance(content_quotas, dict):
             content_quotas = {}
 
+        story_role = act.get("story_role")
+        if not isinstance(story_role, str) or not story_role.strip():
+            story_role = "explain"
+
+        purpose = act.get("purpose")
+        if not isinstance(purpose, str) or not purpose.strip():
+            purpose = title.strip()
+
+        opening_question = act.get("opening_question")
+        if not isinstance(opening_question, str):
+            opening_question = ""
+
+        ending_turn = act.get("ending_turn")
+        if not isinstance(ending_turn, str):
+            ending_turn = ""
+
         normalized_acts.append(
             {
                 "act_number": act_number,
+                "story_role": story_role.strip(),
                 "title": title.strip(),
+                "purpose": purpose.strip(),
+                "opening_question": opening_question.strip(),
+                "ending_turn": ending_turn.strip(),
+                "focus_branch_ids": _string_list(act.get("focus_branch_ids")),
                 "estimated_duration_seconds": _positive_int(
                     act.get("estimated_duration_seconds"),
                     default_act_duration,
@@ -287,6 +322,22 @@ def _normalize_plan(plan, duration_target: int) -> dict:
         raise RuntimeError("Showrunner produced no valid acts")
 
     return {"act_count": len(normalized_acts), "acts": normalized_acts}
+
+
+def _string_list(value) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        token = item.strip()
+        if not token or token in seen:
+            continue
+        seen.add(token)
+        out.append(token)
+    return out
 
 
 def _extract_numeric_tokens(statement: str) -> set[str]:

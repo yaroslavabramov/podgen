@@ -31,9 +31,11 @@ type ExecutionMode = "full" | "step";
 interface StepControlState {
   last_node: string | null;
   next_node: string | null;
+  available_rerun_nodes: string[];
   is_complete: boolean;
   can_rerun: boolean;
   requested_action: string | null;
+  requested_target_node: string | null;
   stop_requested: boolean;
   stop_reason: string | null;
 }
@@ -61,9 +63,11 @@ export default function GeneratePage() {
   const [runStopState, setRunStopState] = useState<RunStopState>({ stop_requested: false, stop_reason: null });
   const [stepActionLoading, setStepActionLoading] = useState<"next" | "rerun" | "stop" | null>(null);
   const [fullStopLoading, setFullStopLoading] = useState(false);
+  const [selectedRerunNode, setSelectedRerunNode] = useState<string | null>(null);
   const [launching, setLaunching] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [autoRestoreSuppressed, setAutoRestoreSuppressed] = useState(false);
 
   const { runId, status, events, startListening, applyRunSnapshot, reset } = useGenerationStore();
   const lastEvent = events.length > 0 ? events[events.length - 1] : null;
@@ -76,9 +80,13 @@ export default function GeneratePage() {
     return {
       last_node: typeof stepControlData.last_node === "string" ? stepControlData.last_node : null,
       next_node: typeof stepControlData.next_node === "string" ? stepControlData.next_node : null,
+      available_rerun_nodes: Array.isArray(stepControlData.available_rerun_nodes)
+        ? stepControlData.available_rerun_nodes.filter((value): value is string => typeof value === "string" && value.length > 0)
+        : [],
       is_complete: Boolean(stepControlData.is_complete),
       can_rerun: Boolean(stepControlData.can_rerun),
       requested_action: typeof stepControlData.requested_action === "string" ? stepControlData.requested_action : null,
+      requested_target_node: typeof stepControlData.requested_target_node === "string" ? stepControlData.requested_target_node : null,
       stop_requested: Boolean(stepControlData.stop_requested),
       stop_reason: typeof stepControlData.stop_reason === "string" ? stepControlData.stop_reason : null,
     };
@@ -133,6 +141,7 @@ export default function GeneratePage() {
     hunt_closed_book: t("stepNode.hunt_closed_book"),
     research_fast_web: t("stepNode.research_fast_web"),
     build_claims: t("stepNode.build_claims"),
+    dedupe_claims: t("stepNode.dedupe_claims"),
     verify_claims: t("stepNode.verify_claims"),
     resolve_conflicts: t("stepNode.resolve_conflicts"),
     plan_episode: t("stepNode.plan_episode"),
@@ -149,6 +158,25 @@ export default function GeneratePage() {
     if (!node) return t("stepUnknown");
     return nodeLabelMap[node] || node;
   };
+
+  const stepSequence = [
+    "setup_show",
+    "decompose",
+    "hunt_closed_book",
+    "research_fast_web",
+    "build_claims",
+    "dedupe_claims",
+    "verify_claims",
+    "resolve_conflicts",
+    "plan_episode",
+    "plan_acts",
+    "integrate_acts",
+    "write_screenplay",
+    "evaluate_and_revolt",
+    "audit_citations",
+    "generate_audio",
+    "build_shownotes",
+  ];
 
   const refreshRun = async (currentRunId: string) => {
     try {
@@ -208,6 +236,31 @@ export default function GeneratePage() {
   }, [projectId]);
 
   useEffect(() => {
+    if (runId || status !== "idle" || autoRestoreSuppressed) return;
+
+    let cancelled = false;
+
+    async function restoreLatestRun() {
+      try {
+        const run = await api.get(`api/projects/${projectId}/generations/latest`).json<GenerationRun>();
+        if (cancelled) return;
+        startListening(run.id);
+        applyRunData(run);
+      } catch (error) {
+        if (cancelled) return;
+        if (error instanceof HTTPError && error.response.status === 404) {
+          return;
+        }
+      }
+    }
+
+    restoreLatestRun().catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, runId, status, startListening, autoRestoreSuppressed]);
+
+  useEffect(() => {
     if (!runId || activeExecutionMode !== "step" || !lastEvent) return;
     if (!["generation_paused", "generation_failed", "generation_completed"].includes(lastEvent.type)) return;
     refreshRun(runId).catch(() => undefined);
@@ -231,6 +284,39 @@ export default function GeneratePage() {
     return () => window.clearInterval(intervalId);
   }, [runId, activeExecutionMode, stepActionLoading, status, stepControl]);
 
+  const derivedRerunNodes = (() => {
+    if (!stepControl?.last_node) return [];
+    const lastIndex = stepSequence.indexOf(stepControl.last_node);
+    if (lastIndex === -1) return [stepControl.last_node];
+    return stepSequence.slice(0, lastIndex + 1);
+  })();
+
+  const availableRerunNodes =
+    stepControl?.available_rerun_nodes && stepControl.available_rerun_nodes.length > 0
+      ? stepControl.available_rerun_nodes
+      : derivedRerunNodes;
+
+  useEffect(() => {
+    if (activeExecutionMode !== "step") {
+      setSelectedRerunNode(null);
+      return;
+    }
+    const activeRequestedNode =
+      stepControl?.requested_action === "rerun" ? stepControl?.requested_target_node || null : null;
+    if (activeRequestedNode && availableRerunNodes.includes(activeRequestedNode)) {
+      setSelectedRerunNode(activeRequestedNode);
+      return;
+    }
+    if (selectedRerunNode && availableRerunNodes.includes(selectedRerunNode)) return;
+    const fallbackNode =
+      stepControl?.last_node && availableRerunNodes.includes(stepControl.last_node)
+        ? stepControl.last_node
+        : availableRerunNodes.length > 0
+          ? availableRerunNodes[availableRerunNodes.length - 1]
+          : null;
+    setSelectedRerunNode(fallbackNode);
+  }, [activeExecutionMode, stepControl, availableRerunNodes, selectedRerunNode]);
+
   const handleGenerate = async () => {
     setLaunching(true);
     setActionError(null);
@@ -244,6 +330,7 @@ export default function GeneratePage() {
           execution_mode: executionMode,
         },
       }).json<GenerationRun>();
+      setAutoRestoreSuppressed(false);
       startListening(run.id);
       if (executionMode === "step") {
         applyRunData(run);
@@ -264,6 +351,7 @@ export default function GeneratePage() {
     if (!runId) return;
     setResuming(true);
     setActionError(null);
+    setAutoRestoreSuppressed(false);
     try {
       const run = await api.post(`api/generations/${runId}/resume`).json<GenerationRun>();
       startListening(run.id);
@@ -296,7 +384,10 @@ export default function GeneratePage() {
     setStepActionLoading("rerun");
     setActionError(null);
     try {
-      const run = await api.post(`api/generations/${runId}/steps/rerun`).json<GenerationRun>();
+      const targetNode = selectedRerunNode ?? stepControl?.last_node ?? null;
+      const run = await api.post(`api/generations/${runId}/steps/rerun`, {
+        json: { target_node: targetNode },
+      }).json<GenerationRun>();
       applyRunData(run);
     } catch (err) {
       setActionError(await extractApiError(err, t("stepRerunFailed")));
@@ -334,6 +425,7 @@ export default function GeneratePage() {
   };
 
   const handleResetRun = () => {
+    setAutoRestoreSuppressed(true);
     reset();
     setActiveExecutionMode(null);
     setStepControl(null);
@@ -346,7 +438,7 @@ export default function GeneratePage() {
   const stopRequested = Boolean(stepControl?.stop_requested);
   const stepBusy = stepActionLoading !== null || status === "running" || hasQueuedStepAction || stopRequested;
   const canRunNextStep = isStepModeRun && !stepBusy && !stepControl?.is_complete;
-  const canRerunStep = isStepModeRun && !stepBusy && Boolean(stepControl?.can_rerun && stepControl?.last_node);
+  const canRerunStep = isStepModeRun && !stepBusy && Boolean(stepControl?.can_rerun && selectedRerunNode);
   const canStopStep = isStepModeRun && !stepActionLoading && (status === "running" || hasQueuedStepAction) && !stopRequested;
   const isFullModeRun = activeExecutionMode === "full";
   const fullStopRequested = Boolean(runStopState.stop_requested);
@@ -379,6 +471,24 @@ export default function GeneratePage() {
                     {t("stepNextNode")}:{" "}
                     <span className="text-foreground">{formatNodeLabel(stepControl?.next_node ?? null)}</span>
                   </p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm text-muted-foreground" htmlFor="rerun-step-select">
+                    {t("stepRerunTarget")}
+                  </label>
+                  <select
+                    id="rerun-step-select"
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+                    value={selectedRerunNode ?? ""}
+                    onChange={(event) => setSelectedRerunNode(event.target.value || null)}
+                    disabled={stepBusy || availableRerunNodes.length === 0}
+                  >
+                    {availableRerunNodes.map((node) => (
+                      <option key={node} value={node}>
+                        {formatNodeLabel(node)}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <Button

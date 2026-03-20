@@ -26,6 +26,10 @@ class CostEstimateResponse(BaseModel):
     estimated_minutes: float
 
 
+class StepRerunRequest(BaseModel):
+    target_node: str | None = None
+
+
 class GenerationRunResponse(BaseModel):
     id: uuid.UUID
     project_id: uuid.UUID

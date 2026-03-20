@@ -139,6 +139,8 @@ Phase 4 now uses explicit lineage and canonical evidence semantics:
 - showrunner adds lightweight numeric-conflict detection before planning and caps per-act claim density so planning acts behave like curated story layers instead of near-complete research dumps
 - density capping preserves disputed/conflict claims so planning cannot silently drop debate moments before validation
 - preserved disputed/conflict claims still remain inside a bounded act cap; conflict-heavy acts stay curated instead of bypassing density control entirely
+- showrunner now plans explicit act story contracts (`story_role`, `purpose`, `opening_question`, `ending_turn`, `focus_branch_ids`) so planning works from editorial intent, not only from grouped claim IDs
+- act planner now uses the act story contract and branch-focus summary to build beat sheets with scene movement and less flat fact-listing
 - when `WEB_EXTRACTOR_DEBUG_DUMP_DIR` is set, Hunter / Claim Builder / Verifier / Showrunner / Act Planner write JSON debug dumps for run analysis
 
 ## Runtime Reliability Notes (2026-02-23)
@@ -200,7 +202,7 @@ All endpoints prefixed with `/api/`. Auth via JWT Bearer token.
 | POST | `/api/projects/{id}/generate` | Start generation (`execution_mode=full|step`) |
 | GET | `/api/generations/{id}` | Generation status |
 | POST | `/api/generations/{id}/steps/next` | Run exactly one next pipeline step (step mode only) |
-| POST | `/api/generations/{id}/steps/rerun` | Rerun last executed pipeline step (step mode only) |
+| POST | `/api/generations/{id}/steps/rerun` | Rerun a selected completed pipeline step (defaults to the last executed step; step mode only) |
 | POST | `/api/generations/{id}/steps/stop` | Request stop for running/queued step action (step mode only) |
 | POST | `/api/generations/{id}/resume` | Resume failed full-mode run from checkpoint |
 | WS | `/api/ws/generations/{id}` | Real-time generation events |
@@ -236,7 +238,7 @@ Use this mode to debug one pipeline step at a time and reduce LLM/TTS spend duri
 2. The run is created in `execution_mode=step` and does not auto-run the full graph.
 3. Use:
    - `Run Next Step` to execute one node
-   - `Rerun Last Step` to re-execute the previous node
+   - `Rerun Selected Step` to re-execute a specific completed node from its checkpoint position
    - `Stop Current Step` to request cooperative stop of the current step action
 4. Progress/events continue via WebSocket (`generation_paused` is emitted after each step, including stop acknowledgements).
 5. `rerun` is available only after at least one completed step with checkpoint metadata.

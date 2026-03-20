@@ -37,7 +37,12 @@ class _FakeWorkerDB:
         self.commit_calls += 1
 
 
-def _step_run(*, requested_action: str, stop_requested: bool) -> SimpleNamespace:
+def _step_run(
+    *,
+    requested_action: str,
+    stop_requested: bool,
+    requested_target_node: str | None = None,
+) -> SimpleNamespace:
     return SimpleNamespace(
         id=uuid.uuid4(),
         project_id=uuid.uuid4(),
@@ -54,7 +59,9 @@ def _step_run(*, requested_action: str, stop_requested: bool) -> SimpleNamespace
                 "checkpoint_id": "chk-123",
                 "is_complete": False,
                 "can_rerun": True,
+                "available_rerun_nodes": ["research_fast_web", "build_claims", "verify_claims"],
                 "requested_action": requested_action,
+                "requested_target_node": requested_target_node,
                 "requested_at": "2026-03-11T00:00:00",
                 "stop_requested": stop_requested,
                 "stop_requested_at": "2026-03-11T00:00:01" if stop_requested else None,
@@ -193,3 +200,35 @@ async def test_run_step_stop_during_rerun_keeps_rerun_target(
     assert event.data["executed_node"] == "verify_claims"
     assert event.data["next_node"] == "research_fast_web"
     assert event.data["stopped"] is True
+
+
+@pytest.mark.asyncio
+async def test_run_step_stop_during_targeted_rerun_reports_selected_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run = _step_run(requested_action="rerun", stop_requested=False, requested_target_node="build_claims")
+    db = _FakeWorkerDB(run)
+    published = []
+
+    async def _fake_execute_pipeline_step(*_args, **_kwargs):
+        raise StepExecutionStopped("Step execution stopped by user request.")
+
+    monkeypatch.setattr("app.workers.worker_db.worker_session_factory", lambda: db)
+    monkeypatch.setattr("app.pipeline.graph.execute_pipeline_step", _fake_execute_pipeline_step)
+    monkeypatch.setattr("app.realtime.publisher.publish_event", lambda run_id, event: published.append((run_id, event)))
+    monkeypatch.setattr("app.workers.generation_tasks.push_trace_context", lambda *_args, **_kwargs: nullcontext())
+    monkeypatch.setattr("app.workers.generation_tasks.tracing_scope", lambda *_args, **_kwargs: nullcontext())
+    monkeypatch.setattr("app.workers.generation_tasks.trace_span", lambda *_args, **_kwargs: nullcontext(None))
+    monkeypatch.setattr("app.workers.generation_tasks.safe_set_run", lambda *_args, **_kwargs: None)
+
+    await _run_step_async(str(run.id), action="rerun")
+
+    step_control = run.config["step_control"]
+    assert step_control["executed_node"] == "build_claims"
+    assert step_control["next_node"] == "research_fast_web"
+    assert step_control["requested_target_node"] is None
+
+    assert len(published) == 1
+    _, event = published[0]
+    assert event.type == "generation_paused"
+    assert event.data["executed_node"] == "build_claims"

@@ -479,6 +479,12 @@ Web extraction использует каскад extractors:
   - `branch_ids`, `question_ids`, `intents`
   - `direct_support_count`, `contextual_support_count`
   - `source_diversity` + lightweight quality hints
+- Showrunner теперь планирует и editorial contract каждого акта:
+  - `story_role`
+  - `purpose`
+  - `opening_question`
+  - `ending_turn`
+  - `focus_branch_ids`
 - перед showrunner input пополняется synthetic numeric conflicts
 - после normalization вводится density cap на claim pool per act, чтобы акты вели себя как curated editorial layer, а не как почти полный research dump
 - disputed claims и claims из synthetic/manual conflicts сохраняются через density cap и не могут быть молча выкинуты до conflict validation
@@ -493,6 +499,7 @@ Web extraction использует каскад extractors:
   - claim-level `has_illustrative`, `illustrative_evidence_count`, `direct_support_count`
   - evidence-level `illustrative`, `source_reliability`, `authority_type`
   - branch/question intent and `direct_or_contextual` summaries
+- дополнительно получают act-level story contract и `branch_focus_summary`, чтобы строить сцены как движение внутри акта, а не как flat list of explanation beats
 
 - при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` каждый act planner пишет JSON dump с prompt payload, attempt history, raw/parsed outputs, normalized beat sheet и результатом evidence gap fill
 
@@ -599,7 +606,7 @@ Web extraction использует каскад extractors:
 
 Для `step` режима:
 - `POST /api/generations/{run_id}/steps/next` — выполнить следующий node.
-- `POST /api/generations/{run_id}/steps/rerun` — переисполнить последний выполненный node.
+- `POST /api/generations/{run_id}/steps/rerun` — переисполнить выбранный уже выполненный node; если `target_node` не передан, берется последний выполненный шаг.
 - `POST /api/generations/{run_id}/steps/stop` — остановить текущий/очередной step action.
 - `rerun` доступен только после как минимум одного успешно завершенного шага (нужен checkpoint + `last_node`).
 - после каждого шага и после подтвержденной остановки публикуется realtime-событие `generation_paused` с `executed_node` и `next_node` (дополнительно может содержать `stopped=true` и `reason`).
