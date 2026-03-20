@@ -53,12 +53,12 @@ Return JSON:
     {
       "scene": 1,
       "type": "hook|explanation|debate|case_study|transition|summary|takeaway",
-      "description": "what happens in this scene",
+      "description": "1-3 sentence beat card describing what changes in this scene",
       "claim_ids": ["id"],
       "evidence_ids": ["id"],
       "estimated_duration_seconds": 45,
-      "transition_note": null,
-      "notes": "Host A asks, Host B responds"
+      "transition_note": "short bridge to the next scene or null",
+      "notes": "short host-dynamic or production cue, not script prose"
     }
   ]
 }
@@ -82,14 +82,27 @@ Rules:
 - Respect the act contract:
   - `story_role` says what kind of movement this act should deliver
   - `purpose` says why the act exists
-  - `opening_question` should shape the first scene
-  - `ending_turn` should be felt by the final scene
+  - the first scene must explicitly open the act's `opening_question`
+  - the final scene must clearly deliver the act's `ending_turn`
+- Act-to-act variety matters. Do not default every act to the same internal shape.
+- Within an act, adjacent scenes should usually do different work: open a question, sharpen it, ground it in an example, reveal a mechanism, stress-test it, or land a consequence.
+- If two neighboring scenes mainly explain the same thing in the same mode, merge them or change the angle.
+- Each act should contain at least one meaningful turn: a realization, complication, stress test, reversal, or reframing that changes what the listener now understands.
 - Do not turn the act into a laundry list of explanations.
 - Keep one clear job per scene. Split only when the listener would feel a meaningful shift.
 - Avoid repeating the same proposition core across multiple scenes in the same act.
+- Use `scene_count_guidance` as the default size target for the act. Do not exceed it unless the act would otherwise feel structurally incomplete.
+- Prefer compact beat cards, not mini-script paragraphs. `description` should describe the beat, not write the scene. `notes` should stay short.
 - Alternate dense explanation with a vivid example, hook, case, contrast, or transition whenever the evidence allows it.
 - If the act has illustrative material, use it early or at key pivots instead of burying it at the end.
-- A good beat sheet usually has roughly 4-8 scenes depending on act duration.
+- Do not stack more than two `explanation` scenes in a row without a meaningful shift in angle, example, or tension.
+- Use `debate` only when the act has real conflict pressure (`conflict_count > 0`) or the act itself is genuinely comparative/argumentative. If there is no real conflict, do not invent one.
+- Let `story_role` shape the act:
+  - `setup`: establish the paradox, world, and stakes
+  - `complicate`: intensify the problem or institutional tension
+  - `explain`: answer the act question with the minimum mechanism needed
+  - `resolve`: show how the tension settles in practice
+  - `payoff`: widen the lens and land why this matters
 - The first scene should earn attention; the last scene should change the listener's understanding or leave a deliberate question."""
 
 
@@ -451,6 +464,8 @@ def _build_act_prompt_payload(
     act_claims: list[dict[str, Any]],
     act_evidence: list[dict[str, Any]],
 ) -> dict[str, Any]:
+    estimated_duration = _positive_int(act.get("estimated_duration_seconds"), 300)
+    conflict_ids = _uuid_list(act.get("conflict_brief_ids"))
     return {
         "act_number": act_number,
         "story_role": str(act.get("story_role") or "").strip(),
@@ -464,11 +479,24 @@ def _build_act_prompt_payload(
             if isinstance(branch_id, str) and branch_id.strip()
         ],
         "branch_focus_summary": _branch_focus_summary(act_claims),
-        "estimated_duration_seconds": _positive_int(act.get("estimated_duration_seconds"), 300),
+        "estimated_duration_seconds": estimated_duration,
+        "scene_count_guidance": _scene_count_guidance(estimated_duration),
         "content_quotas": act.get("content_quotas", {}) if isinstance(act.get("content_quotas"), dict) else {},
+        "conflict_brief_ids": conflict_ids,
+        "conflict_count": len(conflict_ids),
         "claims": act_claims,
         "evidence": act_evidence[:20],
     }
+
+
+def _scene_count_guidance(estimated_duration_seconds: int) -> dict[str, int]:
+    if estimated_duration_seconds <= 210:
+        return {"min_scenes": 3, "target_scenes": 4, "max_scenes": 5}
+    if estimated_duration_seconds <= 360:
+        return {"min_scenes": 4, "target_scenes": 5, "max_scenes": 6}
+    if estimated_duration_seconds <= 480:
+        return {"min_scenes": 5, "target_scenes": 6, "max_scenes": 7}
+    return {"min_scenes": 6, "target_scenes": 7, "max_scenes": 8}
 
 
 def _normalize_beat_sheet(

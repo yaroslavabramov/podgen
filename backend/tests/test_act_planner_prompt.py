@@ -1,4 +1,9 @@
-from app.pipeline.phase5_planning.act_planner import _branch_focus_summary, _build_act_prompt_payload
+from app.pipeline.phase5_planning.act_planner import (
+    ACT_PLANNER_SYSTEM,
+    _branch_focus_summary,
+    _build_act_prompt_payload,
+    _scene_count_guidance,
+)
 
 
 def test_build_act_prompt_payload_carries_story_contract_and_branch_focus() -> None:
@@ -32,10 +37,13 @@ def test_build_act_prompt_payload_carries_story_contract_and_branch_focus() -> N
     assert payload["opening_question"].startswith("What stops private note issuance")
     assert payload["ending_turn"].startswith("The listener sees")
     assert payload["focus_branch_ids"] == ["b3", "b2"]
+    assert payload["scene_count_guidance"] == {"min_scenes": 5, "target_scenes": 6, "max_scenes": 7}
     assert payload["branch_focus_summary"] == [
         {"branch_id": "b2", "claim_count": 2},
         {"branch_id": "b3", "claim_count": 2},
     ]
+    assert payload["conflict_brief_ids"] == []
+    assert payload["conflict_count"] == 0
     assert payload["claims"] == act_claims
     assert payload["evidence"] == act_evidence
 
@@ -55,3 +63,20 @@ def test_branch_focus_summary_sorts_by_density_then_branch_id() -> None:
         {"branch_id": "b4", "claim_count": 2},
         {"branch_id": "b3", "claim_count": 1},
     ]
+
+
+def test_scene_count_guidance_tracks_duration_bands() -> None:
+    assert _scene_count_guidance(180) == {"min_scenes": 3, "target_scenes": 4, "max_scenes": 5}
+    assert _scene_count_guidance(300) == {"min_scenes": 4, "target_scenes": 5, "max_scenes": 6}
+    assert _scene_count_guidance(420) == {"min_scenes": 5, "target_scenes": 6, "max_scenes": 7}
+    assert _scene_count_guidance(600) == {"min_scenes": 6, "target_scenes": 7, "max_scenes": 8}
+
+
+def test_act_planner_prompt_demands_compact_beats_and_real_conflict_gate() -> None:
+    assert "first scene must explicitly open the act's `opening_question`" in ACT_PLANNER_SYSTEM
+    assert "final scene must clearly deliver the act's `ending_turn`" in ACT_PLANNER_SYSTEM
+    assert "Prefer compact beat cards, not mini-script paragraphs." in ACT_PLANNER_SYSTEM
+    assert "Use `debate` only when the act has real conflict pressure" in ACT_PLANNER_SYSTEM
+    assert "Use `scene_count_guidance` as the default size target" in ACT_PLANNER_SYSTEM
+    assert "Act-to-act variety matters. Do not default every act to the same internal shape." in ACT_PLANNER_SYSTEM
+    assert "Each act should contain at least one meaningful turn" in ACT_PLANNER_SYSTEM
