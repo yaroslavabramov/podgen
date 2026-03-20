@@ -499,7 +499,7 @@ Web extraction использует каскад extractors:
   - evidence-level `illustrative`, `source_reliability`, `authority_type`
   - branch/question intent and `direct_or_contextual` summaries
 - дополнительно получают act-level story contract, `branch_focus_summary`, `conflict_count` и `scene_count_guidance`, чтобы строить сцены как движение внутри акта, а не как flat list of explanation beats
-- planner теперь нацелен на compact beat cards, а не на длинные pseudo-script paragraphs; он также требует act-to-act variety и хотя бы один meaningful internal turn внутри акта вместо одинаковой кривой `hook -> explanation -> takeaway`
+- planner теперь нацелен на compact beat cards, а не на длинные pseudo-script paragraphs; он просит модель сначала выбрать короткую `scene_strategy`, явно запрещает default-скелет `hook -> explanation -> case_study -> takeaway` и трактует `case_study` как optional scene function, а не обязательный средний блок
 
 - при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` каждый act planner пишет JSON dump с prompt payload, attempt history, raw/parsed outputs, normalized beat sheet и результатом evidence gap fill
 

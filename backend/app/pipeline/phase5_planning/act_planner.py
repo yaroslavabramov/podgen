@@ -49,6 +49,7 @@ Given an act's role, purpose, claims, evidence, and quotas, create a detailed be
 
 Return JSON:
 {
+  "scene_strategy": "short phrase describing the act's internal movement",
   "beat_sheet": [
     {
       "scene": 1,
@@ -79,11 +80,13 @@ Use claim/evidence metadata:
 
 Rules:
 - The act must feel like it goes somewhere. Scenes should create setup -> development -> turn -> landing, not just restate adjacent facts.
+- Before drafting scenes, choose a short `scene_strategy` that captures how this act moves internally.
 - Respect the act contract:
   - `story_role` says what kind of movement this act should deliver
   - `purpose` says why the act exists
   - the first scene must explicitly open the act's `opening_question`
   - the final scene must clearly deliver the act's `ending_turn`
+- Avoid the default podcast skeleton of hook -> explanation -> case_study -> takeaway unless the act genuinely needs it. Reusing the same internal shape across acts makes the episode feel mechanically repetitive.
 - Act-to-act variety matters. Do not default every act to the same internal shape.
 - Within an act, adjacent scenes should usually do different work: open a question, sharpen it, ground it in an example, reveal a mechanism, stress-test it, or land a consequence.
 - If two neighboring scenes mainly explain the same thing in the same mode, merge them or change the angle.
@@ -94,6 +97,7 @@ Rules:
 - Use `scene_count_guidance` as the default size target for the act. Do not exceed it unless the act would otherwise feel structurally incomplete.
 - Prefer compact beat cards, not mini-script paragraphs. `description` should describe the beat, not write the scene. `notes` should stay short.
 - Alternate dense explanation with a vivid example, hook, case, contrast, or transition whenever the evidence allows it.
+- A `case_study` scene is optional, not mandatory. Use it only when a concrete episode materially advances the act.
 - If the act has illustrative material, use it early or at key pivots instead of burying it at the end.
 - Do not stack more than two `explanation` scenes in a row without a meaningful shift in angle, example, or tension.
 - Use `debate` only when the act has real conflict pressure (`conflict_count > 0`) or the act itself is genuinely comparative/argumentative. If there is no real conflict, do not invent one.
@@ -165,13 +169,14 @@ async def plan_act(state: PipelineState) -> dict:
             )
 
             beat_sheet: list[dict[str, Any]] = []
+            scene_strategy = ""
             last_error = ""
             attempt_debugs: list[dict[str, Any]] = []
             for attempt in range(1, ACT_PLANNER_RETRIES + 1):
                 prompt_payload = dict(base_prompt)
                 if attempt > 1:
                     prompt_payload["strict_output_contract"] = (
-                        "Return valid JSON with top-level key beat_sheet. No prose."
+                        "Return valid JSON with top-level keys scene_strategy and beat_sheet. No prose."
                     )
                     prompt_payload["previous_error"] = last_error
 
@@ -181,6 +186,7 @@ async def plan_act(state: PipelineState) -> dict:
                 try:
                     raw = await call_sonnet_structured(system=ACT_PLANNER_SYSTEM, prompt=prompt, temperature=0.5)
                     beat_data = parse_llm_json(raw)
+                    scene_strategy = _extract_scene_strategy(beat_data)
                     beat_sheet = _normalize_beat_sheet(
                         beat_data,
                         allowed_claim_ids=allowed_claim_ids,
@@ -242,6 +248,11 @@ async def plan_act(state: PipelineState) -> dict:
                 raise RuntimeError(
                     f"Act planner produced empty beat sheet for act {act_num}. Last error: {last_error}"
                 )
+
+            if scene_strategy:
+                act["scene_strategy"] = scene_strategy
+            else:
+                act.pop("scene_strategy", None)
 
             # Fill evidence gaps from existing corpus
             try:
@@ -444,6 +455,15 @@ def _extract_raw_scenes(payload: Any) -> list[Any]:
             if isinstance(candidate, list):
                 return candidate
     return []
+
+
+def _extract_scene_strategy(payload: Any) -> str:
+    if not isinstance(payload, dict):
+        return ""
+    value = payload.get("scene_strategy")
+    if not isinstance(value, str):
+        return ""
+    return value.strip()
 
 
 def _branch_focus_summary(act_claims: list[dict[str, Any]]) -> list[dict[str, Any]]:

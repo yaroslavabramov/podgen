@@ -2,6 +2,7 @@ from app.pipeline.phase5_planning.act_planner import (
     ACT_PLANNER_SYSTEM,
     _branch_focus_summary,
     _build_act_prompt_payload,
+    _extract_scene_strategy,
     _scene_count_guidance,
 )
 
@@ -73,6 +74,7 @@ def test_scene_count_guidance_tracks_duration_bands() -> None:
 
 
 def test_act_planner_prompt_demands_compact_beats_and_real_conflict_gate() -> None:
+    assert '"scene_strategy": "short phrase describing the act\'s internal movement"' in ACT_PLANNER_SYSTEM
     assert "first scene must explicitly open the act's `opening_question`" in ACT_PLANNER_SYSTEM
     assert "final scene must clearly deliver the act's `ending_turn`" in ACT_PLANNER_SYSTEM
     assert "Prefer compact beat cards, not mini-script paragraphs." in ACT_PLANNER_SYSTEM
@@ -80,3 +82,13 @@ def test_act_planner_prompt_demands_compact_beats_and_real_conflict_gate() -> No
     assert "Use `scene_count_guidance` as the default size target" in ACT_PLANNER_SYSTEM
     assert "Act-to-act variety matters. Do not default every act to the same internal shape." in ACT_PLANNER_SYSTEM
     assert "Each act should contain at least one meaningful turn" in ACT_PLANNER_SYSTEM
+    assert "Avoid the default podcast skeleton of hook -> explanation -> case_study -> takeaway" in ACT_PLANNER_SYSTEM
+    assert "A `case_study` scene is optional, not mandatory." in ACT_PLANNER_SYSTEM
+
+
+def test_extract_scene_strategy_reads_top_level_field() -> None:
+    assert _extract_scene_strategy({"scene_strategy": "paradox -> failed fix -> pragmatic turn"}) == (
+        "paradox -> failed fix -> pragmatic turn"
+    )
+    assert _extract_scene_strategy({"scene_strategy": "   "}) == ""
+    assert _extract_scene_strategy({"beat_sheet": []}) == ""
