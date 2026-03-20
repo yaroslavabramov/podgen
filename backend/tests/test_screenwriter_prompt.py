@@ -1,18 +1,23 @@
 import json
+from types import SimpleNamespace
 
 from app.config import settings
 from app.pipeline.phase6_writing.screenwriter import (
     SCREENWRITER_SYSTEM,
     _build_already_covered_claims_payload,
+    _build_new_information_goal,
+    _extract_last_dialogue_line,
+    _build_previous_act_summary,
     _build_previous_scene_payload,
     _build_scene_prompt_payload,
+    _collect_manifest_claim_ids,
     _dump_screenwriter_debug,
     _extract_dialogue_claim_ids,
     _should_force_rewrite_for_node_rerun,
 )
 
 
-def test_build_scene_prompt_payload_uses_local_context_and_scene_goal() -> None:
+def test_build_scene_prompt_payload_uses_local_and_cross_act_context() -> None:
     payload = _build_scene_prompt_payload(
         act={
             "title": "Черная суббота и привязка",
@@ -53,9 +58,20 @@ def test_build_scene_prompt_payload_uses_local_context_and_scene_goal() -> None:
             "description": "В предыдущей сцене объяснили, как появился валютный хаос.",
             "transition_note": "Теперь показать, что паника заставила систему измениться.",
         },
+        previous_act_summary={
+            "act_number": 2,
+            "act_title": "Как устроен механизм",
+            "ending_scene_type": "takeaway",
+            "what_listener_now_knows": "Теперь слушатель понимает, почему банки не могут печатать без ограничений.",
+            "bridge_to_current_act": "Но этот механизм пришлось строить в панике 1983 года.",
+        },
         already_covered_claims=[
             {"id": "c0", "statement": "Earlier scene already established the monetary chaos."}
         ],
+        already_covered_claims_global=[
+            {"id": "g1", "statement": "Earlier act already established the reserve discipline."}
+        ],
+        new_information_goal="Advance the listener with what is new here: The peg was restored in October 1983.",
     )
 
     assert payload == {
@@ -74,9 +90,20 @@ def test_build_scene_prompt_payload_uses_local_context_and_scene_goal() -> None:
             "description": "В предыдущей сцене объяснили, как появился валютный хаос.",
             "transition_note": "Теперь показать, что паника заставила систему измениться.",
         },
+        "previous_act_summary": {
+            "act_number": 2,
+            "act_title": "Как устроен механизм",
+            "ending_scene_type": "takeaway",
+            "what_listener_now_knows": "Теперь слушатель понимает, почему банки не могут печатать без ограничений.",
+            "bridge_to_current_act": "Но этот механизм пришлось строить в панике 1983 года.",
+        },
         "already_covered_claims": [
             {"id": "c0", "statement": "Earlier scene already established the monetary chaos."}
         ],
+        "already_covered_claims_global": [
+            {"id": "g1", "statement": "Earlier act already established the reserve discipline."}
+        ],
+        "new_information_goal": "Advance the listener with what is new here: The peg was restored in October 1983.",
         "claims": [
             {
                 "id": "c1",
@@ -100,13 +127,18 @@ def test_build_scene_prompt_payload_uses_local_context_and_scene_goal() -> None:
     }
 
 
-def test_screenwriter_prompt_demands_language_lock_and_anti_repetition_local_memory() -> None:
+def test_screenwriter_prompt_demands_cross_act_memory_and_looser_dialogue() -> None:
     assert "All dialogue lines MUST be in the `language` from the user payload." in SCREENWRITER_SYSTEM
     assert "Use `description` as the main job of the scene." in SCREENWRITER_SYSTEM
-    assert "Use `act_title`, `previous_scene`, and `already_covered_claims` only as local context." in SCREENWRITER_SYSTEM
+    assert "previous_act_summary" in SCREENWRITER_SYSTEM
+    assert "already_covered_claims_global" in SCREENWRITER_SYSTEM
+    assert "Treat `new_information_goal` as the delta this scene must add." in SCREENWRITER_SYSTEM
     assert "Prefer callbacks over re-explanations." in SCREENWRITER_SYSTEM
-    assert "Do not make Host A always explain and Host B always ask for proof in the same rhythm." in SCREENWRITER_SYSTEM
+    assert "Do not default every scene to strict `ABAB` alternation." in SCREENWRITER_SYSTEM
+    assert "Do not default every reaction to the same opener or confirmation word." in SCREENWRITER_SYSTEM
+    assert "These are soft tendencies, not rigid scene roles." in SCREENWRITER_SYSTEM
     assert "`takeaway`: land the consequence or implication, not just a generic recap" in SCREENWRITER_SYSTEM
+    assert "When a precise figure, legal clause, institutional rule, or date matters" in SCREENWRITER_SYSTEM
 
 
 def test_build_previous_scene_payload_returns_previous_scene_only() -> None:
@@ -121,6 +153,76 @@ def test_build_previous_scene_payload_returns_previous_scene_only() -> None:
         "scene_type": "hook",
         "description": "Scene one",
         "transition_note": "Move to scene two",
+    }
+
+
+def test_build_previous_act_summary_returns_previous_act_takeaway() -> None:
+    acts_json = [
+        {
+            "act_number": 1,
+            "title": "Origins",
+            "ending_turn": "By the end of the act, the listener understands why private banks stepped in.",
+            "beat_sheet": [
+                {"scene": 1, "type": "hook", "description": "Opening", "transition_note": "Move on"},
+                {
+                    "scene": 2,
+                    "type": "takeaway",
+                    "description": "Now the listener knows the port was chaotic.",
+                    "transition_note": "Next explain why private banks stepped in.",
+                },
+            ],
+        },
+        {"act_number": 2, "title": "Mechanism", "beat_sheet": []},
+    ]
+
+    assert _build_previous_act_summary(acts_json, 1, existing_segments={}, claim_lookup={}) is None
+    assert _build_previous_act_summary(acts_json, 2, existing_segments={}, claim_lookup={}) == {
+        "act_number": 1,
+        "act_title": "Origins",
+        "ending_scene_type": "takeaway",
+        "what_listener_now_knows": "By the end of the act, the listener understands why private banks stepped in.",
+        "bridge_to_current_act": "Next explain why private banks stepped in.",
+    }
+
+
+def test_build_previous_act_summary_prefers_written_dialogue_over_planning_metadata() -> None:
+    acts_json = [
+        {
+            "act_number": 1,
+            "title": "Origins",
+            "ending_turn": "Planning-only ending turn.",
+            "beat_sheet": [
+                {
+                    "scene": 1,
+                    "type": "takeaway",
+                    "description": "Planning-only description.",
+                    "transition_note": "Planning-only transition note.",
+                }
+            ],
+        },
+        {"act_number": 2, "title": "Mechanism", "beat_sheet": []},
+    ]
+    existing_segments = {
+        (1, 1): SimpleNamespace(
+            dialogue_json=[
+                {"speaker": "A", "text": "We already learned that private banks stepped in.", "claim_ids": ["c1"]},
+                {"speaker": "B", "text": "And that is the bridge to the mechanism.", "claim_ids": []},
+            ]
+        )
+    }
+    claim_lookup = {"c1": {"statement": "Private banks stepped in because the state would not emit directly."}}
+
+    assert _build_previous_act_summary(
+        acts_json,
+        2,
+        existing_segments=existing_segments,
+        claim_lookup=claim_lookup,
+    ) == {
+        "act_number": 1,
+        "act_title": "Origins",
+        "ending_scene_type": "takeaway",
+        "what_listener_now_knows": "Private banks stepped in because the state would not emit directly.",
+        "bridge_to_current_act": "And that is the bridge to the mechanism.",
     }
 
 
@@ -143,6 +245,24 @@ def test_build_already_covered_claims_payload_uses_written_claim_ids() -> None:
     ]
 
 
+def test_build_already_covered_claims_payload_can_cap_and_truncate_for_global_memory() -> None:
+    claim_lookup = {
+        "c1": {"statement": "First statement that should be dropped by the cap."},
+        "c2": {"statement": "Second statement that should remain."},
+        "c3": {"statement": "Third statement that should remain and be truncated if needed."},
+    }
+
+    assert _build_already_covered_claims_payload(
+        covered_claim_ids=["c1", "c2", "c3"],
+        claim_lookup=claim_lookup,
+        max_items=2,
+        statement_chars=10,
+    ) == [
+        {"id": "c2", "statement": "Second sta"},
+        {"id": "c3", "statement": "Third stat"},
+    ]
+
+
 def test_extract_dialogue_claim_ids_dedupes_and_preserves_order() -> None:
     dialogue = [
         {"speaker": "A", "text": "One", "claim_ids": ["c1", "c2"]},
@@ -153,6 +273,51 @@ def test_extract_dialogue_claim_ids_dedupes_and_preserves_order() -> None:
     ]
 
     assert _extract_dialogue_claim_ids(dialogue) == ["c1", "c2", "c3", "c4"]
+
+
+def test_extract_last_dialogue_line_returns_last_nonempty_text() -> None:
+    assert _extract_last_dialogue_line(
+        [
+            {"speaker": "A", "text": "First"},
+            {"speaker": "B", "text": "  "},
+            {"speaker": "A", "text": "Last meaningful line"},
+        ]
+    ) == "Last meaningful line"
+
+
+def test_collect_manifest_claim_ids_dedupes_in_order() -> None:
+    acts_json = [
+        {"beat_sheet": [{"claim_ids": ["c1", "c2"]}, {"claim_ids": ["c2", "c3"]}]},
+        {"beat_sheet": [{"claim_ids": ["c3", "c4"]}]},
+    ]
+
+    assert _collect_manifest_claim_ids(acts_json) == ["c1", "c2", "c3", "c4"]
+
+
+def test_build_new_information_goal_prefers_uncovered_claims() -> None:
+    goal = _build_new_information_goal(
+        scene={"description": "Fallback description"},
+        scene_claims=[
+            {"id": "c1", "statement": "Already known statement."},
+            {"id": "c2", "statement": "Fresh claim about reserve discipline."},
+        ],
+        local_covered_claim_ids={"c1"},
+        global_covered_claim_ids=set(),
+    )
+
+    assert goal == "Advance the listener with what is new here: Fresh claim about reserve discipline."
+
+
+def test_build_new_information_goal_falls_back_to_scene_description_when_all_claims_covered() -> None:
+    goal = _build_new_information_goal(
+        scene={"description": "Reframe the same mechanism as the price of stability."},
+        scene_claims=[{"id": "c1", "statement": "Known statement."}],
+        local_covered_claim_ids=set(),
+        global_covered_claim_ids={"c1"},
+    )
+
+    assert "Do not reteach already covered setup." in goal
+    assert "Reframe the same mechanism as the price of stability." in goal
 
 
 def test_dump_screenwriter_debug_writes_scene_dump(tmp_path) -> None:

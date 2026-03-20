@@ -49,16 +49,21 @@ Speech rules by verification level:
 - OPINION → explicit attribution to speaker/source.
 - REPORT → recount with source context.
 
-Host A = Guide: leads narrative, explains, summarizes
-Host B = Challenger: questions, demands proof, plays devil's advocate
+Host defaults:
+- Host A often carries structure, narrative motion, or synthesis when helpful.
+- Host B often pressure-tests, reframes, reacts, or spots what is missing.
+- These are soft tendencies, not rigid scene roles.
+- Either host may ask, infer, challenge, summarize, narrate, or land a point.
 
 Writing rules:
 - Language:
   - All dialogue lines MUST be in the `language` from the user payload.
   - Do not mix languages inside one line unless the evidence itself requires a short quoted term.
 - Use `description` as the main job of the scene. Use `transition_note` only as a light landing/bridge if it helps the ending.
-- Use `act_title`, `previous_scene`, and `already_covered_claims` only as local context. Do not restate material that the listener already heard unless this scene is explicitly reframing or paying it off.
-- If the current scene overlaps with `already_covered_claims`, briefly refer back and move to what is new in this scene.
+- Use `act_title`, `previous_scene`, `previous_act_summary`, `already_covered_claims`, `already_covered_claims_global`, and `new_information_goal` only as continuity context. Do not restate material that the listener already heard unless this scene is explicitly reframing or paying it off.
+- For the first scene of a later act, use `previous_act_summary` to build on what the listener already knows instead of resetting the story from zero.
+- If the current scene overlaps with covered local or global material, briefly refer back and move to what is new in this scene.
+- Treat `new_information_goal` as the delta this scene must add. Do not spend most of the scene re-teaching already covered setup.
 - Keep the scene moving. Do not let both hosts restate the same point in slightly different words.
 - Avoid dry explanatory dialogue by default. Prefer a concrete opening move, a turn, and a landing.
 - Let `scene_type` shape the scene:
@@ -69,8 +74,11 @@ Writing rules:
   - `transition`: pivot the listener cleanly from one framing to another
   - `summary`: compress what changed in understanding without sounding like bullet points
   - `takeaway`: land the consequence or implication, not just a generic recap
-- Do not make Host A always explain and Host B always ask for proof in the same rhythm. Vary who initiates and who reframes.
+- Do not make Host A always explain and Host B always ask for proof in the same rhythm. Vary who initiates, who reframes, and who gets the last word.
+- Do not default every scene to strict `ABAB` alternation. Occasional `AA` or `BB` runs are fine when they sound natural.
+- Do not default every reaction to the same opener or confirmation word. Vary discourse markers and avoid repeating one canned phrase scene after scene.
 - Use evidence organically. Do not dump raw quotes or source language into dialogue unless quoting is the point of the beat.
+- When a precise figure, legal clause, institutional rule, or date matters, occasionally anchor it with light attribution such as "по данным HKMA", "как сказано в Основном законе", or "согласно Exchange Fund" instead of presenting every fact as unattributed narration.
 - When claims are OBSERVED, UNVERIFIED, DISPUTED, OPINION, or REPORT, make the line sound appropriately attributed or qualified.
 - Prefer callbacks over re-explanations. If a prior scene already established the mechanism, this scene should build on it rather than teach it from scratch again.
 
@@ -121,6 +129,9 @@ async def write_screenplay(state: PipelineState) -> dict:
         if not manifest or not manifest.acts_json:
             return {"script_segment_ids": [], "current_phase": "phase6_writing"}
 
+        all_manifest_claim_ids = _collect_manifest_claim_ids(manifest.acts_json)
+        global_claim_lookup = await _load_claim_prompt_payloads(db, all_manifest_claim_ids)
+
         try:
             max_tokens = int(format_rules.get("max_reply_tokens", 120))
         except (TypeError, ValueError):
@@ -149,7 +160,10 @@ async def write_screenplay(state: PipelineState) -> dict:
                 duplicate_scene_keys[:20],
             )
 
-        for act in manifest.acts_json:
+        covered_claim_ids_global: list[str] = []
+        covered_claim_ids_global_set: set[str] = set()
+
+        for act_idx, act in enumerate(manifest.acts_json, start=1):
             act_num = act.get("act_number", 0)
             beat_sheet = act.get("beat_sheet", [])
             if not isinstance(beat_sheet, list):
@@ -163,9 +177,20 @@ async def write_screenplay(state: PipelineState) -> dict:
                 for cid in act_scene.get("claim_ids", []):
                     if isinstance(cid, str) and cid not in act_claim_ids:
                         act_claim_ids.append(cid)
-            act_claim_lookup = await _load_claim_prompt_payloads(db, act_claim_ids)
+            act_claim_lookup = {
+                cid: global_claim_lookup[cid]
+                for cid in act_claim_ids
+                if cid in global_claim_lookup
+            }
             covered_claim_ids_in_act: list[str] = []
             covered_claim_ids_set: set[str] = set()
+            covered_claim_ids_before_act = list(covered_claim_ids_global)
+            previous_act_summary = _build_previous_act_summary(
+                manifest.acts_json,
+                act_idx,
+                existing_segments=existing_segments,
+                claim_lookup=global_claim_lookup,
+            )
 
             seen_scene_numbers_in_act: set[int] = set()
             for scene_idx, scene in enumerate(beat_sheet, start=1):
@@ -216,6 +241,11 @@ async def write_screenplay(state: PipelineState) -> dict:
                         seen=covered_claim_ids_set,
                         new_values=_extract_dialogue_claim_ids(existing_segment.dialogue_json),
                     )
+                    _extend_unique_ids(
+                        ordered=covered_claim_ids_global,
+                        seen=covered_claim_ids_global_set,
+                        new_values=_extract_dialogue_claim_ids(existing_segment.dialogue_json),
+                    )
                     publish_event(run_id, scene_written(act_num, scene_num))
                     publish_event(run_id, step_completed("phase6_writing", f"write_{act_num}_{scene_num}"))
                     continue
@@ -249,9 +279,22 @@ async def write_screenplay(state: PipelineState) -> dict:
                     max_reply_tokens=max_tokens,
                     language=state["language"],
                     previous_scene=_build_previous_scene_payload(beat_sheet, scene_idx),
+                    previous_act_summary=previous_act_summary if scene_idx == 1 else None,
                     already_covered_claims=_build_already_covered_claims_payload(
                         covered_claim_ids=covered_claim_ids_in_act,
                         claim_lookup=act_claim_lookup,
+                    ),
+                    already_covered_claims_global=_build_already_covered_claims_payload(
+                        covered_claim_ids=covered_claim_ids_before_act,
+                        claim_lookup=global_claim_lookup,
+                        max_items=16,
+                        statement_chars=160,
+                    ),
+                    new_information_goal=_build_new_information_goal(
+                        scene=scene,
+                        scene_claims=scene_claims,
+                        local_covered_claim_ids=covered_claim_ids_set,
+                        global_covered_claim_ids=covered_claim_ids_global_set,
                     ),
                 )
                 prompt = json.dumps(prompt_payload, ensure_ascii=False)
@@ -376,6 +419,11 @@ async def write_screenplay(state: PipelineState) -> dict:
                     seen=covered_claim_ids_set,
                     new_values=_extract_dialogue_claim_ids(dialogue),
                 )
+                _extend_unique_ids(
+                    ordered=covered_claim_ids_global,
+                    seen=covered_claim_ids_global_set,
+                    new_values=_extract_dialogue_claim_ids(dialogue),
+                )
                 _dump_screenwriter_debug(
                     run_id=run_id,
                     act_number=act_num,
@@ -466,7 +514,10 @@ def _build_scene_prompt_payload(
     max_reply_tokens: int,
     language: str,
     previous_scene: dict | None,
+    previous_act_summary: dict | None,
     already_covered_claims: list[dict],
+    already_covered_claims_global: list[dict],
+    new_information_goal: str,
 ) -> dict:
     return {
         "language": str(language or "en").strip() or "en",
@@ -479,7 +530,10 @@ def _build_scene_prompt_payload(
         "notes": scene.get("notes", ""),
         "estimated_duration_seconds": scene.get("estimated_duration_seconds"),
         "previous_scene": previous_scene,
+        "previous_act_summary": previous_act_summary,
         "already_covered_claims": already_covered_claims,
+        "already_covered_claims_global": already_covered_claims_global,
+        "new_information_goal": new_information_goal,
         "claims": scene_claims,
         "evidence": scene_evidence,
         "hosts": hosts,
@@ -530,19 +584,161 @@ def _build_previous_scene_payload(beat_sheet: list[dict], current_scene_idx: int
     }
 
 
+def _build_previous_act_summary(
+    acts_json: list[dict],
+    current_act_idx: int,
+    *,
+    existing_segments: dict[tuple[int, int], ScriptSegment],
+    claim_lookup: dict[str, dict],
+) -> dict | None:
+    if current_act_idx <= 1:
+        return None
+    previous_act = acts_json[current_act_idx - 2]
+    if not isinstance(previous_act, dict):
+        return None
+    previous_act_number = int(previous_act.get("act_number") or (current_act_idx - 1))
+    beat_sheet = previous_act.get("beat_sheet", [])
+    last_scene = beat_sheet[-1] if isinstance(beat_sheet, list) and beat_sheet else {}
+    if not isinstance(last_scene, dict):
+        last_scene = {}
+    previous_scene_numbers: list[int] = []
+    if isinstance(beat_sheet, list):
+        for scene_idx, scene in enumerate(beat_sheet, start=1):
+            if not isinstance(scene, dict):
+                continue
+            previous_scene_numbers.append(_normalized_scene_number(scene.get("scene"), scene_idx))
+    previous_dialogue_claim_ids: list[str] = []
+    previous_dialogue_claim_ids_set: set[str] = set()
+    last_written_segment: ScriptSegment | None = None
+    for scene_number in previous_scene_numbers:
+        segment = existing_segments.get((previous_act_number, scene_number))
+        if segment is None:
+            continue
+        last_written_segment = segment
+        _extend_unique_ids(
+            ordered=previous_dialogue_claim_ids,
+            seen=previous_dialogue_claim_ids_set,
+            new_values=_extract_dialogue_claim_ids(segment.dialogue_json),
+        )
+    ending_turn = previous_act.get("ending_turn")
+    if not isinstance(ending_turn, str):
+        ending_turn = ""
+    ending_turn = " ".join(ending_turn.strip().split())
+    actual_summary_claims = _build_already_covered_claims_payload(
+        covered_claim_ids=previous_dialogue_claim_ids,
+        claim_lookup=claim_lookup,
+        max_items=3,
+        statement_chars=160,
+    )
+    if actual_summary_claims:
+        what_listener_now_knows = " ".join(
+            item.get("statement", "")
+            for item in actual_summary_claims
+            if isinstance(item.get("statement"), str) and item.get("statement", "").strip()
+        ).strip()
+    else:
+        what_listener_now_knows = ending_turn or last_scene.get("description", "")
+    last_line = _extract_last_dialogue_line(
+        last_written_segment.dialogue_json if last_written_segment is not None else None
+    )
+    return {
+        "act_number": previous_act_number,
+        "act_title": previous_act.get("title", ""),
+        "ending_scene_type": last_scene.get("type", "takeaway"),
+        "what_listener_now_knows": what_listener_now_knows,
+        "bridge_to_current_act": last_line or last_scene.get("transition_note", ""),
+    }
+
+
+def _collect_manifest_claim_ids(acts_json: object) -> list[str]:
+    ordered: list[str] = []
+    seen: set[str] = set()
+    if not isinstance(acts_json, list):
+        return ordered
+    for act in acts_json:
+        if not isinstance(act, dict):
+            continue
+        beat_sheet = act.get("beat_sheet", [])
+        if not isinstance(beat_sheet, list):
+            continue
+        for scene in beat_sheet:
+            if not isinstance(scene, dict):
+                continue
+            claim_ids = scene.get("claim_ids", [])
+            if not isinstance(claim_ids, list):
+                continue
+            for claim_id in claim_ids:
+                if not isinstance(claim_id, str) or not claim_id or claim_id in seen:
+                    continue
+                seen.add(claim_id)
+                ordered.append(claim_id)
+    return ordered
+
+
+def _build_new_information_goal(
+    *,
+    scene: dict,
+    scene_claims: list[dict],
+    local_covered_claim_ids: set[str],
+    global_covered_claim_ids: set[str],
+) -> str:
+    new_statements: list[str] = []
+    seen_statements: set[str] = set()
+    for claim in scene_claims:
+        if not isinstance(claim, dict):
+            continue
+        claim_id = claim.get("id")
+        if (
+            isinstance(claim_id, str)
+            and (claim_id in local_covered_claim_ids or claim_id in global_covered_claim_ids)
+        ):
+            continue
+        statement = claim.get("statement")
+        if not isinstance(statement, str):
+            continue
+        cleaned = " ".join(statement.strip().split())
+        if not cleaned or cleaned in seen_statements:
+            continue
+        seen_statements.add(cleaned)
+        new_statements.append(cleaned[:220])
+        if len(new_statements) >= 2:
+            break
+
+    if new_statements:
+        return "Advance the listener with what is new here: " + "; ".join(new_statements)
+
+    description = scene.get("description", "")
+    if isinstance(description, str):
+        cleaned_description = " ".join(description.strip().split())
+        if cleaned_description:
+            return (
+                "Do not reteach already covered setup. Use this scene to add a fresh angle, "
+                f"consequence, or reframing from the brief: {cleaned_description[:260]}"
+            )
+
+    return "Do not reteach already covered material. Add only the fresh angle, consequence, or reframing this scene contributes."
+
+
 def _build_already_covered_claims_payload(
     *,
     covered_claim_ids: list[str],
     claim_lookup: dict[str, dict],
+    max_items: int | None = None,
+    statement_chars: int = 300,
 ) -> list[dict]:
     covered: list[dict] = []
-    for cid in covered_claim_ids:
+    relevant_claim_ids = covered_claim_ids[-max_items:] if isinstance(max_items, int) and max_items > 0 else covered_claim_ids
+    statement_limit = statement_chars if isinstance(statement_chars, int) and statement_chars > 0 else 300
+    for cid in relevant_claim_ids:
         claim_payload = claim_lookup.get(cid)
         if claim_payload is None:
             continue
+        statement = claim_payload.get("statement", "")
+        if not isinstance(statement, str):
+            statement = ""
         covered.append({
             "id": cid,
-            "statement": claim_payload.get("statement", ""),
+            "statement": statement[:statement_limit],
         })
     return covered
 
@@ -564,6 +760,18 @@ def _extract_dialogue_claim_ids(dialogue_json: object) -> list[str]:
             seen.add(claim_id)
             ordered.append(claim_id)
     return ordered
+
+
+def _extract_last_dialogue_line(dialogue_json: object) -> str:
+    if not isinstance(dialogue_json, list):
+        return ""
+    for line in reversed(dialogue_json):
+        if not isinstance(line, dict):
+            continue
+        text = line.get("text")
+        if isinstance(text, str) and text.strip():
+            return text.strip()
+    return ""
 
 
 def _dump_screenwriter_debug(

@@ -539,23 +539,34 @@ Web extraction использует каскад extractors:
 
 Пишет диалог:
 
-- строго следует ролям хостов (Guide/Challenger)
+- использует роли хостов как мягкие тенденции, а не как жёсткую схему `A объясняет / B спрашивает`
 
 - подаёт факты через подходящие narrative assets
 
 - использует не только Claims, но и illustrative_evidence_ids (анекдоты, метафоры, кейсы)
 
-- получает компактный локальный context вместо полного act contract:
+- получает компактный continuity context вместо полного act contract:
   - `act_title`
   - `previous_scene`
+  - `previous_act_summary` для первых сцен новых актов
   - `already_covered_claims`
+  - `already_covered_claims_global`
+  - `new_information_goal`
   - `transition_note`
 
 - держит dialogue в `language` подкаста, а не дрейфует в английский или смешанный output
 
 - использует `description` как main job сцены, а `transition_note` только как лёгкий landing/bridge
 
-- если текущая сцена пересекается с `already_covered_claims`, делает callback и двигается к новому смыслу вместо полного re-explain
+- если текущая сцена пересекается с локально или глобально уже покрытым материалом, делает callback и двигается к новому смыслу вместо полного re-explain
+
+- первые сцены новых актов строятся от `previous_act_summary`, который по возможности собирается из фактически написанного диалога и реально использованных `claim_ids` предыдущего акта, а не только из planning metadata
+
+- `new_information_goal` задаёт delta этой сцены: какой новый смысл, следствие или угол она должна добавить поверх уже рассказанного
+
+- не default'ится в строгий `ABAB` exchange и не повторяет одни и те же opener-фразы scene after scene
+
+- при точных датах / юридических нормах / институциональных правилах может использовать лёгкую атрибуцию (`по данным HKMA`, `как сказано в Основном законе`) вместо полностью безымянного narratorial tone
 
 - ставит теги для TTS (direction/mood), но без ломания смысловой структуры
 

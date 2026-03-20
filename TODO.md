@@ -110,6 +110,9 @@
 - [x] LangSmith tracing baseline (workers + pipeline root/nodes + LLM + ingestion/research tools)
 - [x] Screenwriter prompt payload reduction: remove redundant act-level abstractions, add `previous_scene` + `already_covered_claims` local memory, and bias scene writing toward callbacks over re-explanations
 - [x] Screenwriter scene-level debug dumps: persist prompt payload, attempt history, raw/parsed LLM output, and final dialogue for each scene
+- [x] Screenwriter continuity upgrade: add screenplay-level covered-claim memory plus `previous_act_summary` for first scenes so later acts build on prior explanations instead of resetting
+- [x] Screenwriter delta framing: add `new_information_goal` prompt field so each scene knows what fresh meaning it must add beyond already covered material
+- [x] Screenwriter dialogue de-rigidification: loosen A/B role contract, discourage strict `ABAB` alternation and repeated opener phrases, and add light evidence-attribution guidance for dates/rules/figures
 
 ---
 
@@ -510,12 +513,17 @@ Deferred after Round 68:
 - [x] **P1**: Reduce act-planner payload noise by dropping flat evidence/provenance blobs and keeping compact claim bundles (`type`, support counts, branch/intents, `support_bundle`)
 - [x] **P1**: Budget claim support in prompt packaging as `1` best direct quote per claim plus `1` optional illustrative quote, instead of sending an unstructured evidence bag
 
-**Round 75 (screenwriter act-contract handoff):**
-- [x] **P0**: Pass act-level contract into `screenwriter` (`story_role`, `act_purpose`, `internal_arc`, `opening_question`, `ending_turn`, `scene_strategy`) instead of writing scenes from bare beat descriptions only
+**Round 75 (screenwriter continuity handoff):**
+- [x] **P0**: Trim `screenwriter` payload back to scene-level continuity context (`act_title`, `previous_scene`, `transition_note`) instead of full act-contract duplication
 - [x] **P1**: Add explicit screenwriter language lock and anti-explainer prompt rules so dialogue stays in the podcast language and does not collapse into generic Host A explains / Host B asks loops
-- [x] **P1**: Pass `transition_note` and scene-level timing context into `screenwriter` payload so scene handoffs survive phase 5 -> phase 6
+- [x] **P1**: Add local written-claim memory so scenes can callback to already covered material inside the same act
 
-**Round 76 (integrator reliability hardening):**
+**Round 76 (screenwriter cross-act continuity + dialogue flexibility):**
+- [x] **P0**: Add screenplay-level covered-claim memory and `previous_act_summary` so later acts stop resetting already explained mechanisms
+- [x] **P1**: Add `new_information_goal` to the writer payload so each scene knows the delta it must add beyond already covered material
+- [x] **P1**: Loosen host-role rigidity, discourage strict `ABAB` alternation / repeated opener phrases, and add light source-aware attribution guidance for precise dates, rules, and figures
+
+**Round 77 (integrator reliability hardening):**
 - [x] **P1**: Raise `integrator` structured-output budget, add strict JSON retry, and stop relying on a single `2048`-token pass that truncates long transition diagnostics
 - [x] **P1**: Add `planning_integrator` debug dumps so integration failures are inspectable instead of degrading into silent no-ops
 - [x] **P1**: Add regression tests for integrator prompt/output contract and missing-beat-sheet validation helper
