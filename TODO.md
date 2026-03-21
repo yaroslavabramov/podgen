@@ -544,9 +544,24 @@ Deferred after Round 68:
 **Round 80 (scene jobs + prior primary memory):**
 - [x] **P0**: Add `scene_job` to act-planner beat sheets for callback/mixed scenes so writer sees a positive move (`reframe`, `cost`, `contrast`, `bridge`, `synthesize`, `apply`, `stress_test`) instead of only a negative anti-repetition rule
 - [x] **P0**: Add `prior_acts_primary_claims` to later act-planner payloads so new acts know what earlier acts already established as primary explanation material
-- [x] **P1**: Tighten callback-only ending constraints in act planning with structural limits (`<=2` callback claims, compact description, ending-friendly `scene_job`) instead of keyword heuristics
+- [x] **P1**: Tighten callback-only ending constraints in act planning with structural limits on claim count and ending-friendly `scene_job`, while keeping overlong ending descriptions advisory-only instead of brittle hard-fail proxies
 - [x] **P1**: Add `scene_job` and deterministic `recent_scene_starts` to screenwriter payloads so callback scenes know what move to make and scene openers repeat less inside one act
 - [x] **P1**: Widen previous-scene continuity slices for writer and add regression tests for prior-primary planner memory, scene-job defaults, callback-only ending gating, and recent scene starts
+
+**Round 81 (runtime hardening — stalled planning visibility):**
+- [x] **P1**: Add shared hard timeout for Anthropic-backed LLM requests (`LLM_REQUEST_TIMEOUT_SECONDS`, default `300`) so generation workers fail fast on stalled provider calls instead of hanging indefinitely
+- [x] **P1**: Act planner now writes an early `started` debug dump before the first LLM call, so step-mode reruns leave inspectable artifacts even when the provider request stalls or times out
+- [x] **P2**: Add regression coverage for the shared LLM timeout helper and the act-planner timeout debug-dump path
+
+**Round 82 (act-planner retry budget split):**
+- [x] **P1**: Split `act_planner` retries into separate budgets for request/output failures vs structural quality-gate failures, so provider timeouts do not consume the last retry reserved for beat-sheet repair
+- [x] **P1**: Only attach `previous_error` feedback on retries that returned usable-but-bad output; transport timeouts now retry with the same prompt instead of adding noisy error prose
+- [x] **P2**: Add regression test for `timeout -> quality failure -> success` to lock the new retry semantics
+
+**Round 83 (prompt-level semantic novelty tightening):**
+- [x] **P0**: Strengthen `showrunner` prompt so semantic novelty outranks branch coherence when near-paraphrase claims from different research branches would otherwise become fresh explanatory backbone in multiple acts
+- [x] **P0**: Strengthen `act_planner` prompt so later acts must add a genuinely new layer (`stress_test`, `cost`, `contrast`, legal framing, consequence) instead of restating an already established mechanism in new words
+- [x] **P1**: Tighten callback-heavy beat-card instructions so endings lead with the new move first, rather than opening with a recap of the old mechanism
 
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)

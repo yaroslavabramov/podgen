@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     # LLM
     anthropic_api_key: str = ""
     openai_api_key: str = ""
+    llm_request_timeout_seconds: int = 300
 
     # LangSmith tracing
     langsmith_tracing: bool = False

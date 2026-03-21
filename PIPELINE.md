@@ -490,6 +490,7 @@ Web extraction использует каскад extractors:
 - disputed claims и claims из real/manual conflicts сохраняются через density cap и не могут быть молча выкинуты до conflict validation
 - planning payloads now carry `output_language`, so showrunner and act planner keep human-readable output in the podcast language instead of drifting into English
 - preserve-path для disputed/conflict claims остаётся bounded самим act cap: конфликтно-насыщенные акты не пробивают cap полностью
+- showrunner prompt теперь явно ставит semantic novelty выше branch coherence: если claims из разных веток по сути переупаковывают один и тот же механизм, только один должен стать fresh explanatory backbone, а более поздний акт обязан двигаться через stress test / cost / contrast / legal framing / payoff, а не через повторное teaching
 
 - при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` Showrunner пишет JSON dump с input payload, raw/parsed LLM output и normalized act plan
 
@@ -503,11 +504,13 @@ Web extraction использует каскад extractors:
   - `support_bundle.illustrative` (0-1 vivid quote when available)
 - дополнительно получают act-level story contract, `branch_focus_summary`, `conflict_count` и `scene_count_guidance`, чтобы строить сцены как движение внутри акта, а не как flat list of explanation beats
 - planner теперь нацелен на compact beat cards, а не на длинные pseudo-script paragraphs; он просит модель сначала выбрать короткую `scene_strategy`, явно запрещает default-скелет `hook -> explanation -> case_study -> takeaway`, трактует `case_study` как optional scene function, держит все human-readable поля в `output_language` и получает compact `prior_acts_primary_claims`, чтобы later acts знали, что earlier acts уже установили как primary material
+- prompt act planner теперь жёстче различает `same mechanism in new words` и `genuinely new layer`: later acts должны добавлять stress test / cost / contrast / legal lock-in / consequence, а callback-heavy endings обязаны начинать beat card с нового move, а не с recap механики
 - после normalizer act planner детерминированно делит повторно использованные claims на `primary_claim_ids` и `callback_claim_ids` по порядку сцен, а для callback-heavy beats задаёт `scene_job` (`reframe`, `cost`, `contrast`, `bridge`, `synthesize`, `apply`, `stress_test`), чтобы downstream writing видел, какой move сцена должна сделать
-- `hook` / `explanation` / `case_study` сцены не могут остаться callback-only без нового primary claim и в таком случае срабатывает ограниченный retry (`ACT_PLANNER_RETRIES = 2`); callback-only ending scenes дополнительно ограничены структурно (`<=2` callback claims, compact description, ending-friendly `scene_job`) вместо keyword heuristics
+- `hook` / `explanation` / `case_study` сцены не могут остаться callback-only без нового primary claim и в таком случае срабатывает отдельный quality-retry budget (`ACT_PLANNER_QUALITY_RETRIES = 2`); transport/timeout/parse failures используют отдельный request/output retry budget (`ACT_PLANNER_REQUEST_RETRIES = 2`), поэтому сетевой stall не съедает последний шанс на quality retry. Callback-only ending scenes сохраняют structural limits на `<=2` callback claims и ending-friendly `scene_job`; длинный ending description теперь остаётся advisory signal, а не hard fail, потому что length alone слишком brittle across languages/corpora
 - если сцена выбрала claim, но LLM не приклеил `evidence_ids`, act planner сначала детерминированно подставляет bundled claim support и только потом идёт в `vector_search` rescue
+- Anthropic LLM calls теперь обёрнуты в общий hard timeout (`LLM_REQUEST_TIMEOUT_SECONDS`, default `300`), чтобы Celery worker не зависал бесконечно на stalled provider request
 
-- при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` каждый act planner пишет JSON dump с prompt payload, attempt history, raw/parsed outputs, normalized beat sheet и результатом evidence gap fill
+- при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` каждый act planner сначала пишет ранний `started` dump до первого LLM-вызова, а затем финальный JSON dump с prompt payload, attempt history, raw/parsed outputs, normalized beat sheet и результатом evidence gap fill
 
 ### **5.3 Integrator**
 

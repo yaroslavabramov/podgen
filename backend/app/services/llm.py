@@ -15,6 +15,10 @@ logger = logging.getLogger(__name__)
 _OVERLOAD_RETRY_DELAYS = (30, 60)  # seconds between retries on 529
 
 
+def _request_timeout_seconds() -> int:
+    return max(1, int(settings.llm_request_timeout_seconds))
+
+
 async def _call_with_overload_retry(
     fn: Callable[[], Coroutine[Any, Any, Any]],
 ) -> Any:
@@ -34,6 +38,19 @@ async def _call_with_overload_retry(
             await assert_step_not_stopped()
             await asyncio.sleep(delay)
             await assert_step_not_stopped()
+
+
+async def _call_with_request_timeout(
+    label: str,
+    fn: Callable[[], Coroutine[Any, Any, Any]],
+) -> Any:
+    timeout_seconds = _request_timeout_seconds()
+    try:
+        return await asyncio.wait_for(_call_with_overload_retry(fn), timeout=timeout_seconds)
+    except TimeoutError as exc:
+        logger.error("%s timed out after %ss", label, timeout_seconds)
+        raise TimeoutError(f"{label} timed out after {timeout_seconds}s") from exc
+
 
 # Singleton clients
 _anthropic_client: anthropic.AsyncAnthropic | None = None
@@ -113,10 +130,16 @@ async def call_sonnet(system: str, prompt: str, max_tokens: int = 4096, temperat
         "llm.call_sonnet",
         run_type="llm",
         inputs=_llm_trace_inputs(system, prompt, max_tokens, temperature),
-        metadata={"provider": "anthropic", "model": SONNET_MODEL, "structured": False},
+        metadata={
+            "provider": "anthropic",
+            "model": SONNET_MODEL,
+            "structured": False,
+            "timeout_seconds": _request_timeout_seconds(),
+        },
         tags=["llm", "anthropic", "model:sonnet"],
     ) as run_tree:
-        response = await _call_with_overload_retry(
+        response = await _call_with_request_timeout(
+            "Anthropic Sonnet request",
             lambda: client.messages.create(
                 model=SONNET_MODEL,
                 max_tokens=max_tokens,
@@ -137,10 +160,16 @@ async def call_haiku(system: str, prompt: str, max_tokens: int = 4096, temperatu
         "llm.call_haiku",
         run_type="llm",
         inputs=_llm_trace_inputs(system, prompt, max_tokens, temperature),
-        metadata={"provider": "anthropic", "model": HAIKU_MODEL, "structured": False},
+        metadata={
+            "provider": "anthropic",
+            "model": HAIKU_MODEL,
+            "structured": False,
+            "timeout_seconds": _request_timeout_seconds(),
+        },
         tags=["llm", "anthropic", "model:haiku"],
     ) as run_tree:
-        response = await _call_with_overload_retry(
+        response = await _call_with_request_timeout(
+            "Anthropic Haiku request",
             lambda: client.messages.create(
                 model=HAIKU_MODEL,
                 max_tokens=max_tokens,
@@ -167,10 +196,16 @@ async def call_sonnet_structured(
         "llm.call_sonnet_structured",
         run_type="llm",
         inputs=_llm_trace_inputs(system, prompt, max_tokens, temperature),
-        metadata={"provider": "anthropic", "model": SONNET_MODEL, "structured": True},
+        metadata={
+            "provider": "anthropic",
+            "model": SONNET_MODEL,
+            "structured": True,
+            "timeout_seconds": _request_timeout_seconds(),
+        },
         tags=["llm", "anthropic", "model:sonnet", "structured"],
     ) as run_tree:
-        response = await _call_with_overload_retry(
+        response = await _call_with_request_timeout(
+            "Anthropic Sonnet structured request",
             lambda: client.messages.create(
                 model=SONNET_MODEL,
                 max_tokens=max_tokens,
@@ -206,10 +241,16 @@ async def call_haiku_structured(
         "llm.call_haiku_structured",
         run_type="llm",
         inputs=_llm_trace_inputs(system, prompt, max_tokens, temperature),
-        metadata={"provider": "anthropic", "model": HAIKU_MODEL, "structured": True},
+        metadata={
+            "provider": "anthropic",
+            "model": HAIKU_MODEL,
+            "structured": True,
+            "timeout_seconds": _request_timeout_seconds(),
+        },
         tags=["llm", "anthropic", "model:haiku", "structured"],
     ) as run_tree:
-        response = await _call_with_overload_retry(
+        response = await _call_with_request_timeout(
+            "Anthropic Haiku structured request",
             lambda: client.messages.create(
                 model=HAIKU_MODEL,
                 max_tokens=max_tokens,

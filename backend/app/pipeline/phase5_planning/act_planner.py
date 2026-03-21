@@ -28,7 +28,9 @@ from app.realtime.publisher import publish_event
 from app.realtime.events import act_planned, step_started, step_completed
 
 logger = logging.getLogger(__name__)
-ACT_PLANNER_RETRIES = 2
+ACT_PLANNER_REQUEST_RETRIES = 2
+ACT_PLANNER_QUALITY_RETRIES = 2
+ACT_PLANNER_MAX_TOTAL_ATTEMPTS = ACT_PLANNER_REQUEST_RETRIES + ACT_PLANNER_QUALITY_RETRIES
 MAX_EVIDENCE_SEARCHES_PER_ACT = 3
 MAX_SUPPORT_EVIDENCE_PER_ACT = 30
 MAX_DIRECT_SUPPORT_PER_CLAIM = 1
@@ -122,8 +124,11 @@ Rules:
 - Do not turn the act into a laundry list of explanations.
 - Keep one clear job per scene. Split only when the listener would feel a meaningful shift.
 - Avoid repeating the same proposition core across multiple scenes in the same act.
+- Not every claim deserves its own fresh explanation beat. If two claims are near-paraphrases or share the same mechanism core, combine them into one scene or treat one as support for the other.
 - Give each claim one main home scene inside the act. If a later scene refers back to that material, treat it as a brief callback rather than a fresh explanation.
 - `prior_acts_primary_claims` lists points that earlier acts already established as primary material. Do not assign materially overlapping points as fresh primary explanations unless this act adds a genuinely new layer; if prior material must recur, prefer callback framing.
+- A genuinely new layer means the listener learns something meaningfully different: how the mechanism behaves under stress, what it costs, what legal or political structure locks it in, how it differs from another system, or what consequence follows from it. Merely restating the same mechanism with different wording is not a new layer.
+- In later acts, assume the listener remembers the previously established mechanism. Do not spend a full scene re-teaching it unless the act adds a clearly different layer.
 - Use `scene_count_guidance` as the default size target for the act. Do not exceed it unless the act would otherwise feel structurally incomplete.
 - Prefer compact beat cards, not mini-script paragraphs. `description` should describe the beat, not write the scene. `notes` should stay short.
 - When a scene uses a claim, attach one or more `evidence_ids` from that claim's bundled support whenever available.
@@ -145,6 +150,8 @@ Rules:
   - `stress_test`: push an established mechanism under pressure
 - Callback-only ending scenes should usually use `reframe`, `cost`, `contrast`, `bridge`, or `synthesize`.
 - Callback-only ending scenes should stay compact and focused. They should not become oversized recap blocks.
+- When writing a callback-heavy or ending beat card, lead with the new move first: the consequence, reframing, contrast, bridge, or cost. Do not lead by re-explaining the old mechanism.
+- If a scene uses an established mechanism as context, mention that context briefly and then move immediately to what is new in this scene.
 - Let `story_role` shape the act:
   - `setup`: establish the paradox, world, and stakes
   - `complicate`: intensify the problem or institutional tension
@@ -229,13 +236,33 @@ async def plan_act(state: PipelineState) -> dict:
             beat_sheet_valid = False
             failed_beat_sheet: list[dict[str, Any]] | None = None
             attempt_debugs: list[dict[str, Any]] = []
-            for attempt in range(1, ACT_PLANNER_RETRIES + 1):
+            request_failures = 0
+            quality_failures = 0
+            total_attempts = 0
+            last_failure_status = ""
+            retry_feedback_error = ""
+            _dump_act_planner_debug(
+                run_id=run_id,
+                act_number=act_num,
+                status="started",
+                base_prompt=base_prompt,
+                attempts=[],
+                beat_sheet=None,
+                gap_fill_result=None,
+                quality_issues=[],
+            )
+            while total_attempts < ACT_PLANNER_MAX_TOTAL_ATTEMPTS:
+                if request_failures >= ACT_PLANNER_REQUEST_RETRIES:
+                    break
+                if quality_failures >= ACT_PLANNER_QUALITY_RETRIES:
+                    break
+                total_attempts += 1
                 prompt_payload = dict(base_prompt)
-                if attempt > 1:
+                if retry_feedback_error:
                     prompt_payload["strict_output_contract"] = (
                         "Return valid JSON with top-level keys scene_strategy and beat_sheet. No prose."
                     )
-                    prompt_payload["previous_error"] = last_error
+                    prompt_payload["previous_error"] = retry_feedback_error
 
                 prompt = json.dumps(prompt_payload, ensure_ascii=False)
                 raw = ""
@@ -243,7 +270,18 @@ async def plan_act(state: PipelineState) -> dict:
                 candidate_beat_sheet: list[dict[str, Any]] = []
                 candidate_scene_strategy = ""
                 candidate_quality_issues: list[dict[str, Any]] = []
+                structural_overlap_failure = False
                 try:
+                    logger.info(
+                        "Act planner calling Sonnet for act %s (attempt %s, request_failures=%s/%s, quality_failures=%s/%s, prompt_chars=%s)",
+                        act_num,
+                        total_attempts,
+                        request_failures,
+                        ACT_PLANNER_REQUEST_RETRIES,
+                        quality_failures,
+                        ACT_PLANNER_QUALITY_RETRIES,
+                        len(prompt),
+                    )
                     raw = await call_sonnet_structured(system=ACT_PLANNER_SYSTEM, prompt=prompt, temperature=0.5)
                     beat_data = parse_llm_json(raw)
                     candidate_scene_strategy = _extract_scene_strategy(beat_data)
@@ -258,9 +296,11 @@ async def plan_act(state: PipelineState) -> dict:
                     candidate_quality_issues = _collect_beat_sheet_quality_issues(candidate_beat_sheet)
                     structural_overlap_failure = _has_structural_overlap_failures(candidate_quality_issues)
                     if candidate_beat_sheet:
+                        if structural_overlap_failure:
+                            raise ValueError("beat_sheet failed structural overlap validation after claim-role split")
                         attempt_debugs.append(
                             {
-                                "attempt": attempt,
+                                "attempt": total_attempts,
                                 "status": "ok",
                                 "prompt_payload": prompt_payload,
                                 "llm_output": {
@@ -274,8 +314,6 @@ async def plan_act(state: PipelineState) -> dict:
                                 "structural_overlap_failure": structural_overlap_failure,
                             }
                         )
-                        if structural_overlap_failure:
-                            raise ValueError("beat_sheet failed structural overlap validation after claim-role split")
                         beat_sheet = candidate_beat_sheet
                         scene_strategy = candidate_scene_strategy
                         quality_issues = candidate_quality_issues
@@ -287,10 +325,18 @@ async def plan_act(state: PipelineState) -> dict:
                         failed_beat_sheet = candidate_beat_sheet
                     quality_issues = candidate_quality_issues
                     last_error = f"{type(exc).__name__}: {exc}"
+                    if structural_overlap_failure:
+                        quality_failures += 1
+                        last_failure_status = "quality_gate_failed"
+                        retry_feedback_error = last_error
+                    else:
+                        request_failures += 1
+                        last_failure_status = "llm_or_normalize_failed"
+                        retry_feedback_error = "" if isinstance(exc, TimeoutError) else last_error
                     attempt_debugs.append(
                         {
-                            "attempt": attempt,
-                            "status": "invalid_output",
+                            "attempt": total_attempts,
+                            "status": last_failure_status,
                             "prompt_payload": prompt_payload,
                             "llm_output": {
                                 "raw_chars": len(raw or ""),
@@ -303,10 +349,13 @@ async def plan_act(state: PipelineState) -> dict:
                         }
                     )
                     logger.warning(
-                        "Act planning output invalid for act %s (attempt %s/%s): %s",
+                        "Act planning output invalid for act %s (attempt %s, request_failures=%s/%s, quality_failures=%s/%s): %s",
                         act_num,
-                        attempt,
-                        ACT_PLANNER_RETRIES,
+                        total_attempts,
+                        request_failures,
+                        ACT_PLANNER_REQUEST_RETRIES,
+                        quality_failures,
+                        ACT_PLANNER_QUALITY_RETRIES,
                         last_error,
                         exc_info=True,
                     )
@@ -315,7 +364,7 @@ async def plan_act(state: PipelineState) -> dict:
                 _dump_act_planner_debug(
                     run_id=run_id,
                     act_number=act_num,
-                    status="quality_gate_failed" if failed_beat_sheet else "llm_or_normalize_failed",
+                    status=last_failure_status or ("quality_gate_failed" if failed_beat_sheet else "llm_or_normalize_failed"),
                     base_prompt=base_prompt,
                     attempts=attempt_debugs,
                     beat_sheet=failed_beat_sheet,
@@ -323,7 +372,10 @@ async def plan_act(state: PipelineState) -> dict:
                     quality_issues=quality_issues,
                 )
                 raise RuntimeError(
-                    f"Act planner failed after {ACT_PLANNER_RETRIES} attempts for act {act_num}. Last error: {last_error}"
+                    f"Act planner failed after {total_attempts} attempts for act {act_num}. "
+                    f"Request failures: {request_failures}/{ACT_PLANNER_REQUEST_RETRIES}. "
+                    f"Quality failures: {quality_failures}/{ACT_PLANNER_QUALITY_RETRIES}. "
+                    f"Last error: {last_error}"
                 )
 
             if scene_strategy:
@@ -1088,7 +1140,7 @@ def _collect_beat_sheet_quality_issues(beat_sheet: list[dict[str, Any]]) -> list
             if len(description) > MAX_CALLBACK_ENDING_DESCRIPTION_CHARS:
                 issues.append(
                     {
-                        "severity": "structural",
+                        "severity": "advisory",
                         "type": "callback_only_ending_too_long",
                         "scene": scene_number,
                         "scene_type": scene_type,

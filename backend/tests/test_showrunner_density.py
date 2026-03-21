@@ -168,6 +168,9 @@ def test_showrunner_prompt_does_not_hardcode_three_acts() -> None:
     assert '"internal_arc": "short phrase describing how this act moves internally"' in SHOWRUNNER_SYSTEM
     assert "Adjacent acts should usually have different `internal_arc` shapes." in SHOWRUNNER_SYSTEM
     assert "All human-readable fields (`title`, `purpose`, `internal_arc`, `opening_question`, `ending_turn`) MUST be in `output_language`" in SHOWRUNNER_SYSTEM
+    assert "Branch coherence is a hint, not a rule." in SHOWRUNNER_SYSTEM
+    assert "If two claims from different branches are near-paraphrases or materially describe the same mechanism" in SHOWRUNNER_SYSTEM
+    assert "Listener novelty matters more than branch coverage." in SHOWRUNNER_SYSTEM
 
 
 def test_build_showrunner_prompt_payload_carries_output_language() -> None:

@@ -276,6 +276,9 @@ def test_act_planner_prompt_demands_compact_beats_and_real_conflict_gate() -> No
     assert "each claim includes `support_bundle.direct` and optional `support_bundle.illustrative`" in ACT_PLANNER_SYSTEM
     assert "attach one or more `evidence_ids` from that claim's bundled support whenever available" in ACT_PLANNER_SYSTEM
     assert "Give each claim one main home scene inside the act." in ACT_PLANNER_SYSTEM
+    assert "Not every claim deserves its own fresh explanation beat." in ACT_PLANNER_SYSTEM
+    assert "A genuinely new layer means the listener learns something meaningfully different" in ACT_PLANNER_SYSTEM
+    assert "When writing a callback-heavy or ending beat card, lead with the new move first" in ACT_PLANNER_SYSTEM
     assert "`takeaway` and `summary` scenes should usually land consequence, implication, or reframing." in ACT_PLANNER_SYSTEM
     assert "`prior_acts_primary_claims` lists points that earlier acts already established as primary material." in ACT_PLANNER_SYSTEM
     assert "Use `scene_job` to declare the move each callback-heavy scene is making" in ACT_PLANNER_SYSTEM
@@ -462,9 +465,55 @@ def test_collect_beat_sheet_quality_issues_flags_oversized_callback_only_ending(
     issues = _collect_beat_sheet_quality_issues(beat_sheet)
 
     assert any(issue["type"] == "callback_only_ending_too_many_claims" for issue in issues)
-    assert any(issue["type"] == "callback_only_ending_too_long" for issue in issues)
+    assert any(
+        issue["type"] == "callback_only_ending_too_long" and issue["severity"] == "advisory"
+        for issue in issues
+    )
     assert any(issue["type"] == "callback_only_ending_bad_scene_job" for issue in issues)
     assert _has_structural_overlap_failures(issues)
+
+
+def test_collect_beat_sheet_quality_issues_keeps_long_callback_only_ending_advisory() -> None:
+    beat_sheet = [
+        {
+            "scene": 1,
+            "type": "explanation",
+            "primary_claim_ids": ["11111111-1111-1111-1111-111111111111"],
+            "callback_claim_ids": [],
+            "description": "Explain the mechanism.",
+        },
+        {
+            "scene": 2,
+            "type": "takeaway",
+            "primary_claim_ids": [],
+            "callback_claim_ids": ["11111111-1111-1111-1111-111111111111"],
+            "scene_job": "reframe",
+            "description": "x" * 321,
+        },
+    ]
+
+    issues = _collect_beat_sheet_quality_issues(beat_sheet)
+
+    assert issues == [
+        {
+            "severity": "advisory",
+            "type": "callback_only_ending",
+            "scene": 2,
+            "scene_type": "takeaway",
+            "message": "Ending scene is callback-only; ensure it lands a new consequence or reframing instead of reteaching mechanism.",
+            "callback_claim_ids": ["11111111-1111-1111-1111-111111111111"],
+        },
+        {
+            "severity": "advisory",
+            "type": "callback_only_ending_too_long",
+            "scene": 2,
+            "scene_type": "takeaway",
+            "message": "Callback-only ending description is too long and likely to become a recap block.",
+            "description_chars": 321,
+            "scene_job": "reframe",
+        },
+    ]
+    assert not _has_structural_overlap_failures(issues)
 
 
 def test_hydrate_scene_evidence_ids_from_claim_support_prefers_scene_type_order() -> None:
@@ -694,11 +743,351 @@ async def test_plan_act_raises_after_overlap_gate_retry_exhaustion(
             }
         )
 
-    assert len(dumps) == 1
-    assert dumps[0]["status"] == "quality_gate_failed"
-    assert dumps[0]["beat_sheet"] is not None
-    assert dumps[0]["beat_sheet"][1]["primary_claim_ids"] == []
-    assert dumps[0]["beat_sheet"][1]["callback_claim_ids"] == [claim_id]
+    assert len(dumps) == 2
+    assert dumps[0]["status"] == "started"
+    assert dumps[0]["beat_sheet"] is None
+    assert dumps[1]["status"] == "quality_gate_failed"
+    assert dumps[1]["beat_sheet"] is not None
+    assert dumps[1]["beat_sheet"][1]["primary_claim_ids"] == []
+    assert dumps[1]["beat_sheet"][1]["callback_claim_ids"] == [claim_id]
+
+
+@pytest.mark.asyncio
+async def test_plan_act_writes_started_dump_before_llm_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    claim_id = str(uuid.uuid4())
+    manifest = SimpleNamespace(
+        id=uuid.uuid4(),
+        acts_json=[
+            {
+                "act_number": 1,
+                "story_role": "explain",
+                "title": "Act 1",
+                "purpose": "Explain",
+                "internal_arc": "open -> close",
+                "opening_question": "Why?",
+                "ending_turn": "Because.",
+                "claim_ids": [claim_id],
+                "estimated_duration_seconds": 240,
+                "content_quotas": {},
+            }
+        ],
+        research_tree_json={"branches": []},
+    )
+    db = _FakeActPlannerDB(manifest)
+    dumps = []
+
+    async def _fake_load_planning_context(**_kwargs):
+        return (
+            {
+                claim_id: {
+                    "id": claim_id,
+                    "type": "fact",
+                    "verification": "verified",
+                    "branch_ids": ["b1"],
+                    "intents": ["explain"],
+                    "statement": "Mechanism claim",
+                    "has_illustrative": False,
+                    "illustrative_evidence_count": 0,
+                    "direct_support_count": 0,
+                    "source_diversity": 1,
+                }
+            },
+            {},
+        )
+
+    async def _fake_call_sonnet_structured(**_kwargs):
+        raise TimeoutError("Anthropic Sonnet structured request timed out after 300s")
+
+    monkeypatch.setattr("app.pipeline.phase5_planning.act_planner.async_session_factory", lambda: db)
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner.load_planning_context",
+        _fake_load_planning_context,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner.call_sonnet_structured",
+        _fake_call_sonnet_structured,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner.publish_event",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner._dump_act_planner_debug",
+        lambda **kwargs: dumps.append(kwargs),
+    )
+
+    with pytest.raises(RuntimeError, match="Act planner failed after 2 attempts for act 1"):
+        await plan_act(
+            {
+                "generation_run_id": str(uuid.uuid4()),
+                "manifest_id": str(manifest.id),
+                "language": "ru",
+            }
+        )
+
+    assert [dump["status"] for dump in dumps] == ["started", "llm_or_normalize_failed"]
+    assert dumps[1]["attempts"]
+    assert dumps[1]["attempts"][-1]["error"].startswith("TimeoutError:")
+
+
+@pytest.mark.asyncio
+async def test_plan_act_keeps_quality_retry_budget_after_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    claim_id = str(uuid.uuid4())
+    manifest = SimpleNamespace(
+        id=uuid.uuid4(),
+        acts_json=[
+            {
+                "act_number": 1,
+                "story_role": "explain",
+                "title": "Act 1",
+                "purpose": "Explain",
+                "internal_arc": "open -> close",
+                "opening_question": "Why?",
+                "ending_turn": "Because.",
+                "claim_ids": [claim_id],
+                "estimated_duration_seconds": 240,
+                "content_quotas": {},
+            }
+        ],
+        research_tree_json={"branches": []},
+    )
+    db = _FakeActPlannerDB(manifest)
+    dumps = []
+    prompts = []
+    responses = iter(
+        [
+            TimeoutError("Anthropic Sonnet structured request timed out after 300s"),
+            {
+                "scene_strategy": "repeat the same mechanism",
+                "beat_sheet": [
+                    {
+                        "scene": 1,
+                        "type": "explanation",
+                        "description": "Explain the mechanism.",
+                        "claim_ids": [claim_id],
+                        "evidence_ids": [],
+                        "estimated_duration_seconds": 120,
+                    },
+                    {
+                        "scene": 2,
+                        "type": "explanation",
+                        "description": "Explain the same mechanism again.",
+                        "claim_ids": [claim_id],
+                        "evidence_ids": [],
+                        "estimated_duration_seconds": 120,
+                    },
+                ],
+            },
+            {
+                "scene_strategy": "explain -> land",
+                "beat_sheet": [
+                    {
+                        "scene": 1,
+                        "type": "explanation",
+                        "description": "Explain the mechanism once.",
+                        "claim_ids": [claim_id],
+                        "evidence_ids": [],
+                        "estimated_duration_seconds": 120,
+                    },
+                    {
+                        "scene": 2,
+                        "type": "takeaway",
+                        "scene_job": "reframe",
+                        "description": "Land the implication without reteaching the mechanism.",
+                        "claim_ids": [claim_id],
+                        "evidence_ids": [],
+                        "estimated_duration_seconds": 120,
+                    },
+                ],
+            },
+        ]
+    )
+
+    async def _fake_load_planning_context(**_kwargs):
+        return (
+            {
+                claim_id: {
+                    "id": claim_id,
+                    "type": "fact",
+                    "verification": "verified",
+                    "branch_ids": ["b1"],
+                    "intents": ["explain"],
+                    "statement": "Mechanism claim",
+                    "has_illustrative": False,
+                    "illustrative_evidence_count": 0,
+                    "direct_support_count": 0,
+                    "source_diversity": 1,
+                }
+            },
+            {},
+        )
+
+    async def _fake_call_sonnet_structured(**kwargs):
+        prompts.append(json.loads(kwargs["prompt"]))
+        next_response = next(responses)
+        if isinstance(next_response, Exception):
+            raise next_response
+        return json.dumps(next_response, ensure_ascii=False)
+
+    async def _fake_fill_evidence_gaps(*_args, **_kwargs):
+        return []
+
+    monkeypatch.setattr("app.pipeline.phase5_planning.act_planner.async_session_factory", lambda: db)
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner.load_planning_context",
+        _fake_load_planning_context,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner.call_sonnet_structured",
+        _fake_call_sonnet_structured,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner._fill_evidence_gaps",
+        _fake_fill_evidence_gaps,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner.publish_event",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner._dump_act_planner_debug",
+        lambda **kwargs: dumps.append(kwargs),
+    )
+
+    result = await plan_act(
+        {
+            "generation_run_id": str(uuid.uuid4()),
+            "manifest_id": str(manifest.id),
+            "project_id": str(uuid.uuid4()),
+            "language": "ru",
+        }
+    )
+
+    assert result["manifest_id"] == str(manifest.id)
+    assert len(prompts) == 3
+    assert "previous_error" not in prompts[1]
+    assert prompts[2]["previous_error"].startswith(
+        "ValueError: beat_sheet failed structural overlap validation after claim-role split"
+    )
+    assert dumps[-1]["status"] == "ok"
+    assert [attempt["status"] for attempt in dumps[-1]["attempts"]] == [
+        "llm_or_normalize_failed",
+        "quality_gate_failed",
+        "ok",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_plan_act_final_dump_status_tracks_last_failure_type(monkeypatch: pytest.MonkeyPatch) -> None:
+    claim_id = str(uuid.uuid4())
+    manifest = SimpleNamespace(
+        id=uuid.uuid4(),
+        acts_json=[
+            {
+                "act_number": 1,
+                "story_role": "explain",
+                "title": "Act 1",
+                "purpose": "Explain",
+                "internal_arc": "open -> close",
+                "opening_question": "Why?",
+                "ending_turn": "Because.",
+                "claim_ids": [claim_id],
+                "estimated_duration_seconds": 240,
+                "content_quotas": {},
+            }
+        ],
+        research_tree_json={"branches": []},
+    )
+    db = _FakeActPlannerDB(manifest)
+    dumps = []
+    responses = iter(
+        [
+            {
+                "scene_strategy": "repeat the same mechanism",
+                "beat_sheet": [
+                    {
+                        "scene": 1,
+                        "type": "explanation",
+                        "description": "Explain the mechanism.",
+                        "claim_ids": [claim_id],
+                        "evidence_ids": [],
+                        "estimated_duration_seconds": 120,
+                    },
+                    {
+                        "scene": 2,
+                        "type": "explanation",
+                        "description": "Explain the same mechanism again.",
+                        "claim_ids": [claim_id],
+                        "evidence_ids": [],
+                        "estimated_duration_seconds": 120,
+                    },
+                ],
+            },
+            TimeoutError("Anthropic Sonnet structured request timed out after 300s"),
+            TimeoutError("Anthropic Sonnet structured request timed out after 300s"),
+        ]
+    )
+
+    async def _fake_load_planning_context(**_kwargs):
+        return (
+            {
+                claim_id: {
+                    "id": claim_id,
+                    "type": "fact",
+                    "verification": "verified",
+                    "branch_ids": ["b1"],
+                    "intents": ["explain"],
+                    "statement": "Mechanism claim",
+                    "has_illustrative": False,
+                    "illustrative_evidence_count": 0,
+                    "direct_support_count": 0,
+                    "source_diversity": 1,
+                }
+            },
+            {},
+        )
+
+    async def _fake_call_sonnet_structured(**_kwargs):
+        next_response = next(responses)
+        if isinstance(next_response, Exception):
+            raise next_response
+        return json.dumps(next_response, ensure_ascii=False)
+
+    monkeypatch.setattr("app.pipeline.phase5_planning.act_planner.async_session_factory", lambda: db)
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner.load_planning_context",
+        _fake_load_planning_context,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner.call_sonnet_structured",
+        _fake_call_sonnet_structured,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner.publish_event",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner._dump_act_planner_debug",
+        lambda **kwargs: dumps.append(kwargs),
+    )
+
+    with pytest.raises(RuntimeError, match="Act planner failed after 3 attempts for act 1"):
+        await plan_act(
+            {
+                "generation_run_id": str(uuid.uuid4()),
+                "manifest_id": str(manifest.id),
+                "project_id": str(uuid.uuid4()),
+                "language": "ru",
+            }
+        )
+
+    assert [attempt["status"] for attempt in dumps[-1]["attempts"]] == [
+        "quality_gate_failed",
+        "llm_or_normalize_failed",
+        "llm_or_normalize_failed",
+    ]
+    assert dumps[-1]["status"] == "llm_or_normalize_failed"
+    assert dumps[-1]["beat_sheet"] is not None
 
 
 def test_build_act_prompt_payload_keeps_claim_support_beyond_old_flat_evidence_cap() -> None:
