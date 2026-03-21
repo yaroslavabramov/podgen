@@ -541,6 +541,13 @@ Deferred after Round 68:
 - [x] **P1**: Teach screenwriter to use `previous_scene.last_line` as a natural conversational bridge when the next scene can continue without a hard reset
 - [x] **P1**: Add regression tests for callback-aware scene payloads, written-dialogue previous-scene continuity, and helper extraction for dialogue texts / mechanism anchors
 
+**Round 80 (scene jobs + prior primary memory):**
+- [x] **P0**: Add `scene_job` to act-planner beat sheets for callback/mixed scenes so writer sees a positive move (`reframe`, `cost`, `contrast`, `bridge`, `synthesize`, `apply`, `stress_test`) instead of only a negative anti-repetition rule
+- [x] **P0**: Add `prior_acts_primary_claims` to later act-planner payloads so new acts know what earlier acts already established as primary explanation material
+- [x] **P1**: Tighten callback-only ending constraints in act planning with structural limits (`<=2` callback claims, compact description, ending-friendly `scene_job`) instead of keyword heuristics
+- [x] **P1**: Add `scene_job` and deterministic `recent_scene_starts` to screenwriter payloads so callback scenes know what move to make and scene openers repeat less inside one act
+- [x] **P1**: Widen previous-scene continuity slices for writer and add regression tests for prior-primary planner memory, scene-job defaults, callback-only ending gating, and recent scene starts
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

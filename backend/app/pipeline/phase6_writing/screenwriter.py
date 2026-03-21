@@ -27,6 +27,17 @@ from app.realtime.events import phase_started, step_started, step_completed, sce
 logger = logging.getLogger(__name__)
 SCENE_GENERATION_ATTEMPTS = 3
 SCENE_RETRY_BASE_DELAY_SECONDS = 1.0
+RECENT_SCENE_STARTS_MAX_ITEMS = 5
+PREVIOUS_SCENE_STATEMENT_CHARS = 200
+SCENE_JOB_VALUES = {
+    "reframe",
+    "cost",
+    "contrast",
+    "bridge",
+    "synthesize",
+    "apply",
+    "stress_test",
+}
 
 SCREENWRITER_SYSTEM = """You are a podcast screenwriter creating natural dialogue between two hosts.
 Given a scene brief, local act context, claims, evidence, and host personas, write the dialogue.
@@ -70,10 +81,20 @@ Writing rules:
   - `primary`: introduce the new material clearly
   - `mixed`: explain the primary part, but treat `callback_claim_ids` as already established
   - `callback`: reference the established mechanism briefly and move to implication, cost, contrast, or bridge
+- Use `scene_job` as the positive move this scene must make:
+  - `reframe`: reinterpret already-established material
+  - `cost`: show the price or tradeoff
+  - `contrast`: sharpen difference against another path or expectation
+  - `bridge`: pivot cleanly into the next beat or act
+  - `synthesize`: compress what changed in understanding
+  - `apply`: show an established mechanism operating in a concrete case
+  - `stress_test`: push an established mechanism under pressure
 - `callback_claim_ids` are not fresh exposition material. Do not turn callback-only scenes into mechanism walkthroughs.
+- If `scene_claim_mode = callback`, let `scene_job` control the scene. Reference the established mechanism briefly, then spend the scene on the job.
 - Treat `new_information_goal` as the delta this scene must add. Do not spend most of the scene re-teaching already covered setup.
 - Keep the scene moving. Do not let both hosts restate the same point in slightly different words.
 - Avoid dry explanatory dialogue by default. Prefer a concrete opening move, a turn, and a landing.
+- `recent_scene_starts` lists opener shapes already used in this act. If a recent opener shape is already present there, choose a different natural opening when possible.
 - Let `scene_type` shape the scene:
   - `hook`: open with surprise, tension, or a vivid listener-facing question
   - `case_study`: ground the scene in a concrete event, example, or episode
@@ -305,6 +326,12 @@ async def write_screenplay(state: PipelineState) -> dict:
                         max_items=16,
                         statement_chars=160,
                         include_mechanism_anchors=True,
+                    ),
+                    recent_scene_starts=_build_recent_scene_starts(
+                        beat_sheet,
+                        scene_idx,
+                        act_number=act_num,
+                        existing_segments=existing_segments,
                     ),
                     new_information_goal=_build_new_information_goal(
                         scene=scene,
@@ -552,6 +579,7 @@ def _build_scene_prompt_payload(
     previous_act_summary: dict | None,
     already_covered_claims: list[dict],
     already_covered_claims_global: list[dict],
+    recent_scene_starts: list[str],
     new_information_goal: str,
 ) -> dict:
     return {
@@ -561,6 +589,7 @@ def _build_scene_prompt_payload(
         "scene_number": scene_number,
         "scene_type": scene.get("type", "explanation"),
         "scene_claim_mode": _scene_claim_mode(scene),
+        "scene_job": _scene_job(scene),
         "callback_claim_ids": _scene_callback_claim_ids(scene),
         "description": scene.get("description", ""),
         "transition_note": scene.get("transition_note", ""),
@@ -570,6 +599,7 @@ def _build_scene_prompt_payload(
         "previous_act_summary": previous_act_summary,
         "already_covered_claims": already_covered_claims,
         "already_covered_claims_global": already_covered_claims_global,
+        "recent_scene_starts": recent_scene_starts,
         "new_information_goal": new_information_goal,
         "claims": scene_claims,
         "evidence": scene_evidence,
@@ -628,6 +658,39 @@ def _scene_claim_mode(scene: dict[str, Any]) -> str:
     return "primary"
 
 
+def _normalize_scene_job(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    cleaned = value.strip().lower()
+    return cleaned if cleaned in SCENE_JOB_VALUES else ""
+
+
+def _scene_job(scene: dict[str, Any]) -> str:
+    explicit = _normalize_scene_job(scene.get("scene_job"))
+    if explicit:
+        return explicit
+
+    scene_type = str(scene.get("type") or "").strip()
+    scene_claim_mode = _scene_claim_mode(scene)
+    if scene_claim_mode == "callback":
+        if scene_type in {"takeaway", "summary"}:
+            return "synthesize"
+        if scene_type == "transition":
+            return "bridge"
+        if scene_type == "debate":
+            return "contrast"
+        return "apply"
+    if scene_claim_mode == "mixed":
+        if scene_type == "transition":
+            return "bridge"
+        if scene_type == "debate":
+            return "contrast"
+        if scene_type in {"takeaway", "summary"}:
+            return "synthesize"
+        return "apply"
+    return ""
+
+
 def _scene_manifest_claim_ids(scene: dict[str, Any]) -> list[str]:
     ordered: list[str] = []
     seen: set[str] = set()
@@ -669,7 +732,7 @@ def _build_previous_scene_payload(
         covered_claim_ids=previous_claim_ids,
         claim_lookup=claim_lookup,
         max_items=4,
-        statement_chars=140,
+        statement_chars=PREVIOUS_SCENE_STATEMENT_CHARS,
     )
     established_claim_ids = [
         item.get("id")
@@ -845,6 +908,32 @@ def _build_new_information_goal(
     return "Do not reteach already covered material. Add only the fresh angle, consequence, or reframing this scene contributes."
 
 
+def _build_recent_scene_starts(
+    beat_sheet: list[dict],
+    current_scene_idx: int,
+    *,
+    act_number: int,
+    existing_segments: dict[tuple[int, int], ScriptSegment],
+) -> list[str]:
+    if current_scene_idx <= 1:
+        return []
+
+    recent_scene_starts: list[str] = []
+    start_index = max(1, current_scene_idx - RECENT_SCENE_STARTS_MAX_ITEMS)
+    for scene_idx in range(start_index, current_scene_idx):
+        scene = beat_sheet[scene_idx - 1]
+        if not isinstance(scene, dict):
+            continue
+        scene_number = _normalized_scene_number(scene.get("scene"), scene_idx)
+        segment = existing_segments.get((act_number, scene_number))
+        if segment is None:
+            continue
+        opener = _extract_dialogue_opener(segment.dialogue_json)
+        if opener:
+            recent_scene_starts.append(opener)
+    return recent_scene_starts[-RECENT_SCENE_STARTS_MAX_ITEMS:]
+
+
 def _build_already_covered_claims_payload(
     *,
     covered_claim_ids: list[str],
@@ -897,6 +986,17 @@ def _extract_dialogue_texts(dialogue_json: object) -> list[str]:
         if cleaned:
             ordered.append(cleaned)
     return ordered
+
+
+def _extract_dialogue_opener(dialogue_json: object, *, max_words: int = 2) -> str:
+    texts = _extract_dialogue_texts(dialogue_json)
+    if not texts:
+        return ""
+    first_text = texts[0]
+    words = re.findall(r"[^\W_]+(?:[-'][^\W_]+)?", first_text, flags=re.UNICODE)
+    if not words:
+        return ""
+    return " ".join(word.lower() for word in words[:max_words])
 
 
 def _collect_mechanism_anchors(texts: list[str]) -> list[str]:

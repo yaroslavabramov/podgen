@@ -502,8 +502,9 @@ Web extraction использует каскад extractors:
   - `support_bundle.direct` (1 лучший factual quote)
   - `support_bundle.illustrative` (0-1 vivid quote when available)
 - дополнительно получают act-level story contract, `branch_focus_summary`, `conflict_count` и `scene_count_guidance`, чтобы строить сцены как движение внутри акта, а не как flat list of explanation beats
-- planner теперь нацелен на compact beat cards, а не на длинные pseudo-script paragraphs; он просит модель сначала выбрать короткую `scene_strategy`, явно запрещает default-скелет `hook -> explanation -> case_study -> takeaway`, трактует `case_study` как optional scene function и держит все human-readable поля в `output_language`
-- после normalizer act planner детерминированно делит повторно использованные claims на `primary_claim_ids` и `callback_claim_ids` по порядку сцен; `hook` / `explanation` / `case_study` сцены не могут остаться callback-only без нового primary claim и в таком случае срабатывает ограниченный retry (`ACT_PLANNER_RETRIES = 2`)
+- planner теперь нацелен на compact beat cards, а не на длинные pseudo-script paragraphs; он просит модель сначала выбрать короткую `scene_strategy`, явно запрещает default-скелет `hook -> explanation -> case_study -> takeaway`, трактует `case_study` как optional scene function, держит все human-readable поля в `output_language` и получает compact `prior_acts_primary_claims`, чтобы later acts знали, что earlier acts уже установили как primary material
+- после normalizer act planner детерминированно делит повторно использованные claims на `primary_claim_ids` и `callback_claim_ids` по порядку сцен, а для callback-heavy beats задаёт `scene_job` (`reframe`, `cost`, `contrast`, `bridge`, `synthesize`, `apply`, `stress_test`), чтобы downstream writing видел, какой move сцена должна сделать
+- `hook` / `explanation` / `case_study` сцены не могут остаться callback-only без нового primary claim и в таком случае срабатывает ограниченный retry (`ACT_PLANNER_RETRIES = 2`); callback-only ending scenes дополнительно ограничены структурно (`<=2` callback claims, compact description, ending-friendly `scene_job`) вместо keyword heuristics
 - если сцена выбрала claim, но LLM не приклеил `evidence_ids`, act planner сначала детерминированно подставляет bundled claim support и только потом идёт в `vector_search` rescue
 
 - при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` каждый act planner пишет JSON dump с prompt payload, attempt history, raw/parsed outputs, normalized beat sheet и результатом evidence gap fill
@@ -555,7 +556,9 @@ Web extraction использует каскад extractors:
   - `new_information_goal`
   - `transition_note`
   - `scene_claim_mode`
+  - `scene_job`
   - `callback_claim_ids`
+  - `recent_scene_starts`
 
 - держит dialogue в `language` подкаста, а не дрейфует в английский или смешанный output
 
@@ -569,7 +572,17 @@ Web extraction использует каскад extractors:
 
 - `new_information_goal` задаёт delta этой сцены: какой новый смысл, следствие или угол она должна добавить поверх уже рассказанного
 
-- в локальный writer prompt попадают только `primary_claim_ids` текущей сцены; `callback_claim_ids` и `scene_claim_mode` нужны как continuity signal, а global continuity memory дополнительно несёт compact generic `mechanism_anchors`, чтобы следующие сцены и акты не reteach'или уже установленный механизм как новый факт
+- в локальный writer prompt попадают только `primary_claim_ids` текущей сцены; `callback_claim_ids`, `scene_claim_mode` и `scene_job` нужны как continuity signal, а global continuity memory дополнительно несёт compact generic `mechanism_anchors`, чтобы следующие сцены и акты не reteach'или уже установленный механизм как новый факт
+- `scene_job` даёт callback-heavy сценам положительный контракт:
+  - `reframe`
+  - `cost`
+  - `contrast`
+  - `bridge`
+  - `synthesize`
+  - `apply`
+  - `stress_test`
+
+- `recent_scene_starts` — детерминированный список недавних opener-shapes внутри текущего акта; writer использует его как soft anti-repetition cue, чтобы сцены не начинались одним и тем же маркером снова и снова
 
 - не default'ится в строгий `ABAB` exchange и не повторяет одни и те же opener-фразы scene after scene
 

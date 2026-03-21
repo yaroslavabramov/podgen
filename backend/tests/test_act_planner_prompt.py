@@ -6,12 +6,15 @@ import pytest
 
 from app.pipeline.phase5_planning.act_planner import (
     ACT_PLANNER_SYSTEM,
+    _assign_scene_jobs,
     _branch_focus_summary,
     _build_act_prompt_payload,
+    _collect_prior_acts_primary_claims,
     _collect_beat_sheet_quality_issues,
     _hydrate_scene_evidence_ids_from_claim_support,
     _extract_scene_strategy,
     _has_structural_overlap_failures,
+    _scene_job,
     _scene_count_guidance,
     _split_scene_claim_roles,
     plan_act,
@@ -123,6 +126,13 @@ def test_build_act_prompt_payload_carries_story_contract_and_branch_focus() -> N
         act_claims=act_claims,
         act_evidence=act_evidence,
         output_language="ru",
+        prior_acts_primary_claims=[
+            {
+                "id": "p1",
+                "statement": "Earlier act already established the reserve rule.",
+                "act_number": 1,
+            }
+        ],
     )
 
     assert payload["output_language"] == "ru"
@@ -138,6 +148,13 @@ def test_build_act_prompt_payload_carries_story_contract_and_branch_focus() -> N
         {"branch_id": "b3", "claim_count": 2},
     ]
     assert payload["conflict_count"] == 0
+    assert payload["prior_acts_primary_claims"] == [
+        {
+            "id": "p1",
+            "statement": "Earlier act already established the reserve rule.",
+            "act_number": 1,
+        }
+    ]
     assert "evidence" not in payload
     assert "conflict_brief_ids" not in payload
     assert payload["claims"] == [
@@ -260,6 +277,46 @@ def test_act_planner_prompt_demands_compact_beats_and_real_conflict_gate() -> No
     assert "attach one or more `evidence_ids` from that claim's bundled support whenever available" in ACT_PLANNER_SYSTEM
     assert "Give each claim one main home scene inside the act." in ACT_PLANNER_SYSTEM
     assert "`takeaway` and `summary` scenes should usually land consequence, implication, or reframing." in ACT_PLANNER_SYSTEM
+    assert "`prior_acts_primary_claims` lists points that earlier acts already established as primary material." in ACT_PLANNER_SYSTEM
+    assert "Use `scene_job` to declare the move each callback-heavy scene is making" in ACT_PLANNER_SYSTEM
+
+
+def test_collect_prior_acts_primary_claims_uses_planned_previous_acts_in_order() -> None:
+    claim_a = "11111111-1111-1111-1111-111111111111"
+    claim_b = "22222222-2222-2222-2222-222222222222"
+    claim_c = "33333333-3333-3333-3333-333333333333"
+
+    acts = [
+        {
+            "act_number": 1,
+            "beat_sheet": [
+                {"scene": 1, "primary_claim_ids": [claim_a]},
+                {"scene": 2, "primary_claim_ids": [claim_b]},
+            ],
+        },
+        {
+            "act_number": 2,
+            "beat_sheet": [
+                {"scene": 1, "primary_claim_ids": [claim_c]},
+            ],
+        },
+        {"act_number": 3, "beat_sheet": []},
+    ]
+    cache = {
+        claim_a: {"statement": "Act one claim A"},
+        claim_b: {"statement": "Act one claim B"},
+        claim_c: {"statement": "Act two claim C"},
+    }
+
+    assert _collect_prior_acts_primary_claims(
+        acts=acts,
+        current_act_idx=3,
+        claim_context_cache=cache,
+    ) == [
+        {"id": claim_a, "statement": "Act one claim A", "act_number": 1},
+        {"id": claim_b, "statement": "Act one claim B", "act_number": 1},
+        {"id": claim_c, "statement": "Act two claim C", "act_number": 2},
+    ]
 
 
 def test_extract_scene_strategy_reads_top_level_field() -> None:
@@ -297,6 +354,24 @@ def test_split_scene_claim_roles_assigns_first_normalized_use_to_primary() -> No
         "11111111-1111-1111-1111-111111111111",
         "22222222-2222-2222-2222-222222222222",
     ]
+
+
+def test_assign_scene_jobs_defaults_callback_and_mixed_scenes() -> None:
+    c1 = "11111111-1111-1111-1111-111111111111"
+    c2 = "22222222-2222-2222-2222-222222222222"
+    c3 = "33333333-3333-3333-3333-333333333333"
+    beat_sheet = [
+        {"scene": 1, "type": "takeaway", "primary_claim_ids": [], "callback_claim_ids": [c1]},
+        {"scene": 2, "type": "transition", "primary_claim_ids": [c2], "callback_claim_ids": [c1]},
+        {"scene": 3, "type": "explanation", "primary_claim_ids": [c3], "callback_claim_ids": []},
+    ]
+
+    _assign_scene_jobs(beat_sheet)
+
+    assert beat_sheet[0]["scene_job"] == "synthesize"
+    assert beat_sheet[1]["scene_job"] == "bridge"
+    assert "scene_job" not in beat_sheet[2]
+    assert _scene_job(beat_sheet[0]) == "synthesize"
 
 
 def test_collect_beat_sheet_quality_issues_flags_structural_callback_only_explanation() -> None:
@@ -359,6 +434,37 @@ def test_collect_beat_sheet_quality_issues_keeps_callback_only_takeaway_advisory
         }
     ]
     assert not _has_structural_overlap_failures(issues)
+
+
+def test_collect_beat_sheet_quality_issues_flags_oversized_callback_only_ending() -> None:
+    beat_sheet = [
+        {
+            "scene": 1,
+            "type": "explanation",
+            "primary_claim_ids": ["11111111-1111-1111-1111-111111111111"],
+            "callback_claim_ids": [],
+            "description": "Explain the mechanism.",
+        },
+        {
+            "scene": 2,
+            "type": "takeaway",
+            "primary_claim_ids": [],
+            "callback_claim_ids": [
+                "11111111-1111-1111-1111-111111111111",
+                "22222222-2222-2222-2222-222222222222",
+                "33333333-3333-3333-3333-333333333333",
+            ],
+            "scene_job": "apply",
+            "description": "x" * 321,
+        },
+    ]
+
+    issues = _collect_beat_sheet_quality_issues(beat_sheet)
+
+    assert any(issue["type"] == "callback_only_ending_too_many_claims" for issue in issues)
+    assert any(issue["type"] == "callback_only_ending_too_long" for issue in issues)
+    assert any(issue["type"] == "callback_only_ending_bad_scene_job" for issue in issues)
+    assert _has_structural_overlap_failures(issues)
 
 
 def test_hydrate_scene_evidence_ids_from_claim_support_prefers_scene_type_order() -> None:
@@ -664,6 +770,7 @@ def test_build_act_prompt_payload_keeps_claim_support_beyond_old_flat_evidence_c
         act_claims=act_claims,
         act_evidence=act_evidence,
         output_language="ru",
+        prior_acts_primary_claims=[],
     )
 
     assert payload["claims"][0]["support_bundle"]["direct"] == [

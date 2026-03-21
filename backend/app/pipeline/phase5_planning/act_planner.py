@@ -34,6 +34,20 @@ MAX_SUPPORT_EVIDENCE_PER_ACT = 30
 MAX_DIRECT_SUPPORT_PER_CLAIM = 1
 MAX_ILLUSTRATIVE_SUPPORT_PER_CLAIM = 1
 MAX_EXISTING_EVIDENCE_IDS_PER_SCENE = 2
+MAX_PRIOR_PRIMARY_CLAIMS = 12
+PRIOR_PRIMARY_STATEMENT_CHARS = 200
+MAX_CALLBACK_ENDING_CALLBACK_CLAIMS = 2
+MAX_CALLBACK_ENDING_DESCRIPTION_CHARS = 320
+SCENE_JOB_VALUES = {
+    "reframe",
+    "cost",
+    "contrast",
+    "bridge",
+    "synthesize",
+    "apply",
+    "stress_test",
+}
+ENDING_SCENE_JOB_VALUES = {"reframe", "cost", "contrast", "bridge", "synthesize"}
 
 EVIDENCE_EXTRACT_SYSTEM = """You are an evidence extractor. Given a chunk of text and a scene description, extract a relevant verbatim quote that could serve as evidence for the scene.
 
@@ -58,6 +72,7 @@ Return JSON:
     {
       "scene": 1,
       "type": "hook|explanation|debate|case_study|transition|summary|takeaway",
+      "scene_job": "reframe|cost|contrast|bridge|synthesize|apply|stress_test|null",
       "description": "1-3 sentence beat card describing what changes in this scene",
       "claim_ids": ["id"],
       "evidence_ids": ["id"],
@@ -108,6 +123,7 @@ Rules:
 - Keep one clear job per scene. Split only when the listener would feel a meaningful shift.
 - Avoid repeating the same proposition core across multiple scenes in the same act.
 - Give each claim one main home scene inside the act. If a later scene refers back to that material, treat it as a brief callback rather than a fresh explanation.
+- `prior_acts_primary_claims` lists points that earlier acts already established as primary material. Do not assign materially overlapping points as fresh primary explanations unless this act adds a genuinely new layer; if prior material must recur, prefer callback framing.
 - Use `scene_count_guidance` as the default size target for the act. Do not exceed it unless the act would otherwise feel structurally incomplete.
 - Prefer compact beat cards, not mini-script paragraphs. `description` should describe the beat, not write the scene. `notes` should stay short.
 - When a scene uses a claim, attach one or more `evidence_ids` from that claim's bundled support whenever available.
@@ -119,6 +135,16 @@ Rules:
 - Use `debate` only when the act has real conflict pressure (`conflict_count > 0`) or the act itself is genuinely comparative/argumentative. If there is no real conflict, do not invent one.
 - `takeaway` and `summary` scenes should usually land consequence, implication, or reframing. They should not reteach the act's main mechanism if that mechanism already had its own explanation scene.
 - Do not replay the act's opening image or main mechanism in the final scene unless the ending adds a clearly new consequence or wider frame.
+- Use `scene_job` to declare the move each callback-heavy scene is making:
+  - `reframe`: reinterpret already established material
+  - `cost`: show the tradeoff or price of the system
+  - `contrast`: sharpen difference against another path or expectation
+  - `bridge`: pivot cleanly into the next beat or act
+  - `synthesize`: compress what changed in understanding
+  - `apply`: show how an established mechanism operates in a concrete case
+  - `stress_test`: push an established mechanism under pressure
+- Callback-only ending scenes should usually use `reframe`, `cost`, `contrast`, `bridge`, or `synthesize`.
+- Callback-only ending scenes should stay compact and focused. They should not become oversized recap blocks.
 - Let `story_role` shape the act:
   - `setup`: establish the paradox, world, and stakes
   - `complicate`: intensify the problem or institutional tension
@@ -151,6 +177,7 @@ async def plan_act(state: PipelineState) -> dict:
         acts = copy.deepcopy(manifest.acts_json)
         total_scene_count = 0
         question_context_map = build_question_context_map(manifest.research_tree_json)
+        claim_context_cache: dict[str, dict[str, Any]] = {}
 
         for i, act in enumerate(acts, start=1):
             if not isinstance(act, dict):
@@ -169,8 +196,14 @@ async def plan_act(state: PipelineState) -> dict:
                 generation_run_id=state["generation_run_id"],
                 question_context_map=question_context_map,
             )
+            claim_context_cache.update(claim_contexts)
             act_claims = [claim_contexts[cid] for cid in raw_claim_ids if cid in claim_contexts]
             act_evidence = list(evidence_contexts.values())
+            prior_acts_primary_claims = _collect_prior_acts_primary_claims(
+                acts=acts,
+                current_act_idx=i,
+                claim_context_cache=claim_context_cache,
+            )
 
             allowed_claim_ids = {c["id"] for c in act_claims}
             allowed_evidence_ids = {e["id"] for e in act_evidence}
@@ -185,6 +218,7 @@ async def plan_act(state: PipelineState) -> dict:
                 act_claims=act_claims,
                 act_evidence=act_evidence,
                 output_language=state.get("language", "en"),
+                prior_acts_primary_claims=prior_acts_primary_claims,
             )
             claim_support_lookup = _claim_support_lookup(base_prompt["claims"])
 
@@ -220,6 +254,7 @@ async def plan_act(state: PipelineState) -> dict:
                         default_duration=per_scene_duration,
                     )
                     candidate_beat_sheet = _split_scene_claim_roles(candidate_beat_sheet)
+                    candidate_beat_sheet = _assign_scene_jobs(candidate_beat_sheet)
                     candidate_quality_issues = _collect_beat_sheet_quality_issues(candidate_beat_sheet)
                     structural_overlap_failure = _has_structural_overlap_failures(candidate_quality_issues)
                     if candidate_beat_sheet:
@@ -534,6 +569,7 @@ def _build_act_prompt_payload(
     act_claims: list[dict[str, Any]],
     act_evidence: list[dict[str, Any]],
     output_language: str,
+    prior_acts_primary_claims: list[dict[str, Any]],
 ) -> dict[str, Any]:
     estimated_duration = _positive_int(act.get("estimated_duration_seconds"), 300)
     conflict_ids = _uuid_list(act.get("conflict_brief_ids"))
@@ -561,8 +597,49 @@ def _build_act_prompt_payload(
         "scene_count_guidance": _scene_count_guidance(estimated_duration),
         "content_quotas": act.get("content_quotas", {}) if isinstance(act.get("content_quotas"), dict) else {},
         "conflict_count": len(conflict_ids),
+        "prior_acts_primary_claims": prior_acts_primary_claims,
         "claims": prompt_claims,
     }
+
+
+def _collect_prior_acts_primary_claims(
+    *,
+    acts: list[dict[str, Any]],
+    current_act_idx: int,
+    claim_context_cache: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    ordered: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for act in acts[: max(current_act_idx - 1, 0)]:
+        if not isinstance(act, dict):
+            continue
+        act_number = _positive_int(act.get("act_number"), 0)
+        beat_sheet = act.get("beat_sheet")
+        if not isinstance(beat_sheet, list):
+            continue
+        for scene in beat_sheet:
+            if not isinstance(scene, dict):
+                continue
+            for claim_id in _scene_primary_claim_ids(scene):
+                if claim_id in seen:
+                    continue
+                claim_payload = claim_context_cache.get(claim_id)
+                if not isinstance(claim_payload, dict):
+                    continue
+                statement = str(claim_payload.get("statement") or "").strip()
+                if not statement:
+                    continue
+                seen.add(claim_id)
+                ordered.append(
+                    {
+                        "id": claim_id,
+                        "statement": statement[:PRIOR_PRIMARY_STATEMENT_CHARS],
+                        "act_number": act_number,
+                    }
+                )
+    if len(ordered) <= MAX_PRIOR_PRIMARY_CLAIMS:
+        return ordered
+    return ordered[-MAX_PRIOR_PRIMARY_CLAIMS:]
 
 
 def _build_claim_prompt_payloads(
@@ -860,6 +937,7 @@ def _normalize_beat_sheet(
             {
                 "scene": scene_number,
                 "type": scene_type.strip(),
+                "scene_job": _normalize_scene_job(scene.get("scene_job")),
                 "description": description.strip(),
                 "claim_ids": claim_ids,
                 "evidence_ids": evidence_ids,
@@ -881,6 +959,59 @@ def _scene_primary_claim_ids(scene: dict[str, Any]) -> list[str]:
 
 def _scene_callback_claim_ids(scene: dict[str, Any]) -> list[str]:
     return _uuid_list(scene.get("callback_claim_ids"))
+
+
+def _scene_claim_mode(scene: dict[str, Any]) -> str:
+    primary_claim_ids = _scene_primary_claim_ids(scene)
+    callback_claim_ids = _scene_callback_claim_ids(scene)
+    if primary_claim_ids and callback_claim_ids:
+        return "mixed"
+    if callback_claim_ids:
+        return "callback"
+    return "primary"
+
+
+def _normalize_scene_job(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    cleaned = value.strip().lower()
+    return cleaned if cleaned in SCENE_JOB_VALUES else ""
+
+
+def _scene_job(scene: dict[str, Any]) -> str:
+    explicit = _normalize_scene_job(scene.get("scene_job"))
+    if explicit:
+        return explicit
+
+    scene_type = str(scene.get("type") or "").strip()
+    scene_claim_mode = _scene_claim_mode(scene)
+    if scene_claim_mode == "callback":
+        if scene_type in {"takeaway", "summary"}:
+            return "synthesize"
+        if scene_type == "transition":
+            return "bridge"
+        if scene_type == "debate":
+            return "contrast"
+        return "apply"
+    if scene_claim_mode == "mixed":
+        if scene_type == "transition":
+            return "bridge"
+        if scene_type == "debate":
+            return "contrast"
+        if scene_type in {"takeaway", "summary"}:
+            return "synthesize"
+        return "apply"
+    return ""
+
+
+def _assign_scene_jobs(beat_sheet: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    for scene in beat_sheet:
+        scene_job = _scene_job(scene)
+        if scene_job:
+            scene["scene_job"] = scene_job
+        else:
+            scene.pop("scene_job", None)
+    return beat_sheet
 
 
 def _split_scene_claim_roles(beat_sheet: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -908,13 +1039,17 @@ def _split_scene_claim_roles(beat_sheet: list[dict[str, Any]]) -> list[dict[str,
 def _collect_beat_sheet_quality_issues(beat_sheet: list[dict[str, Any]]) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
     explanation_like = {"explanation", "case_study", "hook"}
-    ending_like = {"takeaway", "summary"}
+    ending_like = {"takeaway", "summary", "transition"}
+    last_scene_number = len(beat_sheet)
 
     for idx, scene in enumerate(beat_sheet):
         scene_number = _positive_int(scene.get("scene"), idx + 1)
         scene_type = str(scene.get("type") or "").strip()
         primary_claim_ids = _scene_primary_claim_ids(scene)
         callback_claim_ids = _scene_callback_claim_ids(scene)
+        scene_job = _scene_job(scene)
+        is_last_scene = idx == (last_scene_number - 1)
+        description = str(scene.get("description") or "").strip()
 
         if scene_type in explanation_like and not primary_claim_ids and callback_claim_ids:
             issues.append(
@@ -927,7 +1062,7 @@ def _collect_beat_sheet_quality_issues(beat_sheet: list[dict[str, Any]]) -> list
                     "callback_claim_ids": callback_claim_ids,
                 }
             )
-        elif scene_type in ending_like and not primary_claim_ids and callback_claim_ids:
+        elif is_last_scene and scene_type in ending_like and not primary_claim_ids and callback_claim_ids:
             issues.append(
                 {
                     "severity": "advisory",
@@ -938,6 +1073,41 @@ def _collect_beat_sheet_quality_issues(beat_sheet: list[dict[str, Any]]) -> list
                     "callback_claim_ids": callback_claim_ids,
                 }
             )
+            if len(callback_claim_ids) > MAX_CALLBACK_ENDING_CALLBACK_CLAIMS:
+                issues.append(
+                    {
+                        "severity": "structural",
+                        "type": "callback_only_ending_too_many_claims",
+                        "scene": scene_number,
+                        "scene_type": scene_type,
+                        "message": "Callback-only ending carries too many callback claims to land cleanly.",
+                        "callback_claim_ids": callback_claim_ids,
+                        "scene_job": scene_job,
+                    }
+                )
+            if len(description) > MAX_CALLBACK_ENDING_DESCRIPTION_CHARS:
+                issues.append(
+                    {
+                        "severity": "structural",
+                        "type": "callback_only_ending_too_long",
+                        "scene": scene_number,
+                        "scene_type": scene_type,
+                        "message": "Callback-only ending description is too long and likely to become a recap block.",
+                        "description_chars": len(description),
+                        "scene_job": scene_job,
+                    }
+                )
+            if scene_job and scene_job not in ENDING_SCENE_JOB_VALUES:
+                issues.append(
+                    {
+                        "severity": "structural",
+                        "type": "callback_only_ending_bad_scene_job",
+                        "scene": scene_number,
+                        "scene_type": scene_type,
+                        "message": "Callback-only ending must use a landing job, not an introducing/apply job.",
+                        "scene_job": scene_job,
+                    }
+                )
 
     return issues
 

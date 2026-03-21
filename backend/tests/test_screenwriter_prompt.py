@@ -6,6 +6,7 @@ from app.pipeline.phase6_writing.screenwriter import (
     SCREENWRITER_SYSTEM,
     _build_already_covered_claims_payload,
     _build_new_information_goal,
+    _build_recent_scene_starts,
     _extract_last_dialogue_line,
     _extract_mechanism_anchors,
     _build_previous_act_summary,
@@ -16,9 +17,11 @@ from app.pipeline.phase6_writing.screenwriter import (
     _dump_screenwriter_debug,
     _extract_dialogue_claim_ids,
     _extract_dialogue_texts,
+    _extract_dialogue_opener,
     _scene_manifest_claim_ids,
     _scene_callback_claim_ids,
     _scene_claim_mode,
+    _scene_job,
     _scene_primary_claim_ids,
     _should_force_rewrite_for_node_rerun,
 )
@@ -84,6 +87,7 @@ def test_build_scene_prompt_payload_uses_local_and_cross_act_context() -> None:
                 "mechanism_anchors": ["7.80", "Exchange Fund"],
             }
         ],
+        recent_scene_starts=["подожди ты", "и вот"],
         new_information_goal="Advance the listener with what is new here: The peg was restored in October 1983.",
     )
 
@@ -94,6 +98,7 @@ def test_build_scene_prompt_payload_uses_local_and_cross_act_context() -> None:
         "scene_number": 1,
         "scene_type": "case_study",
         "scene_claim_mode": "primary",
+        "scene_job": "",
         "callback_claim_ids": [],
         "description": "Черная суббота 1983 года как момент потери доверия.",
         "transition_note": "После паники перейти к механике привязки.",
@@ -124,6 +129,7 @@ def test_build_scene_prompt_payload_uses_local_and_cross_act_context() -> None:
                 "mechanism_anchors": ["7.80", "Exchange Fund"],
             }
         ],
+        "recent_scene_starts": ["подожди ты", "и вот"],
         "new_information_goal": "Advance the listener with what is new here: The peg was restored in October 1983.",
         "claims": [
             {
@@ -160,8 +166,10 @@ def test_screenwriter_prompt_demands_cross_act_memory_and_looser_dialogue() -> N
     assert "Do not default every reaction to the same opener or confirmation word." in SCREENWRITER_SYSTEM
     assert "These are soft tendencies, not rigid scene roles." in SCREENWRITER_SYSTEM
     assert "scene_claim_mode" in SCREENWRITER_SYSTEM
+    assert "scene_job" in SCREENWRITER_SYSTEM
     assert "callback_claim_ids" in SCREENWRITER_SYSTEM
     assert "previous_scene.last_line" in SCREENWRITER_SYSTEM
+    assert "recent_scene_starts" in SCREENWRITER_SYSTEM
     assert "`takeaway`: land the consequence or implication, not just a generic recap" in SCREENWRITER_SYSTEM
     assert "When a precise figure, legal clause, institutional rule, or date matters" in SCREENWRITER_SYSTEM
 
@@ -417,6 +425,8 @@ def test_scene_claim_mode_defaults_to_callback_or_primary() -> None:
 
     assert _scene_claim_mode({"callback_claim_ids": [c1]}) == "callback"
     assert _scene_claim_mode({"claim_ids": [c1]}) == "primary"
+    assert _scene_job({"callback_claim_ids": [c1], "type": "takeaway"}) == "synthesize"
+    assert _scene_job({"callback_claim_ids": [c1], "type": "transition"}) == "bridge"
 
 
 def test_build_scene_prompt_payload_marks_callback_only_scene() -> None:
@@ -427,6 +437,7 @@ def test_build_scene_prompt_payload_marks_callback_only_scene() -> None:
         act_number=4,
         scene={
             "type": "takeaway",
+            "scene_job": "synthesize",
             "callback_claim_ids": [c1],
             "description": "Land the implication without reteaching the mechanism.",
             "transition_note": "",
@@ -444,11 +455,14 @@ def test_build_scene_prompt_payload_marks_callback_only_scene() -> None:
         previous_act_summary=None,
         already_covered_claims=[],
         already_covered_claims_global=[],
+        recent_scene_starts=["подожди ты"],
         new_information_goal="Add the implication only.",
     )
 
     assert payload["scene_claim_mode"] == "callback"
+    assert payload["scene_job"] == "synthesize"
     assert payload["callback_claim_ids"] == [c1]
+    assert payload["recent_scene_starts"] == ["подожди ты"]
 
 
 def test_build_new_information_goal_prefers_uncovered_claims() -> None:
@@ -531,6 +545,34 @@ def test_extract_dialogue_texts_and_collect_mechanism_anchors_dedupes_written_li
     texts = _extract_dialogue_texts(dialogue)
     assert texts == ["The peg sits at 7.80.", "HKMA enforces it."]
     assert _collect_mechanism_anchors(texts) == ["7.80", "HKMA"]
+
+
+def test_extract_dialogue_opener_normalizes_first_two_words() -> None:
+    dialogue = [
+        {"speaker": "A", "text": "Подожди — ты говоришь, что система сама себя удерживает?"},
+        {"speaker": "B", "text": "Да."},
+    ]
+
+    assert _extract_dialogue_opener(dialogue) == "подожди ты"
+
+
+def test_build_recent_scene_starts_uses_written_previous_scenes_in_order() -> None:
+    beat_sheet = [
+        {"scene": 1},
+        {"scene": 2},
+        {"scene": 3},
+    ]
+    existing_segments = {
+        (2, 1): SimpleNamespace(dialogue_json=[{"speaker": "A", "text": "И вот начинается механизм."}]),
+        (2, 2): SimpleNamespace(dialogue_json=[{"speaker": "B", "text": "Подожди — это уже не хаос?"}]),
+    }
+
+    assert _build_recent_scene_starts(
+        beat_sheet,
+        3,
+        act_number=2,
+        existing_segments=existing_segments,
+    ) == ["и вот", "подожди это"]
 
 
 def test_dump_screenwriter_debug_writes_scene_dump(tmp_path) -> None:
