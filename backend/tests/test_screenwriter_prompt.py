@@ -12,9 +12,13 @@ from app.pipeline.phase6_writing.screenwriter import (
     _build_previous_scene_payload,
     _build_scene_prompt_payload,
     _collect_manifest_claim_ids,
+    _collect_mechanism_anchors,
     _dump_screenwriter_debug,
     _extract_dialogue_claim_ids,
+    _extract_dialogue_texts,
     _scene_manifest_claim_ids,
+    _scene_callback_claim_ids,
+    _scene_claim_mode,
     _scene_primary_claim_ids,
     _should_force_rewrite_for_node_rerun,
 )
@@ -58,8 +62,10 @@ def test_build_scene_prompt_payload_uses_local_and_cross_act_context() -> None:
         previous_scene={
             "scene_number": 0,
             "scene_type": "hook",
-            "description": "В предыдущей сцене объяснили, как появился валютный хаос.",
-            "transition_note": "Теперь показать, что паника заставила систему измениться.",
+            "what_listener_now_knows": "В предыдущей сцене объяснили, как появился валютный хаос.",
+            "claim_ids": ["c0"],
+            "mechanism_anchors": ["port chaos"],
+            "last_line": "Теперь показать, что паника заставила систему измениться.",
         },
         previous_act_summary={
             "act_number": 2,
@@ -87,6 +93,8 @@ def test_build_scene_prompt_payload_uses_local_and_cross_act_context() -> None:
         "act_title": "Черная суббота и привязка",
         "scene_number": 1,
         "scene_type": "case_study",
+        "scene_claim_mode": "primary",
+        "callback_claim_ids": [],
         "description": "Черная суббота 1983 года как момент потери доверия.",
         "transition_note": "После паники перейти к механике привязки.",
         "notes": "Один ведущий начинает с конкретной паники, второй расширяет рамку.",
@@ -94,8 +102,10 @@ def test_build_scene_prompt_payload_uses_local_and_cross_act_context() -> None:
         "previous_scene": {
             "scene_number": 0,
             "scene_type": "hook",
-            "description": "В предыдущей сцене объяснили, как появился валютный хаос.",
-            "transition_note": "Теперь показать, что паника заставила систему измениться.",
+            "what_listener_now_knows": "В предыдущей сцене объяснили, как появился валютный хаос.",
+            "claim_ids": ["c0"],
+            "mechanism_anchors": ["port chaos"],
+            "last_line": "Теперь показать, что паника заставила систему измениться.",
         },
         "previous_act_summary": {
             "act_number": 2,
@@ -149,22 +159,93 @@ def test_screenwriter_prompt_demands_cross_act_memory_and_looser_dialogue() -> N
     assert "Do not default every scene to strict `ABAB` alternation." in SCREENWRITER_SYSTEM
     assert "Do not default every reaction to the same opener or confirmation word." in SCREENWRITER_SYSTEM
     assert "These are soft tendencies, not rigid scene roles." in SCREENWRITER_SYSTEM
+    assert "scene_claim_mode" in SCREENWRITER_SYSTEM
+    assert "callback_claim_ids" in SCREENWRITER_SYSTEM
+    assert "previous_scene.last_line" in SCREENWRITER_SYSTEM
     assert "`takeaway`: land the consequence or implication, not just a generic recap" in SCREENWRITER_SYSTEM
     assert "When a precise figure, legal clause, institutional rule, or date matters" in SCREENWRITER_SYSTEM
 
 
-def test_build_previous_scene_payload_returns_previous_scene_only() -> None:
+def test_build_previous_scene_payload_prefers_actual_written_scene_continuity() -> None:
     beat_sheet = [
-        {"scene": 1, "type": "hook", "description": "Scene one", "transition_note": "Move to scene two"},
+        {
+            "scene": 1,
+            "type": "hook",
+            "description": "Scene one",
+            "transition_note": "Move to scene two",
+            "claim_ids": ["c1"],
+        },
         {"scene": 2, "type": "explanation", "description": "Scene two", "transition_note": "Move to scene three"},
     ]
+    existing_segments = {
+        (3, 1): SimpleNamespace(
+            dialogue_json=[
+                {"speaker": "A", "text": "We already established the reserve rule.", "claim_ids": ["c1"]},
+                {"speaker": "B", "text": "So now show what broke first.", "claim_ids": []},
+            ]
+        )
+    }
+    claim_lookup = {
+        "c1": {"statement": "The reserve rule was already established."}
+    }
 
-    assert _build_previous_scene_payload(beat_sheet, 1) is None
-    assert _build_previous_scene_payload(beat_sheet, 2) == {
+    assert _build_previous_scene_payload(
+        beat_sheet,
+        1,
+        act_number=3,
+        existing_segments=existing_segments,
+        claim_lookup=claim_lookup,
+    ) is None
+    assert _build_previous_scene_payload(
+        beat_sheet,
+        2,
+        act_number=3,
+        existing_segments=existing_segments,
+        claim_lookup=claim_lookup,
+    ) == {
         "scene_number": 1,
         "scene_type": "hook",
-        "description": "Scene one",
-        "transition_note": "Move to scene two",
+        "what_listener_now_knows": "The reserve rule was already established.",
+        "claim_ids": ["c1"],
+        "mechanism_anchors": [],
+        "last_line": "So now show what broke first.",
+    }
+
+
+def test_build_previous_scene_payload_falls_back_to_manifest_claims_and_transition_note() -> None:
+    c1 = "11111111-1111-1111-1111-111111111111"
+    c2 = "22222222-2222-2222-2222-222222222222"
+    beat_sheet = [
+        {
+            "scene": 1,
+            "type": "explanation",
+            "description": "Explain the rule, the institutional constraint, and the legal wrapper around it.",
+            "transition_note": "Now pressure-test that rule.",
+            "claim_ids": [c1, c2],
+        },
+        {"scene": 2, "type": "case_study", "description": "Scene two"},
+    ]
+    claim_lookup = {
+        c1: {"statement": "The peg runs through a reserve requirement."},
+        c2: {"statement": "The legal wrapper constrains how issuance can expand."},
+    }
+
+    assert _build_previous_scene_payload(
+        beat_sheet,
+        2,
+        act_number=3,
+        existing_segments={},
+        claim_lookup=claim_lookup,
+    ) == {
+        "scene_number": 1,
+        "scene_type": "explanation",
+        "what_listener_now_knows": (
+            "The peg runs through a reserve requirement.; "
+            "The legal wrapper constrains how issuance can expand."
+        ),
+        "claim_ids": [c1, c2],
+        "mechanism_anchors": [],
+        "last_line": "Now pressure-test that rule.",
     }
 
 
@@ -326,7 +407,48 @@ def test_scene_claim_helpers_prefer_primary_and_include_callbacks_for_manifest()
     }
 
     assert _scene_primary_claim_ids(scene) == [c1]
+    assert _scene_callback_claim_ids(scene) == [c2]
+    assert _scene_claim_mode(scene) == "mixed"
     assert _scene_manifest_claim_ids(scene) == [c1, c2, c3]
+
+
+def test_scene_claim_mode_defaults_to_callback_or_primary() -> None:
+    c1 = "11111111-1111-1111-1111-111111111111"
+
+    assert _scene_claim_mode({"callback_claim_ids": [c1]}) == "callback"
+    assert _scene_claim_mode({"claim_ids": [c1]}) == "primary"
+
+
+def test_build_scene_prompt_payload_marks_callback_only_scene() -> None:
+    c1 = "11111111-1111-1111-1111-111111111111"
+
+    payload = _build_scene_prompt_payload(
+        act={"title": "Payoff"},
+        act_number=4,
+        scene={
+            "type": "takeaway",
+            "callback_claim_ids": [c1],
+            "description": "Land the implication without reteaching the mechanism.",
+            "transition_note": "",
+            "notes": "",
+            "estimated_duration_seconds": 45,
+        },
+        scene_number=6,
+        scene_claims=[],
+        scene_evidence=[],
+        hosts=[],
+        forbidden_phrases=[],
+        max_reply_tokens=120,
+        language="ru",
+        previous_scene=None,
+        previous_act_summary=None,
+        already_covered_claims=[],
+        already_covered_claims_global=[],
+        new_information_goal="Add the implication only.",
+    )
+
+    assert payload["scene_claim_mode"] == "callback"
+    assert payload["callback_claim_ids"] == [c1]
 
 
 def test_build_new_information_goal_prefers_uncovered_claims() -> None:
@@ -397,6 +519,18 @@ def test_extract_mechanism_anchors_ignores_plain_years_and_counts() -> None:
     assert "1842" not in anchors
     assert "14" not in anchors
     assert "Colonial Bank Ordinance" in anchors
+
+
+def test_extract_dialogue_texts_and_collect_mechanism_anchors_dedupes_written_lines() -> None:
+    dialogue = [
+        {"speaker": "A", "text": "  The peg sits at 7.80.  "},
+        {"speaker": "B", "text": "HKMA enforces it."},
+        {"speaker": "A", "text": ""},
+    ]
+
+    texts = _extract_dialogue_texts(dialogue)
+    assert texts == ["The peg sits at 7.80.", "HKMA enforces it."]
+    assert _collect_mechanism_anchors(texts) == ["7.80", "HKMA"]
 
 
 def test_dump_screenwriter_debug_writes_scene_dump(tmp_path) -> None:

@@ -63,8 +63,14 @@ Writing rules:
 - Use `description` as the main job of the scene. Use `transition_note` only as a light landing/bridge if it helps the ending.
 - Use `act_title`, `previous_scene`, `previous_act_summary`, `already_covered_claims`, `already_covered_claims_global`, and `new_information_goal` only as continuity context. Do not restate material that the listener already heard unless this scene is explicitly reframing or paying it off.
 - For the first scene of a later act, use `previous_act_summary` to build on what the listener already knows instead of resetting the story from zero.
+- If `previous_scene.last_line` is present, prefer opening the scene as a natural continuation of that last spoken thought when it fits the beat. Do not hard-reset the conversation if a smooth carry-over is available.
 - If the current scene overlaps with covered local or global material, briefly refer back and move to what is new in this scene.
 - If `already_covered_claims_global` includes `mechanism_anchors`, treat those anchors as signs that the mechanism is already established. Do not reteach it from zero unless this scene adds a new consequence, stress test, or reframing.
+- Use `scene_claim_mode` to decide how much explanation is still allowed:
+  - `primary`: introduce the new material clearly
+  - `mixed`: explain the primary part, but treat `callback_claim_ids` as already established
+  - `callback`: reference the established mechanism briefly and move to implication, cost, contrast, or bridge
+- `callback_claim_ids` are not fresh exposition material. Do not turn callback-only scenes into mechanism walkthroughs.
 - Treat `new_information_goal` as the delta this scene must add. Do not spend most of the scene re-teaching already covered setup.
 - Keep the scene moving. Do not let both hosts restate the same point in slightly different words.
 - Avoid dry explanatory dialogue by default. Prefer a concrete opening move, a turn, and a landing.
@@ -281,7 +287,13 @@ async def write_screenplay(state: PipelineState) -> dict:
                     forbidden_phrases=forbidden,
                     max_reply_tokens=max_tokens,
                     language=state["language"],
-                    previous_scene=_build_previous_scene_payload(beat_sheet, scene_idx),
+                    previous_scene=_build_previous_scene_payload(
+                        beat_sheet,
+                        scene_idx,
+                        act_number=act_num,
+                        existing_segments=existing_segments,
+                        claim_lookup=act_claim_lookup,
+                    ),
                     previous_act_summary=previous_act_summary if scene_idx == 1 else None,
                     already_covered_claims=_build_already_covered_claims_payload(
                         covered_claim_ids=covered_claim_ids_in_act,
@@ -548,6 +560,8 @@ def _build_scene_prompt_payload(
         "act_title": act.get("title", ""),
         "scene_number": scene_number,
         "scene_type": scene.get("type", "explanation"),
+        "scene_claim_mode": _scene_claim_mode(scene),
+        "callback_claim_ids": _scene_callback_claim_ids(scene),
         "description": scene.get("description", ""),
         "transition_note": scene.get("transition_note", ""),
         "notes": scene.get("notes", ""),
@@ -600,6 +614,20 @@ def _scene_primary_claim_ids(scene: dict[str, Any]) -> list[str]:
     return _uuid_list(scene.get("claim_ids"))
 
 
+def _scene_callback_claim_ids(scene: dict[str, Any]) -> list[str]:
+    return _uuid_list(scene.get("callback_claim_ids"))
+
+
+def _scene_claim_mode(scene: dict[str, Any]) -> str:
+    primary_claim_ids = _scene_primary_claim_ids(scene)
+    callback_claim_ids = _scene_callback_claim_ids(scene)
+    if primary_claim_ids and callback_claim_ids:
+        return "mixed"
+    if callback_claim_ids:
+        return "callback"
+    return "primary"
+
+
 def _scene_manifest_claim_ids(scene: dict[str, Any]) -> list[str]:
     ordered: list[str] = []
     seen: set[str] = set()
@@ -616,17 +644,72 @@ def _scene_manifest_claim_ids(scene: dict[str, Any]) -> list[str]:
     return ordered
 
 
-def _build_previous_scene_payload(beat_sheet: list[dict], current_scene_idx: int) -> dict | None:
+def _build_previous_scene_payload(
+    beat_sheet: list[dict],
+    current_scene_idx: int,
+    *,
+    act_number: int,
+    existing_segments: dict[tuple[int, int], ScriptSegment],
+    claim_lookup: dict[str, dict],
+) -> dict | None:
     if current_scene_idx <= 1:
         return None
     previous = beat_sheet[current_scene_idx - 2]
     if not isinstance(previous, dict):
         return None
+
+    previous_scene_number = _normalized_scene_number(previous.get("scene"), current_scene_idx - 1)
+    previous_segment = existing_segments.get((act_number, previous_scene_number))
+    previous_claim_ids = (
+        _extract_dialogue_claim_ids(previous_segment.dialogue_json)
+        if previous_segment is not None
+        else _scene_manifest_claim_ids(previous)
+    )
+    established_points = _build_already_covered_claims_payload(
+        covered_claim_ids=previous_claim_ids,
+        claim_lookup=claim_lookup,
+        max_items=4,
+        statement_chars=140,
+    )
+    established_claim_ids = [
+        item.get("id")
+        for item in established_points
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    ]
+    what_listener_now_knows = "; ".join(
+        item.get("statement", "")
+        for item in established_points
+        if isinstance(item.get("statement"), str) and item.get("statement", "").strip()
+    ).strip()
+    if not what_listener_now_knows:
+        description = previous.get("description", "")
+        if isinstance(description, str):
+            what_listener_now_knows = _truncate_text_word_boundary(
+                " ".join(description.strip().split()),
+                220,
+            )
+
+    if previous_segment is not None:
+        anchor_texts = _extract_dialogue_texts(previous_segment.dialogue_json)
+    else:
+        anchor_texts = [
+            item.get("statement", "")
+            for item in established_points
+            if isinstance(item.get("statement"), str)
+        ]
+    last_line = (
+        _extract_last_dialogue_line(previous_segment.dialogue_json)
+        if previous_segment is not None
+        else str(previous.get("transition_note", "") or "").strip()
+    )
+
     return {
-        "scene_number": _normalized_scene_number(previous.get("scene"), current_scene_idx - 1),
+        "scene_number": previous_scene_number,
         "scene_type": previous.get("type", "explanation"),
-        "description": previous.get("description", ""),
-        "transition_note": previous.get("transition_note", ""),
+        "what_listener_now_knows": what_listener_now_knows,
+        "claim_ids": established_claim_ids or previous_claim_ids[:4],
+        "mechanism_anchors": _collect_mechanism_anchors(anchor_texts),
+        "last_line": last_line,
     }
 
 
@@ -788,6 +871,46 @@ def _build_already_covered_claims_payload(
             payload["mechanism_anchors"] = _extract_mechanism_anchors(statement)
         covered.append(payload)
     return covered
+
+
+def _truncate_text_word_boundary(text: str, limit: int) -> str:
+    cleaned = " ".join(str(text or "").strip().split())
+    if limit <= 0 or len(cleaned) <= limit:
+        return cleaned
+    truncated = cleaned[:limit]
+    if " " not in truncated:
+        return truncated
+    return truncated.rsplit(" ", 1)[0]
+
+
+def _extract_dialogue_texts(dialogue_json: object) -> list[str]:
+    ordered: list[str] = []
+    if not isinstance(dialogue_json, list):
+        return ordered
+    for line in dialogue_json:
+        if not isinstance(line, dict):
+            continue
+        text = line.get("text")
+        if not isinstance(text, str):
+            continue
+        cleaned = " ".join(text.strip().split())
+        if cleaned:
+            ordered.append(cleaned)
+    return ordered
+
+
+def _collect_mechanism_anchors(texts: list[str]) -> list[str]:
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for text in texts:
+        if not isinstance(text, str) or not text.strip():
+            continue
+        for anchor in _extract_mechanism_anchors(text):
+            if anchor in seen:
+                continue
+            seen.add(anchor)
+            ordered.append(anchor)
+    return ordered[:6]
 
 
 def _extract_mechanism_anchors(statement: str) -> list[str]:

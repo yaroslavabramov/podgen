@@ -532,8 +532,14 @@ Deferred after Round 68:
 - [x] **P0**: Deterministically split repeated scene claim usage into `primary_claim_ids` and `callback_claim_ids` by normalized scene order, instead of reteaching the same claim as primary in multiple scenes
 - [x] **P0**: Add a narrow act-planner overlap gate: callback-only `hook` / `explanation` / `case_study` scenes now fail the attempt and use the bounded `ACT_PLANNER_RETRIES = 2` retry budget
 - [x] **P1**: Keep writer scene prompts focused on `primary_claim_ids`, while manifest/debug continuity still preserves primary+callback claim coverage for downstream steps
-- [x] **P1**: Add `mechanism_anchors` to global covered-claim memory so screenwriter can treat terms like `7.80`, `HKMA`, `Exchange Fund`, `Certificates of Indebtedness`, and `Basic Law` as already-established mechanisms across acts
+- [x] **P1**: Add generic `mechanism_anchors` to global covered-claim memory so screenwriter can treat already-established rates, acronyms, and named mechanisms as continuity signals across acts
 - [x] **P1**: Add regression tests for normalized-order split, callback-only scene gating, manifest claim aggregation, and mechanism-anchor extraction/payload formatting
+
+**Round 79 (screenwriter callback-aware continuity):**
+- [x] **P0**: Add `scene_claim_mode` and `callback_claim_ids` to the writer payload so callback-heavy scenes do not behave like fresh exposition scenes
+- [x] **P0**: Replace planning-brief `previous_scene` handoff with deterministic continuity extracted from the actual written previous scene (`what_listener_now_knows`, `claim_ids`, `mechanism_anchors`, `last_line`)
+- [x] **P1**: Teach screenwriter to use `previous_scene.last_line` as a natural conversational bridge when the next scene can continue without a hard reset
+- [x] **P1**: Add regression tests for callback-aware scene payloads, written-dialogue previous-scene continuity, and helper extraction for dialogue texts / mechanism anchors
 
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)

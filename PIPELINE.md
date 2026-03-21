@@ -554,6 +554,8 @@ Web extraction использует каскад extractors:
   - `already_covered_claims_global`
   - `new_information_goal`
   - `transition_note`
+  - `scene_claim_mode`
+  - `callback_claim_ids`
 
 - держит dialogue в `language` подкаста, а не дрейфует в английский или смешанный output
 
@@ -561,15 +563,19 @@ Web extraction использует каскад extractors:
 
 - если текущая сцена пересекается с локально или глобально уже покрытым материалом, делает callback и двигается к новому смыслу вместо полного re-explain
 
-- первые сцены новых актов строятся от `previous_act_summary`, который по возможности собирается из фактически написанного диалога и реально использованных `claim_ids` предыдущего акта, а не только из planning metadata
+- continuity для `previous_scene` и первых сцен новых актов строится от фактически написанного диалога:
+  - `previous_scene` несёт `what_listener_now_knows`, реально прозвучавшие `claim_ids`, `mechanism_anchors` и `last_line` предыдущей сцены
+  - `previous_act_summary` по возможности собирается из реально использованных `claim_ids` и последней реплики предыдущего акта, а не только из planning metadata
 
 - `new_information_goal` задаёт delta этой сцены: какой новый смысл, следствие или угол она должна добавить поверх уже рассказанного
 
-- в локальный writer prompt попадают только `primary_claim_ids` текущей сцены, а global continuity memory дополнительно несёт compact `mechanism_anchors` (`7.80`, `HKMA`, `Exchange Fund`, `Certificates of Indebtedness`, `Basic Law` и т.п.), чтобы следующие акты не reteach'или уже установленный механизм как новый факт
+- в локальный writer prompt попадают только `primary_claim_ids` текущей сцены; `callback_claim_ids` и `scene_claim_mode` нужны как continuity signal, а global continuity memory дополнительно несёт compact generic `mechanism_anchors`, чтобы следующие сцены и акты не reteach'или уже установленный механизм как новый факт
 
 - не default'ится в строгий `ABAB` exchange и не повторяет одни и те же opener-фразы scene after scene
 
-- при точных датах / юридических нормах / институциональных правилах может использовать лёгкую атрибуцию (`по данным HKMA`, `как сказано в Основном законе`) вместо полностью безымянного narratorial tone
+- при точных датах / юридических нормах / институциональных правилах может использовать лёгкую атрибуцию (`по данным регулятора`, `как сказано в законе`, `согласно официальным правилам`) вместо полностью безымянного narratorial tone
+
+- если `previous_scene.last_line` даёт естественный bridge, новая сцена может начинаться как продолжение уже начатой мысли, а не как полный conversational reset
 
 - ставит теги для TTS (direction/mood), но без ломания смысловой структуры
 
