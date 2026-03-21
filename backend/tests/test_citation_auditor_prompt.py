@@ -13,12 +13,14 @@ from app.pipeline.phase6_writing.citation_auditor import (
     _build_failed_citation_audit,
     _citation_repair_improved,
     _has_blocking_citation_issues,
+    _load_claims_map,
     _normalize_citation_issues,
     _post_filter_citation_issues,
     _run_citation_audit,
     _run_citation_audit_with_retry,
     _select_scene_claims_map,
     _should_attempt_citation_repair,
+    _splice_repaired_lines,
     audit_citations,
 )
 from app.pipeline.step_control import StepExecutionStopped
@@ -86,6 +88,107 @@ def test_select_scene_claims_map_uses_dialogue_and_manifest_claim_ids_only() -> 
         "c1": {"statement": "Line claim"},
         "c2": {"statement": "Scene claim"},
     }
+
+
+class _FakeClaimsResult:
+    def __init__(self, claims) -> None:
+        self._claims = list(claims)
+
+    def scalars(self):
+        return self._claims
+
+
+class _FakeClaimsDB:
+    def __init__(self, claims) -> None:
+        self._claims = list(claims)
+
+    async def execute(self, _statement):
+        return _FakeClaimsResult(self._claims)
+
+
+@pytest.mark.asyncio
+async def test_load_claims_map_keeps_full_claim_statement() -> None:
+    claim = SimpleNamespace(
+        id=uuid.uuid4(),
+        claim_type="fact",
+        verification_level="verified",
+        statement="К весне 1842 года британская администрация признала хождение испанских и мексиканских серебряных долларов, а к 1860-м годам окончательно отказалась от попыток вытеснить уже сложившуюся денежную систему.",
+    )
+
+    claims_map = await _load_claims_map(_FakeClaimsDB([claim]), [str(claim.id)])
+
+    assert claims_map == {
+        str(claim.id): {
+            "type": "fact",
+            "verification": "verified",
+            "statement": claim.statement,
+        }
+    }
+
+
+def test_splice_repaired_lines_preserves_metadata_on_unflagged_and_target_lines() -> None:
+    original_dialogue = [
+        {
+            "speaker": "A",
+            "text": "Линия один.",
+            "claim_ids": ["c1"],
+            "emotion": "curious",
+            "ssml_hints": {"pause_ms": 120},
+        },
+        {
+            "speaker": "B",
+            "text": "Но кто тогда мешал печатать сколько угодно?",
+            "claim_ids": ["c2"],
+            "emotion": "skeptical",
+            "ssml_hints": {"pause_ms": 240},
+        },
+        {
+            "speaker": "A",
+            "text": "Линия три.",
+            "claim_ids": ["c3"],
+            "emotion": "calm",
+            "ssml_hints": {"pause_ms": 80},
+        },
+    ]
+
+    spliced = _splice_repaired_lines(
+        original_dialogue=original_dialogue,
+        repaired_lines={
+            1: {
+                "speaker": "B",
+                "text": "Тогда другой вопрос: что их ограничивало?",
+                "claim_ids": [],
+            }
+        },
+        target_line_indexes=[1],
+    )
+
+    assert spliced == [
+        {
+            "speaker": "A",
+            "text": "Линия один.",
+            "claim_ids": ["c1"],
+            "emotion": "curious",
+            "ssml_hints": {"pause_ms": 120},
+        },
+        {
+            "speaker": "B",
+            "text": "Тогда другой вопрос: что их ограничивало?",
+            "claim_ids": [],
+            "emotion": "skeptical",
+            "ssml_hints": {"pause_ms": 240},
+        },
+        {
+            "speaker": "A",
+            "text": "Линия три.",
+            "claim_ids": ["c3"],
+            "emotion": "calm",
+            "ssml_hints": {"pause_ms": 80},
+        },
+    ]
+    assert spliced is not original_dialogue
+    assert spliced[0] is not original_dialogue[0]
+    assert spliced[1]["ssml_hints"] is not original_dialogue[1]["ssml_hints"]
 
 
 def test_normalize_citation_issues_assigns_default_scope_from_severity() -> None:

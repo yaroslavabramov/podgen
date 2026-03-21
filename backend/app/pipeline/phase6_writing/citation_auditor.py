@@ -6,6 +6,7 @@ import json
 import logging
 import time
 import uuid
+from copy import deepcopy
 from typing import Any
 
 from sqlalchemy import select
@@ -341,7 +342,7 @@ async def _load_claims_map(db, claim_ids: list[str]) -> dict[str, dict[str, Any]
         claims_map[str(claim.id)] = {
             "type": claim.claim_type,
             "verification": claim.verification_level,
-            "statement": claim.statement[:200],
+            "statement": claim.statement,
         }
     return claims_map
 
@@ -699,17 +700,16 @@ def _splice_repaired_lines(
     for line in original_dialogue:
         if not isinstance(line, dict):
             return None
-        spliced.append(
-            {
-                "speaker": line.get("speaker"),
-                "text": line.get("text"),
-                "claim_ids": list(line.get("claim_ids") or []),
-            }
-        )
+        spliced.append(deepcopy(line))
     for line_index in target_line_indexes:
         if line_index < 0 or line_index >= len(spliced):
             return None
-        spliced[line_index] = repaired_lines[line_index]
+        repaired_line = repaired_lines[line_index]
+        merged_line = deepcopy(spliced[line_index])
+        merged_line["speaker"] = repaired_line.get("speaker")
+        merged_line["text"] = repaired_line.get("text")
+        merged_line["claim_ids"] = list(repaired_line.get("claim_ids") or [])
+        spliced[line_index] = merged_line
     return spliced
 
 
