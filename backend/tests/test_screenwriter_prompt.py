@@ -163,7 +163,11 @@ def test_screenwriter_prompt_demands_cross_act_memory_and_looser_dialogue() -> N
     assert "Treat `new_information_goal` as the delta this scene must add." in SCREENWRITER_SYSTEM
     assert "Prefer callbacks over re-explanations." in SCREENWRITER_SYSTEM
     assert "Do not default every scene to strict `ABAB` alternation." in SCREENWRITER_SYSTEM
-    assert "Do not default every reaction to the same opener or confirmation word." in SCREENWRITER_SYSTEM
+    assert "The first 1-2 lines of a new scene should advance, challenge, narrow, or reframe" in SCREENWRITER_SYSTEM
+    assert "If the previous scene already announced the event, mechanism result, or punchline" in SCREENWRITER_SYSTEM
+    assert "For `cost` scenes, open with the price, contradiction, or compromise being paid." in SCREENWRITER_SYSTEM
+    assert "Vary agreement, confirmation, and challenge shapes." in SCREENWRITER_SYSTEM
+    assert "Do not default every reaction to the same opener or confirmation shape." in SCREENWRITER_SYSTEM
     assert "These are soft tendencies, not rigid scene roles." in SCREENWRITER_SYSTEM
     assert "scene_claim_mode" in SCREENWRITER_SYSTEM
     assert "scene_job" in SCREENWRITER_SYSTEM

@@ -278,6 +278,7 @@ def test_act_planner_prompt_demands_compact_beats_and_real_conflict_gate() -> No
     assert "Give each claim one main home scene inside the act." in ACT_PLANNER_SYSTEM
     assert "Not every claim deserves its own fresh explanation beat." in ACT_PLANNER_SYSTEM
     assert "Adjacent scenes must not walk through the same procedural chain twice" in ACT_PLANNER_SYSTEM
+    assert "the next scene should start from what is newly changing" in ACT_PLANNER_SYSTEM
     assert "A genuinely new layer means the listener learns something meaningfully different" in ACT_PLANNER_SYSTEM
     assert "In historical acts, keep the scene order chronologically legible" in ACT_PLANNER_SYSTEM
     assert "When writing a callback-heavy or ending beat card, lead with the new move first" in ACT_PLANNER_SYSTEM
@@ -286,6 +287,9 @@ def test_act_planner_prompt_demands_compact_beats_and_real_conflict_gate() -> No
     assert "`takeaway` and `summary` scenes should usually land consequence, implication, or reframing." in ACT_PLANNER_SYSTEM
     assert "`prior_acts_primary_claims` lists points that earlier acts already established as primary material." in ACT_PLANNER_SYSTEM
     assert "Use `scene_job` to declare the move each callback-heavy scene is making" in ACT_PLANNER_SYSTEM
+    assert "`apply` scenes should begin from the concrete condition or operating case" in ACT_PLANNER_SYSTEM
+    assert "`stress_test` scenes should begin from the pressure, failure mode, or attack" in ACT_PLANNER_SYSTEM
+    assert "`synthesize` scenes should answer the act question or compress the shift in understanding." in ACT_PLANNER_SYSTEM
 
 
 def test_collect_prior_acts_primary_claims_uses_planned_previous_acts_in_order() -> None:

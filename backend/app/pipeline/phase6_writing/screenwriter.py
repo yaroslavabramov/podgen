@@ -75,6 +75,8 @@ Writing rules:
 - Use `act_title`, `previous_scene`, `previous_act_summary`, `already_covered_claims`, `already_covered_claims_global`, and `new_information_goal` only as continuity context. Do not restate material that the listener already heard unless this scene is explicitly reframing or paying it off.
 - For the first scene of a later act, use `previous_act_summary` to build on what the listener already knows instead of resetting the story from zero.
 - If `previous_scene.last_line` is present, prefer opening the scene as a natural continuation of that last spoken thought when it fits the beat. Do not hard-reset the conversation if a smooth carry-over is available.
+- The first 1-2 lines of a new scene should advance, challenge, narrow, or reframe what the listener just heard. Do not open by paraphrasing the previous scene's closing proposition unless the beat explicitly requires a callback.
+- If the previous scene already announced the event, mechanism result, or punchline, start from the consequence, contradiction, pressure, cost, or next question instead of re-announcing it.
 - If the current scene overlaps with covered local or global material, briefly refer back and move to what is new in this scene.
 - If `already_covered_claims_global` includes `mechanism_anchors`, treat those anchors as signs that the mechanism is already established. Do not reteach it from zero unless this scene adds a new consequence, stress test, or reframing.
 - Use `scene_claim_mode` to decide how much explanation is still allowed:
@@ -91,6 +93,7 @@ Writing rules:
   - `stress_test`: push an established mechanism under pressure
 - `callback_claim_ids` are not fresh exposition material. Do not turn callback-only scenes into mechanism walkthroughs.
 - If `scene_claim_mode = callback`, let `scene_job` control the scene. Reference the established mechanism briefly, then spend the scene on the job.
+- For `cost` scenes, open with the price, contradiction, or compromise being paid. Do not reopen by retelling the event beat that the previous scene just landed.
 - Treat `new_information_goal` as the delta this scene must add. Do not spend most of the scene re-teaching already covered setup.
 - Keep the scene moving. Do not let both hosts restate the same point in slightly different words.
 - Avoid dry explanatory dialogue by default. Prefer a concrete opening move, a turn, and a landing.
@@ -105,7 +108,8 @@ Writing rules:
   - `takeaway`: land the consequence or implication, not just a generic recap
 - Do not make Host A always explain and Host B always ask for proof in the same rhythm. Vary who initiates, who reframes, and who gets the last word.
 - Do not default every scene to strict `ABAB` alternation. Occasional `AA` or `BB` runs are fine when they sound natural.
-- Do not default every reaction to the same opener or confirmation word. Vary discourse markers and avoid repeating one canned phrase scene after scene.
+- Vary agreement, confirmation, and challenge shapes. Not every challenge needs an interruption-style opener, and not every agreement needs an explicit confirmation marker.
+- Do not default every reaction to the same opener or confirmation shape. Vary discourse moves and avoid repeating one canned rhythm scene after scene.
 - Use evidence organically. Do not dump raw quotes or source language into dialogue unless quoting is the point of the beat.
 - When a precise figure, legal clause, institutional rule, or date matters, occasionally anchor it with light attribution such as "по данным центрального банка", "как сказано в законе", or "согласно официальным правилам фонда" instead of presenting every fact as unattributed narration.
 - When claims are OBSERVED, UNVERIFIED, DISPUTED, OPINION, or REPORT, make the line sound appropriately attributed or qualified.

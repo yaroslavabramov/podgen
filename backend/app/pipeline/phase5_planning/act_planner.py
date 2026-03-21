@@ -121,6 +121,7 @@ Rules:
 - Within an act, adjacent scenes should usually do different work: open a question, sharpen it, ground it in an example, reveal a mechanism, stress-test it, or land a consequence.
 - If two neighboring scenes mainly explain the same thing in the same mode, merge them or change the angle.
 - Adjacent scenes must not walk through the same procedural chain twice, even under different labels. If scene N already established a chain, scene N+1 should apply it, stress-test it, contrast it, price it, or widen it rather than re-explain the chain step by step.
+- If a previous scene already established a procedural chain, the next scene should start from what is newly changing: scale, pressure, consequence, exception, tradeoff, or comparison. Do not reopen by restating the chain as if it were newly taught.
 - Each act should contain at least one meaningful turn: a realization, complication, stress test, reversal, or reframing that changes what the listener now understands.
 - Do not turn the act into a laundry list of explanations.
 - Keep one clear job per scene. Split only when the listener would feel a meaningful shift.
@@ -150,6 +151,9 @@ Rules:
   - `synthesize`: compress what changed in understanding
   - `apply`: show how an established mechanism operates in a concrete case
   - `stress_test`: push an established mechanism under pressure
+- `apply` scenes should begin from the concrete condition or operating case, not by replaying the full setup chain.
+- `stress_test` scenes should begin from the pressure, failure mode, or attack, not by reintroducing the base mechanism from zero.
+- `synthesize` scenes should answer the act question or compress the shift in understanding. They may callback to the prior mechanism briefly, but should spend most of the beat on implication or editorial landing.
 - Use `cost` only when the scene is genuinely about what is lost, constrained, or paid for. Do not label an origin story or general payoff scene as `cost` unless the beat explicitly centers on tradeoff.
 - Callback-only ending scenes should usually use `reframe`, `cost`, `contrast`, `bridge`, or `synthesize`.
 - Callback-only ending scenes should stay compact and focused. They should not become oversized recap blocks.

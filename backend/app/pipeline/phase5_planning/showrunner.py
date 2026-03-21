@@ -70,6 +70,8 @@ Rules:
 - Prefer one act to establish a mechanism and later acts to do something new with it: stress-test it, show its cost, compare it to another path, show the legal lock-in, or widen the stakes.
 - One historical event or institutional decision should usually have one main dramatic home. If several claims describe the same decision from different dates or angles, let one act own the reveal and use the rest only as brief callbacks or consequences.
 - Listener novelty matters more than branch coverage. A later act should not feel like the same explanation in a new folder.
+- If one act receives several claims from different branches that all describe the same mechanism family, prefer a lean explanatory backbone over exhaustive inclusion. Keep only the strongest 2-3 as fresh explanatory load unless the extras clearly enable different scene moves.
+- One act may own a mechanism family, but it should not become overcrowded with near-duplicate explanatory claims. Exhaustive branch inclusion is less important than keeping the listener's sense of forward motion.
 - Avoid acts that all do the same thing. Do not make every act a generic explanation block.
 - Prefer acts organized around one dominant branch or a tight pair of related branches, not a random mix of distant topics.
 - Comparative material should stay selective. One strong external comparator is usually enough for one act beat; do not load an act with multiple unrelated outside mini-histories unless they clearly serve one editorial point.
