@@ -587,6 +587,15 @@ Web extraction использует каскад extractors:
 
 - `recent_scene_starts` — детерминированный список недавних opener-shapes внутри текущего акта; writer использует его как soft anti-repetition cue, чтобы сцены не начинались одним и тем же маркером снова и снова
 
+- если предыдущая сцена уже сформулировала punchline, новая сцена должна по возможности продвигать разговор дальше, а не перефразировать тот же вывод в первых 1-2 репликах
+
+- writer варьирует discourse shapes абстрактно, а не через словарные blacklist'ы:
+  - не каждый challenge начинается как interruptive opener
+  - не каждое clarification exchange обязано идти по схеме question -> explicit confirmation -> explanation
+  - direct continuation, answer, or correction часто лучше, чем очередное подтверждение-маркер
+
+- speaker labels в final dialogue нормализуются к ASCII `A/B`, даже если модель вернула кириллические `А/Б` или формы вроде `Host A`
+
 - не default'ится в строгий `ABAB` exchange и не повторяет одни и те же opener-фразы scene after scene
 
 - при точных датах / юридических нормах / институциональных правилах может использовать лёгкую атрибуцию (`по данным регулятора`, `как сказано в законе`, `согласно официальным правилам`) вместо полностью безымянного narratorial tone
@@ -606,6 +615,11 @@ Web extraction использует каскад extractors:
 Легитимные возвраты планировщику:
 
 - "Сцена скучная --- нужен CASE/ANECDOTE/CONTRAST" для конкретного claim
+- "rigid_turn_taking" — сцена звучит механически из-за слишком жёсткого чередования реплик
+- "repetitive_agreement_shape" — подтверждения звучат однотипно scene after scene
+- "repetitive_challenge_shape" — возражения/уточнения повторяют один и тот же discourse move
+- "scene_opening_echo" — сцена открывается повтором punchline предыдущей сцены
+- "teacherly_exposition" — сцена объясняет верно, но слишком лекционно и без conversational movement
 
 - **Persona mismatch (разрешено):**
   - "Challenger не поверит без stronger VERIFIED пруфа"

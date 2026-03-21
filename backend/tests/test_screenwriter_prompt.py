@@ -21,6 +21,7 @@ from app.pipeline.phase6_writing.screenwriter import (
     _scene_manifest_claim_ids,
     _scene_callback_claim_ids,
     _scene_claim_mode,
+    _normalize_speaker_label,
     _scene_job,
     _scene_primary_claim_ids,
     _should_force_rewrite_for_node_rerun,
@@ -167,6 +168,9 @@ def test_screenwriter_prompt_demands_cross_act_memory_and_looser_dialogue() -> N
     assert "If the previous scene already announced the event, mechanism result, or punchline" in SCREENWRITER_SYSTEM
     assert "For `cost` scenes, open with the price, contradiction, or compromise being paid." in SCREENWRITER_SYSTEM
     assert "Vary agreement, confirmation, and challenge shapes." in SCREENWRITER_SYSTEM
+    assert "A direct continuation, answer, or correction is often better than an explicit confirmation line." in SCREENWRITER_SYSTEM
+    assert "A challenge can begin from tension, contrast, doubt, or a missing implication." in SCREENWRITER_SYSTEM
+    assert "If a nearby scene already used the same opener shape or agreement shape" in SCREENWRITER_SYSTEM
     assert "Do not default every reaction to the same opener or confirmation shape." in SCREENWRITER_SYSTEM
     assert "These are soft tendencies, not rigid scene roles." in SCREENWRITER_SYSTEM
     assert "scene_claim_mode" in SCREENWRITER_SYSTEM
@@ -558,6 +562,15 @@ def test_extract_dialogue_opener_normalizes_first_two_words() -> None:
     ]
 
     assert _extract_dialogue_opener(dialogue) == "подожди ты"
+
+
+def test_normalize_speaker_label_maps_cyrillic_and_named_hosts() -> None:
+    assert _normalize_speaker_label("A") == "A"
+    assert _normalize_speaker_label("Б") == "B"
+    assert _normalize_speaker_label("Host A") == "A"
+    assert _normalize_speaker_label("speaker b") == "B"
+    assert _normalize_speaker_label("") == "A"
+    assert _normalize_speaker_label(None) == "A"
 
 
 def test_build_recent_scene_starts_uses_written_previous_scenes_in_order() -> None:

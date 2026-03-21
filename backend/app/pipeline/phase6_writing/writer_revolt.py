@@ -24,7 +24,11 @@ Return JSON:
 {
   "score": 0.75,
   "weak_points": [
-    {"scene": 1, "issue": "dry_facts|persona_mismatch|repetitive|no_examples", "suggestion": "..."}
+    {
+      "scene": 1,
+      "issue": "dry_facts|persona_mismatch|repetitive|no_examples|rigid_turn_taking|repetitive_agreement_shape|repetitive_challenge_shape|scene_opening_echo|teacherly_exposition",
+      "suggestion": "..."
+    }
   ]
 }
 
@@ -32,7 +36,14 @@ Scoring guide:
 - 0.9-1.0: Excellent — compelling, varied, natural
 - 0.7-0.9: Good — solid but could use more personality
 - 0.5-0.7: Mediocre — needs more stories, examples, or character
-- 0.0-0.5: Poor — dry, robotic, or off-persona"""
+- 0.0-0.5: Poor — dry, robotic, or off-persona
+
+Look for:
+- scene-to-scene echo where a scene opens by repeating the previous scene's punchline
+- rigid turn-taking that makes the exchange feel mechanically alternating
+- repetitive agreement shapes where explicit confirmations dominate the rhythm
+- repetitive challenge shapes where objections or questions sound too similar
+- teacherly exposition where dialogue explains correctly but without enough conversational movement"""
 
 
 async def evaluate_and_revolt(state: PipelineState) -> dict:

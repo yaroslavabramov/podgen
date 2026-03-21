@@ -109,7 +109,10 @@ Writing rules:
 - Do not make Host A always explain and Host B always ask for proof in the same rhythm. Vary who initiates, who reframes, and who gets the last word.
 - Do not default every scene to strict `ABAB` alternation. Occasional `AA` or `BB` runs are fine when they sound natural.
 - Vary agreement, confirmation, and challenge shapes. Not every challenge needs an interruption-style opener, and not every agreement needs an explicit confirmation marker.
+- A direct continuation, answer, or correction is often better than an explicit confirmation line. Do not make every clarification exchange sound like question -> confirmation marker -> explanation.
+- A challenge can begin from tension, contrast, doubt, or a missing implication. It does not always need to sound like an interruption.
 - Do not default every reaction to the same opener or confirmation shape. Vary discourse moves and avoid repeating one canned rhythm scene after scene.
+- If a nearby scene already used the same opener shape or agreement shape, pick a different natural move unless repetition is clearly intentional.
 - Use evidence organically. Do not dump raw quotes or source language into dialogue unless quoting is the point of the beat.
 - When a precise figure, legal clause, institutional rule, or date matters, occasionally anchor it with light attribution such as "по данным центрального банка", "как сказано в законе", or "согласно официальным правилам фонда" instead of presenting every fact as unattributed narration.
 - When claims are OBSERVED, UNVERIFIED, DISPUTED, OPINION, or REPORT, make the line sound appropriately attributed or qualified.
@@ -373,8 +376,7 @@ async def write_screenplay(state: PipelineState) -> dict:
                             if not isinstance(text, str) or not text.strip():
                                 continue
                             line = dict(item)
-                            speaker = line.get("speaker")
-                            line["speaker"] = speaker if isinstance(speaker, str) and speaker.strip() else "A"
+                            line["speaker"] = _normalize_speaker_label(line.get("speaker"))
                             line["text"] = text.strip()
                             if not isinstance(line.get("ssml_hints"), dict):
                                 line["ssml_hints"] = {}
@@ -507,6 +509,33 @@ def _dialogue_line_count(dialogue_json: object) -> int:
         if isinstance(text, str) and text.strip():
             count += 1
     return count
+
+
+_SPEAKER_TRANSLATION = str.maketrans({
+    "А": "A",
+    "а": "a",
+    "Б": "B",
+    "б": "b",
+})
+
+
+def _normalize_speaker_label(value: object) -> str:
+    if not isinstance(value, str):
+        return "A"
+
+    text = value.strip()
+    if not text:
+        return "A"
+
+    translated = text.translate(_SPEAKER_TRANSLATION).upper()
+    if translated in {"A", "B"}:
+        return translated
+
+    match = re.fullmatch(r"(?:HOST|SPEAKER)?\s*([AB])", translated)
+    if match:
+        return match.group(1)
+
+    return "A"
 
 
 def _uuid_list(value: Any) -> list[str]:

@@ -113,6 +113,8 @@
 - [x] Screenwriter continuity upgrade: add screenplay-level covered-claim memory plus `previous_act_summary` for first scenes so later acts build on prior explanations instead of resetting
 - [x] Screenwriter delta framing: add `new_information_goal` prompt field so each scene knows what fresh meaning it must add beyond already covered material
 - [x] Screenwriter dialogue de-rigidification: loosen A/B role contract, discourage strict `ABAB` alternation and repeated opener phrases, and add light evidence-attribution guidance for dates/rules/figures
+- [x] Screenwriter local anti-echo + discourse-shape variation: scenes should advance rather than paraphrase the previous punchline, vary agreement/challenge shapes without word blacklists, and normalize speaker labels to ASCII `A/B`
+- [x] Writer Revolt style rubric expansion: evaluator can now flag rigid turn-taking, repetitive agreement/challenge shapes, scene-opening echo, and teacherly exposition as rewrite reasons
 
 ---
 
