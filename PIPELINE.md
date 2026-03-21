@@ -659,15 +659,19 @@ Web extraction использует каскад extractors:
 
 - audit-pass имеет bounded retry на transient timeout/parse failures; если все попытки исчерпаны, сцена fail-closed превращается в blocking `audit_failure`
 
+- после LLM-аудита есть cheap post-filter для неутверждающих вопросительных реплик: questions не должны становиться false blockers только из-за отсутствующего `claim_id`, если не вводят новый конкретный факт
+
 - repaired scene повторно аудируется на том же narrowed context; repair принимается по blocker-focused rules:
+  - сначала используется `line_repair`: модель переписывает только flagged line indexes, а auditor делает mechanical splice и сохраняет все unflagged lines без изменений
+  - `scene_repair` используется только как fallback, если проблема шире локального patch
   - original blocking issues must be resolved/downgraded
   - no new blocking issues
-  - required claim coverage must be preserved
-  - line-count drift must stay bounded (no free-form scene rewrite disguised as rigor repair)
+  - required claim coverage must be preserved for assertive content; only repaired question lines may drop stale `claim_ids`
+  - line-count drift must stay bounded for scene-level repairs (no free-form scene rewrite disguised as rigor repair)
 
 - scenes с исходными `scope=block` findings получают ещё один repair attempt с compact retry feedback, чтобы один неудачный Sonnet rewrite не ронял весь дорогой run
 
-- unresolved issues со scope `block` после repair **блокируют переход в audio**, вместо молчаливого continuation
+- unresolved issues со scope `block` после repair **блокируют переход в audio**, вместо молчаливого continuation; default runtime mode is fail-fast, so node stops at the first unresolved blocker instead of auditing the rest of the episode
 
 - при включённом debug dump пишет JSON-артефакты в:
   - `tmp/debug/citation_audit`

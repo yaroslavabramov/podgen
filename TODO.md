@@ -245,6 +245,14 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P1**: Reworked citation repair acceptance around blocker resolution + claim preservation + bounded line drift, instead of noisy full-issue-count comparison
 - [x] **P1**: Added bounded citation-audit retry for transient failures and a second citation-repair attempt for blocking scenes, with compact retry feedback instead of immediate audio block on the first bad repair
 
+**Round 27 (phase 6 citation fail-fast + line repair):**
+- [x] **P1**: Added a non-assertive post-filter so question lines no longer become false citation blockers by default
+- [x] **P1**: Split citation repair into `line_repair` first and `scene_repair` fallback, with mechanical splice preserving all unflagged lines verbatim
+- [x] **P1**: Replaced scene-wide claim preservation with assertive-line-aware coverage checks, so repaired question lines may drop stale `claim_ids` without false rejection
+- [x] **P1**: Switched `audit_citations` to fail-fast mode so the node stops spending after the first unresolved blocking scene
+- [x] **P1**: Bulk-loaded claims in `citation_auditor` instead of one SQL round-trip per claim
+- [x] **P1**: Tightened the non-assertive guard after review: only question lines get deterministic claim-link downgrades; short factual recap lines keep full grounding requirements
+
 **Round 69 (fast-web retrieval + quote truncation hardening):**
 - [x] **P0**: Remove fast-web `[:3]` gap cap and switch governor semantics to processed gaps instead of evidence items
 - [x] **P0**: Add language-aware fast-web query generation with explicit English rewrite for non-English questions

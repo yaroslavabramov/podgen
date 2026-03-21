@@ -24,6 +24,7 @@ from app.pipeline.phase6_writing.dialogue_utils import (
     set_segment_audit_finding as _set_segment_audit_finding,
 )
 from app.pipeline.state import PipelineState
+from app.pipeline.step_control import StepExecutionStopped
 from app.realtime.events import phase_completed, progress, quality_update, step_completed, step_started
 from app.realtime.publisher import publish_event
 from app.services.llm import call_haiku_structured, call_sonnet_structured
@@ -34,6 +35,7 @@ logger = logging.getLogger(__name__)
 CITATION_SEVERITIES = {"low", "medium", "high"}
 CITATION_SCOPES = {"record", "repair", "block"}
 MAX_REPAIR_LINE_DRIFT_RATIO = 0.3
+MAX_LINE_REPAIR_TARGETS = 2
 
 AUDITOR_SYSTEM = """You are a citation auditor for a podcast script.
 Check each dialogue line against the claims and policies.
@@ -79,6 +81,25 @@ Scope guide:
 - `record`: informational only
 - `repair`: attempt a repair pass
 - `block`: if unresolved after repair, block audio"""
+
+LINE_REPAIR_SYSTEM = """You are repairing factual-rigor issues in specific podcast dialogue lines.
+
+Return JSON:
+{
+  "repaired_lines": [
+    {"line_index": 0, "speaker": "A", "text": "line", "claim_ids": ["id"]}
+  ]
+}
+
+Rules:
+- Rewrite only the targeted lines.
+- Keep each targeted line on the same `line_index` and preserve its speaker.
+- Preserve local intent and scene function.
+- If the original line is a question, bridge, or recap, keep it non-assertive unless the issue explicitly requires a factual clarification.
+- Fix only the flagged citation / rigor issues.
+- Do not add new facts, institutions, dates, figures, or claims.
+- Do not rewrite or comment on unflagged lines.
+- Output only JSON."""
 
 REPAIR_SYSTEM = """You are repairing factual-rigor issues in a podcast dialogue scene.
 
@@ -168,6 +189,8 @@ async def audit_citations(state: PipelineState) -> dict:
 
             try:
                 audit = await _run_citation_audit_with_retry(prompt_payload)
+            except StepExecutionStopped:
+                raise
             except Exception as exc:
                 logger.warning("Citation audit failed for segment %s", sid, exc_info=True)
                 failure_audit = _build_failed_citation_audit(
@@ -201,7 +224,7 @@ async def audit_citations(state: PipelineState) -> dict:
                 for key in total_metrics:
                     total_metrics[key] += float(failure_audit["metrics"].get(key, 0) or 0)
                 segment_count += 1
-                continue
+                break
 
             _dump_citation_audit_debug(
                 run_id=run_id,
@@ -263,6 +286,8 @@ async def audit_citations(state: PipelineState) -> dict:
             for key in total_metrics:
                 total_metrics[key] += float(final_audit["metrics"].get(key, 0) or 0)
             segment_count += 1
+            if _has_blocking_citation_issues(final_audit["issues"]):
+                break
 
         await db.commit()
 
@@ -302,15 +327,17 @@ async def audit_citations(state: PipelineState) -> dict:
 
 async def _load_claims_map(db, claim_ids: list[str]) -> dict[str, dict[str, Any]]:
     claims_map: dict[str, dict[str, Any]] = {}
+    claim_uuids: list[uuid.UUID] = []
     for cid in claim_ids:
         try:
-            claim_uuid = uuid.UUID(cid)
+            claim_uuids.append(uuid.UUID(cid))
         except (TypeError, ValueError):
             continue
-        result = await db.execute(select(Claim).where(Claim.id == claim_uuid))
-        claim = result.scalar_one_or_none()
-        if claim is None:
-            continue
+    if not claim_uuids:
+        return claims_map
+
+    result = await db.execute(select(Claim).where(Claim.id.in_(claim_uuids)))
+    for claim in result.scalars():
         claims_map[str(claim.id)] = {
             "type": claim.claim_type,
             "verification": claim.verification_level,
@@ -363,7 +390,10 @@ async def _run_citation_audit(prompt_payload: dict[str, Any]) -> dict[str, Any]:
         temperature=0.2,
     )
     audit = parse_llm_json(raw)
-    issues = _normalize_citation_issues(audit.get("issues"))
+    issues = _post_filter_citation_issues(
+        dialogue=prompt_payload.get("dialogue"),
+        issues=_normalize_citation_issues(audit.get("issues")),
+    )
     metrics = _normalize_metrics(audit.get("metrics"))
     passed = not any(issue.get("scope") in {"repair", "block"} for issue in issues)
     return {"passed": passed, "issues": issues, "metrics": metrics}
@@ -375,6 +405,8 @@ async def _run_citation_audit_with_retry(prompt_payload: dict[str, Any]) -> dict
     for attempt in range(1, max_attempts + 1):
         try:
             return await _run_citation_audit(prompt_payload)
+        except StepExecutionStopped:
+            raise
         except Exception as exc:
             last_exc = exc
             if attempt >= max_attempts:
@@ -402,36 +434,42 @@ async def _attempt_citation_repair(
     scene_context: dict[str, Any],
 ) -> tuple[list[dict[str, Any]] | None, dict[str, Any] | None, bool]:
     original_dialogue = segment.dialogue_json
-    original_claim_ids = set(_extract_dialogue_claim_ids(original_dialogue))
     original_line_count = len(original_dialogue) if isinstance(original_dialogue, list) else 0
-    max_attempts = 1
-    if _has_blocking_citation_issues(original_audit["issues"]):
-        max_attempts = max(1, int(settings.max_citation_repair_attempts))
-
+    max_attempts = 1 if not _has_blocking_citation_issues(original_audit["issues"]) else max(
+        1, int(settings.max_citation_repair_attempts)
+    )
+    repair_attempts = _build_citation_repair_attempt_plan(
+        original_audit["issues"],
+        max_attempts=max_attempts,
+    )
     retry_feedback = ""
-    for attempt in range(1, max_attempts + 1):
-        prompt_payload = {
-            "scene_context": scene_context,
-            "original_line_count": original_line_count,
-            "dialogue": original_dialogue,
-            "available_claims": claims_map,
-            "forbidden_phrases": forbidden_phrases,
-            "rigor_policy": rigor_policy,
-            "language": language,
-            "issues": original_audit["issues"],
-        }
+    for attempt, repair_attempt in enumerate(repair_attempts, start=1):
+        repair_mode = repair_attempt["mode"]
+        target_line_indexes = repair_attempt["target_line_indexes"]
+        prompt_payload = _build_citation_repair_prompt_payload(
+            repair_mode=repair_mode,
+            scene_context=scene_context,
+            original_line_count=original_line_count,
+            dialogue=original_dialogue,
+            claims_map=claims_map,
+            forbidden_phrases=forbidden_phrases,
+            rigor_policy=rigor_policy,
+            language=language,
+            issues=original_audit["issues"],
+            target_line_indexes=target_line_indexes,
+        )
         if retry_feedback:
             prompt_payload["retry_feedback"] = retry_feedback
 
         try:
-            raw = await call_sonnet_structured(
-                system=REPAIR_SYSTEM,
-                prompt=json.dumps(prompt_payload, ensure_ascii=False),
-                max_tokens=2048,
-                temperature=0.2,
+            repaired_dialogue = await _run_citation_repair_attempt(
+                repair_mode=repair_mode,
+                prompt_payload=prompt_payload,
+                original_dialogue=original_dialogue,
+                target_line_indexes=target_line_indexes,
             )
-            parsed = parse_llm_json(raw)
-            repaired_dialogue = _normalize_dialogue_output(parsed.get("dialogue"))
+        except StepExecutionStopped:
+            raise
         except Exception as exc:
             _dump_citation_repair_debug(
                 run_id=run_id,
@@ -446,9 +484,9 @@ async def _attempt_citation_repair(
                 decision="rejected",
                 error=f"{type(exc).__name__}: {exc}",
                 attempt=attempt,
-                max_attempts=max_attempts,
+                max_attempts=len(repair_attempts),
             )
-            if attempt >= max_attempts:
+            if attempt >= len(repair_attempts):
                 return None, None, False
             retry_feedback = f"Previous repair attempt failed with {type(exc).__name__}: {exc}."
             continue
@@ -467,9 +505,9 @@ async def _attempt_citation_repair(
                 decision="rejected",
                 error="repair produced no usable dialogue",
                 attempt=attempt,
-                max_attempts=max_attempts,
+                max_attempts=len(repair_attempts),
             )
-            if attempt >= max_attempts:
+            if attempt >= len(repair_attempts):
                 return None, None, False
             retry_feedback = "Previous repair attempt produced no usable dialogue."
             continue
@@ -484,15 +522,15 @@ async def _attempt_citation_repair(
                 scene_context=scene_context,
             )
         )
-        repaired_claim_ids = set(_extract_dialogue_claim_ids(repaired_dialogue))
-        repaired_line_count = len(repaired_dialogue)
         accepted = _citation_repair_improved(
             original_audit,
             repaired_audit,
-            original_claim_ids=original_claim_ids,
-            repaired_claim_ids=repaired_claim_ids,
+            original_dialogue=original_dialogue,
+            repaired_dialogue=repaired_dialogue,
+            repair_mode=repair_mode,
+            target_line_indexes=target_line_indexes,
             original_line_count=original_line_count,
-            repaired_line_count=repaired_line_count,
+            repaired_line_count=len(repaired_dialogue),
         )
         _dump_citation_repair_debug(
             run_id=run_id,
@@ -507,11 +545,11 @@ async def _attempt_citation_repair(
             decision="accepted" if accepted else "rejected",
             error=None,
             attempt=attempt,
-            max_attempts=max_attempts,
+            max_attempts=len(repair_attempts),
         )
         if accepted:
             return repaired_dialogue, repaired_audit, True
-        if attempt >= max_attempts:
+        if attempt >= len(repair_attempts):
             return None, None, False
         retry_feedback = _build_citation_repair_retry_feedback(
             original_audit=original_audit,
@@ -519,6 +557,160 @@ async def _attempt_citation_repair(
         )
 
     return None, None, False
+
+
+def _build_citation_repair_attempt_plan(
+    issues: list[dict[str, Any]],
+    *,
+    max_attempts: int,
+) -> list[dict[str, Any]]:
+    primary_mode, target_line_indexes = _select_citation_repair_mode(issues)
+    attempts: list[dict[str, Any]] = [{"mode": primary_mode, "target_line_indexes": target_line_indexes}]
+    if max_attempts <= 1:
+        return attempts
+
+    fallback_mode = "scene_repair"
+    while len(attempts) < max_attempts:
+        attempts.append({"mode": fallback_mode, "target_line_indexes": []})
+    return attempts
+
+
+def _select_citation_repair_mode(issues: list[dict[str, Any]]) -> tuple[str, list[int]]:
+    actionable = _actionable_citation_issues(issues)
+    if not actionable:
+        return "scene_repair", []
+
+    line_indexes = sorted(
+        {
+            _issue_line_index(issue)
+            for issue in actionable
+            if _issue_line_index(issue) >= 0
+        }
+    )
+    if (
+        line_indexes
+        and len(line_indexes) <= MAX_LINE_REPAIR_TARGETS
+        and all(_issue_line_index(issue) in line_indexes for issue in actionable)
+    ):
+        return "line_repair", line_indexes
+    return "scene_repair", []
+
+
+def _build_citation_repair_prompt_payload(
+    *,
+    repair_mode: str,
+    scene_context: dict[str, Any],
+    original_line_count: int,
+    dialogue: list[dict[str, Any]],
+    claims_map: dict[str, dict[str, Any]],
+    forbidden_phrases: list[str],
+    rigor_policy: str,
+    language: str,
+    issues: list[dict[str, Any]],
+    target_line_indexes: list[int],
+) -> dict[str, Any]:
+    payload = {
+        "repair_mode": repair_mode,
+        "scene_context": scene_context,
+        "original_line_count": original_line_count,
+        "dialogue": dialogue,
+        "available_claims": claims_map,
+        "forbidden_phrases": forbidden_phrases,
+        "rigor_policy": rigor_policy,
+        "language": language,
+    }
+    if repair_mode == "line_repair":
+        payload["target_line_indexes"] = target_line_indexes
+        payload["target_lines"] = [
+            {
+                "line_index": line_index,
+                "dialogue": _dialogue_line(dialogue, line_index),
+                "issues": _issues_for_line_indexes(issues, [line_index]),
+            }
+            for line_index in target_line_indexes
+        ]
+    else:
+        payload["issues"] = issues
+    return payload
+
+
+async def _run_citation_repair_attempt(
+    *,
+    repair_mode: str,
+    prompt_payload: dict[str, Any],
+    original_dialogue: list[dict[str, Any]],
+    target_line_indexes: list[int],
+) -> list[dict[str, Any]] | None:
+    raw = await call_sonnet_structured(
+        system=LINE_REPAIR_SYSTEM if repair_mode == "line_repair" else REPAIR_SYSTEM,
+        prompt=json.dumps(prompt_payload, ensure_ascii=False),
+        max_tokens=2048,
+        temperature=0.2,
+    )
+    parsed = parse_llm_json(raw)
+    if repair_mode == "line_repair":
+        repaired_lines = _normalize_line_repair_output(parsed.get("repaired_lines"))
+        return _splice_repaired_lines(
+            original_dialogue=original_dialogue,
+            repaired_lines=repaired_lines,
+            target_line_indexes=target_line_indexes,
+        )
+    return _normalize_dialogue_output(parsed.get("dialogue"))
+
+
+def _normalize_line_repair_output(value: Any) -> dict[int, dict[str, Any]] | None:
+    if not isinstance(value, list):
+        return None
+    repaired_lines: dict[int, dict[str, Any]] = {}
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        try:
+            line_index = int(item.get("line_index"))
+        except (TypeError, ValueError):
+            continue
+        normalized_line = _normalize_dialogue_output(
+            [
+                {
+                    "speaker": item.get("speaker"),
+                    "text": item.get("text"),
+                    "claim_ids": item.get("claim_ids"),
+                }
+            ]
+        )
+        if not normalized_line:
+            continue
+        repaired_lines[line_index] = normalized_line[0]
+    return repaired_lines or None
+
+
+def _splice_repaired_lines(
+    *,
+    original_dialogue: list[dict[str, Any]],
+    repaired_lines: dict[int, dict[str, Any]] | None,
+    target_line_indexes: list[int],
+) -> list[dict[str, Any]] | None:
+    if not repaired_lines:
+        return None
+    if any(line_index not in repaired_lines for line_index in target_line_indexes):
+        return None
+
+    spliced: list[dict[str, Any]] = []
+    for line in original_dialogue:
+        if not isinstance(line, dict):
+            return None
+        spliced.append(
+            {
+                "speaker": line.get("speaker"),
+                "text": line.get("text"),
+                "claim_ids": list(line.get("claim_ids") or []),
+            }
+        )
+    for line_index in target_line_indexes:
+        if line_index < 0 or line_index >= len(spliced):
+            return None
+        spliced[line_index] = repaired_lines[line_index]
+    return spliced
 
 
 def _normalize_citation_issues(value: Any) -> list[dict[str, Any]]:
@@ -560,6 +752,101 @@ def _normalize_citation_issues(value: Any) -> list[dict[str, Any]]:
             }
         )
     return normalized
+
+
+def _post_filter_citation_issues(*, dialogue: object, issues: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    filtered: list[dict[str, Any]] = []
+    for issue in issues:
+        line = _dialogue_line(dialogue, _issue_line_index(issue))
+        if line is None:
+            filtered.append(issue)
+            continue
+
+        text = str(line.get("text") or "").strip()
+        if not text:
+            filtered.append(issue)
+            continue
+
+        if _line_is_question(text):
+            filtered.append(_downgrade_non_assertive_issue(issue, text=text, question=True))
+            continue
+        filtered.append(issue)
+    return filtered
+
+
+def _downgrade_non_assertive_issue(issue: dict[str, Any], *, text: str, question: bool) -> dict[str, Any]:
+    issue_type = str(issue.get("type") or "").strip()
+    if issue_type not in {"missing_claim_link", "unverified_stated_as_fact"}:
+        return issue
+
+    downgraded = dict(issue)
+    has_fact_markers = _line_has_concrete_fact_markers(text)
+    if issue_type == "missing_claim_link":
+        if question and not has_fact_markers:
+            downgraded["severity"] = "low"
+            downgraded["scope"] = "record"
+            return downgraded
+        downgraded["severity"] = "medium"
+        downgraded["scope"] = "repair"
+        return downgraded
+
+    if question and not has_fact_markers:
+        downgraded["severity"] = "medium"
+        downgraded["scope"] = "repair"
+        return downgraded
+
+    if downgraded.get("scope") == "block":
+        downgraded["scope"] = "repair"
+    if downgraded.get("severity") == "high":
+        downgraded["severity"] = "medium"
+    return downgraded
+
+
+def _dialogue_line(dialogue: object, line_index: int) -> dict[str, Any] | None:
+    if not isinstance(dialogue, list):
+        return None
+    if line_index < 0 or line_index >= len(dialogue):
+        return None
+    line = dialogue[line_index]
+    return line if isinstance(line, dict) else None
+
+
+def _line_is_question(text: str) -> bool:
+    return text.rstrip().endswith("?")
+
+
+def _line_is_transition_or_recap(text: str) -> bool:
+    normalized = " ".join(text.strip().split()).casefold()
+    if _line_has_concrete_fact_markers(normalized):
+        return False
+    prefixes = (
+        "то есть",
+        "получается",
+        "выходит",
+        "короче",
+        "иначе говоря",
+        "другими словами",
+        "и вот",
+        "но тогда",
+        "хорошо",
+        "ладно",
+        "итак",
+        "итого",
+        "в итоге",
+        "so",
+        "so then",
+        "in other words",
+        "which means",
+        "bottom line",
+        "okay",
+        "ok",
+        "all right",
+    )
+    return len(normalized.split()) <= 18 and any(normalized.startswith(prefix) for prefix in prefixes)
+
+
+def _line_has_concrete_fact_markers(text: str) -> bool:
+    return any(char.isdigit() for char in text)
 
 
 def _normalize_metrics(value: Any) -> dict[str, float]:
@@ -625,7 +912,7 @@ def _select_scene_claims_map(
 
 def _blocking_issue_signature(issue: dict[str, Any]) -> tuple[int, str]:
     return (
-        int(issue.get("line_index", -1) or -1),
+        _issue_line_index(issue),
         str(issue.get("type") or "").strip(),
     )
 
@@ -658,6 +945,15 @@ def _actionable_citation_issues(issues: list[dict[str, Any]]) -> list[dict[str, 
     return [issue for issue in issues if isinstance(issue, dict) and issue.get("scope") in {"repair", "block"}]
 
 
+def _issues_for_line_indexes(issues: list[dict[str, Any]], line_indexes: list[int]) -> list[dict[str, Any]]:
+    allowed = set(line_indexes)
+    return [
+        issue
+        for issue in issues
+        if isinstance(issue, dict) and _issue_line_index(issue) in allowed
+    ]
+
+
 def _summarize_citation_issues(issues: list[dict[str, Any]]) -> list[str]:
     summaries: list[str] = []
     for issue in issues:
@@ -667,7 +963,7 @@ def _summarize_citation_issues(issues: list[dict[str, Any]]) -> list[str]:
         if scope not in {"repair", "block"}:
             continue
         issue_type = str(issue.get("type") or "").strip() or "issue"
-        line_index = int(issue.get("line_index", -1) or -1)
+        line_index = _issue_line_index(issue)
         description = str(issue.get("description") or "").strip()
         line_label = f"line {line_index}" if line_index >= 0 else "scene-level"
         summary = f"{line_label}: {issue_type}"
@@ -704,16 +1000,36 @@ def _build_citation_repair_retry_feedback(*, original_audit: dict[str, Any], rep
     return "Previous repair attempt was rejected. Preserve the original scene more closely and make only minimal rigor fixes."
 
 
+def _issue_line_index(issue: dict[str, Any]) -> int:
+    try:
+        return int(issue.get("line_index", -1))
+    except (TypeError, ValueError):
+        return -1
+
+
 def _citation_repair_improved(
     original: dict[str, Any],
     repaired: dict[str, Any],
     *,
-    original_claim_ids: set[str],
-    repaired_claim_ids: set[str],
+    original_dialogue: list[dict[str, Any]],
+    repaired_dialogue: list[dict[str, Any]],
+    repair_mode: str,
+    target_line_indexes: list[int],
     original_line_count: int,
     repaired_line_count: int,
 ) -> bool:
-    if original_claim_ids and not original_claim_ids.issubset(repaired_claim_ids):
+    if not _citation_claim_preservation_ok(
+        original_dialogue=original_dialogue,
+        repaired_dialogue=repaired_dialogue,
+        repair_mode=repair_mode,
+        target_line_indexes=target_line_indexes,
+    ):
+        return False
+    if repair_mode == "line_repair" and not _line_repair_speakers_preserved(
+        original_dialogue=original_dialogue,
+        repaired_dialogue=repaired_dialogue,
+        target_line_indexes=target_line_indexes,
+    ):
         return False
     if _line_count_drift_exceeds(
         original_line_count=original_line_count,
@@ -732,6 +1048,27 @@ def _citation_repair_improved(
     repaired_blockers = _blocking_issue_signatures(repaired["issues"])
     if repaired_blockers - original_blockers:
         return False
+
+    if repair_mode == "line_repair":
+        targeted_original_issues = _actionable_citation_issues(_issues_for_line_indexes(original["issues"], target_line_indexes))
+        targeted_repaired_issues = _actionable_citation_issues(_issues_for_line_indexes(repaired["issues"], target_line_indexes))
+        targeted_original_blockers = _blocking_issue_signatures(targeted_original_issues)
+        targeted_repaired_blockers = _blocking_issue_signatures(targeted_repaired_issues)
+        if targeted_original_blockers:
+            return not targeted_repaired_blockers
+
+        if repaired["passed"] and not original["passed"]:
+            return True
+
+        if len(targeted_repaired_issues) < len(targeted_original_issues):
+            return True
+
+        original_rank = _worst_citation_severity(targeted_original_issues)
+        repaired_rank = _worst_citation_severity(targeted_repaired_issues)
+        if repaired_rank < original_rank:
+            return True
+        return False
+
     if original_blockers:
         return not repaired_blockers
 
@@ -746,6 +1083,63 @@ def _citation_repair_improved(
     if repaired_rank < original_rank:
         return True
     return False
+
+
+def _citation_claim_preservation_ok(
+    *,
+    original_dialogue: list[dict[str, Any]],
+    repaired_dialogue: list[dict[str, Any]],
+    repair_mode: str,
+    target_line_indexes: list[int],
+) -> bool:
+    if repair_mode == "line_repair":
+        required_original = _required_claim_ids_for_lines(original_dialogue, target_line_indexes)
+        repaired_required = _required_claim_ids_for_lines(repaired_dialogue, target_line_indexes)
+        return not required_original or required_original.issubset(repaired_required)
+
+    required_original = _required_claim_ids_for_lines(
+        original_dialogue,
+        [idx for idx, _line in enumerate(original_dialogue)],
+    )
+    repaired_required = _required_claim_ids_for_lines(
+        repaired_dialogue,
+        [idx for idx, _line in enumerate(repaired_dialogue)],
+    )
+    return not required_original or required_original.issubset(repaired_required)
+
+
+def _required_claim_ids_for_lines(dialogue: list[dict[str, Any]], line_indexes: list[int]) -> set[str]:
+    required: set[str] = set()
+    for line_index in line_indexes:
+        line = _dialogue_line(dialogue, line_index)
+        if line is None:
+            continue
+        text = str(line.get("text") or "").strip()
+        if _line_is_question(text):
+            continue
+        claim_ids = line.get("claim_ids")
+        if not isinstance(claim_ids, list):
+            continue
+        for claim_id in claim_ids:
+            if isinstance(claim_id, str) and claim_id.strip():
+                required.add(claim_id.strip())
+    return required
+
+
+def _line_repair_speakers_preserved(
+    *,
+    original_dialogue: list[dict[str, Any]],
+    repaired_dialogue: list[dict[str, Any]],
+    target_line_indexes: list[int],
+) -> bool:
+    for line_index in target_line_indexes:
+        original_line = _dialogue_line(original_dialogue, line_index)
+        repaired_line = _dialogue_line(repaired_dialogue, line_index)
+        if original_line is None or repaired_line is None:
+            return False
+        if original_line.get("speaker") != repaired_line.get("speaker"):
+            return False
+    return True
 
 
 def _dump_citation_audit_debug(
