@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import re
 import uuid
 from typing import Any
 
@@ -63,6 +64,7 @@ Writing rules:
 - Use `act_title`, `previous_scene`, `previous_act_summary`, `already_covered_claims`, `already_covered_claims_global`, and `new_information_goal` only as continuity context. Do not restate material that the listener already heard unless this scene is explicitly reframing or paying it off.
 - For the first scene of a later act, use `previous_act_summary` to build on what the listener already knows instead of resetting the story from zero.
 - If the current scene overlaps with covered local or global material, briefly refer back and move to what is new in this scene.
+- If `already_covered_claims_global` includes `mechanism_anchors`, treat those anchors as signs that the mechanism is already established. Do not reteach it from zero unless this scene adds a new consequence, stress test, or reframing.
 - Treat `new_information_goal` as the delta this scene must add. Do not spend most of the scene re-teaching already covered setup.
 - Keep the scene moving. Do not let both hosts restate the same point in slightly different words.
 - Avoid dry explanatory dialogue by default. Prefer a concrete opening move, a turn, and a landing.
@@ -78,7 +80,7 @@ Writing rules:
 - Do not default every scene to strict `ABAB` alternation. Occasional `AA` or `BB` runs are fine when they sound natural.
 - Do not default every reaction to the same opener or confirmation word. Vary discourse markers and avoid repeating one canned phrase scene after scene.
 - Use evidence organically. Do not dump raw quotes or source language into dialogue unless quoting is the point of the beat.
-- When a precise figure, legal clause, institutional rule, or date matters, occasionally anchor it with light attribution such as "по данным HKMA", "как сказано в Основном законе", or "согласно Exchange Fund" instead of presenting every fact as unattributed narration.
+- When a precise figure, legal clause, institutional rule, or date matters, occasionally anchor it with light attribution such as "по данным центрального банка", "как сказано в законе", or "согласно официальным правилам фонда" instead of presenting every fact as unattributed narration.
 - When claims are OBSERVED, UNVERIFIED, DISPUTED, OPINION, or REPORT, make the line sound appropriately attributed or qualified.
 - Prefer callbacks over re-explanations. If a prior scene already established the mechanism, this scene should build on it rather than teach it from scratch again.
 
@@ -174,7 +176,7 @@ async def write_screenplay(state: PipelineState) -> dict:
             for act_scene in beat_sheet:
                 if not isinstance(act_scene, dict):
                     continue
-                for cid in act_scene.get("claim_ids", []):
+                for cid in _scene_manifest_claim_ids(act_scene):
                     if isinstance(cid, str) and cid not in act_claim_ids:
                         act_claim_ids.append(cid)
             act_claim_lookup = {
@@ -251,9 +253,10 @@ async def write_screenplay(state: PipelineState) -> dict:
                     continue
 
                 # Gather claims and evidence for this scene
+                scene_primary_claim_ids = _scene_primary_claim_ids(scene)
                 scene_claims = [
                     act_claim_lookup[cid]
-                    for cid in scene.get("claim_ids", [])
+                    for cid in scene_primary_claim_ids
                     if isinstance(cid, str) and cid in act_claim_lookup
                 ]
 
@@ -289,6 +292,7 @@ async def write_screenplay(state: PipelineState) -> dict:
                         claim_lookup=global_claim_lookup,
                         max_items=16,
                         statement_chars=160,
+                        include_mechanism_anchors=True,
                     ),
                     new_information_goal=_build_new_information_goal(
                         scene=scene,
@@ -462,6 +466,25 @@ def _dialogue_line_count(dialogue_json: object) -> int:
     return count
 
 
+def _uuid_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        try:
+            uuid.UUID(item)
+        except ValueError:
+            continue
+        if item in seen:
+            continue
+        seen.add(item)
+        out.append(item)
+    return out
+
+
 def _should_force_rewrite_for_node_rerun(config: dict | None, *, node_name: str) -> bool:
     if not isinstance(config, dict):
         return False
@@ -570,6 +593,29 @@ async def _load_claim_prompt_payloads(db, claim_ids: list[str]) -> dict[str, dic
     return payloads
 
 
+def _scene_primary_claim_ids(scene: dict[str, Any]) -> list[str]:
+    primary_claim_ids = _uuid_list(scene.get("primary_claim_ids"))
+    if primary_claim_ids:
+        return primary_claim_ids
+    return _uuid_list(scene.get("claim_ids"))
+
+
+def _scene_manifest_claim_ids(scene: dict[str, Any]) -> list[str]:
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for source in (
+        _uuid_list(scene.get("primary_claim_ids")),
+        _uuid_list(scene.get("callback_claim_ids")),
+        _uuid_list(scene.get("claim_ids")),
+    ):
+        for claim_id in source:
+            if claim_id in seen:
+                continue
+            seen.add(claim_id)
+            ordered.append(claim_id)
+    return ordered
+
+
 def _build_previous_scene_payload(beat_sheet: list[dict], current_scene_idx: int) -> dict | None:
     if current_scene_idx <= 1:
         return None
@@ -664,10 +710,7 @@ def _collect_manifest_claim_ids(acts_json: object) -> list[str]:
         for scene in beat_sheet:
             if not isinstance(scene, dict):
                 continue
-            claim_ids = scene.get("claim_ids", [])
-            if not isinstance(claim_ids, list):
-                continue
-            for claim_id in claim_ids:
+            for claim_id in _scene_manifest_claim_ids(scene):
                 if not isinstance(claim_id, str) or not claim_id or claim_id in seen:
                     continue
                 seen.add(claim_id)
@@ -725,6 +768,7 @@ def _build_already_covered_claims_payload(
     claim_lookup: dict[str, dict],
     max_items: int | None = None,
     statement_chars: int = 300,
+    include_mechanism_anchors: bool = False,
 ) -> list[dict]:
     covered: list[dict] = []
     relevant_claim_ids = covered_claim_ids[-max_items:] if isinstance(max_items, int) and max_items > 0 else covered_claim_ids
@@ -736,11 +780,53 @@ def _build_already_covered_claims_payload(
         statement = claim_payload.get("statement", "")
         if not isinstance(statement, str):
             statement = ""
-        covered.append({
+        payload = {
             "id": cid,
             "statement": statement[:statement_limit],
-        })
+        }
+        if include_mechanism_anchors:
+            payload["mechanism_anchors"] = _extract_mechanism_anchors(statement)
+        covered.append(payload)
     return covered
+
+
+def _extract_mechanism_anchors(statement: str) -> list[str]:
+    if not isinstance(statement, str) or not statement.strip():
+        return []
+
+    anchors: list[str] = []
+    seen: set[str] = set()
+
+    numeric_patterns = (
+        r"(?:[A-Z]{1,4}\$|[$€£¥₽])\s*\d+(?:[.,]\d+)?(?:\s*(?:bn|mn|m|b|million|billion|млн|млрд|трлн))?",
+        r"\b\d+(?:[.,]\d+)?\s*%",
+        r"(?<![$€£¥₽])\b\d+[.,]\d+\b",
+    )
+    for pattern in numeric_patterns:
+        for match in re.findall(pattern, statement):
+            cleaned = " ".join(match.strip().split())
+            if cleaned and cleaned not in seen:
+                seen.add(cleaned)
+                anchors.append(cleaned)
+
+    for match in re.findall(r"\b[A-Z]{3,}(?:\s+[A-Z]{2,})*\b(?!\$)", statement):
+        cleaned = " ".join(match.strip().split())
+        if cleaned and cleaned not in seen:
+            seen.add(cleaned)
+            anchors.append(cleaned)
+
+    title_patterns = (
+        r"\b[A-Z][a-z]+(?:\s+(?:of|the|and|for|to|in|on|de|del|da|di|du|la|le))?\s+[A-Z][a-z]+(?:\s+(?:(?:of|the|and|for|to|in|on|de|del|da|di|du|la|le)|[A-Z][a-z]+)){0,4}\b",
+        r"\b[А-ЯЁ][а-яё]+(?:\s+(?:и|по|на|о|в|во|при|под|над|с|со|из|от|для|без))?\s+[А-ЯЁ][а-яё]+(?:\s+(?:(?:и|по|на|о|в|во|при|под|над|с|со|из|от|для|без)|[А-ЯЁ][а-яё]+)){0,4}\b",
+    )
+    for pattern in title_patterns:
+        for match in re.findall(pattern, statement):
+            cleaned = match.strip()
+            if cleaned and cleaned not in seen:
+                seen.add(cleaned)
+                anchors.append(cleaned)
+
+    return anchors[:6]
 
 
 def _extract_dialogue_claim_ids(dialogue_json: object) -> list[str]:

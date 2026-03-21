@@ -7,12 +7,15 @@ from app.pipeline.phase6_writing.screenwriter import (
     _build_already_covered_claims_payload,
     _build_new_information_goal,
     _extract_last_dialogue_line,
+    _extract_mechanism_anchors,
     _build_previous_act_summary,
     _build_previous_scene_payload,
     _build_scene_prompt_payload,
     _collect_manifest_claim_ids,
     _dump_screenwriter_debug,
     _extract_dialogue_claim_ids,
+    _scene_manifest_claim_ids,
+    _scene_primary_claim_ids,
     _should_force_rewrite_for_node_rerun,
 )
 
@@ -69,7 +72,11 @@ def test_build_scene_prompt_payload_uses_local_and_cross_act_context() -> None:
             {"id": "c0", "statement": "Earlier scene already established the monetary chaos."}
         ],
         already_covered_claims_global=[
-            {"id": "g1", "statement": "Earlier act already established the reserve discipline."}
+            {
+                "id": "g1",
+                "statement": "Earlier act already established the reserve discipline.",
+                "mechanism_anchors": ["7.80", "Exchange Fund"],
+            }
         ],
         new_information_goal="Advance the listener with what is new here: The peg was restored in October 1983.",
     )
@@ -101,7 +108,11 @@ def test_build_scene_prompt_payload_uses_local_and_cross_act_context() -> None:
             {"id": "c0", "statement": "Earlier scene already established the monetary chaos."}
         ],
         "already_covered_claims_global": [
-            {"id": "g1", "statement": "Earlier act already established the reserve discipline."}
+            {
+                "id": "g1",
+                "statement": "Earlier act already established the reserve discipline.",
+                "mechanism_anchors": ["7.80", "Exchange Fund"],
+            }
         ],
         "new_information_goal": "Advance the listener with what is new here: The peg was restored in October 1983.",
         "claims": [
@@ -132,6 +143,7 @@ def test_screenwriter_prompt_demands_cross_act_memory_and_looser_dialogue() -> N
     assert "Use `description` as the main job of the scene." in SCREENWRITER_SYSTEM
     assert "previous_act_summary" in SCREENWRITER_SYSTEM
     assert "already_covered_claims_global" in SCREENWRITER_SYSTEM
+    assert "mechanism_anchors" in SCREENWRITER_SYSTEM
     assert "Treat `new_information_goal` as the delta this scene must add." in SCREENWRITER_SYSTEM
     assert "Prefer callbacks over re-explanations." in SCREENWRITER_SYSTEM
     assert "Do not default every scene to strict `ABAB` alternation." in SCREENWRITER_SYSTEM
@@ -286,12 +298,35 @@ def test_extract_last_dialogue_line_returns_last_nonempty_text() -> None:
 
 
 def test_collect_manifest_claim_ids_dedupes_in_order() -> None:
+    c1 = "11111111-1111-1111-1111-111111111111"
+    c2 = "22222222-2222-2222-2222-222222222222"
+    c3 = "33333333-3333-3333-3333-333333333333"
+    c4 = "44444444-4444-4444-4444-444444444444"
     acts_json = [
-        {"beat_sheet": [{"claim_ids": ["c1", "c2"]}, {"claim_ids": ["c2", "c3"]}]},
-        {"beat_sheet": [{"claim_ids": ["c3", "c4"]}]},
+        {
+            "beat_sheet": [
+                {"primary_claim_ids": [c1], "callback_claim_ids": [c2]},
+                {"claim_ids": [c2, c3]},
+            ]
+        },
+        {"beat_sheet": [{"primary_claim_ids": [c3], "callback_claim_ids": [c4]}]},
     ]
 
-    assert _collect_manifest_claim_ids(acts_json) == ["c1", "c2", "c3", "c4"]
+    assert _collect_manifest_claim_ids(acts_json) == [c1, c2, c3, c4]
+
+
+def test_scene_claim_helpers_prefer_primary_and_include_callbacks_for_manifest() -> None:
+    c1 = "11111111-1111-1111-1111-111111111111"
+    c2 = "22222222-2222-2222-2222-222222222222"
+    c3 = "33333333-3333-3333-3333-333333333333"
+    scene = {
+        "primary_claim_ids": [c1],
+        "callback_claim_ids": [c2],
+        "claim_ids": [c1, c2, c3],
+    }
+
+    assert _scene_primary_claim_ids(scene) == [c1]
+    assert _scene_manifest_claim_ids(scene) == [c1, c2, c3]
 
 
 def test_build_new_information_goal_prefers_uncovered_claims() -> None:
@@ -318,6 +353,50 @@ def test_build_new_information_goal_falls_back_to_scene_description_when_all_cla
 
     assert "Do not reteach already covered setup." in goal
     assert "Reframe the same mechanism as the price of stability." in goal
+
+
+def test_build_already_covered_claims_payload_can_attach_mechanism_anchors() -> None:
+    payload = _build_already_covered_claims_payload(
+        covered_claim_ids=["c1"],
+        claim_lookup={
+            "c1": {
+                "statement": "HKMA requires Certificates of Indebtedness at HK$7.80 via the Exchange Fund."
+            }
+        },
+        include_mechanism_anchors=True,
+    )
+
+    assert payload == [
+        {
+            "id": "c1",
+            "statement": "HKMA requires Certificates of Indebtedness at HK$7.80 via the Exchange Fund.",
+            "mechanism_anchors": ["HK$7.80", "HKMA", "Certificates of Indebtedness", "Exchange Fund"],
+        }
+    ]
+
+
+def test_extract_mechanism_anchors_pulls_numbers_terms_and_institutions() -> None:
+    anchors = _extract_mechanism_anchors(
+        "HKMA requires Certificates of Indebtedness at HK$7.80 via the Exchange Fund under the Basic Law."
+    )
+
+    assert anchors == [
+        "HK$7.80",
+        "HKMA",
+        "Certificates of Indebtedness",
+        "Exchange Fund",
+        "Basic Law",
+    ]
+
+
+def test_extract_mechanism_anchors_ignores_plain_years_and_counts() -> None:
+    anchors = _extract_mechanism_anchors(
+        "In 1842, 14 banks issued notes under the Colonial Bank Ordinance."
+    )
+
+    assert "1842" not in anchors
+    assert "14" not in anchors
+    assert "Colonial Bank Ordinance" in anchors
 
 
 def test_dump_screenwriter_debug_writes_scene_dump(tmp_path) -> None:

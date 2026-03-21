@@ -503,6 +503,7 @@ Web extraction использует каскад extractors:
   - `support_bundle.illustrative` (0-1 vivid quote when available)
 - дополнительно получают act-level story contract, `branch_focus_summary`, `conflict_count` и `scene_count_guidance`, чтобы строить сцены как движение внутри акта, а не как flat list of explanation beats
 - planner теперь нацелен на compact beat cards, а не на длинные pseudo-script paragraphs; он просит модель сначала выбрать короткую `scene_strategy`, явно запрещает default-скелет `hook -> explanation -> case_study -> takeaway`, трактует `case_study` как optional scene function и держит все human-readable поля в `output_language`
+- после normalizer act planner детерминированно делит повторно использованные claims на `primary_claim_ids` и `callback_claim_ids` по порядку сцен; `hook` / `explanation` / `case_study` сцены не могут остаться callback-only без нового primary claim и в таком случае срабатывает ограниченный retry (`ACT_PLANNER_RETRIES = 2`)
 - если сцена выбрала claim, но LLM не приклеил `evidence_ids`, act planner сначала детерминированно подставляет bundled claim support и только потом идёт в `vector_search` rescue
 
 - при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` каждый act planner пишет JSON dump с prompt payload, attempt history, raw/parsed outputs, normalized beat sheet и результатом evidence gap fill
@@ -563,6 +564,8 @@ Web extraction использует каскад extractors:
 - первые сцены новых актов строятся от `previous_act_summary`, который по возможности собирается из фактически написанного диалога и реально использованных `claim_ids` предыдущего акта, а не только из planning metadata
 
 - `new_information_goal` задаёт delta этой сцены: какой новый смысл, следствие или угол она должна добавить поверх уже рассказанного
+
+- в локальный writer prompt попадают только `primary_claim_ids` текущей сцены, а global continuity memory дополнительно несёт compact `mechanism_anchors` (`7.80`, `HKMA`, `Exchange Fund`, `Certificates of Indebtedness`, `Basic Law` и т.п.), чтобы следующие акты не reteach'или уже установленный механизм как новый факт
 
 - не default'ится в строгий `ABAB` exchange и не повторяет одни и те же opener-фразы scene after scene
 

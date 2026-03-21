@@ -107,6 +107,7 @@ Rules:
 - Do not turn the act into a laundry list of explanations.
 - Keep one clear job per scene. Split only when the listener would feel a meaningful shift.
 - Avoid repeating the same proposition core across multiple scenes in the same act.
+- Give each claim one main home scene inside the act. If a later scene refers back to that material, treat it as a brief callback rather than a fresh explanation.
 - Use `scene_count_guidance` as the default size target for the act. Do not exceed it unless the act would otherwise feel structurally incomplete.
 - Prefer compact beat cards, not mini-script paragraphs. `description` should describe the beat, not write the scene. `notes` should stay short.
 - When a scene uses a claim, attach one or more `evidence_ids` from that claim's bundled support whenever available.
@@ -116,6 +117,8 @@ Rules:
 - If the act has illustrative material, use it early or at key pivots instead of burying it at the end.
 - Do not stack more than two `explanation` scenes in a row without a meaningful shift in angle, example, or tension.
 - Use `debate` only when the act has real conflict pressure (`conflict_count > 0`) or the act itself is genuinely comparative/argumentative. If there is no real conflict, do not invent one.
+- `takeaway` and `summary` scenes should usually land consequence, implication, or reframing. They should not reteach the act's main mechanism if that mechanism already had its own explanation scene.
+- Do not replay the act's opening image or main mechanism in the final scene unless the ending adds a clearly new consequence or wider frame.
 - Let `story_role` shape the act:
   - `setup`: establish the paradox, world, and stakes
   - `complicate`: intensify the problem or institutional tension
@@ -188,6 +191,9 @@ async def plan_act(state: PipelineState) -> dict:
             beat_sheet: list[dict[str, Any]] = []
             scene_strategy = ""
             last_error = ""
+            quality_issues: list[dict[str, Any]] = []
+            beat_sheet_valid = False
+            failed_beat_sheet: list[dict[str, Any]] | None = None
             attempt_debugs: list[dict[str, Any]] = []
             for attempt in range(1, ACT_PLANNER_RETRIES + 1):
                 prompt_payload = dict(base_prompt)
@@ -200,17 +206,23 @@ async def plan_act(state: PipelineState) -> dict:
                 prompt = json.dumps(prompt_payload, ensure_ascii=False)
                 raw = ""
                 beat_data = None
+                candidate_beat_sheet: list[dict[str, Any]] = []
+                candidate_scene_strategy = ""
+                candidate_quality_issues: list[dict[str, Any]] = []
                 try:
                     raw = await call_sonnet_structured(system=ACT_PLANNER_SYSTEM, prompt=prompt, temperature=0.5)
                     beat_data = parse_llm_json(raw)
-                    scene_strategy = _extract_scene_strategy(beat_data)
-                    beat_sheet = _normalize_beat_sheet(
+                    candidate_scene_strategy = _extract_scene_strategy(beat_data)
+                    candidate_beat_sheet = _normalize_beat_sheet(
                         beat_data,
                         allowed_claim_ids=allowed_claim_ids,
                         allowed_evidence_ids=allowed_evidence_ids,
                         default_duration=per_scene_duration,
                     )
-                    if beat_sheet:
+                    candidate_beat_sheet = _split_scene_claim_roles(candidate_beat_sheet)
+                    candidate_quality_issues = _collect_beat_sheet_quality_issues(candidate_beat_sheet)
+                    structural_overlap_failure = _has_structural_overlap_failures(candidate_quality_issues)
+                    if candidate_beat_sheet:
                         attempt_debugs.append(
                             {
                                 "attempt": attempt,
@@ -222,12 +234,23 @@ async def plan_act(state: PipelineState) -> dict:
                                     "parsed_type": type(beat_data).__name__ if beat_data is not None else None,
                                     "parsed": beat_data,
                                 },
-                                "normalized_scene_count": len(beat_sheet),
+                                "normalized_scene_count": len(candidate_beat_sheet),
+                                "quality_issues": candidate_quality_issues,
+                                "structural_overlap_failure": structural_overlap_failure,
                             }
                         )
+                        if structural_overlap_failure:
+                            raise ValueError("beat_sheet failed structural overlap validation after claim-role split")
+                        beat_sheet = candidate_beat_sheet
+                        scene_strategy = candidate_scene_strategy
+                        quality_issues = candidate_quality_issues
+                        beat_sheet_valid = True
                         break
                     raise ValueError("beat_sheet is empty after normalization")
                 except Exception as exc:
+                    if candidate_beat_sheet:
+                        failed_beat_sheet = candidate_beat_sheet
+                    quality_issues = candidate_quality_issues
                     last_error = f"{type(exc).__name__}: {exc}"
                     attempt_debugs.append(
                         {
@@ -240,6 +263,7 @@ async def plan_act(state: PipelineState) -> dict:
                                 "parsed_type": type(beat_data).__name__ if beat_data is not None else None,
                                 "parsed": beat_data,
                             },
+                            "quality_issues": quality_issues,
                             "error": last_error,
                         }
                     )
@@ -252,18 +276,19 @@ async def plan_act(state: PipelineState) -> dict:
                         exc_info=True,
                     )
 
-            if not beat_sheet:
+            if not beat_sheet_valid:
                 _dump_act_planner_debug(
                     run_id=run_id,
                     act_number=act_num,
-                    status="llm_or_normalize_failed",
+                    status="quality_gate_failed" if failed_beat_sheet else "llm_or_normalize_failed",
                     base_prompt=base_prompt,
                     attempts=attempt_debugs,
-                    beat_sheet=None,
+                    beat_sheet=failed_beat_sheet,
                     gap_fill_result=None,
+                    quality_issues=quality_issues,
                 )
                 raise RuntimeError(
-                    f"Act planner produced empty beat sheet for act {act_num}. Last error: {last_error}"
+                    f"Act planner failed after {ACT_PLANNER_RETRIES} attempts for act {act_num}. Last error: {last_error}"
                 )
 
             if scene_strategy:
@@ -305,6 +330,7 @@ async def plan_act(state: PipelineState) -> dict:
                     "new_evidence_ids": new_ev_ids,
                     "new_evidence_count": len(new_ev_ids),
                 },
+                quality_issues=quality_issues,
             )
 
             act["beat_sheet"] = beat_sheet
@@ -727,7 +753,9 @@ def _hydrate_scene_evidence_ids_from_claim_support(
     seen: set[str] = set()
     for scene in beat_sheet:
         existing_ids = _uuid_list(scene.get("evidence_ids"))
-        claim_ids = _uuid_list(scene.get("claim_ids"))
+        claim_ids = _scene_primary_claim_ids(scene)
+        if not claim_ids:
+            claim_ids = _scene_callback_claim_ids(scene)
         scene["evidence_ids"] = existing_ids
         if not claim_ids:
             continue
@@ -844,6 +872,83 @@ def _normalize_beat_sheet(
     return normalized
 
 
+def _scene_primary_claim_ids(scene: dict[str, Any]) -> list[str]:
+    primary_claim_ids = _uuid_list(scene.get("primary_claim_ids"))
+    if primary_claim_ids:
+        return primary_claim_ids
+    return _uuid_list(scene.get("claim_ids"))
+
+
+def _scene_callback_claim_ids(scene: dict[str, Any]) -> list[str]:
+    return _uuid_list(scene.get("callback_claim_ids"))
+
+
+def _split_scene_claim_roles(beat_sheet: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen_primary_claim_ids: set[str] = set()
+    ordered_scenes = sorted(
+        beat_sheet,
+        key=lambda scene: _positive_int(scene.get("scene"), 0) if isinstance(scene, dict) else 0,
+    )
+    for scene in ordered_scenes:
+        original_claim_ids = _uuid_list(scene.get("claim_ids"))
+        primary_claim_ids: list[str] = []
+        callback_claim_ids: list[str] = []
+        for claim_id in original_claim_ids:
+            if claim_id in seen_primary_claim_ids:
+                callback_claim_ids.append(claim_id)
+                continue
+            seen_primary_claim_ids.add(claim_id)
+            primary_claim_ids.append(claim_id)
+        scene["primary_claim_ids"] = primary_claim_ids
+        scene["callback_claim_ids"] = callback_claim_ids
+        scene["claim_ids"] = primary_claim_ids
+    return beat_sheet
+
+
+def _collect_beat_sheet_quality_issues(beat_sheet: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    issues: list[dict[str, Any]] = []
+    explanation_like = {"explanation", "case_study", "hook"}
+    ending_like = {"takeaway", "summary"}
+
+    for idx, scene in enumerate(beat_sheet):
+        scene_number = _positive_int(scene.get("scene"), idx + 1)
+        scene_type = str(scene.get("type") or "").strip()
+        primary_claim_ids = _scene_primary_claim_ids(scene)
+        callback_claim_ids = _scene_callback_claim_ids(scene)
+
+        if scene_type in explanation_like and not primary_claim_ids and callback_claim_ids:
+            issues.append(
+                {
+                    "severity": "structural",
+                    "type": "callback_only_scene",
+                    "scene": scene_number,
+                    "scene_type": scene_type,
+                    "message": "Scene only references already-covered claims and introduces no primary claim.",
+                    "callback_claim_ids": callback_claim_ids,
+                }
+            )
+        elif scene_type in ending_like and not primary_claim_ids and callback_claim_ids:
+            issues.append(
+                {
+                    "severity": "advisory",
+                    "type": "callback_only_ending",
+                    "scene": scene_number,
+                    "scene_type": scene_type,
+                    "message": "Ending scene is callback-only; ensure it lands a new consequence or reframing instead of reteaching mechanism.",
+                    "callback_claim_ids": callback_claim_ids,
+                }
+            )
+
+    return issues
+
+
+def _has_structural_overlap_failures(issues: list[dict[str, Any]]) -> bool:
+    return any(
+        isinstance(issue, dict) and issue.get("severity") == "structural"
+        for issue in issues
+    )
+
+
 def _dump_act_planner_debug(
     *,
     run_id: str,
@@ -853,6 +958,7 @@ def _dump_act_planner_debug(
     attempts: list[dict[str, Any]],
     beat_sheet: list[dict[str, Any]] | None,
     gap_fill_result: dict[str, Any] | None,
+    quality_issues: list[dict[str, Any]] | None,
 ) -> None:
     dump_dir = (settings.web_extractor_debug_dump_dir or "").strip()
     if not dump_dir:
@@ -872,6 +978,7 @@ def _dump_act_planner_debug(
             "attempts": attempts,
             "normalized_beat_sheet": beat_sheet,
             "gap_fill_result": gap_fill_result,
+            "quality_issues": quality_issues or [],
         },
     )
 

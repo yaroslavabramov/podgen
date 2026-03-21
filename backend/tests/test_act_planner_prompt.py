@@ -1,10 +1,20 @@
+import json
+import uuid
+from types import SimpleNamespace
+
+import pytest
+
 from app.pipeline.phase5_planning.act_planner import (
     ACT_PLANNER_SYSTEM,
     _branch_focus_summary,
     _build_act_prompt_payload,
+    _collect_beat_sheet_quality_issues,
     _hydrate_scene_evidence_ids_from_claim_support,
     _extract_scene_strategy,
+    _has_structural_overlap_failures,
     _scene_count_guidance,
+    _split_scene_claim_roles,
+    plan_act,
 )
 
 
@@ -248,6 +258,8 @@ def test_act_planner_prompt_demands_compact_beats_and_real_conflict_gate() -> No
     assert "A `case_study` scene is optional, not mandatory." in ACT_PLANNER_SYSTEM
     assert "each claim includes `support_bundle.direct` and optional `support_bundle.illustrative`" in ACT_PLANNER_SYSTEM
     assert "attach one or more `evidence_ids` from that claim's bundled support whenever available" in ACT_PLANNER_SYSTEM
+    assert "Give each claim one main home scene inside the act." in ACT_PLANNER_SYSTEM
+    assert "`takeaway` and `summary` scenes should usually land consequence, implication, or reframing." in ACT_PLANNER_SYSTEM
 
 
 def test_extract_scene_strategy_reads_top_level_field() -> None:
@@ -256,6 +268,97 @@ def test_extract_scene_strategy_reads_top_level_field() -> None:
     )
     assert _extract_scene_strategy({"scene_strategy": "   "}) == ""
     assert _extract_scene_strategy({"beat_sheet": []}) == ""
+
+
+def test_split_scene_claim_roles_assigns_first_normalized_use_to_primary() -> None:
+    beat_sheet = [
+        {"scene": 2, "type": "hook", "claim_ids": ["11111111-1111-1111-1111-111111111111"]},
+        {
+            "scene": 1,
+            "type": "takeaway",
+            "claim_ids": [
+                "11111111-1111-1111-1111-111111111111",
+                "22222222-2222-2222-2222-222222222222",
+            ],
+        },
+    ]
+
+    _split_scene_claim_roles(beat_sheet)
+
+    assert beat_sheet[0]["primary_claim_ids"] == []
+    assert beat_sheet[0]["callback_claim_ids"] == ["11111111-1111-1111-1111-111111111111"]
+    assert beat_sheet[0]["claim_ids"] == []
+    assert beat_sheet[1]["primary_claim_ids"] == [
+        "11111111-1111-1111-1111-111111111111",
+        "22222222-2222-2222-2222-222222222222",
+    ]
+    assert beat_sheet[1]["callback_claim_ids"] == []
+    assert beat_sheet[1]["claim_ids"] == [
+        "11111111-1111-1111-1111-111111111111",
+        "22222222-2222-2222-2222-222222222222",
+    ]
+
+
+def test_collect_beat_sheet_quality_issues_flags_structural_callback_only_explanation() -> None:
+    beat_sheet = [
+        {
+            "scene": 1,
+            "type": "explanation",
+            "primary_claim_ids": ["11111111-1111-1111-1111-111111111111"],
+            "callback_claim_ids": [],
+        },
+        {
+            "scene": 2,
+            "type": "explanation",
+            "primary_claim_ids": [],
+            "callback_claim_ids": ["11111111-1111-1111-1111-111111111111"],
+        },
+    ]
+
+    issues = _collect_beat_sheet_quality_issues(beat_sheet)
+
+    assert issues == [
+        {
+            "severity": "structural",
+            "type": "callback_only_scene",
+            "scene": 2,
+            "scene_type": "explanation",
+            "message": "Scene only references already-covered claims and introduces no primary claim.",
+            "callback_claim_ids": ["11111111-1111-1111-1111-111111111111"],
+        }
+    ]
+    assert _has_structural_overlap_failures(issues)
+
+
+def test_collect_beat_sheet_quality_issues_keeps_callback_only_takeaway_advisory() -> None:
+    beat_sheet = [
+        {
+            "scene": 1,
+            "type": "explanation",
+            "primary_claim_ids": ["11111111-1111-1111-1111-111111111111"],
+            "callback_claim_ids": [],
+        },
+        {
+            "scene": 2,
+            "type": "takeaway",
+            "primary_claim_ids": [],
+            "callback_claim_ids": ["11111111-1111-1111-1111-111111111111"],
+        },
+    ]
+
+    issues = _collect_beat_sheet_quality_issues(beat_sheet)
+
+    assert issues == [
+        {
+            "severity": "advisory",
+            "type": "callback_only_ending",
+            "scene": 2,
+            "scene_type": "takeaway",
+            "message": "Ending scene is callback-only; ensure it lands a new consequence or reframing instead of reteaching mechanism.",
+            "callback_claim_ids": ["11111111-1111-1111-1111-111111111111"],
+        }
+    ]
+    assert not _has_structural_overlap_failures(issues)
 
 
 def test_hydrate_scene_evidence_ids_from_claim_support_prefers_scene_type_order() -> None:
@@ -332,6 +435,164 @@ def test_hydrate_scene_evidence_ids_from_claim_support_tops_up_partial_multi_cla
         "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     ]
     assert hydrated == ["bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"]
+
+
+def test_hydrate_scene_evidence_ids_from_claim_support_uses_callback_claims_for_callback_only_ending() -> None:
+    beat_sheet = [
+        {
+            "scene": 1,
+            "type": "explanation",
+            "primary_claim_ids": ["11111111-1111-1111-1111-111111111111"],
+            "callback_claim_ids": [],
+            "evidence_ids": [],
+        },
+        {
+            "scene": 2,
+            "type": "takeaway",
+            "primary_claim_ids": [],
+            "callback_claim_ids": ["11111111-1111-1111-1111-111111111111"],
+            "evidence_ids": [],
+        },
+    ]
+    claim_support_lookup = {
+        "11111111-1111-1111-1111-111111111111": {
+            "direct": ["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"],
+            "illustrative": [],
+        }
+    }
+
+    hydrated = _hydrate_scene_evidence_ids_from_claim_support(beat_sheet, claim_support_lookup)
+
+    assert beat_sheet[0]["evidence_ids"] == ["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"]
+    assert beat_sheet[1]["evidence_ids"] == ["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"]
+    assert hydrated == ["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"]
+
+
+class _FakeResult:
+    def __init__(self, scalar) -> None:
+        self._scalar = scalar
+
+    def scalar_one_or_none(self):
+        return self._scalar
+
+
+class _FakeActPlannerDB:
+    def __init__(self, manifest) -> None:
+        self.manifest = manifest
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def execute(self, _statement):
+        return _FakeResult(self.manifest)
+
+    async def refresh(self, _obj) -> None:
+        return None
+
+    async def commit(self) -> None:
+        return None
+
+
+@pytest.mark.asyncio
+async def test_plan_act_raises_after_overlap_gate_retry_exhaustion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    claim_id = str(uuid.uuid4())
+    manifest = SimpleNamespace(
+        id=uuid.uuid4(),
+        acts_json=[
+            {
+                "act_number": 1,
+                "title": "Mechanism",
+                "claim_ids": [claim_id],
+                "estimated_duration_seconds": 300,
+            }
+        ],
+        research_tree_json={"branches": []},
+    )
+    db = _FakeActPlannerDB(manifest)
+    dumps = []
+
+    async def _fake_load_planning_context(**_kwargs):
+        return (
+            {
+                claim_id: {
+                    "id": claim_id,
+                    "type": "fact",
+                    "verification": "verified",
+                    "branch_ids": ["b1"],
+                    "intents": ["explain"],
+                    "statement": "Mechanism claim",
+                    "has_illustrative": False,
+                    "illustrative_evidence_count": 0,
+                    "direct_support_count": 0,
+                    "source_diversity": 1,
+                }
+            },
+            {},
+        )
+
+    async def _fake_call_sonnet_structured(**_kwargs):
+        return json.dumps(
+            {
+                "scene_strategy": "explain -> callback",
+                "beat_sheet": [
+                    {
+                        "scene": 1,
+                        "type": "explanation",
+                        "description": "Explain the mechanism.",
+                        "claim_ids": [claim_id],
+                        "evidence_ids": [],
+                        "estimated_duration_seconds": 120,
+                    },
+                    {
+                        "scene": 2,
+                        "type": "explanation",
+                        "description": "Explain the same mechanism again.",
+                        "claim_ids": [claim_id],
+                        "evidence_ids": [],
+                        "estimated_duration_seconds": 120,
+                    },
+                ],
+            },
+            ensure_ascii=False,
+        )
+
+    monkeypatch.setattr("app.pipeline.phase5_planning.act_planner.async_session_factory", lambda: db)
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner.load_planning_context",
+        _fake_load_planning_context,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner.call_sonnet_structured",
+        _fake_call_sonnet_structured,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner.publish_event",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner._dump_act_planner_debug",
+        lambda **kwargs: dumps.append(kwargs),
+    )
+
+    with pytest.raises(RuntimeError, match="Act planner failed after 2 attempts for act 1"):
+        await plan_act(
+            {
+                "generation_run_id": str(uuid.uuid4()),
+                "manifest_id": str(manifest.id),
+                "language": "ru",
+            }
+        )
+
+    assert len(dumps) == 1
+    assert dumps[0]["status"] == "quality_gate_failed"
+    assert dumps[0]["beat_sheet"] is not None
+    assert dumps[0]["beat_sheet"][1]["primary_claim_ids"] == []
+    assert dumps[0]["beat_sheet"][1]["callback_claim_ids"] == [claim_id]
 
 
 def test_build_act_prompt_payload_keeps_claim_support_beyond_old_flat_evidence_cap() -> None:

@@ -528,6 +528,13 @@ Deferred after Round 68:
 - [x] **P1**: Add `planning_integrator` debug dumps so integration failures are inspectable instead of degrading into silent no-ops
 - [x] **P1**: Add regression tests for integrator prompt/output contract and missing-beat-sheet validation helper
 
+**Round 78 (act-planner novelty split + writer mechanism continuity):**
+- [x] **P0**: Deterministically split repeated scene claim usage into `primary_claim_ids` and `callback_claim_ids` by normalized scene order, instead of reteaching the same claim as primary in multiple scenes
+- [x] **P0**: Add a narrow act-planner overlap gate: callback-only `hook` / `explanation` / `case_study` scenes now fail the attempt and use the bounded `ACT_PLANNER_RETRIES = 2` retry budget
+- [x] **P1**: Keep writer scene prompts focused on `primary_claim_ids`, while manifest/debug continuity still preserves primary+callback claim coverage for downstream steps
+- [x] **P1**: Add `mechanism_anchors` to global covered-claim memory so screenwriter can treat terms like `7.80`, `HKMA`, `Exchange Fund`, `Certificates of Indebtedness`, and `Basic Law` as already-established mechanisms across acts
+- [x] **P1**: Add regression tests for normalized-order split, callback-only scene gating, manifest claim aggregation, and mechanism-anchor extraction/payload formatting
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority
