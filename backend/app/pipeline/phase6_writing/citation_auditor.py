@@ -18,6 +18,8 @@ from app.pipeline.debug_dump import safe_filename_token, write_json_debug_dump
 from app.pipeline.llm_json import parse_llm_json
 from app.pipeline.phase6_writing.dialogue_utils import (
     dedupe_preserve_order as _dedupe_preserve_order,
+    extract_dialogue_claim_ids as _extract_dialogue_claim_ids,
+    load_manifest_scene_metadata_lookup as _load_manifest_scene_metadata_lookup,
     normalize_dialogue_output as _normalize_dialogue_output,
     set_segment_audit_finding as _set_segment_audit_finding,
 )
@@ -31,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 CITATION_SEVERITIES = {"low", "medium", "high"}
 CITATION_SCOPES = {"record", "repair", "block"}
+MAX_REPAIR_LINE_DRIFT_RATIO = 0.3
 
 AUDITOR_SYSTEM = """You are a citation auditor for a podcast script.
 Check each dialogue line against the claims and policies.
@@ -64,6 +67,8 @@ Check rules:
 4. OPINION/REPORT claims need attribution.
 5. No forbidden phrases.
 6. Audience level must match the show.
+7. Do not require `claim_ids` on purely conversational lines that do not add a new factual assertion.
+8. Questions, callbacks, recaps, scene transitions, and synthesis lines should only be flagged for `missing_claim_link` if they introduce a new unsupported fact.
 
 Severity guide:
 - `low`: acceptable for now, record it only
@@ -91,6 +96,10 @@ Rules:
 - Add hedging or attribution where required.
 - Remove or soften unsupported confident wording if needed.
 - Do not add new facts, institutions, dates, figures, or claims.
+- Preserve the scene's `scene_job`, `scene_type`, and content function.
+- Prefer the smallest edit that fixes rigor. Do not re-author the whole scene unless necessary.
+- Do not turn non-assertive lines into new exposition.
+- Keep the line count close to the original scene length.
 - Keep only speakers `A` and `B`.
 - Output only JSON."""
 
@@ -114,6 +123,7 @@ async def audit_citations(state: PipelineState) -> dict:
         rigor = bible.rigor_policy if bible else ""
 
         claims_map = await _load_claims_map(db, state.get("claim_ids", []))
+        scene_metadata_lookup = await _load_manifest_scene_metadata_lookup(db, state.get("manifest_id"))
 
         total_metrics = {
             "fact_coverage_ratio": 0.0,
@@ -136,13 +146,24 @@ async def audit_citations(state: PipelineState) -> dict:
             segment = result.scalar_one_or_none()
             if segment is None:
                 continue
+            scene_metadata = scene_metadata_lookup.get((segment.act_number, segment.scene_number), {})
+            scene_claims_map = _select_scene_claims_map(
+                claims_map=claims_map,
+                dialogue=segment.dialogue_json,
+                scene_claim_ids=scene_metadata.get("claim_ids", []),
+            )
 
             prompt_payload = _build_citation_audit_prompt_payload(
                 dialogue=segment.dialogue_json,
-                claims_map=claims_map,
+                claims_map=scene_claims_map,
                 forbidden_phrases=forbidden,
                 rigor_policy=rigor,
                 language=state["language"],
+                scene_context=_build_scene_context(
+                    act_number=segment.act_number,
+                    scene_number=segment.scene_number,
+                    scene_metadata=scene_metadata,
+                ),
             )
 
             try:
@@ -202,11 +223,16 @@ async def audit_citations(state: PipelineState) -> dict:
                 repaired_dialogue, repaired_audit, repair_accepted = await _attempt_citation_repair(
                     run_id=run_id,
                     segment=segment,
-                    claims_map=claims_map,
+                    claims_map=scene_claims_map,
                     forbidden_phrases=forbidden,
                     rigor_policy=rigor,
                     language=state["language"],
                     original_audit=audit,
+                    scene_context=_build_scene_context(
+                        act_number=segment.act_number,
+                        scene_number=segment.scene_number,
+                        scene_metadata=scene_metadata,
+                    ),
                 )
                 if repair_accepted and repaired_dialogue is not None and repaired_audit is not None:
                     final_dialogue = repaired_dialogue
@@ -300,9 +326,11 @@ def _build_citation_audit_prompt_payload(
     forbidden_phrases: list[str],
     rigor_policy: str,
     language: str,
+    scene_context: dict[str, Any],
 ) -> dict[str, Any]:
     return {
         "dialogue": dialogue,
+        "scene_context": scene_context,
         "available_claims": claims_map,
         "forbidden_phrases": forbidden_phrases,
         "rigor_policy": rigor_policy,
@@ -337,7 +365,7 @@ async def _run_citation_audit(prompt_payload: dict[str, Any]) -> dict[str, Any]:
     audit = parse_llm_json(raw)
     issues = _normalize_citation_issues(audit.get("issues"))
     metrics = _normalize_metrics(audit.get("metrics"))
-    passed = bool(audit.get("passed", not issues))
+    passed = not any(issue.get("scope") in {"repair", "block"} for issue in issues)
     return {"passed": passed, "issues": issues, "metrics": metrics}
 
 
@@ -350,9 +378,14 @@ async def _attempt_citation_repair(
     rigor_policy: str,
     language: str,
     original_audit: dict[str, Any],
+    scene_context: dict[str, Any],
 ) -> tuple[list[dict[str, Any]] | None, dict[str, Any] | None, bool]:
     original_dialogue = segment.dialogue_json
+    original_claim_ids = set(_extract_dialogue_claim_ids(original_dialogue))
+    original_line_count = len(original_dialogue) if isinstance(original_dialogue, list) else 0
     prompt_payload = {
+        "scene_context": scene_context,
+        "original_line_count": original_line_count,
         "dialogue": original_dialogue,
         "available_claims": claims_map,
         "forbidden_phrases": forbidden_phrases,
@@ -409,9 +442,19 @@ async def _attempt_citation_repair(
             forbidden_phrases=forbidden_phrases,
             rigor_policy=rigor_policy,
             language=language,
+            scene_context=scene_context,
         )
     )
-    accepted = _citation_repair_improved(original_audit, repaired_audit)
+    repaired_claim_ids = set(_extract_dialogue_claim_ids(repaired_dialogue))
+    repaired_line_count = len(repaired_dialogue)
+    accepted = _citation_repair_improved(
+        original_audit,
+        repaired_audit,
+        original_claim_ids=original_claim_ids,
+        repaired_claim_ids=repaired_claim_ids,
+        original_line_count=original_line_count,
+        repaired_line_count=repaired_line_count,
+    )
     _dump_citation_repair_debug(
         run_id=run_id,
         act_number=segment.act_number,
@@ -498,6 +541,60 @@ def _worst_citation_severity(issues: list[dict[str, Any]]) -> int:
     return max((_citation_severity_rank(str(issue.get("severity"))) for issue in issues), default=0)
 
 
+def _build_scene_context(
+    *,
+    act_number: int,
+    scene_number: int,
+    scene_metadata: dict[str, Any] | None,
+) -> dict[str, Any]:
+    scene_metadata = scene_metadata if isinstance(scene_metadata, dict) else {}
+    return {
+        "act_number": act_number,
+        "scene_number": scene_number,
+        "scene_job": str(scene_metadata.get("scene_job") or "").strip(),
+        "scene_type": str(scene_metadata.get("scene_type") or "").strip(),
+        "description": str(scene_metadata.get("description") or "").strip(),
+    }
+
+
+def _select_scene_claims_map(
+    *,
+    claims_map: dict[str, dict[str, Any]],
+    dialogue: object,
+    scene_claim_ids: list[str],
+) -> dict[str, dict[str, Any]]:
+    ordered_claim_ids = _dedupe_preserve_order(
+        _extract_dialogue_claim_ids(dialogue) + [cid for cid in scene_claim_ids if isinstance(cid, str)]
+    )
+    subset: dict[str, dict[str, Any]] = {}
+    for claim_id in ordered_claim_ids:
+        claim_payload = claims_map.get(claim_id)
+        if claim_payload is None:
+            continue
+        subset[claim_id] = claim_payload
+    return subset
+
+
+def _blocking_issue_signature(issue: dict[str, Any]) -> tuple[int, str]:
+    return (
+        int(issue.get("line_index", -1) or -1),
+        str(issue.get("type") or "").strip(),
+    )
+
+
+def _blocking_issue_signatures(issues: list[dict[str, Any]]) -> set[tuple[int, str]]:
+    return {
+        _blocking_issue_signature(issue)
+        for issue in issues
+        if isinstance(issue, dict) and issue.get("scope") == "block"
+    }
+
+
+def _line_count_drift_exceeds(*, original_line_count: int, repaired_line_count: int) -> bool:
+    baseline = max(original_line_count, 1)
+    return abs(repaired_line_count - original_line_count) / baseline > MAX_REPAIR_LINE_DRIFT_RATIO
+
+
 def _should_attempt_citation_repair(issues: list[dict[str, Any]]) -> bool:
     return any(
         issue.get("scope") in {"repair", "block"} and _citation_severity_rank(str(issue.get("severity"))) >= 2
@@ -509,17 +606,52 @@ def _has_blocking_citation_issues(issues: list[dict[str, Any]]) -> bool:
     return any(issue.get("scope") == "block" for issue in issues)
 
 
-def _citation_repair_improved(original: dict[str, Any], repaired: dict[str, Any]) -> bool:
+def _actionable_citation_issues(issues: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [issue for issue in issues if isinstance(issue, dict) and issue.get("scope") in {"repair", "block"}]
+
+
+def _citation_repair_improved(
+    original: dict[str, Any],
+    repaired: dict[str, Any],
+    *,
+    original_claim_ids: set[str],
+    repaired_claim_ids: set[str],
+    original_line_count: int,
+    repaired_line_count: int,
+) -> bool:
+    if original_claim_ids and not original_claim_ids.issubset(repaired_claim_ids):
+        return False
+    if _line_count_drift_exceeds(
+        original_line_count=original_line_count,
+        repaired_line_count=repaired_line_count,
+    ):
+        return False
+
+    original_actionable_issues = _actionable_citation_issues(original["issues"])
+    repaired_actionable_issues = _actionable_citation_issues(repaired["issues"])
+    original_fact_coverage = float(original["metrics"].get("fact_coverage_ratio", 0.0) or 0.0)
+    repaired_fact_coverage = float(repaired["metrics"].get("fact_coverage_ratio", 0.0) or 0.0)
+    if repaired_fact_coverage + 0.05 < original_fact_coverage:
+        return False
+
+    original_blockers = _blocking_issue_signatures(original["issues"])
+    repaired_blockers = _blocking_issue_signatures(repaired["issues"])
+    if repaired_blockers - original_blockers:
+        return False
+    if original_blockers:
+        return not repaired_blockers
+
     if repaired["passed"] and not original["passed"]:
         return True
-    original_rank = _worst_citation_severity(original["issues"])
-    repaired_rank = _worst_citation_severity(repaired["issues"])
-    if repaired_rank < original_rank:
+    if repaired_fact_coverage + 0.05 < original_fact_coverage:
+        return False
+
+    if len(repaired_actionable_issues) < len(original_actionable_issues):
         return True
-    if (
-        len(repaired["issues"]) < len(original["issues"])
-        and repaired["metrics"].get("fact_coverage_ratio", 0.0) >= original["metrics"].get("fact_coverage_ratio", 0.0)
-    ):
+
+    original_rank = _worst_citation_severity(original_actionable_issues)
+    repaired_rank = _worst_citation_severity(repaired_actionable_issues)
+    if repaired_rank < original_rank:
         return True
     return False
 

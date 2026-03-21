@@ -651,9 +651,17 @@ Web extraction использует каскад extractors:
 
 - detection-pass делает Haiku; Sonnet остаётся только для `citation_repair`
 
+- detection-pass получает не весь episode claim universe, а scene-local claim subset: `dialogue.claim_ids` + manifest-assigned scene claims
+
+- `missing_claim_link` не должен срабатывать на чисто разговорных / риторических / synthesis линиях, если они не вводят новый factual assertion
+
 - medium/high severity issues запускают scene-level `citation_repair` pass
 
-- repaired scene повторно аудируется; repair принимается только если реально улучшил rigor result
+- repaired scene повторно аудируется на том же narrowed context; repair принимается по blocker-focused rules:
+  - original blocking issues must be resolved/downgraded
+  - no new blocking issues
+  - required claim coverage must be preserved
+  - line-count drift must stay bounded (no free-form scene rewrite disguised as rigor repair)
 
 - unresolved issues со scope `block` после repair **блокируют переход в audio**, вместо молчаливого continuation
 

@@ -14,6 +14,7 @@ from app.pipeline.phase6_writing.citation_auditor import (
     _run_citation_audit,
     _has_blocking_citation_issues,
     _normalize_citation_issues,
+    _select_scene_claims_map,
     _should_attempt_citation_repair,
 )
 
@@ -22,8 +23,10 @@ def test_citation_auditor_prompt_demands_severity_scope_and_repair() -> None:
     assert '"severity": "low|medium|high"' in AUDITOR_SYSTEM
     assert '"scope": "record|repair|block"' in AUDITOR_SYSTEM
     assert "must be repaired or block audio" in AUDITOR_SYSTEM
+    assert "Questions, callbacks, recaps, scene transitions, and synthesis lines" in AUDITOR_SYSTEM
     assert "Fix only the citation and rigor issues that were flagged." in REPAIR_SYSTEM
     assert "Do not add new facts, institutions, dates, figures, or claims." in REPAIR_SYSTEM
+    assert "Preserve the scene's `scene_job`, `scene_type`, and content function." in REPAIR_SYSTEM
 
 
 def test_build_citation_audit_prompt_payload_keeps_policy_and_claim_context() -> None:
@@ -33,14 +36,39 @@ def test_build_citation_audit_prompt_payload_keeps_policy_and_claim_context() ->
         forbidden_phrases=["game changer"],
         rigor_policy="No unsupported certainty.",
         language="ru",
+        scene_context={"act_number": 2, "scene_number": 4, "scene_job": "contrast", "scene_type": "debate", "description": "Compare systems."},
     )
 
     assert payload == {
         "dialogue": [{"speaker": "A", "text": "Line", "claim_ids": ["c1"]}],
+        "scene_context": {
+            "act_number": 2,
+            "scene_number": 4,
+            "scene_job": "contrast",
+            "scene_type": "debate",
+            "description": "Compare systems.",
+        },
         "available_claims": {"c1": {"type": "fact", "verification": "verified", "statement": "Claim"}},
         "forbidden_phrases": ["game changer"],
         "rigor_policy": "No unsupported certainty.",
         "language": "ru",
+    }
+
+
+def test_select_scene_claims_map_uses_dialogue_and_manifest_claim_ids_only() -> None:
+    subset = _select_scene_claims_map(
+        claims_map={
+            "c1": {"statement": "Line claim"},
+            "c2": {"statement": "Scene claim"},
+            "c3": {"statement": "Episode-only noise"},
+        },
+        dialogue=[{"speaker": "A", "text": "Line", "claim_ids": ["c1"]}],
+        scene_claim_ids=["c2"],
+    )
+
+    assert subset == {
+        "c1": {"statement": "Line claim"},
+        "c2": {"statement": "Scene claim"},
     }
 
 
@@ -105,7 +133,123 @@ def test_citation_repair_improved_accepts_better_post_repair_audit() -> None:
         "metrics": {"fact_coverage_ratio": 0.8},
     }
 
-    assert _citation_repair_improved(original, repaired)
+    assert _citation_repair_improved(
+        original,
+        repaired,
+        original_claim_ids={"c1"},
+        repaired_claim_ids={"c1"},
+        original_line_count=4,
+        repaired_line_count=4,
+    )
+
+
+def test_citation_repair_improved_rejects_blocker_fix_that_guts_fact_coverage() -> None:
+    original = {
+        "passed": False,
+        "issues": [{"line_index": 1, "type": "missing_claim_link", "severity": "high", "scope": "block"}],
+        "metrics": {"fact_coverage_ratio": 0.95},
+    }
+    repaired = {
+        "passed": False,
+        "issues": [{"line_index": 1, "type": "missing_claim_link", "severity": "medium", "scope": "repair"}],
+        "metrics": {"fact_coverage_ratio": 0.05},
+    }
+
+    assert not _citation_repair_improved(
+        original,
+        repaired,
+        original_claim_ids={"c1"},
+        repaired_claim_ids={"c1"},
+        original_line_count=4,
+        repaired_line_count=4,
+    )
+
+
+def test_citation_repair_improved_rejects_claim_loss_and_large_line_drift() -> None:
+    original = {
+        "passed": False,
+        "issues": [{"severity": "medium", "scope": "repair"}],
+        "metrics": {"fact_coverage_ratio": 0.9},
+    }
+    repaired = {
+        "passed": True,
+        "issues": [],
+        "metrics": {"fact_coverage_ratio": 0.95},
+    }
+
+    assert not _citation_repair_improved(
+        original,
+        repaired,
+        original_claim_ids={"c1", "c2"},
+        repaired_claim_ids={"c1"},
+        original_line_count=4,
+        repaired_line_count=4,
+    )
+    assert not _citation_repair_improved(
+        original,
+        repaired,
+        original_claim_ids={"c1"},
+        repaired_claim_ids={"c1"},
+        original_line_count=4,
+        repaired_line_count=7,
+    )
+
+
+def test_citation_repair_improved_rejects_new_blockers_and_noop_non_blocking_repairs() -> None:
+    original = {
+        "passed": False,
+        "issues": [{"line_index": 1, "type": "missing_claim_link", "severity": "medium", "scope": "repair"}],
+        "metrics": {"fact_coverage_ratio": 0.92},
+    }
+    repaired_with_new_blocker = {
+        "passed": False,
+        "issues": [{"line_index": 1, "type": "missing_claim_link", "severity": "high", "scope": "block"}],
+        "metrics": {"fact_coverage_ratio": 0.91},
+    }
+    repaired_with_medium_noise = {
+        "passed": False,
+        "issues": [{"line_index": 2, "type": "missing_claim_link", "severity": "medium", "scope": "repair"}],
+        "metrics": {"fact_coverage_ratio": 0.89},
+    }
+
+    assert not _citation_repair_improved(
+        original,
+        repaired_with_new_blocker,
+        original_claim_ids={"c1"},
+        repaired_claim_ids={"c1"},
+        original_line_count=4,
+        repaired_line_count=4,
+    )
+    assert not _citation_repair_improved(
+        original,
+        repaired_with_medium_noise,
+        original_claim_ids={"c1"},
+        repaired_claim_ids={"c1"},
+        original_line_count=4,
+        repaired_line_count=4,
+    )
+
+
+def test_citation_repair_improved_accepts_non_blocking_severity_reduction() -> None:
+    original = {
+        "passed": False,
+        "issues": [{"line_index": 1, "type": "missing_claim_link", "severity": "medium", "scope": "repair"}],
+        "metrics": {"fact_coverage_ratio": 0.92},
+    }
+    repaired = {
+        "passed": False,
+        "issues": [{"line_index": 1, "type": "missing_claim_link", "severity": "low", "scope": "record"}],
+        "metrics": {"fact_coverage_ratio": 0.9},
+    }
+
+    assert _citation_repair_improved(
+        original,
+        repaired,
+        original_claim_ids={"c1"},
+        repaired_claim_ids={"c1"},
+        original_line_count=4,
+        repaired_line_count=4,
+    )
 
 
 def test_build_failed_citation_audit_creates_blocking_placeholder() -> None:

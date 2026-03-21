@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import re
+import uuid
 from typing import Any
 
+from sqlalchemy import select
+
+from app.models.episode_manifest import EpisodeManifest
 from app.models.script_segment import ScriptSegment
 
 _SPEAKER_TRANSLATION = str.maketrans({
@@ -126,3 +130,109 @@ def set_segment_audit_finding(segment: ScriptSegment, key: str, payload: dict[st
     findings = dict(segment.audit_findings or {})
     findings[key] = payload
     segment.audit_findings = findings
+
+
+def _uuid_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        trimmed = item.strip()
+        if not trimmed:
+            continue
+        try:
+            normalized = str(uuid.UUID(trimmed))
+        except (TypeError, ValueError):
+            continue
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        ordered.append(normalized)
+    return ordered
+
+
+def scene_primary_claim_ids(scene: dict[str, Any]) -> list[str]:
+    primary_claim_ids = _uuid_list(scene.get("primary_claim_ids"))
+    if primary_claim_ids:
+        return primary_claim_ids
+    return _uuid_list(scene.get("claim_ids"))
+
+
+def scene_callback_claim_ids(scene: dict[str, Any]) -> list[str]:
+    return _uuid_list(scene.get("callback_claim_ids"))
+
+
+def scene_manifest_claim_ids(scene: dict[str, Any]) -> list[str]:
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for source in (
+        scene_primary_claim_ids(scene),
+        scene_callback_claim_ids(scene),
+        _uuid_list(scene.get("claim_ids")),
+    ):
+        for claim_id in source:
+            if claim_id in seen:
+                continue
+            seen.add(claim_id)
+            ordered.append(claim_id)
+    return ordered
+
+
+def normalize_scene_job_value(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    return value.strip().lower()
+
+
+def build_manifest_scene_metadata_lookup(acts_json: object) -> dict[tuple[int, int], dict[str, Any]]:
+    if not isinstance(acts_json, list):
+        return {}
+
+    lookup: dict[tuple[int, int], dict[str, Any]] = {}
+    for act_idx, act in enumerate(acts_json, start=1):
+        if not isinstance(act, dict):
+            continue
+        try:
+            act_number = int(act.get("act_number") or act_idx)
+        except (TypeError, ValueError):
+            act_number = act_idx
+        beat_sheet = act.get("beat_sheet", [])
+        if not isinstance(beat_sheet, list):
+            continue
+        for scene_idx, scene in enumerate(beat_sheet, start=1):
+            if not isinstance(scene, dict):
+                continue
+            try:
+                scene_number = int(scene.get("scene") or scene_idx)
+            except (TypeError, ValueError):
+                scene_number = scene_idx
+
+            description = scene.get("description")
+            scene_type = scene.get("type")
+            lookup[(act_number, scene_number)] = {
+                "scene_job": normalize_scene_job_value(scene.get("scene_job")),
+                "scene_type": scene_type.strip().lower() if isinstance(scene_type, str) else "",
+                "description": " ".join(description.strip().split()) if isinstance(description, str) else "",
+                "claim_ids": scene_manifest_claim_ids(scene),
+                "primary_claim_ids": scene_primary_claim_ids(scene),
+                "callback_claim_ids": scene_callback_claim_ids(scene),
+            }
+    return lookup
+
+
+async def load_manifest_scene_metadata_lookup(db, manifest_id: str | None) -> dict[tuple[int, int], dict[str, Any]]:
+    if not manifest_id:
+        return {}
+    try:
+        manifest_uuid = uuid.UUID(manifest_id)
+    except (TypeError, ValueError):
+        return {}
+
+    result = await db.execute(select(EpisodeManifest).where(EpisodeManifest.id == manifest_uuid))
+    manifest = result.scalar_one_or_none()
+    if manifest is None:
+        return {}
+    return build_manifest_scene_metadata_lookup(manifest.acts_json)

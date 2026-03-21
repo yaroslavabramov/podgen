@@ -240,6 +240,9 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P1**: Tightened citation blocking semantics so unresolved `scope=block` findings block audio, while high-severity `record` findings do not
 - [x] **P1**: Added `scene_job` to dialogue audit/polish payloads so scene-level polish preserves the intended move
 - [x] **P1**: Expanded regression tests for scope-based citation blocking, Haiku citation detection, and dialogue polish payload context
+- [x] **P1**: Narrowed citation audit context to scene-relevant claims (`dialogue.claim_ids` + manifest scene claims) instead of sending the whole episode claim universe into every scene audit
+- [x] **P1**: Relaxed citation audit expectations for non-assertive lines (questions / callbacks / synthesis) so `missing_claim_link` focuses on new factual assertions
+- [x] **P1**: Reworked citation repair acceptance around blocker resolution + claim preservation + bounded line drift, instead of noisy full-issue-count comparison
 
 **Round 69 (fast-web retrieval + quote truncation hardening):**
 - [x] **P0**: Remove fast-web `[:3]` gap cap and switch governor semantics to processed gaps instead of evidence items

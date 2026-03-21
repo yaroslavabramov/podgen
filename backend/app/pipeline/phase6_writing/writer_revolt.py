@@ -10,7 +10,6 @@ from typing import Any
 from sqlalchemy import select
 
 from app.config import settings
-from app.models.episode_manifest import EpisodeManifest
 from app.models.script_segment import AuditStatus, ScriptSegment
 from app.pipeline.debug_dump import safe_filename_token, write_json_debug_dump
 from app.pipeline.llm_json import parse_llm_json
@@ -18,6 +17,7 @@ from app.pipeline.phase6_writing.dialogue_utils import (
     dedupe_preserve_order as _dedupe_preserve_order,
     extract_dialogue_claim_ids as _extract_dialogue_claim_ids,
     extract_dialogue_texts as _extract_dialogue_texts,
+    load_manifest_scene_metadata_lookup as _load_manifest_scene_metadata_lookup,
     normalize_dialogue_output as _normalize_dialogue_output,
     segment_audit_finding as _segment_audit_finding,
     set_segment_audit_finding as _set_segment_audit_finding,
@@ -267,39 +267,14 @@ async def _load_segments_for_audit(db, segment_ids: list[str]) -> list[ScriptSeg
 
 
 async def _load_scene_job_lookup(db, manifest_id: str | None) -> dict[tuple[int, int], str]:
-    if not manifest_id:
-        return {}
-    try:
-        manifest_uuid = uuid.UUID(manifest_id)
-    except (TypeError, ValueError):
-        return {}
-
-    result = await db.execute(select(EpisodeManifest).where(EpisodeManifest.id == manifest_uuid))
-    manifest = result.scalar_one_or_none()
-    if manifest is None or not isinstance(manifest.acts_json, list):
-        return {}
-
+    metadata_lookup = await _load_manifest_scene_metadata_lookup(db, manifest_id)
     lookup: dict[tuple[int, int], str] = {}
-    for act_idx, act in enumerate(manifest.acts_json, start=1):
-        if not isinstance(act, dict):
+    for key, metadata in metadata_lookup.items():
+        if not isinstance(metadata, dict):
             continue
-        try:
-            act_number = int(act.get("act_number") or act_idx)
-        except (TypeError, ValueError):
-            act_number = act_idx
-        beat_sheet = act.get("beat_sheet", [])
-        if not isinstance(beat_sheet, list):
-            continue
-        for scene_idx, scene in enumerate(beat_sheet, start=1):
-            if not isinstance(scene, dict):
-                continue
-            try:
-                scene_number = int(scene.get("scene") or scene_idx)
-            except (TypeError, ValueError):
-                scene_number = scene_idx
-            scene_job = scene.get("scene_job")
-            if isinstance(scene_job, str) and scene_job.strip():
-                lookup[(act_number, scene_number)] = scene_job.strip()
+        scene_job = metadata.get("scene_job")
+        if isinstance(scene_job, str) and scene_job.strip():
+            lookup[key] = scene_job.strip()
     return lookup
 
 
