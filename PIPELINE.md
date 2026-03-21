@@ -612,7 +612,15 @@ Web extraction использует каскад extractors:
 
 ### **6.2 Writer Revolt (расширенные причины)**
 
-Легитимные возвраты планировщику:
+Теперь это не просто `score < 0.6`, а **boundary-aware dialogue audit**:
+
+- видит текущую сцену плюс компактный boundary context от предыдущей сцены
+- сохраняет structured findings (`type`, `severity`, `scope`, `description`, `suggestion`) в `script_segments.audit_findings`
+- medium-severity проблемы с scope `scene_polish` пытается чинить inline через scene-level polish pass
+- prompt для polish получает `scene_job`, чтобы polish не ломал intended move сцены
+- только high-severity `scene_rewrite` проблемы отправляют сцену назад в `screenwriter` через `audit_status = REVISED`
+
+Легитимные причины:
 
 - "Сцена скучная --- нужен CASE/ANECDOTE/CONTRAST" для конкретного claim
 - "rigid_turn_taking" — сцена звучит механически из-за слишком жёсткого чередования реплик
@@ -620,6 +628,7 @@ Web extraction использует каскад extractors:
 - "repetitive_challenge_shape" — возражения/уточнения повторяют один и тот же discourse move
 - "scene_opening_echo" — сцена открывается повтором punchline предыдущей сцены
 - "teacherly_exposition" — сцена объясняет верно, но слишком лекционно и без conversational movement
+- "boundary_restatement" — opener новой сцены рестейтит то, что boundary context уже успел установить
 
 - **Persona mismatch (разрешено):**
   - "Challenger не поверит без stronger VERIFIED пруфа"
@@ -638,7 +647,19 @@ Web extraction использует каскад extractors:
 
 - проверка соответствия rigor_policy и forbidden_phrases
 
-- если нарушение → downgrade формулировки или возврат в ресёрч
+- теперь сохраняет structured citation findings (`type`, `severity`, `scope`) в `script_segments.audit_findings`
+
+- detection-pass делает Haiku; Sonnet остаётся только для `citation_repair`
+
+- medium/high severity issues запускают scene-level `citation_repair` pass
+
+- repaired scene повторно аудируется; repair принимается только если реально улучшил rigor result
+
+- unresolved issues со scope `block` после repair **блокируют переход в audio**, вместо молчаливого continuation
+
+- при включённом debug dump пишет JSON-артефакты в:
+  - `tmp/debug/citation_audit`
+  - `tmp/debug/citation_repair`
 
 ---
 

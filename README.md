@@ -108,7 +108,7 @@ The podcast generation pipeline has 8 phases orchestrated by LangGraph:
 | 3 | Research | Closed-book retrieval + open-web search (fast + deep async) |
 | 4 | Claims | Build claims from evidence, verify, resolve conflicts |
 | 5 | Planning | Showrunner plans acts, act planners create beat sheets |
-| 6 | Writing | Screenwriter generates dialogue, citation audit, writer revolt loop |
+| 6 | Writing | Screenwriter generates dialogue, dialogue audit/polish improves flow, citation audit/repair enforces rigor before audio |
 | 7 | Audio | TTS generation, audio processing, shownotes |
 
 Key principle: **State-by-IDs** — LangGraph state holds only ID references, never full texts. Each node loads from DB and writes back.
@@ -147,8 +147,11 @@ Phase 4 now uses explicit lineage and canonical evidence semantics:
 - integrator now uses a stricter structured-output contract with retry and debug dumps, so long transition diagnostics do not silently truncate into a no-op at `2048` tokens
 - screenwriter now receives a trimmed scene-writing payload (`act_title`, `previous_scene`, `previous_act_summary`, local/global covered claims, `new_information_goal`, `transition_note`) instead of the full act contract; `previous_scene` and `previous_act_summary` are derived from the actual written dialogue when available, so continuity follows emitted conversation instead of only planning metadata, scene payloads now expose `scene_claim_mode`, `scene_job`, `callback_claim_ids`, and deterministic `recent_scene_starts`, and global continuity memory carries compact generic `mechanism_anchors` to discourage reteaching established mechanics across acts
 - screenwriter prompt now treats host roles as soft tendencies, discourages strict `ABAB` alternation and repeated opener phrases, explicitly pushes scenes to advance rather than echo the previous punchline, varies agreement/challenge discourse shapes without word blacklists, normalizes speaker labels to ASCII `A/B`, and allows light source-aware attribution for important dates, rules, and figures
-- writer revolt evaluation can now flag rigid turn-taking, repetitive agreement/challenge shapes, scene-opening echo, and teacherly exposition as rewrite reasons, not just generic low-engagement complaints
+- `ScriptSegment` now stores structured `audit_findings` JSON alongside numeric `quality_metrics`, so phase 6 keeps reusable issue logs instead of only scalar verdicts
+- writer revolt is now a boundary-aware dialogue audit: it sees the current scene plus compact previous-scene tail context, persists structured issues with severity/scope, can polish scenes inline for flow/naturalness, and only falls back to `audit_status = REVISED` when a full screenwriter rewrite is justified
+- citation auditor now uses Haiku for detection, persists structured citation issues, attempts scene-level citation repair with Sonnet for repairable/blocking findings, re-audits repaired scenes, and blocks audio only on unresolved issues whose scope remains `block`
 - screenwriter now writes per-scene JSON debug dumps (`tmp/debug/screenwriter`) with input payload, attempt history, raw/parsed LLM output, and final dialogue, so phase 6 regressions can be inspected directly from artifacts instead of only from final DB rows
+- when debug dumps are enabled, phase 6 also writes JSON artifacts for `dialogue_audit`, `dialogue_polish`, `citation_audit`, and `citation_repair`, including findings and accept/reject decisions for repair attempts
 - when `WEB_EXTRACTOR_DEBUG_DUMP_DIR` is set, Hunter / Claim Builder / Verifier / Showrunner / Act Planner write JSON debug dumps for run analysis; act planner also emits an early `started` dump before the first model call so stalled reruns leave a visible breadcrumb
 
 ## Runtime Reliability Notes (2026-02-23)

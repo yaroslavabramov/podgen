@@ -18,6 +18,11 @@ from app.models.episode_manifest import EpisodeManifest
 from app.models.generation_run import GenerationRun
 from app.pipeline.debug_dump import safe_filename_token, write_json_debug_dump
 from app.pipeline.llm_json import parse_llm_json
+from app.pipeline.phase6_writing.dialogue_utils import (
+    extract_dialogue_claim_ids as _extract_dialogue_claim_ids,
+    extract_dialogue_texts as _extract_dialogue_texts,
+    normalize_speaker_label as _normalize_speaker_label,
+)
 from app.models.script_segment import ScriptSegment, AuditStatus
 from app.pipeline.state import PipelineState
 from app.services.llm import call_sonnet_structured
@@ -458,6 +463,7 @@ async def write_screenplay(state: PipelineState) -> dict:
                     segment.engagement_score = None
                     segment.audit_status = AuditStatus.PENDING
                     segment.quality_metrics = None
+                    segment.audit_findings = None
 
                 await db.flush()
                 await db.commit()
@@ -509,33 +515,6 @@ def _dialogue_line_count(dialogue_json: object) -> int:
         if isinstance(text, str) and text.strip():
             count += 1
     return count
-
-
-_SPEAKER_TRANSLATION = str.maketrans({
-    "А": "A",
-    "а": "a",
-    "Б": "B",
-    "б": "b",
-})
-
-
-def _normalize_speaker_label(value: object) -> str:
-    if not isinstance(value, str):
-        return "A"
-
-    text = value.strip()
-    if not text:
-        return "A"
-
-    translated = text.translate(_SPEAKER_TRANSLATION).upper()
-    if translated in {"A", "B"}:
-        return translated
-
-    match = re.fullmatch(r"(?:HOST|SPEAKER)?\s*([AB])", translated)
-    if match:
-        return match.group(1)
-
-    return "A"
 
 
 def _uuid_list(value: Any) -> list[str]:
@@ -1005,22 +984,6 @@ def _truncate_text_word_boundary(text: str, limit: int) -> str:
     return truncated.rsplit(" ", 1)[0]
 
 
-def _extract_dialogue_texts(dialogue_json: object) -> list[str]:
-    ordered: list[str] = []
-    if not isinstance(dialogue_json, list):
-        return ordered
-    for line in dialogue_json:
-        if not isinstance(line, dict):
-            continue
-        text = line.get("text")
-        if not isinstance(text, str):
-            continue
-        cleaned = " ".join(text.strip().split())
-        if cleaned:
-            ordered.append(cleaned)
-    return ordered
-
-
 def _extract_dialogue_opener(dialogue_json: object, *, max_words: int = 2) -> str:
     texts = _extract_dialogue_texts(dialogue_json)
     if not texts:
@@ -1083,25 +1046,6 @@ def _extract_mechanism_anchors(statement: str) -> list[str]:
                 anchors.append(cleaned)
 
     return anchors[:6]
-
-
-def _extract_dialogue_claim_ids(dialogue_json: object) -> list[str]:
-    ordered: list[str] = []
-    seen: set[str] = set()
-    if not isinstance(dialogue_json, list):
-        return ordered
-    for line in dialogue_json:
-        if not isinstance(line, dict):
-            continue
-        claim_ids = line.get("claim_ids")
-        if not isinstance(claim_ids, list):
-            continue
-        for claim_id in claim_ids:
-            if not isinstance(claim_id, str) or not claim_id or claim_id in seen:
-                continue
-            seen.add(claim_id)
-            ordered.append(claim_id)
-    return ordered
 
 
 def _extract_last_dialogue_line(dialogue_json: object) -> str:

@@ -39,5 +39,6 @@ class ScriptSegment(Base):
     )
     revision_count: Mapped[int] = mapped_column(Integer, default=0)
     quality_metrics: Mapped[dict | None] = mapped_column(JSONB)
+    audit_findings: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

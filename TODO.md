@@ -226,6 +226,21 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 **Round 24 (step controls hardening + stop):**
 - [x] **P1**: Fixed step-mode failed retry action in UI: `retryFailedRun` now retries failed `next` step (not rerun previous step)
 
+**Round 25 (phase 6 quality stack, first actionable slice):**
+- [x] **P1**: Added `script_segments.audit_findings` JSONB + migration so phase 6 audits persist structured findings, not only scalar verdicts
+- [x] **P1**: `writer_revolt` replaced the old pure `score < 0.6` gate with boundary-aware dialogue audit findings (`severity` / `scope`) and inline `scene_polish` for repairable flow/style issues
+- [x] **P1**: Full scene regeneration remains only as fallback via `audit_status = REVISED` for `scene_rewrite` findings; polished scenes are reused and stale audit findings are cleared on screenwriter rewrite
+- [x] **P1**: `citation_auditor` now persists structured citation issues, attempts scene-level citation repair, re-audits repaired scenes, and blocks audio on unresolved high-severity rigor failures
+- [x] **P1**: Added phase 6 debug dumps for `dialogue_audit`, `dialogue_polish`, `citation_audit`, and `citation_repair`
+- [x] **P1**: Added prompt/helper regression tests for new dialogue audit/polish and citation repair/blocking semantics
+
+**Round 26 (phase 6 reviewer follow-up):**
+- [x] **P1**: Extracted shared phase 6 dialogue helpers into `dialogue_utils.py` so audit/polish modules no longer import private `screenwriter` internals
+- [x] **P1**: Switched citation detection to Haiku; Sonnet remains only for `citation_repair`
+- [x] **P1**: Tightened citation blocking semantics so unresolved `scope=block` findings block audio, while high-severity `record` findings do not
+- [x] **P1**: Added `scene_job` to dialogue audit/polish payloads so scene-level polish preserves the intended move
+- [x] **P1**: Expanded regression tests for scope-based citation blocking, Haiku citation detection, and dialogue polish payload context
+
 **Round 69 (fast-web retrieval + quote truncation hardening):**
 - [x] **P0**: Remove fast-web `[:3]` gap cap and switch governor semantics to processed gaps instead of evidence items
 - [x] **P0**: Add language-aware fast-web query generation with explicit English rewrite for non-English questions
