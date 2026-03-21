@@ -75,6 +75,8 @@ class Settings(BaseSettings):
     max_deep_ingestion_concurrent: int = 3
     max_writer_revolt_per_act: int = 4
     max_writer_revolt_per_scene: int = 2
+    max_citation_audit_attempts: int = 2
+    max_citation_repair_attempts: int = 2
     max_verifier_research_loops: int = 2
     temp_source_ttl_days: int = 7
 

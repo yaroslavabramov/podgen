@@ -7,11 +7,13 @@ from app.models.script_segment import AuditStatus
 from app.pipeline.phase6_writing.citation_auditor import (
     AUDITOR_SYSTEM,
     REPAIR_SYSTEM,
+    _attempt_citation_repair,
     _build_failed_citation_audit,
     _build_citation_audit_prompt_payload,
     _citation_repair_improved,
     audit_citations,
     _run_citation_audit,
+    _run_citation_audit_with_retry,
     _has_blocking_citation_issues,
     _normalize_citation_issues,
     _select_scene_claims_map,
@@ -315,6 +317,114 @@ async def test_run_citation_audit_uses_haiku(monkeypatch: pytest.MonkeyPatch) ->
             "temp_source_only_claims": 0.0,
         },
     }
+
+
+@pytest.mark.asyncio
+async def test_run_citation_audit_with_retry_retries_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = {"count": 0}
+
+    async def _flaky(_payload):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise TimeoutError("first call timed out")
+        return {"passed": True, "issues": [], "metrics": {"fact_coverage_ratio": 1.0}}
+
+    monkeypatch.setattr("app.pipeline.phase6_writing.citation_auditor._run_citation_audit", _flaky)
+    monkeypatch.setattr("app.pipeline.phase6_writing.citation_auditor.settings.max_citation_audit_attempts", 2)
+
+    audit = await _run_citation_audit_with_retry({"dialogue": []})
+
+    assert calls["count"] == 2
+    assert audit == {"passed": True, "issues": [], "metrics": {"fact_coverage_ratio": 1.0}}
+
+
+@pytest.mark.asyncio
+async def test_attempt_citation_repair_retries_blocking_scene_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    prompts: list[dict] = []
+    raw_responses = [
+        {
+            "dialogue": [
+                {"speaker": "A", "text": "First attempt line", "claim_ids": ["c1"]},
+                {"speaker": "B", "text": "Follow-up", "claim_ids": []},
+            ]
+        },
+        {
+            "dialogue": [
+                {"speaker": "A", "text": "Second attempt line", "claim_ids": ["c1"]},
+                {"speaker": "B", "text": "Follow-up", "claim_ids": []},
+            ]
+        },
+    ]
+    repaired_audits = [
+        {
+            "passed": False,
+            "issues": [{"line_index": 0, "type": "missing_claim_link", "severity": "high", "scope": "block"}],
+            "metrics": {"fact_coverage_ratio": 0.9},
+        },
+        {
+            "passed": False,
+            "issues": [{"line_index": 0, "type": "missing_claim_link", "severity": "medium", "scope": "repair"}],
+            "metrics": {"fact_coverage_ratio": 0.92},
+        },
+    ]
+
+    async def _fake_call_sonnet_structured(**kwargs):
+        prompts.append(kwargs)
+        return raw_responses[len(prompts) - 1]
+
+    async def _fake_run_citation_audit_with_retry(_payload):
+        return repaired_audits.pop(0)
+
+    monkeypatch.setattr(
+        "app.pipeline.phase6_writing.citation_auditor.call_sonnet_structured",
+        _fake_call_sonnet_structured,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase6_writing.citation_auditor.parse_llm_json",
+        lambda raw: raw,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase6_writing.citation_auditor._run_citation_audit_with_retry",
+        _fake_run_citation_audit_with_retry,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase6_writing.citation_auditor._dump_citation_repair_debug",
+        lambda **_kwargs: None,
+    )
+    monkeypatch.setattr("app.pipeline.phase6_writing.citation_auditor.settings.max_citation_repair_attempts", 2)
+
+    repaired_dialogue, repaired_audit, accepted = await _attempt_citation_repair(
+        run_id=str(uuid.uuid4()),
+        segment=SimpleNamespace(
+            act_number=3,
+            scene_number=2,
+            dialogue_json=[
+                {"speaker": "A", "text": "Original line", "claim_ids": ["c1"]},
+                {"speaker": "B", "text": "Follow-up", "claim_ids": []},
+            ],
+        ),
+        claims_map={"c1": {"statement": "Claim"}},
+        forbidden_phrases=[],
+        rigor_policy="",
+        language="ru",
+        original_audit={
+            "passed": False,
+            "issues": [{"line_index": 0, "type": "missing_claim_link", "severity": "high", "scope": "block"}],
+            "metrics": {"fact_coverage_ratio": 0.9},
+        },
+        scene_context={"scene_job": "cost", "scene_type": "debate", "description": "Test scene"},
+    )
+
+    assert accepted is True
+    assert repaired_dialogue == raw_responses[1]["dialogue"]
+    assert repaired_audit == {
+        "passed": False,
+        "issues": [{"line_index": 0, "type": "missing_claim_link", "severity": "medium", "scope": "repair"}],
+        "metrics": {"fact_coverage_ratio": 0.92},
+    }
+    assert len(prompts) == 2
+    second_payload = prompts[1]["prompt"]
+    assert "retry_feedback" in second_payload
 
 
 class _FakeResult:

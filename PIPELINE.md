@@ -657,11 +657,15 @@ Web extraction использует каскад extractors:
 
 - medium/high severity issues запускают scene-level `citation_repair` pass
 
+- audit-pass имеет bounded retry на transient timeout/parse failures; если все попытки исчерпаны, сцена fail-closed превращается в blocking `audit_failure`
+
 - repaired scene повторно аудируется на том же narrowed context; repair принимается по blocker-focused rules:
   - original blocking issues must be resolved/downgraded
   - no new blocking issues
   - required claim coverage must be preserved
   - line-count drift must stay bounded (no free-form scene rewrite disguised as rigor repair)
+
+- scenes с исходными `scope=block` findings получают ещё один repair attempt с compact retry feedback, чтобы один неудачный Sonnet rewrite не ронял весь дорогой run
 
 - unresolved issues со scope `block` после repair **блокируют переход в audio**, вместо молчаливого continuation
 

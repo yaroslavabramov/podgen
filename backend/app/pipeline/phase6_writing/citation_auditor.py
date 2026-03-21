@@ -167,7 +167,7 @@ async def audit_citations(state: PipelineState) -> dict:
             )
 
             try:
-                audit = await _run_citation_audit(prompt_payload)
+                audit = await _run_citation_audit_with_retry(prompt_payload)
             except Exception as exc:
                 logger.warning("Citation audit failed for segment %s", sid, exc_info=True)
                 failure_audit = _build_failed_citation_audit(
@@ -369,6 +369,27 @@ async def _run_citation_audit(prompt_payload: dict[str, Any]) -> dict[str, Any]:
     return {"passed": passed, "issues": issues, "metrics": metrics}
 
 
+async def _run_citation_audit_with_retry(prompt_payload: dict[str, Any]) -> dict[str, Any]:
+    max_attempts = max(1, int(settings.max_citation_audit_attempts))
+    last_exc: Exception | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return await _run_citation_audit(prompt_payload)
+        except Exception as exc:
+            last_exc = exc
+            if attempt >= max_attempts:
+                raise
+            logger.warning(
+                "Citation audit attempt %d/%d failed; retrying",
+                attempt,
+                max_attempts,
+                exc_info=True,
+            )
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("Citation audit retry loop exited without returning or raising")
+
+
 async def _attempt_citation_repair(
     *,
     run_id: str,
@@ -383,94 +404,121 @@ async def _attempt_citation_repair(
     original_dialogue = segment.dialogue_json
     original_claim_ids = set(_extract_dialogue_claim_ids(original_dialogue))
     original_line_count = len(original_dialogue) if isinstance(original_dialogue, list) else 0
-    prompt_payload = {
-        "scene_context": scene_context,
-        "original_line_count": original_line_count,
-        "dialogue": original_dialogue,
-        "available_claims": claims_map,
-        "forbidden_phrases": forbidden_phrases,
-        "rigor_policy": rigor_policy,
-        "language": language,
-        "issues": original_audit["issues"],
-    }
+    max_attempts = 1
+    if _has_blocking_citation_issues(original_audit["issues"]):
+        max_attempts = max(1, int(settings.max_citation_repair_attempts))
 
-    try:
-        raw = await call_sonnet_structured(
-            system=REPAIR_SYSTEM,
-            prompt=json.dumps(prompt_payload, ensure_ascii=False),
-            max_tokens=2048,
-            temperature=0.2,
+    retry_feedback = ""
+    for attempt in range(1, max_attempts + 1):
+        prompt_payload = {
+            "scene_context": scene_context,
+            "original_line_count": original_line_count,
+            "dialogue": original_dialogue,
+            "available_claims": claims_map,
+            "forbidden_phrases": forbidden_phrases,
+            "rigor_policy": rigor_policy,
+            "language": language,
+            "issues": original_audit["issues"],
+        }
+        if retry_feedback:
+            prompt_payload["retry_feedback"] = retry_feedback
+
+        try:
+            raw = await call_sonnet_structured(
+                system=REPAIR_SYSTEM,
+                prompt=json.dumps(prompt_payload, ensure_ascii=False),
+                max_tokens=2048,
+                temperature=0.2,
+            )
+            parsed = parse_llm_json(raw)
+            repaired_dialogue = _normalize_dialogue_output(parsed.get("dialogue"))
+        except Exception as exc:
+            _dump_citation_repair_debug(
+                run_id=run_id,
+                act_number=segment.act_number,
+                scene_number=segment.scene_number,
+                status="llm_or_parse_failed",
+                payload=prompt_payload,
+                before_dialogue=original_dialogue,
+                after_dialogue=None,
+                before_audit=original_audit,
+                after_audit=None,
+                decision="rejected",
+                error=f"{type(exc).__name__}: {exc}",
+                attempt=attempt,
+                max_attempts=max_attempts,
+            )
+            if attempt >= max_attempts:
+                return None, None, False
+            retry_feedback = f"Previous repair attempt failed with {type(exc).__name__}: {exc}."
+            continue
+
+        if not repaired_dialogue:
+            _dump_citation_repair_debug(
+                run_id=run_id,
+                act_number=segment.act_number,
+                scene_number=segment.scene_number,
+                status="empty_dialogue",
+                payload=prompt_payload,
+                before_dialogue=original_dialogue,
+                after_dialogue=repaired_dialogue,
+                before_audit=original_audit,
+                after_audit=None,
+                decision="rejected",
+                error="repair produced no usable dialogue",
+                attempt=attempt,
+                max_attempts=max_attempts,
+            )
+            if attempt >= max_attempts:
+                return None, None, False
+            retry_feedback = "Previous repair attempt produced no usable dialogue."
+            continue
+
+        repaired_audit = await _run_citation_audit_with_retry(
+            _build_citation_audit_prompt_payload(
+                dialogue=repaired_dialogue,
+                claims_map=claims_map,
+                forbidden_phrases=forbidden_phrases,
+                rigor_policy=rigor_policy,
+                language=language,
+                scene_context=scene_context,
+            )
         )
-        parsed = parse_llm_json(raw)
-        repaired_dialogue = _normalize_dialogue_output(parsed.get("dialogue"))
-    except Exception as exc:
+        repaired_claim_ids = set(_extract_dialogue_claim_ids(repaired_dialogue))
+        repaired_line_count = len(repaired_dialogue)
+        accepted = _citation_repair_improved(
+            original_audit,
+            repaired_audit,
+            original_claim_ids=original_claim_ids,
+            repaired_claim_ids=repaired_claim_ids,
+            original_line_count=original_line_count,
+            repaired_line_count=repaired_line_count,
+        )
         _dump_citation_repair_debug(
             run_id=run_id,
             act_number=segment.act_number,
             scene_number=segment.scene_number,
-            status="llm_or_parse_failed",
-            payload=prompt_payload,
-            before_dialogue=original_dialogue,
-            after_dialogue=None,
-            before_audit=original_audit,
-            after_audit=None,
-            decision="rejected",
-            error=f"{type(exc).__name__}: {exc}",
-        )
-        return None, None, False
-
-    if not repaired_dialogue:
-        _dump_citation_repair_debug(
-            run_id=run_id,
-            act_number=segment.act_number,
-            scene_number=segment.scene_number,
-            status="empty_dialogue",
+            status="accepted" if accepted else "rejected",
             payload=prompt_payload,
             before_dialogue=original_dialogue,
             after_dialogue=repaired_dialogue,
             before_audit=original_audit,
-            after_audit=None,
-            decision="rejected",
-            error="repair produced no usable dialogue",
+            after_audit=repaired_audit,
+            decision="accepted" if accepted else "rejected",
+            error=None,
+            attempt=attempt,
+            max_attempts=max_attempts,
         )
-        return None, None, False
+        if accepted:
+            return repaired_dialogue, repaired_audit, True
+        if attempt >= max_attempts:
+            return None, None, False
+        retry_feedback = _build_citation_repair_retry_feedback(
+            original_audit=original_audit,
+            repaired_audit=repaired_audit,
+        )
 
-    repaired_audit = await _run_citation_audit(
-        _build_citation_audit_prompt_payload(
-            dialogue=repaired_dialogue,
-            claims_map=claims_map,
-            forbidden_phrases=forbidden_phrases,
-            rigor_policy=rigor_policy,
-            language=language,
-            scene_context=scene_context,
-        )
-    )
-    repaired_claim_ids = set(_extract_dialogue_claim_ids(repaired_dialogue))
-    repaired_line_count = len(repaired_dialogue)
-    accepted = _citation_repair_improved(
-        original_audit,
-        repaired_audit,
-        original_claim_ids=original_claim_ids,
-        repaired_claim_ids=repaired_claim_ids,
-        original_line_count=original_line_count,
-        repaired_line_count=repaired_line_count,
-    )
-    _dump_citation_repair_debug(
-        run_id=run_id,
-        act_number=segment.act_number,
-        scene_number=segment.scene_number,
-        status="accepted" if accepted else "rejected",
-        payload=prompt_payload,
-        before_dialogue=original_dialogue,
-        after_dialogue=repaired_dialogue,
-        before_audit=original_audit,
-        after_audit=repaired_audit,
-        decision="accepted" if accepted else "rejected",
-        error=None,
-    )
-    if not accepted:
-        return None, None, False
-    return repaired_dialogue, repaired_audit, True
+    return None, None, False
 
 
 def _normalize_citation_issues(value: Any) -> list[dict[str, Any]]:
@@ -610,6 +658,52 @@ def _actionable_citation_issues(issues: list[dict[str, Any]]) -> list[dict[str, 
     return [issue for issue in issues if isinstance(issue, dict) and issue.get("scope") in {"repair", "block"}]
 
 
+def _summarize_citation_issues(issues: list[dict[str, Any]]) -> list[str]:
+    summaries: list[str] = []
+    for issue in issues:
+        if not isinstance(issue, dict):
+            continue
+        scope = str(issue.get("scope") or "").strip()
+        if scope not in {"repair", "block"}:
+            continue
+        issue_type = str(issue.get("type") or "").strip() or "issue"
+        line_index = int(issue.get("line_index", -1) or -1)
+        description = str(issue.get("description") or "").strip()
+        line_label = f"line {line_index}" if line_index >= 0 else "scene-level"
+        summary = f"{line_label}: {issue_type}"
+        if description:
+            summary += f" ({description})"
+        summaries.append(summary)
+        if len(summaries) >= 4:
+            break
+    return summaries
+
+
+def _build_citation_repair_retry_feedback(*, original_audit: dict[str, Any], repaired_audit: dict[str, Any]) -> str:
+    remaining_blockers = _summarize_citation_issues(
+        [issue for issue in repaired_audit.get("issues", []) if issue.get("scope") == "block"]
+    )
+    if remaining_blockers:
+        return (
+            "Previous repair attempt did not clear blocking issues. Focus on resolving these remaining blockers: "
+            + "; ".join(remaining_blockers)
+        )
+
+    new_actionable = _summarize_citation_issues(repaired_audit.get("issues", []))
+    original_actionable = _summarize_citation_issues(original_audit.get("issues", []))
+    if new_actionable:
+        return (
+            "Previous repair attempt was rejected. Keep the scene function intact and resolve these actionable issues without introducing new ones: "
+            + "; ".join(new_actionable)
+        )
+    if original_actionable:
+        return (
+            "Previous repair attempt did not improve the audit enough. Preserve the scene and address the original actionable issues more minimally: "
+            + "; ".join(original_actionable)
+        )
+    return "Previous repair attempt was rejected. Preserve the original scene more closely and make only minimal rigor fixes."
+
+
 def _citation_repair_improved(
     original: dict[str, Any],
     repaired: dict[str, Any],
@@ -643,8 +737,6 @@ def _citation_repair_improved(
 
     if repaired["passed"] and not original["passed"]:
         return True
-    if repaired_fact_coverage + 0.05 < original_fact_coverage:
-        return False
 
     if len(repaired_actionable_issues) < len(original_actionable_issues):
         return True
@@ -701,6 +793,8 @@ def _dump_citation_repair_debug(
     after_audit: dict[str, Any] | None,
     decision: str,
     error: str | None,
+    attempt: int,
+    max_attempts: int,
 ) -> None:
     dump_dir = (settings.web_extractor_debug_dump_dir or "").strip()
     if not dump_dir:
@@ -718,6 +812,8 @@ def _dump_citation_repair_debug(
             "scene_number": scene_number,
             "status": status,
             "decision": decision,
+            "attempt": attempt,
+            "max_attempts": max_attempts,
             "input": payload,
             "before_dialogue": before_dialogue,
             "after_dialogue": after_dialogue,
