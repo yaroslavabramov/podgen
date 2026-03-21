@@ -68,9 +68,11 @@ Rules:
 - If two claims from different branches are near-paraphrases or materially describe the same mechanism, treat them as one explanatory point. Keep the strongest or best-fitting one in the best act and avoid assigning the other as fresh explanatory backbone in a later act.
 - Branch coherence is a hint, not a rule. Do not keep branch material together when that would make two acts explain the same thing with different claim IDs.
 - Prefer one act to establish a mechanism and later acts to do something new with it: stress-test it, show its cost, compare it to another path, show the legal lock-in, or widen the stakes.
+- One historical event or institutional decision should usually have one main dramatic home. If several claims describe the same decision from different dates or angles, let one act own the reveal and use the rest only as brief callbacks or consequences.
 - Listener novelty matters more than branch coverage. A later act should not feel like the same explanation in a new folder.
 - Avoid acts that all do the same thing. Do not make every act a generic explanation block.
 - Prefer acts organized around one dominant branch or a tight pair of related branches, not a random mix of distant topics.
+- Comparative material should stay selective. One strong external comparator is usually enough for one act beat; do not load an act with multiple unrelated outside mini-histories unless they clearly serve one editorial point.
 - DISPUTED claims MUST have a "debate moment" (conflicts >= 1 in that act's quotas)
 - Act count: 2-6 based on duration and style
 - Verified facts should be front-loaded in acts where audience needs grounding

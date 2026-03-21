@@ -170,7 +170,9 @@ def test_showrunner_prompt_does_not_hardcode_three_acts() -> None:
     assert "All human-readable fields (`title`, `purpose`, `internal_arc`, `opening_question`, `ending_turn`) MUST be in `output_language`" in SHOWRUNNER_SYSTEM
     assert "Branch coherence is a hint, not a rule." in SHOWRUNNER_SYSTEM
     assert "If two claims from different branches are near-paraphrases or materially describe the same mechanism" in SHOWRUNNER_SYSTEM
+    assert "One historical event or institutional decision should usually have one main dramatic home." in SHOWRUNNER_SYSTEM
     assert "Listener novelty matters more than branch coverage." in SHOWRUNNER_SYSTEM
+    assert "Comparative material should stay selective." in SHOWRUNNER_SYSTEM
 
 
 def test_build_showrunner_prompt_payload_carries_output_language() -> None:

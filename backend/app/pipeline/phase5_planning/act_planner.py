@@ -120,6 +120,7 @@ Rules:
 - Act-to-act variety matters. Do not default every act to the same internal shape.
 - Within an act, adjacent scenes should usually do different work: open a question, sharpen it, ground it in an example, reveal a mechanism, stress-test it, or land a consequence.
 - If two neighboring scenes mainly explain the same thing in the same mode, merge them or change the angle.
+- Adjacent scenes must not walk through the same procedural chain twice, even under different labels. If scene N already established a chain, scene N+1 should apply it, stress-test it, contrast it, price it, or widen it rather than re-explain the chain step by step.
 - Each act should contain at least one meaningful turn: a realization, complication, stress test, reversal, or reframing that changes what the listener now understands.
 - Do not turn the act into a laundry list of explanations.
 - Keep one clear job per scene. Split only when the listener would feel a meaningful shift.
@@ -129,6 +130,7 @@ Rules:
 - `prior_acts_primary_claims` lists points that earlier acts already established as primary material. Do not assign materially overlapping points as fresh primary explanations unless this act adds a genuinely new layer; if prior material must recur, prefer callback framing.
 - A genuinely new layer means the listener learns something meaningfully different: how the mechanism behaves under stress, what it costs, what legal or political structure locks it in, how it differs from another system, or what consequence follows from it. Merely restating the same mechanism with different wording is not a new layer.
 - In later acts, assume the listener remembers the previously established mechanism. Do not spend a full scene re-teaching it unless the act adds a clearly different layer.
+- In historical acts, keep the scene order chronologically legible unless there is a strong editorial reason not to. Do not jump to a later retrospective statistic or outcome before the key event it is supposed to explain, unless the beat card clearly frames it as hindsight.
 - Use `scene_count_guidance` as the default size target for the act. Do not exceed it unless the act would otherwise feel structurally incomplete.
 - Prefer compact beat cards, not mini-script paragraphs. `description` should describe the beat, not write the scene. `notes` should stay short.
 - When a scene uses a claim, attach one or more `evidence_ids` from that claim's bundled support whenever available.
@@ -142,16 +144,18 @@ Rules:
 - Do not replay the act's opening image or main mechanism in the final scene unless the ending adds a clearly new consequence or wider frame.
 - Use `scene_job` to declare the move each callback-heavy scene is making:
   - `reframe`: reinterpret already established material
-  - `cost`: show the tradeoff or price of the system
+  - `cost`: show the tradeoff, sacrifice, or price of the system
   - `contrast`: sharpen difference against another path or expectation
   - `bridge`: pivot cleanly into the next beat or act
   - `synthesize`: compress what changed in understanding
   - `apply`: show how an established mechanism operates in a concrete case
   - `stress_test`: push an established mechanism under pressure
+- Use `cost` only when the scene is genuinely about what is lost, constrained, or paid for. Do not label an origin story or general payoff scene as `cost` unless the beat explicitly centers on tradeoff.
 - Callback-only ending scenes should usually use `reframe`, `cost`, `contrast`, `bridge`, or `synthesize`.
 - Callback-only ending scenes should stay compact and focused. They should not become oversized recap blocks.
 - When writing a callback-heavy or ending beat card, lead with the new move first: the consequence, reframing, contrast, bridge, or cost. Do not lead by re-explaining the old mechanism.
 - If a scene uses an established mechanism as context, mention that context briefly and then move immediately to what is new in this scene.
+- A `contrast` scene should usually have one dominant outside comparator. Do not import several unrelated external mini-histories unless they clearly ladder up to one comparison point.
 - Let `story_role` shape the act:
   - `setup`: establish the paradox, world, and stakes
   - `complicate`: intensify the problem or institutional tension

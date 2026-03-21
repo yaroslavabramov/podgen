@@ -563,6 +563,11 @@ Deferred after Round 68:
 - [x] **P0**: Strengthen `act_planner` prompt so later acts must add a genuinely new layer (`stress_test`, `cost`, `contrast`, legal framing, consequence) instead of restating an already established mechanism in new words
 - [x] **P1**: Tighten callback-heavy beat-card instructions so endings lead with the new move first, rather than opening with a recap of the old mechanism
 
+**Round 84 (prompt-level scene differentiation and chronology):**
+- [x] **P0**: Strengthen `showrunner` prompt so one historical event or institutional decision usually gets one main dramatic act home, instead of being half-revealed in one act and re-revealed in another
+- [x] **P0**: Strengthen `act_planner` prompt so adjacent scenes cannot walk through the same procedural chain twice under different labels; scene N+1 must do something with the chain rather than re-explain it
+- [x] **P1**: Add prompt guidance that historical acts should stay chronologically legible by default, `cost` should only be used for real tradeoffs, and `contrast` beats should stay selective instead of importing multiple unrelated outside mini-histories
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority
