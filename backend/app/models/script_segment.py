@@ -32,6 +32,7 @@ class ScriptSegment(Base):
     act_number: Mapped[int] = mapped_column(Integer, nullable=False)
     scene_number: Mapped[int] = mapped_column(Integer, nullable=False)
     dialogue_json: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    writer_original_dialogue_json: Mapped[list | None] = mapped_column(JSONB)
     engagement_score: Mapped[float | None] = mapped_column(Float)
     audit_status: Mapped[str] = mapped_column(
         SAEnum(AuditStatus, name="audit_status", create_constraint=False, native_enum=False, length=20),

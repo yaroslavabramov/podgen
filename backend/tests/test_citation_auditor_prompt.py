@@ -10,13 +10,20 @@ from app.pipeline.phase6_writing.citation_auditor import (
     REPAIR_SYSTEM,
     _attempt_citation_repair,
     _build_citation_audit_prompt_payload,
+    _build_citation_repair_attempt_plan,
     _build_citation_repair_prompt_payload,
     _build_scene_context,
     _build_failed_citation_audit,
     _citation_repair_improved,
+    _changed_line_indexes,
     _has_blocking_citation_issues,
     _load_claims_map,
+    _merge_scene_repair_metadata,
     _normalize_citation_issues,
+    _relevant_reaudit_line_indexes,
+    _scene_repair_preserves_unflagged_sensitive_lines,
+    _select_citation_repair_mode,
+    _sensitive_line_indexes,
     _post_filter_citation_issues,
     _run_citation_audit,
     _run_citation_audit_with_retry,
@@ -35,7 +42,12 @@ def _line(text: str, claim_ids: list[str] | None = None, speaker: str = "A") -> 
 def test_citation_auditor_prompt_demands_severity_scope_and_repair() -> None:
     assert '"severity": "low|medium|high"' in AUDITOR_SYSTEM
     assert '"scope": "record|repair|block"' in AUDITOR_SYSTEM
+    assert '"line_function": "assertive|question_open|question_with_premise|recap|transition|synthesis|other"' in AUDITOR_SYSTEM
+    assert '"action_required": true' in AUDITOR_SYSTEM
+    assert "unsupported_source_framing" in AUDITOR_SYSTEM
     assert "must be repaired or block audio" in AUDITOR_SYSTEM
+    assert "The payload includes `language`." in AUDITOR_SYSTEM
+    assert "Audit the dialogue in that language" in AUDITOR_SYSTEM
     assert "Questions, callbacks, recaps, scene transitions, and synthesis lines" in AUDITOR_SYSTEM
     assert "rewrite only the targeted lines" in LINE_REPAIR_SYSTEM.lower()
     assert "spoken podcast dialogue" in LINE_REPAIR_SYSTEM
@@ -137,6 +149,7 @@ def test_build_citation_repair_prompt_payload_includes_flagged_lines_for_scene_r
     )
 
     assert payload["flagged_line_indexes"] == [1]
+    assert payload["line_roles"] == {0: "scene_opener", 1: "punchline", 2: "landing"}
     assert payload["flagged_lines"] == [
         {
             "line_index": 1,
@@ -186,6 +199,7 @@ async def test_load_claims_map_keeps_full_claim_statement() -> None:
         claim_type="fact",
         verification_level="verified",
         statement="К весне 1842 года британская администрация признала хождение испанских и мексиканских серебряных долларов, а к 1860-м годам окончательно отказалась от попыток вытеснить уже сложившуюся денежную систему.",
+        attribution=None,
     )
 
     claims_map = await _load_claims_map(_FakeClaimsDB([claim]), [str(claim.id)])
@@ -195,6 +209,9 @@ async def test_load_claims_map_keeps_full_claim_statement() -> None:
             "type": "fact",
             "verification": "verified",
             "statement": claim.statement,
+            "attribution": None,
+            "has_attribution": False,
+            "supports_source_framing": False,
         }
     }
 
@@ -264,6 +281,156 @@ def test_splice_repaired_lines_preserves_metadata_on_unflagged_and_target_lines(
     assert spliced[1]["ssml_hints"] is not original_dialogue[1]["ssml_hints"]
 
 
+def test_merge_scene_repair_metadata_preserves_matching_line_fields() -> None:
+    original_dialogue = [
+        {
+            "speaker": "A",
+            "text": "The old opener.",
+            "claim_ids": ["c1"],
+            "emotion": "serious",
+            "ssml_hints": {"pause_ms": 100},
+        },
+        {
+            "speaker": "B",
+            "text": "The unchanged line.",
+            "claim_ids": ["c2"],
+            "emotion": "skeptical",
+            "ssml_hints": {"pause_ms": 220},
+        },
+    ]
+
+    merged = _merge_scene_repair_metadata(
+        original_dialogue=original_dialogue,
+        repaired_dialogue=[
+            {"speaker": "A", "text": "A revised opener.", "claim_ids": ["c1"]},
+            {"speaker": "B", "text": "The unchanged line.", "claim_ids": ["c2", "c3"]},
+        ],
+    )
+
+    assert merged == [
+        {
+            "speaker": "A",
+            "text": "A revised opener.",
+            "claim_ids": ["c1"],
+            "emotion": "serious",
+            "ssml_hints": {"pause_ms": 100},
+        },
+        {
+            "speaker": "B",
+            "text": "The unchanged line.",
+            "claim_ids": ["c2", "c3"],
+            "emotion": "skeptical",
+            "ssml_hints": {"pause_ms": 220},
+        },
+    ]
+
+
+def test_select_citation_repair_mode_prefers_line_repair_for_sensitive_lines() -> None:
+    dialogue = [
+        _line("So what changed first?", []),
+        _line("The market broke the old assumption.", ["c1"], speaker="B"),
+        _line("And that pressure reached the peg immediately.", ["c2"]),
+    ]
+
+    assert _select_citation_repair_mode(
+        dialogue=dialogue,
+        issues=[
+            {
+                "line_index": 2,
+                "type": "missing_claim_link",
+                "severity": "medium",
+                "scope": "repair",
+                "action_required": True,
+            }
+        ],
+    ) == ("line_repair", [2])
+
+
+def test_select_citation_repair_mode_escalates_when_sensitive_targets_exceed_line_limit() -> None:
+    dialogue = [
+        _line("Opening premise.", ["c1"]),
+        _line("Middle detail.", ["c2"], speaker="B"),
+        _line("Landing implication.", ["c3"]),
+    ]
+
+    issues = [
+        {
+            "line_index": 0,
+            "type": "missing_claim_link",
+            "severity": "medium",
+            "scope": "repair",
+            "action_required": True,
+        },
+        {
+            "line_index": 1,
+            "type": "missing_claim_link",
+            "severity": "medium",
+            "scope": "repair",
+            "action_required": True,
+        },
+        {
+            "line_index": 2,
+            "type": "missing_claim_link",
+            "severity": "medium",
+            "scope": "repair",
+            "action_required": True,
+        },
+    ]
+
+    assert _select_citation_repair_mode(dialogue=dialogue, issues=issues) == ("scene_repair", [])
+    assert _build_citation_repair_attempt_plan(
+        dialogue=dialogue,
+        scene_context={"act_number": 1, "scene_number": 1},
+        issues=issues,
+        max_attempts=1,
+    ) == [{"mode": "scene_repair", "target_line_indexes": []}]
+
+
+def test_changed_line_indexes_and_relevant_reaudit_indexes_focus_on_changed_lines() -> None:
+    original_dialogue = [
+        _line("Old opener.", ["c1"]),
+        _line("Middle line.", ["c2"], speaker="B"),
+        _line("Old ending.", ["c3"]),
+    ]
+    repaired_dialogue = [
+        _line("Old opener.", ["c1"]),
+        _line("Repaired middle line.", ["c2"], speaker="B"),
+        _line("Old ending.", ["c3"]),
+    ]
+
+    assert _changed_line_indexes(
+        original_dialogue=original_dialogue,
+        repaired_dialogue=repaired_dialogue,
+    ) == {1}
+    assert _relevant_reaudit_line_indexes(
+        original_dialogue=original_dialogue,
+        repaired_dialogue=repaired_dialogue,
+        original_issues=[{"line_index": 1, "scope": "repair", "action_required": True}],
+        repair_mode="scene_repair",
+        target_line_indexes=[],
+    ) == [1]
+
+
+def test_scene_repair_preserves_unflagged_sensitive_lines() -> None:
+    original_dialogue = [
+        _line("Original opener.", []),
+        _line("Middle factual line.", ["c1"], speaker="B"),
+        _line("Original ending.", []),
+    ]
+    repaired_dialogue = [
+        _line("Different opener.", []),
+        _line("Middle factual line.", ["c1"], speaker="B"),
+        _line("Original ending.", []),
+    ]
+
+    assert _sensitive_line_indexes(original_dialogue) == {0, 1, 2}
+    assert not _scene_repair_preserves_unflagged_sensitive_lines(
+        original_dialogue=original_dialogue,
+        repaired_dialogue=repaired_dialogue,
+        actionable_line_indexes={1},
+    )
+
+
 def test_normalize_citation_issues_assigns_default_scope_from_severity() -> None:
     issues = _normalize_citation_issues(
         [
@@ -279,6 +446,8 @@ def test_normalize_citation_issues_assigns_default_scope_from_severity() -> None
             "type": "missing_claim_link",
             "severity": "high",
             "scope": "block",
+            "line_function": "other",
+            "action_required": True,
             "description": "",
             "suggestion": "",
         },
@@ -287,6 +456,8 @@ def test_normalize_citation_issues_assigns_default_scope_from_severity() -> None
             "type": "audience_mismatch",
             "severity": "medium",
             "scope": "repair",
+            "line_function": "other",
+            "action_required": True,
             "description": "",
             "suggestion": "",
         },
@@ -295,9 +466,39 @@ def test_normalize_citation_issues_assigns_default_scope_from_severity() -> None
             "type": "forbidden_phrase",
             "severity": "low",
             "scope": "record",
+            "line_function": "other",
+            "action_required": False,
             "description": "",
             "suggestion": "",
         },
+    ]
+
+
+def test_normalize_citation_issues_preserves_structured_line_function_signal() -> None:
+    issues = _normalize_citation_issues(
+        [
+            {
+                "line_index": 1,
+                "type": "missing_claim_link",
+                "severity": "high",
+                "scope": "block",
+                "line_function": "question_open",
+                "action_required": False,
+            }
+        ]
+    )
+
+    assert issues == [
+        {
+            "line_index": 1,
+            "type": "missing_claim_link",
+            "severity": "high",
+            "scope": "block",
+            "line_function": "question_open",
+            "action_required": False,
+            "description": "",
+            "suggestion": "",
+        }
     ]
 
 
@@ -305,12 +506,30 @@ def test_citation_helpers_distinguish_repairable_and_blocking_issues() -> None:
     repairable = [{"type": "missing_attribution", "severity": "medium", "scope": "repair"}]
     blocking = [{"type": "missing_claim_link", "severity": "high", "scope": "block"}]
     recorded_high = [{"type": "audience_mismatch", "severity": "high", "scope": "record"}]
+    informational_repair = [
+        {
+            "type": "missing_claim_link",
+            "severity": "high",
+            "scope": "repair",
+            "action_required": False,
+        }
+    ]
+    informational_block = [
+        {
+            "type": "missing_claim_link",
+            "severity": "high",
+            "scope": "block",
+            "action_required": False,
+        }
+    ]
 
     assert _should_attempt_citation_repair(repairable)
     assert _should_attempt_citation_repair(blocking)
+    assert not _should_attempt_citation_repair(informational_repair)
     assert not _has_blocking_citation_issues(repairable)
     assert not _has_blocking_citation_issues(recorded_high)
     assert _has_blocking_citation_issues(blocking)
+    assert not _has_blocking_citation_issues(informational_block)
 
 
 def test_post_filter_downgrades_only_short_pure_question_blockers() -> None:
@@ -322,6 +541,8 @@ def test_post_filter_downgrades_only_short_pure_question_blockers() -> None:
                 "type": "missing_claim_link",
                 "severity": "high",
                 "scope": "block",
+                "line_function": "question_open",
+                "action_required": False,
                 "description": "",
                 "suggestion": "",
             },
@@ -330,6 +551,8 @@ def test_post_filter_downgrades_only_short_pure_question_blockers() -> None:
                 "type": "unverified_stated_as_fact",
                 "severity": "high",
                 "scope": "block",
+                "line_function": "question_open",
+                "action_required": False,
                 "description": "",
                 "suggestion": "",
             },
@@ -342,6 +565,8 @@ def test_post_filter_downgrades_only_short_pure_question_blockers() -> None:
             "type": "missing_claim_link",
             "severity": "low",
             "scope": "record",
+            "line_function": "question_open",
+            "action_required": False,
             "description": "",
             "suggestion": "",
         },
@@ -350,9 +575,135 @@ def test_post_filter_downgrades_only_short_pure_question_blockers() -> None:
             "type": "unverified_stated_as_fact",
             "severity": "low",
             "scope": "record",
+            "line_function": "question_open",
+            "action_required": False,
             "description": "",
             "suggestion": "",
         },
+    ]
+
+
+def test_post_filter_preserves_existing_record_for_english_pure_question() -> None:
+    issues = _post_filter_citation_issues(
+        dialogue=[_line("What happened?", [])],
+        issues=[
+            {
+                "line_index": 0,
+                "type": "missing_claim_link",
+                "severity": "low",
+                "scope": "record",
+                "line_function": "question_open",
+                "action_required": False,
+                "description": "",
+                "suggestion": "No action required; questions do not require claim_ids.",
+            }
+        ],
+    )
+
+    assert issues == [
+        {
+            "line_index": 0,
+            "type": "missing_claim_link",
+            "severity": "low",
+            "scope": "record",
+            "line_function": "question_open",
+            "action_required": False,
+            "description": "",
+            "suggestion": "No action required; questions do not require claim_ids.",
+        }
+    ]
+
+
+def test_post_filter_downgrades_english_open_question_from_structured_signal() -> None:
+    issues = _post_filter_citation_issues(
+        dialogue=[_line("What happened?", [])],
+        issues=[
+            {
+                "line_index": 0,
+                "type": "missing_claim_link",
+                "severity": "high",
+                "scope": "block",
+                "line_function": "question_open",
+                "action_required": False,
+                "description": "",
+                "suggestion": "",
+            }
+        ],
+    )
+
+    assert issues == [
+        {
+            "line_index": 0,
+            "type": "missing_claim_link",
+            "severity": "low",
+            "scope": "record",
+            "line_function": "question_open",
+            "action_required": False,
+            "description": "",
+            "suggestion": "",
+        }
+    ]
+
+
+def test_post_filter_downgrades_transition_line_from_structured_signal() -> None:
+    issues = _post_filter_citation_issues(
+        dialogue=[_line("And then everything changed.", [])],
+        issues=[
+            {
+                "line_index": 0,
+                "type": "missing_claim_link",
+                "severity": "high",
+                "scope": "block",
+                "line_function": "transition",
+                "action_required": False,
+                "description": "",
+                "suggestion": "",
+            }
+        ],
+    )
+
+    assert issues == [
+        {
+            "line_index": 0,
+            "type": "missing_claim_link",
+            "severity": "low",
+            "scope": "record",
+            "line_function": "transition",
+            "action_required": False,
+            "description": "",
+            "suggestion": "",
+        }
+    ]
+
+
+def test_post_filter_keeps_actionable_transition_line_actionable() -> None:
+    issues = _post_filter_citation_issues(
+        dialogue=[_line("And then the government fixed the peg.", [])],
+        issues=[
+            {
+                "line_index": 0,
+                "type": "missing_claim_link",
+                "severity": "high",
+                "scope": "block",
+                "line_function": "transition",
+                "action_required": True,
+                "description": "",
+                "suggestion": "",
+            }
+        ],
+    )
+
+    assert issues == [
+        {
+            "line_index": 0,
+            "type": "missing_claim_link",
+            "severity": "medium",
+            "scope": "repair",
+            "line_function": "transition",
+            "action_required": True,
+            "description": "",
+            "suggestion": "",
+        }
     ]
 
 
@@ -365,6 +716,8 @@ def test_post_filter_keeps_loaded_wh_question_actionable() -> None:
                 "type": "missing_claim_link",
                 "severity": "high",
                 "scope": "block",
+                "line_function": "question_with_premise",
+                "action_required": True,
                 "description": "",
                 "suggestion": "",
             },
@@ -373,6 +726,8 @@ def test_post_filter_keeps_loaded_wh_question_actionable() -> None:
                 "type": "unverified_stated_as_fact",
                 "severity": "high",
                 "scope": "block",
+                "line_function": "question_with_premise",
+                "action_required": True,
                 "description": "",
                 "suggestion": "",
             },
@@ -385,6 +740,8 @@ def test_post_filter_keeps_loaded_wh_question_actionable() -> None:
             "type": "missing_claim_link",
             "severity": "medium",
             "scope": "repair",
+            "line_function": "question_with_premise",
+            "action_required": True,
             "description": "",
             "suggestion": "",
         },
@@ -393,6 +750,8 @@ def test_post_filter_keeps_loaded_wh_question_actionable() -> None:
             "type": "unverified_stated_as_fact",
             "severity": "medium",
             "scope": "repair",
+            "line_function": "question_with_premise",
+            "action_required": True,
             "description": "",
             "suggestion": "",
         },
@@ -408,6 +767,8 @@ def test_post_filter_keeps_short_loaded_question_actionable() -> None:
                 "type": "missing_claim_link",
                 "severity": "high",
                 "scope": "block",
+                "line_function": "question_with_premise",
+                "action_required": True,
                 "description": "",
                 "suggestion": "",
             },
@@ -416,6 +777,8 @@ def test_post_filter_keeps_short_loaded_question_actionable() -> None:
                 "type": "unverified_stated_as_fact",
                 "severity": "high",
                 "scope": "block",
+                "line_function": "question_with_premise",
+                "action_required": True,
                 "description": "",
                 "suggestion": "",
             },
@@ -428,6 +791,8 @@ def test_post_filter_keeps_short_loaded_question_actionable() -> None:
             "type": "missing_claim_link",
             "severity": "medium",
             "scope": "repair",
+            "line_function": "question_with_premise",
+            "action_required": True,
             "description": "",
             "suggestion": "",
         },
@@ -436,6 +801,8 @@ def test_post_filter_keeps_short_loaded_question_actionable() -> None:
             "type": "unverified_stated_as_fact",
             "severity": "medium",
             "scope": "repair",
+            "line_function": "question_with_premise",
+            "action_required": True,
             "description": "",
             "suggestion": "",
         },
@@ -451,6 +818,8 @@ def test_post_filter_keeps_recap_question_actionable() -> None:
                 "type": "missing_claim_link",
                 "severity": "high",
                 "scope": "block",
+                "line_function": "question_with_premise",
+                "action_required": True,
                 "description": "",
                 "suggestion": "",
             },
@@ -459,6 +828,8 @@ def test_post_filter_keeps_recap_question_actionable() -> None:
                 "type": "unverified_stated_as_fact",
                 "severity": "high",
                 "scope": "block",
+                "line_function": "question_with_premise",
+                "action_required": True,
                 "description": "",
                 "suggestion": "",
             },
@@ -471,6 +842,8 @@ def test_post_filter_keeps_recap_question_actionable() -> None:
             "type": "missing_claim_link",
             "severity": "medium",
             "scope": "repair",
+            "line_function": "question_with_premise",
+            "action_required": True,
             "description": "",
             "suggestion": "",
         },
@@ -479,6 +852,8 @@ def test_post_filter_keeps_recap_question_actionable() -> None:
             "type": "unverified_stated_as_fact",
             "severity": "medium",
             "scope": "repair",
+            "line_function": "question_with_premise",
+            "action_required": True,
             "description": "",
             "suggestion": "",
         },
@@ -515,12 +890,12 @@ def test_post_filter_does_not_downgrade_factual_recap_line() -> None:
 def test_citation_repair_improved_accepts_better_post_repair_audit() -> None:
     original = {
         "passed": False,
-        "issues": [{"severity": "high", "scope": "block"}],
+        "issues": [{"line_index": 0, "severity": "high", "scope": "block"}],
         "metrics": {"fact_coverage_ratio": 0.6},
     }
     repaired = {
         "passed": False,
-        "issues": [{"severity": "medium", "scope": "repair"}],
+        "issues": [{"line_index": 0, "severity": "medium", "scope": "repair"}],
         "metrics": {"fact_coverage_ratio": 0.8},
     }
 
@@ -528,7 +903,7 @@ def test_citation_repair_improved_accepts_better_post_repair_audit() -> None:
         original,
         repaired,
         original_dialogue=[_line("Факт о механизме.", ["c1"])],
-        repaired_dialogue=[_line("Факт о механизме.", ["c1"])],
+        repaired_dialogue=[_line("Факт о механизме теперь сформулирован точнее.", ["c1"])],
         repair_mode="scene_repair",
         target_line_indexes=[],
         original_line_count=4,
@@ -636,12 +1011,12 @@ def test_citation_repair_improved_rejects_new_blockers_and_noop_non_blocking_rep
 def test_citation_repair_improved_accepts_non_blocking_severity_reduction() -> None:
     original = {
         "passed": False,
-        "issues": [{"line_index": 1, "type": "missing_claim_link", "severity": "medium", "scope": "repair"}],
+        "issues": [{"line_index": 0, "type": "missing_claim_link", "severity": "medium", "scope": "repair"}],
         "metrics": {"fact_coverage_ratio": 0.92},
     }
     repaired = {
         "passed": False,
-        "issues": [{"line_index": 1, "type": "missing_claim_link", "severity": "low", "scope": "record"}],
+        "issues": [{"line_index": 0, "type": "missing_claim_link", "severity": "low", "scope": "record"}],
         "metrics": {"fact_coverage_ratio": 0.9},
     }
 
@@ -649,11 +1024,79 @@ def test_citation_repair_improved_accepts_non_blocking_severity_reduction() -> N
         original,
         repaired,
         original_dialogue=[_line("Поддержанный факт.", ["c1"])],
-        repaired_dialogue=[_line("Поддержанный факт.", ["c1"])],
+        repaired_dialogue=[_line("Поддержанный факт сформулирован мягче.", ["c1"])],
         repair_mode="scene_repair",
         target_line_indexes=[],
         original_line_count=4,
         repaired_line_count=4,
+    )
+
+
+def test_citation_repair_improved_ignores_new_medium_noise_on_untouched_lines() -> None:
+    original_dialogue = [
+        _line("Opener remains the same.", []),
+        _line("Core factual line.", ["c1"], speaker="B"),
+        _line("Untouched ending.", []),
+    ]
+    repaired_dialogue = [
+        _line("Opener remains the same.", []),
+        _line("Core factual line, now grounded.", ["c1", "c2"], speaker="B"),
+        _line("Untouched ending.", []),
+    ]
+    original = {
+        "passed": False,
+        "issues": [{"line_index": 1, "type": "missing_claim_link", "severity": "medium", "scope": "repair"}],
+        "metrics": {"fact_coverage_ratio": 0.92},
+    }
+    repaired = {
+        "passed": False,
+        "issues": [{"line_index": 2, "type": "missing_claim_link", "severity": "medium", "scope": "repair"}],
+        "metrics": {"fact_coverage_ratio": 0.92},
+    }
+
+    assert _citation_repair_improved(
+        original,
+        repaired,
+        original_dialogue=original_dialogue,
+        repaired_dialogue=repaired_dialogue,
+        repair_mode="scene_repair",
+        target_line_indexes=[],
+        original_line_count=3,
+        repaired_line_count=3,
+    )
+
+
+def test_citation_repair_improved_rejects_scene_repair_that_changes_unflagged_sensitive_line() -> None:
+    original_dialogue = [
+        _line("Original opener.", []),
+        _line("Flagged factual line.", ["c1"], speaker="B"),
+        _line("Original landing.", []),
+    ]
+    repaired_dialogue = [
+        _line("Different opener.", []),
+        _line("Flagged factual line, repaired.", ["c1", "c2"], speaker="B"),
+        _line("Original landing.", []),
+    ]
+    original = {
+        "passed": False,
+        "issues": [{"line_index": 1, "type": "missing_claim_link", "severity": "medium", "scope": "repair"}],
+        "metrics": {"fact_coverage_ratio": 0.92},
+    }
+    repaired = {
+        "passed": False,
+        "issues": [],
+        "metrics": {"fact_coverage_ratio": 0.95},
+    }
+
+    assert not _citation_repair_improved(
+        original,
+        repaired,
+        original_dialogue=original_dialogue,
+        repaired_dialogue=repaired_dialogue,
+        repair_mode="scene_repair",
+        target_line_indexes=[],
+        original_line_count=3,
+        repaired_line_count=3,
     )
 
 
@@ -758,12 +1201,197 @@ async def test_run_citation_audit_uses_haiku(monkeypatch: pytest.MonkeyPatch) ->
                 "type": "missing_attribution",
                 "severity": "medium",
                 "scope": "repair",
+                "line_function": "other",
+                "action_required": True,
                 "description": "",
                 "suggestion": "",
             }
         ],
         "metrics": {
             "fact_coverage_ratio": 0.75,
+            "forbidden_phrase_hits": 0.0,
+            "rigor_policy_violations": 0.0,
+            "persona_consistency_score": 0.0,
+            "temp_source_only_claims": 0.0,
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_run_citation_audit_downgrades_english_open_question_from_structured_signal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fake_call_haiku_structured(**_kwargs):
+        return """
+        {
+          "passed": false,
+          "issues": [
+            {
+              "line_index": 0,
+              "type": "missing_claim_link",
+              "severity": "high",
+              "scope": "block",
+              "line_function": "question_open",
+              "action_required": false
+            }
+          ],
+          "metrics": {"fact_coverage_ratio": 0.95}
+        }
+        """
+
+    monkeypatch.setattr(
+        "app.pipeline.phase6_writing.citation_auditor.call_haiku_structured",
+        _fake_call_haiku_structured,
+    )
+
+    audit = await _run_citation_audit(
+        {
+            "dialogue": [_line("What happened?", [])],
+            "available_claims": {},
+            "forbidden_phrases": [],
+            "rigor_policy": "",
+            "language": "en",
+        }
+    )
+
+    assert audit == {
+        "passed": True,
+        "issues": [
+            {
+                "line_index": 0,
+                "type": "missing_claim_link",
+                "severity": "low",
+                "scope": "record",
+                "line_function": "question_open",
+                "action_required": False,
+                "description": "",
+                "suggestion": "",
+            }
+        ],
+        "metrics": {
+            "fact_coverage_ratio": 0.95,
+            "forbidden_phrase_hits": 0.0,
+            "rigor_policy_violations": 0.0,
+            "persona_consistency_score": 0.0,
+            "temp_source_only_claims": 0.0,
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_run_citation_audit_ignores_informational_transition_for_pass_fail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fake_call_haiku_structured(**_kwargs):
+        return """
+        {
+          "passed": false,
+          "issues": [
+            {
+              "line_index": 0,
+              "type": "missing_claim_link",
+              "severity": "high",
+              "scope": "block",
+              "line_function": "transition",
+              "action_required": false
+            }
+          ],
+          "metrics": {"fact_coverage_ratio": 0.95}
+        }
+        """
+
+    monkeypatch.setattr(
+        "app.pipeline.phase6_writing.citation_auditor.call_haiku_structured",
+        _fake_call_haiku_structured,
+    )
+
+    audit = await _run_citation_audit(
+        {
+            "dialogue": [_line("And then everything changed.", [])],
+            "available_claims": {},
+            "forbidden_phrases": [],
+            "rigor_policy": "",
+            "language": "en",
+        }
+    )
+
+    assert audit == {
+        "passed": True,
+        "issues": [
+            {
+                "line_index": 0,
+                "type": "missing_claim_link",
+                "severity": "low",
+                "scope": "record",
+                "line_function": "transition",
+                "action_required": False,
+                "description": "",
+                "suggestion": "",
+            }
+        ],
+        "metrics": {
+            "fact_coverage_ratio": 0.95,
+            "forbidden_phrase_hits": 0.0,
+            "rigor_policy_violations": 0.0,
+            "persona_consistency_score": 0.0,
+            "temp_source_only_claims": 0.0,
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_run_citation_audit_keeps_actionable_transition_in_failure_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fake_call_haiku_structured(**_kwargs):
+        return """
+        {
+          "passed": false,
+          "issues": [
+            {
+              "line_index": 0,
+              "type": "missing_claim_link",
+              "severity": "high",
+              "scope": "block",
+              "line_function": "transition",
+              "action_required": true
+            }
+          ],
+          "metrics": {"fact_coverage_ratio": 0.95}
+        }
+        """
+
+    monkeypatch.setattr(
+        "app.pipeline.phase6_writing.citation_auditor.call_haiku_structured",
+        _fake_call_haiku_structured,
+    )
+
+    audit = await _run_citation_audit(
+        {
+            "dialogue": [_line("And then the government fixed the peg.", [])],
+            "available_claims": {},
+            "forbidden_phrases": [],
+            "rigor_policy": "",
+            "language": "en",
+        }
+    )
+
+    assert audit == {
+        "passed": False,
+        "issues": [
+            {
+                "line_index": 0,
+                "type": "missing_claim_link",
+                "severity": "medium",
+                "scope": "repair",
+                "line_function": "transition",
+                "action_required": True,
+                "description": "",
+                "suggestion": "",
+            }
+        ],
+        "metrics": {
+            "fact_coverage_ratio": 0.95,
             "forbidden_phrase_hits": 0.0,
             "rigor_policy_violations": 0.0,
             "persona_consistency_score": 0.0,
@@ -818,9 +1446,8 @@ async def test_attempt_citation_repair_retries_blocking_scene_once(monkeypatch: 
             ]
         },
         {
-            "dialogue": [
-                _line("Second attempt line", ["c1"]),
-                _line("Follow-up", [], speaker="B"),
+            "repaired_lines": [
+                {"line_index": 0, "speaker": "A", "text": "Second attempt line", "claim_ids": ["c1"]},
             ]
         },
     ]
@@ -876,7 +1503,10 @@ async def test_attempt_citation_repair_retries_blocking_scene_once(monkeypatch: 
     )
 
     assert accepted is True
-    assert repaired_dialogue == raw_responses[1]["dialogue"]
+    assert repaired_dialogue == [
+        _line("Second attempt line", ["c1"]),
+        _line("Follow-up", [], speaker="B"),
+    ]
     assert repaired_audit == {
         "passed": False,
         "issues": [{"line_index": 0, "type": "missing_claim_link", "severity": "medium", "scope": "repair"}],
@@ -884,7 +1514,7 @@ async def test_attempt_citation_repair_retries_blocking_scene_once(monkeypatch: 
     }
     assert len(prompts) == 2
     assert '"repair_mode": "line_repair"' in prompts[0]["prompt"]
-    assert '"repair_mode": "scene_repair"' in prompts[1]["prompt"]
+    assert '"repair_mode": "line_repair"' in prompts[1]["prompt"]
     assert "retry_feedback" in prompts[1]["prompt"]
 
 

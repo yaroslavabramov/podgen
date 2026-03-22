@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from app.config import settings
 from app.pipeline.phase6_writing.screenwriter import (
     SCREENWRITER_SYSTEM,
+    _apply_screenwriter_dialogue,
     _build_already_covered_claims_payload,
     _build_new_information_goal,
     _build_recent_scene_starts,
@@ -157,6 +158,7 @@ def test_build_scene_prompt_payload_uses_local_and_cross_act_context() -> None:
 
 def test_screenwriter_prompt_demands_cross_act_memory_and_looser_dialogue() -> None:
     assert "All dialogue lines MUST be in the `language` from the user payload." in SCREENWRITER_SYSTEM
+    assert "Keep the spoken register natural for that language; avoid translated-from-English phrasing." in SCREENWRITER_SYSTEM
     assert "Use `description` as the main job of the scene." in SCREENWRITER_SYSTEM
     assert "previous_act_summary" in SCREENWRITER_SYSTEM
     assert "already_covered_claims_global" in SCREENWRITER_SYSTEM
@@ -172,6 +174,9 @@ def test_screenwriter_prompt_demands_cross_act_memory_and_looser_dialogue() -> N
     assert "A challenge can begin from tension, contrast, doubt, or a missing implication." in SCREENWRITER_SYSTEM
     assert "If a nearby scene already used the same opener shape or agreement shape" in SCREENWRITER_SYSTEM
     assert "Do not default every reaction to the same opener or confirmation shape." in SCREENWRITER_SYSTEM
+    assert "Contrastive opener guidance:" in SCREENWRITER_SYSTEM
+    assert 'Bad: scene N ends with "so the defense worked"' in SCREENWRITER_SYSTEM
+    assert "Better: previous scene lands the conclusion, new scene opens from the cost" in SCREENWRITER_SYSTEM
     assert "These are soft tendencies, not rigid scene roles." in SCREENWRITER_SYSTEM
     assert "scene_claim_mode" in SCREENWRITER_SYSTEM
     assert "scene_job" in SCREENWRITER_SYSTEM
@@ -226,6 +231,29 @@ def test_build_previous_scene_payload_prefers_actual_written_scene_continuity() 
         "mechanism_anchors": [],
         "last_line": "So now show what broke first.",
     }
+
+
+def test_apply_screenwriter_dialogue_resets_quality_and_updates_baseline() -> None:
+    segment = SimpleNamespace(
+        dialogue_json=[{"speaker": "A", "text": "Old line", "claim_ids": ["c0"]}],
+        writer_original_dialogue_json=[{"speaker": "A", "text": "Older baseline", "claim_ids": ["c-1"]}],
+        engagement_score=0.5,
+        audit_status="failed",
+        quality_metrics={"fact_coverage_ratio": 0.5},
+        audit_findings={"citation": {"issues": []}},
+    )
+    new_dialogue = [{"speaker": "B", "text": "New writer draft", "claim_ids": ["c1"]}]
+
+    _apply_screenwriter_dialogue(segment, new_dialogue)
+
+    assert segment.dialogue_json == new_dialogue
+    assert segment.writer_original_dialogue_json == new_dialogue
+    assert segment.dialogue_json is not new_dialogue
+    assert segment.writer_original_dialogue_json is not new_dialogue
+    assert segment.engagement_score is None
+    assert segment.audit_status == "pending"
+    assert segment.quality_metrics is None
+    assert segment.audit_findings is None
 
 
 def test_build_previous_scene_payload_falls_back_to_manifest_claims_and_transition_note() -> None:

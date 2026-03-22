@@ -229,6 +229,9 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 **Round 25 (phase 6 quality stack, first actionable slice):**
 - [x] **P1**: Added `script_segments.audit_findings` JSONB + migration so phase 6 audits persist structured findings, not only scalar verdicts
 - [x] **P1**: `writer_revolt` replaced the old pure `score < 0.6` gate with boundary-aware dialogue audit findings (`severity` / `scope`) and inline `scene_polish` for repairable flow/style issues
+- [x] **P1**: Propagated explicit `language` through Phase 6 dialogue audit/polish prompts, so engagement checks and polish preserve spoken register in the dialogue language instead of relying on implicit inference
+- [x] **P1**: Reworked citation question post-filter toward structured multilingual audit signals (`line_function`, `action_required`) instead of system-level phrase heuristics
+- [x] **P1**: Structured citation audit signals now affect non-question transitions/synthesis and actual action semantics (`passed`, repair trigger, blocking), not just helper-level question downgrades
 - [x] **P1**: Full scene regeneration remains only as fallback via `audit_status = REVISED` for `scene_rewrite` findings; polished scenes are reused and stale audit findings are cleared on screenwriter rewrite
 - [x] **P1**: `citation_auditor` now persists structured citation issues, attempts scene-level citation repair, re-audits repaired scenes, and blocks audio on unresolved high-severity rigor failures
 - [x] **P1**: Added phase 6 debug dumps for `dialogue_audit`, `dialogue_polish`, `citation_audit`, and `citation_repair`
@@ -254,6 +257,20 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P1**: Tightened the non-assertive guard after review: only question lines get deterministic claim-link downgrades; short factual recap lines keep full grounding requirements
 - [x] **P1**: Reworked citation repair prompts around spoken podcast voice: same-language register, preserved agency, local clause repair before deletion, scene-position awareness, and contrastive anti-kanzelarit / anti-double-hedging examples
 - [x] **P1**: `scene_repair` now receives flagged-line payloads and is told to focus edits on flagged lines while leaving clean lines as intact as possible; only a tiny whitelist of genuinely generic questions downgrades `unverified_stated_as_fact` to `record`, while recap / confirmation questions and loaded wh-questions remain actionable
+
+**Round 28 (phase 6 writer/editor completion slice):**
+- [x] **P1**: `writer_revolt` now audits all scenes first, builds cheap act-level repetition/distribution reports, and prioritizes polish per act instead of spending a de facto episode-global budget on early scenes
+- [x] **P1**: `dialogue_polish` acceptance is now issue-aware for opener echo/restatement; polish that keeps the same opener move is rejected
+- [x] **P1**: `screenwriter` prompt gained stronger anti-echo contrastive opener guidance, so continuation means consequence/pressure/question rather than soft paraphrase of the prior landing
+- [x] **P1**: Added `writer_original_dialogue_json` + migration so downstream repairs no longer erase the last screenwriter baseline for a scene
+- [x] **P1**: `scene_repair` metadata merge now preserves `emotion` / `ssml_hints` where repaired lines stay textually aligned with the original
+- [x] **P1**: Split writer-side intervention accounting from graph rewrite-loop accounting (`writer_revolt_counts_by_act` vs `writer_planner_loops`) and added a dedicated graph rewrite-loop setting
+
+**Round 29 (phase 6 full-plan closeout):**
+- [x] **P1**: Added compact act-level `dialogue_audit` on scene-edge summaries, so repeated opener / confirmation / interruption families are prioritized as act-level distribution problems
+- [x] **P1**: `citation_repair` is now line-role-aware; sensitive opener / landing / punchline lines prefer `line_repair`, and unflagged sensitive lines are protected from scene-wide rewrites
+- [x] **P1**: Non-blocking citation repair acceptance now evaluates changed/relevant lines instead of relying on noisy full-scene re-audit stability
+- [x] **P1**: `available_claims` now carry attribution/source-support metadata and the citation taxonomy now includes `unsupported_source_framing`
 
 **Round 69 (fast-web retrieval + quote truncation hardening):**
 - [x] **P0**: Remove fast-web `[:3]` gap cap and switch governor semantics to processed gaps instead of evidence items

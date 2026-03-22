@@ -10,6 +10,14 @@
 
 Ключевое продуктовое правило: если тема узкая под заданную длительность, система **уходит вглубь** и/или делает **контролируемое смежное расширение** (adjacent expansion) --- при этом **не льёт воду**: всё должно быть обеспечено Claims/Evidence.
 
+Неоспоримое инженерное ограничение:
+
+- сервис должен оставаться универсальным и мультиязычным
+- нельзя чинить пайплайн кейсовыми хаками под один эпизод, язык или корпус
+- нельзя полагаться на системные словари, hand-built wordlists, phrase blacklists или прочие brittle эвристики, завязанные на конкретные формулировки
+- допустимы только user/project-level ограничения вроде `forbidden_phrases` в ShowBible
+- системные фиксы должны опираться на structured metadata, prompt contracts, issue taxonomy, repair strategy и acceptance logic, которые масштабируются между языками и корпусами
+
 ---
 
 ## **Фаза 0: Show Setup (NEW) --- "The Show Bible"**
@@ -616,8 +624,14 @@ Web extraction использует каскад extractors:
 
 - видит текущую сцену плюс компактный boundary context от предыдущей сцены
 - сохраняет structured findings (`type`, `severity`, `scope`, `description`, `suggestion`) в `script_segments.audit_findings`
+- получает явный `language` и оценивает spoken naturalness / rhythm в этом языке, а не по implicit English defaults
+- сначала аудирует все сцены, затем строит cheap act-level repetition/distribution report и тратит budget на polish **per act**, а не effectively per run
+- act-level report живёт внутри того же writer-quality слоя: он показывает dominant opening/closing speaker, issue-family clustering и какие сцены сильнее всего поддерживают повторяющийся opener/agreement rhythm
+- поверх heuristic report теперь есть compact act-level Haiku audit по scene-edge summaries; он ранжирует scenes как intervention points для repeated opener / confirmation / interruption families, не добавляя full-scene rewrite pass
 - medium-severity проблемы с scope `scene_polish` пытается чинить inline через scene-level polish pass
-- prompt для polish получает `scene_job`, чтобы polish не ломал intended move сцены
+- prompt для polish получает `scene_job` и `language`, чтобы polish не ломал intended move сцены и не дрейфовал в translated-from-English phrasing
+- prompt для polish может получать compact `act_repetition_report`, чтобы использовать выбранную сцену как место, где надо ломать доминирующий opener/confirmation pattern, а не просто чинить локальную фразу
+- acceptance for `scene_opening_echo` / `boundary_restatement` is now issue-aware: polish не принимается, если opener по сути остался тем же
 - только high-severity `scene_rewrite` проблемы отправляют сцену назад в `screenwriter` через `audit_status = REVISED`
 
 Легитимные причины:
@@ -650,6 +664,9 @@ Web extraction использует каскад extractors:
 - теперь сохраняет structured citation findings (`type`, `severity`, `scope`) в `script_segments.audit_findings`
 
 - detection-pass делает Haiku; Sonnet остаётся только для `citation_repair`
+- detection-pass и repair-пассы получают явный `language`, чтобы factual / conversational judgments делались в языке диалога, а не по implicit English conventions
+- detection-pass теперь может возвращать structured issue signals вроде `line_function` / `action_required`, чтобы post-filter различал open questions, premise-heavy questions, recaps и transitions без system-level phrase dictionaries
+- эти structured signals теперь участвуют и в runtime semantics: non-question transitions / synthesis lines can be downgraded from actionable findings, and `action_required=false` is honored in `passed`, repair-trigger, and blocking logic instead of being ignored after normalization
 
 - detection-pass получает не весь episode claim universe, а scene-local claim subset: `dialogue.claim_ids` + manifest-assigned scene claims
 
@@ -671,10 +688,15 @@ Web extraction использует каскад extractors:
 - repaired scene повторно аудируется на том же narrowed context; repair принимается по blocker-focused rules:
   - сначала используется `line_repair`: модель переписывает только flagged line indexes, а auditor делает mechanical splice и сохраняет все unflagged lines без изменений
   - `scene_repair` используется только как fallback, если проблема шире локального patch
+  - line-role sensitivity: opener / landing / penultimate lines считаются sensitive, поэтому citation layer предпочитает `line_repair` на таких линиях и не даёт `scene_repair` свободно переписывать unflagged handoff lines
+  - accepted `scene_repair` теперь metadata-aware: если repaired line текстуально совпадает с original, сохраняются `emotion` / `ssml_hints`; если меняются только `claim_ids`, line-level audio cues тоже сохраняются
   - original blocking issues must be resolved/downgraded
   - no new blocking issues
   - required claim coverage must be preserved for assertive content; only repaired question lines may drop stale `claim_ids`
+  - for non-blocking repairs, acceptance now biases toward changed/relevant lines instead of demanding full-scene re-audit stability, so unrelated new medium noise on untouched lines does not automatically reject a locally improved repair
   - line-count drift must stay bounded for scene-level repairs (no free-form scene rewrite disguised as rigor repair)
+
+- `available_claims` now carry attribution/source-support metadata, and citation issues may include `unsupported_source_framing` when a line starts sounding explicitly source-attributed without underlying claim support for that rhetorical move
 
 - scenes с исходными `scope=block` findings получают ещё один repair attempt с compact retry feedback, чтобы один неудачный Sonnet rewrite не ронял весь дорогой run
 

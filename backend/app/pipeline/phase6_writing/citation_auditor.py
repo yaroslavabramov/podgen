@@ -35,6 +35,15 @@ logger = logging.getLogger(__name__)
 
 CITATION_SEVERITIES = {"low", "medium", "high"}
 CITATION_SCOPES = {"record", "repair", "block"}
+ISSUE_LINE_FUNCTIONS = {
+    "assertive",
+    "question_open",
+    "question_with_premise",
+    "recap",
+    "transition",
+    "synthesis",
+    "other",
+}
 MAX_REPAIR_LINE_DRIFT_RATIO = 0.3
 MAX_LINE_REPAIR_TARGETS = 2
 
@@ -47,9 +56,11 @@ Return JSON:
   "issues": [
     {
       "line_index": 0,
-      "type": "unverified_stated_as_fact|forbidden_phrase|missing_attribution|audience_mismatch|missing_claim_link|temp_source_only_claim|disputed_without_balance",
+      "type": "unverified_stated_as_fact|forbidden_phrase|missing_attribution|audience_mismatch|missing_claim_link|temp_source_only_claim|disputed_without_balance|unsupported_source_framing",
       "severity": "low|medium|high",
       "scope": "record|repair|block",
+      "line_function": "assertive|question_open|question_with_premise|recap|transition|synthesis|other",
+      "action_required": true,
       "description": "what is wrong",
       "suggestion": "how to fix it"
     }
@@ -68,10 +79,13 @@ Check rules:
 2. UNVERIFIED claims cannot be stated confidently.
 3. DISPUTED claims must present both sides or clear uncertainty.
 4. OPINION/REPORT claims need attribution.
+4a. Explicit source framing is only valid when `available_claims` actually support that attribution/source frame.
 5. No forbidden phrases.
 6. Audience level must match the show.
 7. Do not require `claim_ids` on purely conversational lines that do not add a new factual assertion.
 8. Questions, callbacks, recaps, scene transitions, and synthesis lines should only be flagged for `missing_claim_link` if they introduce a new unsupported fact.
+9. Set `line_function` for each issue so downstream normalization can distinguish assertive lines from open questions, recap questions, transitions, and synthesis.
+10. Set `action_required=false` when the issue is informational only and should not trigger repair, even if the line is being mentioned for audit visibility.
 
 Severity guide:
 - `low`: acceptable for now, record it only
@@ -81,7 +95,12 @@ Severity guide:
 Scope guide:
 - `record`: informational only
 - `repair`: attempt a repair pass
-- `block`: if unresolved after repair, block audio"""
+- `block`: if unresolved after repair, block audio
+
+Language contract:
+- The payload includes `language`.
+- Audit the dialogue in that language and treat spoken questions, recaps, and transitions according to their function in that language.
+- Do not assume English phrasing conventions when judging whether a line is assertive, recap-like, or purely conversational."""
 
 LINE_REPAIR_SYSTEM = """You are repairing factual-rigor issues in specific podcast dialogue lines.
 
@@ -106,6 +125,7 @@ Rules:
   2. keep the content but narrow or hedge only the unsupported fragment
   3. replace over-precise wording with a nearby supported version
   4. delete content only as a last resort
+- Use explicit source framing only when the supporting claims actually include attribution/source support. Do not invent a source frame that is absent from `available_claims`.
 - If `available_claims` mark a claim as `verified`, you may remove unnecessary caution.
 - If a claim is `observed` or `unverified`, do not increase confidence beyond that support level.
 - Do not default to bureaucratic or academic hedges like `по имеющимся данным`, `в соответствии с`, `следует из`, or `я должен оговориться`.
@@ -159,6 +179,7 @@ Rules:
   2. keep the content but narrow or hedge only the unsupported fragment
   3. replace over-precise wording with a nearby supported version
   4. delete content only as a last resort
+- Use explicit source framing only when the supporting claims actually include attribution/source support. Do not invent a source frame that is absent from `available_claims`.
 - If `available_claims` mark a claim as `verified`, you may remove unnecessary caution.
 - If a claim is `observed` or `unverified`, do not increase confidence beyond that support level.
 - Add hedging or attribution where required, but do not default to bureaucratic or academic phrases like `по имеющимся данным`, `в соответствии с`, `следует из`, or `я должен оговориться`.
@@ -388,10 +409,14 @@ async def _load_claims_map(db, claim_ids: list[str]) -> dict[str, dict[str, Any]
 
     result = await db.execute(select(Claim).where(Claim.id.in_(claim_uuids)))
     for claim in result.scalars():
+        has_attribution = bool(claim.attribution)
         claims_map[str(claim.id)] = {
             "type": claim.claim_type,
             "verification": claim.verification_level,
             "statement": claim.statement,
+            "attribution": claim.attribution,
+            "has_attribution": has_attribution,
+            "supports_source_framing": has_attribution or claim.claim_type in {"opinion", "report"},
         }
     return claims_map
 
@@ -445,7 +470,7 @@ async def _run_citation_audit(prompt_payload: dict[str, Any]) -> dict[str, Any]:
         issues=_normalize_citation_issues(audit.get("issues")),
     )
     metrics = _normalize_metrics(audit.get("metrics"))
-    passed = not any(issue.get("scope") in {"repair", "block"} for issue in issues)
+    passed = not any(_issue_requires_action(issue) for issue in issues)
     return {"passed": passed, "issues": issues, "metrics": metrics}
 
 
@@ -489,6 +514,8 @@ async def _attempt_citation_repair(
         1, int(settings.max_citation_repair_attempts)
     )
     repair_attempts = _build_citation_repair_attempt_plan(
+        original_dialogue,
+        scene_context,
         original_audit["issues"],
         max_attempts=max_attempts,
     )
@@ -610,22 +637,37 @@ async def _attempt_citation_repair(
 
 
 def _build_citation_repair_attempt_plan(
+    dialogue: list[dict[str, Any]],
+    scene_context: dict[str, Any],
     issues: list[dict[str, Any]],
     *,
     max_attempts: int,
 ) -> list[dict[str, Any]]:
-    primary_mode, target_line_indexes = _select_citation_repair_mode(issues)
+    primary_mode, target_line_indexes = _select_citation_repair_mode(dialogue=dialogue, issues=issues)
     attempts: list[dict[str, Any]] = [{"mode": primary_mode, "target_line_indexes": target_line_indexes}]
     if max_attempts <= 1:
         return attempts
 
-    fallback_mode = "scene_repair"
+    sensitive_indexes = _sensitive_line_indexes(dialogue)
+    actionable_indexes = set(_actionable_line_indexes(issues))
+    fallback_mode = (
+        "line_repair"
+        if actionable_indexes
+        and actionable_indexes.issubset(sensitive_indexes)
+        and len(actionable_indexes) <= MAX_LINE_REPAIR_TARGETS
+        else "scene_repair"
+    )
     while len(attempts) < max_attempts:
-        attempts.append({"mode": fallback_mode, "target_line_indexes": []})
+        fallback_targets = (
+            sorted(actionable_indexes)[:MAX_LINE_REPAIR_TARGETS]
+            if fallback_mode == "line_repair"
+            else []
+        )
+        attempts.append({"mode": fallback_mode, "target_line_indexes": fallback_targets})
     return attempts
 
 
-def _select_citation_repair_mode(issues: list[dict[str, Any]]) -> tuple[str, list[int]]:
+def _select_citation_repair_mode(*, dialogue: list[dict[str, Any]], issues: list[dict[str, Any]]) -> tuple[str, list[int]]:
     actionable = _actionable_citation_issues(issues)
     if not actionable:
         return "scene_repair", []
@@ -643,6 +685,11 @@ def _select_citation_repair_mode(issues: list[dict[str, Any]]) -> tuple[str, lis
         and all(_issue_line_index(issue) in line_indexes for issue in actionable)
     ):
         return "line_repair", line_indexes
+    sensitive_indexes = _sensitive_line_indexes(dialogue)
+    if line_indexes and set(line_indexes).issubset(sensitive_indexes):
+        if len(line_indexes) <= MAX_LINE_REPAIR_TARGETS:
+            return "line_repair", line_indexes
+        return "scene_repair", []
     return "scene_repair", []
 
 
@@ -670,6 +717,7 @@ def _build_citation_repair_prompt_payload(
         "rigor_policy": rigor_policy,
         "language": language,
         "flagged_line_indexes": flagged_line_indexes,
+        "line_roles": _build_line_roles(dialogue),
     }
     if repair_mode == "line_repair":
         payload["target_line_indexes"] = target_line_indexes
@@ -715,7 +763,11 @@ async def _run_citation_repair_attempt(
             repaired_lines=repaired_lines,
             target_line_indexes=target_line_indexes,
         )
-    return _normalize_dialogue_output(parsed.get("dialogue"))
+    repaired_dialogue = _normalize_dialogue_output(parsed.get("dialogue"))
+    return _merge_scene_repair_metadata(
+        original_dialogue=original_dialogue,
+        repaired_dialogue=repaired_dialogue,
+    )
 
 
 def _normalize_line_repair_output(value: Any) -> dict[int, dict[str, Any]] | None:
@@ -772,6 +824,47 @@ def _splice_repaired_lines(
     return spliced
 
 
+def _merge_scene_repair_metadata(
+    *,
+    original_dialogue: list[dict[str, Any]],
+    repaired_dialogue: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]] | None:
+    if not repaired_dialogue:
+        return None
+
+    merged: list[dict[str, Any]] = []
+    original_lines = [line for line in original_dialogue if isinstance(line, dict)]
+    for idx, repaired_line in enumerate(repaired_dialogue):
+        if not isinstance(repaired_line, dict):
+            return None
+        merged_line = deepcopy(repaired_line)
+        original_line = original_lines[idx] if idx < len(original_lines) else None
+        if not isinstance(original_line, dict):
+            merged.append(merged_line)
+            continue
+
+        original_speaker = str(original_line.get("speaker") or "").strip()
+        repaired_speaker = str(repaired_line.get("speaker") or "").strip()
+        original_text = str(original_line.get("text") or "").strip()
+        repaired_text = str(repaired_line.get("text") or "").strip()
+
+        if original_speaker == repaired_speaker and original_text == repaired_text:
+            preserved = deepcopy(original_line)
+            preserved["claim_ids"] = list(repaired_line.get("claim_ids") or [])
+            merged.append(preserved)
+            continue
+
+        if original_speaker == repaired_speaker and original_text != repaired_text:
+            if "emotion" in original_line and "emotion" not in merged_line:
+                merged_line["emotion"] = original_line.get("emotion")
+            if "ssml_hints" in original_line and "ssml_hints" not in merged_line:
+                merged_line["ssml_hints"] = deepcopy(original_line.get("ssml_hints"))
+
+        merged.append(merged_line)
+
+    return merged
+
+
 def _normalize_citation_issues(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         return []
@@ -799,6 +892,14 @@ def _normalize_citation_issues(value: Any) -> list[dict[str, Any]]:
                 scope = "repair"
             else:
                 scope = "record"
+        line_function = str(item.get("line_function") or "").strip().lower()
+        if line_function not in ISSUE_LINE_FUNCTIONS:
+            line_function = "other"
+        raw_action_required = item.get("action_required")
+        if isinstance(raw_action_required, bool):
+            action_required = raw_action_required
+        else:
+            action_required = scope in {"repair", "block"}
 
         normalized.append(
             {
@@ -806,6 +907,8 @@ def _normalize_citation_issues(value: Any) -> list[dict[str, Any]]:
                 "type": issue_type.strip(),
                 "severity": severity,
                 "scope": scope,
+                "line_function": line_function,
+                "action_required": action_required,
                 "description": str(item.get("description") or "").strip(),
                 "suggestion": str(item.get("suggestion") or "").strip(),
             }
@@ -826,8 +929,8 @@ def _post_filter_citation_issues(*, dialogue: object, issues: list[dict[str, Any
             filtered.append(issue)
             continue
 
-        if _line_is_question(text):
-            filtered.append(_downgrade_non_assertive_issue(issue, text=text, question=True))
+        if _line_is_question(text) or _issue_has_non_assertive_signal(issue):
+            filtered.append(_downgrade_non_assertive_issue(issue, text=text, question=_line_is_question(text)))
             continue
         filtered.append(issue)
     return filtered
@@ -840,25 +943,36 @@ def _downgrade_non_assertive_issue(issue: dict[str, Any], *, text: str, question
 
     downgraded = dict(issue)
     has_fact_markers = _line_has_concrete_fact_markers(text)
-    pure_question = question and _question_is_pure_request(text)
+    line_function = str(downgraded.get("line_function") or "").strip().lower()
+    action_required = downgraded.get("action_required")
+    non_assertive = line_function in {"question_open", "transition", "synthesis"}
+    informational_non_assertive = action_required is False or (
+        question and line_function == "question_open" and action_required is not True
+    )
     if issue_type == "missing_claim_link":
-        if pure_question and not has_fact_markers:
+        if (question or non_assertive) and not has_fact_markers and informational_non_assertive:
             downgraded["severity"] = "low"
             downgraded["scope"] = "record"
+            downgraded["action_required"] = False
+            return downgraded
+        if downgraded.get("scope") == "record" or downgraded.get("severity") == "low":
             return downgraded
         downgraded["severity"] = "medium"
         downgraded["scope"] = "repair"
+        downgraded["action_required"] = True
         return downgraded
 
-    if pure_question and not has_fact_markers:
+    if (question or non_assertive) and not has_fact_markers and informational_non_assertive:
         downgraded["severity"] = "low"
         downgraded["scope"] = "record"
+        downgraded["action_required"] = False
         return downgraded
 
     if downgraded.get("scope") == "block":
         downgraded["scope"] = "repair"
     if downgraded.get("severity") == "high":
         downgraded["severity"] = "medium"
+    downgraded["action_required"] = True
     return downgraded
 
 
@@ -875,92 +989,9 @@ def _line_is_question(text: str) -> bool:
     return text.rstrip().endswith("?")
 
 
-def _question_is_pure_request(text: str) -> bool:
-    normalized = " ".join(text.strip().split()).casefold().rstrip("?")
-    if not normalized:
-        return False
-
-    core = normalized
-    for prefix in ("а ", "и ", "но ", "ну "):
-        if core.startswith(prefix):
-            core = core[len(prefix):].lstrip()
-
-    if any(
-        core.startswith(prefix)
-        for prefix in (
-            "то есть",
-            "получается",
-            "выходит",
-            "значит",
-            "иначе говоря",
-            "другими словами",
-            "подожди",
-            "подождите",
-            "правильно ли я понимаю",
-            "верно ли я понимаю",
-        )
-    ):
-        return False
-
-    if " или " in core:
-        return False
-    tokens = core.split()
-    if not tokens:
-        return False
-    if len(tokens) == 1:
-        return tokens[0] in {
-            "кто",
-            "что",
-            "как",
-            "почему",
-            "зачем",
-            "где",
-            "когда",
-            "откуда",
-            "куда",
-        }
-
-    if len(tokens) != 2:
-        return False
-
-    if tokens[0] != "что":
-        return False
-
-    return tokens[1] in {
-        "произошло",
-        "случилось",
-        "дальше",
-        "потом",
-        "теперь",
-    }
-def _line_is_transition_or_recap(text: str) -> bool:
-    normalized = " ".join(text.strip().split()).casefold()
-    if _line_has_concrete_fact_markers(normalized):
-        return False
-    prefixes = (
-        "то есть",
-        "получается",
-        "выходит",
-        "короче",
-        "иначе говоря",
-        "другими словами",
-        "и вот",
-        "но тогда",
-        "хорошо",
-        "ладно",
-        "итак",
-        "итого",
-        "в итоге",
-        "so",
-        "so then",
-        "in other words",
-        "which means",
-        "bottom line",
-        "okay",
-        "ok",
-        "all right",
-    )
-    return len(normalized.split()) <= 18 and any(normalized.startswith(prefix) for prefix in prefixes)
+def _issue_has_non_assertive_signal(issue: dict[str, Any]) -> bool:
+    line_function = str(issue.get("line_function") or "").strip().lower()
+    return line_function in {"question_open", "transition", "synthesis"}
 
 
 def _line_has_concrete_fact_markers(text: str) -> bool:
@@ -1041,7 +1072,7 @@ def _blocking_issue_signatures(issues: list[dict[str, Any]]) -> set[tuple[int, s
     return {
         _blocking_issue_signature(issue)
         for issue in issues
-        if isinstance(issue, dict) and issue.get("scope") == "block"
+        if _issue_is_blocking(issue)
     }
 
 
@@ -1052,17 +1083,17 @@ def _line_count_drift_exceeds(*, original_line_count: int, repaired_line_count: 
 
 def _should_attempt_citation_repair(issues: list[dict[str, Any]]) -> bool:
     return any(
-        issue.get("scope") in {"repair", "block"} and _citation_severity_rank(str(issue.get("severity"))) >= 2
+        _issue_requires_action(issue) and _citation_severity_rank(str(issue.get("severity"))) >= 2
         for issue in issues
     )
 
 
 def _has_blocking_citation_issues(issues: list[dict[str, Any]]) -> bool:
-    return any(issue.get("scope") == "block" for issue in issues)
+    return any(_issue_is_blocking(issue) for issue in issues)
 
 
 def _actionable_citation_issues(issues: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [issue for issue in issues if isinstance(issue, dict) and issue.get("scope") in {"repair", "block"}]
+    return [issue for issue in issues if _issue_requires_action(issue)]
 
 
 def _issues_for_line_indexes(issues: list[dict[str, Any]], line_indexes: list[int]) -> list[dict[str, Any]]:
@@ -1079,20 +1110,51 @@ def _actionable_line_indexes(issues: list[dict[str, Any]]) -> list[int]:
         {
             _issue_line_index(issue)
             for issue in issues
-            if isinstance(issue, dict)
-            and issue.get("scope") in {"repair", "block"}
-            and _issue_line_index(issue) >= 0
+            if _issue_requires_action(issue) and _issue_line_index(issue) >= 0
         }
     )
+
+
+def _line_count(dialogue: list[dict[str, Any]]) -> int:
+    return len(dialogue) if isinstance(dialogue, list) else 0
+
+
+def _line_role_for_index(dialogue: list[dict[str, Any]], line_index: int) -> str:
+    line_count = _line_count(dialogue)
+    if line_count <= 0 or line_index < 0 or line_index >= line_count:
+        return "other"
+    if line_index == 0:
+        return "scene_opener"
+    if line_index == line_count - 1:
+        return "landing"
+    if line_index == line_count - 2:
+        return "punchline"
+    if line_index == 1:
+        return "setup_question"
+    return "other"
+
+
+def _build_line_roles(dialogue: list[dict[str, Any]]) -> dict[int, str]:
+    return {
+        line_index: _line_role_for_index(dialogue, line_index)
+        for line_index in range(_line_count(dialogue))
+    }
+
+
+def _sensitive_line_indexes(dialogue: list[dict[str, Any]]) -> set[int]:
+    line_count = _line_count(dialogue)
+    if line_count <= 0:
+        return set()
+    indexes = {0, line_count - 1}
+    if line_count >= 2:
+        indexes.add(line_count - 2)
+    return {idx for idx in indexes if 0 <= idx < line_count}
 
 
 def _summarize_citation_issues(issues: list[dict[str, Any]]) -> list[str]:
     summaries: list[str] = []
     for issue in issues:
-        if not isinstance(issue, dict):
-            continue
-        scope = str(issue.get("scope") or "").strip()
-        if scope not in {"repair", "block"}:
+        if not _issue_requires_action(issue):
             continue
         issue_type = str(issue.get("type") or "").strip() or "issue"
         line_index = _issue_line_index(issue)
@@ -1109,7 +1171,7 @@ def _summarize_citation_issues(issues: list[dict[str, Any]]) -> list[str]:
 
 def _build_citation_repair_retry_feedback(*, original_audit: dict[str, Any], repaired_audit: dict[str, Any]) -> str:
     remaining_blockers = _summarize_citation_issues(
-        [issue for issue in repaired_audit.get("issues", []) if issue.get("scope") == "block"]
+        [issue for issue in repaired_audit.get("issues", []) if _issue_is_blocking(issue)]
     )
     if remaining_blockers:
         return (
@@ -1130,6 +1192,29 @@ def _build_citation_repair_retry_feedback(*, original_audit: dict[str, Any], rep
             + "; ".join(original_actionable)
         )
     return "Previous repair attempt was rejected. Preserve the original scene more closely and make only minimal rigor fixes."
+
+
+def _issue_requires_action(issue: Any) -> bool:
+    if not isinstance(issue, dict):
+        return False
+    scope = str(issue.get("scope") or "").strip().lower()
+    if scope not in {"repair", "block"}:
+        return False
+    action_required = issue.get("action_required")
+    if isinstance(action_required, bool):
+        return action_required
+    return True
+
+
+def _issue_is_blocking(issue: Any) -> bool:
+    if not isinstance(issue, dict):
+        return False
+    if str(issue.get("scope") or "").strip().lower() != "block":
+        return False
+    action_required = issue.get("action_required")
+    if isinstance(action_required, bool):
+        return action_required
+    return True
 
 
 def _issue_line_index(issue: dict[str, Any]) -> int:
@@ -1169,8 +1254,19 @@ def _citation_repair_improved(
     ):
         return False
 
+    if repair_mode == "scene_repair" and not _scene_repair_preserves_unflagged_sensitive_lines(
+        original_dialogue=original_dialogue,
+        repaired_dialogue=repaired_dialogue,
+        actionable_line_indexes=set(_actionable_line_indexes(original["issues"])),
+    ):
+        return False
+    if repair_mode == "scene_repair" and not _changed_line_indexes(
+        original_dialogue=original_dialogue,
+        repaired_dialogue=repaired_dialogue,
+    ):
+        return False
+
     original_actionable_issues = _actionable_citation_issues(original["issues"])
-    repaired_actionable_issues = _actionable_citation_issues(repaired["issues"])
     original_fact_coverage = float(original["metrics"].get("fact_coverage_ratio", 0.0) or 0.0)
     repaired_fact_coverage = float(repaired["metrics"].get("fact_coverage_ratio", 0.0) or 0.0)
     if repaired_fact_coverage + 0.05 < original_fact_coverage:
@@ -1204,16 +1300,39 @@ def _citation_repair_improved(
     if original_blockers:
         return not repaired_blockers
 
+    relevant_line_indexes = _relevant_reaudit_line_indexes(
+        original_dialogue=original_dialogue,
+        repaired_dialogue=repaired_dialogue,
+        original_issues=original_actionable_issues,
+        repair_mode=repair_mode,
+        target_line_indexes=target_line_indexes,
+    )
+    original_relevant_issues = _actionable_citation_issues(
+        _issues_for_line_indexes(original["issues"], relevant_line_indexes)
+    )
+    repaired_relevant_issues = _actionable_citation_issues(
+        _issues_for_line_indexes(repaired["issues"], relevant_line_indexes)
+    )
+
     if repaired["passed"] and not original["passed"]:
         return True
 
-    if len(repaired_actionable_issues) < len(original_actionable_issues):
+    if len(repaired_relevant_issues) < len(original_relevant_issues):
         return True
 
-    original_rank = _worst_citation_severity(original_actionable_issues)
-    repaired_rank = _worst_citation_severity(repaired_actionable_issues)
+    original_rank = _worst_citation_severity(original_relevant_issues)
+    repaired_rank = _worst_citation_severity(repaired_relevant_issues)
     if repaired_rank < original_rank:
         return True
+
+    sensitive_indexes = _sensitive_line_indexes(original_dialogue)
+    if sensitive_indexes & set(_actionable_line_indexes(original["issues"])):
+        original_sensitive_issues = _actionable_citation_issues(_issues_for_line_indexes(original["issues"], sorted(sensitive_indexes)))
+        repaired_sensitive_issues = _actionable_citation_issues(_issues_for_line_indexes(repaired["issues"], sorted(sensitive_indexes)))
+        if len(repaired_sensitive_issues) < len(original_sensitive_issues):
+            return True
+        if _worst_citation_severity(repaired_sensitive_issues) < _worst_citation_severity(original_sensitive_issues):
+            return True
     return False
 
 
@@ -1272,6 +1391,74 @@ def _line_repair_speakers_preserved(
         if original_line.get("speaker") != repaired_line.get("speaker"):
             return False
     return True
+
+
+def _material_line_signature(line: dict[str, Any] | None) -> tuple[str, str, tuple[str, ...]]:
+    if not isinstance(line, dict):
+        return ("", "", ())
+    claim_ids = line.get("claim_ids")
+    normalized_claim_ids = tuple(
+        claim_id.strip()
+        for claim_id in claim_ids
+        if isinstance(claim_id, str) and claim_id.strip()
+    ) if isinstance(claim_ids, list) else ()
+    return (
+        str(line.get("speaker") or "").strip(),
+        str(line.get("text") or "").strip(),
+        normalized_claim_ids,
+    )
+
+
+def _changed_line_indexes(
+    *,
+    original_dialogue: list[dict[str, Any]],
+    repaired_dialogue: list[dict[str, Any]],
+) -> set[int]:
+    limit = max(_line_count(original_dialogue), _line_count(repaired_dialogue))
+    changed: set[int] = set()
+    for line_index in range(limit):
+        if _material_line_signature(_dialogue_line(original_dialogue, line_index)) != _material_line_signature(
+            _dialogue_line(repaired_dialogue, line_index)
+        ):
+            changed.add(line_index)
+    return changed
+
+
+def _scene_repair_preserves_unflagged_sensitive_lines(
+    *,
+    original_dialogue: list[dict[str, Any]],
+    repaired_dialogue: list[dict[str, Any]],
+    actionable_line_indexes: set[int],
+) -> bool:
+    protected_indexes = _sensitive_line_indexes(original_dialogue) - set(actionable_line_indexes)
+    for line_index in protected_indexes:
+        if _material_line_signature(_dialogue_line(original_dialogue, line_index)) != _material_line_signature(
+            _dialogue_line(repaired_dialogue, line_index)
+        ):
+            return False
+    return True
+
+
+def _relevant_reaudit_line_indexes(
+    *,
+    original_dialogue: list[dict[str, Any]],
+    repaired_dialogue: list[dict[str, Any]],
+    original_issues: list[dict[str, Any]],
+    repair_mode: str,
+    target_line_indexes: list[int],
+) -> list[int]:
+    if repair_mode == "line_repair" and target_line_indexes:
+        return sorted({line_index for line_index in target_line_indexes if line_index >= 0})
+    relevant = _changed_line_indexes(
+        original_dialogue=original_dialogue,
+        repaired_dialogue=repaired_dialogue,
+    )
+    relevant.update(
+        line_index
+        for line_index in _actionable_line_indexes(original_issues)
+        if line_index >= 0
+    )
+    return sorted(relevant)
 
 
 def _dump_citation_audit_debug(

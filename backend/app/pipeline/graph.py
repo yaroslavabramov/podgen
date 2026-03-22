@@ -140,12 +140,12 @@ def _should_loop_verify(state: PipelineState) -> str:
 
 
 def _should_revolt(state: PipelineState) -> str:
-    """Check if writer revolt should trigger rewrite."""
+    """Check if writer revolt should trigger another screenwriter rewrite loop."""
     quality = state.get("quality_signals", {})
     counts = state.get("iteration_counts", {})
     revolt_count = counts.get("writer_planner_loops", 0)
     needs_rewrite = quality.get("revolt_triggered", False)
-    if needs_rewrite and revolt_count <= 4:
+    if needs_rewrite and revolt_count < settings.max_writer_rewrite_loops:
         return "write_screenplay"
     return "audit_citations"
 

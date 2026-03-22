@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import uuid
+from copy import deepcopy
 from typing import Any
 
 from sqlalchemy import select
@@ -76,12 +77,22 @@ Writing rules:
 - Language:
   - All dialogue lines MUST be in the `language` from the user payload.
   - Do not mix languages inside one line unless the evidence itself requires a short quoted term.
+  - Keep the spoken register natural for that language; avoid translated-from-English phrasing.
 - Use `description` as the main job of the scene. Use `transition_note` only as a light landing/bridge if it helps the ending.
 - Use `act_title`, `previous_scene`, `previous_act_summary`, `already_covered_claims`, `already_covered_claims_global`, and `new_information_goal` only as continuity context. Do not restate material that the listener already heard unless this scene is explicitly reframing or paying it off.
 - For the first scene of a later act, use `previous_act_summary` to build on what the listener already knows instead of resetting the story from zero.
 - If `previous_scene.last_line` is present, prefer opening the scene as a natural continuation of that last spoken thought when it fits the beat. Do not hard-reset the conversation if a smooth carry-over is available.
 - The first 1-2 lines of a new scene should advance, challenge, narrow, or reframe what the listener just heard. Do not open by paraphrasing the previous scene's closing proposition unless the beat explicitly requires a callback.
 - If the previous scene already announced the event, mechanism result, or punchline, start from the consequence, contradiction, pressure, cost, or next question instead of re-announcing it.
+- Contrastive opener guidance:
+  - Bad: previous scene lands the conclusion, new scene opens by confirming or paraphrasing that same conclusion.
+  - Better: previous scene lands the conclusion, new scene opens from the cost, consequence, narrower question, or new pressure created by that conclusion.
+  - Bad: scene N ends with "so the defense worked", scene N+1 opens with "exactly, the defense worked because...".
+  - Better: scene N ends with "so the defense worked", scene N+1 opens with "but the price was brutal: borrowing costs spiked overnight."
+  - Bad: scene N ends with "that is why trust collapsed", scene N+1 opens with "right, trust collapsed because...".
+  - Better: scene N ends with "that is why trust collapsed", scene N+1 opens with "which leaves the listener with the next pressure point: what could stop the panic now?"
+  - Bad: previous scene already asked the big question, new scene re-asks it in softer words.
+  - Better: turn that opening into a sharper sub-question, objection, or concrete consequence.
 - If the current scene overlaps with covered local or global material, briefly refer back and move to what is new in this scene.
 - If `already_covered_claims_global` includes `mechanism_anchors`, treat those anchors as signs that the mechanism is already established. Do not reteach it from zero unless this scene adds a new consequence, stress test, or reframing.
 - Use `scene_claim_mode` to decide how much explanation is still allowed:
@@ -453,17 +464,13 @@ async def write_screenplay(state: PipelineState) -> dict:
                         generation_run_id=run_uuid,
                         act_number=act_num,
                         scene_number=scene_num,
-                        dialogue_json=dialogue,
                     )
                     db.add(segment)
                     existing_segments[scene_key] = segment
                 else:
                     segment = existing_segment
-                    segment.dialogue_json = dialogue
-                    segment.engagement_score = None
-                    segment.audit_status = AuditStatus.PENDING
-                    segment.quality_metrics = None
-                    segment.audit_findings = None
+
+                _apply_screenwriter_dialogue(segment, dialogue)
 
                 await db.flush()
                 await db.commit()
@@ -515,6 +522,16 @@ def _dialogue_line_count(dialogue_json: object) -> int:
         if isinstance(text, str) and text.strip():
             count += 1
     return count
+
+
+def _apply_screenwriter_dialogue(segment: ScriptSegment, dialogue: list[dict[str, Any]]) -> None:
+    baseline_dialogue = deepcopy(dialogue)
+    segment.dialogue_json = deepcopy(dialogue)
+    segment.writer_original_dialogue_json = baseline_dialogue
+    segment.engagement_score = None
+    segment.audit_status = AuditStatus.PENDING
+    segment.quality_metrics = None
+    segment.audit_findings = None
 
 
 def _uuid_list(value: Any) -> list[str]:
