@@ -252,6 +252,8 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P1**: Switched `audit_citations` to fail-fast mode so the node stops spending after the first unresolved blocking scene
 - [x] **P1**: Bulk-loaded claims in `citation_auditor` instead of one SQL round-trip per claim
 - [x] **P1**: Tightened the non-assertive guard after review: only question lines get deterministic claim-link downgrades; short factual recap lines keep full grounding requirements
+- [x] **P1**: Reworked citation repair prompts around spoken podcast voice: same-language register, preserved agency, local clause repair before deletion, scene-position awareness, and contrastive anti-kanzelarit / anti-double-hedging examples
+- [x] **P1**: `scene_repair` now receives flagged-line payloads and is told to focus edits on flagged lines while leaving clean lines as intact as possible; only a tiny whitelist of genuinely generic questions downgrades `unverified_stated_as_fact` to `record`, while recap / confirmation questions and loaded wh-questions remain actionable
 
 **Round 69 (fast-web retrieval + quote truncation hardening):**
 - [x] **P0**: Remove fast-web `[:3]` gap cap and switch governor semantics to processed gaps instead of evidence items

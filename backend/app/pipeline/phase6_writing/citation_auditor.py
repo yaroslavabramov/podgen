@@ -93,13 +93,46 @@ Return JSON:
 }
 
 Rules:
+- This is spoken podcast dialogue, not an article, memo, or legal brief.
+- The payload includes `language`; write naturally in that language and in the same spoken register as the original.
+- Preserve the original line's spoken rhythm, sentence shape, and scene function.
+- Keep named actors and agency if they are not themselves the unsupported part.
 - Rewrite only the targeted lines.
 - Keep each targeted line on the same `line_index` and preserve its speaker.
-- Preserve local intent and scene function.
 - If the original line is a question, bridge, or recap, keep it non-assertive unless the issue explicitly requires a factual clarification.
 - Fix only the flagged citation / rigor issues.
+- Strategy order:
+  1. reuse an existing supporting `claim_id` if `available_claims` already support the line
+  2. keep the content but narrow or hedge only the unsupported fragment
+  3. replace over-precise wording with a nearby supported version
+  4. delete content only as a last resort
+- If `available_claims` mark a claim as `verified`, you may remove unnecessary caution.
+- If a claim is `observed` or `unverified`, do not increase confidence beyond that support level.
+- Do not default to bureaucratic or academic hedges like `по имеющимся данным`, `в соответствии с`, `следует из`, or `я должен оговориться`.
+- Keep the line close in length to the original. If the original is one sentence, prefer one sentence.
+- Use at most one short uncertainty marker in a line.
+- Do not turn an internal bridge into sign-off or next-episode teaser language unless `scene_context.is_final_scene_in_episode` is true.
 - Do not add new facts, institutions, dates, figures, or claims.
 - Do not rewrite or comment on unflagged lines.
+- The repaired line must sound natural when read aloud.
+
+Examples:
+- Unsupported date precision
+  - bad original: `Рецепт появился буквально через три недели.`
+  - good repair: `Рецепт появился вскоре после паники.`
+  - bad repair: `Судя по имеющимся данным, рецепт появился через некоторый промежуток времени.`
+- Unsupported bridge fact
+  - bad original: `1983 год. Тогда якоря не было — и посмотрим, что случилось.`
+  - good repair: `А вот когда такого якоря ещё не было, всё выглядело совсем иначе.`
+  - bad repair: `Об этом — в следующий раз.`
+- Unsupported agency chain
+  - bad original: `Он написал статью, чиновники прочли и взяли её за основу.`
+  - good repair: `Его позже назовут одним из архитекторов этой системы.`
+  - bad repair: `Суть механизма была в следующем.`
+- Double hedging
+  - bad original: `...вообще не было — хотя точный источник этих сведений установить затруднительно.`
+  - good repair: `...судя по всему, вообще не было — хотя источник стоит перепроверить.`
+  - bad repair: `...вообще не было — хотя я должен оговориться: точный источник установить затруднительно, так что это предположение, а не установленный факт.`
 - Output only JSON."""
 
 REPAIR_SYSTEM = """You are repairing factual-rigor issues in a podcast dialogue scene.
@@ -114,15 +147,31 @@ Return JSON:
 
 Rules:
 - Fix only the citation and rigor issues that were flagged.
+- This is spoken podcast dialogue, not an article, memo, or legal brief.
+- The payload includes `language`; write naturally in that language and in the same spoken register as the original.
 - Preserve the scene's factual meaning whenever supported by available claims.
-- Add hedging or attribution where required.
-- Remove or soften unsupported confident wording if needed.
+- Focus edits on lines flagged as `block` or `repair`; keep clean lines as unchanged as possible.
+- Preserve the scene's dramatic structure, pacing, and agency, not just its factual gist.
+- If one clause is unsupported, repair that clause and leave the surrounding story intact.
+- Keep named actors and actions if they are not themselves the unsupported part.
+- Strategy order:
+  1. reuse an existing supporting `claim_id` if `available_claims` already support the line
+  2. keep the content but narrow or hedge only the unsupported fragment
+  3. replace over-precise wording with a nearby supported version
+  4. delete content only as a last resort
+- If `available_claims` mark a claim as `verified`, you may remove unnecessary caution.
+- If a claim is `observed` or `unverified`, do not increase confidence beyond that support level.
+- Add hedging or attribution where required, but do not default to bureaucratic or academic phrases like `по имеющимся данным`, `в соответствии с`, `следует из`, or `я должен оговориться`.
+- Do not flatten a vivid story beat into generalized exposition just to remove one unsupported assertion.
 - Do not add new facts, institutions, dates, figures, or claims.
 - Preserve the scene's `scene_job`, `scene_type`, and content function.
 - Prefer the smallest edit that fixes rigor. Do not re-author the whole scene unless necessary.
 - Do not turn non-assertive lines into new exposition.
+- Do not turn a mid-episode bridge into sign-off or next-episode teaser language unless `scene_context.is_final_scene_in_episode` is true.
 - Keep the line count close to the original scene length.
+- Use at most one short uncertainty marker per line.
 - Keep only speakers `A` and `B`.
+- The repaired scene must sound natural when read aloud.
 - Output only JSON."""
 
 
@@ -610,6 +659,7 @@ def _build_citation_repair_prompt_payload(
     issues: list[dict[str, Any]],
     target_line_indexes: list[int],
 ) -> dict[str, Any]:
+    flagged_line_indexes = _actionable_line_indexes(issues)
     payload = {
         "repair_mode": repair_mode,
         "scene_context": scene_context,
@@ -619,6 +669,7 @@ def _build_citation_repair_prompt_payload(
         "forbidden_phrases": forbidden_phrases,
         "rigor_policy": rigor_policy,
         "language": language,
+        "flagged_line_indexes": flagged_line_indexes,
     }
     if repair_mode == "line_repair":
         payload["target_line_indexes"] = target_line_indexes
@@ -632,6 +683,14 @@ def _build_citation_repair_prompt_payload(
         ]
     else:
         payload["issues"] = issues
+        payload["flagged_lines"] = [
+            {
+                "line_index": line_index,
+                "dialogue": _dialogue_line(dialogue, line_index),
+                "issues": _issues_for_line_indexes(issues, [line_index]),
+            }
+            for line_index in flagged_line_indexes
+        ]
     return payload
 
 
@@ -781,8 +840,9 @@ def _downgrade_non_assertive_issue(issue: dict[str, Any], *, text: str, question
 
     downgraded = dict(issue)
     has_fact_markers = _line_has_concrete_fact_markers(text)
+    pure_question = question and _question_is_pure_request(text)
     if issue_type == "missing_claim_link":
-        if question and not has_fact_markers:
+        if pure_question and not has_fact_markers:
             downgraded["severity"] = "low"
             downgraded["scope"] = "record"
             return downgraded
@@ -790,9 +850,9 @@ def _downgrade_non_assertive_issue(issue: dict[str, Any], *, text: str, question
         downgraded["scope"] = "repair"
         return downgraded
 
-    if question and not has_fact_markers:
-        downgraded["severity"] = "medium"
-        downgraded["scope"] = "repair"
+    if pure_question and not has_fact_markers:
+        downgraded["severity"] = "low"
+        downgraded["scope"] = "record"
         return downgraded
 
     if downgraded.get("scope") == "block":
@@ -815,6 +875,64 @@ def _line_is_question(text: str) -> bool:
     return text.rstrip().endswith("?")
 
 
+def _question_is_pure_request(text: str) -> bool:
+    normalized = " ".join(text.strip().split()).casefold().rstrip("?")
+    if not normalized:
+        return False
+
+    core = normalized
+    for prefix in ("а ", "и ", "но ", "ну "):
+        if core.startswith(prefix):
+            core = core[len(prefix):].lstrip()
+
+    if any(
+        core.startswith(prefix)
+        for prefix in (
+            "то есть",
+            "получается",
+            "выходит",
+            "значит",
+            "иначе говоря",
+            "другими словами",
+            "подожди",
+            "подождите",
+            "правильно ли я понимаю",
+            "верно ли я понимаю",
+        )
+    ):
+        return False
+
+    if " или " in core:
+        return False
+    tokens = core.split()
+    if not tokens:
+        return False
+    if len(tokens) == 1:
+        return tokens[0] in {
+            "кто",
+            "что",
+            "как",
+            "почему",
+            "зачем",
+            "где",
+            "когда",
+            "откуда",
+            "куда",
+        }
+
+    if len(tokens) != 2:
+        return False
+
+    if tokens[0] != "что":
+        return False
+
+    return tokens[1] in {
+        "произошло",
+        "случилось",
+        "дальше",
+        "потом",
+        "теперь",
+    }
 def _line_is_transition_or_recap(text: str) -> bool:
     normalized = " ".join(text.strip().split()).casefold()
     if _line_has_concrete_fact_markers(normalized):
@@ -889,6 +1007,8 @@ def _build_scene_context(
         "scene_job": str(scene_metadata.get("scene_job") or "").strip(),
         "scene_type": str(scene_metadata.get("scene_type") or "").strip(),
         "description": str(scene_metadata.get("description") or "").strip(),
+        "is_final_scene_in_act": bool(scene_metadata.get("is_final_scene_in_act")),
+        "is_final_scene_in_episode": bool(scene_metadata.get("is_final_scene_in_episode")),
     }
 
 
@@ -952,6 +1072,18 @@ def _issues_for_line_indexes(issues: list[dict[str, Any]], line_indexes: list[in
         for issue in issues
         if isinstance(issue, dict) and _issue_line_index(issue) in allowed
     ]
+
+
+def _actionable_line_indexes(issues: list[dict[str, Any]]) -> list[int]:
+    return sorted(
+        {
+            _issue_line_index(issue)
+            for issue in issues
+            if isinstance(issue, dict)
+            and issue.get("scope") in {"repair", "block"}
+            and _issue_line_index(issue) >= 0
+        }
+    )
 
 
 def _summarize_citation_issues(issues: list[dict[str, Any]]) -> list[str]:

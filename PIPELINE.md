@@ -657,9 +657,16 @@ Web extraction использует каскад extractors:
 
 - medium/high severity issues запускают scene-level `citation_repair` pass
 
+- `citation_repair` теперь ориентирован не только на rigor, но и на spoken-script quality:
+  - prompt explicitly keeps podcast voice instead of drifting into legalese / academic prose
+  - repair strategy order is `reuse existing claim link -> local hedge/narrowing -> softer nearby wording -> deletion only as last resort`
+  - scene context now carries `is_final_scene_in_act` / `is_final_scene_in_episode`, so mid-episode bridges should not mutate into fake sign-offs like `об этом в следующий раз`
+  - scene-level repair gets flagged-line payloads and is told to focus edits on flagged lines while keeping clean lines as intact as possible
+  - prompts preserve named actors / agency and include contrastive examples against teaser-language, double hedging, and abstract role-speak
+
 - audit-pass имеет bounded retry на transient timeout/parse failures; если все попытки исчерпаны, сцена fail-closed превращается в blocking `audit_failure`
 
-- после LLM-аудита есть cheap post-filter для неутверждающих вопросительных реплик: questions не должны становиться false blockers только из-за отсутствующего `claim_id`, если не вводят новый конкретный факт
+- после LLM-аудита есть cheap post-filter для неутверждающих вопросительных реплик: only a tiny whitelist of genuinely generic questions (`Что произошло?`, `Что дальше?`) downgrade to `record`; recap / confirmation questions and loaded wh-questions with embedded factual premises stay actionable instead of fail-open. `unverified_stated_as_fact` on a pure generic question no longer triggers pointless `line_repair`
 
 - repaired scene повторно аудируется на том же narrowed context; repair принимается по blocker-focused rules:
   - сначала используется `line_repair`: модель переписывает только flagged line indexes, а auditor делает mechanical splice и сохраняет все unflagged lines без изменений

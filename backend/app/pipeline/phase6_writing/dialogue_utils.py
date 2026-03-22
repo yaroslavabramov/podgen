@@ -192,6 +192,7 @@ def build_manifest_scene_metadata_lookup(acts_json: object) -> dict[tuple[int, i
         return {}
 
     lookup: dict[tuple[int, int], dict[str, Any]] = {}
+    episode_last_key: tuple[int, int] | None = None
     for act_idx, act in enumerate(acts_json, start=1):
         if not isinstance(act, dict):
             continue
@@ -202,6 +203,7 @@ def build_manifest_scene_metadata_lookup(acts_json: object) -> dict[tuple[int, i
         beat_sheet = act.get("beat_sheet", [])
         if not isinstance(beat_sheet, list):
             continue
+        act_last_key: tuple[int, int] | None = None
         for scene_idx, scene in enumerate(beat_sheet, start=1):
             if not isinstance(scene, dict):
                 continue
@@ -219,7 +221,15 @@ def build_manifest_scene_metadata_lookup(acts_json: object) -> dict[tuple[int, i
                 "claim_ids": scene_manifest_claim_ids(scene),
                 "primary_claim_ids": scene_primary_claim_ids(scene),
                 "callback_claim_ids": scene_callback_claim_ids(scene),
+                "is_final_scene_in_act": False,
+                "is_final_scene_in_episode": False,
             }
+            act_last_key = (act_number, scene_number)
+            episode_last_key = act_last_key
+        if act_last_key is not None:
+            lookup[act_last_key]["is_final_scene_in_act"] = True
+    if episode_last_key is not None:
+        lookup[episode_last_key]["is_final_scene_in_episode"] = True
     return lookup
 
 

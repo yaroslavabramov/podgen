@@ -10,6 +10,8 @@ from app.pipeline.phase6_writing.citation_auditor import (
     REPAIR_SYSTEM,
     _attempt_citation_repair,
     _build_citation_audit_prompt_payload,
+    _build_citation_repair_prompt_payload,
+    _build_scene_context,
     _build_failed_citation_audit,
     _citation_repair_improved,
     _has_blocking_citation_issues,
@@ -36,7 +38,15 @@ def test_citation_auditor_prompt_demands_severity_scope_and_repair() -> None:
     assert "must be repaired or block audio" in AUDITOR_SYSTEM
     assert "Questions, callbacks, recaps, scene transitions, and synthesis lines" in AUDITOR_SYSTEM
     assert "rewrite only the targeted lines" in LINE_REPAIR_SYSTEM.lower()
+    assert "spoken podcast dialogue" in LINE_REPAIR_SYSTEM
+    assert "The payload includes `language`" in LINE_REPAIR_SYSTEM
+    assert "Do not default to bureaucratic or academic hedges" in LINE_REPAIR_SYSTEM
+    assert "Do not turn an internal bridge into sign-off or next-episode teaser language" in LINE_REPAIR_SYSTEM
+    assert "Double hedging" in LINE_REPAIR_SYSTEM
     assert "Fix only the citation and rigor issues that were flagged." in REPAIR_SYSTEM
+    assert "Focus edits on lines flagged as `block` or `repair`" in REPAIR_SYSTEM
+    assert "Preserve the scene's dramatic structure, pacing, and agency" in REPAIR_SYSTEM
+    assert "If `available_claims` mark a claim as `verified`" in REPAIR_SYSTEM
     assert "Do not add new facts, institutions, dates, figures, or claims." in REPAIR_SYSTEM
     assert "Preserve the scene's `scene_job`, `scene_type`, and content function." in REPAIR_SYSTEM
 
@@ -71,6 +81,69 @@ def test_build_citation_audit_prompt_payload_keeps_policy_and_claim_context() ->
         "rigor_policy": "No unsupported certainty.",
         "language": "ru",
     }
+
+
+def test_build_scene_context_keeps_final_scene_flags() -> None:
+    context = _build_scene_context(
+        act_number=4,
+        scene_number=6,
+        scene_metadata={
+            "scene_job": "cost",
+            "scene_type": "takeaway",
+            "description": "Final risk scene.",
+            "is_final_scene_in_act": True,
+            "is_final_scene_in_episode": True,
+        },
+    )
+
+    assert context == {
+        "act_number": 4,
+        "scene_number": 6,
+        "scene_job": "cost",
+        "scene_type": "takeaway",
+        "description": "Final risk scene.",
+        "is_final_scene_in_act": True,
+        "is_final_scene_in_episode": True,
+    }
+
+
+def test_build_citation_repair_prompt_payload_includes_flagged_lines_for_scene_repair() -> None:
+    payload = _build_citation_repair_prompt_payload(
+        repair_mode="scene_repair",
+        scene_context={
+            "act_number": 3,
+            "scene_number": 4,
+            "scene_job": "cost",
+            "scene_type": "debate",
+            "description": "Stress scene.",
+            "is_final_scene_in_act": False,
+            "is_final_scene_in_episode": False,
+        },
+        original_line_count=3,
+        dialogue=[
+            _line("Line one", ["c1"]),
+            _line("Line two", ["c2"], speaker="B"),
+            _line("Line three", []),
+        ],
+        claims_map={"c1": {"statement": "Claim one"}, "c2": {"statement": "Claim two"}},
+        forbidden_phrases=[],
+        rigor_policy="",
+        language="ru",
+        issues=[
+            {"line_index": 1, "type": "missing_claim_link", "severity": "medium", "scope": "repair"},
+            {"line_index": 2, "type": "missing_attribution", "severity": "low", "scope": "record"},
+        ],
+        target_line_indexes=[],
+    )
+
+    assert payload["flagged_line_indexes"] == [1]
+    assert payload["flagged_lines"] == [
+        {
+            "line_index": 1,
+            "dialogue": _line("Line two", ["c2"], speaker="B"),
+            "issues": [{"line_index": 1, "type": "missing_claim_link", "severity": "medium", "scope": "repair"}],
+        }
+    ]
 
 
 def test_select_scene_claims_map_uses_dialogue_and_manifest_claim_ids_only() -> None:
@@ -240,9 +313,9 @@ def test_citation_helpers_distinguish_repairable_and_blocking_issues() -> None:
     assert _has_blocking_citation_issues(blocking)
 
 
-def test_post_filter_downgrades_non_assertive_question_blockers() -> None:
+def test_post_filter_downgrades_only_short_pure_question_blockers() -> None:
     issues = _post_filter_citation_issues(
-        dialogue=[_line("Но что тогда мешало банку печатать сколько захочет?", ["c1"])],
+        dialogue=[_line("Что произошло?", ["c1"])],
         issues=[
             {
                 "line_index": 0,
@@ -269,6 +342,135 @@ def test_post_filter_downgrades_non_assertive_question_blockers() -> None:
             "type": "missing_claim_link",
             "severity": "low",
             "scope": "record",
+            "description": "",
+            "suggestion": "",
+        },
+        {
+            "line_index": 0,
+            "type": "unverified_stated_as_fact",
+            "severity": "low",
+            "scope": "record",
+            "description": "",
+            "suggestion": "",
+        },
+    ]
+
+
+def test_post_filter_keeps_loaded_wh_question_actionable() -> None:
+    issues = _post_filter_citation_issues(
+        dialogue=[_line("Почему частные банки вообще могли выпускать эти деньги?", [])],
+        issues=[
+            {
+                "line_index": 0,
+                "type": "missing_claim_link",
+                "severity": "high",
+                "scope": "block",
+                "description": "",
+                "suggestion": "",
+            },
+            {
+                "line_index": 0,
+                "type": "unverified_stated_as_fact",
+                "severity": "high",
+                "scope": "block",
+                "description": "",
+                "suggestion": "",
+            },
+        ],
+    )
+
+    assert issues == [
+        {
+            "line_index": 0,
+            "type": "missing_claim_link",
+            "severity": "medium",
+            "scope": "repair",
+            "description": "",
+            "suggestion": "",
+        },
+        {
+            "line_index": 0,
+            "type": "unverified_stated_as_fact",
+            "severity": "medium",
+            "scope": "repair",
+            "description": "",
+            "suggestion": "",
+        },
+    ]
+
+
+def test_post_filter_keeps_short_loaded_question_actionable() -> None:
+    issues = _post_filter_citation_issues(
+        dialogue=[_line("Кто это решил?", [])],
+        issues=[
+            {
+                "line_index": 0,
+                "type": "missing_claim_link",
+                "severity": "high",
+                "scope": "block",
+                "description": "",
+                "suggestion": "",
+            },
+            {
+                "line_index": 0,
+                "type": "unverified_stated_as_fact",
+                "severity": "high",
+                "scope": "block",
+                "description": "",
+                "suggestion": "",
+            },
+        ],
+    )
+
+    assert issues == [
+        {
+            "line_index": 0,
+            "type": "missing_claim_link",
+            "severity": "medium",
+            "scope": "repair",
+            "description": "",
+            "suggestion": "",
+        },
+        {
+            "line_index": 0,
+            "type": "unverified_stated_as_fact",
+            "severity": "medium",
+            "scope": "repair",
+            "description": "",
+            "suggestion": "",
+        },
+    ]
+
+
+def test_post_filter_keeps_recap_question_actionable() -> None:
+    issues = _post_filter_citation_issues(
+        dialogue=[_line("То есть именно частные банки и печатали эти деньги?", [])],
+        issues=[
+            {
+                "line_index": 0,
+                "type": "missing_claim_link",
+                "severity": "high",
+                "scope": "block",
+                "description": "",
+                "suggestion": "",
+            },
+            {
+                "line_index": 0,
+                "type": "unverified_stated_as_fact",
+                "severity": "high",
+                "scope": "block",
+                "description": "",
+                "suggestion": "",
+            },
+        ],
+    )
+
+    assert issues == [
+        {
+            "line_index": 0,
+            "type": "missing_claim_link",
+            "severity": "medium",
+            "scope": "repair",
             "description": "",
             "suggestion": "",
         },
