@@ -36,6 +36,23 @@ logger = logging.getLogger(__name__)
 ISSUE_SEVERITIES = {"low", "medium", "high"}
 REPAIR_SCOPES = {"scene_polish", "scene_rewrite", "act_warning"}
 ECHO_ISSUE_TYPES = {"scene_opening_echo", "boundary_restatement"}
+ACT_FINDING_FAMILIES = {
+    "replay_question",
+    "replay_punchline",
+    "repeated_explanatory_reset",
+    "repeated_confirmation_first_opening",
+    "repeated_interruption_first_opening",
+    "speaker_distribution_imbalance",
+    "other",
+}
+SEAM_STATUSES = {
+    "acceptable_handoff",
+    "thesis_to_example_progression",
+    "replay_question",
+    "replay_punchline",
+    "weak_reset",
+}
+PROBLEMATIC_SEAM_STATUSES = {"replay_question", "replay_punchline", "weak_reset"}
 REPETITION_PRIORITY_TYPES = {
     "scene_opening_echo",
     "boundary_restatement",
@@ -71,12 +88,17 @@ Scoring guide:
 
 Look for:
 - whether the scene opens in a way that matches its `scene_job` instead of drifting back into the previous beat
-- scene-to-scene echo where the new scene opens by repeating the previous scene's punchline
-- boundary restatement where the opening restates what the boundary context already established
+- scene-to-scene echo only when the new scene opens by closely repeating or paraphrasing the previous scene's punchline without adding a new angle, consequence, example, or pressure
+- boundary restatement only when the opening merely restates what the boundary context already established instead of advancing the scene's move
 - rigid turn-taking that makes the exchange feel mechanically alternating
 - repetitive agreement shapes where explicit confirmations dominate the rhythm
 - repetitive challenge shapes where objections or questions sound too similar
 - teacherly exposition where dialogue explains correctly but without enough conversational movement
+
+Do not overflag normal continuity:
+- topic bridge or thesis-to-example progression is not echo by itself
+- zooming from a general point to a concrete case is acceptable if the new scene genuinely advances
+- a narrower next question is acceptable if it moves the conversation forward instead of re-asking the same question
 
 Severity guide:
 - `low`: noticeable but acceptable; no rewrite needed now
@@ -98,8 +120,8 @@ POLISH_SYSTEM = """You are polishing a podcast dialogue scene for naturalness an
 Return JSON:
 {
   "dialogue": [
-    {"speaker": "A", "text": "line", "claim_ids": ["id"]},
-    {"speaker": "B", "text": "line", "claim_ids": []}
+    {"speaker": "A", "text": "line", "claim_ids": ["id"], "emotion": "measured", "ssml_hints": {"pause_ms": 180}},
+    {"speaker": "B", "text": "line", "claim_ids": [], "emotion": "skeptical", "ssml_hints": {"pause_ms": 220}}
   ]
 }
 
@@ -107,10 +129,14 @@ Rules:
 - The payload includes `language`; keep the scene natural for that language and spoken register.
 - Preserve the factual meaning, chronology, and required claim coverage.
 - Preserve attribution and institutional details already present.
+- Preserve line-level delivery intent. If a line already carries `emotion` or `ssml_hints`, return compatible delivery metadata instead of dropping it.
+- If you split, merge, or otherwise change line alignment, every output line must still carry compatible delivery metadata so downstream TTS cues remain usable.
 - Do not add new facts, names, dates, figures, laws, or causal claims.
 - Keep the scene's `scene_job` intact. Improve delivery without changing the scene's intended move.
 - Use the audit issues to improve scene flow, boundary handling, and conversational variety.
 - The payload may include an `act_repetition_report`; if one opener, agreement, or turn-taking pattern is dominating the act, use this scene to break that pattern naturally.
+- The payload may include a `seam_finding`; if this scene is opening a new act by replaying the previous act's question or punchline, fix that seam without flattening the scene.
+- The payload may include `intervention_targets`; solve those concrete dialogue problems, not generic "rewrite for style" goals.
 - If the boundary context already landed a punchline, do not reopen by paraphrasing it.
 - Rewrite the whole scene if needed for rhythm, but keep the same scene job and content function.
 - Avoid translated-from-English phrasing or register drift.
@@ -118,14 +144,14 @@ Rules:
 - Output only JSON."""
 
 ACT_AUDIT_SYSTEM = """You are an act-level podcast dialogue auditor.
-Review one act as a sequence of scenes and identify aggregate repetition / distribution problems.
+Review one full act as a sequence of scenes and identify aggregate repetition / distribution problems.
 
 Return JSON:
 {
   "priority_scene_numbers": [2, 4],
   "distribution_findings": [
     {
-      "family": "boundary_echo_cluster|confirmation_first_answers|interruption_first_questions|explanatory_resets|speaker_distribution|other",
+      "family": "replay_question|replay_punchline|repeated_explanatory_reset|repeated_confirmation_first_opening|repeated_interruption_first_opening|speaker_distribution_imbalance|other",
       "severity": "low|medium|high",
       "scene_numbers": [2, 4],
       "description": "what repeated in this act and why it weakens the act"
@@ -136,9 +162,41 @@ Return JSON:
 Rules:
 - The payload includes `language`; judge the act as spoken dialogue in that language.
 - Focus on act-level distribution problems, not local factual rigor.
-- Use the compact scene summaries to identify repeated opener strategies, repeated confirmation/challenge habits, and speaker-distribution imbalance across scenes.
+- The payload includes the full scene dialogue for the act, plus a compact structure summary.
+- Distinguish acceptable continuity from bad replay.
+- Thesis-to-example progression or zoom-in from concept to case is often acceptable and should not be flagged as replay by default.
+- Flag `replay_question` only when a new scene re-asks the same question already established by a previous scene.
+- Flag `replay_punchline` only when a new scene re-states the previous scene's conclusion instead of advancing to consequence, example, or pressure.
+- Use the full act text to identify repeated opener strategies, repeated explanatory resets, repeated confirmation/challenge habits, and speaker-distribution imbalance across scenes.
 - Prioritize the smallest set of scenes whose polishing would most improve the act's variety and flow.
 - `priority_scene_numbers` should contain scenes that are the best intervention points, not every scene with a local issue.
+- Output only JSON."""
+
+SEAM_AUDIT_SYSTEM = """You are auditing episode seams between acts in a podcast script.
+
+Return JSON:
+{
+  "seams": [
+    {
+      "from_act_number": 1,
+      "to_act_number": 2,
+      "target_scene_number": 1,
+      "status": "acceptable_handoff|thesis_to_example_progression|replay_question|replay_punchline|weak_reset",
+      "severity": "low|medium|high",
+      "description": "what this seam is doing and why it works or fails"
+    }
+  ]
+}
+
+Rules:
+- The payload includes `language`; judge the seams as spoken dialogue in that language.
+- You are not grading the whole act. Only judge the seam between the previous act's final scene and the next act's opening scene.
+- `acceptable_handoff` means the new act continues naturally with a new angle, consequence, example, or pressure.
+- `thesis_to_example_progression` means the new act opens by making the previous act's thesis concrete; this is acceptable and should not trigger repair by itself.
+- `replay_question` means the new act re-asks the same question that the previous act already landed.
+- `replay_punchline` means the new act re-states the previous act's conclusion instead of moving forward.
+- `weak_reset` means the new act opening is not a direct replay, but still resets weakly and misses a stronger new move.
+- `target_scene_number` should be the opening scene number of the next act when a seam problem exists.
 - Output only JSON."""
 
 
@@ -166,6 +224,7 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
     language = str(state.get("language") or "en").strip() or "en"
     audit_rows: list[dict[str, Any]] = []
     act_reports: dict[str, dict[str, Any]] = {}
+    seam_reports: list[dict[str, Any]] = []
 
     async with async_session_factory() as db:
         segments = await _load_segments_for_audit(db, segment_ids)
@@ -241,6 +300,24 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
             act_reports=act_reports,
             language=language,
         )
+        seam_reports = await _run_episode_seam_audit(
+            segments=segments,
+            scene_job_lookup=scene_job_lookup,
+            language=language,
+            run_id=run_id,
+        )
+        seam_report_by_target = _seam_reports_by_target(seam_reports)
+
+        for row in audit_rows:
+            segment = row["segment"]
+            row["seam_finding"] = seam_report_by_target.get((segment.act_number, segment.scene_number))
+            act_report = act_reports.get(_act_count_key(segment.act_number), {})
+            row["intervention_targets"] = _dialogue_intervention_targets(
+                row=row,
+                act_report=act_report,
+                seam_finding=row.get("seam_finding"),
+            )
+        _refresh_dialogue_priorities(audit_rows, act_reports)
 
         for row in audit_rows:
             segment = row["segment"]
@@ -257,6 +334,8 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
                     "rewrite_requested": False,
                     "priority_score": row.get("priority_score", 0),
                     "act_report": _dialogue_act_report_excerpt(act_report),
+                    "seam_finding": row.get("seam_finding"),
+                    "intervention_targets": row.get("intervention_targets") or [],
                     "can_intervene": row["can_intervene"],
                 },
             )
@@ -264,7 +343,13 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
         for row in _prioritize_dialogue_interventions(audit_rows, act_reports):
             segment = row["segment"]
             issues = row["issues"]
-            if not issues or not row["can_intervene"]:
+            trigger_label = (
+                str(issues[0].get("type") or "").strip()
+                if issues
+                else str((row.get("intervention_targets") or ["act_distribution"])[0] or "act_distribution")
+            )
+            trigger_label = trigger_label.replace(":", "_")
+            if not row["can_intervene"]:
                 continue
 
             act_key = _act_count_key(segment.act_number)
@@ -273,10 +358,10 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
                 continue
 
             act_report = act_reports.get(act_key, {})
-            if _should_polish_dialogue(issues):
+            if _row_should_polish_dialogue(row):
                 publish_event(
                     run_id,
-                    writer_revolt(segment.act_number, segment.scene_number, issues[0]["type"]),
+                    writer_revolt(segment.act_number, segment.scene_number, trigger_label),
                 )
                 accepted = await _attempt_dialogue_polish(
                     db=db,
@@ -287,6 +372,8 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
                     scene_job=row["scene_job"],
                     issues=issues,
                     act_repetition_report=_dialogue_act_report_excerpt(act_report),
+                    seam_finding=row.get("seam_finding"),
+                    intervention_targets=row.get("intervention_targets") or [],
                 )
                 if accepted:
                     polished_scenes += 1
@@ -296,7 +383,7 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
             if _should_request_scene_rewrite(issues):
                 publish_event(
                     run_id,
-                    writer_revolt(segment.act_number, segment.scene_number, issues[0]["type"]),
+                    writer_revolt(segment.act_number, segment.scene_number, trigger_label),
                 )
                 segment.audit_status = AuditStatus.REVISED
                 segment.revision_count += 1
@@ -320,6 +407,7 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
     quality_signals["dialogue_rewrite_requested_scenes"] = rewrite_requested_scenes
     quality_signals["dialogue_revolt_counts_by_act"] = revolt_counts_by_act
     quality_signals["dialogue_act_reports"] = act_reports
+    quality_signals["dialogue_seam_reports"] = seam_reports
     quality_signals["revolt_triggered"] = rewrite_requested_scenes > 0
 
     publish_event(run_id, step_completed("phase6_writing", "engagement_eval"))
@@ -387,6 +475,8 @@ async def _attempt_dialogue_polish(
     scene_job: str,
     issues: list[dict[str, Any]],
     act_repetition_report: dict[str, Any] | None,
+    seam_finding: dict[str, Any] | None = None,
+    intervention_targets: list[str] | None = None,
 ) -> bool:
     original_dialogue = segment.dialogue_json
     original_claim_ids = set(_extract_dialogue_claim_ids(original_dialogue))
@@ -397,6 +487,8 @@ async def _attempt_dialogue_polish(
         boundary_context=boundary_context,
         issues=issues,
         act_repetition_report=act_repetition_report,
+        seam_finding=seam_finding,
+        intervention_targets=intervention_targets or [],
     )
 
     try:
@@ -453,42 +545,47 @@ async def _attempt_dialogue_polish(
         )
         return False
 
-    if _requires_material_opener_change(issues) and not _opener_changed_materially(
-        original_dialogue,
-        polished_dialogue,
+    final_dialogue = _finalize_polished_dialogue(
+        original_dialogue=original_dialogue,
+        polished_dialogue=polished_dialogue,
+    )
+    if not final_dialogue:
+        _dump_dialogue_polish_debug(
+            run_id=run_id,
+            act_number=segment.act_number,
+            scene_number=segment.scene_number,
+            status="metadata_contract_failed",
+            payload=prompt_payload,
+            before_dialogue=original_dialogue,
+            after_dialogue=polished_dialogue,
+            decision="rejected",
+            error="polish did not preserve delivery metadata safely",
+        )
+        return False
+
+    if not _dialogue_polish_resolves_targets(
+        original_dialogue=original_dialogue,
+        polished_dialogue=final_dialogue,
+        issues=issues,
+        boundary_context=boundary_context,
+        act_repetition_report=act_repetition_report,
+        seam_finding=seam_finding,
+        intervention_targets=intervention_targets or [],
     ):
         _dump_dialogue_polish_debug(
             run_id=run_id,
             act_number=segment.act_number,
             scene_number=segment.scene_number,
-            status="opener_change_insufficient",
+            status="target_not_resolved",
             payload=prompt_payload,
             before_dialogue=original_dialogue,
-            after_dialogue=polished_dialogue,
+            after_dialogue=final_dialogue,
             decision="rejected",
-            error="polish kept the same opener despite opener-echo issues",
+            error="polish changed the scene but did not resolve the targeted opener/repetition problem",
         )
         return False
 
-    merged_dialogue = _merge_dialogue_metadata(
-        original_dialogue=original_dialogue,
-        repaired_dialogue=polished_dialogue,
-    )
-    if not merged_dialogue:
-        _dump_dialogue_polish_debug(
-            run_id=run_id,
-            act_number=segment.act_number,
-            scene_number=segment.scene_number,
-            status="metadata_merge_failed",
-            payload=prompt_payload,
-            before_dialogue=original_dialogue,
-            after_dialogue=polished_dialogue,
-            decision="rejected",
-            error="polish produced dialogue that could not be merged with original metadata",
-        )
-        return False
-
-    segment.dialogue_json = merged_dialogue
+    segment.dialogue_json = final_dialogue
     segment.revision_count += 1
     _set_segment_audit_finding(
         segment,
@@ -507,7 +604,7 @@ async def _attempt_dialogue_polish(
         status="accepted",
         payload=prompt_payload,
         before_dialogue=original_dialogue,
-        after_dialogue=merged_dialogue,
+        after_dialogue=final_dialogue,
         decision="accepted",
         error=None,
     )
@@ -522,6 +619,8 @@ def _build_dialogue_polish_prompt_payload(
     boundary_context: dict[str, Any] | None,
     issues: list[dict[str, Any]],
     act_repetition_report: dict[str, Any] | None,
+    seam_finding: dict[str, Any] | None = None,
+    intervention_targets: list[str] | None = None,
 ) -> dict[str, Any]:
     return {
         "act_number": segment.act_number,
@@ -530,6 +629,8 @@ def _build_dialogue_polish_prompt_payload(
         "scene_job": scene_job,
         "boundary_context": boundary_context,
         "act_repetition_report": act_repetition_report,
+        "seam_finding": seam_finding,
+        "intervention_targets": intervention_targets or [],
         "issues": issues,
         "dialogue": segment.dialogue_json,
     }
@@ -693,6 +794,55 @@ def _opener_signature(dialogue: Any) -> tuple[str, str]:
     )
 
 
+def _dialogue_turn_pattern(dialogue: Any) -> str:
+    if not isinstance(dialogue, list):
+        return ""
+    pattern: list[str] = []
+    for item in dialogue:
+        if not isinstance(item, dict):
+            continue
+        text = item.get("text")
+        if not isinstance(text, str) or not text.strip():
+            continue
+        speaker = str(item.get("speaker") or "").strip()
+        if speaker:
+            pattern.append(speaker)
+    return "".join(pattern)
+
+
+def _dialogue_has_delivery_metadata(dialogue: Any) -> bool:
+    if not isinstance(dialogue, list):
+        return False
+    for line in dialogue:
+        if not isinstance(line, dict):
+            continue
+        if "emotion" in line or "ssml_hints" in line:
+            return True
+    return False
+
+
+def _finalize_polished_dialogue(
+    *,
+    original_dialogue: list[dict[str, Any]],
+    polished_dialogue: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]] | None:
+    if not polished_dialogue:
+        return None
+
+    if len(polished_dialogue) == len([line for line in original_dialogue if isinstance(line, dict)]):
+        merged_dialogue = _merge_dialogue_metadata(
+            original_dialogue=original_dialogue,
+            repaired_dialogue=polished_dialogue,
+        )
+        if merged_dialogue:
+            return merged_dialogue
+
+    if _dialogue_has_delivery_metadata(original_dialogue):
+        if not _dialogue_has_delivery_metadata(polished_dialogue):
+            return None
+    return polished_dialogue
+
+
 def _requires_material_opener_change(issues: list[dict[str, Any]]) -> bool:
     return any(
         issue.get("type") in ECHO_ISSUE_TYPES
@@ -706,9 +856,32 @@ def _opener_changed_materially(original_dialogue: Any, polished_dialogue: Any) -
     return _opener_signature(original_dialogue) != _opener_signature(polished_dialogue)
 
 
+def _dialogue_changed_materially(original_dialogue: Any, polished_dialogue: Any) -> bool:
+    def _signature(dialogue: Any) -> list[tuple[str, str]]:
+        if not isinstance(dialogue, list):
+            return []
+        signature: list[tuple[str, str]] = []
+        for line in dialogue:
+            if not isinstance(line, dict):
+                continue
+            text = line.get("text")
+            if not isinstance(text, str) or not text.strip():
+                continue
+            signature.append(
+                (
+                    str(line.get("speaker") or "").strip(),
+                    _normalized_text_signature(text),
+                )
+            )
+        return signature
+
+    return _signature(original_dialogue) != _signature(polished_dialogue)
+
+
 def _build_act_dialogue_reports(audit_rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     reports: dict[str, dict[str, Any]] = {}
     issue_scene_numbers_by_act: dict[str, dict[str, list[int]]] = {}
+    turn_pattern_counts_by_act: dict[str, dict[str, int]] = {}
     for row in audit_rows:
         segment = row["segment"]
         act_key = _act_count_key(segment.act_number)
@@ -721,6 +894,7 @@ def _build_act_dialogue_reports(audit_rows: list[dict[str, Any]]) -> dict[str, d
                 "opening_speaker_counts": {},
                 "closing_speaker_counts": {},
                 "issue_counts": {},
+                "turn_pattern_counts": {},
             },
         )
         report["scene_count"] += 1
@@ -737,6 +911,11 @@ def _build_act_dialogue_reports(audit_rows: list[dict[str, Any]]) -> dict[str, d
             closing_counts = dict(report["closing_speaker_counts"])
             closing_counts[closing_speaker] = closing_counts.get(closing_speaker, 0) + 1
             report["closing_speaker_counts"] = closing_counts
+
+        turn_pattern = _dialogue_turn_pattern(segment.dialogue_json)
+        if turn_pattern:
+            act_turn_patterns = turn_pattern_counts_by_act.setdefault(act_key, {})
+            act_turn_patterns[turn_pattern] = act_turn_patterns.get(turn_pattern, 0) + 1
 
         act_issue_scenes = issue_scene_numbers_by_act.setdefault(act_key, {})
         for issue in row["issues"]:
@@ -755,6 +934,7 @@ def _build_act_dialogue_reports(audit_rows: list[dict[str, Any]]) -> dict[str, d
     for act_key, report in reports.items():
         report["dominant_opening_speaker"] = _dominant_speaker(report["opening_speaker_counts"])
         report["dominant_closing_speaker"] = _dominant_speaker(report["closing_speaker_counts"])
+        report["turn_pattern_counts"] = dict(turn_pattern_counts_by_act.get(act_key, {}))
         act_issue_scenes = issue_scene_numbers_by_act.get(act_key, {})
         report["repetition_families"] = [
             {
@@ -765,31 +945,12 @@ def _build_act_dialogue_reports(audit_rows: list[dict[str, Any]]) -> dict[str, d
             for issue_type, scene_numbers in sorted(act_issue_scenes.items())
             if issue_type in REPETITION_PRIORITY_TYPES and scene_numbers
         ]
-
-    for row in audit_rows:
-        segment = row["segment"]
-        act_key = _act_count_key(segment.act_number)
-        row["priority_score"] = _dialogue_priority_score(row, reports.get(act_key, {}))
-
-    for act_key, report in reports.items():
-        report["priority_scene_numbers"] = [
-            row["segment"].scene_number
-            for row in sorted(
-                (
-                    row
-                    for row in audit_rows
-                    if _act_count_key(row["segment"].act_number) == act_key and row.get("priority_score", 0) > 0
-                ),
-                key=lambda row: (-int(row.get("priority_score", 0)), row["segment"].scene_number),
-            )
-        ]
+    _refresh_dialogue_priorities(audit_rows, reports)
     return reports
 
 
 def _dialogue_priority_score(row: dict[str, Any], act_report: dict[str, Any]) -> int:
     issues = row.get("issues") or []
-    if not issues:
-        return 0
 
     score = 0
     for issue in issues:
@@ -815,32 +976,13 @@ def _dialogue_priority_score(row: dict[str, Any], act_report: dict[str, Any]) ->
             score += 4 + severity_rank * 2
 
     segment = row["segment"]
-    dominant_opening = str(act_report.get("dominant_opening_speaker") or "")
-    opening_counts = act_report.get("opening_speaker_counts") or {}
-    scene_count = _safe_int(act_report.get("scene_count"), 0)
-    if (
-        dominant_opening
-        and _dialogue_edge_speaker(segment.dialogue_json, edge="first") == dominant_opening
-        and opening_counts.get(dominant_opening, 0) > max(1, scene_count // 2)
-    ):
-        score += 6
-
-    dominant_closing = str(act_report.get("dominant_closing_speaker") or "")
-    closing_counts = act_report.get("closing_speaker_counts") or {}
-    if (
-        dominant_closing
-        and _dialogue_edge_speaker(segment.dialogue_json, edge="last") == dominant_closing
-        and closing_counts.get(dominant_closing, 0) > max(1, scene_count // 2)
-    ):
-        score += 3
-
     llm_priority_scene_numbers = {
         _safe_int(scene_number, 0)
         for scene_number in act_report.get("llm_priority_scene_numbers", [])
         if _safe_int(scene_number, 0) > 0
     }
     if segment.scene_number in llm_priority_scene_numbers:
-        score += 12
+        score += 16
 
     for finding in act_report.get("distribution_findings", []) or []:
         if not isinstance(finding, dict):
@@ -852,7 +994,31 @@ def _dialogue_priority_score(row: dict[str, Any], act_report: dict[str, Any]) ->
         }
         if segment.scene_number not in scene_numbers:
             continue
-        score += 4 * max(1, _severity_rank(str(finding.get("severity"))))
+        family = str(finding.get("family") or "").strip()
+        severity_score = 5 * max(1, _severity_rank(str(finding.get("severity"))))
+        if family in {"replay_question", "replay_punchline"}:
+            score += severity_score + 12
+        elif family == "speaker_distribution_imbalance":
+            score += severity_score + 8
+        else:
+            score += severity_score + 4
+
+    seam_finding = row.get("seam_finding")
+    if isinstance(seam_finding, dict):
+        seam_status = str(seam_finding.get("status") or "").strip()
+        seam_severity = _severity_rank(str(seam_finding.get("severity")))
+        if seam_status in PROBLEMATIC_SEAM_STATUSES:
+            score += 24 + seam_severity * 8
+
+    intervention_targets = row.get("intervention_targets") or []
+    if isinstance(intervention_targets, list):
+        for target in intervention_targets:
+            if not isinstance(target, str):
+                continue
+            if target.startswith("seam:"):
+                score += 8
+            elif target.startswith("act:"):
+                score += 6
     return score
 
 
@@ -881,7 +1047,7 @@ def _prioritize_dialogue_interventions(
             for row in audit_rows
             if _act_count_key(row["segment"].act_number) == act_key
             and row.get("priority_score", 0) > 0
-            and (_should_polish_dialogue(row["issues"]) or _should_request_scene_rewrite(row["issues"]))
+            and (_row_should_polish_dialogue(row) or _should_request_scene_rewrite(row["issues"]))
         ]
         prioritized.extend(
             sorted(
@@ -890,6 +1056,46 @@ def _prioritize_dialogue_interventions(
             )
         )
     return prioritized
+
+
+def _row_should_polish_dialogue(row: dict[str, Any]) -> bool:
+    if _should_polish_dialogue(row.get("issues") or []):
+        return True
+    if bool(row.get("llm_priority_selected")):
+        return True
+    for target in row.get("intervention_targets") or []:
+        if isinstance(target, str) and (target.startswith("act:") or target.startswith("seam:")):
+            return True
+    return False
+
+
+def _refresh_dialogue_priorities(
+    audit_rows: list[dict[str, Any]],
+    act_reports: dict[str, dict[str, Any]],
+) -> None:
+    for row in audit_rows:
+        act_key = _act_count_key(row["segment"].act_number)
+        act_report = act_reports.get(act_key, {})
+        llm_priority_scene_numbers = {
+            _safe_int(scene_number, 0)
+            for scene_number in act_report.get("llm_priority_scene_numbers", [])
+            if _safe_int(scene_number, 0) > 0
+        }
+        row["llm_priority_selected"] = row["segment"].scene_number in llm_priority_scene_numbers
+        row["priority_score"] = _dialogue_priority_score(row, act_report)
+
+    for act_key, report in act_reports.items():
+        report["priority_scene_numbers"] = [
+            row["segment"].scene_number
+            for row in sorted(
+                (
+                    row
+                    for row in audit_rows
+                    if _act_count_key(row["segment"].act_number) == act_key and row.get("priority_score", 0) > 0
+                ),
+                key=lambda row: (-int(row.get("priority_score", 0)), row["segment"].scene_number),
+            )
+        ]
 
 
 def _dialogue_act_report_excerpt(act_report: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -904,6 +1110,7 @@ def _dialogue_act_report_excerpt(act_report: dict[str, Any] | None) -> dict[str,
         "dominant_opening_speaker": act_report.get("dominant_opening_speaker"),
         "dominant_closing_speaker": act_report.get("dominant_closing_speaker"),
         "issue_counts": act_report.get("issue_counts"),
+        "turn_pattern_counts": act_report.get("turn_pattern_counts"),
         "repetition_families": act_report.get("repetition_families"),
         "priority_scene_numbers": act_report.get("priority_scene_numbers"),
         "distribution_findings": act_report.get("distribution_findings"),
@@ -936,23 +1143,7 @@ async def _augment_act_dialogue_reports_with_llm(
             continue
         merged = _merge_act_dialogue_report(base_report=augmented.get(act_key, {}), llm_report=llm_report)
         augmented[act_key] = merged
-
-    for row in audit_rows:
-        act_key = _act_count_key(row["segment"].act_number)
-        row["priority_score"] = _dialogue_priority_score(row, augmented.get(act_key, {}))
-
-    for act_key, report in augmented.items():
-        report["priority_scene_numbers"] = [
-            row["segment"].scene_number
-            for row in sorted(
-                (
-                    row
-                    for row in audit_rows
-                    if _act_count_key(row["segment"].act_number) == act_key and row.get("priority_score", 0) > 0
-                ),
-                key=lambda row: (-int(row.get("priority_score", 0)), row["segment"].scene_number),
-            )
-        ]
+    _refresh_dialogue_priorities(audit_rows, augmented)
     return augmented
 
 
@@ -965,26 +1156,30 @@ def _build_act_dialogue_audit_prompt_payload(
     scene_summaries: list[dict[str, Any]] = []
     for row in sorted(audit_rows, key=lambda item: item["segment"].scene_number):
         segment = row["segment"]
-        texts = _extract_dialogue_texts(segment.dialogue_json)
         scene_summaries.append(
             {
                 "scene_number": segment.scene_number,
+                "scene_job": row.get("scene_job") or "",
                 "opening_speaker": _dialogue_edge_speaker(segment.dialogue_json, edge="first"),
                 "closing_speaker": _dialogue_edge_speaker(segment.dialogue_json, edge="last"),
-                "opening_lines": texts[:2],
-                "closing_lines": texts[-2:] if len(texts) > 1 else texts[-1:],
+                "turn_pattern": _dialogue_turn_pattern(segment.dialogue_json),
+                "line_count": len([line for line in segment.dialogue_json if isinstance(line, dict)]),
                 "issue_types": [str(issue.get("type") or "").strip() for issue in row.get("issues", []) if issue],
                 "priority_score": row.get("priority_score", 0),
+                "dialogue": segment.dialogue_json,
             }
         )
     return {
         "language": str(language or "en").strip() or "en",
         "act_number": act_report.get("act_number"),
-        "scene_count": act_report.get("scene_count"),
-        "opening_speaker_counts": act_report.get("opening_speaker_counts"),
-        "closing_speaker_counts": act_report.get("closing_speaker_counts"),
-        "issue_counts": act_report.get("issue_counts"),
-        "heuristic_repetition_families": act_report.get("repetition_families"),
+        "structured_context": {
+            "scene_count": act_report.get("scene_count"),
+            "opening_speaker_counts": act_report.get("opening_speaker_counts"),
+            "closing_speaker_counts": act_report.get("closing_speaker_counts"),
+            "issue_counts": act_report.get("issue_counts"),
+            "turn_pattern_counts": act_report.get("turn_pattern_counts"),
+            "heuristic_repetition_families": act_report.get("repetition_families"),
+        },
         "scenes": scene_summaries,
     }
 
@@ -1019,6 +1214,8 @@ def _normalize_act_dialogue_audit(value: Any) -> dict[str, Any]:
             if not isinstance(item, dict):
                 continue
             family = str(item.get("family") or "").strip()
+            if family not in ACT_FINDING_FAMILIES:
+                family = "other"
             severity = str(item.get("severity") or "").strip().lower()
             if severity not in ISSUE_SEVERITIES:
                 severity = "medium"
@@ -1031,7 +1228,7 @@ def _normalize_act_dialogue_audit(value: Any) -> dict[str, Any]:
                         scene_numbers.append(scene_number)
             findings.append(
                 {
-                    "family": family or "other",
+                    "family": family,
                     "severity": severity,
                     "scene_numbers": scene_numbers,
                     "description": str(item.get("description") or "").strip(),
@@ -1062,6 +1259,251 @@ def _merge_act_dialogue_report(*, base_report: dict[str, Any], llm_report: dict[
     return merged
 
 
+def _build_episode_seam_audit_prompt_payload(
+    *,
+    segments: list[ScriptSegment],
+    scene_job_lookup: dict[tuple[int, int], str],
+    language: str,
+) -> dict[str, Any] | None:
+    seam_cards: list[dict[str, Any]] = []
+    segments_by_act: dict[int, list[ScriptSegment]] = {}
+    for segment in segments:
+        segments_by_act.setdefault(segment.act_number, []).append(segment)
+
+    ordered_acts = sorted(segments_by_act)
+    for previous_act, next_act in zip(ordered_acts, ordered_acts[1:], strict=False):
+        previous_segments = sorted(segments_by_act.get(previous_act, []), key=lambda item: item.scene_number)
+        next_segments = sorted(segments_by_act.get(next_act, []), key=lambda item: item.scene_number)
+        if not previous_segments or not next_segments:
+            continue
+        previous_scene = previous_segments[-1]
+        next_scene = next_segments[0]
+        previous_tail = _extract_dialogue_texts(previous_scene.dialogue_json)[-3:]
+        next_opening = _extract_dialogue_texts(next_scene.dialogue_json)[:3]
+        if not previous_tail or not next_opening:
+            continue
+        seam_cards.append(
+            {
+                "from_act_number": previous_act,
+                "from_scene_number": previous_scene.scene_number,
+                "from_scene_job": scene_job_lookup.get((previous_scene.act_number, previous_scene.scene_number), ""),
+                "to_act_number": next_act,
+                "target_scene_number": next_scene.scene_number,
+                "to_scene_job": scene_job_lookup.get((next_scene.act_number, next_scene.scene_number), ""),
+                "previous_scene_tail": previous_tail,
+                "next_scene_opening": next_opening,
+            }
+        )
+
+    if not seam_cards:
+        return None
+
+    return {
+        "language": str(language or "en").strip() or "en",
+        "seams": seam_cards,
+    }
+
+
+def _normalize_seam_status(value: Any) -> str:
+    status = str(value or "").strip()
+    if status in SEAM_STATUSES:
+        return status
+    return "acceptable_handoff"
+
+
+def _normalize_episode_seam_audit(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, dict):
+        return []
+    seams: list[dict[str, Any]] = []
+    raw_seams = value.get("seams")
+    if not isinstance(raw_seams, list):
+        return []
+    for item in raw_seams:
+        if not isinstance(item, dict):
+            continue
+        from_act_number = _safe_int(item.get("from_act_number"), 0)
+        to_act_number = _safe_int(item.get("to_act_number"), 0)
+        target_scene_number = _safe_int(item.get("target_scene_number"), 0)
+        if from_act_number <= 0 or to_act_number <= 0 or target_scene_number <= 0:
+            continue
+        severity = str(item.get("severity") or "").strip().lower()
+        if severity not in ISSUE_SEVERITIES:
+            severity = "medium"
+        seams.append(
+            {
+                "from_act_number": from_act_number,
+                "to_act_number": to_act_number,
+                "target_scene_number": target_scene_number,
+                "status": _normalize_seam_status(item.get("status")),
+                "severity": severity,
+                "description": str(item.get("description") or "").strip(),
+            }
+        )
+    return seams
+
+
+async def _run_episode_seam_audit(
+    *,
+    segments: list[ScriptSegment],
+    scene_job_lookup: dict[tuple[int, int], str],
+    language: str,
+    run_id: str | None = None,
+) -> list[dict[str, Any]]:
+    prompt_payload = _build_episode_seam_audit_prompt_payload(
+        segments=segments,
+        scene_job_lookup=scene_job_lookup,
+        language=language,
+    )
+    if prompt_payload is None:
+        return []
+    try:
+        raw = await call_haiku_structured(
+            system=SEAM_AUDIT_SYSTEM,
+            prompt=json.dumps(prompt_payload, ensure_ascii=False),
+            max_tokens=1024,
+            temperature=0.2,
+        )
+        parsed = parse_llm_json(raw)
+        seams = _normalize_episode_seam_audit(parsed)
+        _dump_dialogue_seam_debug(
+            run_id=run_id or "unknown",
+            status="ok",
+            prompt_payload=prompt_payload,
+            audit=seams,
+            error=None,
+        )
+        return seams
+    except StepExecutionStopped:
+        raise
+    except Exception as exc:
+        logger.warning("Episode seam audit failed", exc_info=True)
+        _dump_dialogue_seam_debug(
+            run_id=run_id or "unknown",
+            status="llm_or_parse_failed",
+            prompt_payload=prompt_payload,
+            audit=None,
+            error=f"{type(exc).__name__}: {exc}",
+        )
+        return []
+
+
+def _seam_reports_by_target(seam_reports: list[dict[str, Any]]) -> dict[tuple[int, int], dict[str, Any]]:
+    mapped: dict[tuple[int, int], dict[str, Any]] = {}
+    for report in seam_reports:
+        if not isinstance(report, dict):
+            continue
+        act_number = _safe_int(report.get("to_act_number"), 0)
+        scene_number = _safe_int(report.get("target_scene_number"), 0)
+        if act_number <= 0 or scene_number <= 0:
+            continue
+        mapped[(act_number, scene_number)] = report
+    return mapped
+
+
+def _dialogue_intervention_targets(
+    *,
+    row: dict[str, Any],
+    act_report: dict[str, Any],
+    seam_finding: dict[str, Any] | None,
+) -> list[str]:
+    targets: list[str] = []
+    for issue in row.get("issues") or []:
+        if not isinstance(issue, dict):
+            continue
+        issue_type = str(issue.get("type") or "").strip()
+        scope = str(issue.get("scope") or "").strip()
+        if not issue_type or scope not in {"scene_polish", "scene_rewrite"}:
+            continue
+        targets.append(f"local:{issue_type}")
+
+    segment = row.get("segment")
+    scene_number = _safe_int(getattr(segment, "scene_number", 0), 0)
+    for finding in act_report.get("distribution_findings", []) or []:
+        if not isinstance(finding, dict):
+            continue
+        scene_numbers = {
+            _safe_int(scene_number_value, 0)
+            for scene_number_value in finding.get("scene_numbers", [])
+            if _safe_int(scene_number_value, 0) > 0
+        }
+        if scene_number and scene_number in scene_numbers:
+            family = str(finding.get("family") or "").strip()
+            if family:
+                targets.append(f"act:{family}")
+
+    if isinstance(seam_finding, dict):
+        status = str(seam_finding.get("status") or "").strip()
+        if status in PROBLEMATIC_SEAM_STATUSES:
+            targets.append(f"seam:{status}")
+
+    return _dedupe_preserve_order(targets)
+
+
+def _intervention_requires_opener_change(
+    *,
+    issues: list[dict[str, Any]],
+    seam_finding: dict[str, Any] | None,
+    intervention_targets: list[str],
+) -> bool:
+    if _requires_material_opener_change(issues):
+        return True
+    if isinstance(seam_finding, dict) and str(seam_finding.get("status") or "").strip() in PROBLEMATIC_SEAM_STATUSES:
+        return True
+    for target in intervention_targets:
+        if not isinstance(target, str):
+            continue
+        if target.startswith("seam:"):
+            return True
+        if target in {
+            "act:replay_question",
+            "act:replay_punchline",
+            "act:repeated_explanatory_reset",
+            "act:repeated_confirmation_first_opening",
+            "act:repeated_interruption_first_opening",
+            "act:speaker_distribution_imbalance",
+            "local:scene_opening_echo",
+            "local:boundary_restatement",
+        }:
+            return True
+    return False
+
+
+def _dialogue_polish_resolves_targets(
+    *,
+    original_dialogue: Any,
+    polished_dialogue: Any,
+    issues: list[dict[str, Any]],
+    boundary_context: dict[str, Any] | None,
+    act_repetition_report: dict[str, Any] | None,
+    seam_finding: dict[str, Any] | None,
+    intervention_targets: list[str],
+) -> bool:
+    if not issues and not isinstance(seam_finding, dict) and not intervention_targets:
+        return _dialogue_changed_materially(original_dialogue, polished_dialogue)
+
+    if not _intervention_requires_opener_change(
+        issues=issues,
+        seam_finding=seam_finding,
+        intervention_targets=intervention_targets,
+    ):
+        return True
+
+    if not _opener_changed_materially(original_dialogue, polished_dialogue):
+        return False
+
+    if "act:speaker_distribution_imbalance" in set(intervention_targets):
+        dominant_opening = ""
+        if isinstance(act_repetition_report, dict):
+            dominant_opening = str(act_repetition_report.get("dominant_opening_speaker") or "").strip()
+        if dominant_opening:
+            original_speaker = _dialogue_edge_speaker(original_dialogue, edge="first")
+            polished_speaker = _dialogue_edge_speaker(polished_dialogue, edge="first")
+            if original_speaker == dominant_opening and polished_speaker == dominant_opening:
+                return False
+
+    return True
+
+
 def _dump_dialogue_audit_debug(
     *,
     run_id: str,
@@ -1086,6 +1528,31 @@ def _dump_dialogue_audit_debug(
             "run_id": run_id,
             "act_number": act_number,
             "scene_number": scene_number,
+            "status": status,
+            "input": prompt_payload,
+            "output": audit,
+            "error": error,
+        },
+    )
+
+
+def _dump_dialogue_seam_debug(
+    *,
+    run_id: str,
+    status: str,
+    prompt_payload: dict[str, Any],
+    audit: list[dict[str, Any]] | None,
+    error: str | None,
+) -> None:
+    dump_dir = (settings.web_extractor_debug_dump_dir or "").strip()
+    if not dump_dir:
+        return
+    write_json_debug_dump(
+        raw_dir=dump_dir,
+        subdir="dialogue_seam_audit",
+        filename_stem=f"run-{safe_filename_token(run_id)}_{safe_filename_token(status)}",
+        payload={
+            "run_id": run_id,
             "status": status,
             "input": prompt_payload,
             "output": audit,

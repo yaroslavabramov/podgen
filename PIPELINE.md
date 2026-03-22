@@ -626,12 +626,13 @@ Web extraction использует каскад extractors:
 - сохраняет structured findings (`type`, `severity`, `scope`, `description`, `suggestion`) в `script_segments.audit_findings`
 - получает явный `language` и оценивает spoken naturalness / rhythm в этом языке, а не по implicit English defaults
 - сначала аудирует все сцены, затем строит cheap act-level repetition/distribution report и тратит budget на polish **per act**, а не effectively per run
-- act-level report живёт внутри того же writer-quality слоя: он показывает dominant opening/closing speaker, issue-family clustering и какие сцены сильнее всего поддерживают повторяющийся opener/agreement rhythm
-- поверх heuristic report теперь есть compact act-level Haiku audit по scene-edge summaries; он ранжирует scenes как intervention points для repeated opener / confirmation / interruption families, не добавляя full-scene rewrite pass
+- act-level audit теперь видит **полный текст акта**, а не только scene edges: он получает full scene dialogue, `scene_job`, local issue types, opener/closer counts и turn-pattern context, поэтому repeated opener / confirmation / explanatory-reset families ранжируются по реальному тексту акта, а не по surrogate summary
+- отдельно добавлен compact episode seam audit по границам актов (`A1->A2`, `A2->A3`, `A3->A4`), чтобы отличать нормальный handoff от `replay_question` / `replay_punchline` / `weak_reset` на opening scene следующего акта
 - medium-severity проблемы с scope `scene_polish` пытается чинить inline через scene-level polish pass
 - prompt для polish получает `scene_job` и `language`, чтобы polish не ломал intended move сцены и не дрейфовал в translated-from-English phrasing
-- prompt для polish может получать compact `act_repetition_report`, чтобы использовать выбранную сцену как место, где надо ломать доминирующий opener/confirmation pattern, а не просто чинить локальную фразу
-- acceptance for `scene_opening_echo` / `boundary_restatement` is now issue-aware: polish не принимается, если opener по сути остался тем же
+- prompt для polish может получать compact `act_repetition_report`, `seam_finding` и `intervention_targets`, чтобы сцена чинила конкретный opener / seam / distribution defect, а не делала generic style rewrite
+- acceptance for `scene_opening_echo` / `boundary_restatement` is now target-aware: polish не принимается, если opener по сути остался тем же; для speaker-distribution intervention polish тоже reject, если opener остался в том же dominant-speaker skew
+- metadata safety is now contract-first: `dialogue_polish` должен возвращать compatible `emotion` / `ssml_hints`; same-length rewrites get safe metadata backfill, while changed-length rewrites are accepted only when the returned dialogue itself preserves usable delivery metadata
 - только high-severity `scene_rewrite` проблемы отправляют сцену назад в `screenwriter` через `audit_status = REVISED`
 
 Легитимные причины:
@@ -680,6 +681,7 @@ Web extraction использует каскад extractors:
   - scene context now carries `is_final_scene_in_act` / `is_final_scene_in_episode`, so mid-episode bridges should not mutate into fake sign-offs like `об этом в следующий раз`
   - scene-level repair gets flagged-line payloads and is told to focus edits on flagged lines while keeping clean lines as intact as possible
   - prompts preserve named actors / agency and include contrastive examples against teaser-language, double hedging, and abstract role-speak
+  - mechanism-heavy explanation lines now explicitly preserve supported mechanism steps and narrow only the unsupported fragment, while quote-like or source-like framing must be removed unless claim support actually carries that attribution frame
 
 - audit-pass имеет bounded retry на transient timeout/parse failures; если все попытки исчерпаны, сцена fail-closed превращается в blocking `audit_failure`
 

@@ -272,6 +272,15 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P1**: Non-blocking citation repair acceptance now evaluates changed/relevant lines instead of relying on noisy full-scene re-audit stability
 - [x] **P1**: `available_claims` now carry attribution/source-support metadata and the citation taxonomy now includes `unsupported_source_framing`
 
+**Round 30 (phase 6 real act audit + seam pass):**
+- [x] **P0**: Replaced edge-only act audit surrogate with real full-act Haiku audit over full scene dialogue, `scene_job`, local issue types, and structured opener/turn-pattern context
+- [x] **P0**: Added compact episode seam audit across act boundaries so `replay_question` / `replay_punchline` / `weak_reset` can target the opening scene of the next act
+- [x] **P0**: Reworked `writer_revolt` prioritization so act/seam findings can trigger `dialogue_polish` even when no local medium issue exists, instead of limiting polish to scene-local findings only
+- [x] **P0**: Tightened `dialogue_polish` acceptance around concrete targets: opener-targeted and seam-targeted interventions now require a material opener change, and speaker-distribution interventions reject polish that leaves the opener in the same dominant-speaker skew
+- [x] **P0**: Made `dialogue_polish` metadata-safe by contract: polish prompt now returns `emotion` / `ssml_hints`, same-length rewrites get safe metadata backfill, and changed-length rewrites are accepted only when returned delivery metadata remains usable
+- [x] **P1**: Strengthened citation repair guidance for mechanism-heavy explanation lines and unsupported quote/source framing without adding language-specific phrase lists
+- [x] **P1**: Expanded writer/citation regression coverage for full-act payloads, seam audit normalization, act-targeted polish, and changed-length metadata-preserving polish
+
 **Round 69 (fast-web retrieval + quote truncation hardening):**
 - [x] **P0**: Remove fast-web `[:3]` gap cap and switch governor semantics to processed gaps instead of evidence items
 - [x] **P0**: Add language-aware fast-web query generation with explicit English rewrite for non-English questions

@@ -81,6 +81,7 @@ Check rules:
 3. DISPUTED claims must present both sides or clear uncertainty.
 4. OPINION/REPORT claims need attribution.
 4a. Explicit source framing is only valid when `available_claims` actually support that attribution/source frame.
+4b. If a line is mostly supported but one quoted, sourced, or over-specific fragment is not, flag the unsupported fragment without treating the whole surrounding explanation as unsupported by default.
 5. No forbidden phrases.
 6. Audience level must match the show.
 7. Do not require `claim_ids` on purely conversational lines that do not add a new factual assertion.
@@ -139,8 +140,10 @@ Rules:
 
 Pattern guidance:
 - If exact timing is unsupported, keep the event but lower the precision.
+- If a mechanism explanation is mostly supported, keep the mechanism and narrow only the unsupported step.
 - If a bridge line contains one unsupported factual fragment, repair that fragment without turning the line into a teaser or sign-off.
 - If a vivid action/agency chain is mostly supported, keep the actors and narrow only the unsupported link.
+- If a line sounds quote-like or source-like but `available_claims` do not support that framing, drop the unsupported framing and keep the supported substance.
 - If the line already carries uncertainty, do not stack multiple hedges on top of each other.
 - Output only JSON."""
 
@@ -184,6 +187,8 @@ Rules:
 - Preserve natural spoken register in the target language instead of rewriting into abstract summary language.
 - If exact timing is unsupported, lower precision without deleting the scene's narrative move.
 - If one causal or agency link is unsupported, narrow that link while keeping the surrounding story structure.
+- If a mechanism explanation is mostly supported, keep the mechanism and narrow only the unsupported step instead of flattening the whole explanation.
+- If a line sounds quote-like or explicitly source-framed but `available_claims` do not support that framing, remove the unsupported framing and keep the supported substance.
 - If a line already contains uncertainty, do not stack multiple hedges on top of it.
 - The repaired scene must sound natural when read aloud.
 - Output only JSON."""

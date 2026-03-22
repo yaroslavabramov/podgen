@@ -99,13 +99,18 @@ def normalize_dialogue_output(value: Any) -> list[dict[str, Any]] | None:
                     continue
                 seen_claim_ids.add(trimmed)
                 normalized_claim_ids.append(trimmed)
-        dialogue.append(
-            {
-                "speaker": normalize_speaker_label(item.get("speaker")),
-                "text": cleaned_text,
-                "claim_ids": normalized_claim_ids,
-            }
-        )
+        normalized_line = {
+            "speaker": normalize_speaker_label(item.get("speaker")),
+            "text": cleaned_text,
+            "claim_ids": normalized_claim_ids,
+        }
+        emotion = item.get("emotion")
+        if isinstance(emotion, str) and emotion.strip():
+            normalized_line["emotion"] = emotion.strip()
+        ssml_hints = item.get("ssml_hints")
+        if isinstance(ssml_hints, dict):
+            normalized_line["ssml_hints"] = deepcopy(ssml_hints)
+        dialogue.append(normalized_line)
     return dialogue or None
 
 
