@@ -2,9 +2,11 @@ import json
 from types import SimpleNamespace
 
 from app.config import settings
+from app.pipeline.phase6_writing.dialogue_utils import normalize_dialogue_output
 from app.pipeline.phase6_writing.screenwriter import (
     SCREENWRITER_SYSTEM,
     _apply_screenwriter_dialogue,
+    _build_speaker_aliases,
     _build_already_covered_claims_payload,
     _build_new_information_goal,
     _build_recent_scene_starts,
@@ -159,6 +161,10 @@ def test_build_scene_prompt_payload_uses_local_and_cross_act_context() -> None:
 def test_screenwriter_prompt_demands_cross_act_memory_and_looser_dialogue() -> None:
     assert "All dialogue lines MUST be in the `language` from the user payload." in SCREENWRITER_SYSTEM
     assert "Keep the spoken register natural for that language; avoid translated-from-English phrasing." in SCREENWRITER_SYSTEM
+    assert "If evidence, quotes, or source material are in another language" in SCREENWRITER_SYSTEM
+    assert "translate or paraphrase them into the dialogue language" in SCREENWRITER_SYSTEM
+    assert "The `speaker` field must use canonical IDs `A` or `B` only." in SCREENWRITER_SYSTEM
+    assert "Never output host names, role names, localized speaker labels, or other aliases" in SCREENWRITER_SYSTEM
     assert "Use `description` as the main job of the scene." in SCREENWRITER_SYSTEM
     assert "previous_act_summary" in SCREENWRITER_SYSTEM
     assert "already_covered_claims_global" in SCREENWRITER_SYSTEM
@@ -185,6 +191,7 @@ def test_screenwriter_prompt_demands_cross_act_memory_and_looser_dialogue() -> N
     assert "recent_scene_starts" in SCREENWRITER_SYSTEM
     assert "`takeaway`: land the consequence or implication, not just a generic recap" in SCREENWRITER_SYSTEM
     assert "When a precise figure, legal clause, institutional rule, or date matters" in SCREENWRITER_SYSTEM
+    assert "Do not dump raw quotes or source language into dialogue unless quoting the wording itself is the point of the beat." in SCREENWRITER_SYSTEM
 
 
 def test_build_previous_scene_payload_prefers_actual_written_scene_continuity() -> None:
@@ -593,12 +600,35 @@ def test_extract_dialogue_opener_normalizes_first_two_words() -> None:
 
 
 def test_normalize_speaker_label_maps_cyrillic_and_named_hosts() -> None:
+    aliases = _build_speaker_aliases(
+        [
+            {"name": "Марина", "role": "Guide"},
+            {"name": "Дима Ковалев", "role": "Challenger"},
+        ]
+    )
+
     assert _normalize_speaker_label("A") == "A"
     assert _normalize_speaker_label("Б") == "B"
     assert _normalize_speaker_label("Host A") == "A"
+    assert _normalize_speaker_label("Host B:") == "B"
     assert _normalize_speaker_label("speaker b") == "B"
+    assert _normalize_speaker_label("Speaker B:") == "B"
+    assert _normalize_speaker_label("Марина", speaker_aliases=aliases) == "A"
+    assert _normalize_speaker_label("марина:", speaker_aliases=aliases) == "A"
+    assert _normalize_speaker_label("Дима Ковалев", speaker_aliases=aliases) == "B"
+    assert _normalize_speaker_label("Дима", speaker_aliases=aliases) == "B"
+    assert _normalize_speaker_label("Guide", speaker_aliases=aliases) == "A"
+    assert _normalize_speaker_label("Challenger", speaker_aliases=aliases) == "B"
     assert _normalize_speaker_label("") == "A"
     assert _normalize_speaker_label(None) == "A"
+
+
+def test_normalize_dialogue_output_keeps_host_b_punctuation_as_b() -> None:
+    normalized = normalize_dialogue_output(
+        [{"speaker": "Host B:", "text": "A valid line.", "claim_ids": []}]
+    )
+
+    assert normalized == [{"speaker": "B", "text": "A valid line.", "claim_ids": []}]
 
 
 def test_build_recent_scene_starts_uses_written_previous_scenes_in_order() -> None:

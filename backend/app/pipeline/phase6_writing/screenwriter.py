@@ -20,6 +20,7 @@ from app.models.generation_run import GenerationRun
 from app.pipeline.debug_dump import safe_filename_token, write_json_debug_dump
 from app.pipeline.llm_json import parse_llm_json
 from app.pipeline.phase6_writing.dialogue_utils import (
+    build_speaker_aliases as _build_speaker_aliases,
     extract_dialogue_claim_ids as _extract_dialogue_claim_ids,
     extract_dialogue_texts as _extract_dialogue_texts,
     normalize_speaker_label as _normalize_speaker_label,
@@ -59,6 +60,11 @@ Return JSON array:
   }
 ]
 
+Speaker label rules:
+- The `speaker` field must use canonical IDs `A` or `B` only.
+- Never output host names, role names, localized speaker labels, or other aliases in the `speaker` field.
+- Persona names may appear inside spoken text when natural, but never as the `speaker` value.
+
 Speech rules by verification level:
 - VERIFIED → speak confidently with clear attribution to evidence.
 - OBSERVED → include light uncertainty and attribution.
@@ -76,8 +82,10 @@ Host defaults:
 Writing rules:
 - Language:
   - All dialogue lines MUST be in the `language` from the user payload.
-  - Do not mix languages inside one line unless the evidence itself requires a short quoted term.
+  - Do not mix languages inside one line unless the beat is explicitly about the foreign wording itself.
   - Keep the spoken register natural for that language; avoid translated-from-English phrasing.
+  - If evidence, quotes, or source material are in another language, translate or paraphrase them into the dialogue language instead of dropping raw source-language text into the line.
+  - Only keep a very short original-language snippet when the scene is explicitly discussing wording, and immediately make its meaning clear in the dialogue language.
 - Use `description` as the main job of the scene. Use `transition_note` only as a light landing/bridge if it helps the ending.
 - Use `act_title`, `previous_scene`, `previous_act_summary`, `already_covered_claims`, `already_covered_claims_global`, and `new_information_goal` only as continuity context. Do not restate material that the listener already heard unless this scene is explicitly reframing or paying it off.
 - For the first scene of a later act, use `previous_act_summary` to build on what the listener already knows instead of resetting the story from zero.
@@ -129,7 +137,7 @@ Writing rules:
 - A challenge can begin from tension, contrast, doubt, or a missing implication. It does not always need to sound like an interruption.
 - Do not default every reaction to the same opener or confirmation shape. Vary discourse moves and avoid repeating one canned rhythm scene after scene.
 - If a nearby scene already used the same opener shape or agreement shape, pick a different natural move unless repetition is clearly intentional.
-- Use evidence organically. Do not dump raw quotes or source language into dialogue unless quoting is the point of the beat.
+- Use evidence organically. Do not dump raw quotes or source language into dialogue unless quoting the wording itself is the point of the beat.
 - When a precise figure, legal clause, institutional rule, or date matters, occasionally anchor it with light attribution such as "по данным центрального банка", "как сказано в законе", or "согласно официальным правилам фонда" instead of presenting every fact as unattributed narration.
 - When claims are OBSERVED, UNVERIFIED, DISPUTED, OPINION, or REPORT, make the line sound appropriately attributed or qualified.
 - Prefer callbacks over re-explanations. If a prior scene already established the mechanism, this scene should build on it rather than teach it from scratch again.
@@ -172,6 +180,7 @@ async def write_screenplay(state: PipelineState) -> dict:
                 hosts = bible.hosts or hosts
                 forbidden = bible.forbidden_phrases or []
                 format_rules = bible.format_rules or {}
+        speaker_aliases = _build_speaker_aliases(hosts)
 
         # Load manifest
         result = await db.execute(
@@ -392,7 +401,10 @@ async def write_screenplay(state: PipelineState) -> dict:
                             if not isinstance(text, str) or not text.strip():
                                 continue
                             line = dict(item)
-                            line["speaker"] = _normalize_speaker_label(line.get("speaker"))
+                            line["speaker"] = _normalize_speaker_label(
+                                line.get("speaker"),
+                                speaker_aliases=speaker_aliases,
+                            )
                             line["text"] = text.strip()
                             if not isinstance(line.get("ssml_hints"), dict):
                                 line["ssml_hints"] = {}

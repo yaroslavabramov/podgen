@@ -20,6 +20,7 @@ from app.pipeline.phase6_writing.citation_auditor import (
     _load_claims_map,
     _merge_scene_repair_metadata,
     _normalize_citation_issues,
+    _normalize_line_repair_output,
     _relevant_reaudit_line_indexes,
     _scene_repair_preserves_unflagged_sensitive_lines,
     _select_citation_repair_mode,
@@ -53,6 +54,8 @@ def test_citation_auditor_prompt_demands_severity_scope_and_repair() -> None:
     assert "rewrite only the targeted lines" in LINE_REPAIR_SYSTEM.lower()
     assert "spoken podcast dialogue" in LINE_REPAIR_SYSTEM
     assert "The payload includes `language`" in LINE_REPAIR_SYSTEM
+    assert "If support or evidence exists in another language, translate or paraphrase it into the payload language" in LINE_REPAIR_SYSTEM
+    assert "Keep the `speaker` field canonical: output only `A` or `B`" in LINE_REPAIR_SYSTEM
     assert "Do not default to bureaucratic, legalistic, or academic hedging" in LINE_REPAIR_SYSTEM
     assert "Do not turn an internal bridge into sign-off or next-episode teaser language" in LINE_REPAIR_SYSTEM
     assert "If the line already carries uncertainty, do not stack multiple hedges" in LINE_REPAIR_SYSTEM
@@ -62,10 +65,12 @@ def test_citation_auditor_prompt_demands_severity_scope_and_repair() -> None:
     assert "Fix only the citation and rigor issues that were flagged." in REPAIR_SYSTEM
     assert "Focus edits on lines flagged as `block` or `repair`" in REPAIR_SYSTEM
     assert "Preserve the scene's dramatic structure, pacing, and agency" in REPAIR_SYSTEM
+    assert "Keep the `speaker` field canonical: output only `A` or `B`" in REPAIR_SYSTEM
     assert "If `available_claims` mark a claim as `verified`" in REPAIR_SYSTEM
     assert "Do not add new facts, institutions, dates, figures, or claims." in REPAIR_SYSTEM
     assert "Preserve the scene's `scene_job`, `scene_type`, and content function." in REPAIR_SYSTEM
     assert "Preserve natural spoken register in the target language" in REPAIR_SYSTEM
+    assert "If support or evidence exists in another language, translate or paraphrase it into the payload language" in REPAIR_SYSTEM
     assert "If a line already contains uncertainty, do not stack multiple hedges" in REPAIR_SYSTEM
     assert "keep the mechanism and narrow only the unsupported step" in REPAIR_SYSTEM
     assert "remove the unsupported framing and keep the supported substance" in REPAIR_SYSTEM
@@ -291,6 +296,31 @@ def test_splice_repaired_lines_preserves_metadata_on_unflagged_and_target_lines(
     assert spliced is not original_dialogue
     assert spliced[0] is not original_dialogue[0]
     assert spliced[1]["ssml_hints"] is not original_dialogue[1]["ssml_hints"]
+
+
+def test_normalize_line_repair_output_normalizes_named_host_speakers() -> None:
+    normalized = _normalize_line_repair_output(
+        [
+            {
+                "line_index": 0,
+                "speaker": "Марина",
+                "text": "Исправленная строка.",
+                "claim_ids": ["c1"],
+            },
+            {
+                "line_index": 1,
+                "speaker": "Дима",
+                "text": "Второй ход.",
+                "claim_ids": [],
+            },
+        ],
+        speaker_aliases={"марина": "A", "дима": "B"},
+    )
+
+    assert normalized == {
+        0: {"speaker": "A", "text": "Исправленная строка.", "claim_ids": ["c1"]},
+        1: {"speaker": "B", "text": "Второй ход.", "claim_ids": []},
+    }
 
 
 def test_merge_scene_repair_metadata_preserves_matching_line_fields() -> None:

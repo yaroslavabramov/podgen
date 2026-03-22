@@ -113,7 +113,7 @@
 - [x] Screenwriter continuity upgrade: add screenplay-level covered-claim memory plus `previous_act_summary` for first scenes so later acts build on prior explanations instead of resetting
 - [x] Screenwriter delta framing: add `new_information_goal` prompt field so each scene knows what fresh meaning it must add beyond already covered material
 - [x] Screenwriter dialogue de-rigidification: loosen A/B role contract, discourage strict `ABAB` alternation and repeated opener phrases, and add light evidence-attribution guidance for dates/rules/figures
-- [x] Screenwriter local anti-echo + discourse-shape variation: scenes should advance rather than paraphrase the previous punchline, vary agreement/challenge shapes without word blacklists, and normalize speaker labels to ASCII `A/B`
+- [x] Screenwriter local anti-echo + discourse-shape variation: scenes should advance rather than paraphrase the previous punchline, vary agreement/challenge shapes without word blacklists, and normalize speaker labels to canonical `A/B` including ShowBible host-name / role aliases
 - [x] Writer Revolt style rubric expansion: evaluator can now flag rigid turn-taking, repetitive agreement/challenge shapes, scene-opening echo, and teacherly exposition as rewrite reasons
 
 ---
@@ -280,9 +280,14 @@ See `REVIEW_FINDINGS.md` and `review_findings_rerun.md` for detailed findings. F
 - [x] **P0**: Made `dialogue_polish` metadata-safe by contract: polish prompt now returns `emotion` / `ssml_hints`, same-length rewrites get safe metadata backfill, and changed-length rewrites are accepted only when returned delivery metadata remains usable
 - [x] **P1**: Strengthened citation repair guidance for mechanism-heavy explanation lines and unsupported quote/source framing without adding language-specific phrase lists
 - [x] **P1**: Expanded writer/citation regression coverage for full-act payloads, seam audit normalization, act-targeted polish, and changed-length metadata-preserving polish
+- [x] **P1**: Screenwriter, dialogue polish, and citation repair now keep spoken lines in the podcast language by contract; foreign-language source text must be translated/paraphrased unless the wording itself is explicitly the point of the beat
+- [x] **P1**: Screenwriter, dialogue polish, and citation repair now enforce canonical `A/B` speaker IDs by prompt and runtime normalization; ShowBible host names / roles are mapped back to `A/B` instead of silently collapsing unknown labels to `A`
 
 **Round 69 (fast-web retrieval + quote truncation hardening):**
 - [x] **P0**: Remove fast-web `[:3]` gap cap and switch governor semantics to processed gaps instead of evidence items
+
+**Round 70 (phase 6 speaker-label normalization hardening):**
+- [x] **P1**: Fixed generic `Host B:` / `Speaker B:` punctuation path in phase-6 speaker normalization so writer / dialogue polish / citation repair cannot silently flip B-lines to `A`
 - [x] **P0**: Add language-aware fast-web query generation with explicit English rewrite for non-English questions
 - [x] **P0**: Stop truncating verifier supporting quotes to 300 chars; verifier must see the real quote text
 - [x] **P1**: Rework claim-builder batching to budget against real quote lengths instead of pre-truncated `[:700]` payloads

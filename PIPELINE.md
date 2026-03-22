@@ -572,6 +572,7 @@ Web extraction использует каскад extractors:
   - `recent_scene_starts`
 
 - держит dialogue в `language` подкаста, а не дрейфует в английский или смешанный output
+- если evidence/quote/source material на другом языке, writer/polish/repair пересказывают его на языке подкаста вместо raw foreign-language вставки; короткий оригинальный фрагмент допустим только когда сам wording и есть предмет сцены
 
 - использует `description` как main job сцены, а `transition_note` только как лёгкий landing/bridge
 
@@ -602,7 +603,7 @@ Web extraction использует каскад extractors:
   - не каждое clarification exchange обязано идти по схеме question -> explicit confirmation -> explanation
   - direct continuation, answer, or correction часто лучше, чем очередное подтверждение-маркер
 
-- speaker labels в final dialogue нормализуются к ASCII `A/B`, даже если модель вернула кириллические `А/Б` или формы вроде `Host A`
+- speaker labels в final dialogue нормализуются к ASCII `A/B`, даже если модель вернула кириллические `А/Б`, формы вроде `Host A`, или project-specific host aliases derived from `ShowBible.hosts` (имена / роли ведущих)
 
 - не default'ится в строгий `ABAB` exchange и не повторяет одни и те же opener-фразы scene after scene
 
@@ -630,6 +631,7 @@ Web extraction использует каскад extractors:
 - отдельно добавлен compact episode seam audit по границам актов (`A1->A2`, `A2->A3`, `A3->A4`), чтобы отличать нормальный handoff от `replay_question` / `replay_punchline` / `weak_reset` на opening scene следующего акта
 - medium-severity проблемы с scope `scene_polish` пытается чинить inline через scene-level polish pass
 - prompt для polish получает `scene_job` и `language`, чтобы polish не ломал intended move сцены и не дрейфовал в translated-from-English phrasing
+- prompt для polish жёстко держит canonical speaker contract: `speaker` должен оставаться только `A/B`; если модель всё же возвращает имена ведущих или role labels, runtime normalization мапит их обратно через aliases из `ShowBible.hosts`
 - prompt для polish может получать compact `act_repetition_report`, `seam_finding` и `intervention_targets`, чтобы сцена чинила конкретный opener / seam / distribution defect, а не делала generic style rewrite
 - acceptance for `scene_opening_echo` / `boundary_restatement` is now target-aware: polish не принимается, если opener по сути остался тем же; для speaker-distribution intervention polish тоже reject, если opener остался в том же dominant-speaker skew
 - metadata safety is now contract-first: `dialogue_polish` должен возвращать compatible `emotion` / `ssml_hints`; same-length rewrites get safe metadata backfill, while changed-length rewrites are accepted only when the returned dialogue itself preserves usable delivery metadata

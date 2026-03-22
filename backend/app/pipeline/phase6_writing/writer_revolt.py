@@ -11,10 +11,12 @@ from typing import Any
 from sqlalchemy import select
 
 from app.config import settings
+from app.models.show_bible import ShowBible
 from app.models.script_segment import AuditStatus, ScriptSegment
 from app.pipeline.debug_dump import safe_filename_token, write_json_debug_dump
 from app.pipeline.llm_json import parse_llm_json
 from app.pipeline.phase6_writing.dialogue_utils import (
+    build_speaker_aliases as _build_speaker_aliases,
     dedupe_preserve_order as _dedupe_preserve_order,
     extract_dialogue_claim_ids as _extract_dialogue_claim_ids,
     extract_dialogue_texts as _extract_dialogue_texts,
@@ -127,6 +129,8 @@ Return JSON:
 
 Rules:
 - The payload includes `language`; keep the scene natural for that language and spoken register.
+- Keep spoken lines in the payload language. If the original scene contains a foreign-language quote or source snippet and the beat is not explicitly about the wording itself, rewrite it into the payload language instead of preserving the raw source-language text.
+- Keep the `speaker` field canonical: output only `A` or `B`, never host names, role names, or localized speaker variants.
 - Preserve the factual meaning, chronology, and required claim coverage.
 - Preserve attribution and institutional details already present.
 - Preserve line-level delivery intent. If a line already carries `emotion` or `ssml_hints`, return compatible delivery metadata instead of dropping it.
@@ -227,6 +231,12 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
     seam_reports: list[dict[str, Any]] = []
 
     async with async_session_factory() as db:
+        speaker_aliases: dict[str, str] = {}
+        if state.get("show_bible_id"):
+            result = await db.execute(select(ShowBible).where(ShowBible.id == uuid.UUID(state["show_bible_id"])))
+            bible = result.scalar_one_or_none()
+            if bible is not None:
+                speaker_aliases = _build_speaker_aliases(bible.hosts)
         segments = await _load_segments_for_audit(db, segment_ids)
         scene_job_lookup = await _load_scene_job_lookup(db, state.get("manifest_id"))
 
@@ -368,6 +378,7 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
                     run_id=run_id,
                     segment=segment,
                     language=language,
+                    speaker_aliases=speaker_aliases,
                     boundary_context=row["boundary_context"],
                     scene_job=row["scene_job"],
                     issues=issues,
@@ -477,6 +488,7 @@ async def _attempt_dialogue_polish(
     act_repetition_report: dict[str, Any] | None,
     seam_finding: dict[str, Any] | None = None,
     intervention_targets: list[str] | None = None,
+    speaker_aliases: dict[str, str] | None = None,
 ) -> bool:
     original_dialogue = segment.dialogue_json
     original_claim_ids = set(_extract_dialogue_claim_ids(original_dialogue))
@@ -499,7 +511,10 @@ async def _attempt_dialogue_polish(
             temperature=0.2,
         )
         parsed = parse_llm_json(raw)
-        polished_dialogue = _normalize_dialogue_output(parsed.get("dialogue"))
+        polished_dialogue = _normalize_dialogue_output(
+            parsed.get("dialogue"),
+            speaker_aliases=speaker_aliases,
+        )
     except StepExecutionStopped:
         raise
     except Exception as exc:

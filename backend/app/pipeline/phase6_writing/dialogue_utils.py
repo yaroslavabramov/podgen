@@ -20,7 +20,104 @@ _SPEAKER_TRANSLATION = str.maketrans({
 })
 
 
-def normalize_speaker_label(value: object) -> str:
+def _normalize_speaker_alias_key(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    text = value.translate(_SPEAKER_TRANSLATION).strip()
+    if not text:
+        return ""
+    text = re.sub(r"\s+", " ", text)
+    text = text.strip(" \t\r\n:;,.!?-–—()[]{}\"'«»")
+    return text.casefold()
+
+
+def _register_speaker_alias(
+    aliases: dict[str, str],
+    collisions: set[str],
+    *,
+    candidate: object,
+    label: str,
+) -> None:
+    key = _normalize_speaker_alias_key(candidate)
+    if not key or key in {"a", "b"}:
+        return
+    existing = aliases.get(key)
+    if existing and existing != label:
+        collisions.add(key)
+        aliases.pop(key, None)
+        return
+    if key not in collisions:
+        aliases[key] = label
+
+
+def build_speaker_aliases(hosts: object) -> dict[str, str]:
+    if not isinstance(hosts, list):
+        return {}
+
+    aliases: dict[str, str] = {}
+    collisions: set[str] = set()
+    first_token_candidates: list[tuple[str, str]] = []
+
+    for idx, host in enumerate(hosts[:2]):
+        if not isinstance(host, dict):
+            continue
+        label = "A" if idx == 0 else "B"
+        name = host.get("name")
+        role = host.get("role")
+        _register_speaker_alias(aliases, collisions, candidate=name, label=label)
+        _register_speaker_alias(aliases, collisions, candidate=role, label=label)
+
+        if isinstance(name, str):
+            tokens = re.findall(r"\S+", name.strip())
+            if tokens:
+                first_token_candidates.append((tokens[0], label))
+
+    unique_first_tokens: dict[str, str] = {}
+    duplicate_first_tokens: set[str] = set()
+    for token, label in first_token_candidates:
+        key = _normalize_speaker_alias_key(token)
+        if not key or key in {"a", "b"}:
+            continue
+        existing = unique_first_tokens.get(key)
+        if existing and existing != label:
+            duplicate_first_tokens.add(key)
+            unique_first_tokens.pop(key, None)
+            continue
+        if key not in duplicate_first_tokens:
+            unique_first_tokens[key] = label
+
+    for key, label in unique_first_tokens.items():
+        if key in collisions:
+            continue
+        aliases.setdefault(key, label)
+
+    return aliases
+
+
+def _lookup_speaker_alias(value: str, speaker_aliases: dict[str, str] | None) -> str | None:
+    if not speaker_aliases:
+        return None
+    normalized_value = _normalize_speaker_alias_key(value)
+    if not normalized_value:
+        return None
+
+    direct = speaker_aliases.get(normalized_value)
+    if direct in {"A", "B"}:
+        return direct
+
+    raw_direct = speaker_aliases.get(value.strip())
+    if raw_direct in {"A", "B"}:
+        return raw_direct
+
+    for candidate, label in speaker_aliases.items():
+        if label not in {"A", "B"}:
+            continue
+        if _normalize_speaker_alias_key(candidate) == normalized_value:
+            return label
+    return None
+
+
+def normalize_speaker_label(value: object, speaker_aliases: dict[str, str] | None = None) -> str:
     if not isinstance(value, str):
         return "A"
 
@@ -32,9 +129,15 @@ def normalize_speaker_label(value: object) -> str:
     if translated in {"A", "B"}:
         return translated
 
+    translated = translated.strip(" \t\r\n:;,.!?-–—()[]{}\"'«»")
+
     match = re.fullmatch(r"(?:HOST|SPEAKER)?\s*([AB])", translated)
     if match:
         return match.group(1)
+
+    alias = _lookup_speaker_alias(text, speaker_aliases)
+    if alias in {"A", "B"}:
+        return alias
 
     return "A"
 
@@ -74,7 +177,11 @@ def extract_dialogue_claim_ids(dialogue_json: object) -> list[str]:
     return ordered
 
 
-def normalize_dialogue_output(value: Any) -> list[dict[str, Any]] | None:
+def normalize_dialogue_output(
+    value: Any,
+    *,
+    speaker_aliases: dict[str, str] | None = None,
+) -> list[dict[str, Any]] | None:
     if not isinstance(value, list):
         return None
     dialogue: list[dict[str, Any]] = []
@@ -100,7 +207,7 @@ def normalize_dialogue_output(value: Any) -> list[dict[str, Any]] | None:
                 seen_claim_ids.add(trimmed)
                 normalized_claim_ids.append(trimmed)
         normalized_line = {
-            "speaker": normalize_speaker_label(item.get("speaker")),
+            "speaker": normalize_speaker_label(item.get("speaker"), speaker_aliases=speaker_aliases),
             "text": cleaned_text,
             "claim_ids": normalized_claim_ids,
         }

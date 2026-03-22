@@ -18,6 +18,7 @@ from app.models.show_bible import ShowBible
 from app.pipeline.debug_dump import safe_filename_token, write_json_debug_dump
 from app.pipeline.llm_json import parse_llm_json
 from app.pipeline.phase6_writing.dialogue_utils import (
+    build_speaker_aliases as _build_speaker_aliases,
     dedupe_preserve_order as _dedupe_preserve_order,
     extract_dialogue_claim_ids as _extract_dialogue_claim_ids,
     load_manifest_scene_metadata_lookup as _load_manifest_scene_metadata_lookup,
@@ -116,6 +117,8 @@ Return JSON:
 Rules:
 - This is spoken podcast dialogue, not an article, memo, or legal brief.
 - The payload includes `language`; write naturally in that language and in the same spoken register as the original.
+- Keep the repaired line in the payload language. If support or evidence exists in another language, translate or paraphrase it into the payload language unless the wording itself is the explicit subject of the beat.
+- Keep the `speaker` field canonical: output only `A` or `B`, never host names, role names, or localized speaker variants.
 - Preserve the original line's spoken rhythm, sentence shape, and scene function.
 - Keep named actors and agency if they are not themselves the unsupported part.
 - Rewrite only the targeted lines.
@@ -161,6 +164,8 @@ Rules:
 - Fix only the citation and rigor issues that were flagged.
 - This is spoken podcast dialogue, not an article, memo, or legal brief.
 - The payload includes `language`; write naturally in that language and in the same spoken register as the original.
+- Keep the repaired scene in the payload language. If support or evidence exists in another language, translate or paraphrase it into the payload language unless the wording itself is the explicit subject of the beat.
+- Keep the `speaker` field canonical: output only `A` or `B`, never host names, role names, or localized speaker variants.
 - Preserve the scene's factual meaning whenever supported by available claims.
 - Focus edits on lines flagged as `block` or `repair`; keep clean lines as unchanged as possible.
 - Preserve the scene's dramatic structure, pacing, and agency, not just its factual gist.
@@ -211,6 +216,7 @@ async def audit_citations(state: PipelineState) -> dict:
 
         forbidden = bible.forbidden_phrases if bible else []
         rigor = bible.rigor_policy if bible else ""
+        speaker_aliases = _build_speaker_aliases(bible.hosts if bible else [])
 
         claims_map = await _load_claims_map(db, state.get("claim_ids", []))
         scene_metadata_lookup = await _load_manifest_scene_metadata_lookup(db, state.get("manifest_id"))
@@ -325,6 +331,7 @@ async def audit_citations(state: PipelineState) -> dict:
                         scene_number=segment.scene_number,
                         scene_metadata=scene_metadata,
                     ),
+                    speaker_aliases=speaker_aliases,
                 )
                 if repair_accepted and repaired_dialogue is not None and repaired_audit is not None:
                     final_dialogue = repaired_dialogue
@@ -505,6 +512,7 @@ async def _attempt_citation_repair(
     language: str,
     original_audit: dict[str, Any],
     scene_context: dict[str, Any],
+    speaker_aliases: dict[str, str] | None = None,
 ) -> tuple[list[dict[str, Any]] | None, dict[str, Any] | None, bool]:
     original_dialogue = segment.dialogue_json
     original_line_count = len(original_dialogue) if isinstance(original_dialogue, list) else 0
@@ -542,6 +550,7 @@ async def _attempt_citation_repair(
                 prompt_payload=prompt_payload,
                 original_dialogue=original_dialogue,
                 target_line_indexes=target_line_indexes,
+                speaker_aliases=speaker_aliases,
             )
         except StepExecutionStopped:
             raise
@@ -746,6 +755,7 @@ async def _run_citation_repair_attempt(
     prompt_payload: dict[str, Any],
     original_dialogue: list[dict[str, Any]],
     target_line_indexes: list[int],
+    speaker_aliases: dict[str, str] | None = None,
 ) -> list[dict[str, Any]] | None:
     raw = await call_sonnet_structured(
         system=LINE_REPAIR_SYSTEM if repair_mode == "line_repair" else REPAIR_SYSTEM,
@@ -755,20 +765,30 @@ async def _run_citation_repair_attempt(
     )
     parsed = parse_llm_json(raw)
     if repair_mode == "line_repair":
-        repaired_lines = _normalize_line_repair_output(parsed.get("repaired_lines"))
+        repaired_lines = _normalize_line_repair_output(
+            parsed.get("repaired_lines"),
+            speaker_aliases=speaker_aliases,
+        )
         return _splice_repaired_lines(
             original_dialogue=original_dialogue,
             repaired_lines=repaired_lines,
             target_line_indexes=target_line_indexes,
         )
-    repaired_dialogue = _normalize_dialogue_output(parsed.get("dialogue"))
+    repaired_dialogue = _normalize_dialogue_output(
+        parsed.get("dialogue"),
+        speaker_aliases=speaker_aliases,
+    )
     return _merge_scene_repair_metadata(
         original_dialogue=original_dialogue,
         repaired_dialogue=repaired_dialogue,
     )
 
 
-def _normalize_line_repair_output(value: Any) -> dict[int, dict[str, Any]] | None:
+def _normalize_line_repair_output(
+    value: Any,
+    *,
+    speaker_aliases: dict[str, str] | None = None,
+) -> dict[int, dict[str, Any]] | None:
     if not isinstance(value, list):
         return None
     repaired_lines: dict[int, dict[str, Any]] = {}
@@ -786,7 +806,8 @@ def _normalize_line_repair_output(value: Any) -> dict[int, dict[str, Any]] | Non
                     "text": item.get("text"),
                     "claim_ids": item.get("claim_ids"),
                 }
-            ]
+            ],
+            speaker_aliases=speaker_aliases,
         )
         if not normalized_line:
             continue
