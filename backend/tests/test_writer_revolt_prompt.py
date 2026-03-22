@@ -330,6 +330,77 @@ async def test_attempt_dialogue_polish_propagates_stop(monkeypatch: pytest.Monke
 
 
 @pytest.mark.asyncio
+async def test_attempt_dialogue_polish_preserves_line_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _DummyDb:
+        async def flush(self) -> None:
+            return None
+
+    async def _return_polished(**_: object) -> str:
+        return """
+        {
+          "dialogue": [
+            {"speaker": "A", "text": "A revised opener.", "claim_ids": ["c1"]},
+            {"speaker": "B", "text": "The unchanged line.", "claim_ids": ["c2"]}
+          ]
+        }
+        """
+
+    monkeypatch.setattr("app.pipeline.phase6_writing.writer_revolt.call_sonnet_structured", _return_polished)
+
+    segment = SimpleNamespace(
+        act_number=1,
+        scene_number=2,
+        dialogue_json=[
+            {
+                "speaker": "A",
+                "text": "The old opener.",
+                "claim_ids": ["c1"],
+                "emotion": "serious",
+                "ssml_hints": {"pause_ms": 100},
+            },
+            {
+                "speaker": "B",
+                "text": "The unchanged line.",
+                "claim_ids": ["c2"],
+                "emotion": "skeptical",
+                "ssml_hints": {"pause_ms": 220},
+            },
+        ],
+        revision_count=0,
+        audit_findings={"dialogue": {"issues": [{"type": "scene_opening_echo"}]}},
+    )
+
+    accepted = await _attempt_dialogue_polish(
+        db=_DummyDb(),
+        run_id="run-1",
+        segment=segment,
+        language="en",
+        boundary_context={"last_line": "Previous scene."},
+        scene_job="stress_test",
+        issues=[{"type": "scene_opening_echo", "severity": "medium", "scope": "scene_polish"}],
+        act_repetition_report=None,
+    )
+
+    assert accepted is True
+    assert segment.dialogue_json == [
+        {
+            "speaker": "A",
+            "text": "A revised opener.",
+            "claim_ids": ["c1"],
+            "emotion": "serious",
+            "ssml_hints": {"pause_ms": 100},
+        },
+        {
+            "speaker": "B",
+            "text": "The unchanged line.",
+            "claim_ids": ["c2"],
+            "emotion": "skeptical",
+            "ssml_hints": {"pause_ms": 220},
+        },
+    ]
+
+
+@pytest.mark.asyncio
 async def test_augment_act_dialogue_reports_with_llm_propagates_stop(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _raise_stop(_: dict[str, object]) -> dict[str, object]:
         raise StepExecutionStopped("stop")

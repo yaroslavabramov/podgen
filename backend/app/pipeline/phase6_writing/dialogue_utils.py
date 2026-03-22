@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from copy import deepcopy
 from typing import Any
 
 from sqlalchemy import select
@@ -106,6 +107,47 @@ def normalize_dialogue_output(value: Any) -> list[dict[str, Any]] | None:
             }
         )
     return dialogue or None
+
+
+def merge_dialogue_metadata(
+    *,
+    original_dialogue: list[dict[str, Any]],
+    repaired_dialogue: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]] | None:
+    if not repaired_dialogue:
+        return None
+
+    merged: list[dict[str, Any]] = []
+    original_lines = [line for line in original_dialogue if isinstance(line, dict)]
+    for idx, repaired_line in enumerate(repaired_dialogue):
+        if not isinstance(repaired_line, dict):
+            return None
+        merged_line = deepcopy(repaired_line)
+        original_line = original_lines[idx] if idx < len(original_lines) else None
+        if not isinstance(original_line, dict):
+            merged.append(merged_line)
+            continue
+
+        original_speaker = str(original_line.get("speaker") or "").strip()
+        repaired_speaker = str(repaired_line.get("speaker") or "").strip()
+        original_text = str(original_line.get("text") or "").strip()
+        repaired_text = str(repaired_line.get("text") or "").strip()
+
+        if original_speaker == repaired_speaker and original_text == repaired_text:
+            preserved = deepcopy(original_line)
+            preserved["claim_ids"] = list(repaired_line.get("claim_ids") or [])
+            merged.append(preserved)
+            continue
+
+        if original_speaker == repaired_speaker and original_text != repaired_text:
+            if "emotion" in original_line and "emotion" not in merged_line:
+                merged_line["emotion"] = original_line.get("emotion")
+            if "ssml_hints" in original_line and "ssml_hints" not in merged_line:
+                merged_line["ssml_hints"] = deepcopy(original_line.get("ssml_hints"))
+
+        merged.append(merged_line)
+
+    return merged
 
 
 def dedupe_preserve_order(values: list[str]) -> list[str]:

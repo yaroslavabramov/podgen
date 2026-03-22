@@ -52,15 +52,22 @@ def test_citation_auditor_prompt_demands_severity_scope_and_repair() -> None:
     assert "rewrite only the targeted lines" in LINE_REPAIR_SYSTEM.lower()
     assert "spoken podcast dialogue" in LINE_REPAIR_SYSTEM
     assert "The payload includes `language`" in LINE_REPAIR_SYSTEM
-    assert "Do not default to bureaucratic or academic hedges" in LINE_REPAIR_SYSTEM
+    assert "Do not default to bureaucratic, legalistic, or academic hedging" in LINE_REPAIR_SYSTEM
     assert "Do not turn an internal bridge into sign-off or next-episode teaser language" in LINE_REPAIR_SYSTEM
-    assert "Double hedging" in LINE_REPAIR_SYSTEM
+    assert "If the line already carries uncertainty, do not stack multiple hedges" in LINE_REPAIR_SYSTEM
+    assert "If exact timing is unsupported, keep the event but lower the precision." in LINE_REPAIR_SYSTEM
     assert "Fix only the citation and rigor issues that were flagged." in REPAIR_SYSTEM
     assert "Focus edits on lines flagged as `block` or `repair`" in REPAIR_SYSTEM
     assert "Preserve the scene's dramatic structure, pacing, and agency" in REPAIR_SYSTEM
     assert "If `available_claims` mark a claim as `verified`" in REPAIR_SYSTEM
     assert "Do not add new facts, institutions, dates, figures, or claims." in REPAIR_SYSTEM
     assert "Preserve the scene's `scene_job`, `scene_type`, and content function." in REPAIR_SYSTEM
+    assert "Preserve natural spoken register in the target language" in REPAIR_SYSTEM
+    assert "If a line already contains uncertainty, do not stack multiple hedges" in REPAIR_SYSTEM
+    assert "по имеющимся данным" not in LINE_REPAIR_SYSTEM
+    assert "в соответствии с" not in LINE_REPAIR_SYSTEM
+    assert "я должен оговориться" not in LINE_REPAIR_SYSTEM
+    assert "по имеющимся данным" not in REPAIR_SYSTEM
 
 
 def test_build_citation_audit_prompt_payload_keeps_policy_and_claim_context() -> None:

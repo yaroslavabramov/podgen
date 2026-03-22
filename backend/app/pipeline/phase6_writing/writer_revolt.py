@@ -19,6 +19,7 @@ from app.pipeline.phase6_writing.dialogue_utils import (
     extract_dialogue_claim_ids as _extract_dialogue_claim_ids,
     extract_dialogue_texts as _extract_dialogue_texts,
     load_manifest_scene_metadata_lookup as _load_manifest_scene_metadata_lookup,
+    merge_dialogue_metadata as _merge_dialogue_metadata,
     normalize_dialogue_output as _normalize_dialogue_output,
     segment_audit_finding as _segment_audit_finding,
     set_segment_audit_finding as _set_segment_audit_finding,
@@ -469,7 +470,25 @@ async def _attempt_dialogue_polish(
         )
         return False
 
-    segment.dialogue_json = polished_dialogue
+    merged_dialogue = _merge_dialogue_metadata(
+        original_dialogue=original_dialogue,
+        repaired_dialogue=polished_dialogue,
+    )
+    if not merged_dialogue:
+        _dump_dialogue_polish_debug(
+            run_id=run_id,
+            act_number=segment.act_number,
+            scene_number=segment.scene_number,
+            status="metadata_merge_failed",
+            payload=prompt_payload,
+            before_dialogue=original_dialogue,
+            after_dialogue=polished_dialogue,
+            decision="rejected",
+            error="polish produced dialogue that could not be merged with original metadata",
+        )
+        return False
+
+    segment.dialogue_json = merged_dialogue
     segment.revision_count += 1
     _set_segment_audit_finding(
         segment,
@@ -488,7 +507,7 @@ async def _attempt_dialogue_polish(
         status="accepted",
         payload=prompt_payload,
         before_dialogue=original_dialogue,
-        after_dialogue=polished_dialogue,
+        after_dialogue=merged_dialogue,
         decision="accepted",
         error=None,
     )

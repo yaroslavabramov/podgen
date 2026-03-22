@@ -21,6 +21,7 @@ from app.pipeline.phase6_writing.dialogue_utils import (
     dedupe_preserve_order as _dedupe_preserve_order,
     extract_dialogue_claim_ids as _extract_dialogue_claim_ids,
     load_manifest_scene_metadata_lookup as _load_manifest_scene_metadata_lookup,
+    merge_dialogue_metadata as _merge_dialogue_metadata,
     normalize_dialogue_output as _normalize_dialogue_output,
     set_segment_audit_finding as _set_segment_audit_finding,
 )
@@ -128,7 +129,7 @@ Rules:
 - Use explicit source framing only when the supporting claims actually include attribution/source support. Do not invent a source frame that is absent from `available_claims`.
 - If `available_claims` mark a claim as `verified`, you may remove unnecessary caution.
 - If a claim is `observed` or `unverified`, do not increase confidence beyond that support level.
-- Do not default to bureaucratic or academic hedges like `по имеющимся данным`, `в соответствии с`, `следует из`, or `я должен оговориться`.
+- Do not default to bureaucratic, legalistic, or academic hedging. Prefer short spoken uncertainty markers that sound natural in the target language.
 - Keep the line close in length to the original. If the original is one sentence, prefer one sentence.
 - Use at most one short uncertainty marker in a line.
 - Do not turn an internal bridge into sign-off or next-episode teaser language unless `scene_context.is_final_scene_in_episode` is true.
@@ -136,23 +137,11 @@ Rules:
 - Do not rewrite or comment on unflagged lines.
 - The repaired line must sound natural when read aloud.
 
-Examples:
-- Unsupported date precision
-  - bad original: `Рецепт появился буквально через три недели.`
-  - good repair: `Рецепт появился вскоре после паники.`
-  - bad repair: `Судя по имеющимся данным, рецепт появился через некоторый промежуток времени.`
-- Unsupported bridge fact
-  - bad original: `1983 год. Тогда якоря не было — и посмотрим, что случилось.`
-  - good repair: `А вот когда такого якоря ещё не было, всё выглядело совсем иначе.`
-  - bad repair: `Об этом — в следующий раз.`
-- Unsupported agency chain
-  - bad original: `Он написал статью, чиновники прочли и взяли её за основу.`
-  - good repair: `Его позже назовут одним из архитекторов этой системы.`
-  - bad repair: `Суть механизма была в следующем.`
-- Double hedging
-  - bad original: `...вообще не было — хотя точный источник этих сведений установить затруднительно.`
-  - good repair: `...судя по всему, вообще не было — хотя источник стоит перепроверить.`
-  - bad repair: `...вообще не было — хотя я должен оговориться: точный источник установить затруднительно, так что это предположение, а не установленный факт.`
+Pattern guidance:
+- If exact timing is unsupported, keep the event but lower the precision.
+- If a bridge line contains one unsupported factual fragment, repair that fragment without turning the line into a teaser or sign-off.
+- If a vivid action/agency chain is mostly supported, keep the actors and narrow only the unsupported link.
+- If the line already carries uncertainty, do not stack multiple hedges on top of each other.
 - Output only JSON."""
 
 REPAIR_SYSTEM = """You are repairing factual-rigor issues in a podcast dialogue scene.
@@ -182,7 +171,7 @@ Rules:
 - Use explicit source framing only when the supporting claims actually include attribution/source support. Do not invent a source frame that is absent from `available_claims`.
 - If `available_claims` mark a claim as `verified`, you may remove unnecessary caution.
 - If a claim is `observed` or `unverified`, do not increase confidence beyond that support level.
-- Add hedging or attribution where required, but do not default to bureaucratic or academic phrases like `по имеющимся данным`, `в соответствии с`, `следует из`, or `я должен оговориться`.
+- Add hedging or attribution where required, but do not default to bureaucratic, legalistic, or academic phrasing. Prefer the shortest spoken form that fits the target language.
 - Do not flatten a vivid story beat into generalized exposition just to remove one unsupported assertion.
 - Do not add new facts, institutions, dates, figures, or claims.
 - Preserve the scene's `scene_job`, `scene_type`, and content function.
@@ -192,6 +181,10 @@ Rules:
 - Keep the line count close to the original scene length.
 - Use at most one short uncertainty marker per line.
 - Keep only speakers `A` and `B`.
+- Preserve natural spoken register in the target language instead of rewriting into abstract summary language.
+- If exact timing is unsupported, lower precision without deleting the scene's narrative move.
+- If one causal or agency link is unsupported, narrow that link while keeping the surrounding story structure.
+- If a line already contains uncertainty, do not stack multiple hedges on top of it.
 - The repaired scene must sound natural when read aloud.
 - Output only JSON."""
 
@@ -829,40 +822,10 @@ def _merge_scene_repair_metadata(
     original_dialogue: list[dict[str, Any]],
     repaired_dialogue: list[dict[str, Any]] | None,
 ) -> list[dict[str, Any]] | None:
-    if not repaired_dialogue:
-        return None
-
-    merged: list[dict[str, Any]] = []
-    original_lines = [line for line in original_dialogue if isinstance(line, dict)]
-    for idx, repaired_line in enumerate(repaired_dialogue):
-        if not isinstance(repaired_line, dict):
-            return None
-        merged_line = deepcopy(repaired_line)
-        original_line = original_lines[idx] if idx < len(original_lines) else None
-        if not isinstance(original_line, dict):
-            merged.append(merged_line)
-            continue
-
-        original_speaker = str(original_line.get("speaker") or "").strip()
-        repaired_speaker = str(repaired_line.get("speaker") or "").strip()
-        original_text = str(original_line.get("text") or "").strip()
-        repaired_text = str(repaired_line.get("text") or "").strip()
-
-        if original_speaker == repaired_speaker and original_text == repaired_text:
-            preserved = deepcopy(original_line)
-            preserved["claim_ids"] = list(repaired_line.get("claim_ids") or [])
-            merged.append(preserved)
-            continue
-
-        if original_speaker == repaired_speaker and original_text != repaired_text:
-            if "emotion" in original_line and "emotion" not in merged_line:
-                merged_line["emotion"] = original_line.get("emotion")
-            if "ssml_hints" in original_line and "ssml_hints" not in merged_line:
-                merged_line["ssml_hints"] = deepcopy(original_line.get("ssml_hints"))
-
-        merged.append(merged_line)
-
-    return merged
+    return _merge_dialogue_metadata(
+        original_dialogue=original_dialogue,
+        repaired_dialogue=repaired_dialogue,
+    )
 
 
 def _normalize_citation_issues(value: Any) -> list[dict[str, Any]]:
