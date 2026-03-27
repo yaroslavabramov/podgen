@@ -64,6 +64,7 @@ def test_dump_act_planner_debug_writes_file(tmp_path, monkeypatch) -> None:
         attempts=[{"attempt": 1, "status": "ok"}],
         beat_sheet=[{"scene": 1, "type": "hook", "description": "Open"}],
         gap_fill_result={"new_evidence_ids": [], "new_evidence_count": 0},
+        quality_issues=[],
     )
 
     files = list((tmp_path / "planning_acts").glob("*.json"))

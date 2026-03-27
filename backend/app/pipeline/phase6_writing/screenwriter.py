@@ -78,6 +78,8 @@ Host defaults:
 - Host B often pressure-tests, reframes, reacts, or spots what is missing.
 - These are soft tendencies, not rigid scene roles.
 - Either host may ask, infer, challenge, summarize, narrate, or land a point.
+- Host B must contribute substance, not just react. B should offer own knowledge, independent angles, concrete examples, real objections, or implications that A did not raise. If B only paraphrases or confirms what A said, the scene fails.
+- B's pushback should be specific and grounded: name a counterexample, point out a missing cost, question a mechanism's limits, or introduce a fact that complicates A's framing. Generic skepticism ("But is it really that simple?") without substance does not count.
 
 Writing rules:
 - Language:
@@ -87,8 +89,9 @@ Writing rules:
   - If evidence, quotes, or source material are in another language, translate or paraphrase them into the dialogue language instead of dropping raw source-language text into the line.
   - Only keep a very short original-language snippet when the scene is explicitly discussing wording, and immediately make its meaning clear in the dialogue language.
 - Use `description` as the main job of the scene. Use `transition_note` only as a light landing/bridge if it helps the ending.
-- Use `act_title`, `previous_scene`, `previous_act_summary`, `already_covered_claims`, `already_covered_claims_global`, and `new_information_goal` only as continuity context. Do not restate material that the listener already heard unless this scene is explicitly reframing or paying it off.
+- Use `act_title`, `previous_scene`, `previous_act_summary`, `already_covered_claims`, and `already_covered_claims_global` only as continuity context. Do not restate material that the listener already heard unless this scene is explicitly reframing or paying it off.
 - For the first scene of a later act, use `previous_act_summary` to build on what the listener already knows instead of resetting the story from zero.
+- If `prior_scenes_dialogue` is present, read it to understand what this act has already said. Do not repeat insights, formulations, or narrative moves from earlier scenes. Build on the arc — contrast, deepen, complicate, or land. Also scan `prior_scenes_dialogue` for recurring opener words and confirmation markers — if a word or phrase already appears frequently, avoid it in this scene.
 - If `previous_scene.last_line` is present, prefer opening the scene as a natural continuation of that last spoken thought when it fits the beat. Do not hard-reset the conversation if a smooth carry-over is available.
 - The first 1-2 lines of a new scene should advance, challenge, narrow, or reframe what the listener just heard. Do not open by paraphrasing the previous scene's closing proposition unless the beat explicitly requires a callback.
 - If the previous scene already announced the event, mechanism result, or punchline, start from the consequence, contradiction, pressure, cost, or next question instead of re-announcing it.
@@ -102,23 +105,23 @@ Writing rules:
   - Bad: previous scene already asked the big question, new scene re-asks it in softer words.
   - Better: turn that opening into a sharper sub-question, objection, or concrete consequence.
 - If the current scene overlaps with covered local or global material, briefly refer back and move to what is new in this scene.
-- If `already_covered_claims_global` includes `mechanism_anchors`, treat those anchors as signs that the mechanism is already established. Do not reteach it from zero unless this scene adds a new consequence, stress test, or reframing.
+- If the current scene's claims overlap with `already_covered_claims_global`, treat that material as already established. Do not reteach it from zero unless this scene adds a new consequence, stress test, or reframing.
 - Use `scene_claim_mode` to decide how much explanation is still allowed:
   - `primary`: introduce the new material clearly
-  - `mixed`: explain the primary part, but treat `callback_claim_ids` as already established
+  - `mixed`: explain the primary part, but treat `callback_claims` as already established
   - `callback`: reference the established mechanism briefly and move to implication, cost, contrast, or bridge
 - Use `scene_job` as the positive move this scene must make:
   - `reframe`: reinterpret already-established material
   - `cost`: show the price or tradeoff
   - `contrast`: sharpen difference against another path or expectation
   - `bridge`: pivot cleanly into the next beat or act
-  - `synthesize`: compress what changed in understanding
+  - `synthesize`: land the shift through this scene's own material — show why what the listener just heard means something different or bigger than they thought. Do not restate earlier scenes' conclusions
   - `apply`: show an established mechanism operating in a concrete case
   - `stress_test`: push an established mechanism under pressure
-- `callback_claim_ids` are not fresh exposition material. Do not turn callback-only scenes into mechanism walkthroughs.
+- `callback_claims` are not fresh exposition material. Do not turn callback-only scenes into mechanism walkthroughs.
+- `claims` = new material to introduce in this scene. `callback_claims` = established material available for brief reference (do not re-explain from zero).
 - If `scene_claim_mode = callback`, let `scene_job` control the scene. Reference the established mechanism briefly, then spend the scene on the job.
 - For `cost` scenes, open with the price, contradiction, or compromise being paid. Do not reopen by retelling the event beat that the previous scene just landed.
-- Treat `new_information_goal` as the delta this scene must add. Do not spend most of the scene re-teaching already covered setup.
 - Keep the scene moving. Do not let both hosts restate the same point in slightly different words.
 - Avoid dry explanatory dialogue by default. Prefer a concrete opening move, a turn, and a landing.
 - `recent_scene_starts` lists opener shapes already used in this act. If a recent opener shape is already present there, choose a different natural opening when possible.
@@ -129,7 +132,7 @@ Writing rules:
   - `debate`: surface real tension or tradeoff, not a fake argument
   - `transition`: pivot the listener cleanly from one framing to another
   - `summary`: compress what changed in understanding without sounding like bullet points
-  - `takeaway`: land the consequence or implication, not just a generic recap
+  - `takeaway`: use this scene's own claims to recontextualize the act — not summarize it
 - Do not make Host A always explain and Host B always ask for proof in the same rhythm. Vary who initiates, who reframes, and who gets the last word.
 - Do not default every scene to strict `ABAB` alternation. Occasional `AA` or `BB` runs are fine when they sound natural.
 - Vary agreement, confirmation, and challenge shapes. Not every challenge needs an interruption-style opener, and not every agreement needs an explicit confirmation marker.
@@ -137,8 +140,10 @@ Writing rules:
 - A challenge can begin from tension, contrast, doubt, or a missing implication. It does not always need to sound like an interruption.
 - Do not default every reaction to the same opener or confirmation shape. Vary discourse moves and avoid repeating one canned rhythm scene after scene.
 - If a nearby scene already used the same opener shape or agreement shape, pick a different natural move unless repetition is clearly intentional.
+- Track your own word usage within this scene: if any confirmation word, filler, or discourse marker has already appeared twice, do not use it a third time. Choose a different natural move instead.
+- Vary how lines begin. Do not start more than two lines in the same scene with the same word or phrase pattern.
 - Use evidence organically. Do not dump raw quotes or source language into dialogue unless quoting the wording itself is the point of the beat.
-- When a precise figure, legal clause, institutional rule, or date matters, occasionally anchor it with light attribution such as "по данным центрального банка", "как сказано в законе", or "согласно официальным правилам фонда" instead of presenting every fact as unattributed narration.
+- When a precise figure, legal clause, institutional rule, or date matters, occasionally anchor it with light source attribution instead of presenting every fact as unattributed narration.
 - When claims are OBSERVED, UNVERIFIED, DISPUTED, OPINION, or REPORT, make the line sound appropriately attributed or qualified.
 - Prefer callbacks over re-explanations. If a prior scene already established the mechanism, this scene should build on it rather than teach it from scratch again.
 
@@ -357,7 +362,6 @@ async def write_screenplay(state: PipelineState) -> dict:
                         claim_lookup=global_claim_lookup,
                         max_items=16,
                         statement_chars=160,
-                        include_mechanism_anchors=True,
                     ),
                     recent_scene_starts=_build_recent_scene_starts(
                         beat_sheet,
@@ -365,12 +369,13 @@ async def write_screenplay(state: PipelineState) -> dict:
                         act_number=act_num,
                         existing_segments=existing_segments,
                     ),
-                    new_information_goal=_build_new_information_goal(
-                        scene=scene,
-                        scene_claims=scene_claims,
-                        local_covered_claim_ids=covered_claim_ids_set,
-                        global_covered_claim_ids=covered_claim_ids_global_set,
+                    prior_scenes_dialogue=_build_prior_scenes_dialogue(
+                        beat_sheet,
+                        scene_idx,
+                        act_number=act_num,
+                        existing_segments=existing_segments,
                     ),
+                    act_claim_lookup=act_claim_lookup,
                 )
                 prompt = json.dumps(prompt_payload, ensure_ascii=False)
 
@@ -411,6 +416,21 @@ async def write_screenplay(state: PipelineState) -> dict:
                             if not isinstance(line.get("claim_ids"), list):
                                 line["claim_ids"] = []
                             dialogue.append(line)
+
+                        # Validate claim_ids against known claims
+                        for line in dialogue:
+                            raw_ids = line.get("claim_ids", [])
+                            validated = [
+                                cid for cid in raw_ids
+                                if isinstance(cid, str) and cid in global_claim_lookup
+                            ]
+                            dropped = len(raw_ids) - len(validated)
+                            if dropped:
+                                logger.warning(
+                                    "Dropped %d invalid claim_id(s) from screenwriter output (act %s scene %s)",
+                                    dropped, act_num, scene_num,
+                                )
+                            line["claim_ids"] = validated
 
                         if not dialogue:
                             raise ValueError("screenwriter output contains no valid dialogue lines")
@@ -621,7 +641,8 @@ def _build_scene_prompt_payload(
     already_covered_claims: list[dict],
     already_covered_claims_global: list[dict],
     recent_scene_starts: list[str],
-    new_information_goal: str,
+    prior_scenes_dialogue: list[dict],
+    act_claim_lookup: dict[str, dict],
 ) -> dict:
     return {
         "language": str(language or "en").strip() or "en",
@@ -631,17 +652,21 @@ def _build_scene_prompt_payload(
         "scene_type": scene.get("type", "explanation"),
         "scene_claim_mode": _scene_claim_mode(scene),
         "scene_job": _scene_job(scene),
-        "callback_claim_ids": _scene_callback_claim_ids(scene),
+        "callback_claims": [
+            act_claim_lookup[cid]
+            for cid in _scene_callback_claim_ids(scene)
+            if cid in act_claim_lookup
+        ],
         "description": scene.get("description", ""),
         "transition_note": scene.get("transition_note", ""),
         "notes": scene.get("notes", ""),
         "estimated_duration_seconds": scene.get("estimated_duration_seconds"),
         "previous_scene": previous_scene,
         "previous_act_summary": previous_act_summary,
+        "prior_scenes_dialogue": prior_scenes_dialogue,
         "already_covered_claims": already_covered_claims,
         "already_covered_claims_global": already_covered_claims_global,
         "recent_scene_starts": recent_scene_starts,
-        "new_information_goal": new_information_goal,
         "claims": scene_claims,
         "evidence": scene_evidence,
         "hosts": hosts,
@@ -793,14 +818,6 @@ def _build_previous_scene_payload(
                 220,
             )
 
-    if previous_segment is not None:
-        anchor_texts = _extract_dialogue_texts(previous_segment.dialogue_json)
-    else:
-        anchor_texts = [
-            item.get("statement", "")
-            for item in established_points
-            if isinstance(item.get("statement"), str)
-        ]
     last_line = (
         _extract_last_dialogue_line(previous_segment.dialogue_json)
         if previous_segment is not None
@@ -812,7 +829,6 @@ def _build_previous_scene_payload(
         "scene_type": previous.get("type", "explanation"),
         "what_listener_now_knows": what_listener_now_knows,
         "claim_ids": established_claim_ids or previous_claim_ids[:4],
-        "mechanism_anchors": _collect_mechanism_anchors(anchor_texts),
         "last_line": last_line,
     }
 
@@ -905,50 +921,6 @@ def _collect_manifest_claim_ids(acts_json: object) -> list[str]:
     return ordered
 
 
-def _build_new_information_goal(
-    *,
-    scene: dict,
-    scene_claims: list[dict],
-    local_covered_claim_ids: set[str],
-    global_covered_claim_ids: set[str],
-) -> str:
-    new_statements: list[str] = []
-    seen_statements: set[str] = set()
-    for claim in scene_claims:
-        if not isinstance(claim, dict):
-            continue
-        claim_id = claim.get("id")
-        if (
-            isinstance(claim_id, str)
-            and (claim_id in local_covered_claim_ids or claim_id in global_covered_claim_ids)
-        ):
-            continue
-        statement = claim.get("statement")
-        if not isinstance(statement, str):
-            continue
-        cleaned = " ".join(statement.strip().split())
-        if not cleaned or cleaned in seen_statements:
-            continue
-        seen_statements.add(cleaned)
-        new_statements.append(cleaned[:220])
-        if len(new_statements) >= 2:
-            break
-
-    if new_statements:
-        return "Advance the listener with what is new here: " + "; ".join(new_statements)
-
-    description = scene.get("description", "")
-    if isinstance(description, str):
-        cleaned_description = " ".join(description.strip().split())
-        if cleaned_description:
-            return (
-                "Do not reteach already covered setup. Use this scene to add a fresh angle, "
-                f"consequence, or reframing from the brief: {cleaned_description[:260]}"
-            )
-
-    return "Do not reteach already covered material. Add only the fresh angle, consequence, or reframing this scene contributes."
-
-
 def _build_recent_scene_starts(
     beat_sheet: list[dict],
     current_scene_idx: int,
@@ -975,13 +947,52 @@ def _build_recent_scene_starts(
     return recent_scene_starts[-RECENT_SCENE_STARTS_MAX_ITEMS:]
 
 
+def _build_prior_scenes_dialogue(
+    beat_sheet: list[dict],
+    current_scene_idx: int,
+    *,
+    act_number: int,
+    existing_segments: dict[tuple[int, int], ScriptSegment],
+) -> list[dict]:
+    """Build compact dialogue from all preceding scenes in the current act."""
+    if current_scene_idx <= 1:
+        return []
+
+    prior: list[dict] = []
+    for scene_idx in range(1, current_scene_idx):
+        scene = beat_sheet[scene_idx - 1]
+        if not isinstance(scene, dict):
+            continue
+        scene_number = _normalized_scene_number(scene.get("scene"), scene_idx)
+        segment = existing_segments.get((act_number, scene_number))
+        if segment is None:
+            continue
+        dialogue_json = segment.dialogue_json
+        if not isinstance(dialogue_json, list):
+            continue
+        lines = []
+        for item in dialogue_json:
+            if not isinstance(item, dict):
+                continue
+            text = item.get("text")
+            if not isinstance(text, str) or not text.strip():
+                continue
+            lines.append({"speaker": item.get("speaker", "?"), "text": text.strip()})
+        if lines:
+            prior.append({
+                "scene_number": scene_number,
+                "scene_type": str(scene.get("type", "")),
+                "lines": lines,
+            })
+    return prior
+
+
 def _build_already_covered_claims_payload(
     *,
     covered_claim_ids: list[str],
     claim_lookup: dict[str, dict],
     max_items: int | None = None,
     statement_chars: int = 300,
-    include_mechanism_anchors: bool = False,
 ) -> list[dict]:
     covered: list[dict] = []
     relevant_claim_ids = covered_claim_ids[-max_items:] if isinstance(max_items, int) and max_items > 0 else covered_claim_ids
@@ -993,13 +1004,10 @@ def _build_already_covered_claims_payload(
         statement = claim_payload.get("statement", "")
         if not isinstance(statement, str):
             statement = ""
-        payload = {
+        covered.append({
             "id": cid,
             "statement": statement[:statement_limit],
-        }
-        if include_mechanism_anchors:
-            payload["mechanism_anchors"] = _extract_mechanism_anchors(statement)
-        covered.append(payload)
+        })
     return covered
 
 
@@ -1024,57 +1032,6 @@ def _extract_dialogue_opener(dialogue_json: object, *, max_words: int = 2) -> st
     return " ".join(word.lower() for word in words[:max_words])
 
 
-def _collect_mechanism_anchors(texts: list[str]) -> list[str]:
-    ordered: list[str] = []
-    seen: set[str] = set()
-    for text in texts:
-        if not isinstance(text, str) or not text.strip():
-            continue
-        for anchor in _extract_mechanism_anchors(text):
-            if anchor in seen:
-                continue
-            seen.add(anchor)
-            ordered.append(anchor)
-    return ordered[:6]
-
-
-def _extract_mechanism_anchors(statement: str) -> list[str]:
-    if not isinstance(statement, str) or not statement.strip():
-        return []
-
-    anchors: list[str] = []
-    seen: set[str] = set()
-
-    numeric_patterns = (
-        r"(?:[A-Z]{1,4}\$|[$€£¥₽])\s*\d+(?:[.,]\d+)?(?:\s*(?:bn|mn|m|b|million|billion|млн|млрд|трлн))?",
-        r"\b\d+(?:[.,]\d+)?\s*%",
-        r"(?<![$€£¥₽])\b\d+[.,]\d+\b",
-    )
-    for pattern in numeric_patterns:
-        for match in re.findall(pattern, statement):
-            cleaned = " ".join(match.strip().split())
-            if cleaned and cleaned not in seen:
-                seen.add(cleaned)
-                anchors.append(cleaned)
-
-    for match in re.findall(r"\b[A-Z]{3,}(?:\s+[A-Z]{2,})*\b(?!\$)", statement):
-        cleaned = " ".join(match.strip().split())
-        if cleaned and cleaned not in seen:
-            seen.add(cleaned)
-            anchors.append(cleaned)
-
-    title_patterns = (
-        r"\b[A-Z][a-z]+(?:\s+(?:of|the|and|for|to|in|on|de|del|da|di|du|la|le))?\s+[A-Z][a-z]+(?:\s+(?:(?:of|the|and|for|to|in|on|de|del|da|di|du|la|le)|[A-Z][a-z]+)){0,4}\b",
-        r"\b[А-ЯЁ][а-яё]+(?:\s+(?:и|по|на|о|в|во|при|под|над|с|со|из|от|для|без))?\s+[А-ЯЁ][а-яё]+(?:\s+(?:(?:и|по|на|о|в|во|при|под|над|с|со|из|от|для|без)|[А-ЯЁ][а-яё]+)){0,4}\b",
-    )
-    for pattern in title_patterns:
-        for match in re.findall(pattern, statement):
-            cleaned = match.strip()
-            if cleaned and cleaned not in seen:
-                seen.add(cleaned)
-                anchors.append(cleaned)
-
-    return anchors[:6]
 
 
 def _extract_last_dialogue_line(dialogue_json: object) -> str:

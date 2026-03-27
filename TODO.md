@@ -111,7 +111,7 @@
 - [x] Screenwriter prompt payload reduction: remove redundant act-level abstractions, add `previous_scene` + `already_covered_claims` local memory, and bias scene writing toward callbacks over re-explanations
 - [x] Screenwriter scene-level debug dumps: persist prompt payload, attempt history, raw/parsed LLM output, and final dialogue for each scene
 - [x] Screenwriter continuity upgrade: add screenplay-level covered-claim memory plus `previous_act_summary` for first scenes so later acts build on prior explanations instead of resetting
-- [x] Screenwriter delta framing: add `new_information_goal` prompt field so each scene knows what fresh meaning it must add beyond already covered material
+- [x] ~~Screenwriter delta framing: add `new_information_goal` prompt field~~ — superseded: `new_information_goal` removed and replaced by `prior_scenes_dialogue` + `callback_claims` objects
 - [x] Screenwriter dialogue de-rigidification: loosen A/B role contract, discourage strict `ABAB` alternation and repeated opener phrases, and add light evidence-attribution guidance for dates/rules/figures
 - [x] Screenwriter local anti-echo + discourse-shape variation: scenes should advance rather than paraphrase the previous punchline, vary agreement/challenge shapes without word blacklists, and normalize speaker labels to canonical `A/B` including ShowBible host-name / role aliases
 - [x] Writer Revolt style rubric expansion: evaluator can now flag rigid turn-taking, repetitive agreement/challenge shapes, scene-opening echo, and teacherly exposition as rewrite reasons
@@ -566,7 +566,7 @@ Deferred after Round 68:
 - [ ] **P1**: Reintroduce claim-vs-claim conflict detection as an upstream LLM adjudication pass instead of showrunner-side numeric heuristics
 - [x] **P1**: Fix semantic claim-to-branch/question assignment so verifier-loop corroborates the right research target instead of following only broad provenance lineage
 - [x] **P1**: Rework targeted rebuild / verifier reuse so fingerprint-based skipping can actually save LLM calls for unchanged rebuilt claims (prefer update-over-delete semantics where feasible)
-- [x] **P1**: Add stronger showrunner claim-density caps and curated selection pressure so act pools stop behaving like near-complete research dumps
+- [x] ~~**P1**: Add stronger showrunner claim-density caps~~ — superseded: deterministic density cap removed; showrunner prompt handles curation at LLM level
 - [ ] **P2**: Improve claim-level multi-source diversity via post-build merge/corroboration or richer builder prompting, instead of leaving almost all planning claims at `source_diversity = 1`
 
 **Round 74 (act-planner claim-first evidence packaging):**
@@ -582,7 +582,7 @@ Deferred after Round 68:
 
 **Round 76 (screenwriter cross-act continuity + dialogue flexibility):**
 - [x] **P0**: Add screenplay-level covered-claim memory and `previous_act_summary` so later acts stop resetting already explained mechanisms
-- [x] **P1**: Add `new_information_goal` to the writer payload so each scene knows the delta it must add beyond already covered material
+- [x] ~~**P1**: Add `new_information_goal` to the writer payload~~ — superseded: removed and replaced by `prior_scenes_dialogue` + `callback_claims`
 - [x] **P1**: Loosen host-role rigidity, discourage strict `ABAB` alternation / repeated opener phrases, and add light source-aware attribution guidance for precise dates, rules, and figures
 
 **Round 77 (integrator reliability hardening):**
@@ -594,14 +594,14 @@ Deferred after Round 68:
 - [x] **P0**: Deterministically split repeated scene claim usage into `primary_claim_ids` and `callback_claim_ids` by normalized scene order, instead of reteaching the same claim as primary in multiple scenes
 - [x] **P0**: Add a narrow act-planner overlap gate: callback-only `hook` / `explanation` / `case_study` scenes now fail the attempt and use the bounded `ACT_PLANNER_RETRIES = 2` retry budget
 - [x] **P1**: Keep writer scene prompts focused on `primary_claim_ids`, while manifest/debug continuity still preserves primary+callback claim coverage for downstream steps
-- [x] **P1**: Add generic `mechanism_anchors` to global covered-claim memory so screenwriter can treat already-established rates, acronyms, and named mechanisms as continuity signals across acts
-- [x] **P1**: Add regression tests for normalized-order split, callback-only scene gating, manifest claim aggregation, and mechanism-anchor extraction/payload formatting
+- [x] ~~**P1**: Add generic `mechanism_anchors` to global covered-claim memory~~ — superseded: `mechanism_anchors` removed; continuity now handled by `prior_scenes_dialogue` and `already_covered_claims_global`
+- [x] **P1**: Add regression tests for normalized-order split, callback-only scene gating, manifest claim aggregation
 
 **Round 79 (screenwriter callback-aware continuity):**
-- [x] **P0**: Add `scene_claim_mode` and `callback_claim_ids` to the writer payload so callback-heavy scenes do not behave like fresh exposition scenes
-- [x] **P0**: Replace planning-brief `previous_scene` handoff with deterministic continuity extracted from the actual written previous scene (`what_listener_now_knows`, `claim_ids`, `mechanism_anchors`, `last_line`)
+- [x] **P0**: Add `scene_claim_mode` and full `callback_claims` objects to the writer payload so callback-heavy scenes do not behave like fresh exposition scenes
+- [x] **P0**: Replace planning-brief `previous_scene` handoff with deterministic continuity extracted from the actual written previous scene (`what_listener_now_knows`, `claim_ids`, `last_line`)
 - [x] **P1**: Teach screenwriter to use `previous_scene.last_line` as a natural conversational bridge when the next scene can continue without a hard reset
-- [x] **P1**: Add regression tests for callback-aware scene payloads, written-dialogue previous-scene continuity, and helper extraction for dialogue texts / mechanism anchors
+- [x] **P1**: Add regression tests for callback-aware scene payloads, written-dialogue previous-scene continuity, and helper extraction for dialogue texts
 
 **Round 80 (scene jobs + prior primary memory):**
 - [x] **P0**: Add `scene_job` to act-planner beat sheets for callback/mixed scenes so writer sees a positive move (`reframe`, `cost`, `contrast`, `bridge`, `synthesize`, `apply`, `stress_test`) instead of only a negative anti-repetition rule

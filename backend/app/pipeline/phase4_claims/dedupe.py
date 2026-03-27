@@ -1,5 +1,6 @@
 """Phase 4.15: deterministic global claim dedupe before verification."""
 
+import asyncio
 import json
 import logging
 import re
@@ -11,11 +12,17 @@ from sqlalchemy import bindparam, select, text, update
 from app.models.claim import Claim, ClaimEvidence
 from app.models.evidence import EvidenceProvenance, EvidenceSpan
 from app.models.source import Source
+from app.config import settings
+from app.pipeline.debug_dump import safe_filename_token, write_json_debug_dump
 from app.pipeline.phase3_research.normalization import normalize_research_text
+from app.pipeline.phase4_claims.claim_notes import decode_claim_notes_metadata
 from app.pipeline.phase4_claims.claim_type_utils import VALID_CLAIM_TYPES, normalize_claim_type
+from app.pipeline.llm_json import parse_llm_json
+from app.pipeline.step_control import StepExecutionStopped
 from app.pipeline.state import PipelineState
 from app.realtime.events import progress, step_completed, step_started
 from app.realtime.publisher import publish_event, update_generation_progress
+from app.services.llm import call_haiku_structured
 from app.workers.worker_db import worker_session_factory as async_session_factory
 
 logger = logging.getLogger(__name__)
@@ -70,11 +77,43 @@ async def dedupe_claims(state: PipelineState) -> dict:
                     await db.delete(dropped)
             await db.commit()
 
+        lexical_dropped = len(duplicate_map)
+
+        # --- Semantic dedup pass (Haiku) ---
+        surviving_claims = [c for c in claims if str(c.id) not in duplicate_map]
+        _semantic_branch_log: list[dict] = []
+        semantic_drops = await _semantic_dedupe_pass(
+            db, surviving_claims, contexts, duplicate_map, merged_into_claim_ids,
+            branch_log=_semantic_branch_log,
+        )
+        if semantic_drops:
+            for dropped_id in semantic_drops:
+                dropped = next((c for c in claims if str(c.id) == dropped_id), None)
+                if dropped is not None:
+                    await db.delete(dropped)
+            await db.commit()
+            logger.info(
+                "Semantic dedup: dropped %d claims (lexical: %d)",
+                len(semantic_drops), lexical_dropped,
+            )
+
         kept_claim_ids = [cid for cid in ordered_ids if cid not in duplicate_map]
         untouched_claim_ids = [
             cid for cid in kept_claim_ids
             if cid not in rebuilt_claim_ids and cid not in merged_into_claim_ids
         ]
+
+    _dump_dedupe_debug(
+        run_id=run_id,
+        input_count=len(claim_ids),
+        lexical_dropped=lexical_dropped,
+        semantic_dropped=len(semantic_drops),
+        kept_count=len(kept_claim_ids),
+        duplicate_map=duplicate_map,
+        claims=claims,
+        contexts=contexts,
+        semantic_branch_details=_semantic_branch_log,
+    )
 
     publish_event(run_id, step_completed("phase4_claims", "dedupe_claims"))
     publish_event(
@@ -220,6 +259,299 @@ def _claims_match(left: dict, right: dict) -> bool:
     ):
         return False
     return _token_overlap(left["value_tokens"], right["value_tokens"]) >= 0.88
+
+
+MIN_BRANCH_CLAIMS_FOR_SEMANTIC_DEDUPE = 3
+MAX_CLAIMS_PER_HAIKU_CALL = 40
+
+
+async def _semantic_dedupe_pass(
+    db,
+    surviving_claims: list,
+    contexts: dict[str, dict],
+    duplicate_map: dict[str, str],
+    merged_into_claim_ids: set[str],
+    branch_log: list[dict] | None = None,
+) -> list[str]:
+    """Group claims by builder branch, ask Haiku to find semantic duplicates, then do a cross-branch pass."""
+    branch_groups: dict[str, list] = defaultdict(list)
+    for claim in surviving_claims:
+        meta = decode_claim_notes_metadata(claim.notes)
+        branch = meta.get("builder_branch_id", "_unknown")
+        branch_groups[branch].append(claim)
+
+    # --- Per-branch pass: Haiku calls in parallel, merges sequential ---
+    haiku_tasks = []
+    branch_ids_in_order: list[str] = []
+    for branch_id, branch_claims in branch_groups.items():
+        if len(branch_claims) < MIN_BRANCH_CLAIMS_FOR_SEMANTIC_DEDUPE:
+            if branch_log is not None:
+                branch_log.append({
+                    "branch_id": branch_id,
+                    "claim_count": len(branch_claims),
+                    "skipped": True,
+                    "reason": f"below minimum ({MIN_BRANCH_CLAIMS_FOR_SEMANTIC_DEDUPE})",
+                })
+            continue
+        for batch_start in range(0, len(branch_claims), MAX_CLAIMS_PER_HAIKU_CALL):
+            batch = branch_claims[batch_start:batch_start + MAX_CLAIMS_PER_HAIKU_CALL]
+            if len(batch) < MIN_BRANCH_CLAIMS_FOR_SEMANTIC_DEDUPE:
+                continue
+            branch_ids_in_order.append(branch_id)
+            haiku_tasks.append(_semantic_dedupe_haiku(
+                branch_id, batch, contexts, duplicate_map,
+            ))
+
+    all_dropped: list[str] = []
+    if haiku_tasks:
+        haiku_results = await asyncio.gather(*haiku_tasks, return_exceptions=True)
+        for i, result in enumerate(haiku_results):
+            bid = branch_ids_in_order[i] if i < len(branch_ids_in_order) else "?"
+            if isinstance(result, StepExecutionStopped):
+                raise result
+            if isinstance(result, Exception):
+                logger.warning("Semantic dedup branch %s failed: %s", bid, result)
+                if branch_log is not None:
+                    branch_log.append({"branch_id": bid, "error": str(result)})
+                continue
+            # Apply merges sequentially (safe for single db session)
+            for keep_id, drop_id, reason in result:
+                logger.info("Semantic dedup (branch %s): merging %s into %s — %s",
+                            bid, drop_id[:12], keep_id[:12], reason)
+                await _merge_claims(db, keep_claim_id=uuid.UUID(keep_id), drop_claim_id=uuid.UUID(drop_id))
+                duplicate_map[drop_id] = keep_id
+                merged_into_claim_ids.add(keep_id)
+                all_dropped.append(drop_id)
+            if branch_log is not None:
+                dropped_ids = [d for _, d, _ in result]
+                branch_log.append({
+                    "branch_id": bid,
+                    "claim_count": len(branch_groups.get(bid, [])),
+                    "dropped_count": len(dropped_ids),
+                    "dropped_ids": dropped_ids,
+                })
+
+    # --- Cross-branch pass: dedupe across all branches (batched) ---
+    cross_surviving = [c for c in surviving_claims if str(c.id) not in duplicate_map]
+    if len(cross_surviving) >= MIN_BRANCH_CLAIMS_FOR_SEMANTIC_DEDUPE:
+        cross_dropped: list[str] = []
+        # Split into batches and run Haiku calls in parallel
+        batches: list[list] = []
+        for i in range(0, len(cross_surviving), MAX_CLAIMS_PER_HAIKU_CALL):
+            batch = cross_surviving[i:i + MAX_CLAIMS_PER_HAIKU_CALL]
+            if len(batch) >= MIN_BRANCH_CLAIMS_FOR_SEMANTIC_DEDUPE:
+                batches.append(batch)
+
+        if batches:
+            cross_haiku_tasks = [
+                _semantic_dedupe_haiku(
+                    f"_cross_branch_{j}", batch, contexts, duplicate_map,
+                )
+                for j, batch in enumerate(batches)
+            ]
+            cross_haiku_results = await asyncio.gather(*cross_haiku_tasks, return_exceptions=True)
+            for result in cross_haiku_results:
+                if isinstance(result, StepExecutionStopped):
+                    raise result
+                if isinstance(result, Exception):
+                    logger.warning("Semantic dedup cross-branch batch failed: %s", result)
+                    continue
+                for keep_id, drop_id, reason in result:
+                    if drop_id in duplicate_map:
+                        continue
+                    logger.info("Semantic dedup (cross-branch): merging %s into %s — %s",
+                                drop_id[:12], keep_id[:12], reason)
+                    await _merge_claims(db, keep_claim_id=uuid.UUID(keep_id), drop_claim_id=uuid.UUID(drop_id))
+                    duplicate_map[drop_id] = keep_id
+                    merged_into_claim_ids.add(keep_id)
+                    all_dropped.append(drop_id)
+                    cross_dropped.append(drop_id)
+
+        if branch_log is not None:
+            branch_log.append({
+                "branch_id": "_cross_branch",
+                "claim_count": len(cross_surviving),
+                "batch_count": len(batches),
+                "dropped_count": len(cross_dropped),
+                "dropped_ids": cross_dropped,
+            })
+
+    return all_dropped
+
+
+_DEDUPE_SYSTEM = """\
+You are a strict claim deduplication assistant for a podcast research pipeline.
+Your job is to find claims that are TRUE duplicates — near-identical restatements of the same proposition.
+Return JSON only.
+
+## What counts as a duplicate
+Two claims are duplicates ONLY if they assert the same core proposition and a podcast script would never need both.
+Rephrasings, translations, and trivially reworded restatements are duplicates.
+
+## What is NOT a duplicate — do NOT merge these
+- Different facts about the same topic (e.g. "the peg was introduced in 1983" vs "the peg survived the 1997 handover")
+- A general rule vs a specific mechanism (e.g. "currency board has two rules" vs "banks must deposit USD to issue HKD")
+- Cause vs consequence (e.g. "currency board prevents monetary policy" vs "peg means Fed influences HK rates")
+- Different historical events, even if related (e.g. "Oriental Bank issued first notes in 1846" vs "HSBC began issuing notes in 1865")
+- A fact vs an opinion or evaluation about that fact
+- A claim that adds a date, number, name, or detail not present in the other
+
+When in doubt, do NOT merge. It is much better to keep two similar claims than to lose a unique fact.
+
+## Output format
+For each duplicate group, pick the ONE best claim (most complete, highest evidence_count).
+Return ONLY groups with 2+ true duplicates. Claims without duplicates must NOT appear.
+
+```json
+{
+  "duplicate_groups": [
+    {"keep": "claim_id", "drop": ["claim_id", ...], "reason": "why these are the same proposition"}
+  ]
+}
+```"""
+
+
+async def _semantic_dedupe_haiku(
+    label: str,
+    claims_pool: list,
+    contexts: dict[str, dict],
+    already_dropped: dict[str, str],
+) -> list[tuple[str, str, str]]:
+    """Ask Haiku to find duplicate clusters. Returns list of (keep_id, drop_id, reason) tuples.
+
+    Does NOT touch the DB — caller applies merges sequentially.
+    """
+    claim_payloads = []
+    for claim in claims_pool:
+        cid = str(claim.id)
+        if cid in already_dropped:
+            continue
+        claim_payloads.append({
+            "id": cid,
+            "statement": claim.statement,
+            "evidence_count": len(contexts.get(cid, {}).get("evidence_ids", set())),
+        })
+
+    if len(claim_payloads) < MIN_BRANCH_CLAIMS_FOR_SEMANTIC_DEDUPE:
+        return []
+
+    prompt = json.dumps({"claims": claim_payloads}, ensure_ascii=False)
+
+    try:
+        raw = await call_haiku_structured(
+            system=_DEDUPE_SYSTEM,
+            prompt=prompt,
+            max_tokens=4096,
+        )
+        result = parse_llm_json(raw)
+    except StepExecutionStopped:
+        raise
+    except Exception as exc:
+        logger.warning("Haiku semantic dedup failed for %s: %s", label, exc)
+        return []
+
+    if not isinstance(result, dict):
+        return []
+
+    valid_ids = {p["id"] for p in claim_payloads}
+    merges: list[tuple[str, str, str]] = []
+
+    for group in result.get("duplicate_groups", []):
+        if not isinstance(group, dict):
+            continue
+        keep_id = str(group.get("keep", "")).strip()
+        drop_ids = [str(d).strip() for d in group.get("drop", []) if isinstance(d, str)]
+
+        if keep_id not in valid_ids:
+            continue
+        # Filter: valid, not self, not already dropped by earlier group in this batch
+        already_merged_this_batch = {d for _, d, _ in merges}
+        drop_ids = [
+            d for d in drop_ids
+            if d in valid_ids and d != keep_id
+            and d not in already_dropped and d not in already_merged_this_batch
+        ]
+
+        if not drop_ids:
+            continue
+
+        reason = str(group.get("reason", ""))[:200]
+        for drop_id in drop_ids:
+            merges.append((keep_id, drop_id, reason))
+
+    return merges
+
+
+def _dump_dedupe_debug(
+    *,
+    run_id: str,
+    input_count: int,
+    lexical_dropped: int,
+    semantic_dropped: int,
+    kept_count: int,
+    duplicate_map: dict[str, str],
+    claims: list,
+    contexts: dict[str, dict],
+    semantic_branch_details: list[dict],
+) -> None:
+    dump_dir = (settings.web_extractor_debug_dump_dir or "").strip()
+    if not dump_dir:
+        return
+
+    # Build per-claim summary (kept vs dropped)
+    claim_summaries = []
+    for claim in claims:
+        cid = str(claim.id)
+        ctx = contexts.get(cid, {})
+        meta = decode_claim_notes_metadata(getattr(claim, "notes", "") or "")
+        claim_summaries.append({
+            "id": cid,
+            "statement": claim.statement[:300] if hasattr(claim, "statement") else "",
+            "branch_id": meta.get("builder_branch_id", "_unknown"),
+            "claim_type": ctx.get("claim_type", ""),
+            "status": "dropped" if cid in duplicate_map else "kept",
+            "merged_into": duplicate_map.get(cid),
+            "evidence_count": len(ctx.get("evidence_ids", set())),
+            "source_count": len(ctx.get("source_ids", set())),
+            "branch_ids": sorted(ctx.get("branch_ids", set())),
+        })
+
+    # Lexical merge pairs
+    lexical_merges = [
+        {
+            "dropped": drop_id,
+            "kept": keep_id,
+            "dropped_stmt": next(
+                (claim.statement[:200] for claim in claims if str(claim.id) == drop_id), ""
+            ),
+            "kept_stmt": next(
+                (claim.statement[:200] for claim in claims if str(claim.id) == keep_id), ""
+            ),
+        }
+        for drop_id, keep_id in duplicate_map.items()
+        if drop_id not in {
+            d["dropped_ids"][j]
+            for d in semantic_branch_details
+            if "dropped_ids" in d
+            for j in range(len(d["dropped_ids"]))
+        }
+    ]
+
+    write_json_debug_dump(
+        raw_dir=dump_dir,
+        subdir="dedupe",
+        filename_stem=f"run-{safe_filename_token(run_id)}_summary",
+        payload={
+            "run_id": run_id,
+            "input_count": input_count,
+            "lexical_dropped": lexical_dropped,
+            "semantic_dropped": semantic_dropped,
+            "kept_count": kept_count,
+            "lexical_merges": lexical_merges,
+            "semantic_branches": semantic_branch_details,
+            "claims": claim_summaries,
+        },
+    )
 
 
 async def _merge_claims(db, *, keep_claim_id: uuid.UUID, drop_claim_id: uuid.UUID) -> None:

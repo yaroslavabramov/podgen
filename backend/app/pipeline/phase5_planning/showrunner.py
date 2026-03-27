@@ -63,6 +63,7 @@ Rules:
 - Each act should answer one part of that question and hand off naturally to the next act.
 - For each act, define a short `internal_arc` that describes how the act moves, not just what topic it covers.
 - Adjacent acts should usually have different `internal_arc` shapes. Do not make every act feel like question -> explanation -> takeaway.
+- Curate aggressively: each act should keep only claims that make a distinct editorial contribution to its arc. If multiple claims describe the same mechanism, rule, or fact — even with different wording or from different sources — keep only the single strongest formulation and drop the rest entirely. Do not assign them to other acts either. Five claims that each say something different are worth more than ten where half restate the same point.
 - Each claim appears in exactly ONE act (no duplication)
 - Do not spread the same proposition core across multiple acts just because it is relevant in several places. Pick the best act for it.
 - If two claims from different branches are near-paraphrases or materially describe the same mechanism, treat them as one explanatory point. Keep the strongest or best-fitting one in the best act and avoid assigning the other as fresh explanatory backbone in a later act.
@@ -81,9 +82,8 @@ Rules:
 - Claims with direct support and stronger source diversity should form the explanatory backbone
 - Claims with illustrative evidence are good candidates for hooks, case-study moments, and act transitions
 - Use claims with illustrative evidence to create vivid openings, examples, and pivots instead of stacking abstract explanation.
-- Curate aggressively: each act should keep only the most important claims for its duration and role, not the full research pool
-- As a rule of thumb, the curated layer should usually stay around 6-15 claims per act depending on act duration
 - Last act should include takeaways and a clear "why this matters" payoff
+- Vary `ending_turn` shapes across acts. Not every act should end with a synthesis or "the listener now understands" landing. Some acts can end with an open question that the next act picks up, a concrete image or case that lingers, a tension that sharpens rather than resolves, or a cost/tradeoff that reframes the stakes. The act planner will use `ending_turn` to choose the final scene type, so variety here drives variety downstream.
 - Titles should sound like editorial sections of a strong episode, not generic chapter labels"""
 
 
@@ -160,17 +160,6 @@ async def plan_episode(state: PipelineState) -> dict:
             if claim_summary["verification"] == VerificationLevel.DISPUTED:
                 disputed_ids.append(str(claim_summary["id"]))
 
-        preserved_claim_ids = set(disputed_ids)
-        conflict_claim_ids: set[str] = set()
-        for conflict in conflicts_summary:
-            conflict_ids = {
-                str(claim_id).strip()
-                for claim_id in (conflict.get("claim_ids", []) or [])
-                if str(claim_id).strip()
-            }
-            conflict_claim_ids.update(conflict_ids)
-            preserved_claim_ids.update(conflict_ids)
-
         publish_event(run_id, step_started("phase5_planning", "structure", "Creating act structure"))
 
         prompt_payload = _build_showrunner_prompt_payload(
@@ -190,13 +179,7 @@ async def plan_episode(state: PipelineState) -> dict:
             raw = await call_sonnet_structured(system=SHOWRUNNER_SYSTEM, prompt=prompt, temperature=0.5)
             parsed_plan = parse_llm_json(raw)
             plan = _normalize_plan(parsed_plan, state["duration_target"])
-            plan = _cap_act_claim_density(
-                plan,
-                claims_summary,
-                preserved_claim_ids=preserved_claim_ids,
-                disputed_claim_ids=set(disputed_ids),
-                conflict_claim_ids=conflict_claim_ids,
-            )
+            plan = _log_act_claim_counts(plan)
         except Exception:
             _dump_showrunner_debug(
                 run_id=run_id,
@@ -378,94 +361,14 @@ def _string_list(value) -> list[str]:
     return out
 
 
-def _claim_priority_score(claim_summary: dict) -> tuple[int, int, int, int, int]:
-    verification = claim_summary.get("verification")
-    verification_rank = {
-        VerificationLevel.VERIFIED: 3,
-        VerificationLevel.OBSERVED: 2,
-        VerificationLevel.UNVERIFIED: 1,
-        VerificationLevel.DISPUTED: 1,
-    }.get(verification, 0)
-    source_diversity = int(claim_summary.get("source_diversity", 0) or 0)
-    direct_support = int(claim_summary.get("direct_support_count", 0) or 0)
-    illustrative = 1 if claim_summary.get("has_illustrative") else 0
-    claim_type_rank = 1 if str(claim_summary.get("type", "")).lower() in {"report", "opinion"} else 0
-    return (
-        verification_rank,
-        min(source_diversity, 3),
-        direct_support,
-        illustrative,
-        claim_type_rank,
-    )
-
-
-def _preserved_claim_priority_score(
-    claim_summary: dict,
-    *,
-    disputed_ids: set[str],
-    conflict_claim_ids: set[str],
-) -> tuple[int, int, int, int, int, int]:
-    claim_id = str(claim_summary.get("id", "")).strip()
-    disputed_rank = 1 if claim_id in disputed_ids else 0
-    conflict_rank = 1 if claim_id in conflict_claim_ids else 0
-    base_score = _claim_priority_score(claim_summary)
-    return (
-        disputed_rank,
-        conflict_rank,
-        *base_score,
-    )
-
-
-def _max_claims_for_act(estimated_duration_seconds: int) -> int:
-    return max(6, min(15, round(max(estimated_duration_seconds, 180) / 45)))
-
-
-def _cap_act_claim_density(
-    plan: dict,
-    claims_summary: list[dict],
-    *,
-    preserved_claim_ids: set[str] | None = None,
-    disputed_claim_ids: set[str] | None = None,
-    conflict_claim_ids: set[str] | None = None,
-) -> dict:
-    claim_index = {str(claim["id"]): claim for claim in claims_summary if isinstance(claim, dict) and claim.get("id")}
-    preserved_claim_ids = {str(claim_id).strip() for claim_id in (preserved_claim_ids or set()) if str(claim_id).strip()}
-    disputed_claim_ids = {str(claim_id).strip() for claim_id in (disputed_claim_ids or set()) if str(claim_id).strip()}
-    conflict_claim_ids = {str(claim_id).strip() for claim_id in (conflict_claim_ids or set()) if str(claim_id).strip()}
-    capped_acts: list[dict] = []
+def _log_act_claim_counts(plan: dict) -> dict:
+    """Log claim counts per act for diagnostics (no filtering)."""
     for act in plan.get("acts", []):
-        claim_ids = [str(claim_id) for claim_id in (act.get("claim_ids", []) or []) if str(claim_id)]
-        max_claims = _max_claims_for_act(int(act.get("estimated_duration_seconds", 0) or 0))
-        if len(claim_ids) <= max_claims:
-            capped_acts.append(act)
-            continue
-        preserved_in_act = [claim_id for claim_id in claim_ids if claim_id in preserved_claim_ids]
-        preserved_in_act = list(dict.fromkeys(preserved_in_act))
-        if len(preserved_in_act) > max_claims:
-            preserved_in_act = sorted(
-                preserved_in_act,
-                key=lambda claim_id: (
-                    _preserved_claim_priority_score(
-                        claim_index.get(claim_id, {}),
-                        disputed_ids=disputed_claim_ids,
-                        conflict_claim_ids=conflict_claim_ids,
-                    ),
-                    -claim_ids.index(claim_id),
-                ),
-                reverse=True,
-            )[:max_claims]
-        ranked = sorted(
-            [claim_id for claim_id in claim_ids if claim_id not in preserved_claim_ids],
-            key=lambda claim_id: (
-                _claim_priority_score(claim_index.get(claim_id, {})),
-                -claim_ids.index(claim_id),
-            ),
-            reverse=True,
-        )
-        remaining_slots = max(0, max_claims - len(preserved_in_act))
-        kept_ids = preserved_in_act + ranked[:remaining_slots]
-        capped_acts.append({**act, "claim_ids": kept_ids})
-    return {**plan, "acts": capped_acts}
+        act_num = act.get("act_number", "?")
+        n_claims = len(act.get("claim_ids", []) or [])
+        dur = act.get("estimated_duration_seconds", 0)
+        logger.info("Showrunner act %s: %d claims, %ds", act_num, n_claims, dur)
+    return plan
 
 
 def _dump_showrunner_debug(

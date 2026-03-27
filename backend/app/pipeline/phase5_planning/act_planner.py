@@ -1,5 +1,6 @@
 """Phase 5.2: Act Planner — beat sheet per act."""
 
+import asyncio
 import copy
 import json
 import logging
@@ -23,6 +24,7 @@ from app.services.evidence_store import (
     get_or_create_canonical_evidence,
 )
 from app.pipeline.llm_json import parse_llm_json
+from app.pipeline.step_control import StepExecutionStopped
 from app.pipeline.phase3_research.tools import vector_search_tool
 from app.realtime.publisher import publish_event
 from app.realtime.events import act_planned, step_started, step_completed
@@ -85,14 +87,14 @@ Return JSON:
   ]
 }
 
-Scene types:
-- hook: provocative opening question/statement
-- explanation: teaching a concept with examples
-- debate: discussing conflicting views
-- case_study: detailed real-world example
+Scene types (any type except `transition` can close an act if it fits the `ending_turn`):
+- hook: provocative opening question/statement; can close an act by leaving a deliberate open question
+- explanation: teaching a concept with examples; can close an act when the mechanism itself is the payoff
+- debate: discussing conflicting views; can close an act with unresolved tension or a sharp tradeoff
+- case_study: detailed real-world example; can close an act with a vivid concrete image that lingers
 - transition: bridge between topics
 - summary: recap key points
-- takeaway: actionable insight
+- takeaway: uses its own claims to recontextualize the act — not summarize it
 
 Use claim/evidence metadata:
 - `has_illustrative` and `illustrative_evidence_count` indicate narrative hooks
@@ -113,11 +115,8 @@ Rules:
   - `internal_arc` says how the act should move internally
   - the first scene must explicitly open the act's `opening_question`
   - the final scene must clearly deliver the act's `ending_turn`
-- Opening the act question does not require a `hook`. The first scene may be `case_study`, `explanation`, or `transition` when that creates a stronger entrance for this act.
-- Landing the act turn does not require a `takeaway`. The final scene may land through `case_study`, `summary`, `explanation`, or `transition` when that better fits the act.
-- Do not default every act to `hook` at the start and `takeaway` at the end.
-- Avoid the default podcast skeleton of hook -> explanation -> case_study -> takeaway unless the act genuinely needs it. Reusing the same internal shape across acts makes the episode feel mechanically repetitive.
-- Act-to-act variety matters. Do not default every act to the same internal shape.
+- The first and last scene types should fit the act's material, not a template. A `case_study` or `explanation` can open an act; a `debate`, `case_study`, `explanation`, or `transition` can close one. Vary the internal shape across acts so the episode doesn't feel like the same skeleton repeated.
+- If `prior_acts_ending_types` is non-empty, it lists the scene types that previous acts used for their final scene. Choose a different closing scene type unless the material genuinely demands the same one. Episode-level variety in act endings matters.
 - Within an act, adjacent scenes should usually do different work: open a question, sharpen it, ground it in an example, reveal a mechanism, stress-test it, or land a consequence.
 - If two neighboring scenes mainly explain the same thing in the same mode, merge them or change the angle.
 - Adjacent scenes must not walk through the same procedural chain twice, even under different labels. If scene N already established a chain, scene N+1 should apply it, stress-test it, contrast it, price it, or widen it rather than re-explain the chain step by step.
@@ -126,6 +125,8 @@ Rules:
 - Do not turn the act into a laundry list of explanations.
 - Keep one clear job per scene. Split only when the listener would feel a meaningful shift.
 - Avoid repeating the same proposition core across multiple scenes in the same act.
+- Each scene's description must be grounded in the claims assigned to that scene. The description should explain what those specific claims reveal, change, or complicate — not restate the act's general thesis.
+- Each scene must make a different move from every other scene in the act. If two descriptions land on the same insight, one of them is wrong — rewrite it to use its own claims.
 - Not every claim deserves its own fresh explanation beat. If two claims are near-paraphrases or share the same mechanism core, combine them into one scene or treat one as support for the other.
 - Give each claim one main home scene inside the act. If a later scene refers back to that material, treat it as a brief callback rather than a fresh explanation.
 - `prior_acts_primary_claims` lists points that earlier acts already established as primary material. Do not assign materially overlapping points as fresh primary explanations unless this act adds a genuinely new layer; if prior material must recur, prefer callback framing.
@@ -148,12 +149,12 @@ Rules:
   - `cost`: show the tradeoff, sacrifice, or price of the system
   - `contrast`: sharpen difference against another path or expectation
   - `bridge`: pivot cleanly into the next beat or act
-  - `synthesize`: compress what changed in understanding
+  - `synthesize`: land the shift through this scene's own material — show why what the listener just heard means something different or bigger than they thought. Do not restate earlier scenes' conclusions
   - `apply`: show how an established mechanism operates in a concrete case
   - `stress_test`: push an established mechanism under pressure
 - `apply` scenes should begin from the concrete condition or operating case, not by replaying the full setup chain.
 - `stress_test` scenes should begin from the pressure, failure mode, or attack, not by reintroducing the base mechanism from zero.
-- `synthesize` scenes should answer the act question or compress the shift in understanding. They may callback to the prior mechanism briefly, but should spend most of the beat on implication or editorial landing.
+- `synthesize` scenes should land the shift through their own claims — show why what the listener just heard means something different or bigger than they thought. Do not restate earlier scenes' conclusions. They may callback to the prior mechanism briefly, but should spend most of the beat on implication or editorial landing.
 - Use `cost` only when the scene is genuinely about what is lost, constrained, or paid for. Do not label an origin story or general payoff scene as `cost` unless the beat explicitly centers on tradeoff.
 - Callback-only ending scenes should usually use `reframe`, `cost`, `contrast`, `bridge`, or `synthesize`.
 - Callback-only ending scenes should stay compact and focused. They should not become oversized recap blocks.
@@ -219,6 +220,7 @@ async def plan_act(state: PipelineState) -> dict:
                 current_act_idx=i,
                 claim_context_cache=claim_context_cache,
             )
+            prior_acts_ending_types = _collect_prior_acts_ending_types(acts, i - 1)
 
             allowed_claim_ids = {c["id"] for c in act_claims}
             allowed_evidence_ids = {e["id"] for e in act_evidence}
@@ -234,8 +236,14 @@ async def plan_act(state: PipelineState) -> dict:
                 act_evidence=act_evidence,
                 output_language=state.get("language", "en"),
                 prior_acts_primary_claims=prior_acts_primary_claims,
+                prior_acts_ending_types=prior_acts_ending_types,
             )
             claim_support_lookup = _claim_support_lookup(base_prompt["claims"])
+            claim_statements_lookup: dict[str, str] = {
+                c["id"]: c.get("statement", "")
+                for c in act_claims
+                if isinstance(c, dict) and isinstance(c.get("id"), str)
+            }
 
             beat_sheet: list[dict[str, Any]] = []
             scene_strategy = ""
@@ -301,7 +309,9 @@ async def plan_act(state: PipelineState) -> dict:
                     )
                     candidate_beat_sheet = _split_scene_claim_roles(candidate_beat_sheet)
                     candidate_beat_sheet = _assign_scene_jobs(candidate_beat_sheet)
-                    candidate_quality_issues = _collect_beat_sheet_quality_issues(candidate_beat_sheet)
+                    candidate_quality_issues = await _collect_beat_sheet_quality_issues(
+                        candidate_beat_sheet, claim_statements=claim_statements_lookup,
+                    )
                     structural_overlap_failure = _has_structural_overlap_failures(candidate_quality_issues)
                     if candidate_beat_sheet:
                         if structural_overlap_failure:
@@ -336,7 +346,30 @@ async def plan_act(state: PipelineState) -> dict:
                     if structural_overlap_failure:
                         quality_failures += 1
                         last_failure_status = "quality_gate_failed"
-                        retry_feedback_error = last_error
+                        structural_details = []
+                        for qi in candidate_quality_issues:
+                            if qi.get("severity") != "structural":
+                                continue
+                            scene_key = qi.get("scene", qi.get("scene_a", "?"))
+                            detail = f"[S{scene_key}] {qi['type']}: {qi['message']}"
+                            if qi.get("type") == "description_claim_mismatch" and candidate_beat_sheet:
+                                for sc in candidate_beat_sheet:
+                                    if _positive_int(sc.get("scene"), 0) == scene_key:
+                                        sc_claims = [
+                                            claim_statements_lookup.get(cid, "")
+                                            for cid in _uuid_list(sc.get("claim_ids"))
+                                            if cid in claim_statements_lookup
+                                        ]
+                                        if sc_claims:
+                                            detail += "\n  Scene's actual claims:\n" + "\n".join(
+                                                f"    - {s[:200]}" for s in sc_claims
+                                            )
+                                        break
+                            structural_details.append(detail)
+                        retry_feedback_error = (
+                            f"{last_error}\n\nSpecific issues to fix:\n"
+                            + "\n".join(structural_details)
+                        ) if structural_details else last_error
                     else:
                         request_failures += 1
                         last_failure_status = "llm_or_normalize_failed"
@@ -591,6 +624,36 @@ def _uuid_list(value: Any) -> list[str]:
     return out
 
 
+def _recover_scene_claim_ids(
+    raw_value: Any,
+    allowed_claim_ids: set[str],
+    scene_number: int,
+) -> list[str]:
+    """Extract valid claim_ids, dropping any that are not in the allowed set."""
+    if not isinstance(raw_value, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in raw_value:
+        if not isinstance(item, str):
+            continue
+        item = item.strip()
+        if not item:
+            continue
+        try:
+            uuid.UUID(item)
+        except ValueError:
+            logger.warning("Scene %s: dropped malformed claim_id %r", scene_number, item)
+            continue
+        if allowed_claim_ids and item not in allowed_claim_ids:
+            logger.warning("Scene %s: dropped unknown claim_id %r", scene_number, item)
+            continue
+        if item not in seen:
+            seen.add(item)
+            out.append(item)
+    return out
+
+
 def _extract_raw_scenes(payload: Any) -> list[Any]:
     if isinstance(payload, list):
         return payload
@@ -630,6 +693,7 @@ def _build_act_prompt_payload(
     act_evidence: list[dict[str, Any]],
     output_language: str,
     prior_acts_primary_claims: list[dict[str, Any]],
+    prior_acts_ending_types: list[str] | None = None,
 ) -> dict[str, Any]:
     estimated_duration = _positive_int(act.get("estimated_duration_seconds"), 300)
     conflict_ids = _uuid_list(act.get("conflict_brief_ids"))
@@ -658,8 +722,25 @@ def _build_act_prompt_payload(
         "content_quotas": act.get("content_quotas", {}) if isinstance(act.get("content_quotas"), dict) else {},
         "conflict_count": len(conflict_ids),
         "prior_acts_primary_claims": prior_acts_primary_claims,
+        "prior_acts_ending_types": prior_acts_ending_types or [],
         "claims": prompt_claims,
     }
+
+
+def _collect_prior_acts_ending_types(
+    acts: list[dict[str, Any]],
+    current_act_idx: int,
+) -> list[str]:
+    """Return the scene type of the last scene in each prior act's beat_sheet."""
+    ending_types: list[str] = []
+    for i in range(current_act_idx):
+        beat_sheet = acts[i].get("beat_sheet") or []
+        if beat_sheet:
+            last_scene = beat_sheet[-1]
+            scene_type = str(last_scene.get("type") or "").strip()
+            if scene_type:
+                ending_types.append(scene_type)
+    return ending_types
 
 
 def _collect_prior_acts_primary_claims(
@@ -975,10 +1056,9 @@ def _normalize_beat_sheet(
         if not isinstance(scene_type, str) or not scene_type.strip():
             scene_type = "explanation"
 
-        claim_ids = [
-            cid for cid in _uuid_list(scene.get("claim_ids"))
-            if not allowed_claim_ids or cid in allowed_claim_ids
-        ]
+        claim_ids = _recover_scene_claim_ids(
+            scene.get("claim_ids"), allowed_claim_ids, scene_number,
+        )
         evidence_ids = [
             eid for eid in _uuid_list(scene.get("evidence_ids"))
             if not allowed_evidence_ids or eid in allowed_evidence_ids
@@ -1096,7 +1176,17 @@ def _split_scene_claim_roles(beat_sheet: list[dict[str, Any]]) -> list[dict[str,
     return beat_sheet
 
 
-def _collect_beat_sheet_quality_issues(beat_sheet: list[dict[str, Any]]) -> list[dict[str, Any]]:
+async def _collect_beat_sheet_quality_issues(
+    beat_sheet: list[dict[str, Any]],
+    claim_statements: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """Collect deterministic quality issues + LLM-based grounding/overlap checks.
+
+    Args:
+        beat_sheet: normalized beat sheet with claim roles split.
+        claim_statements: mapping from claim_id to statement text (for Haiku checks).
+            If None, LLM-based checks are skipped (e.g. in tests).
+    """
     issues: list[dict[str, Any]] = []
     explanation_like = {"explanation", "case_study", "hook"}
     ending_like = {"takeaway", "summary", "transition"}
@@ -1169,6 +1259,148 @@ def _collect_beat_sheet_quality_issues(beat_sheet: list[dict[str, Any]]) -> list
                     }
                 )
 
+    # LLM-based quality checks (Haiku) — claim-description grounding + cross-scene insight dedup
+    if claim_statements and len(beat_sheet) >= 2:
+        llm_issues = await _run_llm_quality_checks(beat_sheet, claim_statements)
+        issues.extend(llm_issues)
+
+    return issues
+
+
+async def _run_llm_quality_checks(
+    beat_sheet: list[dict[str, Any]],
+    claim_statements: dict[str, str],
+) -> list[dict[str, Any]]:
+    """Run Haiku-based grounding and overlap checks in parallel."""
+    scenes_for_check: list[dict[str, Any]] = []
+    for idx, scene in enumerate(beat_sheet):
+        scene_number = _positive_int(scene.get("scene"), idx + 1)
+        description = str(scene.get("description") or "").strip()
+        all_claim_ids = _uuid_list(scene.get("claim_ids")) + _uuid_list(scene.get("primary_claim_ids"))
+        scene_claim_stmts = [
+            claim_statements[cid]
+            for cid in dict.fromkeys(all_claim_ids)
+            if cid in claim_statements
+        ]
+        scene_type = str(scene.get("type") or "").strip()
+        # takeaway/summary scenes synthesize the whole act — grounding check
+        # would compare their description against 1-2 leftover claims, producing
+        # false positives.  Still include them for overlap check.
+        skip_grounding = scene_type in {"takeaway", "summary"}
+        if description and scene_claim_stmts:
+            scenes_for_check.append({
+                "scene": scene_number,
+                "type": scene_type,
+                "description": description[:400],
+                "claims": scene_claim_stmts,
+                "skip_grounding": skip_grounding,
+            })
+
+    if len(scenes_for_check) < 2:
+        return []
+
+    grounding_task = _check_description_claim_grounding(scenes_for_check)
+    overlap_task = _check_cross_scene_overlap(scenes_for_check)
+    grounding_issues, overlap_issues = await asyncio.gather(
+        grounding_task, overlap_task, return_exceptions=True,
+    )
+
+    # Re-raise StepExecutionStopped so user stop requests propagate cleanly.
+    for result in (grounding_issues, overlap_issues):
+        if isinstance(result, StepExecutionStopped):
+            raise result
+
+    issues: list[dict[str, Any]] = []
+    if isinstance(grounding_issues, list):
+        issues.extend(grounding_issues)
+    else:
+        logger.warning("Haiku grounding check failed: %s", grounding_issues)
+    if isinstance(overlap_issues, list):
+        issues.extend(overlap_issues)
+    else:
+        logger.warning("Haiku overlap check failed: %s", overlap_issues)
+    return issues
+
+
+async def _check_description_claim_grounding(
+    scenes: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Ask Haiku whether each scene's description is grounded in its claims."""
+    # Skip takeaway/summary — they synthesize the whole act, not just their claims.
+    groundable = [s for s in scenes if not s.get("skip_grounding")]
+    if not groundable:
+        return []
+    prompt = json.dumps({
+        "task": "For each scene, determine whether the description is substantively driven by the assigned claims. "
+                "A description is DISCONNECTED only if its core insight has NO basis in the claims — "
+                "e.g. the description talks about a general thesis while the claims are about unrelated specific events. "
+                "A description that explains, illustrates, or draws a consequence from its claims IS grounded — do NOT flag it. "
+                "If in doubt, the scene is grounded. Return ONLY genuinely disconnected scenes.",
+        "scenes": groundable,
+        "return_format": {"disconnected_scenes": [{"scene": "scene_number", "reason": "why disconnected"}]},
+    }, ensure_ascii=False)
+
+    raw = await call_haiku_structured(
+        system="You are a quality checker for podcast beat sheets. Return JSON only.",
+        prompt=prompt,
+        max_tokens=2048,
+    )
+    result = parse_llm_json(raw)
+    issues: list[dict[str, Any]] = []
+    if isinstance(result, dict):
+        for item in result.get("disconnected_scenes", []):
+            if not isinstance(item, dict):
+                continue
+            scene_num = item.get("scene")
+            reason = item.get("reason", "")
+            issues.append({
+                "severity": "structural",
+                "type": "description_claim_mismatch",
+                "scene": scene_num,
+                "message": f"Description is not grounded in scene claims: {reason}",
+            })
+    return issues
+
+
+async def _check_cross_scene_overlap(
+    scenes: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Ask Haiku whether any two scenes land the same insight."""
+    prompt = json.dumps({
+        "task": "Compare all scene pairs. Identify any two scenes whose descriptions land the same core insight, "
+                "conclusion, or narrative move — even if worded differently. "
+                "Two scenes overlap if a listener would feel they heard the same point twice. "
+                "EXCEPTIONS — these are NOT overlap: "
+                "(1) A `hook` scene teases a topic that a later `explanation` scene develops — that is progression, not repetition. "
+                "(2) A `takeaway` or `summary` scene references material from earlier scenes to recontextualize or synthesize — that is its job. "
+                "(3) Two scenes mention the same entity or fact but draw different conclusions or serve different narrative purposes. "
+                "(4) Sequential scenes that deepen the SAME topic are progression: e.g. scene N introduces a mechanism, scene N+1 shows its broader system context, scene N+2 gives concrete numbers. They share a topic but each adds a new layer. This is good structure, not overlap. "
+                "Only flag pairs where BOTH scenes land the SAME conclusion with NO added dimension — the listener would literally feel they heard the same point twice with nothing new.",
+        "scenes": scenes,
+        "return_format": {"overlapping_pairs": [{"scene_a": "number", "scene_b": "number", "shared_insight": "what overlaps"}]},
+    }, ensure_ascii=False)
+
+    raw = await call_haiku_structured(
+        system="You are a quality checker for podcast beat sheets. Return JSON only.",
+        prompt=prompt,
+        max_tokens=2048,
+    )
+    result = parse_llm_json(raw)
+    issues: list[dict[str, Any]] = []
+    if isinstance(result, dict):
+        for item in result.get("overlapping_pairs", []):
+            if not isinstance(item, dict):
+                continue
+            scene_a = item.get("scene_a")
+            scene_b = item.get("scene_b")
+            shared = item.get("shared_insight", "")
+            issues.append({
+                "severity": "structural",
+                "type": "description_overlap",
+                "scene_a": scene_a,
+                "scene_b": scene_b,
+                "message": f"Scenes {scene_a} and {scene_b} land the same insight: {shared}. Rewrite one to use its own claims for a different move.",
+            })
     return issues
 
 

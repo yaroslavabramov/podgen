@@ -402,9 +402,12 @@ Web extraction использует каскад extractors:
 
 ### **4.2 Global Claim Dedupe**
 
-- после локальной генерации claims запускается deterministic global dedupe
-- схлопываются exact и conservative near-exact duplicates
-- evidence links и narrative flags мерджатся до verifier
+- после локальной генерации claims запускается двухслойный global dedupe:
+  1. **Lexical layer** (deterministic): exact и conservative near-exact duplicates по normalized statement + token overlap (≥88%)
+  2. **Semantic layer** (Haiku LLM): per-branch semantic dedupe (батчи по 40 claims), затем cross-branch semantic dedupe (батчи по 40, без гарантии сравнения между батчами)
+- semantic dedupe использует strict prompt: мерджатся только near-identical restatements одной пропозиции; related-but-distinct facts, cause/consequence, general/specific не мерджатся
+- evidence links и narrative flags мерджатся на keep-клейм до verifier
+- `StepExecutionStopped` пробрасывается через все слои (не глотается catch-all)
 
 ### **4.3 Verification / Triangulation**
 
@@ -494,10 +497,8 @@ Web extraction использует каскад extractors:
   - `opening_question`
   - `ending_turn`
   - `focus_branch_ids`
-- после normalization вводится density cap на claim pool per act, чтобы акты вели себя как curated editorial layer, а не как почти полный research dump
-- disputed claims и claims из real/manual conflicts сохраняются через density cap и не могут быть молча выкинуты до conflict validation
+- showrunner prompt агрессивно курирует claims per act, но deterministic post-normalization density cap не применяется; disputed/conflict claims валидируются post-hoc и получают debate slot если LLM его пропустил
 - planning payloads now carry `output_language`, so showrunner and act planner keep human-readable output in the podcast language instead of drifting into English
-- preserve-path для disputed/conflict claims остаётся bounded самим act cap: конфликтно-насыщенные акты не пробивают cap полностью
 - showrunner prompt теперь явно ставит semantic novelty выше branch coherence: если claims из разных веток по сути переупаковывают один и тот же механизм, только один должен стать fresh explanatory backbone, а более поздний акт обязан двигаться через stress test / cost / contrast / legal framing / payoff, а не через повторное teaching; один исторический эпизод или институциональное решение обычно должны иметь один главный dramatic home, а comparative outside material не должно разрастаться в набор случайных мини-историй
 
 - при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` Showrunner пишет JSON dump с input payload, raw/parsed LLM output и normalized act plan
@@ -515,6 +516,7 @@ Web extraction использует каскад extractors:
 - prompt act planner теперь жёстче различает `same mechanism in new words` и `genuinely new layer`: later acts должны добавлять stress test / cost / contrast / legal lock-in / consequence, соседние сцены не должны повторно прогонять одну procedural chain под разными ярлыками, historical acts должны по умолчанию оставаться хронологически читаемыми, а callback-heavy endings обязаны начинать beat card с нового move, а не с recap механики
 - после normalizer act planner детерминированно делит повторно использованные claims на `primary_claim_ids` и `callback_claim_ids` по порядку сцен, а для callback-heavy beats задаёт `scene_job` (`reframe`, `cost`, `contrast`, `bridge`, `synthesize`, `apply`, `stress_test`), чтобы downstream writing видел, какой move сцена должна сделать
 - `hook` / `explanation` / `case_study` сцены не могут остаться callback-only без нового primary claim и в таком случае срабатывает отдельный quality-retry budget (`ACT_PLANNER_QUALITY_RETRIES = 2`); transport/timeout/parse failures используют отдельный request/output retry budget (`ACT_PLANNER_REQUEST_RETRIES = 2`), поэтому сетевой stall не съедает последний шанс на quality retry. Callback-only ending scenes сохраняют structural limits на `<=2` callback claims и ending-friendly `scene_job`; длинный ending description теперь остаётся advisory signal, а не hard fail, потому что length alone слишком brittle across languages/corpora
+- quality gate включает два LLM-based чека (Haiku, параллельно): **claim-description grounding** (описание сцены должно следовать из её клеймов, а не пересказывать тезис акта) и **cross-scene insight dedup** (две сцены не должны приземлять один и тот же инсайт). Оба возвращают `severity: structural` и триггерят retry с feedback
 - если сцена выбрала claim, но LLM не приклеил `evidence_ids`, act planner сначала детерминированно подставляет bundled claim support и только потом идёт в `vector_search` rescue
 - Anthropic LLM calls теперь обёрнуты в общий hard timeout (`LLM_REQUEST_TIMEOUT_SECONDS`, default `300`), чтобы Celery worker не зависал бесконечно на stalled provider request
 
@@ -562,13 +564,13 @@ Web extraction использует каскад extractors:
   - `act_title`
   - `previous_scene`
   - `previous_act_summary` для первых сцен новых актов
+  - `prior_scenes_dialogue` — полный диалог всех предыдущих сцен текущего акта (speaker+text), чтобы writer видел, что уже прозвучало и не повторял инсайты
   - `already_covered_claims`
   - `already_covered_claims_global`
-  - `new_information_goal`
   - `transition_note`
   - `scene_claim_mode`
   - `scene_job`
-  - `callback_claim_ids`
+  - `callback_claims` — полные объекты callback-клеймов (id, statement, verification, type), а не голые UUID
   - `recent_scene_starts`
 
 - держит dialogue в `language` подкаста, а не дрейфует в английский или смешанный output
@@ -579,12 +581,12 @@ Web extraction использует каскад extractors:
 - если текущая сцена пересекается с локально или глобально уже покрытым материалом, делает callback и двигается к новому смыслу вместо полного re-explain
 
 - continuity для `previous_scene` и первых сцен новых актов строится от фактически написанного диалога:
-  - `previous_scene` несёт `what_listener_now_knows`, реально прозвучавшие `claim_ids`, `mechanism_anchors` и `last_line` предыдущей сцены
+  - `previous_scene` несёт `what_listener_now_knows`, реально прозвучавшие `claim_ids` и `last_line` предыдущей сцены
   - `previous_act_summary` по возможности собирается из реально использованных `claim_ids` и последней реплики предыдущего акта, а не только из planning metadata
 
-- `new_information_goal` задаёт delta этой сцены: какой новый смысл, следствие или угол она должна добавить поверх уже рассказанного
+- в локальный writer prompt попадают только `primary_claim_ids` текущей сцены как `claims`; `callback_claims` (полные объекты), `scene_claim_mode` и `scene_job` нужны как continuity signal
 
-- в локальный writer prompt попадают только `primary_claim_ids` текущей сцены; `callback_claim_ids`, `scene_claim_mode` и `scene_job` нужны как continuity signal, а global continuity memory дополнительно несёт compact generic `mechanism_anchors`, чтобы следующие сцены и акты не reteach'или уже установленный механизм как новый факт
+- screenwriter output claim_ids валидируются post-hoc: невалидные UUID (опечатки, hallucinated) дропаются с warning
 - `scene_job` даёт callback-heavy сценам положительный контракт:
   - `reframe`
   - `cost`

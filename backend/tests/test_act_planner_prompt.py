@@ -9,11 +9,14 @@ from app.pipeline.phase5_planning.act_planner import (
     _assign_scene_jobs,
     _branch_focus_summary,
     _build_act_prompt_payload,
+    _collect_prior_acts_ending_types,
     _collect_prior_acts_primary_claims,
     _collect_beat_sheet_quality_issues,
     _hydrate_scene_evidence_ids_from_claim_support,
     _extract_scene_strategy,
     _has_structural_overlap_failures,
+    _normalize_beat_sheet,
+    _recover_scene_claim_ids,
     _scene_job,
     _scene_count_guidance,
     _split_scene_claim_roles,
@@ -263,15 +266,14 @@ def test_act_planner_prompt_demands_compact_beats_and_real_conflict_gate() -> No
     assert "All human-readable output fields (`scene_strategy`, `description`, `transition_note`, `notes`) MUST be in `output_language`" in ACT_PLANNER_SYSTEM
     assert "first scene must explicitly open the act's `opening_question`" in ACT_PLANNER_SYSTEM
     assert "final scene must clearly deliver the act's `ending_turn`" in ACT_PLANNER_SYSTEM
-    assert "Opening the act question does not require a `hook`." in ACT_PLANNER_SYSTEM
-    assert "Landing the act turn does not require a `takeaway`." in ACT_PLANNER_SYSTEM
-    assert "Do not default every act to `hook` at the start and `takeaway` at the end." in ACT_PLANNER_SYSTEM
+    assert "Vary the internal shape across acts" in ACT_PLANNER_SYSTEM
+    assert "any type except `transition` can close an act" in ACT_PLANNER_SYSTEM
+    assert "can close an act by leaving a deliberate open question" in ACT_PLANNER_SYSTEM
+    assert "can close an act with unresolved tension" in ACT_PLANNER_SYSTEM
     assert "Prefer compact beat cards, not mini-script paragraphs." in ACT_PLANNER_SYSTEM
     assert "Use `debate` only when the act has real conflict pressure" in ACT_PLANNER_SYSTEM
     assert "Use `scene_count_guidance` as the default size target" in ACT_PLANNER_SYSTEM
-    assert "Act-to-act variety matters. Do not default every act to the same internal shape." in ACT_PLANNER_SYSTEM
     assert "Each act should contain at least one meaningful turn" in ACT_PLANNER_SYSTEM
-    assert "Avoid the default podcast skeleton of hook -> explanation -> case_study -> takeaway" in ACT_PLANNER_SYSTEM
     assert "A `case_study` scene is optional, not mandatory." in ACT_PLANNER_SYSTEM
     assert "each claim includes `support_bundle.direct` and optional `support_bundle.illustrative`" in ACT_PLANNER_SYSTEM
     assert "attach one or more `evidence_ids` from that claim's bundled support whenever available" in ACT_PLANNER_SYSTEM
@@ -289,7 +291,29 @@ def test_act_planner_prompt_demands_compact_beats_and_real_conflict_gate() -> No
     assert "Use `scene_job` to declare the move each callback-heavy scene is making" in ACT_PLANNER_SYSTEM
     assert "`apply` scenes should begin from the concrete condition or operating case" in ACT_PLANNER_SYSTEM
     assert "`stress_test` scenes should begin from the pressure, failure mode, or attack" in ACT_PLANNER_SYSTEM
-    assert "`synthesize` scenes should answer the act question or compress the shift in understanding." in ACT_PLANNER_SYSTEM
+    assert "`synthesize` scenes should land the shift through their own claims" in ACT_PLANNER_SYSTEM
+    assert "prior_acts_ending_types" in ACT_PLANNER_SYSTEM
+    assert "Choose a different closing scene type" in ACT_PLANNER_SYSTEM
+
+
+def test_collect_prior_acts_ending_types_returns_last_scene_types() -> None:
+    acts = [
+        {"act_number": 1, "beat_sheet": [{"type": "hook"}, {"type": "takeaway"}]},
+        {"act_number": 2, "beat_sheet": [{"type": "explanation"}, {"type": "debate"}]},
+        {"act_number": 3, "beat_sheet": [{"type": "case_study"}]},
+    ]
+    assert _collect_prior_acts_ending_types(acts, 0) == []
+    assert _collect_prior_acts_ending_types(acts, 1) == ["takeaway"]
+    assert _collect_prior_acts_ending_types(acts, 2) == ["takeaway", "debate"]
+    assert _collect_prior_acts_ending_types(acts, 3) == ["takeaway", "debate", "case_study"]
+
+
+def test_collect_prior_acts_ending_types_handles_empty_beat_sheets() -> None:
+    acts = [
+        {"act_number": 1, "beat_sheet": []},
+        {"act_number": 2, "beat_sheet": [{"type": "hook"}]},
+    ]
+    assert _collect_prior_acts_ending_types(acts, 2) == ["hook"]
 
 
 def test_collect_prior_acts_primary_claims_uses_planned_previous_acts_in_order() -> None:
@@ -385,7 +409,7 @@ def test_assign_scene_jobs_defaults_callback_and_mixed_scenes() -> None:
     assert _scene_job(beat_sheet[0]) == "synthesize"
 
 
-def test_collect_beat_sheet_quality_issues_flags_structural_callback_only_explanation() -> None:
+async def test_collect_beat_sheet_quality_issues_flags_structural_callback_only_explanation() -> None:
     beat_sheet = [
         {
             "scene": 1,
@@ -401,7 +425,7 @@ def test_collect_beat_sheet_quality_issues_flags_structural_callback_only_explan
         },
     ]
 
-    issues = _collect_beat_sheet_quality_issues(beat_sheet)
+    issues = await _collect_beat_sheet_quality_issues(beat_sheet)
 
     assert issues == [
         {
@@ -416,7 +440,7 @@ def test_collect_beat_sheet_quality_issues_flags_structural_callback_only_explan
     assert _has_structural_overlap_failures(issues)
 
 
-def test_collect_beat_sheet_quality_issues_keeps_callback_only_takeaway_advisory() -> None:
+async def test_collect_beat_sheet_quality_issues_keeps_callback_only_takeaway_advisory() -> None:
     beat_sheet = [
         {
             "scene": 1,
@@ -432,7 +456,7 @@ def test_collect_beat_sheet_quality_issues_keeps_callback_only_takeaway_advisory
         },
     ]
 
-    issues = _collect_beat_sheet_quality_issues(beat_sheet)
+    issues = await _collect_beat_sheet_quality_issues(beat_sheet)
 
     assert issues == [
         {
@@ -447,7 +471,7 @@ def test_collect_beat_sheet_quality_issues_keeps_callback_only_takeaway_advisory
     assert not _has_structural_overlap_failures(issues)
 
 
-def test_collect_beat_sheet_quality_issues_flags_oversized_callback_only_ending() -> None:
+async def test_collect_beat_sheet_quality_issues_flags_oversized_callback_only_ending() -> None:
     beat_sheet = [
         {
             "scene": 1,
@@ -470,7 +494,7 @@ def test_collect_beat_sheet_quality_issues_flags_oversized_callback_only_ending(
         },
     ]
 
-    issues = _collect_beat_sheet_quality_issues(beat_sheet)
+    issues = await _collect_beat_sheet_quality_issues(beat_sheet)
 
     assert any(issue["type"] == "callback_only_ending_too_many_claims" for issue in issues)
     assert any(
@@ -481,7 +505,7 @@ def test_collect_beat_sheet_quality_issues_flags_oversized_callback_only_ending(
     assert _has_structural_overlap_failures(issues)
 
 
-def test_collect_beat_sheet_quality_issues_keeps_long_callback_only_ending_advisory() -> None:
+async def test_collect_beat_sheet_quality_issues_keeps_long_callback_only_ending_advisory() -> None:
     beat_sheet = [
         {
             "scene": 1,
@@ -500,7 +524,7 @@ def test_collect_beat_sheet_quality_issues_keeps_long_callback_only_ending_advis
         },
     ]
 
-    issues = _collect_beat_sheet_quality_issues(beat_sheet)
+    issues = await _collect_beat_sheet_quality_issues(beat_sheet)
 
     assert issues == [
         {
@@ -1179,3 +1203,59 @@ def test_build_act_prompt_payload_keeps_claim_support_beyond_old_flat_evidence_c
             "authority_type": "primary",
         }
     ]
+
+
+# ── Claim-id recovery tests ────────────────────────────────────
+
+
+def test_recover_scene_claim_ids_passes_valid_through():
+    cid = "11111111-1111-1111-1111-111111111111"
+    allowed = {cid}
+    result = _recover_scene_claim_ids([cid], allowed, scene_number=1)
+    assert result == [cid]
+
+
+def test_recover_scene_claim_ids_drops_invalid_uuid():
+    """Invalid UUID format is dropped, not fuzzy-matched."""
+    correct = "36e57f2b-4107-4365-9b3c-bade11b91674"
+    typo = "36e57f2b-4107-4365-9b3c-bae11b91674"  # invalid UUID (35 chars)
+    allowed = {correct}
+    result = _recover_scene_claim_ids([typo], allowed, scene_number=1)
+    assert result == []
+
+
+def test_recover_scene_claim_ids_drops_unknown():
+    allowed = {"11111111-1111-1111-1111-111111111111"}
+    result = _recover_scene_claim_ids(["not-a-uuid-at-all"], allowed, scene_number=1)
+    assert result == []
+
+
+def test_recover_scene_claim_ids_drops_valid_uuid_not_in_allowed():
+    """Valid UUID not in allowed set is dropped."""
+    allowed = {"11111111-1111-1111-1111-111111111111"}
+    other = "22222222-2222-2222-2222-222222222222"
+    result = _recover_scene_claim_ids([other], allowed, scene_number=1)
+    assert result == []
+
+
+def test_normalize_beat_sheet_drops_invalid_claim_id():
+    correct = "36e57f2b-4107-4365-9b3c-bade11b91674"
+    typo = "36e57f2b-4107-4365-9b3c-bae11b91674"
+    scenes = [
+        {
+            "scene": 1,
+            "type": "explanation",
+            "description": "Test scene",
+            "claim_ids": [typo, correct],
+            "evidence_ids": [],
+            "estimated_duration_seconds": 60,
+        }
+    ]
+    result = _normalize_beat_sheet(
+        scenes,
+        allowed_claim_ids={correct},
+        allowed_evidence_ids=set(),
+        default_duration=60,
+    )
+    assert len(result) == 1
+    assert result[0]["claim_ids"] == [correct]

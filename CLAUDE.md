@@ -107,7 +107,7 @@ All prefixed `/api/`. Routers in `backend/app/api/`: projects, show_bibles, sour
 
 ## LLM Usage
 - **Claude Sonnet 4** (`claude-sonnet-4-6`): reasoning and writing tasks (decomposer, planners, screenwriter, verifier, auditor)
-- **Claude Haiku** (`claude-haiku-4-5-20251001`): classification/light tasks (scout, canonicalizer, engagement eval, shownotes)
+- **Claude Haiku** (`claude-haiku-4-5-20251001`): classification/light tasks (scout, canonicalizer, engagement eval, shownotes, act planner quality checks)
 - **OpenAI text-embedding-3-large**: embeddings (3072 dims)
 - Client helpers in `backend/app/services/llm.py` — default `max_tokens=16384` for structured calls
 - All pipeline nodes use `parse_llm_json()` from `backend/app/pipeline/llm_json.py` (handles markdown fences, truncated output, empty responses)

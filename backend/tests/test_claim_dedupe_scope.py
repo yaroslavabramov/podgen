@@ -28,9 +28,9 @@ class _FakeSession:
 async def test_dedupe_claims_reports_touched_keep_scope(monkeypatch: pytest.MonkeyPatch) -> None:
     session = _FakeSession()
     claims = [
-        SimpleNamespace(id="c1", created_at=datetime.utcnow()),
-        SimpleNamespace(id="c2", created_at=datetime.utcnow()),
-        SimpleNamespace(id="c3", created_at=datetime.utcnow()),
+        SimpleNamespace(id="c1", created_at=datetime.utcnow(), notes=""),
+        SimpleNamespace(id="c2", created_at=datetime.utcnow(), notes=""),
+        SimpleNamespace(id="c3", created_at=datetime.utcnow(), notes=""),
     ]
     contexts = {
         "c1": {"marker": "keep"},
