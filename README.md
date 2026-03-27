@@ -135,10 +135,12 @@ Phase 4 now uses explicit lineage and canonical evidence semantics:
 - verifier sees full supporting quotes and splits LLM batches by char budget instead of truncating every quote to 300 chars
 - verifier is incremental after `dedupe_claims`: it only re-checks changed claims, stores `verification_fingerprint` on `Claim`, and clears rebuild/dedupe coordination metadata after each pass
 - incremental verifier scope now honors the full merged `claim_ids` set from overlapping research gaps, not just a lead claim
-- targeted rebuild now reuses prior verification state/fingerprint for semantically unchanged rebuilt claims and assigns rebuilt claims to the best-fitting branch/question using support-lineage semantics instead of flat provenance only
+- targeted rebuild now reuses prior verification state/fingerprint for semantically unchanged rebuilt claims, revalidates preserved claims against the current live branch/question scope before carrying them forward, and falls back to full rebuild when the old claim pool no longer matches the current tree
 - targeted rebuild scope now expands merged verifier gaps across all participating `claim_ids` and branch/question contexts before rebuilding
 - claim builder now budgets against real prompt-quote lengths and uses adaptive long-quote packing instead of a blind `[:700]` prefix cut
-- claim builder prompt now optimizes for a compact writer-usable backbone: it prefers fewer stronger claims, merges evidence by proposition core, and avoids `one evidence span -> one micro-claim`
+- claim builder prompt now optimizes for a compact writer-usable backbone: it prefers fewer stronger claims, keeps `one downstream move per claim`, avoids `one evidence span -> one micro-claim`, and separates primary branch context from secondary/provenance-only question context so cross-branch lineage does not silently become branch bleed
+- `dedupe_claims` now sanitizes the incoming pool before any merge logic, reporting requested vs loaded vs missing claim IDs in debug output instead of treating stale historical state as a live pool
+- semantic dedupe now runs on overlapping sorted Haiku windows, improving cross-batch duplicate coverage without returning to an all-pairs cost explosion
 - LLM-facing opaque IDs are now shortened wherever the model must reproduce them: claim builder shortens `evidence_ids`, act planner shortens both `claim_ids` and `evidence_ids`, and phase-6 polish / citation-repair passes shorten `claim_ids`; outputs are restored and validated before persistence so UUID typos stop leaking downstream
 - Hunter extraction now retries failed/invalid extraction passes with a narrower payload and tracks `expected_evidence` hits explicitly in debug/summary output
 - fast-web page retention now filters bibliography-like windows, records explicit drop reasons, and uses authority-aware retention plus weak-source-family penalties before extractor spend

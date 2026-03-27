@@ -636,6 +636,13 @@ Deferred after Round 68:
 - [x] **P1**: `dialogue_polish` and citation repair now shorten LLM-facing `claim_ids` / `available_claims` and restore them after parse, so phase-6 repair layers stop leaking UUID-typo risk downstream
 - [x] **P1**: Added regression coverage for short-id prompt payloads and restore semantics in claim builder, act planner, writer revolt, and citation auditor
 
+**Round 86 (claim-builder rerun hygiene + semantic dedupe follow-up):**
+- [x] **P0**: Targeted `build_claims` reruns now revalidate preserved claims against the current live branch/question scope and fall back to `full_rebuild` when the old claim pool no longer matches the current tree
+- [x] **P0**: `dedupe_claims` now sanitizes incoming `state["claim_ids"]` against live DB rows, reports requested vs loaded vs missing counts, and stops treating stale historical IDs as part of the live merge pool
+- [x] **P1**: Claim Builder branch context is now split into primary vs secondary/provenance contexts so cross-branch lineage stays visible without silently becoming branch bleed
+- [x] **P1**: Claim Builder prompt now keeps `one downstream move per claim` instead of rewarding maximum compression into setup+response / regime-shift mini-syntheses
+- [x] **P1**: Semantic dedupe now uses overlapping sorted windows and explicit prompt guardrails for problem->answer / regime->later transition / legal rule->later application pairs
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

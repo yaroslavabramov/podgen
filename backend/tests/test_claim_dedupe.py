@@ -5,6 +5,8 @@ from types import SimpleNamespace
 import pytest
 
 from app.pipeline.phase4_claims.dedupe import (
+    _DEDUPE_SYSTEM,
+    _build_semantic_batches,
     _claims_match,
     _semantic_dedupe_haiku,
     _semantic_dedupe_pass,
@@ -72,7 +74,29 @@ def _make_claim(cid: str, statement: str, branch: str = "b1", evidence_count: in
 def _make_context(cid: str, evidence_count: int = 1):
     return {
         "evidence_ids": {f"e{i}" for i in range(evidence_count)},
+        "normalized_statement": cid,
+        "numbers_and_dates": set(),
     }
+
+
+def test_dedupe_system_protects_distinct_historical_stages() -> None:
+    assert "problem/precondition vs the institutional answer" in _DEDUPE_SYSTEM
+    assert "One regime/state vs the later transition away from it" in _DEDUPE_SYSTEM
+    assert "legal rule vs its later application" in _DEDUPE_SYSTEM
+
+
+def test_build_semantic_batches_uses_overlapping_windows() -> None:
+    claims = [_make_claim(f"c{i:02d}", f"claim {i}") for i in range(45)]
+    contexts = {str(c.id): _make_context(f"claim-{i:02d}") for i, c in enumerate(claims)}
+
+    batches = _build_semantic_batches(claims, contexts)
+
+    assert len(batches) == 2
+    assert len(batches[0]) == 40
+    assert len(batches[1]) == 25
+    first_batch_ids = {str(claim.id) for claim in batches[0]}
+    second_batch_ids = {str(claim.id) for claim in batches[1]}
+    assert first_batch_ids & second_batch_ids
 
 
 @pytest.mark.asyncio

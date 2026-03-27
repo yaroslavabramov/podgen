@@ -34,7 +34,7 @@ CLAIM_BATCH_CHAR_BUDGET = 14000
 CLAIM_BUILDER_MAX_QUOTE_CHARS = 3200
 
 BUILD_CLAIMS_SYSTEM = """You are a claim builder for a fact-checked podcast pipeline.
-Given evidence spans, produce the smallest high-value, non-redundant set of claims that preserves the factual backbone needed by downstream verification, planning, and writing.
+Given evidence spans, produce the smallest high-value, non-redundant set of claims that still preserves distinct downstream narrative moves needed by verification, planning, and writing.
 
 Claims are not an exhaustive inventory of every extractable fact fragment.
 Prefer fewer, stronger, writer-usable claims over many thin micro-claims.
@@ -62,6 +62,8 @@ Rules:
 - Do not combine unrelated propositions in one statement, but do not split one coherent proposition into multiple micro-claims just because the evidence mentions several details.
 - Do not create one claim per evidence span by default. Merge evidence whenever spans support the same proposition core, even if they differ in wording, emphasis, examples, or supporting detail.
 - Split only when the pieces would matter independently to verification, planning, or writing, or when one could be true while the other false.
+- Preserve distinct downstream moves. Do NOT merge setup and response, problem and remedy, one regime and a later regime shift, or a legal rule and its later application/result if those would naturally become different planning beats.
+- Do NOT compress a chronology into one claim when downstream planning would naturally stage those historical turns separately.
 - Treat dates, numbers, actors, examples, qualifiers, and consequences as supporting detail unless they materially change the proposition's downstream meaning.
 - Do not add facts, entities, numbers, dates, motives, or causal links that are not explicitly present in evidence.
 - If a quote is partial, truncated, or only indirectly relevant, keep the claim equally narrow. Do not "complete" the missing part from background knowledge.
@@ -76,6 +78,7 @@ Rules:
 - For case_study questions, prefer concrete actors, actions, outcomes, and consequences from the episode itself. Preserve one coherent episode or outcome as one claim when possible; do not fragment actor, action, and result into separate claims unless they need to stand alone downstream.
 - The same evidence may appear in both supporting_evidence_ids and illustrative_evidence_ids.
 - Use source metadata, branch/question intent, lineage, direct_or_contextual, and contextual_asset_types to avoid mixing different research branches into one claim.
+- Treat secondary/provenance branch contexts as background only. They are not permission to restate another branch's explanatory backbone as a fresh claim in this batch.
 - When unsure whether to split or merge, prefer merge if the resulting claim remains semantically clean and directly auditable.
 - Use only evidence IDs that are present in the input.
 - Evidence IDs are opaque labels. Copy them exactly from the input instead of rewriting or guessing them.
@@ -101,7 +104,9 @@ async def build_claims(state: PipelineState) -> dict:
     all_claim_ids: list[str] = []
     rebuilt_claim_ids: list[str] = []
     preserved_claim_ids: list[str] = []
+    dropped_stale_preserved_claim_ids: list[str] = []
     rebuild_scope = _derive_targeted_rebuild_scope(state)
+    rebuild_mode = "full_rebuild"
     previous_gap_claim_ids: set[str] = set()
     for gap in (state.get("research_gaps", []) or []):
         if not isinstance(gap, dict):
@@ -135,32 +140,56 @@ async def build_claims(state: PipelineState) -> dict:
             generation_run_id=state["generation_run_id"],
             question_context_map=question_context_map,
         )
+        current_branch_ids, current_question_ids_by_branch = _derive_current_branch_scope(
+            branch_batches,
+            question_context_map,
+        )
         if not evidence_index:
             return {
                 "claim_ids": [],
                 "rebuilt_claim_ids": [],
                 "preserved_claim_ids": [],
+                "dropped_stale_preserved_claim_ids": [],
                 "targeted_branch_ids": rebuild_scope["branch_ids"] if rebuild_scope is not None else [],
+                "rebuild_mode": rebuild_mode,
+                "live_branch_ids": sorted(current_branch_ids),
                 "current_phase": "phase4_claims",
             }
         if rebuild_scope is not None:
-            branch_batches = _filter_branch_batches(branch_batches, rebuild_scope["branch_ids"])
-            if not branch_batches:
-                existing_claim_ids = list(dict.fromkeys(state.get("claim_ids", [])))
-                return {
-                    "claim_ids": existing_claim_ids,
-                    "rebuilt_claim_ids": [],
-                    "preserved_claim_ids": existing_claim_ids,
-                    "targeted_branch_ids": rebuild_scope["branch_ids"],
-                    "current_phase": "phase4_claims",
-                }
-
-            impacted_claim_ids, preserved_claim_ids = await _partition_claim_ids_for_targeted_rebuild(
+            live_claim_metadata = await _load_live_claim_rerun_metadata(
                 db=db,
                 claim_ids=list(dict.fromkeys(state.get("claim_ids", []))),
-                targeted_branch_ids=rebuild_scope["branch_ids"],
-                explicit_claim_ids=rebuild_scope["claim_ids"],
             )
+            if _should_fallback_to_full_rebuild(live_claim_metadata, current_branch_ids):
+                impacted_claim_ids = list(live_claim_metadata)
+                preserved_candidate_ids: list[str] = []
+                rebuild_mode = "full_rebuild"
+            else:
+                rebuild_mode = "targeted_rebuild_with_revalidation"
+                branch_batches = _filter_branch_batches(branch_batches, rebuild_scope["branch_ids"])
+                impacted_claim_ids, preserved_candidate_ids = await _partition_claim_ids_for_targeted_rebuild(
+                    db=db,
+                    claim_ids=list(live_claim_metadata),
+                    targeted_branch_ids=rebuild_scope["branch_ids"],
+                    explicit_claim_ids=rebuild_scope["claim_ids"],
+                )
+                preserved_claim_ids, dropped_stale_preserved_claim_ids = _revalidate_preserved_claim_ids(
+                    preserved_candidate_ids,
+                    live_claim_metadata=live_claim_metadata,
+                    current_branch_ids=current_branch_ids,
+                    current_question_ids_by_branch=current_question_ids_by_branch,
+                )
+                if not branch_batches:
+                    return {
+                        "claim_ids": preserved_claim_ids,
+                        "rebuilt_claim_ids": [],
+                        "preserved_claim_ids": preserved_claim_ids,
+                        "dropped_stale_preserved_claim_ids": dropped_stale_preserved_claim_ids,
+                        "targeted_branch_ids": rebuild_scope["branch_ids"],
+                        "rebuild_mode": rebuild_mode,
+                        "live_branch_ids": sorted(current_branch_ids),
+                        "current_phase": "phase4_claims",
+                    }
             if impacted_claim_ids:
                 previous_rebuild_lookup = await _load_previous_claim_rebuild_state(
                     db=db,
@@ -193,7 +222,7 @@ async def build_claims(state: PipelineState) -> dict:
                 branch_context = _summarize_branch_context(branch_id, batch, question_context_map)
                 evidence_sid = ShortIdMap(list(batch_ids), prefix="e")
                 payload = {
-                    "build_mode": "targeted_rebuild" if rebuild_scope is not None else "full",
+                    "build_mode": rebuild_mode,
                     "targeted_branch_ids": rebuild_scope["branch_ids"] if rebuild_scope is not None else [],
                     "branch_id": branch_id,
                     "branch_context": branch_context,
@@ -278,10 +307,13 @@ async def build_claims(state: PipelineState) -> dict:
         preserved_claim_ids = []
 
     return {
-        "claim_ids": all_claim_ids,
+        "claim_ids": list(dict.fromkeys(all_claim_ids)),
         "rebuilt_claim_ids": list(dict.fromkeys(rebuilt_claim_ids)),
         "preserved_claim_ids": list(dict.fromkeys(preserved_claim_ids)),
+        "dropped_stale_preserved_claim_ids": list(dict.fromkeys(dropped_stale_preserved_claim_ids)),
         "targeted_branch_ids": rebuild_scope["branch_ids"] if rebuild_scope is not None else [],
+        "rebuild_mode": rebuild_mode,
+        "live_branch_ids": sorted(current_branch_ids),
         "current_phase": "phase4_claims",
     }
 
@@ -358,6 +390,147 @@ async def _partition_claim_ids_for_targeted_rebuild(
     impacted = [claim_id for claim_id in ordered_claim_ids if claim_id in impacted_claim_ids]
     preserved = [claim_id for claim_id in ordered_claim_ids if claim_id not in impacted_claim_ids]
     return impacted, preserved
+
+
+async def _load_live_claim_rerun_metadata(
+    *,
+    db,
+    claim_ids: list[str],
+) -> dict[str, dict]:
+    ordered_claim_ids = list(dict.fromkeys(claim_ids))
+    if not ordered_claim_ids:
+        return {}
+
+    claim_uuid_ids: list[uuid.UUID] = []
+    valid_by_str: dict[str, uuid.UUID] = {}
+    for claim_id in ordered_claim_ids:
+        try:
+            parsed = uuid.UUID(claim_id)
+        except (TypeError, ValueError):
+            logger.warning("Skipping invalid claim ID in rerun metadata lookup: %s", claim_id)
+            continue
+        claim_uuid_ids.append(parsed)
+        valid_by_str[str(parsed)] = parsed
+    if not claim_uuid_ids:
+        return {}
+
+    result = await db.execute(select(Claim.id, Claim.notes).where(Claim.id.in_(claim_uuid_ids)))
+    metadata: dict[str, dict] = {}
+    for claim_id, notes in result.all():
+        claim_id_str = str(claim_id)
+        decoded = decode_claim_notes_metadata(notes)
+        metadata[claim_id_str] = {
+            "builder_branch_id": str(decoded.get("builder_branch_id", "")).strip(),
+            "builder_question_ids": [
+                str(question_id).strip()
+                for question_id in (decoded.get("builder_question_ids", []) or [])
+                if str(question_id).strip()
+            ],
+            "has_live_evidence": False,
+        }
+
+    if metadata:
+        evidence_result = await db.execute(
+            select(ClaimEvidence.claim_id).where(
+                ClaimEvidence.claim_id.in_([valid_by_str[cid] for cid in metadata])
+            )
+        )
+        for (claim_id,) in evidence_result.all():
+            claim_id_str = str(claim_id)
+            if claim_id_str in metadata:
+                metadata[claim_id_str]["has_live_evidence"] = True
+
+    return {
+        claim_id: metadata[claim_id]
+        for claim_id in ordered_claim_ids
+        if claim_id in metadata
+    }
+
+
+def _derive_current_branch_scope(
+    branch_batches: list[tuple[str, list[dict]]],
+    _question_context_map: dict[str, dict],
+) -> tuple[set[str], dict[str, set[str]]]:
+    branch_ids = {
+        str(branch_id).strip()
+        for branch_id, _ in branch_batches
+        if str(branch_id).strip()
+    }
+    question_ids_by_branch: dict[str, set[str]] = {
+        str(branch_id).strip(): set()
+        for branch_id, _ in branch_batches
+        if str(branch_id).strip()
+    }
+
+    for branch_id, items in branch_batches:
+        canonical_branch_id = str(branch_id).strip()
+        for item in items:
+            lineage = item.get("lineage", {}) if isinstance(item, dict) else {}
+            for context in lineage.get("question_contexts", []):
+                if not isinstance(context, dict):
+                    continue
+                qid = str(context.get("question_id", "")).strip()
+                bid = str(context.get("branch_id", "")).strip() or canonical_branch_id
+                if qid:
+                    question_ids_by_branch.setdefault(bid, set()).add(qid)
+                    branch_ids.add(bid)
+                if bid:
+                    branch_ids.add(bid)
+                    question_ids_by_branch.setdefault(bid, set())
+
+    return branch_ids, question_ids_by_branch
+
+
+def _should_fallback_to_full_rebuild(
+    live_claim_metadata: dict[str, dict],
+    current_branch_ids: set[str],
+) -> bool:
+    if not live_claim_metadata or not current_branch_ids:
+        return False
+    prior_branch_ids = {
+        str(meta.get("builder_branch_id", "")).strip()
+        for meta in live_claim_metadata.values()
+        if str(meta.get("builder_branch_id", "")).strip()
+    }
+    return bool(prior_branch_ids - current_branch_ids)
+
+
+def _revalidate_preserved_claim_ids(
+    preserved_candidate_ids: list[str],
+    *,
+    live_claim_metadata: dict[str, dict],
+    current_branch_ids: set[str],
+    current_question_ids_by_branch: dict[str, set[str]],
+) -> tuple[list[str], list[str]]:
+    preserved: list[str] = []
+    dropped: list[str] = []
+    for claim_id in preserved_candidate_ids:
+        meta = live_claim_metadata.get(claim_id)
+        if not meta:
+            dropped.append(claim_id)
+            continue
+        if not meta.get("has_live_evidence"):
+            dropped.append(claim_id)
+            continue
+        branch_id = str(meta.get("builder_branch_id", "")).strip()
+        if current_branch_ids and branch_id and branch_id not in current_branch_ids:
+            dropped.append(claim_id)
+            continue
+        question_ids = [
+            str(question_id).strip()
+            for question_id in (meta.get("builder_question_ids", []) or [])
+            if str(question_id).strip()
+        ]
+        if question_ids:
+            branch_question_ids = current_question_ids_by_branch.get(branch_id, set())
+            if not branch_question_ids:
+                dropped.append(claim_id)
+                continue
+            if not any(question_id in branch_question_ids for question_id in question_ids):
+                dropped.append(claim_id)
+                continue
+        preserved.append(claim_id)
+    return preserved, dropped
 
 
 async def _delete_claims(db, claim_ids: list[str]) -> None:
@@ -649,7 +822,8 @@ def _summarize_branch_context(
     question_context_map: dict[str, dict],
 ) -> dict:
     branch_question = question_context_map.get(branch_id, {})
-    question_contexts: dict[str, dict] = {}
+    primary_question_contexts: dict[str, dict] = {}
+    secondary_question_contexts: dict[str, dict] = {}
     intents: set[str] = set()
     for item in batch:
         lineage = item.get("lineage", {})
@@ -659,16 +833,27 @@ def _summarize_branch_context(
             question_id = str(context.get("question_id", "")).strip()
             if not question_id:
                 continue
-            question_contexts[question_id] = context
+            context_branch_id = str(context.get("branch_id", "")).strip()
+            if context_branch_id == branch_id:
+                primary_question_contexts[question_id] = context
+            else:
+                secondary_question_contexts[question_id] = context
             intent = context.get("intent")
             if isinstance(intent, str) and intent:
                 intents.add(intent)
+    all_question_ids = sorted(set(primary_question_contexts) | set(secondary_question_contexts))
     return {
         "branch_id": branch_id,
         "branch_question": branch_question.get("question", ""),
         "branch_intent": branch_question.get("intent", ""),
-        "question_ids": sorted(question_contexts),
-        "question_contexts": [question_contexts[qid] for qid in sorted(question_contexts)],
+        "question_ids": all_question_ids,
+        "primary_question_ids": sorted(primary_question_contexts),
+        "primary_question_contexts": [
+            primary_question_contexts[qid] for qid in sorted(primary_question_contexts)
+        ],
+        "secondary_question_contexts": [
+            secondary_question_contexts[qid] for qid in sorted(secondary_question_contexts)
+        ],
         "intents": sorted(intents),
     }
 
@@ -681,6 +866,9 @@ def _build_claim_builder_instructions(branch_context: dict) -> str:
         "Do not turn every evidence span or supporting detail into its own claim. "
         "Merge spans that support the same proposition core, even when they add different details or examples. "
         "Split only when the parts would matter independently downstream or when one could be true without the other. "
+        "Preserve one downstream move per claim. "
+        "Do not merge setup and response, problem and remedy, one regime and a later regime shift, or a legal rule and its later application/result when those would naturally become separate planning beats. "
+        "Do not compress a chronology into one claim when downstream planning would stage the turns separately. "
         "Do not introduce new facts. "
         "Preserve narrative evidence by using illustrative_evidence_ids. "
         "Use supporting_evidence_ids only when the quote directly supports the claim. "
@@ -688,6 +876,11 @@ def _build_claim_builder_instructions(branch_context: dict) -> str:
         "If a quote is partial or truncated, keep the claim equally narrow. "
         "Do not infer dates, motives, purposes, or causal links that are not explicitly stated."
     )
+    if branch_context.get("secondary_question_contexts"):
+        base += (
+            " Secondary question contexts are provenance only. "
+            "Do not restate another branch's explanatory backbone as a fresh claim in this batch unless the evidence here explicitly carries that proposition."
+        )
     branch_intent = str(branch_context.get("branch_intent", "")).strip().lower()
     if branch_intent == "debate":
         return (

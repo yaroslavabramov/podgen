@@ -37,10 +37,10 @@ _STOPWORDS = {
 
 async def dedupe_claims(state: PipelineState) -> dict:
     run_id = state["generation_run_id"]
-    claim_ids = list(dict.fromkeys(state.get("claim_ids", [])))
-    if not claim_ids:
+    requested_claim_ids = list(dict.fromkeys(state.get("claim_ids", [])))
+    if not requested_claim_ids:
         return {
-            "claim_ids": claim_ids,
+            "claim_ids": requested_claim_ids,
             "dedupe_deleted_claim_ids": [],
             "dedupe_merged_into_claim_ids": [],
             "dedupe_untouched_claim_ids": [],
@@ -51,7 +51,7 @@ async def dedupe_claims(state: PipelineState) -> dict:
     update_generation_progress(run_id, "phase4_claims", "claim_dedupe", 41.0)
 
     async with async_session_factory() as db:
-        claims, contexts = await _load_claim_context(db, claim_ids, run_id)
+        claims, contexts, pool_stats = await _load_claim_context(db, requested_claim_ids, run_id)
         duplicate_map: dict[str, str] = {}
         merged_into_claim_ids: set[str] = set()
         ordered_ids = [str(claim.id) for claim in claims]
@@ -105,7 +105,10 @@ async def dedupe_claims(state: PipelineState) -> dict:
 
     _dump_dedupe_debug(
         run_id=run_id,
-        input_count=len(claim_ids),
+        requested_claim_id_count=pool_stats["requested_claim_id_count"],
+        loaded_claim_row_count=pool_stats["loaded_claim_row_count"],
+        missing_claim_id_count=pool_stats["missing_claim_id_count"],
+        missing_claim_ids=pool_stats["missing_claim_ids"],
         lexical_dropped=lexical_dropped,
         semantic_dropped=len(semantic_drops),
         kept_count=len(kept_claim_ids),
@@ -113,12 +116,13 @@ async def dedupe_claims(state: PipelineState) -> dict:
         claims=claims,
         contexts=contexts,
         semantic_branch_details=_semantic_branch_log,
+        rebuilt_claim_ids=rebuilt_claim_ids,
     )
 
     publish_event(run_id, step_completed("phase4_claims", "dedupe_claims"))
     publish_event(
         run_id,
-        progress(42.0, f"Collapsed {len(claim_ids) - len(kept_claim_ids)} duplicate claims"),
+        progress(42.0, f"Collapsed {pool_stats['loaded_claim_row_count'] - len(kept_claim_ids)} duplicate claims"),
     )
     return {
         "claim_ids": kept_claim_ids,
@@ -129,12 +133,33 @@ async def dedupe_claims(state: PipelineState) -> dict:
     }
 
 
-async def _load_claim_context(db, claim_ids: list[str], generation_run_id: str) -> tuple[list[Claim], dict[str, dict]]:
-    claim_uuid_ids = [uuid.UUID(cid) for cid in claim_ids]
+async def _load_claim_context(
+    db,
+    claim_ids: list[str],
+    generation_run_id: str,
+) -> tuple[list[Claim], dict[str, dict], dict[str, object]]:
+    requested_claim_ids = list(dict.fromkeys(claim_ids))
+    claim_uuid_ids: list[uuid.UUID] = []
+    valid_request_ids: list[str] = []
+    invalid_request_ids: list[str] = []
+    for claim_id in requested_claim_ids:
+        try:
+            claim_uuid_ids.append(uuid.UUID(claim_id))
+            valid_request_ids.append(claim_id)
+        except (TypeError, ValueError):
+            invalid_request_ids.append(str(claim_id))
+    if not claim_uuid_ids:
+        return [], {}, {
+            "requested_claim_id_count": len(requested_claim_ids),
+            "loaded_claim_row_count": 0,
+            "missing_claim_id_count": len(invalid_request_ids),
+            "missing_claim_ids": invalid_request_ids,
+        }
     await _repair_invalid_claim_types(db, claim_uuid_ids)
     claim_result = await db.execute(select(Claim).where(Claim.id.in_(claim_uuid_ids)))
     claims = list(claim_result.scalars().all())
     claims.sort(key=lambda claim: (claim.created_at, claim.id))
+    loaded_claim_ids = {str(claim.id) for claim in claims}
 
     context: dict[str, dict] = {
         str(claim.id): {
@@ -180,7 +205,17 @@ async def _load_claim_context(db, claim_ids: list[str], generation_run_id: str) 
                 context[claim_id]["branch_ids"].add(provenance.branch_id)
                 context[claim_id]["question_ids"].add(provenance.question_id)
 
-    return claims, context
+    missing_claim_ids = invalid_request_ids + [
+        claim_id for claim_id in valid_request_ids
+        if claim_id not in loaded_claim_ids
+    ]
+
+    return claims, context, {
+        "requested_claim_id_count": len(requested_claim_ids),
+        "loaded_claim_row_count": len(claims),
+        "missing_claim_id_count": len(missing_claim_ids),
+        "missing_claim_ids": missing_claim_ids,
+    }
 
 
 async def _repair_invalid_claim_types(db, claim_ids: list[uuid.UUID]) -> None:
@@ -263,6 +298,7 @@ def _claims_match(left: dict, right: dict) -> bool:
 
 MIN_BRANCH_CLAIMS_FOR_SEMANTIC_DEDUPE = 3
 MAX_CLAIMS_PER_HAIKU_CALL = 40
+SEMANTIC_BATCH_STRIDE = 20
 
 
 async def _semantic_dedupe_pass(
@@ -293,10 +329,7 @@ async def _semantic_dedupe_pass(
                     "reason": f"below minimum ({MIN_BRANCH_CLAIMS_FOR_SEMANTIC_DEDUPE})",
                 })
             continue
-        for batch_start in range(0, len(branch_claims), MAX_CLAIMS_PER_HAIKU_CALL):
-            batch = branch_claims[batch_start:batch_start + MAX_CLAIMS_PER_HAIKU_CALL]
-            if len(batch) < MIN_BRANCH_CLAIMS_FOR_SEMANTIC_DEDUPE:
-                continue
+        for batch in _build_semantic_batches(branch_claims, contexts):
             branch_ids_in_order.append(branch_id)
             haiku_tasks.append(_semantic_dedupe_haiku(
                 branch_id, batch, contexts, duplicate_map,
@@ -335,12 +368,7 @@ async def _semantic_dedupe_pass(
     cross_surviving = [c for c in surviving_claims if str(c.id) not in duplicate_map]
     if len(cross_surviving) >= MIN_BRANCH_CLAIMS_FOR_SEMANTIC_DEDUPE:
         cross_dropped: list[str] = []
-        # Split into batches and run Haiku calls in parallel
-        batches: list[list] = []
-        for i in range(0, len(cross_surviving), MAX_CLAIMS_PER_HAIKU_CALL):
-            batch = cross_surviving[i:i + MAX_CLAIMS_PER_HAIKU_CALL]
-            if len(batch) >= MIN_BRANCH_CLAIMS_FOR_SEMANTIC_DEDUPE:
-                batches.append(batch)
+        batches = _build_semantic_batches(cross_surviving, contexts)
 
         if batches:
             cross_haiku_tasks = [
@@ -393,6 +421,9 @@ Rephrasings, translations, and trivially reworded restatements are duplicates.
 - A general rule vs a specific mechanism (e.g. "currency board has two rules" vs "banks must deposit USD to issue HKD")
 - Cause vs consequence (e.g. "currency board prevents monetary policy" vs "peg means Fed influences HK rates")
 - Different historical events, even if related (e.g. "Oriental Bank issued first notes in 1846" vs "HSBC began issuing notes in 1865")
+- A problem/precondition vs the institutional answer to that problem (e.g. "currency chaos existed" vs "authorities introduced a standard currency")
+- One regime/state vs the later transition away from it (e.g. "the currency floated" vs "a peg was introduced later")
+- A legal rule vs its later application, restoration, or enforcement outcome
 - A fact vs an opinion or evaluation about that fact
 - A claim that adds a date, number, name, or detail not present in the other
 
@@ -494,7 +525,10 @@ async def _semantic_dedupe_haiku(
 def _dump_dedupe_debug(
     *,
     run_id: str,
-    input_count: int,
+    requested_claim_id_count: int,
+    loaded_claim_row_count: int,
+    missing_claim_id_count: int,
+    missing_claim_ids: list[str],
     lexical_dropped: int,
     semantic_dropped: int,
     kept_count: int,
@@ -502,6 +536,7 @@ def _dump_dedupe_debug(
     claims: list,
     contexts: dict[str, dict],
     semantic_branch_details: list[dict],
+    rebuilt_claim_ids: set[str],
 ) -> None:
     dump_dir = (settings.web_extractor_debug_dump_dir or "").strip()
     if not dump_dir:
@@ -552,15 +587,54 @@ def _dump_dedupe_debug(
         filename_stem=f"run-{safe_filename_token(run_id)}_summary",
         payload={
             "run_id": run_id,
-            "input_count": input_count,
+            "requested_claim_id_count": requested_claim_id_count,
+            "loaded_claim_row_count": loaded_claim_row_count,
+            "missing_claim_id_count": missing_claim_id_count,
+            "missing_claim_ids": missing_claim_ids,
             "lexical_dropped": lexical_dropped,
             "semantic_dropped": semantic_dropped,
             "kept_count": kept_count,
             "lexical_merges": lexical_merges,
             "semantic_branches": semantic_branch_details,
+            "rebuilt_claim_id_count": len(rebuilt_claim_ids),
+            "live_branch_ids": sorted({
+                str(meta.get("builder_branch_id", "")).strip()
+                for claim in claims
+                for meta in [decode_claim_notes_metadata(getattr(claim, "notes", "") or "")]
+                if str(meta.get("builder_branch_id", "")).strip()
+            }),
             "claims": claim_summaries,
         },
     )
+
+
+def _semantic_batch_sort_key(claim, contexts: dict[str, dict]) -> tuple[str, str, str]:
+    claim_id = str(claim.id)
+    ctx = contexts.get(claim_id, {})
+    return (
+        str(ctx.get("normalized_statement", "")).strip(),
+        ",".join(sorted(ctx.get("numbers_and_dates", set()))),
+        claim_id,
+    )
+
+
+def _build_semantic_batches(claims: list, contexts: dict[str, dict]) -> list[list]:
+    if len(claims) < MIN_BRANCH_CLAIMS_FOR_SEMANTIC_DEDUPE:
+        return []
+    ordered_claims = sorted(claims, key=lambda claim: _semantic_batch_sort_key(claim, contexts))
+    if len(ordered_claims) <= MAX_CLAIMS_PER_HAIKU_CALL:
+        return [ordered_claims]
+
+    batches: list[list] = []
+    start = 0
+    while start < len(ordered_claims):
+        batch = ordered_claims[start:start + MAX_CLAIMS_PER_HAIKU_CALL]
+        if len(batch) >= MIN_BRANCH_CLAIMS_FOR_SEMANTIC_DEDUPE:
+            batches.append(batch)
+        if start + MAX_CLAIMS_PER_HAIKU_CALL >= len(ordered_claims):
+            break
+        start += SEMANTIC_BATCH_STRIDE
+    return batches
 
 
 async def _merge_claims(db, *, keep_claim_id: uuid.UUID, drop_claim_id: uuid.UUID) -> None:

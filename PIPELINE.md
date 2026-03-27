@@ -373,7 +373,7 @@ Web extraction использует каскад extractors:
 ### **4.1 Claim Builder**
 
 - собирает branch-based batches по `EvidenceProvenance`, а не режет flat array по фиксированному количеству rows
-- если verifier-loop вернул `research_gaps`, Claim Builder делает targeted rebuild только для затронутых branch groups и сохраняет unaffected claims вместо полного глобального rebuild’а
+- если verifier-loop вернул `research_gaps`, Claim Builder делает targeted rebuild только для затронутых branch groups, но перед сохранением unaffected claims теперь revalidates их against current live branch/question scope; если старый claim pool больше не соответствует текущему дереву, node падает обратно в `full_rebuild`
 - batching считает budget по реальному prompt payload; длинные quotes упаковываются адаптивно, а не слепо через fixed `[:700]` prefix
 - в prompt передаёт не только quote, но и:
   - branch context (`branch_question`, `branch_intent`, question contexts)
@@ -381,6 +381,7 @@ Web extraction использует каскад extractors:
   - compact lineage summary (`branch_ids/question_ids/intents/retrieved_by`)
   - contextual asset types из `EvidenceProvenance` для текущей branch-group
   - `direct_or_contextual` по provenance, когда он доступен
+- branch context теперь разделён на primary vs secondary/provenance question contexts: foreign-branch lineage остаётся доступной как background provenance, но не подаётся как permission to restate another branch backbone
 - при сохранении claim получает semantic branch/question assignment из support-lineage question contexts, а не только broad batch branch
 
 - сохраняет narrative "сок": illustrative evidence не теряется
@@ -388,7 +389,7 @@ Web extraction использует каскад extractors:
   - partial/truncated quotes не расширяются до более сильных claims
   - contextual framing не апгрейдится в stronger fact без явной пропозиции
   - claims строятся как compact factual backbone для verifier/planner/writer, а не как exhaustive inventory каждого извлекаемого факта
-  - по умолчанию prompt предпочитает fewer, stronger claims и merge'ит evidence по shared proposition core вместо `one span -> one claim`
+  - по умолчанию prompt предпочитает fewer, stronger claims и merge'ит evidence по shared proposition core вместо `one span -> one claim`, но explicit guardrails теперь запрещают сливать setup->response, regime A->later regime shift, legal rule->later application/result и другие distinct downstream moves в одну mini-scene claim
   - supporting details (даты, числа, qualifiers, examples) не должны автоматически становиться отдельными claims, если не меняют downstream meaning
   - ANECDOTE / CASE / EXPERT_QUOTE по умолчанию идут в illustrative, если не несут самостоятельную writer-usable proposition
 - branch intent влияет на shape claims:
@@ -405,8 +406,9 @@ Web extraction использует каскад extractors:
 
 - после локальной генерации claims запускается двухслойный global dedupe:
   1. **Lexical layer** (deterministic): exact и conservative near-exact duplicates по normalized statement + token overlap (≥88%)
-  2. **Semantic layer** (Haiku LLM): per-branch semantic dedupe (батчи по 40 claims), затем cross-branch semantic dedupe (батчи по 40, без гарантии сравнения между батчами)
-- semantic dedupe использует strict prompt: мерджатся только near-identical restatements одной пропозиции; related-but-distinct facts, cause/consequence, general/specific не мерджатся
+  2. **Semantic layer** (Haiku LLM): per-branch semantic dedupe, затем cross-branch semantic dedupe; claims сортируются и идут в overlapping окна (`40` with stride `20`), так что batch-boundary coverage лучше, чем у старых disjoint batches, хотя это всё ещё не exhaustive all-pairs comparison
+- semantic dedupe использует strict prompt: мерджатся только near-identical restatements одной пропозиции; problem vs institutional answer, regime vs later transition away, legal rule vs later application/restoration, cause/consequence и general/specific не мерджатся
+- перед dedupe incoming `state["claim_ids"]` санитизируется against DB: stale/missing IDs не участвуют в merge logic и отдельно попадают в debug summary как `requested/loaded/missing`
 - evidence links и narrative flags мерджатся на keep-клейм до verifier
 - `StepExecutionStopped` пробрасывается через все слои (не глотается catch-all)
 
