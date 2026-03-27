@@ -420,7 +420,10 @@ async def _semantic_dedupe_haiku(
     """Ask Haiku to find duplicate clusters. Returns list of (keep_id, drop_id, reason) tuples.
 
     Does NOT touch the DB — caller applies merges sequentially.
+    Uses short IDs (c1, c2, …) in the LLM prompt to reduce token waste and typos.
     """
+    from app.pipeline.short_ids import ShortIdMap, shorten_claim_dicts
+
     claim_payloads = []
     for claim in claims_pool:
         cid = str(claim.id)
@@ -435,7 +438,10 @@ async def _semantic_dedupe_haiku(
     if len(claim_payloads) < MIN_BRANCH_CLAIMS_FOR_SEMANTIC_DEDUPE:
         return []
 
-    prompt = json.dumps({"claims": claim_payloads}, ensure_ascii=False)
+    sid = ShortIdMap([p["id"] for p in claim_payloads])
+    short_payloads = shorten_claim_dicts(claim_payloads, sid)
+
+    prompt = json.dumps({"claims": short_payloads}, ensure_ascii=False)
 
     try:
         raw = await call_haiku_structured(
@@ -453,22 +459,25 @@ async def _semantic_dedupe_haiku(
     if not isinstance(result, dict):
         return []
 
-    valid_ids = {p["id"] for p in claim_payloads}
     merges: list[tuple[str, str, str]] = []
 
     for group in result.get("duplicate_groups", []):
         if not isinstance(group, dict):
             continue
-        keep_id = str(group.get("keep", "")).strip()
-        drop_ids = [str(d).strip() for d in group.get("drop", []) if isinstance(d, str)]
+        raw_keep = str(group.get("keep", "")).strip()
+        raw_drops = [str(d).strip() for d in group.get("drop", []) if isinstance(d, str)]
 
-        if keep_id not in valid_ids:
+        # Restore short IDs back to UUIDs
+        keep_id = sid.restore(raw_keep)
+        drop_ids = [sid.restore(d) for d in raw_drops]
+
+        if keep_id not in sid.long_ids:
             continue
         # Filter: valid, not self, not already dropped by earlier group in this batch
         already_merged_this_batch = {d for _, d, _ in merges}
         drop_ids = [
             d for d in drop_ids
-            if d in valid_ids and d != keep_id
+            if d in sid.long_ids and d != keep_id
             and d not in already_dropped and d not in already_merged_this_batch
         ]
 

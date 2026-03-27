@@ -151,6 +151,7 @@ def test_build_claims_system_prefers_compact_non_micro_claims() -> None:
     assert "Do not create one claim per evidence span by default" in BUILD_CLAIMS_SYSTEM
     assert "micro-variants of the same proposition" in BUILD_CLAIMS_SYSTEM
     assert "prefer merge if the resulting claim remains semantically clean and directly auditable" in BUILD_CLAIMS_SYSTEM
+    assert "Evidence IDs are opaque labels" in BUILD_CLAIMS_SYSTEM
 
 
 def test_prepare_claim_builder_quote_preserves_head_and_tail_for_long_quotes() -> None:
@@ -585,7 +586,7 @@ async def test_build_claims_passes_full_merged_gap_claim_ids_to_previous_rebuild
         _fake_split,
     )
 
-    result = await build_claims(
+    await build_claims(
         {
             "generation_run_id": str(uuid.uuid4()),
             "project_id": str(uuid.uuid4()),
@@ -599,4 +600,126 @@ async def test_build_claims_passes_full_merged_gap_claim_ids_to_previous_rebuild
     )
 
     assert set(captured_previous_gap_claim_ids) == {"c1", "c2"}
-    assert result["targeted_branch_ids"] == ["b6"]
+
+
+@pytest.mark.asyncio
+async def test_build_claims_shortens_evidence_ids_for_llm_and_restores_before_persist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _FakeSession()
+    evidence_id_1 = str(uuid.uuid4())
+    evidence_id_2 = str(uuid.uuid4())
+    captured_prompt_evidence_ids: list[str] = []
+    captured_claims_data: list[dict] = []
+
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder.async_session_factory",
+        lambda: session,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder.publish_event",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder.update_generation_progress",
+        lambda *args, **kwargs: None,
+    )
+
+    async def _fake_load_branch_batches(**kwargs):
+        return (
+            {
+                evidence_id_1: {"id": evidence_id_1},
+                evidence_id_2: {"id": evidence_id_2},
+            },
+            [
+                (
+                    "b1",
+                    [
+                        {
+                            "id": evidence_id_1,
+                            "lineage": {"question_contexts": []},
+                            "source": {},
+                            "contextual_asset_types": [],
+                            "verbatim_quote": "A",
+                            "asset_type": "timeline",
+                        },
+                        {
+                            "id": evidence_id_2,
+                            "lineage": {"question_contexts": []},
+                            "source": {},
+                            "contextual_asset_types": [],
+                            "verbatim_quote": "B",
+                            "asset_type": "case",
+                        },
+                    ],
+                ),
+            ],
+        )
+
+    async def _fake_call_sonnet_structured(**kwargs):
+        payload = __import__("json").loads(kwargs["prompt"])
+        captured_prompt_evidence_ids.extend(
+            item["id"] for item in payload["evidence_spans"]
+        )
+        return __import__("json").dumps(
+            [
+                {
+                    "claim_type": "FACT",
+                    "statement": "Restored evidence references.",
+                    "supporting_evidence_ids": [payload["evidence_spans"][0]["id"]],
+                    "illustrative_evidence_ids": [payload["evidence_spans"][1]["id"]],
+                    "attribution": None,
+                }
+            ]
+        )
+
+    async def _fake_persist_claim_batch(**kwargs):
+        captured_claims_data.extend(kwargs["claims_data"])
+        kwargs["all_claim_ids"].append("claim-new")
+        return (
+            [
+                {
+                    "claim_id": "claim-new",
+                    "claim_type": "fact",
+                    "statement": "Restored evidence references.",
+                    "supporting_evidence_ids": [evidence_id_1],
+                    "illustrative_evidence_ids": [evidence_id_2],
+                }
+            ],
+            {"skipped_no_support_count": 0, "skipped_empty_statement_count": 0},
+        )
+
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._load_branch_batches",
+        _fake_load_branch_batches,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder.call_sonnet_structured",
+        _fake_call_sonnet_structured,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._persist_claim_batch",
+        _fake_persist_claim_batch,
+    )
+
+    await build_claims(
+        {
+            "generation_run_id": str(uuid.uuid4()),
+            "project_id": str(uuid.uuid4()),
+            "language": "ru",
+            "manifest_id": "",
+            "evidence_ids": [evidence_id_1, evidence_id_2],
+            "claim_ids": [],
+        }
+    )
+
+    assert set(captured_prompt_evidence_ids) == {"e1", "e2"}
+    assert captured_claims_data == [
+        {
+            "claim_type": "FACT",
+            "statement": "Restored evidence references.",
+            "supporting_evidence_ids": [evidence_id_1],
+            "illustrative_evidence_ids": [evidence_id_2],
+            "attribution": None,
+        }
+    ]

@@ -43,6 +43,7 @@ def test_writer_revolt_prompt_tracks_boundary_context_and_structured_repair_scop
     assert "The payload includes `language`; keep the scene natural for that language and spoken register." in POLISH_SYSTEM
     assert "If the original scene contains a foreign-language quote or source snippet" in POLISH_SYSTEM
     assert "Keep the `speaker` field canonical: output only `A` or `B`" in POLISH_SYSTEM
+    assert "`claim_ids` are opaque labels" in POLISH_SYSTEM
     assert "Avoid translated-from-English phrasing or register drift." in POLISH_SYSTEM
     assert "Use the audit issues to improve scene flow, boundary handling, and conversational variety." in POLISH_SYSTEM
     assert "The payload may include an `act_repetition_report`" in POLISH_SYSTEM
@@ -548,6 +549,73 @@ async def test_attempt_dialogue_polish_preserves_line_metadata(monkeypatch: pyte
 
 
 @pytest.mark.asyncio
+async def test_attempt_dialogue_polish_shortens_claim_ids_for_llm_and_restores_them(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _DummyDb:
+        async def flush(self) -> None:
+            return None
+
+    claim_id_1 = "11111111-1111-1111-1111-111111111111"
+    claim_id_2 = "22222222-2222-2222-2222-222222222222"
+    prompts: list[dict] = []
+
+    async def _return_polished(**kwargs: object) -> str:
+        payload = __import__("json").loads(kwargs["prompt"])
+        prompts.append(payload)
+        return """
+        {
+          "dialogue": [
+            {"speaker": "A", "text": "A revised opener.", "claim_ids": ["c1"]},
+            {"speaker": "B", "text": "The unchanged line.", "claim_ids": ["c2"]}
+          ]
+        }
+        """
+
+    monkeypatch.setattr("app.pipeline.phase6_writing.writer_revolt.call_sonnet_structured", _return_polished)
+
+    segment = SimpleNamespace(
+        act_number=1,
+        scene_number=2,
+        dialogue_json=[
+            {
+                "speaker": "A",
+                "text": "The old opener.",
+                "claim_ids": [claim_id_1],
+                "emotion": "serious",
+                "ssml_hints": {"pause_ms": 100},
+            },
+            {
+                "speaker": "B",
+                "text": "The unchanged line.",
+                "claim_ids": [claim_id_2],
+                "emotion": "skeptical",
+                "ssml_hints": {"pause_ms": 220},
+            },
+        ],
+        revision_count=0,
+        audit_findings={"dialogue": {"issues": [{"type": "scene_opening_echo"}]}},
+    )
+
+    accepted = await _attempt_dialogue_polish(
+        db=_DummyDb(),
+        run_id="run-1",
+        segment=segment,
+        language="en",
+        boundary_context={"last_line": "Previous scene."},
+        scene_job="stress_test",
+        issues=[{"type": "scene_opening_echo", "severity": "medium", "scope": "scene_polish"}],
+        act_repetition_report=None,
+    )
+
+    assert accepted is True
+    assert prompts[0]["dialogue"][0]["claim_ids"] == ["c1"]
+    assert prompts[0]["dialogue"][1]["claim_ids"] == ["c2"]
+    assert segment.dialogue_json[0]["claim_ids"] == [claim_id_1]
+    assert segment.dialogue_json[1]["claim_ids"] == [claim_id_2]
+
+
+@pytest.mark.asyncio
 async def test_attempt_dialogue_polish_normalizes_named_host_speakers(monkeypatch: pytest.MonkeyPatch) -> None:
     class _DummyDb:
         async def flush(self) -> None:
@@ -616,20 +684,20 @@ async def test_attempt_dialogue_polish_accepts_changed_line_count_when_output_ca
         return """
         {
           "dialogue": [
-            {
-              "speaker": "B",
-              "text": "But the real constraint was legal.",
-              "claim_ids": ["c1"],
-              "emotion": "sharp",
-              "ssml_hints": {"pause_ms": 140}
-            },
-            {
-              "speaker": "A",
-              "text": "The law boxed them in before the press ever moved.",
-              "claim_ids": ["c1"],
-              "emotion": "measured",
-              "ssml_hints": {"pause_ms": 180}
-            }
+                {
+                  "speaker": "B",
+                  "text": "But the real constraint was legal.",
+                  "claim_ids": [],
+                  "emotion": "sharp",
+                  "ssml_hints": {"pause_ms": 140}
+                },
+                {
+                  "speaker": "A",
+                  "text": "The law boxed them in before the press ever moved.",
+                  "claim_ids": [],
+                  "emotion": "measured",
+                  "ssml_hints": {"pause_ms": 180}
+                }
           ]
         }
         """
@@ -667,20 +735,20 @@ async def test_attempt_dialogue_polish_accepts_changed_line_count_when_output_ca
 
     assert accepted is True
     assert segment.dialogue_json == [
-        {
-            "speaker": "B",
-            "text": "But the real constraint was legal.",
-            "claim_ids": ["c1"],
-            "emotion": "sharp",
-            "ssml_hints": {"pause_ms": 140},
-        },
-        {
-            "speaker": "A",
-            "text": "The law boxed them in before the press ever moved.",
-            "claim_ids": ["c1"],
-            "emotion": "measured",
-            "ssml_hints": {"pause_ms": 180},
-        },
+            {
+                "speaker": "B",
+                "text": "But the real constraint was legal.",
+                "claim_ids": [],
+                "emotion": "sharp",
+                "ssml_hints": {"pause_ms": 140},
+            },
+            {
+                "speaker": "A",
+                "text": "The law boxed them in before the press ever moved.",
+                "claim_ids": [],
+                "emotion": "measured",
+                "ssml_hints": {"pause_ms": 180},
+            },
     ]
 
 

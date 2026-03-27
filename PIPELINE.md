@@ -395,6 +395,7 @@ Web extraction использует каскад extractors:
   - `debate` -> arguments / tradeoffs / criticisms / attributed positions
   - `compare` -> explicit differences / alternatives / side-by-side contrast
   - `case_study` -> concrete actors / actions / outcomes / consequences
+- в claim-builder prompt `evidence_ids` теперь сокращаются до compact opaque labels и восстанавливаются после parse, так что LLM больше не должна перепечатывать длинные UUID ради evidence-link assignment
 - один и тот же `ClaimEvidence` может быть:
   - factual support
   - contradiction
@@ -515,6 +516,7 @@ Web extraction использует каскад extractors:
 - planner теперь нацелен на compact beat cards, а не на длинные pseudo-script paragraphs; он просит модель сначала выбрать короткую `scene_strategy`, явно запрещает default-скелет `hook -> explanation -> case_study -> takeaway`, трактует `case_study` как optional scene function, держит все human-readable поля в `output_language` и получает compact `prior_acts_primary_claims`, чтобы later acts знали, что earlier acts уже установили как primary material
 - prompt act planner теперь жёстче различает `same mechanism in new words` и `genuinely new layer`: later acts должны добавлять stress test / cost / contrast / legal lock-in / consequence, соседние сцены не должны повторно прогонять одну procedural chain под разными ярлыками, historical acts должны по умолчанию оставаться хронологически читаемыми, а callback-heavy endings обязаны начинать beat card с нового move, а не с recap механики
 - после normalizer act planner детерминированно делит повторно использованные claims на `primary_claim_ids` и `callback_claim_ids` по порядку сцен, а для callback-heavy beats задаёт `scene_job` (`reframe`, `cost`, `contrast`, `bridge`, `synthesize`, `apply`, `stress_test`), чтобы downstream writing видел, какой move сцена должна сделать
+- act planner теперь также сокращает LLM-facing `claim_ids` и bundled `evidence_ids` до opaque short labels и восстанавливает их после parse; beat-sheet quality больше не зависит от перепечатки raw UUID
 - `hook` / `explanation` / `case_study` сцены не могут остаться callback-only без нового primary claim и в таком случае срабатывает отдельный quality-retry budget (`ACT_PLANNER_QUALITY_RETRIES = 2`); transport/timeout/parse failures используют отдельный request/output retry budget (`ACT_PLANNER_REQUEST_RETRIES = 2`), поэтому сетевой stall не съедает последний шанс на quality retry. Callback-only ending scenes сохраняют structural limits на `<=2` callback claims и ending-friendly `scene_job`; длинный ending description теперь остаётся advisory signal, а не hard fail, потому что length alone слишком brittle across languages/corpora
 - quality gate включает два LLM-based чека (Haiku, параллельно): **claim-description grounding** (описание сцены должно следовать из её клеймов, а не пересказывать тезис акта) и **cross-scene insight dedup** (две сцены не должны приземлять один и тот же инсайт). Оба возвращают `severity: structural` и триггерят retry с feedback
 - если сцена выбрала claim, но LLM не приклеил `evidence_ids`, act planner сначала детерминированно подставляет bundled claim support и только потом идёт в `vector_search` rescue
@@ -637,6 +639,7 @@ Web extraction использует каскад extractors:
 - prompt для polish может получать compact `act_repetition_report`, `seam_finding` и `intervention_targets`, чтобы сцена чинила конкретный opener / seam / distribution defect, а не делала generic style rewrite
 - acceptance for `scene_opening_echo` / `boundary_restatement` is now target-aware: polish не принимается, если opener по сути остался тем же; для speaker-distribution intervention polish тоже reject, если opener остался в том же dominant-speaker skew
 - metadata safety is now contract-first: `dialogue_polish` должен возвращать compatible `emotion` / `ssml_hints`; same-length rewrites get safe metadata backfill, while changed-length rewrites are accepted only when the returned dialogue itself preserves usable delivery metadata
+- `dialogue_polish` shortens LLM-facing `claim_ids` before the Sonnet call and restores them after parse, so polish can preserve claim coverage without retyping long UUIDs
 - только high-severity `scene_rewrite` проблемы отправляют сцену назад в `screenwriter` через `audit_status = REVISED`
 
 Легитимные причины:
@@ -703,6 +706,7 @@ Web extraction использует каскад extractors:
   - line-count drift must stay bounded for scene-level repairs (no free-form scene rewrite disguised as rigor repair)
 
 - `available_claims` now carry attribution/source-support metadata, and citation issues may include `unsupported_source_framing` when a line starts sounding explicitly source-attributed without underlying claim support for that rhetorical move
+- citation repair shortens LLM-facing `available_claims` keys and dialogue `claim_ids` before repair, then restores them after parse; reuse of support links no longer depends on reproducing raw UUIDs
 
 - scenes с исходными `scope=block` findings получают ещё один repair attempt с compact retry feedback, чтобы один неудачный Sonnet rewrite не ронял весь дорогой run
 

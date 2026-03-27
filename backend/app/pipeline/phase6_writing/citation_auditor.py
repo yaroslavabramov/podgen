@@ -17,6 +17,12 @@ from app.models.script_segment import AuditStatus, ScriptSegment
 from app.models.show_bible import ShowBible
 from app.pipeline.debug_dump import safe_filename_token, write_json_debug_dump
 from app.pipeline.llm_json import parse_llm_json
+from app.pipeline.short_ids import (
+    ShortIdMap,
+    restore_dialogue_claim_ids,
+    shorten_dialogue_claim_ids,
+    shorten_mapping_keys,
+)
 from app.pipeline.phase6_writing.dialogue_utils import (
     build_speaker_aliases as _build_speaker_aliases,
     dedupe_preserve_order as _dedupe_preserve_order,
@@ -119,6 +125,7 @@ Rules:
 - The payload includes `language`; write naturally in that language and in the same spoken register as the original.
 - Keep the repaired line in the payload language. If support or evidence exists in another language, translate or paraphrase it into the payload language unless the wording itself is the explicit subject of the beat.
 - Keep the `speaker` field canonical: output only `A` or `B`, never host names, role names, or localized speaker variants.
+- `claim_ids` are opaque labels. Reuse only labels already present in the payload and copy them exactly.
 - Preserve the original line's spoken rhythm, sentence shape, and scene function.
 - Keep named actors and agency if they are not themselves the unsupported part.
 - Rewrite only the targeted lines.
@@ -166,6 +173,7 @@ Rules:
 - The payload includes `language`; write naturally in that language and in the same spoken register as the original.
 - Keep the repaired scene in the payload language. If support or evidence exists in another language, translate or paraphrase it into the payload language unless the wording itself is the explicit subject of the beat.
 - Keep the `speaker` field canonical: output only `A` or `B`, never host names, role names, or localized speaker variants.
+- `claim_ids` are opaque labels. Reuse only labels already present in the payload and copy them exactly.
 - Preserve the scene's factual meaning whenever supported by available claims.
 - Focus edits on lines flagged as `block` or `repair`; keep clean lines as unchanged as possible.
 - Preserve the scene's dramatic structure, pacing, and agency, not just its factual gist.
@@ -260,6 +268,10 @@ async def audit_citations(state: PipelineState) -> dict:
                     scene_number=segment.scene_number,
                     scene_metadata=scene_metadata,
                 ),
+            )
+            prompt_payload = _shorten_citation_audit_prompt_payload(
+                prompt_payload,
+                _build_citation_claim_sid(segment.dialogue_json, scene_claims_map),
             )
 
             try:
@@ -445,6 +457,28 @@ def _build_citation_audit_prompt_payload(
     }
 
 
+def _build_citation_claim_sid(
+    dialogue: list[dict[str, Any]],
+    claims_map: dict[str, dict[str, Any]],
+) -> ShortIdMap:
+    ids = _dedupe_preserve_order(
+        list(claims_map.keys()) + _extract_dialogue_claim_ids(dialogue)
+    )
+    return ShortIdMap(ids, prefix="c")
+
+
+def _shorten_citation_audit_prompt_payload(
+    prompt_payload: dict[str, Any],
+    claim_sid: ShortIdMap,
+) -> dict[str, Any]:
+    shortened = dict(prompt_payload)
+    shortened["dialogue"] = shorten_dialogue_claim_ids(shortened.get("dialogue"), claim_sid)
+    available_claims = shortened.get("available_claims")
+    if isinstance(available_claims, dict):
+        shortened["available_claims"] = shorten_mapping_keys(available_claims, claim_sid)
+    return shortened
+
+
 def _build_failed_citation_audit(*, error: str) -> dict[str, Any]:
     return {
         "passed": False,
@@ -529,6 +563,7 @@ async def _attempt_citation_repair(
     for attempt, repair_attempt in enumerate(repair_attempts, start=1):
         repair_mode = repair_attempt["mode"]
         target_line_indexes = repair_attempt["target_line_indexes"]
+        claim_sid = _build_citation_claim_sid(original_dialogue, claims_map)
         prompt_payload = _build_citation_repair_prompt_payload(
             repair_mode=repair_mode,
             scene_context=scene_context,
@@ -541,6 +576,7 @@ async def _attempt_citation_repair(
             issues=original_audit["issues"],
             target_line_indexes=target_line_indexes,
         )
+        prompt_payload = _shorten_citation_repair_prompt_payload(prompt_payload, claim_sid)
         if retry_feedback:
             prompt_payload["retry_feedback"] = retry_feedback
 
@@ -551,6 +587,7 @@ async def _attempt_citation_repair(
                 original_dialogue=original_dialogue,
                 target_line_indexes=target_line_indexes,
                 speaker_aliases=speaker_aliases,
+                claim_sid=claim_sid,
             )
         except StepExecutionStopped:
             raise
@@ -597,13 +634,16 @@ async def _attempt_citation_repair(
             continue
 
         repaired_audit = await _run_citation_audit_with_retry(
-            _build_citation_audit_prompt_payload(
-                dialogue=repaired_dialogue,
-                claims_map=claims_map,
-                forbidden_phrases=forbidden_phrases,
-                rigor_policy=rigor_policy,
-                language=language,
-                scene_context=scene_context,
+            _shorten_citation_audit_prompt_payload(
+                _build_citation_audit_prompt_payload(
+                    dialogue=repaired_dialogue,
+                    claims_map=claims_map,
+                    forbidden_phrases=forbidden_phrases,
+                    rigor_policy=rigor_policy,
+                    language=language,
+                    scene_context=scene_context,
+                ),
+                _build_citation_claim_sid(repaired_dialogue, claims_map),
             )
         )
         accepted = _citation_repair_improved(
@@ -749,6 +789,30 @@ def _build_citation_repair_prompt_payload(
     return payload
 
 
+def _shorten_citation_repair_prompt_payload(
+    prompt_payload: dict[str, Any],
+    claim_sid: ShortIdMap,
+) -> dict[str, Any]:
+    shortened = _shorten_citation_audit_prompt_payload(prompt_payload, claim_sid)
+    for group_key in ("target_lines", "flagged_lines"):
+        groups = shortened.get(group_key)
+        if not isinstance(groups, list):
+            continue
+        rewritten: list[dict[str, Any]] = []
+        for group in groups:
+            if not isinstance(group, dict):
+                continue
+            copied = dict(group)
+            dialogue_line = copied.get("dialogue")
+            if isinstance(dialogue_line, dict):
+                line_wrapper = shorten_dialogue_claim_ids([dialogue_line], claim_sid)
+                if isinstance(line_wrapper, list) and line_wrapper:
+                    copied["dialogue"] = line_wrapper[0]
+            rewritten.append(copied)
+        shortened[group_key] = rewritten
+    return shortened
+
+
 async def _run_citation_repair_attempt(
     *,
     repair_mode: str,
@@ -756,6 +820,7 @@ async def _run_citation_repair_attempt(
     original_dialogue: list[dict[str, Any]],
     target_line_indexes: list[int],
     speaker_aliases: dict[str, str] | None = None,
+    claim_sid: ShortIdMap,
 ) -> list[dict[str, Any]] | None:
     raw = await call_sonnet_structured(
         system=LINE_REPAIR_SYSTEM if repair_mode == "line_repair" else REPAIR_SYSTEM,
@@ -768,6 +833,7 @@ async def _run_citation_repair_attempt(
         repaired_lines = _normalize_line_repair_output(
             parsed.get("repaired_lines"),
             speaker_aliases=speaker_aliases,
+            claim_sid=claim_sid,
         )
         return _splice_repaired_lines(
             original_dialogue=original_dialogue,
@@ -778,6 +844,7 @@ async def _run_citation_repair_attempt(
         parsed.get("dialogue"),
         speaker_aliases=speaker_aliases,
     )
+    repaired_dialogue = restore_dialogue_claim_ids(repaired_dialogue, claim_sid)
     return _merge_scene_repair_metadata(
         original_dialogue=original_dialogue,
         repaired_dialogue=repaired_dialogue,
@@ -788,6 +855,7 @@ def _normalize_line_repair_output(
     value: Any,
     *,
     speaker_aliases: dict[str, str] | None = None,
+    claim_sid: ShortIdMap | None = None,
 ) -> dict[int, dict[str, Any]] | None:
     if not isinstance(value, list):
         return None
@@ -809,6 +877,8 @@ def _normalize_line_repair_output(
             ],
             speaker_aliases=speaker_aliases,
         )
+        if claim_sid is not None:
+            normalized_line = restore_dialogue_claim_ids(normalized_line, claim_sid)
         if not normalized_line:
             continue
         repaired_lines[line_index] = normalized_line[0]

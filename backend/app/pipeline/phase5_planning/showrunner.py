@@ -17,6 +17,7 @@ from app.pipeline.phase5_planning.planning_context import load_planning_context
 from app.pipeline.research_context import build_question_context_map
 from app.pipeline.state import PipelineState
 from app.pipeline.llm_json import parse_llm_json
+from app.pipeline.short_ids import ShortIdMap, shorten_claim_dicts, restore_id_list
 from app.services.llm import call_sonnet_structured
 from app.realtime.publisher import publish_event, update_generation_progress
 from app.realtime.events import phase_started, step_started, step_completed, progress
@@ -162,14 +163,24 @@ async def plan_episode(state: PipelineState) -> dict:
 
         publish_event(run_id, step_started("phase5_planning", "structure", "Creating act structure"))
 
+        # Build short-ID mapping to reduce LLM token waste and typos
+        all_claim_ids = [str(cs["id"]) for cs in claims_summary]
+        sid = ShortIdMap(all_claim_ids)
+        short_claims = shorten_claim_dicts(claims_summary, sid)
+        short_disputed = sid.shorten_list(disputed_ids)
+        short_conflicts = [
+            {**c, "claim_ids": sid.shorten_list(c.get("claim_ids", []))}
+            for c in conflicts_summary
+        ]
+
         prompt_payload = _build_showrunner_prompt_payload(
             duration_target_seconds=state["duration_target"],
             output_language=state.get("language", "en"),
             show_style=bible.show_style if bible else "Conversational",
             rigor_policy=bible.rigor_policy if bible else "",
-            claims=claims_summary,
-            conflicts=conflicts_summary,
-            disputed_claim_ids=disputed_ids,
+            claims=short_claims,
+            conflicts=short_conflicts,
+            disputed_claim_ids=short_disputed,
             duration_fill_layers=manifest.duration_fill_layers if manifest else [],
         )
         prompt = json.dumps(prompt_payload, ensure_ascii=False)
@@ -178,7 +189,7 @@ async def plan_episode(state: PipelineState) -> dict:
         try:
             raw = await call_sonnet_structured(system=SHOWRUNNER_SYSTEM, prompt=prompt, temperature=0.5)
             parsed_plan = parse_llm_json(raw)
-            plan = _normalize_plan(parsed_plan, state["duration_target"])
+            plan = _normalize_plan(parsed_plan, state["duration_target"], sid=sid)
             plan = _log_act_claim_counts(plan)
         except Exception:
             _dump_showrunner_debug(
@@ -273,7 +284,7 @@ def _uuid_list(value) -> list[str]:
     return out
 
 
-def _normalize_plan(plan, duration_target: int) -> dict:
+def _normalize_plan(plan, duration_target: int, *, sid: ShortIdMap | None = None) -> dict:
     if isinstance(plan, dict):
         acts_raw = plan.get("acts")
     elif isinstance(plan, list):
@@ -333,7 +344,7 @@ def _normalize_plan(plan, duration_target: int) -> dict:
                     act.get("estimated_duration_seconds"),
                     default_act_duration,
                 ),
-                "claim_ids": _uuid_list(act.get("claim_ids")),
+                "claim_ids": restore_id_list(act.get("claim_ids"), sid) if sid else _uuid_list(act.get("claim_ids")),
                 "conflict_brief_ids": _uuid_list(act.get("conflict_brief_ids")),
                 "content_quotas": content_quotas,
             }

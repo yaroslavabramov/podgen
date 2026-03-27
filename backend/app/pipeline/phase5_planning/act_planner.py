@@ -24,6 +24,7 @@ from app.services.evidence_store import (
     get_or_create_canonical_evidence,
 )
 from app.pipeline.llm_json import parse_llm_json
+from app.pipeline.short_ids import ShortIdMap, shorten_claim_dicts
 from app.pipeline.step_control import StepExecutionStopped
 from app.pipeline.phase3_research.tools import vector_search_tool
 from app.realtime.publisher import publish_event
@@ -136,6 +137,7 @@ Rules:
 - Use `scene_count_guidance` as the default size target for the act. Do not exceed it unless the act would otherwise feel structurally incomplete.
 - Prefer compact beat cards, not mini-script paragraphs. `description` should describe the beat, not write the scene. `notes` should stay short.
 - When a scene uses a claim, attach one or more `evidence_ids` from that claim's bundled support whenever available.
+- `claim_ids` and `evidence_ids` are opaque labels. Reuse only labels present in the input and copy them exactly.
 - Prefer bundled claim support over improvising unsupported scenes or assuming an evidence search will rescue the beat later.
 - Alternate dense explanation with a vivid example, hook, case, contrast, or transition whenever the evidence allows it.
 - A `case_study` scene is optional, not mandatory. Use it only when a concrete episode materially advances the act.
@@ -229,6 +231,9 @@ async def plan_act(state: PipelineState) -> dict:
                 _positive_int(act.get("estimated_duration_seconds"), 300) // 6,
             )
 
+            claim_sid = ShortIdMap(allowed_claim_ids, prefix="c")
+            evidence_sid = ShortIdMap(allowed_evidence_ids, prefix="e")
+
             base_prompt = _build_act_prompt_payload(
                 act=act,
                 act_number=act_num,
@@ -238,12 +243,26 @@ async def plan_act(state: PipelineState) -> dict:
                 prior_acts_primary_claims=prior_acts_primary_claims,
                 prior_acts_ending_types=prior_acts_ending_types,
             )
-            claim_support_lookup = _claim_support_lookup(base_prompt["claims"])
+            prompt_claims = list(base_prompt["claims"])
+            claim_support_lookup = _claim_support_lookup(prompt_claims)
             claim_statements_lookup: dict[str, str] = {
                 c["id"]: c.get("statement", "")
                 for c in act_claims
                 if isinstance(c, dict) and isinstance(c.get("id"), str)
             }
+
+            # Shorten LLM-facing IDs to reduce prompt waste and UUID typos.
+            base_prompt["claims"] = _shorten_act_prompt_claims(
+                prompt_claims,
+                claim_sid=claim_sid,
+                evidence_sid=evidence_sid,
+            )
+            if base_prompt.get("prior_acts_primary_claims"):
+                base_prompt["prior_acts_primary_claims"] = shorten_claim_dicts(
+                    base_prompt["prior_acts_primary_claims"], claim_sid,
+                )
+            prompt_allowed_claim_ids = allowed_claim_ids | claim_sid.short_ids
+            prompt_allowed_evidence_ids = allowed_evidence_ids | evidence_sid.short_ids
 
             beat_sheet: list[dict[str, Any]] = []
             scene_strategy = ""
@@ -303,10 +322,14 @@ async def plan_act(state: PipelineState) -> dict:
                     candidate_scene_strategy = _extract_scene_strategy(beat_data)
                     candidate_beat_sheet = _normalize_beat_sheet(
                         beat_data,
-                        allowed_claim_ids=allowed_claim_ids,
-                        allowed_evidence_ids=allowed_evidence_ids,
+                        allowed_claim_ids=prompt_allowed_claim_ids,
+                        allowed_evidence_ids=prompt_allowed_evidence_ids,
                         default_duration=per_scene_duration,
                     )
+                    # Restore short IDs back to canonical UUIDs
+                    for _scene in candidate_beat_sheet:
+                        _scene["claim_ids"] = claim_sid.restore_list(_scene.get("claim_ids", []))
+                        _scene["evidence_ids"] = evidence_sid.restore_list(_scene.get("evidence_ids", []))
                     candidate_beat_sheet = _split_scene_claim_roles(candidate_beat_sheet)
                     candidate_beat_sheet = _assign_scene_jobs(candidate_beat_sheet)
                     candidate_quality_issues = await _collect_beat_sheet_quality_issues(
@@ -629,7 +652,7 @@ def _recover_scene_claim_ids(
     allowed_claim_ids: set[str],
     scene_number: int,
 ) -> list[str]:
-    """Extract valid claim_ids, dropping any that are not in the allowed set."""
+    """Extract valid claim_ids, allowing either canonical UUIDs or pre-approved short IDs."""
     if not isinstance(raw_value, list):
         return []
     out: list[str] = []
@@ -640,6 +663,11 @@ def _recover_scene_claim_ids(
         item = item.strip()
         if not item:
             continue
+        if allowed_claim_ids and item in allowed_claim_ids:
+            if item not in seen:
+                seen.add(item)
+                out.append(item)
+            continue
         try:
             uuid.UUID(item)
         except ValueError:
@@ -647,6 +675,41 @@ def _recover_scene_claim_ids(
             continue
         if allowed_claim_ids and item not in allowed_claim_ids:
             logger.warning("Scene %s: dropped unknown claim_id %r", scene_number, item)
+            continue
+        if item not in seen:
+            seen.add(item)
+            out.append(item)
+    return out
+
+
+def _recover_scene_evidence_ids(
+    raw_value: Any,
+    allowed_evidence_ids: set[str],
+    scene_number: int,
+) -> list[str]:
+    """Extract valid evidence_ids, allowing either canonical UUIDs or pre-approved short IDs."""
+    if not isinstance(raw_value, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in raw_value:
+        if not isinstance(item, str):
+            continue
+        item = item.strip()
+        if not item:
+            continue
+        if allowed_evidence_ids and item in allowed_evidence_ids:
+            if item not in seen:
+                seen.add(item)
+                out.append(item)
+            continue
+        try:
+            uuid.UUID(item)
+        except ValueError:
+            logger.warning("Scene %s: dropped malformed evidence_id %r", scene_number, item)
+            continue
+        if allowed_evidence_ids and item not in allowed_evidence_ids:
+            logger.warning("Scene %s: dropped unknown evidence_id %r", scene_number, item)
             continue
         if item not in seen:
             seen.add(item)
@@ -947,6 +1010,32 @@ def _claim_support_lookup(prompt_claims: list[dict[str, Any]]) -> dict[str, dict
     return lookup
 
 
+def _shorten_act_prompt_claims(
+    prompt_claims: list[dict[str, Any]],
+    *,
+    claim_sid: ShortIdMap,
+    evidence_sid: ShortIdMap,
+) -> list[dict[str, Any]]:
+    shortened = shorten_claim_dicts(prompt_claims, claim_sid)
+    for claim in shortened:
+        if not isinstance(claim, dict):
+            continue
+        support_bundle = claim.get("support_bundle")
+        if not isinstance(support_bundle, dict):
+            continue
+        for mode in ("direct", "illustrative"):
+            items = support_bundle.get(mode)
+            if not isinstance(items, list):
+                continue
+            support_bundle[mode] = [
+                {**item, "id": evidence_sid.shorten(str(item.get("id")))}
+                if isinstance(item, dict) and isinstance(item.get("id"), str)
+                else item
+                for item in items
+            ]
+    return shortened
+
+
 def _bundle_evidence_ids(items: Any) -> list[str]:
     if not isinstance(items, list):
         return []
@@ -1059,10 +1148,11 @@ def _normalize_beat_sheet(
         claim_ids = _recover_scene_claim_ids(
             scene.get("claim_ids"), allowed_claim_ids, scene_number,
         )
-        evidence_ids = [
-            eid for eid in _uuid_list(scene.get("evidence_ids"))
-            if not allowed_evidence_ids or eid in allowed_evidence_ids
-        ]
+        evidence_ids = _recover_scene_evidence_ids(
+            scene.get("evidence_ids"),
+            allowed_evidence_ids,
+            scene_number,
+        )
         duration = _positive_int(scene.get("estimated_duration_seconds"), default_duration)
 
         transition_note = scene.get("transition_note")

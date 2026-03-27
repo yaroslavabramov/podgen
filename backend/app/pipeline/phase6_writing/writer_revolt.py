@@ -15,6 +15,7 @@ from app.models.show_bible import ShowBible
 from app.models.script_segment import AuditStatus, ScriptSegment
 from app.pipeline.debug_dump import safe_filename_token, write_json_debug_dump
 from app.pipeline.llm_json import parse_llm_json
+from app.pipeline.short_ids import ShortIdMap, restore_dialogue_claim_ids, shorten_dialogue_claim_ids
 from app.pipeline.phase6_writing.dialogue_utils import (
     build_speaker_aliases as _build_speaker_aliases,
     dedupe_preserve_order as _dedupe_preserve_order,
@@ -131,6 +132,7 @@ Rules:
 - The payload includes `language`; keep the scene natural for that language and spoken register.
 - Keep spoken lines in the payload language. If the original scene contains a foreign-language quote or source snippet and the beat is not explicitly about the wording itself, rewrite it into the payload language instead of preserving the raw source-language text.
 - Keep the `speaker` field canonical: output only `A` or `B`, never host names, role names, or localized speaker variants.
+- `claim_ids` are opaque labels. Reuse only labels already present in the input dialogue and copy them exactly.
 - Preserve the factual meaning, chronology, and required claim coverage.
 - Preserve attribution and institutional details already present.
 - Preserve line-level delivery intent. If a line already carries `emotion` or `ssml_hints`, return compatible delivery metadata instead of dropping it.
@@ -253,6 +255,10 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
                 language=language,
                 boundary_context=boundary_context,
                 scene_job=scene_job,
+            )
+            prompt_payload = _shorten_dialogue_prompt_claim_ids(
+                prompt_payload,
+                _build_dialogue_claim_sid(segment.dialogue_json),
             )
 
             try:
@@ -492,6 +498,7 @@ async def _attempt_dialogue_polish(
 ) -> bool:
     original_dialogue = segment.dialogue_json
     original_claim_ids = set(_extract_dialogue_claim_ids(original_dialogue))
+    claim_sid = ShortIdMap(list(original_claim_ids), prefix="c")
     prompt_payload = _build_dialogue_polish_prompt_payload(
         segment=segment,
         language=language,
@@ -502,6 +509,7 @@ async def _attempt_dialogue_polish(
         seam_finding=seam_finding,
         intervention_targets=intervention_targets or [],
     )
+    prompt_payload = _shorten_dialogue_prompt_claim_ids(prompt_payload, claim_sid)
 
     try:
         raw = await call_sonnet_structured(
@@ -515,6 +523,7 @@ async def _attempt_dialogue_polish(
             parsed.get("dialogue"),
             speaker_aliases=speaker_aliases,
         )
+        polished_dialogue = restore_dialogue_claim_ids(polished_dialogue, claim_sid)
     except StepExecutionStopped:
         raise
     except Exception as exc:
@@ -624,6 +633,19 @@ async def _attempt_dialogue_polish(
         error=None,
     )
     return True
+
+
+def _build_dialogue_claim_sid(dialogue: list[dict[str, Any]] | None) -> ShortIdMap:
+    return ShortIdMap(_extract_dialogue_claim_ids(dialogue or []), prefix="c")
+
+
+def _shorten_dialogue_prompt_claim_ids(
+    prompt_payload: dict[str, Any],
+    claim_sid: ShortIdMap,
+) -> dict[str, Any]:
+    shortened = dict(prompt_payload)
+    shortened["dialogue"] = shorten_dialogue_claim_ids(shortened.get("dialogue"), claim_sid)
+    return shortened
 
 
 def _build_dialogue_polish_prompt_payload(

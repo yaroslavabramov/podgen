@@ -139,6 +139,7 @@ Phase 4 now uses explicit lineage and canonical evidence semantics:
 - targeted rebuild scope now expands merged verifier gaps across all participating `claim_ids` and branch/question contexts before rebuilding
 - claim builder now budgets against real prompt-quote lengths and uses adaptive long-quote packing instead of a blind `[:700]` prefix cut
 - claim builder prompt now optimizes for a compact writer-usable backbone: it prefers fewer stronger claims, merges evidence by proposition core, and avoids `one evidence span -> one micro-claim`
+- LLM-facing opaque IDs are now shortened wherever the model must reproduce them: claim builder shortens `evidence_ids`, act planner shortens both `claim_ids` and `evidence_ids`, and phase-6 polish / citation-repair passes shorten `claim_ids`; outputs are restored and validated before persistence so UUID typos stop leaking downstream
 - Hunter extraction now retries failed/invalid extraction passes with a narrower payload and tracks `expected_evidence` hits explicitly in debug/summary output
 - fast-web page retention now filters bibliography-like windows, records explicit drop reasons, and uses authority-aware retention plus weak-source-family penalties before extractor spend
 - planning payloads now carry claim-level narrative/support signals, and `act_planner` no longer depends on a flat lossy `evidence[:20]` bag

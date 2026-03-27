@@ -7,6 +7,7 @@ import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy import select
 
@@ -19,6 +20,7 @@ from app.models.source import Source
 from app.pipeline.phase3_research.normalization import normalize_research_text
 from app.pipeline.phase4_claims.claim_notes import decode_claim_notes_metadata, encode_claim_notes_metadata
 from app.pipeline.phase4_claims.claim_type_utils import normalize_claim_type
+from app.pipeline.short_ids import ShortIdMap, restore_id_list
 from app.pipeline.research_context import build_question_context_map
 from app.pipeline.state import PipelineState
 from app.services.llm import call_sonnet_structured
@@ -76,6 +78,7 @@ Rules:
 - Use source metadata, branch/question intent, lineage, direct_or_contextual, and contextual_asset_types to avoid mixing different research branches into one claim.
 - When unsure whether to split or merge, prefer merge if the resulting claim remains semantically clean and directly auditable.
 - Use only evidence IDs that are present in the input.
+- Evidence IDs are opaque labels. Copy them exactly from the input instead of rewriting or guessing them.
 - Return raw JSON only. Do not use markdown/code fences or extra prose."""
 
 
@@ -188,12 +191,13 @@ async def build_claims(state: PipelineState) -> dict:
                 batch_ids = {e["id"] for e in batch}
                 batch_evidence_index = {str(item["id"]): item for item in batch}
                 branch_context = _summarize_branch_context(branch_id, batch, question_context_map)
+                evidence_sid = ShortIdMap(list(batch_ids), prefix="e")
                 payload = {
                     "build_mode": "targeted_rebuild" if rebuild_scope is not None else "full",
                     "targeted_branch_ids": rebuild_scope["branch_ids"] if rebuild_scope is not None else [],
                     "branch_id": branch_id,
                     "branch_context": branch_context,
-                    "evidence_spans": batch,
+                    "evidence_spans": _shorten_claim_builder_evidence_spans(batch, evidence_sid),
                     "target_language": state["language"],
                     "instructions": _build_claim_builder_instructions(branch_context),
                 }
@@ -207,7 +211,10 @@ async def build_claims(state: PipelineState) -> dict:
                         max_tokens=8192,
                         temperature=0.4,
                     )
-                    claims_data = parse_llm_json(raw)
+                    claims_data = _restore_claim_builder_evidence_ids(
+                        parse_llm_json(raw),
+                        evidence_sid=evidence_sid,
+                    )
                 except Exception:
                     logger.error("Claim building failed", exc_info=True)
                     _dump_claim_builder_batch_debug(
@@ -559,6 +566,48 @@ def _prepare_claim_builder_quote(quote: str) -> str:
     head = quote[:2000].rstrip()
     tail = quote[-1000:].lstrip()
     return f"{head}\n...[middle omitted for prompt budget]...\n{tail}"
+
+
+def _shorten_claim_builder_evidence_spans(
+    evidence_spans: list[dict[str, Any]],
+    evidence_sid: ShortIdMap,
+) -> list[dict[str, Any]]:
+    shortened: list[dict[str, Any]] = []
+    for item in evidence_spans:
+        if not isinstance(item, dict):
+            continue
+        copied = dict(item)
+        if isinstance(copied.get("id"), str):
+            copied["id"] = evidence_sid.shorten(copied["id"])
+        shortened.append(copied)
+    return shortened
+
+
+def _restore_claim_builder_evidence_ids(
+    claims_data: Any,
+    *,
+    evidence_sid: ShortIdMap,
+) -> Any:
+    if not isinstance(claims_data, list):
+        return claims_data
+    restored: list[Any] = []
+    for item in claims_data:
+        if not isinstance(item, dict):
+            restored.append(item)
+            continue
+        copied = dict(item)
+        copied["supporting_evidence_ids"] = restore_id_list(
+            copied.get("supporting_evidence_ids"),
+            evidence_sid,
+            drop_unknown=True,
+        )
+        copied["illustrative_evidence_ids"] = restore_id_list(
+            copied.get("illustrative_evidence_ids"),
+            evidence_sid,
+            drop_unknown=True,
+        )
+        restored.append(copied)
+    return restored
 
 
 def _split_evidence_batch(evidence_group: list[dict]) -> list[list[dict]]:

@@ -195,8 +195,12 @@ async def write_screenplay(state: PipelineState) -> dict:
         if not manifest or not manifest.acts_json:
             return {"script_segment_ids": [], "current_phase": "phase6_writing"}
 
+        from app.pipeline.short_ids import ShortIdMap
+
         all_manifest_claim_ids = _collect_manifest_claim_ids(manifest.acts_json)
         global_claim_lookup = await _load_claim_prompt_payloads(db, all_manifest_claim_ids)
+        # Short-ID map: reduces token waste and LLM typos on 36-char UUIDs
+        claim_sid = ShortIdMap(list(global_claim_lookup.keys()))
 
         try:
             max_tokens = int(format_rules.get("max_reply_tokens", 120))
@@ -377,6 +381,8 @@ async def write_screenplay(state: PipelineState) -> dict:
                     ),
                     act_claim_lookup=act_claim_lookup,
                 )
+                # Shorten claim UUIDs in prompt to reduce LLM token waste and typos
+                prompt_payload = _shorten_prompt_claim_ids(prompt_payload, claim_sid)
                 prompt = json.dumps(prompt_payload, ensure_ascii=False)
 
                 dialogue = []
@@ -417,11 +423,15 @@ async def write_screenplay(state: PipelineState) -> dict:
                                 line["claim_ids"] = []
                             dialogue.append(line)
 
-                        # Validate claim_ids against known claims
+                        # Restore short IDs → UUIDs and validate against known claims
                         for line in dialogue:
                             raw_ids = line.get("claim_ids", [])
+                            restored = [
+                                claim_sid.restore(cid) if isinstance(cid, str) else cid
+                                for cid in raw_ids
+                            ]
                             validated = [
-                                cid for cid in raw_ids
+                                cid for cid in restored
                                 if isinstance(cid, str) and cid in global_claim_lookup
                             ]
                             dropped = len(raw_ids) - len(validated)
@@ -673,6 +683,43 @@ def _build_scene_prompt_payload(
         "forbidden_phrases": forbidden_phrases,
         "max_reply_tokens": max_reply_tokens,
     }
+
+
+def _shorten_prompt_claim_ids(payload: dict, sid) -> dict:
+    """Replace UUID claim IDs with short labels throughout a scene prompt payload."""
+    out = dict(payload)
+    # claims list
+    if isinstance(out.get("claims"), list):
+        out["claims"] = [
+            {**c, "id": sid.shorten(c["id"])} if isinstance(c, dict) and "id" in c else c
+            for c in out["claims"]
+        ]
+    # callback_claims list
+    if isinstance(out.get("callback_claims"), list):
+        out["callback_claims"] = [
+            {**c, "id": sid.shorten(c["id"])} if isinstance(c, dict) and "id" in c else c
+            for c in out["callback_claims"]
+        ]
+    # already_covered_claims / already_covered_claims_global
+    for key in ("already_covered_claims", "already_covered_claims_global"):
+        if isinstance(out.get(key), list):
+            out[key] = [
+                {**c, "id": sid.shorten(c["id"])} if isinstance(c, dict) and "id" in c else c
+                for c in out[key]
+            ]
+    # previous_scene claim_ids
+    if isinstance(out.get("previous_scene"), dict):
+        prev = dict(out["previous_scene"])
+        if isinstance(prev.get("claim_ids"), list):
+            prev["claim_ids"] = sid.shorten_list(prev["claim_ids"])
+        out["previous_scene"] = prev
+    # previous_act_summary claim_ids
+    if isinstance(out.get("previous_act_summary"), dict):
+        pas = dict(out["previous_act_summary"])
+        if isinstance(pas.get("claim_ids"), list):
+            pas["claim_ids"] = sid.shorten_list(pas["claim_ids"])
+        out["previous_act_summary"] = pas
+    return out
 
 
 async def _load_claim_prompt_payloads(db, claim_ids: list[str]) -> dict[str, dict]:

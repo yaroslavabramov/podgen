@@ -630,6 +630,12 @@ Deferred after Round 68:
 - [x] **P0**: Strengthen `act_planner` prompt so adjacent scenes cannot walk through the same procedural chain twice under different labels; scene N+1 must do something with the chain rather than re-explain it
 - [x] **P1**: Add prompt guidance that historical acts should stay chronologically legible by default, `cost` should only be used for real tradeoffs, and `contrast` beats should stay selective instead of importing multiple unrelated outside mini-histories
 
+**Round 85 (opaque short IDs across LLM-facing contracts):**
+- [x] **P0**: Claim Builder now shortens LLM-facing `evidence_ids` and restores them before persistence, so evidence-link assignment no longer depends on retyping raw UUIDs
+- [x] **P0**: Act Planner now shortens both `claim_ids` and bundled `evidence_ids` in prompt/output contracts and restores them after parse
+- [x] **P1**: `dialogue_polish` and citation repair now shorten LLM-facing `claim_ids` / `available_claims` and restore them after parse, so phase-6 repair layers stop leaking UUID-typo risk downstream
+- [x] **P1**: Added regression coverage for short-id prompt payloads and restore semantics in claim builder, act planner, writer revolt, and citation auditor
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

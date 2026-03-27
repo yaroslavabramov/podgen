@@ -17,6 +17,7 @@ from app.pipeline.phase5_planning.act_planner import (
     _has_structural_overlap_failures,
     _normalize_beat_sheet,
     _recover_scene_claim_ids,
+    _recover_scene_evidence_ids,
     _scene_job,
     _scene_count_guidance,
     _split_scene_claim_roles,
@@ -277,6 +278,7 @@ def test_act_planner_prompt_demands_compact_beats_and_real_conflict_gate() -> No
     assert "A `case_study` scene is optional, not mandatory." in ACT_PLANNER_SYSTEM
     assert "each claim includes `support_bundle.direct` and optional `support_bundle.illustrative`" in ACT_PLANNER_SYSTEM
     assert "attach one or more `evidence_ids` from that claim's bundled support whenever available" in ACT_PLANNER_SYSTEM
+    assert "`claim_ids` and `evidence_ids` are opaque labels" in ACT_PLANNER_SYSTEM
     assert "Give each claim one main home scene inside the act." in ACT_PLANNER_SYSTEM
     assert "Not every claim deserves its own fresh explanation beat." in ACT_PLANNER_SYSTEM
     assert "Adjacent scenes must not walk through the same procedural chain twice" in ACT_PLANNER_SYSTEM
@@ -723,6 +725,9 @@ async def test_plan_act_raises_after_overlap_gate_retry_exhaustion(
         )
 
     async def _fake_call_sonnet_structured(**_kwargs):
+        # Extract the short claim ID from the prompt payload
+        prompt_data = json.loads(_kwargs.get("prompt", "{}"))
+        short_cid = prompt_data.get("claims", [{}])[0].get("id", claim_id)
         return json.dumps(
             {
                 "scene_strategy": "explain -> callback",
@@ -731,7 +736,7 @@ async def test_plan_act_raises_after_overlap_gate_retry_exhaustion(
                         "scene": 1,
                         "type": "explanation",
                         "description": "Explain the mechanism.",
-                        "claim_ids": [claim_id],
+                        "claim_ids": [short_cid],
                         "evidence_ids": [],
                         "estimated_duration_seconds": 120,
                     },
@@ -739,7 +744,7 @@ async def test_plan_act_raises_after_overlap_gate_retry_exhaustion(
                         "scene": 2,
                         "type": "explanation",
                         "description": "Explain the same mechanism again.",
-                        "claim_ids": [claim_id],
+                        "claim_ids": [short_cid],
                         "evidence_ids": [],
                         "estimated_duration_seconds": 120,
                     },
@@ -1122,6 +1127,263 @@ async def test_plan_act_final_dump_status_tracks_last_failure_type(monkeypatch: 
     assert dumps[-1]["beat_sheet"] is not None
 
 
+@pytest.mark.asyncio
+async def test_plan_act_short_ids_do_not_break_support_hydration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    claim_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    manifest = SimpleNamespace(
+        id=uuid.uuid4(),
+        acts_json=[
+            {
+                "act_number": 1,
+                "story_role": "explain",
+                "title": "Act 1",
+                "purpose": "Explain",
+                "internal_arc": "open -> close",
+                "opening_question": "Why?",
+                "ending_turn": "Because.",
+                "claim_ids": [claim_id],
+                "estimated_duration_seconds": 180,
+                "content_quotas": {},
+            }
+        ],
+        research_tree_json={"branches": []},
+    )
+    db = _FakeActPlannerDB(manifest)
+
+    async def _fake_load_planning_context(**_kwargs):
+        return (
+            {
+                claim_id: {
+                    "id": claim_id,
+                    "type": "fact",
+                    "verification": "verified",
+                    "branch_ids": ["b1"],
+                    "intents": ["explain"],
+                    "statement": "Mechanism claim",
+                    "has_illustrative": False,
+                    "illustrative_evidence_count": 0,
+                    "direct_support_count": 1,
+                    "source_diversity": 1,
+                    "support_bundle": {
+                        "direct": [{"id": evidence_id, "quote": "Direct quote"}],
+                        "illustrative": [],
+                    },
+                }
+            },
+            {
+                evidence_id: {
+                    "id": evidence_id,
+                    "quote": "Direct quote",
+                    "asset_type": "mechanism",
+                    "source_title": "Archive source",
+                    "source_reliability": "high",
+                    "authority_type": "primary",
+                    "is_temporary": False,
+                    "supports_fact": True,
+                    "illustrative": False,
+                    "narrative_score": 0.0,
+                    "direct_or_contextual": ["direct"],
+                    "supporting_claim_ids": [claim_id],
+                    "illustrative_claim_ids": [],
+                }
+            },
+        )
+
+    async def _fake_call_sonnet_structured(**kwargs):
+        prompt_data = json.loads(kwargs["prompt"])
+        short_cid = prompt_data["claims"][0]["id"]
+        short_eid = prompt_data["claims"][0]["support_bundle"]["direct"][0]["id"]
+        return json.dumps(
+            {
+                "scene_strategy": "explain once",
+                "beat_sheet": [
+                    {
+                        "scene": 1,
+                        "type": "explanation",
+                        "description": "Explain the mechanism once.",
+                        "claim_ids": [short_cid],
+                        "evidence_ids": [short_eid],
+                        "estimated_duration_seconds": 120,
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        )
+
+    async def _fake_fill_evidence_gaps(*_args, **_kwargs):
+        return []
+
+    monkeypatch.setattr("app.pipeline.phase5_planning.act_planner.async_session_factory", lambda: db)
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner.load_planning_context",
+        _fake_load_planning_context,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner.call_sonnet_structured",
+        _fake_call_sonnet_structured,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner._fill_evidence_gaps",
+        _fake_fill_evidence_gaps,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner.publish_event",
+        lambda *_args, **_kwargs: None,
+    )
+
+    await plan_act(
+        {
+            "generation_run_id": str(uuid.uuid4()),
+            "manifest_id": str(manifest.id),
+            "project_id": str(uuid.uuid4()),
+            "language": "ru",
+        }
+    )
+
+    beat_sheet = manifest.acts_json[0]["beat_sheet"]
+    assert beat_sheet[0]["claim_ids"] == [claim_id]
+    assert beat_sheet[0]["evidence_ids"] == [evidence_id]
+
+
+@pytest.mark.asyncio
+async def test_plan_act_short_ids_still_feed_llm_quality_checks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    claim_id_1 = str(uuid.uuid4())
+    claim_id_2 = str(uuid.uuid4())
+    manifest = SimpleNamespace(
+        id=uuid.uuid4(),
+        acts_json=[
+            {
+                "act_number": 1,
+                "story_role": "explain",
+                "title": "Act 1",
+                "purpose": "Explain",
+                "internal_arc": "open -> close",
+                "opening_question": "Why?",
+                "ending_turn": "Because.",
+                "claim_ids": [claim_id_1, claim_id_2],
+                "estimated_duration_seconds": 240,
+                "content_quotas": {},
+            }
+        ],
+        research_tree_json={"branches": []},
+    )
+    db = _FakeActPlannerDB(manifest)
+    dumps = []
+
+    async def _fake_load_planning_context(**_kwargs):
+        return (
+            {
+                claim_id_1: {
+                    "id": claim_id_1,
+                    "type": "fact",
+                    "verification": "verified",
+                    "branch_ids": ["b1"],
+                    "intents": ["explain"],
+                    "statement": "Claim one",
+                    "has_illustrative": False,
+                    "illustrative_evidence_count": 0,
+                    "direct_support_count": 0,
+                    "source_diversity": 1,
+                },
+                claim_id_2: {
+                    "id": claim_id_2,
+                    "type": "fact",
+                    "verification": "verified",
+                    "branch_ids": ["b2"],
+                    "intents": ["explain"],
+                    "statement": "Claim two",
+                    "has_illustrative": False,
+                    "illustrative_evidence_count": 0,
+                    "direct_support_count": 0,
+                    "source_diversity": 1,
+                },
+            },
+            {},
+        )
+
+    async def _fake_call_sonnet_structured(**kwargs):
+        prompt_data = json.loads(kwargs["prompt"])
+        short_ids = [claim["id"] for claim in prompt_data["claims"]]
+        return json.dumps(
+            {
+                "scene_strategy": "repeat disconnected thesis",
+                "beat_sheet": [
+                    {
+                        "scene": 1,
+                        "type": "explanation",
+                        "description": "Description not grounded in the actual claim.",
+                        "claim_ids": [short_ids[0]],
+                        "evidence_ids": [],
+                        "estimated_duration_seconds": 120,
+                    },
+                    {
+                        "scene": 2,
+                        "type": "explanation",
+                        "description": "Another disconnected description.",
+                        "claim_ids": [short_ids[1]],
+                        "evidence_ids": [],
+                        "estimated_duration_seconds": 120,
+                    },
+                ],
+            },
+            ensure_ascii=False,
+        )
+
+    async def _fake_call_haiku_structured(**kwargs):
+        prompt_data = json.loads(kwargs["prompt"])
+        if "disconnected_scenes" in prompt_data.get("return_format", {}):
+            return json.dumps(
+                {
+                    "disconnected_scenes": [
+                        {"scene": scene["scene"], "reason": "description not grounded"}
+                        for scene in prompt_data["scenes"]
+                    ]
+                },
+                ensure_ascii=False,
+            )
+        return json.dumps({"overlapping_pairs": []}, ensure_ascii=False)
+
+    monkeypatch.setattr("app.pipeline.phase5_planning.act_planner.async_session_factory", lambda: db)
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner.load_planning_context",
+        _fake_load_planning_context,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner.call_sonnet_structured",
+        _fake_call_sonnet_structured,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner.call_haiku_structured",
+        _fake_call_haiku_structured,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner.publish_event",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner._dump_act_planner_debug",
+        lambda **kwargs: dumps.append(kwargs),
+    )
+
+    with pytest.raises(RuntimeError, match="Act planner failed after 2 attempts for act 1"):
+        await plan_act(
+            {
+                "generation_run_id": str(uuid.uuid4()),
+                "manifest_id": str(manifest.id),
+                "project_id": str(uuid.uuid4()),
+                "language": "ru",
+            }
+        )
+
+    assert dumps[-1]["status"] == "quality_gate_failed"
+    assert any(issue["type"] == "description_claim_mismatch" for issue in dumps[-1]["quality_issues"])
+
+
 def test_build_act_prompt_payload_keeps_claim_support_beyond_old_flat_evidence_cap() -> None:
     act = {
         "act_number": 4,
@@ -1235,6 +1497,19 @@ def test_recover_scene_claim_ids_drops_valid_uuid_not_in_allowed():
     allowed = {"11111111-1111-1111-1111-111111111111"}
     other = "22222222-2222-2222-2222-222222222222"
     result = _recover_scene_claim_ids([other], allowed, scene_number=1)
+    assert result == []
+
+
+def test_recover_scene_evidence_ids_passes_valid_and_short_through() -> None:
+    eid = "11111111-1111-1111-1111-111111111111"
+    result = _recover_scene_evidence_ids([eid, "e1"], {eid, "e1"}, scene_number=1)
+    assert result == [eid, "e1"]
+
+
+def test_recover_scene_evidence_ids_drops_invalid_and_unknown() -> None:
+    allowed = {"11111111-1111-1111-1111-111111111111"}
+    other = "22222222-2222-2222-2222-222222222222"
+    result = _recover_scene_evidence_ids(["not-an-id", other], allowed, scene_number=1)
     assert result == []
 
 

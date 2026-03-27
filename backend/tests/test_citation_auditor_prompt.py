@@ -10,6 +10,7 @@ from app.pipeline.phase6_writing.citation_auditor import (
     REPAIR_SYSTEM,
     _attempt_citation_repair,
     _build_citation_audit_prompt_payload,
+    _build_citation_claim_sid,
     _build_citation_repair_attempt_plan,
     _build_citation_repair_prompt_payload,
     _build_scene_context,
@@ -29,6 +30,7 @@ from app.pipeline.phase6_writing.citation_auditor import (
     _run_citation_audit,
     _run_citation_audit_with_retry,
     _select_scene_claims_map,
+    _shorten_citation_audit_prompt_payload,
     _should_attempt_citation_repair,
     _splice_repaired_lines,
     audit_citations,
@@ -56,6 +58,7 @@ def test_citation_auditor_prompt_demands_severity_scope_and_repair() -> None:
     assert "The payload includes `language`" in LINE_REPAIR_SYSTEM
     assert "If support or evidence exists in another language, translate or paraphrase it into the payload language" in LINE_REPAIR_SYSTEM
     assert "Keep the `speaker` field canonical: output only `A` or `B`" in LINE_REPAIR_SYSTEM
+    assert "`claim_ids` are opaque labels" in LINE_REPAIR_SYSTEM
     assert "Do not default to bureaucratic, legalistic, or academic hedging" in LINE_REPAIR_SYSTEM
     assert "Do not turn an internal bridge into sign-off or next-episode teaser language" in LINE_REPAIR_SYSTEM
     assert "If the line already carries uncertainty, do not stack multiple hedges" in LINE_REPAIR_SYSTEM
@@ -66,6 +69,7 @@ def test_citation_auditor_prompt_demands_severity_scope_and_repair() -> None:
     assert "Focus edits on lines flagged as `block` or `repair`" in REPAIR_SYSTEM
     assert "Preserve the scene's dramatic structure, pacing, and agency" in REPAIR_SYSTEM
     assert "Keep the `speaker` field canonical: output only `A` or `B`" in REPAIR_SYSTEM
+    assert "`claim_ids` are opaque labels" in REPAIR_SYSTEM
     assert "If `available_claims` mark a claim as `verified`" in REPAIR_SYSTEM
     assert "Do not add new facts, institutions, dates, figures, or claims." in REPAIR_SYSTEM
     assert "Preserve the scene's `scene_job`, `scene_type`, and content function." in REPAIR_SYSTEM
@@ -133,6 +137,27 @@ def test_build_scene_context_keeps_final_scene_flags() -> None:
         "description": "Final risk scene.",
         "is_final_scene_in_act": True,
         "is_final_scene_in_episode": True,
+    }
+
+
+def test_citation_audit_prompt_shortens_claim_ids_for_llm() -> None:
+    claim_id = "11111111-1111-1111-1111-111111111111"
+    payload = _build_citation_audit_prompt_payload(
+        dialogue=[_line("Line", [claim_id])],
+        claims_map={claim_id: {"type": "fact", "verification": "verified", "statement": "Claim"}},
+        forbidden_phrases=[],
+        rigor_policy="",
+        language="en",
+        scene_context={"act_number": 1, "scene_number": 1},
+    )
+    shortened = _shorten_citation_audit_prompt_payload(
+        payload,
+        _build_citation_claim_sid(payload["dialogue"], payload["available_claims"]),
+    )
+
+    assert shortened["dialogue"][0]["claim_ids"] == ["c1"]
+    assert shortened["available_claims"] == {
+        "c1": {"type": "fact", "verification": "verified", "statement": "Claim"}
     }
 
 
@@ -1647,6 +1672,59 @@ async def test_attempt_citation_repair_line_mode_splices_only_targeted_lines(mon
         _line("Тогда другой вопрос: что их ограничивало?", [], speaker="B"),
         _line("Линия три.", ["c3"]),
     ]
+
+
+@pytest.mark.asyncio
+async def test_attempt_citation_repair_shortens_claim_ids_for_llm_and_restores_them(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    claim_id = "11111111-1111-1111-1111-111111111111"
+    prompts: list[dict] = []
+
+    async def _fake_call_sonnet_structured(**kwargs):
+        payload = __import__("json").loads(kwargs["prompt"])
+        prompts.append(payload)
+        return {
+            "repaired_lines": [
+                {"line_index": 0, "speaker": "A", "text": "Repaired line.", "claim_ids": ["c1"]}
+            ]
+        }
+
+    async def _fake_run_citation_audit_with_retry(_payload):
+        return {"passed": True, "issues": [], "metrics": {"fact_coverage_ratio": 1.0}}
+
+    monkeypatch.setattr("app.pipeline.phase6_writing.citation_auditor.call_sonnet_structured", _fake_call_sonnet_structured)
+    monkeypatch.setattr("app.pipeline.phase6_writing.citation_auditor.parse_llm_json", lambda raw: raw)
+    monkeypatch.setattr(
+        "app.pipeline.phase6_writing.citation_auditor._run_citation_audit_with_retry",
+        _fake_run_citation_audit_with_retry,
+    )
+    monkeypatch.setattr("app.pipeline.phase6_writing.citation_auditor._dump_citation_repair_debug", lambda **_kwargs: None)
+
+    repaired_dialogue, repaired_audit, accepted = await _attempt_citation_repair(
+        run_id=str(uuid.uuid4()),
+        segment=SimpleNamespace(
+            act_number=1,
+            scene_number=1,
+            dialogue_json=[_line("Original line.", [claim_id])],
+        ),
+        claims_map={claim_id: {"statement": "Claim"}},
+        forbidden_phrases=[],
+        rigor_policy="",
+        language="en",
+        original_audit={
+            "passed": False,
+            "issues": [{"line_index": 0, "type": "missing_claim_link", "severity": "medium", "scope": "repair"}],
+            "metrics": {"fact_coverage_ratio": 0.5},
+        },
+        scene_context={"scene_job": "apply", "scene_type": "explanation", "description": "Test scene"},
+    )
+
+    assert prompts[0]["dialogue"][0]["claim_ids"] == ["c1"]
+    assert prompts[0]["available_claims"] == {"c1": {"statement": "Claim"}}
+    assert accepted is True
+    assert repaired_audit == {"passed": True, "issues": [], "metrics": {"fact_coverage_ratio": 1.0}}
+    assert repaired_dialogue == [_line("Repaired line.", [claim_id])]
 
 
 class _FakeResult:
