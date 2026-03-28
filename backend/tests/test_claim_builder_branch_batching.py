@@ -16,6 +16,7 @@ from app.pipeline.phase4_claims.claim_builder import (
     _prepare_claim_builder_quote,
     _revalidate_preserved_claim_ids,
     _select_claim_assignment,
+    _should_force_full_rebuild_for_config,
     _summarize_branch_context,
     build_claims,
 )
@@ -157,7 +158,8 @@ def test_build_claims_system_prefers_compact_non_micro_claims() -> None:
     assert "micro-variants of the same proposition" in BUILD_CLAIMS_SYSTEM
     assert "Do NOT merge setup and response" in BUILD_CLAIMS_SYSTEM
     assert "Treat secondary/provenance branch contexts as background only." in BUILD_CLAIMS_SYSTEM
-    assert "prefer merge if the resulting claim remains semantically clean and directly auditable" in BUILD_CLAIMS_SYSTEM
+    assert "prefer the narrower or split version" in BUILD_CLAIMS_SYSTEM
+    assert "Bad: \"A disorder persisted, so authorities introduced a standard rule.\"" in BUILD_CLAIMS_SYSTEM
     assert "Evidence IDs are opaque labels" in BUILD_CLAIMS_SYSTEM
 
 
@@ -242,6 +244,29 @@ def test_revalidate_preserved_claim_ids_drops_same_branch_claim_when_live_batch_
 
     assert preserved == []
     assert dropped == ["claim-stale"]
+
+
+def test_should_force_full_rebuild_for_config_on_manual_build_claims_rerun() -> None:
+    assert _should_force_full_rebuild_for_config(
+        {
+            "execution_mode": "step",
+            "step_control": {
+                "requested_action": "rerun",
+                "requested_target_node": "build_claims",
+            },
+        },
+        node_name="build_claims",
+    )
+    assert not _should_force_full_rebuild_for_config(
+        {
+            "execution_mode": "full",
+            "step_control": {
+                "requested_action": "rerun",
+                "requested_target_node": "build_claims",
+            },
+        },
+        node_name="build_claims",
+    )
 
 
 def test_prepare_claim_builder_quote_preserves_head_and_tail_for_long_quotes() -> None:
@@ -531,6 +556,13 @@ async def test_build_claims_targeted_rebuild_preserves_unaffected_claims(monkeyp
         "app.pipeline.phase4_claims.claim_builder.update_generation_progress",
         lambda *args, **kwargs: None,
     )
+    async def _fake_should_not_force_full_rebuild(*args, **kwargs):
+        return False
+
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._should_force_full_rebuild_for_node_rerun",
+        _fake_should_not_force_full_rebuild,
+    )
 
     async def _fake_load_branch_batches(**kwargs):
         return (
@@ -560,9 +592,6 @@ async def test_build_claims_targeted_rebuild_preserves_unaffected_claims(monkeyp
 
     async def _fake_delete_claims(db, claim_ids):
         deleted_claim_ids.extend(claim_ids)
-
-    async def _fake_previous_rebuild_lookup(**kwargs):
-        return {}
 
     async def _fake_previous_rebuild_lookup(**kwargs):
         return {}
@@ -645,6 +674,216 @@ async def test_build_claims_targeted_rebuild_preserves_unaffected_claims(monkeyp
 
 
 @pytest.mark.asyncio
+async def test_build_claims_manual_rerun_forces_full_rebuild_and_drops_preserved_branches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _FakeSession()
+    processed_branch_ids: list[str] = []
+    deleted_claim_ids: list[str] = []
+    claim_keep = str(uuid.uuid4())
+    claim_drop = str(uuid.uuid4())
+
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder.async_session_factory",
+        lambda: session,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder.publish_event",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder.update_generation_progress",
+        lambda *args, **kwargs: None,
+    )
+    async def _fake_should_force_full_rebuild(*args, **kwargs):
+        return True
+
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._should_force_full_rebuild_for_node_rerun",
+        _fake_should_force_full_rebuild,
+    )
+
+    async def _fake_live_claim_metadata(**kwargs):
+        return {
+            claim_keep: {
+                "builder_branch_id": "b1",
+                "builder_question_ids": ["b1.1"],
+                "has_live_evidence": True,
+            },
+            claim_drop: {
+                "builder_branch_id": "b6",
+                "builder_question_ids": ["b6.1"],
+                "has_live_evidence": True,
+            },
+        }
+
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._load_live_claim_rerun_metadata",
+        _fake_live_claim_metadata,
+    )
+
+    async def _fake_load_branch_batches(**kwargs):
+        return (
+            {"e1": {"id": "e1"}, "e2": {"id": "e2"}},
+            [
+                ("b1", [{"id": "e1", "lineage": {"question_contexts": [{"branch_id": "b1", "question_id": "b1.1"}]}, "source": {}, "contextual_asset_types": [], "verbatim_quote": "A", "asset_type": "timeline"}]),
+                ("b6", [{"id": "e2", "lineage": {"question_contexts": [{"branch_id": "b6", "question_id": "b6.1"}]}, "source": {}, "contextual_asset_types": [], "verbatim_quote": "B", "asset_type": "contrast"}]),
+            ],
+        )
+
+    async def _fake_delete_claims(db, claim_ids):
+        deleted_claim_ids.extend(claim_ids)
+
+    def _fake_split(batch):
+        return [batch]
+
+    async def _fake_call_sonnet_structured(**kwargs):
+        payload = __import__("json").loads(kwargs["prompt"])
+        processed_branch_ids.append(payload["branch_id"])
+        evidence_id = payload["evidence_spans"][0]["id"]
+        return __import__("json").dumps(
+            [{
+                "claim_type": "FACT",
+                "statement": f"Rebuilt {payload['branch_id']}",
+                "supporting_evidence_ids": [evidence_id],
+                "illustrative_evidence_ids": [],
+                "attribution": None,
+            }]
+        )
+
+    async def _fake_persist_claim_batch(**kwargs):
+        claim_id = f"claim-{kwargs['branch_id']}"
+        kwargs["all_claim_ids"].append(claim_id)
+        return (
+            [{
+                "claim_id": claim_id,
+                "claim_type": "fact",
+                "statement": f"Rebuilt {kwargs['branch_id']}",
+                "supporting_evidence_ids": [next(iter(kwargs["batch_ids"]))],
+                "illustrative_evidence_ids": [],
+            }],
+            {"skipped_no_support_count": 0, "skipped_empty_statement_count": 0},
+        )
+
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._load_branch_batches",
+        _fake_load_branch_batches,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._delete_claims",
+        _fake_delete_claims,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._split_evidence_batch",
+        _fake_split,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder.call_sonnet_structured",
+        _fake_call_sonnet_structured,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._persist_claim_batch",
+        _fake_persist_claim_batch,
+    )
+
+    result = await build_claims(
+        {
+            "generation_run_id": str(uuid.uuid4()),
+            "project_id": str(uuid.uuid4()),
+            "language": "ru",
+            "manifest_id": "",
+            "evidence_ids": ["e1", "e2"],
+            "claim_ids": [claim_keep, claim_drop],
+            "iteration_counts": {"verify_research_loops": 1},
+            "research_gaps": [{"branch_id": "b6", "claim_id": claim_drop}],
+        }
+    )
+
+    assert deleted_claim_ids == [claim_keep, claim_drop]
+    assert processed_branch_ids == ["b1", "b6"]
+    assert result["claim_ids"] == ["claim-b1", "claim-b6"]
+    assert result["preserved_claim_ids"] == []
+    assert result["targeted_branch_ids"] == []
+    assert result["rebuild_mode"] == "full_rebuild"
+
+
+@pytest.mark.asyncio
+async def test_build_claims_manual_rerun_without_evidence_replaces_old_claim_pool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _FakeSession()
+    deleted_claim_ids: list[str] = []
+    claim_keep = str(uuid.uuid4())
+    claim_drop = str(uuid.uuid4())
+
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder.async_session_factory",
+        lambda: session,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder.publish_event",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder.update_generation_progress",
+        lambda *args, **kwargs: None,
+    )
+
+    async def _fake_should_force_full_rebuild(*args, **kwargs):
+        return True
+
+    async def _fake_live_claim_metadata(**kwargs):
+        return {
+            claim_keep: {
+                "builder_branch_id": "b1",
+                "builder_question_ids": ["b1.1"],
+                "has_live_evidence": True,
+            },
+            claim_drop: {
+                "builder_branch_id": "b6",
+                "builder_question_ids": ["b6.1"],
+                "has_live_evidence": True,
+            },
+        }
+
+    async def _fake_delete_claims(db, claim_ids):
+        deleted_claim_ids.extend(claim_ids)
+
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._should_force_full_rebuild_for_node_rerun",
+        _fake_should_force_full_rebuild,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._load_live_claim_rerun_metadata",
+        _fake_live_claim_metadata,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._delete_claims",
+        _fake_delete_claims,
+    )
+
+    result = await build_claims(
+        {
+            "generation_run_id": str(uuid.uuid4()),
+            "project_id": str(uuid.uuid4()),
+            "language": "ru",
+            "manifest_id": "",
+            "evidence_ids": [],
+            "claim_ids": [claim_keep, claim_drop],
+            "iteration_counts": {},
+            "research_gaps": [],
+        }
+    )
+
+    assert deleted_claim_ids == [claim_keep, claim_drop]
+    assert result["claim_ids"] == []
+    assert result["rebuilt_claim_ids"] == []
+    assert result["preserved_claim_ids"] == []
+    assert result["targeted_branch_ids"] == []
+    assert result["rebuild_mode"] == "full_rebuild"
+
+
+@pytest.mark.asyncio
 async def test_build_claims_targeted_rebuild_drops_stale_preserved_claims(monkeypatch: pytest.MonkeyPatch) -> None:
     session = _FakeSession()
     deleted_claim_ids: list[str] = []
@@ -662,6 +901,13 @@ async def test_build_claims_targeted_rebuild_drops_stale_preserved_claims(monkey
     monkeypatch.setattr(
         "app.pipeline.phase4_claims.claim_builder.update_generation_progress",
         lambda *args, **kwargs: None,
+    )
+    async def _fake_should_not_force_full_rebuild(*args, **kwargs):
+        return False
+
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._should_force_full_rebuild_for_node_rerun",
+        _fake_should_not_force_full_rebuild,
     )
 
     async def _fake_load_branch_batches(**kwargs):
@@ -787,6 +1033,13 @@ async def test_build_claims_falls_back_to_full_rebuild_when_old_claim_branches_l
         "app.pipeline.phase4_claims.claim_builder.update_generation_progress",
         lambda *args, **kwargs: None,
     )
+    async def _fake_should_not_force_full_rebuild(*args, **kwargs):
+        return False
+
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._should_force_full_rebuild_for_node_rerun",
+        _fake_should_not_force_full_rebuild,
+    )
 
     async def _fake_load_branch_batches(**kwargs):
         return (
@@ -899,6 +1152,13 @@ async def test_build_claims_passes_full_merged_gap_claim_ids_to_previous_rebuild
         "app.pipeline.phase4_claims.claim_builder.update_generation_progress",
         lambda *args, **kwargs: None,
     )
+    async def _fake_should_not_force_full_rebuild(*args, **kwargs):
+        return False
+
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._should_force_full_rebuild_for_node_rerun",
+        _fake_should_not_force_full_rebuild,
+    )
 
     async def _fake_load_branch_batches(**kwargs):
         return (
@@ -992,6 +1252,13 @@ async def test_build_claims_shortens_evidence_ids_for_llm_and_restores_before_pe
     monkeypatch.setattr(
         "app.pipeline.phase4_claims.claim_builder.update_generation_progress",
         lambda *args, **kwargs: None,
+    )
+    async def _fake_should_not_force_full_rebuild(*args, **kwargs):
+        return False
+
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._should_force_full_rebuild_for_node_rerun",
+        _fake_should_not_force_full_rebuild,
     )
 
     async def _fake_load_branch_batches(**kwargs):

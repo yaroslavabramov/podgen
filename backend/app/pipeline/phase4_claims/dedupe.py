@@ -387,6 +387,18 @@ async def _semantic_dedupe_pass(
                 for keep_id, drop_id, reason in result:
                     if drop_id in duplicate_map:
                         continue
+                    if not _semantic_merge_is_safe(
+                        keep_id=keep_id,
+                        drop_id=drop_id,
+                        contexts=contexts,
+                        cross_branch=True,
+                    ):
+                        logger.info(
+                            "Skipping cross-branch semantic merge %s -> %s as too weak/ambiguous",
+                            drop_id[:12],
+                            keep_id[:12],
+                        )
+                        continue
                     logger.info("Semantic dedup (cross-branch): merging %s into %s — %s",
                                 drop_id[:12], keep_id[:12], reason)
                     await _merge_claims(db, keep_claim_id=uuid.UUID(keep_id), drop_claim_id=uuid.UUID(drop_id))
@@ -635,6 +647,37 @@ def _build_semantic_batches(claims: list, contexts: dict[str, dict]) -> list[lis
             break
         start += SEMANTIC_BATCH_STRIDE
     return batches
+
+
+def _semantic_merge_is_safe(
+    *,
+    keep_id: str,
+    drop_id: str,
+    contexts: dict[str, dict],
+    cross_branch: bool,
+) -> bool:
+    keep_ctx = contexts.get(keep_id, {})
+    drop_ctx = contexts.get(drop_id, {})
+    if not keep_ctx or not drop_ctx:
+        return False
+    if _claims_match(keep_ctx, drop_ctx):
+        return True
+
+    keep_statement = str(keep_ctx.get("normalized_statement", "")).strip()
+    drop_statement = str(drop_ctx.get("normalized_statement", "")).strip()
+    if keep_statement and keep_statement == drop_statement:
+        return True
+
+    if keep_ctx.get("numbers_and_dates") != drop_ctx.get("numbers_and_dates"):
+        return False
+
+    overlap = _token_overlap(
+        keep_ctx.get("value_tokens", set()),
+        drop_ctx.get("value_tokens", set()),
+    )
+    if cross_branch:
+        return overlap >= 0.94
+    return overlap >= 0.9
 
 
 async def _merge_claims(db, *, keep_claim_id: uuid.UUID, drop_claim_id: uuid.UUID) -> None:

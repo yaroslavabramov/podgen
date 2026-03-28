@@ -643,6 +643,11 @@ Deferred after Round 68:
 - [x] **P1**: Claim Builder prompt now keeps `one downstream move per claim` instead of rewarding maximum compression into setup+response / regime-shift mini-syntheses
 - [x] **P1**: Semantic dedupe now uses overlapping sorted windows and explicit prompt guardrails for problem->answer / regime->later transition / legal rule->later application pairs
 
+**Round 87 (claim-builder UX rerun contract + conservative merge bias):**
+- [x] **P0**: Manual step reruns of `build_claims` now force `full_rebuild` semantics and replace the prior claim pool instead of preserving untouched branches like an internal verifier-loop patch
+- [x] **P1**: Claim Builder prompt no longer says `prefer merge when unsure`; ambiguous shapes now bias toward narrower/split claims, with contrastive bad/good examples for compressed mini-scene claims
+- [x] **P1**: Cross-branch semantic dedupe now prefers false negatives over false positives by filtering weak/ambiguous merge suggestions after the Haiku pass
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

@@ -8,6 +8,7 @@ from app.pipeline.phase4_claims.dedupe import (
     _DEDUPE_SYSTEM,
     _build_semantic_batches,
     _claims_match,
+    _semantic_merge_is_safe,
     _semantic_dedupe_haiku,
     _semantic_dedupe_pass,
 )
@@ -97,6 +98,40 @@ def test_build_semantic_batches_uses_overlapping_windows() -> None:
     first_batch_ids = {str(claim.id) for claim in batches[0]}
     second_batch_ids = {str(claim.id) for claim in batches[1]}
     assert first_batch_ids & second_batch_ids
+
+
+def test_semantic_merge_is_safe_rejects_cross_branch_related_but_distinct_claims() -> None:
+    keep_id = str(uuid.uuid4())
+    drop_id = str(uuid.uuid4())
+    contexts = {
+        keep_id: {
+            "normalized_statement": "banks deposit usd and receive certificates to issue notes",
+            "numbers_and_dates": {"7.80"},
+            "value_tokens": {"banks", "deposit", "usd", "receive", "certificates", "issue", "notes", "780"},
+            "claim_type": "fact",
+            "normalized_attribution": "",
+            "evidence_ids": {"e1"},
+            "source_ids": {"s1"},
+            "branch_ids": {"b1"},
+        },
+        drop_id: {
+            "normalized_statement": "market arbitrage restores the exchange rate around the peg",
+            "numbers_and_dates": {"7.80"},
+            "value_tokens": {"market", "arbitrage", "restores", "exchange", "rate", "around", "peg", "780"},
+            "claim_type": "fact",
+            "normalized_attribution": "",
+            "evidence_ids": {"e2"},
+            "source_ids": {"s2"},
+            "branch_ids": {"b5"},
+        },
+    }
+
+    assert not _semantic_merge_is_safe(
+        keep_id=keep_id,
+        drop_id=drop_id,
+        contexts=contexts,
+        cross_branch=True,
+    )
 
 
 @pytest.mark.asyncio

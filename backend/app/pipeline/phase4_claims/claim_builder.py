@@ -16,6 +16,7 @@ from app.workers.worker_db import worker_session_factory as async_session_factor
 from app.models.episode_manifest import EpisodeManifest
 from app.models.evidence import EvidenceProvenance, EvidenceSpan
 from app.models.claim import Claim, ClaimEvidence
+from app.models.generation_run import GenerationRun
 from app.models.source import Source
 from app.pipeline.phase3_research.normalization import normalize_research_text
 from app.pipeline.phase4_claims.claim_notes import decode_claim_notes_metadata, encode_claim_notes_metadata
@@ -71,7 +72,7 @@ Rules:
 - FACT must be directly supported by supporting_evidence_ids.
 - OPINION/REPORT must have attribution with at least "who" when available.
 - Deduplicate within this batch: if two candidates are semantic paraphrases or micro-variants of the same proposition, keep one claim and merge evidence IDs.
-- Prefer concise statements in the target language, usually one sentence; two tightly connected clauses are acceptable when they still express one coherent proposition.
+- Prefer concise statements in the target language, usually one sentence; two tightly connected clauses are acceptable only when they restate one proposition with necessary precision, not when they encode a sequence, setup->response, or cause->effect chain.
 - CASE, ANECDOTE, and EXPERT_QUOTE default to illustrative evidence unless they explicitly carry a standalone proposition that would be useful independently downstream.
 - For debate questions, preserve explicit arguments, tradeoffs, criticisms, and attributed positions. Prefer one argumentative position as one claim when possible; do not fragment one position into multiple narrow claims unless the sub-points matter independently.
 - For compare questions, preserve explicit differences, alternatives, and contrastive framing. Prefer one meaningful contrast as one claim when possible; do not create separate claims for every compared attribute unless each attribute matters independently.
@@ -79,7 +80,14 @@ Rules:
 - The same evidence may appear in both supporting_evidence_ids and illustrative_evidence_ids.
 - Use source metadata, branch/question intent, lineage, direct_or_contextual, and contextual_asset_types to avoid mixing different research branches into one claim.
 - Treat secondary/provenance branch contexts as background only. They are not permission to restate another branch's explanatory backbone as a fresh claim in this batch.
-- When unsure whether to split or merge, prefer merge if the resulting claim remains semantically clean and directly auditable.
+- Shape examples:
+  - Bad: "A disorder persisted, so authorities introduced a standard rule."
+    Good: split into one claim for the disorder/precondition and one claim for the later intervention/response.
+  - Bad: "A mechanism required backing, and later market prices self-corrected."
+    Good: split when one clause is the operating constraint and the other is a later adjustment mechanism.
+  - Bad: "A rule was enacted, and later authorities restored it after a crisis."
+    Good: split the legal rule from the later restoration/application outcome.
+- When unsure whether to split or merge, prefer the narrower or split version. Merge only when the result is clearly one proposition that would stay together downstream.
 - Use only evidence IDs that are present in the input.
 - Evidence IDs are opaque labels. Copy them exactly from the input instead of rewriting or guessing them.
 - Return raw JSON only. Do not use markdown/code fences or extra prose."""
@@ -92,14 +100,6 @@ async def build_claims(state: PipelineState) -> dict:
     update_generation_progress(run_id, "phase4_claims", "claim_builder", 35.0)
 
     evidence_ids = list(dict.fromkeys(state.get("evidence_ids", [])))
-    if not evidence_ids:
-        return {
-            "claim_ids": [],
-            "rebuilt_claim_ids": [],
-            "preserved_claim_ids": [],
-            "targeted_branch_ids": [],
-            "current_phase": "phase4_claims",
-        }
 
     all_claim_ids: list[str] = []
     rebuilt_claim_ids: list[str] = []
@@ -107,6 +107,8 @@ async def build_claims(state: PipelineState) -> dict:
     dropped_stale_preserved_claim_ids: list[str] = []
     rebuild_scope = _derive_targeted_rebuild_scope(state)
     rebuild_mode = "full_rebuild"
+    manual_step_rerun = False
+    manual_full_rebuild_claim_ids: list[str] = []
     previous_gap_claim_ids: set[str] = set()
     for gap in (state.get("research_gaps", []) or []):
         if not isinstance(gap, dict):
@@ -125,6 +127,32 @@ async def build_claims(state: PipelineState) -> dict:
     previous_rebuild_lookup: dict[str, list[dict]] = {}
 
     async with async_session_factory() as db:
+        manual_step_rerun = await _should_force_full_rebuild_for_node_rerun(
+            db,
+            generation_run_id=state["generation_run_id"],
+            node_name="build_claims",
+        )
+        if manual_step_rerun:
+            rebuild_scope = None
+            manual_full_rebuild_claim_ids = list(
+                await _load_live_claim_rerun_metadata(
+                    db=db,
+                    claim_ids=list(dict.fromkeys(state.get("claim_ids", []))),
+                )
+            )
+        if not evidence_ids:
+            if manual_full_rebuild_claim_ids:
+                await _delete_claims(db, manual_full_rebuild_claim_ids)
+            return {
+                "claim_ids": [],
+                "rebuilt_claim_ids": [],
+                "preserved_claim_ids": [],
+                "dropped_stale_preserved_claim_ids": [],
+                "targeted_branch_ids": [],
+                "rebuild_mode": rebuild_mode,
+                "live_branch_ids": [],
+                "current_phase": "phase4_claims",
+            }
         question_context_map: dict[str, dict] = {}
         if state.get("manifest_id"):
             manifest_result = await db.execute(
@@ -145,6 +173,8 @@ async def build_claims(state: PipelineState) -> dict:
             question_context_map,
         )
         if not evidence_index:
+            if manual_full_rebuild_claim_ids:
+                await _delete_claims(db, manual_full_rebuild_claim_ids)
             return {
                 "claim_ids": [],
                 "rebuilt_claim_ids": [],
@@ -199,6 +229,8 @@ async def build_claims(state: PipelineState) -> dict:
             if impacted_claim_ids:
                 await _delete_claims(db, impacted_claim_ids)
             all_claim_ids.extend(preserved_claim_ids)
+        elif manual_full_rebuild_claim_ids:
+            await _delete_claims(db, manual_full_rebuild_claim_ids)
 
         publish_event(
             run_id,
@@ -445,6 +477,37 @@ async def _load_live_claim_rerun_metadata(
         for claim_id in ordered_claim_ids
         if claim_id in metadata
     }
+
+
+def _should_force_full_rebuild_for_config(config: dict | None, *, node_name: str) -> bool:
+    if not isinstance(config, dict):
+        return False
+    if str(config.get("execution_mode") or "").strip().lower() != "step":
+        return False
+    step_control = config.get("step_control")
+    if not isinstance(step_control, dict):
+        return False
+    if step_control.get("requested_action") != "rerun":
+        return False
+    requested_target_node = step_control.get("requested_target_node")
+    if isinstance(requested_target_node, str) and requested_target_node.strip():
+        return requested_target_node.strip() == node_name
+    last_node = step_control.get("last_node")
+    return isinstance(last_node, str) and last_node == node_name
+
+
+async def _should_force_full_rebuild_for_node_rerun(
+    db,
+    *,
+    generation_run_id: str,
+    node_name: str,
+) -> bool:
+    try:
+        run_uuid = uuid.UUID(generation_run_id)
+    except (TypeError, ValueError):
+        return False
+    result = await db.execute(select(GenerationRun.config).where(GenerationRun.id == run_uuid))
+    return _should_force_full_rebuild_for_config(result.scalar_one_or_none(), node_name=node_name)
 
 
 def _derive_current_branch_scope(
@@ -881,6 +944,13 @@ def _build_claim_builder_instructions(branch_context: dict) -> str:
             " Secondary question contexts are provenance only. "
             "Do not restate another branch's explanatory backbone as a fresh claim in this batch unless the evidence here explicitly carries that proposition."
         )
+    base += (
+        " Bad shape: 'a problem existed, so authorities introduced a fix' in one claim. "
+        "Better: split the precondition from the later response. "
+        "Bad shape: 'a mechanism requires backing and later prices self-correct' in one claim. "
+        "Better: split the operating constraint from the later adjustment mechanism when they could become different beats downstream. "
+        "If you are unsure, prefer the narrower or split version over a compressed mini-scene claim."
+    )
     branch_intent = str(branch_context.get("branch_intent", "")).strip().lower()
     if branch_intent == "debate":
         return (
