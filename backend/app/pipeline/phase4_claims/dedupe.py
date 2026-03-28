@@ -347,6 +347,17 @@ async def _semantic_dedupe_pass(
                 if branch_log is not None:
                     branch_log.append({"branch_id": bid, "error": str(result)})
                 continue
+            suggested_merges = [
+                {
+                    "keep_id": keep_id,
+                    "drop_id": drop_id,
+                    "reason": reason,
+                    "keep_statement": str(contexts.get(keep_id, {}).get("normalized_statement", ""))[:300],
+                    "drop_statement": str(contexts.get(drop_id, {}).get("normalized_statement", ""))[:300],
+                }
+                for keep_id, drop_id, reason in result
+            ]
+            applied_merges: list[dict[str, str]] = []
             # Apply merges sequentially (safe for single db session)
             for keep_id, drop_id, reason in result:
                 logger.info("Semantic dedup (branch %s): merging %s into %s — %s",
@@ -355,11 +366,20 @@ async def _semantic_dedupe_pass(
                 duplicate_map[drop_id] = keep_id
                 merged_into_claim_ids.add(keep_id)
                 all_dropped.append(drop_id)
+                applied_merges.append({
+                    "keep_id": keep_id,
+                    "drop_id": drop_id,
+                    "reason": reason,
+                })
             if branch_log is not None:
                 dropped_ids = [d for _, d, _ in result]
                 branch_log.append({
                     "branch_id": bid,
                     "claim_count": len(branch_groups.get(bid, [])),
+                    "suggested_merge_count": len(suggested_merges),
+                    "suggested_merges": suggested_merges,
+                    "applied_merge_count": len(applied_merges),
+                    "applied_merges": applied_merges,
                     "dropped_count": len(dropped_ids),
                     "dropped_ids": dropped_ids,
                 })
@@ -369,6 +389,9 @@ async def _semantic_dedupe_pass(
     if len(cross_surviving) >= MIN_BRANCH_CLAIMS_FOR_SEMANTIC_DEDUPE:
         cross_dropped: list[str] = []
         batches = _build_semantic_batches(cross_surviving, contexts)
+        cross_suggested_merges: list[dict[str, str | int]] = []
+        cross_applied_merges: list[dict[str, str | int]] = []
+        cross_skipped_merges: list[dict[str, str | int]] = []
 
         if batches:
             cross_haiku_tasks = [
@@ -378,26 +401,29 @@ async def _semantic_dedupe_pass(
                 for j, batch in enumerate(batches)
             ]
             cross_haiku_results = await asyncio.gather(*cross_haiku_tasks, return_exceptions=True)
-            for result in cross_haiku_results:
+            for batch_index, result in enumerate(cross_haiku_results):
                 if isinstance(result, StepExecutionStopped):
                     raise result
                 if isinstance(result, Exception):
                     logger.warning("Semantic dedup cross-branch batch failed: %s", result)
                     continue
                 for keep_id, drop_id, reason in result:
+                    cross_suggested_merges.append({
+                        "batch_index": batch_index,
+                        "keep_id": keep_id,
+                        "drop_id": drop_id,
+                        "reason": reason,
+                        "keep_statement": str(contexts.get(keep_id, {}).get("normalized_statement", ""))[:300],
+                        "drop_statement": str(contexts.get(drop_id, {}).get("normalized_statement", ""))[:300],
+                    })
+                for keep_id, drop_id, reason in result:
                     if drop_id in duplicate_map:
-                        continue
-                    if not _semantic_merge_is_safe(
-                        keep_id=keep_id,
-                        drop_id=drop_id,
-                        contexts=contexts,
-                        cross_branch=True,
-                    ):
-                        logger.info(
-                            "Skipping cross-branch semantic merge %s -> %s as too weak/ambiguous",
-                            drop_id[:12],
-                            keep_id[:12],
-                        )
+                        cross_skipped_merges.append({
+                            "keep_id": keep_id,
+                            "drop_id": drop_id,
+                            "reason": reason,
+                            "skip_reason": "drop_id_already_merged",
+                        })
                         continue
                     logger.info("Semantic dedup (cross-branch): merging %s into %s — %s",
                                 drop_id[:12], keep_id[:12], reason)
@@ -406,12 +432,23 @@ async def _semantic_dedupe_pass(
                     merged_into_claim_ids.add(keep_id)
                     all_dropped.append(drop_id)
                     cross_dropped.append(drop_id)
+                    cross_applied_merges.append({
+                        "keep_id": keep_id,
+                        "drop_id": drop_id,
+                        "reason": reason,
+                    })
 
         if branch_log is not None:
             branch_log.append({
                 "branch_id": "_cross_branch",
                 "claim_count": len(cross_surviving),
                 "batch_count": len(batches),
+                "suggested_merge_count": len(cross_suggested_merges),
+                "suggested_merges": cross_suggested_merges,
+                "applied_merge_count": len(cross_applied_merges),
+                "applied_merges": cross_applied_merges,
+                "skipped_merge_count": len(cross_skipped_merges),
+                "skipped_merges": cross_skipped_merges,
                 "dropped_count": len(cross_dropped),
                 "dropped_ids": cross_dropped,
             })
@@ -647,38 +684,6 @@ def _build_semantic_batches(claims: list, contexts: dict[str, dict]) -> list[lis
             break
         start += SEMANTIC_BATCH_STRIDE
     return batches
-
-
-def _semantic_merge_is_safe(
-    *,
-    keep_id: str,
-    drop_id: str,
-    contexts: dict[str, dict],
-    cross_branch: bool,
-) -> bool:
-    keep_ctx = contexts.get(keep_id, {})
-    drop_ctx = contexts.get(drop_id, {})
-    if not keep_ctx or not drop_ctx:
-        return False
-    if _claims_match(keep_ctx, drop_ctx):
-        return True
-
-    keep_statement = str(keep_ctx.get("normalized_statement", "")).strip()
-    drop_statement = str(drop_ctx.get("normalized_statement", "")).strip()
-    if keep_statement and keep_statement == drop_statement:
-        return True
-
-    if keep_ctx.get("numbers_and_dates") != drop_ctx.get("numbers_and_dates"):
-        return False
-
-    overlap = _token_overlap(
-        keep_ctx.get("value_tokens", set()),
-        drop_ctx.get("value_tokens", set()),
-    )
-    if cross_branch:
-        return overlap >= 0.94
-    return overlap >= 0.9
-
 
 async def _merge_claims(db, *, keep_claim_id: uuid.UUID, drop_claim_id: uuid.UUID) -> None:
     keep_result = await db.execute(select(ClaimEvidence).where(ClaimEvidence.claim_id == keep_claim_id))

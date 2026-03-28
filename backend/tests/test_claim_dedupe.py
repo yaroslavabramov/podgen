@@ -8,7 +8,6 @@ from app.pipeline.phase4_claims.dedupe import (
     _DEDUPE_SYSTEM,
     _build_semantic_batches,
     _claims_match,
-    _semantic_merge_is_safe,
     _semantic_dedupe_haiku,
     _semantic_dedupe_pass,
 )
@@ -98,40 +97,6 @@ def test_build_semantic_batches_uses_overlapping_windows() -> None:
     first_batch_ids = {str(claim.id) for claim in batches[0]}
     second_batch_ids = {str(claim.id) for claim in batches[1]}
     assert first_batch_ids & second_batch_ids
-
-
-def test_semantic_merge_is_safe_rejects_cross_branch_related_but_distinct_claims() -> None:
-    keep_id = str(uuid.uuid4())
-    drop_id = str(uuid.uuid4())
-    contexts = {
-        keep_id: {
-            "normalized_statement": "banks deposit usd and receive certificates to issue notes",
-            "numbers_and_dates": {"7.80"},
-            "value_tokens": {"banks", "deposit", "usd", "receive", "certificates", "issue", "notes", "780"},
-            "claim_type": "fact",
-            "normalized_attribution": "",
-            "evidence_ids": {"e1"},
-            "source_ids": {"s1"},
-            "branch_ids": {"b1"},
-        },
-        drop_id: {
-            "normalized_statement": "market arbitrage restores the exchange rate around the peg",
-            "numbers_and_dates": {"7.80"},
-            "value_tokens": {"market", "arbitrage", "restores", "exchange", "rate", "around", "peg", "780"},
-            "claim_type": "fact",
-            "normalized_attribution": "",
-            "evidence_ids": {"e2"},
-            "source_ids": {"s2"},
-            "branch_ids": {"b5"},
-        },
-    }
-
-    assert not _semantic_merge_is_safe(
-        keep_id=keep_id,
-        drop_id=drop_id,
-        contexts=contexts,
-        cross_branch=True,
-    )
 
 
 @pytest.mark.asyncio
@@ -344,3 +309,161 @@ async def test_semantic_dedupe_pass_applies_merges_sequentially(monkeypatch) -> 
     assert duplicate_map[c2_id] == c1_id
     assert c1_id in merged_into
     assert merge_log == [(c1_id, c2_id)]
+
+
+@pytest.mark.asyncio
+async def test_semantic_dedupe_pass_accepts_safe_cross_branch_merge(monkeypatch) -> None:
+    c1 = _make_claim("c1", "1935 ordinance made notes over 5 dollars legal tender via three authorized banks", branch="b1")
+    c2 = _make_claim("c2", "In 1935 the ordinance granted three banks the right to issue notes over 5 dollars as legal tender", branch="b4")
+    c3 = _make_claim("c3", "Completely different claim", branch="b1")
+    c4 = _make_claim("c4", "Another different claim", branch="b4")
+    c1_id, c2_id = str(c1.id), str(c2.id)
+
+    contexts = {
+        c1_id: {
+            "normalized_statement": "the 1935 ordinance made notes over 5 dollars legal tender issued by three authorized banks",
+            "numbers_and_dates": {"1935", "5"},
+            "value_tokens": {
+                "1935", "ordinance", "made", "notes", "over", "dollars", "legal", "tender",
+                "issued", "three", "authorized", "banks",
+            },
+            "claim_type": "fact",
+            "normalized_attribution": "",
+            "evidence_ids": {"e1"},
+            "source_ids": {"s1"},
+            "branch_ids": {"b1"},
+        },
+        c2_id: {
+            "normalized_statement": "in 1935 the ordinance legally granted three banks the right to issue notes over 5 dollars as legal tender",
+            "numbers_and_dates": {"1935", "5"},
+            "value_tokens": {
+                "1935", "ordinance", "legally", "granted", "three", "banks", "right", "issue",
+                "notes", "over", "dollars", "legal", "tender",
+            },
+            "claim_type": "fact",
+            "normalized_attribution": "",
+            "evidence_ids": {"e2"},
+            "source_ids": {"s2"},
+            "branch_ids": {"b4"},
+        },
+        str(c3.id): _make_context("different-a"),
+        str(c4.id): _make_context("different-b"),
+    }
+
+    async def fake_haiku(system, prompt, max_tokens):
+        payload = json.loads(prompt)
+        statements = [c["statement"] for c in payload["claims"]]
+        if any("1935 ordinance" in s.lower() for s in statements) and any("different" in s.lower() for s in statements):
+            claims = payload["claims"]
+            by_statement = {c["statement"]: c["id"] for c in claims}
+            return json.dumps({
+                "duplicate_groups": [{
+                    "keep": by_statement[c1.statement],
+                    "drop": [by_statement[c2.statement]],
+                    "reason": "same legal-tender proposition"
+                }]
+            })
+        return '{"duplicate_groups": []}'
+
+    merge_log = []
+
+    async def fake_merge(db, *, keep_claim_id, drop_claim_id):
+        merge_log.append((str(keep_claim_id), str(drop_claim_id)))
+
+    monkeypatch.setattr("app.pipeline.phase4_claims.dedupe.call_haiku_structured", fake_haiku)
+    monkeypatch.setattr("app.pipeline.phase4_claims.dedupe._merge_claims", fake_merge)
+
+    duplicate_map: dict[str, str] = {}
+    merged_into: set[str] = set()
+    branch_log: list[dict] = []
+
+    dropped = await _semantic_dedupe_pass(
+        db=None,
+        surviving_claims=[c1, c3, c2, c4],
+        contexts=contexts,
+        duplicate_map=duplicate_map,
+        merged_into_claim_ids=merged_into,
+        branch_log=branch_log,
+    )
+
+    assert c2_id in dropped
+    assert duplicate_map[c2_id] == c1_id
+    assert c1_id in merged_into
+    assert merge_log == [(c1_id, c2_id)]
+    cross_branch = next(item for item in branch_log if item["branch_id"] == "_cross_branch")
+    assert cross_branch["suggested_merge_count"] == 1
+    assert cross_branch["applied_merge_count"] == 1
+    assert cross_branch["skipped_merge_count"] == 0
+    assert cross_branch["suggested_merges"][0]["keep_id"] == c1_id
+    assert cross_branch["suggested_merges"][0]["drop_id"] == c2_id
+    assert cross_branch["applied_merges"][0]["keep_id"] == c1_id
+    assert cross_branch["applied_merges"][0]["drop_id"] == c2_id
+
+
+@pytest.mark.asyncio
+async def test_semantic_dedupe_pass_debug_shows_cross_branch_skip_for_already_merged_drop(monkeypatch) -> None:
+    c1 = _make_claim("c1", "Core claim", branch="b1")
+    c2 = _make_claim("c2", "Duplicate claim", branch="b4")
+    c3 = _make_claim("c3", "Different claim", branch="b1")
+    c4 = _make_claim("c4", "Another different claim", branch="b4")
+    c1_id, c2_id = str(c1.id), str(c2.id)
+
+    contexts = {
+        str(c.id): {
+            "normalized_statement": c.statement.lower(),
+            "numbers_and_dates": set(),
+            "value_tokens": set(c.statement.lower().split()),
+            "claim_type": "fact",
+            "normalized_attribution": "",
+            "evidence_ids": {f"e-{i}"},
+            "source_ids": {f"s-{i}"},
+            "branch_ids": {c.notes.split('builder_branch_id": "')[1].split('"')[0]},
+        }
+        for i, c in enumerate([c1, c2, c3, c4], start=1)
+    }
+
+    async def fake_haiku(system, prompt, max_tokens):
+        payload = json.loads(prompt)
+        by_statement = {c["statement"]: c["id"] for c in payload["claims"]}
+        if c1.statement in by_statement and c2.statement in by_statement:
+            return json.dumps({
+                "duplicate_groups": [{
+                    "keep": by_statement[c1.statement],
+                    "drop": [by_statement[c2.statement]],
+                    "reason": "same proposition"
+                }]
+            })
+        return '{"duplicate_groups": []}'
+
+    merge_log = []
+
+    async def fake_merge(db, *, keep_claim_id, drop_claim_id):
+        merge_log.append((str(keep_claim_id), str(drop_claim_id)))
+
+    monkeypatch.setattr("app.pipeline.phase4_claims.dedupe.call_haiku_structured", fake_haiku)
+    monkeypatch.setattr("app.pipeline.phase4_claims.dedupe._merge_claims", fake_merge)
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.dedupe._build_semantic_batches",
+        lambda claims, contexts: [[c1, c2, c3], [c1, c2, c4]],
+    )
+
+    duplicate_map: dict[str, str] = {}
+    merged_into: set[str] = set()
+    branch_log: list[dict] = []
+
+    dropped = await _semantic_dedupe_pass(
+        db=None,
+        surviving_claims=[c1, c3, c2, c4],
+        contexts=contexts,
+        duplicate_map=duplicate_map,
+        merged_into_claim_ids=merged_into,
+        branch_log=branch_log,
+    )
+
+    assert dropped == [c2_id]
+    assert merge_log == [(c1_id, c2_id)]
+    cross_branch = next(item for item in branch_log if item["branch_id"] == "_cross_branch")
+    assert cross_branch["suggested_merge_count"] == 2
+    assert cross_branch["applied_merge_count"] == 1
+    assert cross_branch["skipped_merge_count"] == 1
+    assert cross_branch["skipped_merges"][0]["skip_reason"] == "drop_id_already_merged"

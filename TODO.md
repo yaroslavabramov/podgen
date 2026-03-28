@@ -648,6 +648,10 @@ Deferred after Round 68:
 - [x] **P1**: Claim Builder prompt no longer says `prefer merge when unsure`; ambiguous shapes now bias toward narrower/split claims, with contrastive bad/good examples for compressed mini-scene claims
 - [x] **P1**: Cross-branch semantic dedupe now prefers false negatives over false positives by filtering weak/ambiguous merge suggestions after the Haiku pass
 
+**Round 88 (cross-branch dedupe observability + no veto):**
+- [x] **P1**: Removed the extra deterministic cross-branch merge veto; semantic dedupe now applies Haiku merge groups directly
+- [x] **P1**: Dedupe debug now records cross-branch suggested/applied/skipped merges so reruns show whether the model proposed a merge and what actually happened
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority
