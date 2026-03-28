@@ -81,10 +81,12 @@ def _make_context(cid: str, evidence_count: int = 1):
 
 
 def test_dedupe_system_protects_distinct_historical_stages() -> None:
-    assert "problem/precondition vs the institutional answer" in _DEDUPE_SYSTEM
-    assert "One regime/state vs the later transition away from it" in _DEDUPE_SYSTEM
-    assert "legal rule vs its later application" in _DEDUPE_SYSTEM
-    assert "baseline factual claim vs a claim that uses that baseline" in _DEDUPE_SYSTEM
+    assert "genuinely interchangeable" in _DEDUPE_SYSTEM
+    assert "Mutual-substitutability test" in _DEDUPE_SYSTEM
+    assert "proposal / recommendation / plan vs official adoption / enactment / implementation" in _DEDUPE_SYSTEM
+    assert "baseline fact vs comparison / contrast" in _DEDUPE_SYSTEM
+    assert '"same event"' in _DEDUPE_SYSTEM
+    assert "false negatives are much better than false positives" in _DEDUPE_SYSTEM.lower()
 
 
 def test_consolidate_cross_branch_suggestions_resolves_opposite_directions() -> None:
