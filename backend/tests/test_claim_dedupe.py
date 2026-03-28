@@ -8,6 +8,7 @@ from app.pipeline.phase4_claims.dedupe import (
     _DEDUPE_SYSTEM,
     _build_semantic_batches,
     _claims_match,
+    _consolidate_cross_branch_suggestions,
     _semantic_dedupe_haiku,
     _semantic_dedupe_pass,
 )
@@ -83,6 +84,38 @@ def test_dedupe_system_protects_distinct_historical_stages() -> None:
     assert "problem/precondition vs the institutional answer" in _DEDUPE_SYSTEM
     assert "One regime/state vs the later transition away from it" in _DEDUPE_SYSTEM
     assert "legal rule vs its later application" in _DEDUPE_SYSTEM
+    assert "baseline factual claim vs a claim that uses that baseline" in _DEDUPE_SYSTEM
+
+
+def test_consolidate_cross_branch_suggestions_resolves_opposite_directions() -> None:
+    left = _make_claim("c1", "A richer statement", branch="b1", evidence_count=3)
+    right = _make_claim("c2", "A shorter statement", branch="b4", evidence_count=1)
+    left_id, right_id = str(left.id), str(right.id)
+    contexts = {
+        left_id: {
+            "evidence_ids": {"e1", "e2", "e3"},
+            "normalized_statement": "a richer statement with more detail",
+        },
+        right_id: {
+            "evidence_ids": {"e4"},
+            "normalized_statement": "a shorter statement",
+        },
+    }
+
+    consolidated = _consolidate_cross_branch_suggestions(
+        [
+            {"batch_index": 0, "keep_id": left_id, "drop_id": right_id, "reason": "same proposition"},
+            {"batch_index": 1, "keep_id": right_id, "drop_id": left_id, "reason": "same proposition"},
+        ],
+        contexts,
+    )
+
+    assert len(consolidated) == 1
+    assert consolidated[0]["keep_id"] == left_id
+    assert consolidated[0]["drop_id"] == right_id
+    assert consolidated[0]["direction_conflict"] is True
+    assert consolidated[0]["batch_indexes"] == [0, 1]
+    assert consolidated[0]["suggestion_count"] == 2
 
 
 def test_build_semantic_batches_uses_overlapping_windows() -> None:
@@ -401,7 +434,7 @@ async def test_semantic_dedupe_pass_accepts_safe_cross_branch_merge(monkeypatch)
 
 
 @pytest.mark.asyncio
-async def test_semantic_dedupe_pass_debug_shows_cross_branch_skip_for_already_merged_drop(monkeypatch) -> None:
+async def test_semantic_dedupe_pass_consolidates_duplicate_cross_branch_suggestions(monkeypatch) -> None:
     c1 = _make_claim("c1", "Core claim", branch="b1")
     c2 = _make_claim("c2", "Duplicate claim", branch="b4")
     c3 = _make_claim("c3", "Different claim", branch="b1")
@@ -464,6 +497,85 @@ async def test_semantic_dedupe_pass_debug_shows_cross_branch_skip_for_already_me
     assert merge_log == [(c1_id, c2_id)]
     cross_branch = next(item for item in branch_log if item["branch_id"] == "_cross_branch")
     assert cross_branch["suggested_merge_count"] == 2
+    assert cross_branch["consolidated_merge_count"] == 1
     assert cross_branch["applied_merge_count"] == 1
-    assert cross_branch["skipped_merge_count"] == 1
-    assert cross_branch["skipped_merges"][0]["skip_reason"] == "drop_id_already_merged"
+    assert cross_branch["skipped_merge_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_semantic_dedupe_pass_consolidates_opposite_direction_cross_branch_merges(monkeypatch) -> None:
+    c1 = _make_claim("c1", "Core proposition with more support", branch="b1")
+    c2 = _make_claim("c2", "Core proposition restated", branch="b4")
+    c3 = _make_claim("c3", "Branch filler one", branch="b1")
+    c4 = _make_claim("c4", "Branch filler two", branch="b4")
+    c1_id, c2_id = str(c1.id), str(c2.id)
+
+    contexts = {
+        c1_id: {
+            "normalized_statement": "core proposition with more support and wording",
+            "numbers_and_dates": set(),
+            "value_tokens": {"core", "proposition", "support", "wording"},
+            "claim_type": "fact",
+            "normalized_attribution": "",
+            "evidence_ids": {"e1", "e2", "e3"},
+            "source_ids": {"s1"},
+            "branch_ids": {"b1"},
+        },
+        c2_id: {
+            "normalized_statement": "core proposition restated",
+            "numbers_and_dates": set(),
+            "value_tokens": {"core", "proposition", "restated"},
+            "claim_type": "fact",
+            "normalized_attribution": "",
+            "evidence_ids": {"e4"},
+            "source_ids": {"s2"},
+            "branch_ids": {"b4"},
+        },
+        str(c3.id): _make_context("filler-a"),
+        str(c4.id): _make_context("filler-b"),
+    }
+
+    async def fake_semantic_haiku(label, claims_pool, contexts, already_dropped):
+        if label == "_cross_branch_0":
+            return [(c1_id, c2_id, "same proposition")]
+        if label == "_cross_branch_1":
+            return [(c2_id, c1_id, "same proposition")]
+        return []
+
+    merge_log = []
+
+    async def fake_merge(db, *, keep_claim_id, drop_claim_id):
+        merge_log.append((str(keep_claim_id), str(drop_claim_id)))
+
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.dedupe._semantic_dedupe_haiku",
+        fake_semantic_haiku,
+    )
+    monkeypatch.setattr("app.pipeline.phase4_claims.dedupe._merge_claims", fake_merge)
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.dedupe._build_semantic_batches",
+        lambda claims, contexts: [[c1, c2, c3], [c1, c2, c4]] if len(claims) == 4 else [],
+    )
+
+    duplicate_map: dict[str, str] = {}
+    merged_into: set[str] = set()
+    branch_log: list[dict] = []
+
+    dropped = await _semantic_dedupe_pass(
+        db=None,
+        surviving_claims=[c1, c3, c2, c4],
+        contexts=contexts,
+        duplicate_map=duplicate_map,
+        merged_into_claim_ids=merged_into,
+        branch_log=branch_log,
+    )
+
+    assert dropped == [c2_id]
+    assert merge_log == [(c1_id, c2_id)]
+    assert duplicate_map == {c2_id: c1_id}
+    cross_branch = next(item for item in branch_log if item["branch_id"] == "_cross_branch")
+    assert cross_branch["suggested_merge_count"] == 2
+    assert cross_branch["consolidated_merge_count"] == 1
+    assert cross_branch["applied_merge_count"] == 1
+    assert cross_branch["skipped_merge_count"] == 0
+    assert cross_branch["consolidated_merges"][0]["direction_conflict"] is True

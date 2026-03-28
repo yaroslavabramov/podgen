@@ -6,11 +6,13 @@ import logging
 import re
 import uuid
 from collections import defaultdict
+from collections.abc import Iterable
 
 from sqlalchemy import bindparam, select, text, update
 
 from app.models.claim import Claim, ClaimEvidence
 from app.models.evidence import EvidenceProvenance, EvidenceSpan
+from app.models.generation_run import GenerationRun
 from app.models.source import Source
 from app.config import settings
 from app.pipeline.debug_dump import safe_filename_token, write_json_debug_dump
@@ -51,6 +53,7 @@ async def dedupe_claims(state: PipelineState) -> dict:
     update_generation_progress(run_id, "phase4_claims", "claim_dedupe", 41.0)
 
     async with async_session_factory() as db:
+        execution_context = await _load_dedupe_execution_context(db, run_id)
         claims, contexts, pool_stats = await _load_claim_context(db, requested_claim_ids, run_id)
         duplicate_map: dict[str, str] = {}
         merged_into_claim_ids: set[str] = set()
@@ -103,21 +106,22 @@ async def dedupe_claims(state: PipelineState) -> dict:
             if cid not in rebuilt_claim_ids and cid not in merged_into_claim_ids
         ]
 
-    _dump_dedupe_debug(
-        run_id=run_id,
-        requested_claim_id_count=pool_stats["requested_claim_id_count"],
-        loaded_claim_row_count=pool_stats["loaded_claim_row_count"],
-        missing_claim_id_count=pool_stats["missing_claim_id_count"],
-        missing_claim_ids=pool_stats["missing_claim_ids"],
-        lexical_dropped=lexical_dropped,
-        semantic_dropped=len(semantic_drops),
-        kept_count=len(kept_claim_ids),
-        duplicate_map=duplicate_map,
-        claims=claims,
-        contexts=contexts,
-        semantic_branch_details=_semantic_branch_log,
-        rebuilt_claim_ids=rebuilt_claim_ids,
-    )
+        _dump_dedupe_debug(
+            run_id=run_id,
+            execution_context=execution_context,
+            requested_claim_id_count=pool_stats["requested_claim_id_count"],
+            loaded_claim_row_count=pool_stats["loaded_claim_row_count"],
+            missing_claim_id_count=pool_stats["missing_claim_id_count"],
+            missing_claim_ids=pool_stats["missing_claim_ids"],
+            lexical_dropped=lexical_dropped,
+            semantic_dropped=len(semantic_drops),
+            kept_count=len(kept_claim_ids),
+            duplicate_map=duplicate_map,
+            claims=claims,
+            contexts=contexts,
+            semantic_branch_details=_semantic_branch_log,
+            rebuilt_claim_ids=rebuilt_claim_ids,
+        )
 
     publish_event(run_id, step_completed("phase4_claims", "dedupe_claims"))
     publish_event(
@@ -215,6 +219,51 @@ async def _load_claim_context(
         "loaded_claim_row_count": len(claims),
         "missing_claim_id_count": len(missing_claim_ids),
         "missing_claim_ids": missing_claim_ids,
+    }
+
+
+async def _load_dedupe_execution_context(db, generation_run_id: str) -> dict[str, object]:
+    default = {
+        "input_origin": "pipeline_state_claim_ids",
+        "is_step_rerun": False,
+        "requested_action": None,
+        "requested_target_node": None,
+        "last_node": None,
+    }
+    try:
+        run_uuid = uuid.UUID(generation_run_id)
+    except (TypeError, ValueError):
+        return default
+
+    result = await db.execute(select(GenerationRun.config).where(GenerationRun.id == run_uuid))
+    config = result.scalar_one_or_none()
+    if not isinstance(config, dict):
+        return default
+    step_control = config.get("step_control")
+    if not isinstance(step_control, dict):
+        return default
+
+    requested_action = step_control.get("requested_action")
+    requested_target_node = step_control.get("requested_target_node")
+    last_node = step_control.get("last_node")
+    is_step_rerun = requested_action == "rerun"
+    input_origin = "pipeline_state_claim_ids"
+    if is_step_rerun and (
+        requested_target_node == "dedupe_claims"
+        or (
+            not isinstance(requested_target_node, str)
+            and isinstance(last_node, str)
+            and last_node == "dedupe_claims"
+        )
+    ):
+        input_origin = "checkpoint_pre_node_state"
+
+    return {
+        "input_origin": input_origin,
+        "is_step_rerun": bool(is_step_rerun),
+        "requested_action": requested_action if isinstance(requested_action, str) else None,
+        "requested_target_node": requested_target_node if isinstance(requested_target_node, str) else None,
+        "last_node": last_node if isinstance(last_node, str) else None,
     }
 
 
@@ -389,7 +438,8 @@ async def _semantic_dedupe_pass(
     if len(cross_surviving) >= MIN_BRANCH_CLAIMS_FOR_SEMANTIC_DEDUPE:
         cross_dropped: list[str] = []
         batches = _build_semantic_batches(cross_surviving, contexts)
-        cross_suggested_merges: list[dict[str, str | int]] = []
+        cross_suggested_merges: list[dict[str, str | int | list[int]]] = []
+        cross_consolidated_merges: list[dict[str, str | int | list[int] | bool]] = []
         cross_applied_merges: list[dict[str, str | int]] = []
         cross_skipped_merges: list[dict[str, str | int]] = []
 
@@ -416,27 +466,42 @@ async def _semantic_dedupe_pass(
                         "keep_statement": str(contexts.get(keep_id, {}).get("normalized_statement", ""))[:300],
                         "drop_statement": str(contexts.get(drop_id, {}).get("normalized_statement", ""))[:300],
                     })
-                for keep_id, drop_id, reason in result:
-                    if drop_id in duplicate_map:
-                        cross_skipped_merges.append({
-                            "keep_id": keep_id,
-                            "drop_id": drop_id,
-                            "reason": reason,
-                            "skip_reason": "drop_id_already_merged",
-                        })
-                        continue
-                    logger.info("Semantic dedup (cross-branch): merging %s into %s — %s",
-                                drop_id[:12], keep_id[:12], reason)
-                    await _merge_claims(db, keep_claim_id=uuid.UUID(keep_id), drop_claim_id=uuid.UUID(drop_id))
-                    duplicate_map[drop_id] = keep_id
-                    merged_into_claim_ids.add(keep_id)
-                    all_dropped.append(drop_id)
-                    cross_dropped.append(drop_id)
-                    cross_applied_merges.append({
-                        "keep_id": keep_id,
-                        "drop_id": drop_id,
-                        "reason": reason,
+            for merge in _consolidate_cross_branch_suggestions(cross_suggested_merges, contexts):
+                cross_consolidated_merges.append(dict(merge))
+                resolved_keep_id = _resolve_live_claim_id(str(merge["keep_id"]), duplicate_map)
+                resolved_drop_id = _resolve_live_claim_id(str(merge["drop_id"]), duplicate_map)
+                if resolved_keep_id == resolved_drop_id:
+                    cross_skipped_merges.append({
+                        "keep_id": str(merge["keep_id"]),
+                        "drop_id": str(merge["drop_id"]),
+                        "resolved_keep_id": resolved_keep_id,
+                        "resolved_drop_id": resolved_drop_id,
+                        "reason": str(merge["reason"]),
+                        "skip_reason": "same_live_claim_after_resolution",
                     })
+                    continue
+                logger.info(
+                    "Semantic dedup (cross-branch): merging %s into %s — %s",
+                    resolved_drop_id[:12],
+                    resolved_keep_id[:12],
+                    merge["reason"],
+                )
+                await _merge_claims(
+                    db,
+                    keep_claim_id=uuid.UUID(resolved_keep_id),
+                    drop_claim_id=uuid.UUID(resolved_drop_id),
+                )
+                duplicate_map[resolved_drop_id] = resolved_keep_id
+                merged_into_claim_ids.add(resolved_keep_id)
+                all_dropped.append(resolved_drop_id)
+                cross_dropped.append(resolved_drop_id)
+                cross_applied_merges.append({
+                    "keep_id": str(merge["keep_id"]),
+                    "drop_id": str(merge["drop_id"]),
+                    "resolved_keep_id": resolved_keep_id,
+                    "resolved_drop_id": resolved_drop_id,
+                    "reason": str(merge["reason"]),
+                })
 
         if branch_log is not None:
             branch_log.append({
@@ -445,6 +510,8 @@ async def _semantic_dedupe_pass(
                 "batch_count": len(batches),
                 "suggested_merge_count": len(cross_suggested_merges),
                 "suggested_merges": cross_suggested_merges,
+                "consolidated_merge_count": len(cross_consolidated_merges),
+                "consolidated_merges": cross_consolidated_merges,
                 "applied_merge_count": len(cross_applied_merges),
                 "applied_merges": cross_applied_merges,
                 "skipped_merge_count": len(cross_skipped_merges),
@@ -474,6 +541,8 @@ Rephrasings, translations, and trivially reworded restatements are duplicates.
 - One regime/state vs the later transition away from it (e.g. "the currency floated" vs "a peg was introduced later")
 - A legal rule vs its later application, restoration, or enforcement outcome
 - A fact vs an opinion or evaluation about that fact
+- A baseline factual claim vs a claim that uses that baseline to make a comparison, contrast, or "unusual but..." framing
+- An initial measure vs a later rejection, closure, rollback, or downstream consequence
 - A claim that adds a date, number, name, or detail not present in the other
 
 When in doubt, do NOT merge. It is much better to keep two similar claims than to lose a unique fact.
@@ -574,6 +643,7 @@ async def _semantic_dedupe_haiku(
 def _dump_dedupe_debug(
     *,
     run_id: str,
+    execution_context: dict[str, object],
     requested_claim_id_count: int,
     loaded_claim_row_count: int,
     missing_claim_id_count: int,
@@ -636,6 +706,7 @@ def _dump_dedupe_debug(
         filename_stem=f"run-{safe_filename_token(run_id)}_summary",
         payload={
             "run_id": run_id,
+            "execution_context": execution_context,
             "requested_claim_id_count": requested_claim_id_count,
             "loaded_claim_row_count": loaded_claim_row_count,
             "missing_claim_id_count": missing_claim_id_count,
@@ -684,6 +755,86 @@ def _build_semantic_batches(claims: list, contexts: dict[str, dict]) -> list[lis
             break
         start += SEMANTIC_BATCH_STRIDE
     return batches
+
+
+def _resolve_live_claim_id(claim_id: str, duplicate_map: dict[str, str]) -> str:
+    current = claim_id
+    seen: set[str] = set()
+    while current in duplicate_map and current not in seen:
+        seen.add(current)
+        current = duplicate_map[current]
+    return current
+
+
+def _prefer_keep_id(left_id: str, right_id: str, contexts: dict[str, dict]) -> str:
+    def _score(claim_id: str) -> tuple[int, int, str]:
+        ctx = contexts.get(claim_id, {})
+        return (
+            len(ctx.get("evidence_ids", set()) or set()),
+            len(str(ctx.get("normalized_statement", "") or "")),
+            claim_id,
+        )
+
+    return left_id if _score(left_id) >= _score(right_id) else right_id
+
+
+def _consolidate_cross_branch_suggestions(
+    suggested_merges: Iterable[dict[str, object]],
+    contexts: dict[str, dict],
+) -> list[dict[str, object]]:
+    grouped: dict[frozenset[str], list[dict[str, object]]] = defaultdict(list)
+    for merge in suggested_merges:
+        keep_id = str(merge.get("keep_id", "")).strip()
+        drop_id = str(merge.get("drop_id", "")).strip()
+        if not keep_id or not drop_id or keep_id == drop_id:
+            continue
+        grouped[frozenset({keep_id, drop_id})].append(dict(merge))
+
+    consolidated: list[dict[str, object]] = []
+    for pair_key, items in grouped.items():
+        pair = sorted(pair_key)
+        if len(pair) != 2:
+            continue
+        left_id, right_id = pair
+        directions = {
+            (str(item.get("keep_id", "")).strip(), str(item.get("drop_id", "")).strip())
+            for item in items
+        }
+        if len(directions) == 1:
+            chosen_keep, chosen_drop = next(iter(directions))
+        else:
+            chosen_keep = _prefer_keep_id(left_id, right_id, contexts)
+            chosen_drop = right_id if chosen_keep == left_id else left_id
+        batch_indexes = sorted({
+            int(item.get("batch_index", -1))
+            for item in items
+            if isinstance(item.get("batch_index"), int)
+        })
+        reasons = [
+            str(item.get("reason", "")).strip()
+            for item in items
+            if str(item.get("reason", "")).strip()
+        ]
+        consolidated.append({
+            "keep_id": chosen_keep,
+            "drop_id": chosen_drop,
+            "reason": reasons[0] if reasons else "",
+            "batch_indexes": batch_indexes,
+            "suggestion_count": len(items),
+            "direction_conflict": len(directions) > 1,
+            "keep_statement": str(contexts.get(chosen_keep, {}).get("normalized_statement", ""))[:300],
+            "drop_statement": str(contexts.get(chosen_drop, {}).get("normalized_statement", ""))[:300],
+        })
+
+    consolidated.sort(
+        key=lambda item: (
+            -int(item.get("suggestion_count", 0) or 0),
+            -len(contexts.get(str(item.get("keep_id", "")), {}).get("evidence_ids", set()) or set()),
+            str(item.get("keep_id", "")),
+            str(item.get("drop_id", "")),
+        )
+    )
+    return consolidated
 
 async def _merge_claims(db, *, keep_claim_id: uuid.UUID, drop_claim_id: uuid.UUID) -> None:
     keep_result = await db.execute(select(ClaimEvidence).where(ClaimEvidence.claim_id == keep_claim_id))

@@ -50,6 +50,14 @@ async def test_dedupe_claims_reports_touched_keep_scope(monkeypatch: pytest.Monk
         "app.pipeline.phase4_claims.dedupe.update_generation_progress",
         lambda *args, **kwargs: None,
     )
+    async def _fake_execution_context(db, generation_run_id):
+        return {
+            "input_origin": "checkpoint_pre_node_state",
+            "is_step_rerun": True,
+            "requested_action": "rerun",
+            "requested_target_node": "dedupe_claims",
+            "last_node": "dedupe_claims",
+        }
 
     async def _fake_load_claim_context(db, claim_ids, generation_run_id):
         return claims, contexts, {
@@ -68,6 +76,10 @@ async def test_dedupe_claims_reports_touched_keep_scope(monkeypatch: pytest.Monk
     monkeypatch.setattr(
         "app.pipeline.phase4_claims.dedupe._load_claim_context",
         _fake_load_claim_context,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.dedupe._load_dedupe_execution_context",
+        _fake_execution_context,
     )
     monkeypatch.setattr(
         "app.pipeline.phase4_claims.dedupe._merge_claims",
@@ -121,6 +133,14 @@ async def test_dedupe_claims_returns_sanitized_live_pool_when_state_contains_mis
         "app.pipeline.phase4_claims.dedupe.update_generation_progress",
         lambda *args, **kwargs: None,
     )
+    async def _fake_execution_context(db, generation_run_id):
+        return {
+            "input_origin": "checkpoint_pre_node_state",
+            "is_step_rerun": True,
+            "requested_action": "rerun",
+            "requested_target_node": "dedupe_claims",
+            "last_node": "dedupe_claims",
+        }
 
     async def _fake_load_claim_context(db, claim_ids, generation_run_id):
         return claims, contexts, {
@@ -142,6 +162,10 @@ async def test_dedupe_claims_returns_sanitized_live_pool_when_state_contains_mis
     monkeypatch.setattr(
         "app.pipeline.phase4_claims.dedupe._load_claim_context",
         _fake_load_claim_context,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.dedupe._load_dedupe_execution_context",
+        _fake_execution_context,
     )
     monkeypatch.setattr(
         "app.pipeline.phase4_claims.dedupe._merge_claims",
@@ -169,3 +193,5 @@ async def test_dedupe_claims_returns_sanitized_live_pool_when_state_contains_mis
     assert captured_debug["loaded_claim_row_count"] == 2
     assert captured_debug["missing_claim_id_count"] == 1
     assert captured_debug["missing_claim_ids"] == ["c-missing"]
+    assert captured_debug["execution_context"]["input_origin"] == "checkpoint_pre_node_state"
+    assert captured_debug["execution_context"]["is_step_rerun"] is True

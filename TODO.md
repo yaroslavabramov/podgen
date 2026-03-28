@@ -651,6 +651,8 @@ Deferred after Round 68:
 **Round 88 (cross-branch dedupe observability + no veto):**
 - [x] **P1**: Removed the extra deterministic cross-branch merge veto; semantic dedupe now applies Haiku merge groups directly
 - [x] **P1**: Dedupe debug now records cross-branch suggested/applied/skipped merges so reruns show whether the model proposed a merge and what actually happened
+- [x] **P1**: Cross-branch dedupe now consolidates overlapping-window suggestions before apply, preventing opposite-direction merge cycles while keeping raw-vs-consolidated debug visible
+- [x] **P1**: Dedupe debug now records rerun input origin (`pipeline_state_claim_ids` vs `checkpoint_pre_node_state`) alongside `requested/loaded/missing` counts, so isolated reruns make checkpoint-vs-live-pool mismatch explicit
 
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
