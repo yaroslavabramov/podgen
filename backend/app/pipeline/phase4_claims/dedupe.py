@@ -7,6 +7,7 @@ import re
 import uuid
 from collections import defaultdict
 from collections.abc import Iterable
+from datetime import date, datetime
 
 from sqlalchemy import bindparam, select, text, update
 
@@ -54,6 +55,15 @@ async def dedupe_claims(state: PipelineState) -> dict:
 
     async with async_session_factory() as db:
         execution_context = await _load_dedupe_execution_context(db, run_id)
+        restored_claim_ids = await _restore_missing_claims_from_snapshot(
+            db=db,
+            project_id=str(state.get("project_id", "")).strip(),
+            requested_claim_ids=requested_claim_ids,
+            snapshot_claims=state.get("dedupe_source_claims", []) or [],
+        )
+        execution_context["restored_claim_id_count"] = len(restored_claim_ids)
+        execution_context["restored_claim_ids"] = restored_claim_ids
+        db_dirty = bool(restored_claim_ids)
         claims, contexts, pool_stats = await _load_claim_context(db, requested_claim_ids, run_id)
         duplicate_map: dict[str, str] = {}
         merged_into_claim_ids: set[str] = set()
@@ -78,7 +88,7 @@ async def dedupe_claims(state: PipelineState) -> dict:
                 dropped = next((claim for claim in claims if str(claim.id) == dropped_id), None)
                 if dropped is not None:
                     await db.delete(dropped)
-            await db.commit()
+            db_dirty = True
 
         lexical_dropped = len(duplicate_map)
 
@@ -94,11 +104,14 @@ async def dedupe_claims(state: PipelineState) -> dict:
                 dropped = next((c for c in claims if str(c.id) == dropped_id), None)
                 if dropped is not None:
                     await db.delete(dropped)
-            await db.commit()
+            db_dirty = True
             logger.info(
                 "Semantic dedup: dropped %d claims (lexical: %d)",
                 len(semantic_drops), lexical_dropped,
             )
+
+        if db_dirty:
+            await db.commit()
 
         kept_claim_ids = [cid for cid in ordered_ids if cid not in duplicate_map]
         untouched_claim_ids = [
@@ -220,6 +233,115 @@ async def _load_claim_context(
         "missing_claim_id_count": len(missing_claim_ids),
         "missing_claim_ids": missing_claim_ids,
     }
+
+
+def _parse_snapshot_datetime(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _parse_snapshot_date(value: object) -> date | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+async def _restore_missing_claims_from_snapshot(
+    *,
+    db,
+    project_id: str,
+    requested_claim_ids: list[str],
+    snapshot_claims: list[dict],
+) -> list[str]:
+    if not requested_claim_ids or not snapshot_claims or not project_id:
+        return []
+
+    snapshot_by_id = {
+        str(item.get("claim_id", "")).strip(): item
+        for item in snapshot_claims
+        if isinstance(item, dict) and str(item.get("claim_id", "")).strip()
+    }
+    candidate_ids = [
+        claim_id for claim_id in list(dict.fromkeys(requested_claim_ids))
+        if claim_id in snapshot_by_id
+    ]
+    if not candidate_ids:
+        return []
+
+    candidate_uuid_ids: list[uuid.UUID] = []
+    for claim_id in candidate_ids:
+        try:
+            candidate_uuid_ids.append(uuid.UUID(claim_id))
+        except (TypeError, ValueError):
+            logger.warning("Skipping invalid snapshot claim ID during dedupe restore: %s", claim_id)
+    if not candidate_uuid_ids:
+        return []
+
+    existing_result = await db.execute(select(Claim.id).where(Claim.id.in_(candidate_uuid_ids)))
+    existing_ids = {str(claim_id) for (claim_id,) in existing_result.all()}
+    restored_claim_ids: list[str] = []
+    try:
+        project_uuid = uuid.UUID(project_id)
+    except (TypeError, ValueError):
+        return []
+
+    for claim_id in candidate_ids:
+        if claim_id in existing_ids:
+            continue
+        snapshot = snapshot_by_id[claim_id]
+        created_at = _parse_snapshot_datetime(snapshot.get("created_at")) or datetime.utcnow()
+        updated_at = _parse_snapshot_datetime(snapshot.get("updated_at")) or created_at
+        claim = Claim(
+            id=uuid.UUID(claim_id),
+            project_id=project_uuid,
+            claim_type=str(snapshot.get("claim_type") or "fact"),
+            verification_level=str(snapshot.get("verification_level") or Claim.verification_level.default.arg),
+            statement=str(snapshot.get("statement") or ""),
+            attribution=snapshot.get("attribution"),
+            as_of_date=_parse_snapshot_date(snapshot.get("as_of_date")),
+            verification_fingerprint=snapshot.get("verification_fingerprint"),
+            notes=snapshot.get("notes"),
+            created_at=created_at,
+            updated_at=updated_at,
+        )
+        db.add(claim)
+        restored_claim_ids.append(claim_id)
+
+    if not restored_claim_ids:
+        return []
+
+    await db.flush()
+
+    for claim_id in restored_claim_ids:
+        snapshot = snapshot_by_id[claim_id]
+        for link in snapshot.get("evidence_links", []) or []:
+            if not isinstance(link, dict):
+                continue
+            evidence_id = str(link.get("evidence_id", "")).strip()
+            try:
+                evidence_uuid = uuid.UUID(evidence_id)
+            except (TypeError, ValueError):
+                logger.warning("Skipping invalid snapshot evidence ID during dedupe restore: %s", evidence_id)
+                continue
+            db.add(
+                ClaimEvidence(
+                    claim_id=uuid.UUID(claim_id),
+                    evidence_id=evidence_uuid,
+                    supports_fact=bool(link.get("supports_fact")),
+                    contradicts_fact=bool(link.get("contradicts_fact")),
+                    illustrative=bool(link.get("illustrative")),
+                )
+            )
+
+    await db.flush()
+    return restored_claim_ids
 
 
 async def _load_dedupe_execution_context(db, generation_run_id: str) -> dict[str, object]:

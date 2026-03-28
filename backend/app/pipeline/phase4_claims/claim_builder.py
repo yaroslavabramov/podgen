@@ -105,6 +105,7 @@ async def build_claims(state: PipelineState) -> dict:
     rebuilt_claim_ids: list[str] = []
     preserved_claim_ids: list[str] = []
     dropped_stale_preserved_claim_ids: list[str] = []
+    dedupe_source_claims: list[dict] = []
     rebuild_scope = _derive_targeted_rebuild_scope(state)
     rebuild_mode = "full_rebuild"
     manual_step_rerun = False
@@ -151,6 +152,7 @@ async def build_claims(state: PipelineState) -> dict:
                 "targeted_branch_ids": [],
                 "rebuild_mode": rebuild_mode,
                 "live_branch_ids": [],
+                "dedupe_source_claims": [],
                 "current_phase": "phase4_claims",
             }
         question_context_map: dict[str, dict] = {}
@@ -183,6 +185,7 @@ async def build_claims(state: PipelineState) -> dict:
                 "targeted_branch_ids": rebuild_scope["branch_ids"] if rebuild_scope is not None else [],
                 "rebuild_mode": rebuild_mode,
                 "live_branch_ids": sorted(current_branch_ids),
+                "dedupe_source_claims": [],
                 "current_phase": "phase4_claims",
             }
         if rebuild_scope is not None:
@@ -210,6 +213,10 @@ async def build_claims(state: PipelineState) -> dict:
                     current_question_ids_by_branch=current_question_ids_by_branch,
                 )
                 if not branch_batches:
+                    dedupe_source_claims = await _snapshot_claim_pool_for_dedupe(
+                        db=db,
+                        claim_ids=preserved_claim_ids,
+                    )
                     return {
                         "claim_ids": preserved_claim_ids,
                         "rebuilt_claim_ids": [],
@@ -218,6 +225,7 @@ async def build_claims(state: PipelineState) -> dict:
                         "targeted_branch_ids": rebuild_scope["branch_ids"],
                         "rebuild_mode": rebuild_mode,
                         "live_branch_ids": sorted(current_branch_ids),
+                        "dedupe_source_claims": dedupe_source_claims,
                         "current_phase": "phase4_claims",
                     }
             if impacted_claim_ids:
@@ -329,6 +337,10 @@ async def build_claims(state: PipelineState) -> dict:
                 )
 
         await db.commit()
+        dedupe_source_claims = await _snapshot_claim_pool_for_dedupe(
+            db=db,
+            claim_ids=list(dict.fromkeys(all_claim_ids)),
+        )
 
     publish_event(run_id, step_completed("phase4_claims", "cluster_evidence"))
     publish_event(run_id, progress(40.0, f"Created {len(all_claim_ids)} claims from evidence"))
@@ -346,6 +358,7 @@ async def build_claims(state: PipelineState) -> dict:
         "targeted_branch_ids": rebuild_scope["branch_ids"] if rebuild_scope is not None else [],
         "rebuild_mode": rebuild_mode,
         "live_branch_ids": sorted(current_branch_ids),
+        "dedupe_source_claims": dedupe_source_claims,
         "current_phase": "phase4_claims",
     }
 
@@ -657,6 +670,67 @@ async def _load_previous_claim_rebuild_state(
             }
         )
     return lookup
+
+
+async def _snapshot_claim_pool_for_dedupe(
+    *,
+    db,
+    claim_ids: list[str],
+) -> list[dict]:
+    ordered_claim_ids = list(dict.fromkeys(claim_ids))
+    if not ordered_claim_ids:
+        return []
+
+    claim_uuid_ids: list[uuid.UUID] = []
+    for claim_id in ordered_claim_ids:
+        try:
+            claim_uuid_ids.append(uuid.UUID(claim_id))
+        except (TypeError, ValueError):
+            logger.warning("Skipping invalid claim ID in dedupe snapshot: %s", claim_id)
+    if not claim_uuid_ids:
+        return []
+
+    result = await db.execute(select(Claim).where(Claim.id.in_(claim_uuid_ids)))
+    claims_by_id = {str(claim.id): claim for claim in result.scalars().all()}
+    evidence_result = await db.execute(
+        select(ClaimEvidence).where(ClaimEvidence.claim_id.in_(claim_uuid_ids))
+    )
+    links_by_claim: dict[str, list[ClaimEvidence]] = defaultdict(list)
+    for link in evidence_result.scalars().all():
+        links_by_claim[str(link.claim_id)].append(link)
+
+    snapshots: list[dict] = []
+    for claim_id in ordered_claim_ids:
+        claim = claims_by_id.get(claim_id)
+        if claim is None:
+            continue
+        snapshots.append(
+            {
+                "claim_id": claim_id,
+                "claim_type": claim.claim_type,
+                "verification_level": claim.verification_level,
+                "verification_fingerprint": claim.verification_fingerprint,
+                "statement": claim.statement,
+                "attribution": claim.attribution,
+                "as_of_date": claim.as_of_date.isoformat() if claim.as_of_date else None,
+                "notes": claim.notes,
+                "created_at": claim.created_at.isoformat() if claim.created_at else None,
+                "updated_at": claim.updated_at.isoformat() if claim.updated_at else None,
+                "evidence_links": [
+                    {
+                        "evidence_id": str(link.evidence_id),
+                        "supports_fact": bool(link.supports_fact),
+                        "contradicts_fact": bool(link.contradicts_fact),
+                        "illustrative": bool(link.illustrative),
+                    }
+                    for link in sorted(
+                        links_by_claim.get(claim_id, []),
+                        key=lambda row: str(row.evidence_id),
+                    )
+                ],
+            }
+        )
+    return snapshots
 
 
 async def _load_branch_batches(

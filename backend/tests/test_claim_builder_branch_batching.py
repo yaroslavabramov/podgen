@@ -15,6 +15,7 @@ from app.pipeline.phase4_claims.claim_builder import (
     _partition_claim_ids_for_targeted_rebuild,
     _prepare_claim_builder_quote,
     _revalidate_preserved_claim_ids,
+    _snapshot_claim_pool_for_dedupe,
     _select_claim_assignment,
     _should_force_full_rebuild_for_config,
     _summarize_branch_context,
@@ -375,6 +376,17 @@ class _FakePersistDB:
         self.flush_calls += 1
 
 
+class _FakeClaimSnapshotResult:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def scalars(self):
+        return self
+
+    def all(self):
+        return list(self._rows)
+
+
 @pytest.mark.asyncio
 async def test_persist_claim_batch_reuses_previous_verification_state_and_semantic_assignment(
     monkeypatch: pytest.MonkeyPatch,
@@ -454,6 +466,53 @@ async def test_persist_claim_batch_reuses_previous_verification_state_and_semant
     assert decode_claim_notes_metadata(created_claims[0].notes)["builder_branch_id"] == "b4"
     assert decode_claim_notes_metadata(created_claims[0].notes)["builder_question_ids"] == ["b3", "b4.1"]
     assert all_claim_ids == [saved_claims[0]["claim_id"]]
+
+
+@pytest.mark.asyncio
+async def test_snapshot_claim_pool_for_dedupe_serializes_claim_and_links() -> None:
+    claim_id = uuid.uuid4()
+    evidence_id = uuid.uuid4()
+    claim = Claim(
+        id=claim_id,
+        project_id=uuid.uuid4(),
+        claim_type="fact",
+        verification_level=VerificationLevel.OBSERVED,
+        statement="Snapshot me",
+        attribution={"speaker": "source"},
+        notes=encode_claim_notes_metadata(branch_id="b1", question_ids=["b1.1"]),
+    )
+    link = ClaimEvidence(
+        claim_id=claim_id,
+        evidence_id=evidence_id,
+        supports_fact=True,
+        contradicts_fact=False,
+        illustrative=True,
+    )
+
+    class _FakeDB:
+        async def execute(self, *_args, **_kwargs):
+            if not hasattr(self, "_count"):
+                self._count = 0
+            self._count += 1
+            if self._count == 1:
+                return _FakeClaimSnapshotResult([claim])
+            return _FakeClaimSnapshotResult([link])
+
+    snapshot = await _snapshot_claim_pool_for_dedupe(
+        db=_FakeDB(),
+        claim_ids=[str(claim_id)],
+    )
+
+    assert len(snapshot) == 1
+    assert snapshot[0]["claim_id"] == str(claim_id)
+    assert snapshot[0]["claim_type"] == "fact"
+    assert snapshot[0]["statement"] == "Snapshot me"
+    assert snapshot[0]["evidence_links"] == [{
+        "evidence_id": str(evidence_id),
+        "supports_fact": True,
+        "contradicts_fact": False,
+        "illustrative": True,
+    }]
 
 
 @pytest.mark.asyncio
@@ -785,6 +844,13 @@ async def test_build_claims_manual_rerun_forces_full_rebuild_and_drops_preserved
         "app.pipeline.phase4_claims.claim_builder._persist_claim_batch",
         _fake_persist_claim_batch,
     )
+    async def _fake_snapshot_claim_pool_for_dedupe(**kwargs):
+        return [{"claim_id": claim_id} for claim_id in kwargs["claim_ids"]]
+
+    monkeypatch.setattr(
+        "app.pipeline.phase4_claims.claim_builder._snapshot_claim_pool_for_dedupe",
+        _fake_snapshot_claim_pool_for_dedupe,
+    )
 
     result = await build_claims(
         {
@@ -805,6 +871,7 @@ async def test_build_claims_manual_rerun_forces_full_rebuild_and_drops_preserved
     assert result["preserved_claim_ids"] == []
     assert result["targeted_branch_ids"] == []
     assert result["rebuild_mode"] == "full_rebuild"
+    assert result["dedupe_source_claims"] == [{"claim_id": "claim-b1"}, {"claim_id": "claim-b6"}]
 
 
 @pytest.mark.asyncio
@@ -881,6 +948,7 @@ async def test_build_claims_manual_rerun_without_evidence_replaces_old_claim_poo
     assert result["preserved_claim_ids"] == []
     assert result["targeted_branch_ids"] == []
     assert result["rebuild_mode"] == "full_rebuild"
+    assert result["dedupe_source_claims"] == []
 
 
 @pytest.mark.asyncio

@@ -24,6 +24,7 @@ class PipelineState(TypedDict):
     rebuilt_claim_ids: list[str]
     preserved_claim_ids: list[str]
     targeted_branch_ids: list[str]
+    dedupe_source_claims: list[dict]
     dedupe_deleted_claim_ids: list[str]
     dedupe_merged_into_claim_ids: list[str]
     dedupe_untouched_claim_ids: list[str]

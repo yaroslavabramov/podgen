@@ -375,6 +375,7 @@ Web extraction использует каскад extractors:
 - собирает branch-based batches по `EvidenceProvenance`, а не режет flat array по фиксированному количеству rows
 - если verifier-loop вернул `research_gaps`, Claim Builder делает targeted rebuild только для затронутых branch groups, но перед сохранением unaffected claims теперь revalidates их against current live branch/question scope; если старый claim pool больше не соответствует текущему дереву, node падает обратно в `full_rebuild`
 - manual step rerun самого `build_claims` не использует preserved-claim incremental semantics: для UX это теперь fresh rebuild с заменой прежнего claim pool, а не скрытый internal patch старого claim pool
+- `build_claims` теперь также пишет в state compact `dedupe_source_claims`: это canonical pre-dedupe claim pool для isolated rerun `dedupe_claims`
 - batching считает budget по реальному prompt payload; длинные quotes упаковываются адаптивно, а не слепо через fixed `[:700]` prefix
 - в prompt передаёт не только quote, но и:
   - branch context (`branch_question`, `branch_intent`, question contexts)
@@ -412,6 +413,7 @@ Web extraction использует каскад extractors:
 - semantic dedupe использует strict prompt: мерджатся только near-identical restatements одной пропозиции; problem vs institutional answer, regime vs later transition away, legal rule vs later application/restoration, cause/consequence и general/specific не мерджатся
 - cross-branch semantic merges now apply the Haiku verdict directly instead of running a second deterministic veto layer; overlapping-window suggestions are consolidated before apply so opposite-direction pairs do not create cycles, and debug captures raw suggestions, consolidated groups, applied merges, skipped merges, plus rerun input origin (`pipeline_state_claim_ids` vs `checkpoint_pre_node_state`)
 - перед dedupe incoming `state["claim_ids"]` санитизируется against DB: stale/missing IDs не участвуют в merge logic и отдельно попадают в debug summary как `requested/loaded/missing`
+- если isolated rerun `dedupe_claims` стартует из checkpoint state и часть claim rows уже была hard-deleted прошлым dedupe pass, node сначала восстанавливает missing rows из `dedupe_source_claims`, а уже потом запускает merge logic
 - evidence links и narrative flags мерджатся на keep-клейм до verifier
 - `StepExecutionStopped` пробрасывается через все слои (не глотается catch-all)
 
