@@ -528,22 +528,93 @@ async def _semantic_dedupe_pass(
                 }
                 for keep_id, drop_id, reason in result
             ]
-            applied_merges: list[dict[str, str]] = []
+            applied_merges: list[dict[str, object]] = []
+            skipped_merges: list[dict[str, object]] = []
+            dropped_ids: list[str] = []
             # Apply merges sequentially (safe for single db session)
             for keep_id, drop_id, reason in result:
-                logger.info("Semantic dedup (branch %s): merging %s into %s — %s",
-                            bid, drop_id[:12], keep_id[:12], reason)
-                await _merge_claims(db, keep_claim_id=uuid.UUID(keep_id), drop_claim_id=uuid.UUID(drop_id))
-                duplicate_map[drop_id] = keep_id
-                merged_into_claim_ids.add(keep_id)
-                all_dropped.append(drop_id)
+                resolved_keep_id = _resolve_live_claim_id(keep_id, duplicate_map)
+                resolved_drop_id = _resolve_live_claim_id(drop_id, duplicate_map)
+                if resolved_keep_id == resolved_drop_id:
+                    skipped_merges.append({
+                        "keep_id": keep_id,
+                        "drop_id": drop_id,
+                        "resolved_keep_id": resolved_keep_id,
+                        "resolved_drop_id": resolved_drop_id,
+                        "reason": reason,
+                        "skip_reason": "same_live_claim_after_resolution",
+                    })
+                    continue
+
+                keep_ctx = contexts.get(resolved_keep_id, {})
+                drop_ctx = contexts.get(resolved_drop_id, {})
+
+                keep_claim_type = str(keep_ctx.get("claim_type") or "").strip().lower()
+                drop_claim_type = str(drop_ctx.get("claim_type") or "").strip().lower()
+                if not keep_claim_type or not drop_claim_type:
+                    skipped_merges.append({
+                        "keep_id": keep_id,
+                        "drop_id": drop_id,
+                        "resolved_keep_id": resolved_keep_id,
+                        "resolved_drop_id": resolved_drop_id,
+                        "reason": reason,
+                        "skip_reason": "missing_claim_type_context",
+                        "keep_claim_type": keep_claim_type,
+                        "drop_claim_type": drop_claim_type,
+                    })
+                    continue
+                if keep_claim_type != drop_claim_type:
+                    skipped_merges.append({
+                        "keep_id": keep_id,
+                        "drop_id": drop_id,
+                        "resolved_keep_id": resolved_keep_id,
+                        "resolved_drop_id": resolved_drop_id,
+                        "reason": reason,
+                        "skip_reason": "claim_type_mismatch",
+                        "keep_claim_type": keep_claim_type,
+                        "drop_claim_type": drop_claim_type,
+                    })
+                    continue
+
+                keep_anchors = keep_ctx.get("numbers_and_dates") or set()
+                drop_anchors = drop_ctx.get("numbers_and_dates") or set()
+                if set(keep_anchors) != set(drop_anchors):
+                    skipped_merges.append({
+                        "keep_id": keep_id,
+                        "drop_id": drop_id,
+                        "resolved_keep_id": resolved_keep_id,
+                        "resolved_drop_id": resolved_drop_id,
+                        "reason": reason,
+                        "skip_reason": "numbers_and_dates_mismatch",
+                        "keep_numbers_and_dates": sorted({str(v) for v in keep_anchors}),
+                        "drop_numbers_and_dates": sorted({str(v) for v in drop_anchors}),
+                    })
+                    continue
+
+                logger.info(
+                    "Semantic dedup (branch %s): merging %s into %s — %s",
+                    bid,
+                    resolved_drop_id[:12],
+                    resolved_keep_id[:12],
+                    reason,
+                )
+                await _merge_claims(
+                    db,
+                    keep_claim_id=uuid.UUID(resolved_keep_id),
+                    drop_claim_id=uuid.UUID(resolved_drop_id),
+                )
+                duplicate_map[resolved_drop_id] = resolved_keep_id
+                merged_into_claim_ids.add(resolved_keep_id)
+                all_dropped.append(resolved_drop_id)
+                dropped_ids.append(resolved_drop_id)
                 applied_merges.append({
                     "keep_id": keep_id,
                     "drop_id": drop_id,
+                    "resolved_keep_id": resolved_keep_id,
+                    "resolved_drop_id": resolved_drop_id,
                     "reason": reason,
                 })
             if branch_log is not None:
-                dropped_ids = [d for _, d, _ in result]
                 branch_log.append({
                     "branch_id": bid,
                     "claim_count": len(branch_groups.get(bid, [])),
@@ -551,6 +622,8 @@ async def _semantic_dedupe_pass(
                     "suggested_merges": suggested_merges,
                     "applied_merge_count": len(applied_merges),
                     "applied_merges": applied_merges,
+                    "skipped_merge_count": len(skipped_merges),
+                    "skipped_merges": skipped_merges,
                     "dropped_count": len(dropped_ids),
                     "dropped_ids": dropped_ids,
                 })
