@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.claim import Claim, ClaimEvidence, VerificationLevel
+from app.models.generation_run import GenerationRun
 from app.models.episode_manifest import EpisodeManifest
 from app.models.evidence import EvidenceProvenance, EvidenceSpan
 from app.models.source import Source
@@ -889,6 +890,37 @@ def _derive_verify_scope(state: PipelineState, claim_ids: list[str]) -> list[str
     return [claim_id for claim_id in ordered_claim_ids if claim_id in scope_ids]
 
 
+def _should_force_full_verify_for_config(config: dict | None, *, node_name: str) -> bool:
+    """Return True when a step-mode rerun explicitly targets this node."""
+    if not isinstance(config, dict):
+        return False
+    step_control = config.get("step_control")
+    if not isinstance(step_control, dict):
+        return False
+    requested_action = step_control.get("requested_action")
+    if requested_action != "rerun":
+        return False
+    requested_target_node = step_control.get("requested_target_node")
+    if isinstance(requested_target_node, str) and requested_target_node.strip():
+        return requested_target_node.strip() == node_name
+    last_node = step_control.get("last_node")
+    return isinstance(last_node, str) and last_node == node_name
+
+
+async def _should_force_full_verify_for_node_rerun(
+    db,
+    *,
+    generation_run_id: str,
+    node_name: str,
+) -> bool:
+    try:
+        run_uuid = uuid.UUID(generation_run_id)
+    except (TypeError, ValueError):
+        return False
+    result = await db.execute(select(GenerationRun.config).where(GenerationRun.id == run_uuid))
+    return _should_force_full_verify_for_config(result.scalar_one_or_none(), node_name=node_name)
+
+
 def _build_verifier_claim_payload(claim: Claim, evidence_data: dict) -> dict:
     payload = {
         "claim_id": str(claim.id),
@@ -1223,6 +1255,7 @@ async def verify_claims(state: PipelineState) -> dict:
             "dedupe_untouched_claim_ids": [],
         }
 
+    iteration_counts = dict(state.get("iteration_counts", {}) or {})
     needs_research_claims: list[tuple[Claim, dict]] = []
     prefiltered_debug_results: list[dict] = []
     llm_batch_debug_results: list[dict] = []
@@ -1241,11 +1274,26 @@ async def verify_claims(state: PipelineState) -> dict:
         claim_id = str(gap.get("claim_id", "")).strip()
         if claim_id:
             previous_gap_claim_ids.add(claim_id)
-    verify_scope_claim_ids = set(_derive_verify_scope(state, claim_ids))
     processed_claim_ids: list[str] = []
     skipped_unchanged_claim_ids: list[str] = []
+    force_full_reverify = False
 
     async with async_session_factory() as db:
+        force_full_reverify = await _should_force_full_verify_for_node_rerun(
+            db,
+            generation_run_id=run_id,
+            node_name="verify_claims",
+        )
+        scope_state = state
+        if force_full_reverify:
+            iteration_counts["verify_research_loops"] = 0
+            iteration_counts["verify_needs_research"] = False
+            scope_state = {
+                **state,
+                "iteration_counts": dict(iteration_counts),
+            }
+        verify_scope_claim_ids = set(_derive_verify_scope(scope_state, claim_ids))
+
         question_context_map: dict[str, dict] = {}
         if state.get("manifest_id"):
             manifest_result = await db.execute(
@@ -1274,7 +1322,11 @@ async def verify_claims(state: PipelineState) -> dict:
             fingerprint = _compute_verification_fingerprint(claim, evidence_data)
             processed_claim_ids.append(cid)
 
-            if claim.verification_fingerprint and claim.verification_fingerprint == fingerprint:
+            if (
+                not force_full_reverify
+                and claim.verification_fingerprint
+                and claim.verification_fingerprint == fingerprint
+            ):
                 skipped_unchanged_claim_ids.append(cid)
                 if cid in previous_gap_claim_ids and claim.claim_type == "fact":
                     needs_research_claims.append((claim, evidence_data))
@@ -1370,7 +1422,6 @@ async def verify_claims(state: PipelineState) -> dict:
     publish_event(run_id, step_completed("phase4_claims", "verify"))
     publish_event(run_id, progress(45.0, f"Verified {len(processed_claim_ids) or len(claim_ids)} claims"))
 
-    iteration_counts = dict(state.get("iteration_counts", {}))
     verify_loops = iteration_counts.get("verify_research_loops", 0)
     needs_research = bool(needs_research_claims) and verify_loops < settings.max_verifier_research_loops
     if needs_research:

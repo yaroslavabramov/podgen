@@ -134,7 +134,10 @@ def _should_loop_verify(state: PipelineState) -> str:
     counts = state.get("iteration_counts", {})
     verify_loops = counts.get("verify_research_loops", 0)
     needs_research = counts.get("verify_needs_research", False)
-    if needs_research and verify_loops < 2:
+    # `verify_research_loops` is incremented inside `verify_claims` *before* the
+    # graph routes back to `research_fast_web`, so the graph needs a <= check to
+    # allow the final loop within the configured budget.
+    if needs_research and verify_loops <= settings.max_verifier_research_loops:
         return "research_fast_web"
     return "resolve_conflicts"
 
