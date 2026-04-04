@@ -649,11 +649,15 @@ Deferred after Round 68:
 - [x] **P1**: Cross-branch semantic dedupe now prefers false negatives over false positives by filtering weak/ambiguous merge suggestions after the Haiku pass
 
 **Round 88 (cross-branch dedupe observability + no veto):**
-- [x] **P1**: Removed the extra deterministic cross-branch merge veto; semantic dedupe now applies Haiku merge groups directly
+- [x] **P1**: Removed the old token-overlap deterministic cross-branch merge veto; cross-branch semantic dedupe now applies Haiku merge groups with minimal safety gates and explicit skip reasons
 - [x] **P1**: Dedupe debug now records cross-branch suggested/applied/skipped merges so reruns show whether the model proposed a merge and what actually happened
 - [x] **P1**: Cross-branch dedupe now consolidates overlapping-window suggestions before apply, preventing opposite-direction merge cycles while keeping raw-vs-consolidated debug visible
 - [x] **P1**: Dedupe debug now records rerun input origin (`pipeline_state_claim_ids` vs `checkpoint_pre_node_state`) alongside `requested/loaded/missing` counts, so isolated reruns make checkpoint-vs-live-pool mismatch explicit
 - [x] **P0**: `build_claims` now emits `dedupe_source_claims`, and isolated `dedupe_claims` reruns restore hard-deleted claim rows from that snapshot before merge so rerun semantics track the last builder output, not the last surviving dedupe subset
+
+**Round 89 (cross-branch semantic merge guardrails):**
+- [x] **P1**: Cross-branch semantic apply now enforces `claim_type` match and numeric/date anchor (`numbers_and_dates`) match to prevent destructive over-merge across distinct beats
+- [x] **P2**: Haiku dedupe prompt now receives `claim_type` + `numbers_and_dates` and is explicitly instructed not to merge mismatching anchors/types
 
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)

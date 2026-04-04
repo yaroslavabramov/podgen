@@ -581,3 +581,142 @@ async def test_semantic_dedupe_pass_consolidates_opposite_direction_cross_branch
     assert cross_branch["applied_merge_count"] == 1
     assert cross_branch["skipped_merge_count"] == 0
     assert cross_branch["consolidated_merges"][0]["direction_conflict"] is True
+
+
+@pytest.mark.asyncio
+async def test_semantic_dedupe_pass_skips_cross_branch_merge_on_numbers_and_dates_mismatch(monkeypatch) -> None:
+    # 2 claims per branch (< MIN_BRANCH_CLAIMS_FOR_SEMANTIC_DEDUPE) → per-branch skipped, cross-branch runs on total pool.
+    keep = _make_claim("keep", "Policy adopted in 2019", branch="b1")
+    drop = _make_claim("drop", "Policy adopted in 2020", branch="b2")
+    filler_1 = _make_claim("f1", "Filler one", branch="b1")
+    filler_2 = _make_claim("f2", "Filler two", branch="b2")
+
+    keep_id, drop_id = str(keep.id), str(drop.id)
+    contexts = {
+        keep_id: {
+            "normalized_statement": keep.statement.lower(),
+            "numbers_and_dates": {"2019"},
+            "value_tokens": {"policy", "adopted", "2019"},
+            "claim_type": "fact",
+            "normalized_attribution": "",
+            "evidence_ids": {"e1"},
+            "source_ids": {"s1"},
+            "branch_ids": {"b1"},
+        },
+        drop_id: {
+            "normalized_statement": drop.statement.lower(),
+            "numbers_and_dates": {"2020"},
+            "value_tokens": {"policy", "adopted", "2020"},
+            "claim_type": "fact",
+            "normalized_attribution": "",
+            "evidence_ids": {"e2"},
+            "source_ids": {"s2"},
+            "branch_ids": {"b2"},
+        },
+        str(filler_1.id): _make_context("filler-1"),
+        str(filler_2.id): _make_context("filler-2"),
+    }
+
+    async def fake_semantic_haiku(label, claims_pool, contexts, already_dropped):
+        if label == "_cross_branch_0":
+            return [(keep_id, drop_id, "same proposition")]
+        return []
+
+    merge_log = []
+
+    async def fake_merge(db, *, keep_claim_id, drop_claim_id):
+        merge_log.append((str(keep_claim_id), str(drop_claim_id)))
+
+    monkeypatch.setattr("app.pipeline.phase4_claims.dedupe._semantic_dedupe_haiku", fake_semantic_haiku)
+    monkeypatch.setattr("app.pipeline.phase4_claims.dedupe._merge_claims", fake_merge)
+
+    branch_log: list[dict] = []
+    duplicate_map: dict[str, str] = {}
+    merged_into: set[str] = set()
+
+    dropped = await _semantic_dedupe_pass(
+        db=None,
+        surviving_claims=[keep, filler_1, drop, filler_2],
+        contexts=contexts,
+        duplicate_map=duplicate_map,
+        merged_into_claim_ids=merged_into,
+        branch_log=branch_log,
+    )
+
+    assert dropped == []
+    assert merge_log == []
+    cross_branch = next(item for item in branch_log if item["branch_id"] == "_cross_branch")
+    assert cross_branch["suggested_merge_count"] == 1
+    assert cross_branch["consolidated_merge_count"] == 1
+    assert cross_branch["applied_merge_count"] == 0
+    assert cross_branch["skipped_merge_count"] == 1
+    assert cross_branch["skipped_merges"][0]["skip_reason"] == "numbers_and_dates_mismatch"
+
+
+@pytest.mark.asyncio
+async def test_semantic_dedupe_pass_skips_cross_branch_merge_on_claim_type_mismatch(monkeypatch) -> None:
+    keep = _make_claim("keep", "The committee adopted the policy", branch="b1")
+    drop = _make_claim("drop", "The committee adopted the policy (author said so)", branch="b2")
+    filler_1 = _make_claim("f1", "Filler one", branch="b1")
+    filler_2 = _make_claim("f2", "Filler two", branch="b2")
+
+    keep_id, drop_id = str(keep.id), str(drop.id)
+    contexts = {
+        keep_id: {
+            "normalized_statement": keep.statement.lower(),
+            "numbers_and_dates": set(),
+            "value_tokens": set(keep.statement.lower().split()),
+            "claim_type": "fact",
+            "normalized_attribution": "",
+            "evidence_ids": {"e1"},
+            "source_ids": {"s1"},
+            "branch_ids": {"b1"},
+        },
+        drop_id: {
+            "normalized_statement": drop.statement.lower(),
+            "numbers_and_dates": set(),
+            "value_tokens": set(drop.statement.lower().split()),
+            "claim_type": "opinion",
+            "normalized_attribution": "",
+            "evidence_ids": {"e2"},
+            "source_ids": {"s2"},
+            "branch_ids": {"b2"},
+        },
+        str(filler_1.id): _make_context("filler-1"),
+        str(filler_2.id): _make_context("filler-2"),
+    }
+
+    async def fake_semantic_haiku(label, claims_pool, contexts, already_dropped):
+        if label == "_cross_branch_0":
+            return [(keep_id, drop_id, "same proposition")]
+        return []
+
+    merge_log = []
+
+    async def fake_merge(db, *, keep_claim_id, drop_claim_id):
+        merge_log.append((str(keep_claim_id), str(drop_claim_id)))
+
+    monkeypatch.setattr("app.pipeline.phase4_claims.dedupe._semantic_dedupe_haiku", fake_semantic_haiku)
+    monkeypatch.setattr("app.pipeline.phase4_claims.dedupe._merge_claims", fake_merge)
+
+    branch_log: list[dict] = []
+    duplicate_map: dict[str, str] = {}
+    merged_into: set[str] = set()
+
+    dropped = await _semantic_dedupe_pass(
+        db=None,
+        surviving_claims=[keep, filler_1, drop, filler_2],
+        contexts=contexts,
+        duplicate_map=duplicate_map,
+        merged_into_claim_ids=merged_into,
+        branch_log=branch_log,
+    )
+
+    assert dropped == []
+    assert merge_log == []
+    cross_branch = next(item for item in branch_log if item["branch_id"] == "_cross_branch")
+    assert cross_branch["suggested_merge_count"] == 1
+    assert cross_branch["consolidated_merge_count"] == 1
+    assert cross_branch["applied_merge_count"] == 0
+    assert cross_branch["skipped_merge_count"] == 1
+    assert cross_branch["skipped_merges"][0]["skip_reason"] == "claim_type_mismatch"

@@ -562,8 +562,8 @@ async def _semantic_dedupe_pass(
         batches = _build_semantic_batches(cross_surviving, contexts)
         cross_suggested_merges: list[dict[str, str | int | list[int]]] = []
         cross_consolidated_merges: list[dict[str, str | int | list[int] | bool]] = []
-        cross_applied_merges: list[dict[str, str | int]] = []
-        cross_skipped_merges: list[dict[str, str | int]] = []
+        cross_applied_merges: list[dict[str, object]] = []
+        cross_skipped_merges: list[dict[str, object]] = []
 
         if batches:
             cross_haiku_tasks = [
@@ -600,6 +600,50 @@ async def _semantic_dedupe_pass(
                         "resolved_drop_id": resolved_drop_id,
                         "reason": str(merge["reason"]),
                         "skip_reason": "same_live_claim_after_resolution",
+                    })
+                    continue
+                keep_ctx = contexts.get(resolved_keep_id, {})
+                drop_ctx = contexts.get(resolved_drop_id, {})
+
+                keep_claim_type = str(keep_ctx.get("claim_type") or "").strip().lower()
+                drop_claim_type = str(drop_ctx.get("claim_type") or "").strip().lower()
+                if not keep_claim_type or not drop_claim_type:
+                    cross_skipped_merges.append({
+                        "keep_id": str(merge["keep_id"]),
+                        "drop_id": str(merge["drop_id"]),
+                        "resolved_keep_id": resolved_keep_id,
+                        "resolved_drop_id": resolved_drop_id,
+                        "reason": str(merge["reason"]),
+                        "skip_reason": "missing_claim_type_context",
+                        "keep_claim_type": keep_claim_type,
+                        "drop_claim_type": drop_claim_type,
+                    })
+                    continue
+                if keep_claim_type != drop_claim_type:
+                    cross_skipped_merges.append({
+                        "keep_id": str(merge["keep_id"]),
+                        "drop_id": str(merge["drop_id"]),
+                        "resolved_keep_id": resolved_keep_id,
+                        "resolved_drop_id": resolved_drop_id,
+                        "reason": str(merge["reason"]),
+                        "skip_reason": "claim_type_mismatch",
+                        "keep_claim_type": keep_claim_type,
+                        "drop_claim_type": drop_claim_type,
+                    })
+                    continue
+
+                keep_anchors = keep_ctx.get("numbers_and_dates") or set()
+                drop_anchors = drop_ctx.get("numbers_and_dates") or set()
+                if set(keep_anchors) != set(drop_anchors):
+                    cross_skipped_merges.append({
+                        "keep_id": str(merge["keep_id"]),
+                        "drop_id": str(merge["drop_id"]),
+                        "resolved_keep_id": resolved_keep_id,
+                        "resolved_drop_id": resolved_drop_id,
+                        "reason": str(merge["reason"]),
+                        "skip_reason": "numbers_and_dates_mismatch",
+                        "keep_numbers_and_dates": sorted({str(v) for v in keep_anchors}),
+                        "drop_numbers_and_dates": sorted({str(v) for v in drop_anchors}),
                     })
                     continue
                 logger.info(
@@ -651,12 +695,25 @@ Your job is to find TRUE duplicate claims.
 A duplicate means two claims that are genuinely interchangeable for downstream verification, planning, and writing.
 Return JSON only.
 
+## Inputs you receive
+Each claim has:
+- `id` (opaque identifier)
+- `claim_type` (one of: fact / report / opinion)
+- `numbers_and_dates` (numeric/date anchors extracted from the statement)
+- `evidence_count` (how many evidence items support it)
+- `statement`
+
 ## Core rule
 Merge claims ONLY when they express the same proposition and a script could keep either one without losing any distinct historical step, legal step, causal step, implementation step, actor/action distinction, or comparison move.
 
 If keeping both claims would preserve a meaningful distinction for downstream narrative structure, they are NOT duplicates.
 
 When in doubt, keep both.
+
+## Hard constraints (must NOT merge)
+- Do NOT merge across different `claim_type` values.
+- Do NOT merge if `numbers_and_dates` differ in any way.
+  If numeric/date anchors differ, the claims are not interchangeable (one contains a distinct anchor).
 
 ## Mutual-substitutability test
 Two claims are duplicates only if ALL of the following are true:
@@ -711,15 +768,15 @@ If your reason depends on any of these, do NOT merge.
 NOT duplicates:
 - "A reform was proposed" vs "the reform was officially adopted"
 - "A territory was occupied" vs "a later treaty formalized control"
-- "A rule required collateral" vs "issuers had to deposit collateral before issuing units"
-- "The old notes were invalidated" vs "the earlier currency was restored as legal tender"
-- "A system requires full backing" vs "the system automatically adjusts when demand changes"
+- "A rule required registration" vs "operators had to register before offering the service"
+- "A permit was revoked" vs "the permit was later reinstated"
+- "A system requires redundancy" vs "the system automatically fails over when the primary component fails"
 - "A baseline fact" vs "the same fact used inside a comparison with other countries"
 
 Duplicates:
-- "A law granted legal-tender status to notes above a threshold amount" vs "A statute made notes above that threshold legal tender"
-- "Three licensed firms issue the notes" vs "The notes are issued by three authorized firms under license"
-- "The monetary base is fully backed by reserve assets" vs "Reserve assets fully cover the monetary base"
+- "In 2019 the committee adopted the policy" vs "The policy was adopted by the committee in 2019"
+- "A law required permits for gatherings over 50 people" vs "A statute mandated permits for events with more than 50 attendees"
+- "Three licensed firms operate the service" vs "The service is operated by three authorized firms under license"
 
 ## Keep selection
 For each true duplicate group, keep the single best claim:
@@ -766,10 +823,13 @@ async def _semantic_dedupe_haiku(
         cid = str(claim.id)
         if cid in already_dropped:
             continue
+        ctx = contexts.get(cid, {})
         claim_payloads.append({
             "id": cid,
+            "claim_type": str(ctx.get("claim_type") or "fact").strip().lower(),
+            "numbers_and_dates": sorted({str(v) for v in (ctx.get("numbers_and_dates") or set())}),
             "statement": claim.statement,
-            "evidence_count": len(contexts.get(cid, {}).get("evidence_ids", set())),
+            "evidence_count": len(ctx.get("evidence_ids", set())),
         })
 
     if len(claim_payloads) < MIN_BRANCH_CLAIMS_FOR_SEMANTIC_DEDUPE:
