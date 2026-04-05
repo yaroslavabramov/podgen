@@ -357,21 +357,11 @@ async def plan_act(state: PipelineState) -> dict:
                         for qi in candidate_quality_issues:
                             if qi.get("severity") != "structural":
                                 continue
-                            scene_key = qi.get("scene", qi.get("scene_a", "?"))
-                            detail = f"[S{scene_key}] {qi['type']}: {qi['message']}"
-                            if qi.get("type") == "description_claim_mismatch" and candidate_beat_sheet:
-                                for sc in candidate_beat_sheet:
-                                    if _positive_int(sc.get("scene"), 0) == scene_key:
-                                        sc_claims = [
-                                            claim_statements_lookup.get(cid, "")
-                                            for cid in _uuid_list(sc.get("claim_ids"))
-                                            if cid in claim_statements_lookup
-                                        ]
-                                        if sc_claims:
-                                            detail += "\n  Scene's actual claims:\n" + "\n".join(
-                                                f"    - {s[:200]}" for s in sc_claims
-                                            )
-                                        break
+                            detail = _format_structural_retry_detail(
+                                qi,
+                                beat_sheet=candidate_beat_sheet,
+                                claim_statements_lookup=claim_statements_lookup,
+                            )
                             structural_details.append(detail)
                         retry_feedback_error = (
                             f"{last_error}\n\nSpecific issues to fix:\n"
@@ -1357,6 +1347,79 @@ def _has_structural_overlap_failures(issues: list[dict[str, Any]]) -> bool:
         isinstance(issue, dict) and issue.get("severity") == "structural"
         for issue in issues
     )
+
+
+def _scene_claim_statements(
+    scene: dict[str, Any],
+    claim_statements_lookup: dict[str, str],
+) -> list[str]:
+    return [
+        claim_statements_lookup.get(cid, "")
+        for cid in _uuid_list(scene.get("claim_ids"))
+        if cid in claim_statements_lookup
+    ]
+
+
+def _find_scene_by_number(
+    beat_sheet: list[dict[str, Any]],
+    scene_number: int,
+) -> dict[str, Any] | None:
+    for scene in beat_sheet:
+        if _positive_int(scene.get("scene"), 0) == scene_number:
+            return scene
+    return None
+
+
+def _format_structural_retry_detail(
+    issue: dict[str, Any],
+    *,
+    beat_sheet: list[dict[str, Any]],
+    claim_statements_lookup: dict[str, str],
+) -> str:
+    scene_key = issue.get("scene", issue.get("scene_a", "?"))
+    detail = f"[S{scene_key}] {issue['type']}: {issue['message']}"
+
+    if issue.get("type") == "description_claim_mismatch":
+        scene_number = _positive_int(issue.get("scene"), 0)
+        scene = _find_scene_by_number(beat_sheet, scene_number)
+        if scene is None:
+            return detail
+        scene_claims = _scene_claim_statements(scene, claim_statements_lookup)
+        if scene_claims:
+            detail += "\n  Scene's actual claims:\n" + "\n".join(
+                f"    - {statement}"
+                for statement in scene_claims
+            )
+        return detail
+
+    if issue.get("type") != "description_overlap":
+        return detail
+
+    scene_a_number = _positive_int(issue.get("scene_a"), 0)
+    scene_b_number = _positive_int(issue.get("scene_b"), 0)
+    scene_a = _find_scene_by_number(beat_sheet, scene_a_number)
+    scene_b = _find_scene_by_number(beat_sheet, scene_b_number)
+
+    detail += (
+        "\n  Do NOT solve this by paraphrasing the same mechanism in new words."
+        "\n  Keep one scene as the primary explanation. For the other scene, either:"
+        "\n    - merge it into the stronger scene,"
+        "\n    - demote it to a brief callback using `reframe`, `contrast`, `cost`, `bridge`, or `synthesize`, or"
+        "\n    - rewrite it so it does genuinely different listener work such as `apply`, `stress_test`, consequence, tradeoff, exception, or comparator."
+        "\n  If no distinct move exists, delete the weaker scene instead of repeating the mechanism."
+    )
+
+    for scene_number, scene in ((scene_a_number, scene_a), (scene_b_number, scene_b)):
+        if scene is None:
+            continue
+        scene_job = _scene_job(scene) or "none"
+        detail += f"\n  Scene {scene_number} current move: {scene_job}"
+        scene_claims = _scene_claim_statements(scene, claim_statements_lookup)
+        if scene_claims:
+            detail += "\n  Scene {scene_number} claims:".format(scene_number=scene_number)
+            detail += "\n" + "\n".join(f"    - {statement}" for statement in scene_claims)
+
+    return detail
 
 
 def _dump_act_planner_debug(

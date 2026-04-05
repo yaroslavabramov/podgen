@@ -970,7 +970,8 @@ async def test_plan_act_writes_started_dump_before_llm_timeout(monkeypatch: pyte
 
 @pytest.mark.asyncio
 async def test_plan_act_keeps_quality_retry_budget_after_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
-    claim_id = str(uuid.uuid4())
+    claim_id_one = str(uuid.uuid4())
+    claim_id_two = str(uuid.uuid4())
     manifest = SimpleNamespace(
         id=uuid.uuid4(),
         acts_json=[
@@ -982,7 +983,7 @@ async def test_plan_act_keeps_quality_retry_budget_after_timeout(monkeypatch: py
                 "internal_arc": "open -> close",
                 "opening_question": "Why?",
                 "ending_turn": "Because.",
-                "claim_ids": [claim_id],
+                "claim_ids": [claim_id_one, claim_id_two],
                 "estimated_duration_seconds": 240,
                 "content_quotas": {},
             }
@@ -1002,7 +1003,7 @@ async def test_plan_act_keeps_quality_retry_budget_after_timeout(monkeypatch: py
                         "scene": 1,
                         "type": "explanation",
                         "description": "Explain the mechanism.",
-                        "claim_ids": [claim_id],
+                        "claim_ids": [claim_id_one],
                         "evidence_ids": [],
                         "estimated_duration_seconds": 120,
                     },
@@ -1010,7 +1011,7 @@ async def test_plan_act_keeps_quality_retry_budget_after_timeout(monkeypatch: py
                         "scene": 2,
                         "type": "explanation",
                         "description": "Explain the same mechanism again.",
-                        "claim_ids": [claim_id],
+                        "claim_ids": [claim_id_two],
                         "evidence_ids": [],
                         "estimated_duration_seconds": 120,
                     },
@@ -1023,7 +1024,7 @@ async def test_plan_act_keeps_quality_retry_budget_after_timeout(monkeypatch: py
                         "scene": 1,
                         "type": "explanation",
                         "description": "Explain the mechanism once.",
-                        "claim_ids": [claim_id],
+                        "claim_ids": [claim_id_one],
                         "evidence_ids": [],
                         "estimated_duration_seconds": 120,
                     },
@@ -1032,7 +1033,7 @@ async def test_plan_act_keeps_quality_retry_budget_after_timeout(monkeypatch: py
                         "type": "takeaway",
                         "scene_job": "reframe",
                         "description": "Land the implication without reteaching the mechanism.",
-                        "claim_ids": [claim_id],
+                        "claim_ids": [claim_id_two],
                         "evidence_ids": [],
                         "estimated_duration_seconds": 120,
                     },
@@ -1044,13 +1045,25 @@ async def test_plan_act_keeps_quality_retry_budget_after_timeout(monkeypatch: py
     async def _fake_load_planning_context(**_kwargs):
         return (
             {
-                claim_id: {
-                    "id": claim_id,
+                claim_id_one: {
+                    "id": claim_id_one,
                     "type": "fact",
                     "verification": "verified",
                     "branch_ids": ["b1"],
                     "intents": ["explain"],
-                    "statement": "Mechanism claim",
+                    "statement": "Mechanism claim A",
+                    "has_illustrative": False,
+                    "illustrative_evidence_count": 0,
+                    "direct_support_count": 0,
+                    "source_diversity": 1,
+                },
+                claim_id_two: {
+                    "id": claim_id_two,
+                    "type": "fact",
+                    "verification": "verified",
+                    "branch_ids": ["b1"],
+                    "intents": ["explain"],
+                    "statement": "Mechanism claim B",
                     "has_illustrative": False,
                     "illustrative_evidence_count": 0,
                     "direct_support_count": 0,
@@ -1100,6 +1113,13 @@ async def test_plan_act_keeps_quality_retry_budget_after_timeout(monkeypatch: py
     assert prompts[2]["previous_error"].startswith(
         "ValueError: beat_sheet failed structural overlap validation after claim-role split"
     )
+    assert "Do NOT solve this by paraphrasing the same mechanism in new words." in prompts[2]["previous_error"]
+    assert "merge it into the stronger scene" in prompts[2]["previous_error"]
+    assert "demote it to a brief callback" in prompts[2]["previous_error"]
+    assert "Scene 1 current move: none" in prompts[2]["previous_error"]
+    assert "Scene 2 current move: none" in prompts[2]["previous_error"]
+    assert "Mechanism claim A" in prompts[2]["previous_error"]
+    assert "Mechanism claim B" in prompts[2]["previous_error"]
     assert dumps[-1]["status"] == "ok"
     assert [attempt["status"] for attempt in dumps[-1]["attempts"]] == [
         "llm_or_normalize_failed",

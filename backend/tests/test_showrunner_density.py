@@ -51,7 +51,10 @@ def test_showrunner_prompt_does_not_hardcode_three_acts() -> None:
     assert "One historical event or institutional decision should usually have one main dramatic home." in SHOWRUNNER_SYSTEM
     assert "Listener novelty matters more than branch coverage." in SHOWRUNNER_SYSTEM
     assert "prefer a lean explanatory backbone over exhaustive inclusion" in SHOWRUNNER_SYSTEM
+    assert "Before keeping a claim in an act, ask whether it earns a distinct scene move." in SHOWRUNNER_SYSTEM
     assert "Keep only the strongest 2-3 as fresh explanatory load" in SHOWRUNNER_SYSTEM
+    assert "one dominant explanatory spine, not several equal mini-explanations" in SHOWRUNNER_SYSTEM
+    assert "same operating rule, safeguard, or institutional constraint" in SHOWRUNNER_SYSTEM
     assert "Comparative material should stay selective." in SHOWRUNNER_SYSTEM
     assert "Vary `ending_turn` shapes across acts" in SHOWRUNNER_SYSTEM
     assert "total_claim_count" in SHOWRUNNER_SYSTEM

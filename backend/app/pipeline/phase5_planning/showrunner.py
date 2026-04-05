@@ -72,11 +72,14 @@ Rules:
 - If one branch yields more strong claims than a single act can hold cleanly, keep the strongest claims in that act and leave the rest unused rather than overloading the episode.
 - Do not spread the same proposition core across multiple acts just because it is relevant in several places. Pick the best act for it.
 - If two claims from different branches are near-paraphrases or materially describe the same mechanism, treat them as one explanatory point. Keep the strongest or best-fitting one in the best act and avoid assigning the other as fresh explanatory backbone in a later act.
+- Before keeping a claim in an act, ask whether it earns a distinct scene move. If removing it would not force a genuinely different beat, do not keep it as fresh backbone.
 - Branch coherence is a hint, not a rule. Do not keep branch material together when that would make two acts explain the same thing with different claim IDs.
 - Prefer one act to establish a mechanism and later acts to do something new with it: stress-test it, show its cost, compare it to another path, show the legal lock-in, or widen the stakes.
 - One historical event or institutional decision should usually have one main dramatic home. If several claims describe the same decision from different dates or angles, let one act own the reveal and use the rest only as brief callbacks or consequences.
 - Listener novelty matters more than branch coverage. A later act should not feel like the same explanation in a new folder.
 - If one act receives several claims from different branches that all describe the same mechanism family, prefer a lean explanatory backbone over exhaustive inclusion. Keep only the strongest 2-3 as fresh explanatory load unless the extras clearly enable different scene moves.
+- Explanatory acts should usually have one dominant explanatory spine, not several equal mini-explanations of the same operating rule. Keep extra claims only if they clearly support a different beat such as application, consequence, tradeoff, exception, contrast, or a concrete case.
+- Do not assign several claims that all restate the same operating rule, safeguard, or institutional constraint as separate fresh backbone items. Choose the single strongest formulation and let the rest function as support, consequence, or be left unused.
 - One act may own a mechanism family, but it should not become overcrowded with near-duplicate explanatory claims. Exhaustive branch inclusion is less important than keeping the listener's sense of forward motion.
 - Avoid acts that all do the same thing. Do not make every act a generic explanation block.
 - Prefer acts organized around one dominant branch or a tight pair of related branches, not a random mix of distant topics.
