@@ -966,9 +966,6 @@ async def test_plan_act_keeps_quality_retry_budget_after_timeout(monkeypatch: py
             raise next_response
         return json.dumps(next_response, ensure_ascii=False)
 
-    async def _fake_fill_evidence_gaps(*_args, **_kwargs):
-        return []
-
     monkeypatch.setattr("app.pipeline.phase5_planning.act_planner.async_session_factory", lambda: db)
     monkeypatch.setattr(
         "app.pipeline.phase5_planning.act_planner.load_planning_context",
@@ -977,10 +974,6 @@ async def test_plan_act_keeps_quality_retry_budget_after_timeout(monkeypatch: py
     monkeypatch.setattr(
         "app.pipeline.phase5_planning.act_planner.call_sonnet_structured",
         _fake_call_sonnet_structured,
-    )
-    monkeypatch.setattr(
-        "app.pipeline.phase5_planning.act_planner._fill_evidence_gaps",
-        _fake_fill_evidence_gaps,
     )
     monkeypatch.setattr(
         "app.pipeline.phase5_planning.act_planner.publish_event",
@@ -1213,9 +1206,6 @@ async def test_plan_act_short_ids_do_not_break_support_hydration(
             ensure_ascii=False,
         )
 
-    async def _fake_fill_evidence_gaps(*_args, **_kwargs):
-        return []
-
     monkeypatch.setattr("app.pipeline.phase5_planning.act_planner.async_session_factory", lambda: db)
     monkeypatch.setattr(
         "app.pipeline.phase5_planning.act_planner.load_planning_context",
@@ -1224,10 +1214,6 @@ async def test_plan_act_short_ids_do_not_break_support_hydration(
     monkeypatch.setattr(
         "app.pipeline.phase5_planning.act_planner.call_sonnet_structured",
         _fake_call_sonnet_structured,
-    )
-    monkeypatch.setattr(
-        "app.pipeline.phase5_planning.act_planner._fill_evidence_gaps",
-        _fake_fill_evidence_gaps,
     )
     monkeypatch.setattr(
         "app.pipeline.phase5_planning.act_planner.publish_event",

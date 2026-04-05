@@ -26,7 +26,7 @@ def summarize_planning_context(
             "id": str(claim.id),
             "type": claim.claim_type,
             "verification": claim.verification_level,
-            "statement": claim.statement[:300],
+            "statement": claim.statement[:500],
             "supporting_evidence_count": 0,
             "illustrative_evidence_count": 0,
             "has_illustrative": False,
