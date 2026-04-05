@@ -483,7 +483,8 @@ def test_index_provenance_contexts_attaches_intent_and_directness() -> None:
 
 def test_build_verifier_claim_payload_keeps_full_quote_text() -> None:
     long_quote = "A" * 1200
-    claim = SimpleNamespace(id=uuid.uuid4(), statement="Claim statement")
+    long_statement = "Claim statement " * 60
+    claim = SimpleNamespace(id=uuid.uuid4(), statement=long_statement)
     payload = _build_verifier_claim_payload(
         claim,
         {
@@ -499,6 +500,7 @@ def test_build_verifier_claim_payload_keeps_full_quote_text() -> None:
     )
 
     assert payload["evidence"][0]["quote"] == long_quote
+    assert payload["statement"] == long_statement
 
 
 def test_split_verifier_batches_uses_char_budget() -> None:

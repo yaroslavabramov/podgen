@@ -924,7 +924,7 @@ async def _should_force_full_verify_for_node_rerun(
 def _build_verifier_claim_payload(claim: Claim, evidence_data: dict) -> dict:
     payload = {
         "claim_id": str(claim.id),
-        "statement": claim.statement[:500],
+        "statement": claim.statement,
         "evidence": [_compact_verifier_evidence_item(item) for item in evidence_data["supporting"]],
         "independent_source_count": len(evidence_data["source_ids"]),
         "branch_ids": evidence_data["branch_ids"],
@@ -1342,7 +1342,7 @@ async def verify_claims(state: PipelineState) -> dict:
                     {
                         "claim_id": cid,
                         "claim_type": claim.claim_type,
-                        "statement": claim.statement[:500],
+                        "statement": claim.statement,
                         "verification_level": prefiltered,
                         "evidence": evidence_data["supporting"],
                         "branch_ids": evidence_data["branch_ids"],
@@ -1388,7 +1388,7 @@ async def verify_claims(state: PipelineState) -> dict:
                     {
                         "claim_id": cid,
                         "claim_type": claim.claim_type,
-                        "statement": claim.statement[:500],
+                        "statement": claim.statement,
                         "llm_result": llm_result,
                         "pre_ceiling_level": pre_ceiling_level,
                         "final_level": level,

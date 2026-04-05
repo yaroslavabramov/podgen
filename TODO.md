@@ -566,7 +566,7 @@ Deferred after Round 68:
 - [ ] **P1**: Reintroduce claim-vs-claim conflict detection as an upstream LLM adjudication pass instead of showrunner-side numeric heuristics
 - [x] **P1**: Fix semantic claim-to-branch/question assignment so verifier-loop corroborates the right research target instead of following only broad provenance lineage
 - [x] **P1**: Rework targeted rebuild / verifier reuse so fingerprint-based skipping can actually save LLM calls for unchanged rebuilt claims (prefer update-over-delete semantics where feasible)
-- [x] ~~**P1**: Add stronger showrunner claim-density caps~~ — superseded: deterministic density cap removed; showrunner prompt handles curation at LLM level
+- [x] **P1**: Reintroduce showrunner claim-density caps as a soft prompt constraint plus deterministic overload rebalance for pathological act skew
 - [ ] **P2**: Improve claim-level multi-source diversity via post-build merge/corroboration or richer builder prompting, instead of leaving almost all planning claims at `source_diversity = 1`
 
 **Round 74 (act-planner claim-first evidence packaging):**
@@ -658,6 +658,14 @@ Deferred after Round 68:
 **Round 89 (semantic merge guardrails):**
 - [x] **P1**: Semantic apply (per-branch + cross-branch) now enforces `claim_type` match and numeric/date anchor (`numbers_and_dates`) match to prevent destructive over-merge across distinct beats
 - [x] **P2**: Haiku dedupe prompt now receives `claim_type` + `numbers_and_dates` and is explicitly instructed not to merge mismatching anchors/types
+
+**Round 90 (planning truncation cleanup + act balance):**
+- [x] **P0**: Removed mid-sentence `description[:400]` truncation from the act-planner Haiku grounding gate; quality checks now see the full beat-card text
+- [x] **P1**: Tightened `ACT_PLANNER_SYSTEM` so scene descriptions stay compact beat cards (`1-3` sentences, max `250` chars) instead of drifting into mini-script paragraphs
+- [x] **P1**: Showrunner prompt payload now includes `total_claim_count`, and post-normalization planning applies a soft per-act claim ceiling with deterministic overflow rebalance/drop as a safety valve against pathological act skew
+- [x] **P1**: Removed runtime claim-statement truncation from planning/screenwriting/verifier payload builders; downstream consumers now see full claim text and any future brevity limit should live upstream in prompt contracts
+- [ ] **P2**: Add planning telemetry/debug summaries for per-act claim load and beat-card description length so overloaded acts are visible in run artifacts without manual inspection
+- [ ] **P2**: Audit remaining non-runtime claim-text truncations (for example shownotes/debug-only summaries) and keep only those that serve real compression rather than cargo-cult limits
 
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)

@@ -744,7 +744,7 @@ async def _load_claim_prompt_payloads(db, claim_ids: list[str]) -> dict[str, dic
             "id": str(claim.id),
             "type": claim.claim_type,
             "verification": claim.verification_level,
-            "statement": claim.statement[:500],
+            "statement": claim.statement,
             "attribution": claim.attribution,
         }
     return payloads

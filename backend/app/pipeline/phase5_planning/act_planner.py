@@ -35,6 +35,7 @@ MAX_PRIOR_PRIMARY_CLAIMS = 12
 PRIOR_PRIMARY_STATEMENT_CHARS = 200
 MAX_CALLBACK_ENDING_CALLBACK_CLAIMS = 2
 MAX_CALLBACK_ENDING_DESCRIPTION_CHARS = 320
+MAX_BEAT_CARD_DESCRIPTION_CHARS = 250
 SCENE_JOB_VALUES = {
     "reframe",
     "cost",
@@ -57,7 +58,7 @@ Return JSON:
       "scene": 1,
       "type": "hook|explanation|debate|case_study|transition|summary|takeaway",
       "scene_job": "reframe|cost|contrast|bridge|synthesize|apply|stress_test|null",
-      "description": "1-3 sentence beat card describing what changes in this scene",
+      "description": "1-3 sentence beat card (max 250 characters) describing what changes in this scene",
       "claim_ids": ["id"],
       "evidence_ids": ["id"],
       "estimated_duration_seconds": 45,
@@ -115,6 +116,10 @@ Rules:
 - In historical acts, keep the scene order chronologically legible unless there is a strong editorial reason not to. Do not jump to a later retrospective statistic or outcome before the key event it is supposed to explain, unless the beat card clearly frames it as hindsight.
 - Use `scene_count_guidance` as the default size target for the act. Do not exceed it unless the act would otherwise feel structurally incomplete.
 - Prefer compact beat cards, not mini-script paragraphs. `description` should describe the beat, not write the scene. `notes` should stay short.
+- Each scene description must stay a beat card: 1-3 sentences, maximum 250 characters.
+- State what CHANGES in this scene: the shift in understanding, the new complication, or the consequence.
+- Do not draft dialogue, host banter, or narration inside `description`.
+- If a description needs more than 3 sentences or more than 250 characters, the scene is trying to do too much. Split it or simplify it.
 - When a scene uses a claim, attach one or more `evidence_ids` from that claim's bundled support whenever available.
 - `claim_ids` and `evidence_ids` are opaque labels. Reuse only labels present in the input and copy them exactly.
 - Prefer bundled claim support over improvising unsupported scenes or assuming an evidence search will rescue the beat later.
@@ -1132,6 +1137,18 @@ async def _collect_beat_sheet_quality_issues(
         is_last_scene = idx == (last_scene_number - 1)
         description = str(scene.get("description") or "").strip()
 
+        if description and len(description) > MAX_BEAT_CARD_DESCRIPTION_CHARS:
+            issues.append(
+                {
+                    "severity": "structural",
+                    "type": "beat_card_description_too_long",
+                    "scene": scene_number,
+                    "scene_type": scene_type,
+                    "message": "Scene description exceeds the beat-card budget and may drift into mini-draft narration.",
+                    "description_chars": len(description),
+                }
+            )
+
         if scene_type in explanation_like and not primary_claim_ids and callback_claim_ids:
             issues.append(
                 {
@@ -1222,7 +1239,7 @@ async def _run_llm_quality_checks(
             scenes_for_check.append({
                 "scene": scene_number,
                 "type": scene_type,
-                "description": description[:400],
+                "description": description,
                 "claims": scene_claim_stmts,
                 "skip_grounding": skip_grounding,
             })

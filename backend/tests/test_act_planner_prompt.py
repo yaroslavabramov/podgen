@@ -18,6 +18,7 @@ from app.pipeline.phase5_planning.act_planner import (
     _normalize_beat_sheet,
     _recover_scene_claim_ids,
     _recover_scene_evidence_ids,
+    _run_llm_quality_checks,
     _scene_job,
     _scene_count_guidance,
     _split_scene_claim_roles,
@@ -259,6 +260,63 @@ def test_scene_count_guidance_tracks_duration_bands() -> None:
     assert _scene_count_guidance(300) == {"min_scenes": 4, "target_scenes": 5, "max_scenes": 6}
     assert _scene_count_guidance(420) == {"min_scenes": 5, "target_scenes": 6, "max_scenes": 7}
     assert _scene_count_guidance(600) == {"min_scenes": 6, "target_scenes": 7, "max_scenes": 8}
+
+
+def test_act_planner_prompt_enforces_compact_beat_cards() -> None:
+    assert "maximum 250 characters" in ACT_PLANNER_SYSTEM
+    assert "State what CHANGES in this scene" in ACT_PLANNER_SYSTEM
+    assert "If a description needs more than 3 sentences or more than 250 characters" in ACT_PLANNER_SYSTEM
+
+
+@pytest.mark.asyncio
+async def test_run_llm_quality_checks_sends_full_description_to_grounding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    long_description = "Это длинная сцена. " * 35
+    captured: dict[str, object] = {}
+    claim_one = "11111111-1111-1111-1111-111111111111"
+    claim_two = "22222222-2222-2222-2222-222222222222"
+
+    async def _fake_grounding(scenes):
+        captured["scenes"] = scenes
+        return []
+
+    async def _fake_overlap(_scenes):
+        return []
+
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner._check_description_claim_grounding",
+        _fake_grounding,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner._check_cross_scene_overlap",
+        _fake_overlap,
+    )
+
+    issues = await _run_llm_quality_checks(
+        [
+            {
+                "scene": 1,
+                "type": "explanation",
+                "description": long_description,
+                "claim_ids": [claim_one],
+            },
+            {
+                "scene": 2,
+                "type": "case_study",
+                "description": "Короткая сцена.",
+                "claim_ids": [claim_two],
+            },
+        ],
+        {
+            claim_one: "Claim one",
+            claim_two: "Claim two",
+        },
+    )
+
+    assert issues == []
+    assert captured["scenes"][0]["description"] == long_description.strip()
+    assert len(captured["scenes"][0]["description"]) > 400
 
 
 def test_act_planner_prompt_demands_compact_beats_and_real_conflict_gate() -> None:
@@ -507,7 +565,42 @@ async def test_collect_beat_sheet_quality_issues_flags_oversized_callback_only_e
     assert _has_structural_overlap_failures(issues)
 
 
-async def test_collect_beat_sheet_quality_issues_keeps_long_callback_only_ending_advisory() -> None:
+@pytest.mark.asyncio
+async def test_collect_beat_sheet_quality_issues_flags_overlong_beat_card_structural() -> None:
+    beat_sheet = [
+        {
+            "scene": 1,
+            "type": "explanation",
+            "primary_claim_ids": ["11111111-1111-1111-1111-111111111111"],
+            "callback_claim_ids": [],
+            "description": "x" * 251,
+        },
+        {
+            "scene": 2,
+            "type": "case_study",
+            "primary_claim_ids": ["22222222-2222-2222-2222-222222222222"],
+            "callback_claim_ids": [],
+            "description": "Short beat.",
+        },
+    ]
+
+    issues = await _collect_beat_sheet_quality_issues(beat_sheet)
+
+    assert issues == [
+        {
+            "severity": "structural",
+            "type": "beat_card_description_too_long",
+            "scene": 1,
+            "scene_type": "explanation",
+            "message": "Scene description exceeds the beat-card budget and may drift into mini-draft narration.",
+            "description_chars": 251,
+        }
+    ]
+    assert _has_structural_overlap_failures(issues)
+
+
+@pytest.mark.asyncio
+async def test_collect_beat_sheet_quality_issues_keeps_callback_only_ending_advisory_but_blocks_long_beat_card() -> None:
     beat_sheet = [
         {
             "scene": 1,
@@ -530,6 +623,14 @@ async def test_collect_beat_sheet_quality_issues_keeps_long_callback_only_ending
 
     assert issues == [
         {
+            "severity": "structural",
+            "type": "beat_card_description_too_long",
+            "scene": 2,
+            "scene_type": "takeaway",
+            "message": "Scene description exceeds the beat-card budget and may drift into mini-draft narration.",
+            "description_chars": 321,
+        },
+        {
             "severity": "advisory",
             "type": "callback_only_ending",
             "scene": 2,
@@ -547,7 +648,7 @@ async def test_collect_beat_sheet_quality_issues_keeps_long_callback_only_ending
             "scene_job": "reframe",
         },
     ]
-    assert not _has_structural_overlap_failures(issues)
+    assert _has_structural_overlap_failures(issues)
 
 
 def test_hydrate_scene_evidence_ids_from_claim_support_prefers_scene_type_order() -> None:

@@ -68,3 +68,25 @@ def test_summarize_planning_context_surfaces_illustrative_and_intent_signals() -
     assert evidence_summary["illustrative"] is True
     assert evidence_summary["direct_or_contextual"] == ["direct"]
     assert evidence_summary["question_contexts"][0]["intent"] == "explain"
+
+
+def test_summarize_planning_context_keeps_full_claim_statement() -> None:
+    long_statement = "Mechanism detail " * 60
+    claim_id = uuid.uuid4()
+
+    claim_index, evidence_index = summarize_planning_context(
+        claims=[
+            SimpleNamespace(
+                id=claim_id,
+                claim_type="fact",
+                verification_level="verified",
+                statement=long_statement,
+            )
+        ],
+        claim_rows=[],
+        provenances=[],
+        question_context_map={},
+    )
+
+    assert claim_index[str(claim_id)]["statement"] == long_statement
+    assert evidence_index == {}
