@@ -1189,10 +1189,16 @@ async def _run_llm_quality_checks(
     for idx, scene in enumerate(beat_sheet):
         scene_number = _positive_int(scene.get("scene"), idx + 1)
         description = str(scene.get("description") or "").strip()
-        all_claim_ids = _uuid_list(scene.get("claim_ids")) + _uuid_list(scene.get("primary_claim_ids"))
-        scene_claim_stmts = [
+        primary_claim_ids = _scene_primary_claim_ids(scene)
+        callback_claim_ids = _scene_callback_claim_ids(scene)
+        primary_claim_stmts = [
             claim_statements[cid]
-            for cid in dict.fromkeys(all_claim_ids)
+            for cid in dict.fromkeys(primary_claim_ids)
+            if cid in claim_statements
+        ]
+        callback_claim_stmts = [
+            claim_statements[cid]
+            for cid in dict.fromkeys(callback_claim_ids)
             if cid in claim_statements
         ]
         scene_type = str(scene.get("type") or "").strip()
@@ -1200,12 +1206,13 @@ async def _run_llm_quality_checks(
         # would compare their description against 1-2 leftover claims, producing
         # false positives.  Still include them for overlap check.
         skip_grounding = scene_type in {"takeaway", "summary"}
-        if description and scene_claim_stmts:
+        if description and (primary_claim_stmts or callback_claim_stmts):
             scenes_for_check.append({
                 "scene": scene_number,
                 "type": scene_type,
                 "description": description,
-                "claims": scene_claim_stmts,
+                "primary_claims": primary_claim_stmts,
+                "callback_claims": callback_claim_stmts,
                 "skip_grounding": skip_grounding,
             })
 
@@ -1245,9 +1252,11 @@ async def _check_description_claim_grounding(
         return []
     prompt = json.dumps({
         "task": "For each scene, determine whether the description is substantively driven by the assigned claims. "
-                "A description is DISCONNECTED only if its core insight has NO basis in the claims — "
-                "e.g. the description talks about a general thesis while the claims are about unrelated specific events. "
-                "A description that explains, illustrates, or draws a consequence from its claims IS grounded — do NOT flag it. "
+                "`primary_claims` are the scene's new material. `callback_claims` are previously established context the scene may legitimately rely on. "
+                "A description is DISCONNECTED only if its core insight has NO basis in either the new material or the callback context — "
+                "e.g. the description talks about a general thesis while both primary and callback claims are about unrelated specific facts. "
+                "A description that explains, illustrates, or draws a consequence from primary claims plus callback context IS grounded — do NOT flag it. "
+                "Do not treat callback-based context as a mismatch by itself. "
                 "If in doubt, the scene is grounded. Return ONLY genuinely disconnected scenes.",
         "scenes": groundable,
         "return_format": {"disconnected_scenes": [{"scene": "scene_number", "reason": "why disconnected"}]},
@@ -1327,10 +1336,15 @@ def _has_structural_overlap_failures(issues: list[dict[str, Any]]) -> bool:
 def _scene_claim_statements(
     scene: dict[str, Any],
     claim_statements_lookup: dict[str, str],
+    *,
+    include_callbacks: bool = False,
 ) -> list[str]:
+    claim_ids = _scene_primary_claim_ids(scene)
+    if include_callbacks:
+        claim_ids += _scene_callback_claim_ids(scene)
     return [
         claim_statements_lookup.get(cid, "")
-        for cid in _uuid_list(scene.get("claim_ids"))
+        for cid in dict.fromkeys(claim_ids)
         if cid in claim_statements_lookup
     ]
 
@@ -1359,9 +1373,13 @@ def _format_structural_retry_detail(
         scene = _find_scene_by_number(beat_sheet, scene_number)
         if scene is None:
             return detail
-        scene_claims = _scene_claim_statements(scene, claim_statements_lookup)
+        scene_claims = _scene_claim_statements(
+            scene,
+            claim_statements_lookup,
+            include_callbacks=True,
+        )
         if scene_claims:
-            detail += "\n  Scene's actual claims:\n" + "\n".join(
+            detail += "\n  Scene's actual claims and callback context:\n" + "\n".join(
                 f"    - {statement}"
                 for statement in scene_claims
             )

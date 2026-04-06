@@ -250,6 +250,7 @@ async def test_run_llm_quality_checks_sends_full_description_to_grounding(
     captured: dict[str, object] = {}
     claim_one = "11111111-1111-1111-1111-111111111111"
     claim_two = "22222222-2222-2222-2222-222222222222"
+    claim_three = "33333333-3333-3333-3333-333333333333"
 
     async def _fake_grounding(scenes):
         captured["scenes"] = scenes
@@ -279,18 +280,24 @@ async def test_run_llm_quality_checks_sends_full_description_to_grounding(
                 "scene": 2,
                 "type": "case_study",
                 "description": "Короткая сцена.",
-                "claim_ids": [claim_two],
+                "primary_claim_ids": [claim_two],
+                "callback_claim_ids": [claim_three],
             },
         ],
         {
             claim_one: "Claim one",
             claim_two: "Claim two",
+            claim_three: "Claim three",
         },
     )
 
     assert issues == []
     assert captured["scenes"][0]["description"] == long_description.strip()
     assert len(captured["scenes"][0]["description"]) > 400
+    assert captured["scenes"][0]["primary_claims"] == ["Claim one"]
+    assert captured["scenes"][0]["callback_claims"] == []
+    assert captured["scenes"][1]["primary_claims"] == ["Claim two"]
+    assert captured["scenes"][1]["callback_claims"] == ["Claim three"]
 
 
 def test_act_planner_prompt_demands_compact_beats_and_real_conflict_gate() -> None:
@@ -512,6 +519,35 @@ def test_format_structural_retry_detail_for_callback_only_scene_allows_shorter_a
     assert "delete it and return a shorter act" in detail
     assert "Scene 2 current move: apply" in detail
     assert "Same concrete anomaly claim." in detail
+
+
+def test_format_structural_retry_detail_for_description_mismatch_includes_callback_context() -> None:
+    primary_id = "11111111-1111-1111-1111-111111111111"
+    callback_id = "22222222-2222-2222-2222-222222222222"
+    detail = _format_structural_retry_detail(
+        {
+            "severity": "structural",
+            "type": "description_claim_mismatch",
+            "scene": 4,
+            "message": "Description is not grounded in scene claims: too broad.",
+        },
+        beat_sheet=[
+            {
+                "scene": 4,
+                "type": "debate",
+                "primary_claim_ids": [primary_id],
+                "callback_claim_ids": [callback_id],
+            }
+        ],
+        claim_statements_lookup={
+            primary_id: "Shops refuse the 1000 HKD note.",
+            callback_id: "Multiple versions of the same note circulate at once.",
+        },
+    )
+
+    assert "Scene's actual claims and callback context:" in detail
+    assert "Shops refuse the 1000 HKD note." in detail
+    assert "Multiple versions of the same note circulate at once." in detail
 
 
 async def test_collect_beat_sheet_quality_issues_keeps_callback_only_takeaway_advisory() -> None:
