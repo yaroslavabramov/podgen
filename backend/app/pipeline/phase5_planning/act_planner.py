@@ -32,6 +32,7 @@ MAX_DIRECT_SUPPORT_PER_CLAIM = 1
 MAX_ILLUSTRATIVE_SUPPORT_PER_CLAIM = 1
 MAX_EXISTING_EVIDENCE_IDS_PER_SCENE = 2
 MAX_PRIOR_PRIMARY_CLAIMS = 12
+MAX_RECENT_ACT_STRUCTURES = 2
 PRIOR_PRIMARY_STATEMENT_CHARS = 200
 MAX_CALLBACK_ENDING_CALLBACK_CLAIMS = 2
 MAX_CALLBACK_ENDING_DESCRIPTION_CHARS = 320
@@ -113,11 +114,13 @@ Rules:
   - Do not restate the act's main reveal in the next scene as if it were new.
   - Not every claim deserves its own beat. Near-paraphrase claims or one mechanism family often belong in one scene, with the rest serving as support.
   - `prior_acts_primary_claims` lists material already established earlier. If it recurs here, it should usually return as context rather than as a fresh explanation unless this act adds a genuinely new layer.
+  - `recent_act_structures` summarizes how the latest acts were shaped structurally. Use it to avoid repeating the same opening move, explanation-heavy middle, and ending function in back-to-back acts.
   - A genuinely new layer means the listener learns something meaningfully different, not just the same mechanism in different words.
   - In historical acts, keep the scene order chronologically legible unless the beat card clearly frames a later point as hindsight.
   - `case_study` is optional. Use it only when a concrete episode materially changes the listener's understanding, not when it simply replays an earlier image.
   - `debate` is optional. Use it only when the act has real conflict pressure (`conflict_count > 0`) or a true comparative argument.
   - `takeaway` and `summary` scenes should land implication or reframing, not mechanically recap the act.
+  - Structural variety matters across the episode. If the previous act already used the same opening type, explanation-heavy middle, and takeaway cadence, choose a different act shape here instead of paraphrasing the same movement.
 - Scene grounding:
   - Each scene description must be substantively driven by its assigned claims.
   - A scene may draw a consequence from its claims and already-established act context.
@@ -210,6 +213,7 @@ async def plan_act(state: PipelineState) -> dict:
                 claim_context_cache=claim_context_cache,
             )
             prior_acts_ending_types = _collect_prior_acts_ending_types(acts, i - 1)
+            recent_act_structures = _collect_prior_act_structures(acts, i - 1)
 
             allowed_claim_ids = {c["id"] for c in act_claims}
             allowed_evidence_ids = {e["id"] for e in act_evidence}
@@ -229,6 +233,7 @@ async def plan_act(state: PipelineState) -> dict:
                 output_language=state.get("language", "en"),
                 prior_acts_primary_claims=prior_acts_primary_claims,
                 prior_acts_ending_types=prior_acts_ending_types,
+                recent_act_structures=recent_act_structures,
             )
             prompt_claims = list(base_prompt["claims"])
             claim_support_lookup = _claim_support_lookup(prompt_claims)
@@ -244,10 +249,6 @@ async def plan_act(state: PipelineState) -> dict:
                 claim_sid=claim_sid,
                 evidence_sid=evidence_sid,
             )
-            if base_prompt.get("prior_acts_primary_claims"):
-                base_prompt["prior_acts_primary_claims"] = shorten_claim_dicts(
-                    base_prompt["prior_acts_primary_claims"], claim_sid,
-                )
             prompt_allowed_claim_ids = allowed_claim_ids | claim_sid.short_ids
             prompt_allowed_evidence_ids = allowed_evidence_ids | evidence_sid.short_ids
 
@@ -322,7 +323,8 @@ async def plan_act(state: PipelineState) -> dict:
                     candidate_beat_sheet = _split_scene_claim_roles(candidate_beat_sheet)
                     candidate_beat_sheet = _assign_scene_jobs(candidate_beat_sheet)
                     candidate_quality_issues = await _collect_beat_sheet_quality_issues(
-                        candidate_beat_sheet, claim_statements=claim_statements_lookup,
+                        candidate_beat_sheet,
+                        claim_statements=claim_statements_lookup,
                     )
                     structural_quality_failure = _has_structural_overlap_failures(candidate_quality_issues)
                     if candidate_beat_sheet:
@@ -469,6 +471,25 @@ def _positive_int(value: Any, default: int) -> int:
     return parsed if parsed > 0 else default
 
 
+def _scene_count_bucket(scene_count: int) -> str:
+    if scene_count <= 4:
+        return "short"
+    if scene_count <= 6:
+        return "medium"
+    return "long"
+
+
+def _ratio_bucket(count: int, total: int) -> str:
+    if total <= 0:
+        return "none"
+    ratio = count / total
+    if ratio < 0.34:
+        return "low"
+    if ratio < 0.67:
+        return "medium"
+    return "high"
+
+
 def _uuid_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -607,6 +628,7 @@ def _build_act_prompt_payload(
     output_language: str,
     prior_acts_primary_claims: list[dict[str, Any]],
     prior_acts_ending_types: list[str] | None = None,
+    recent_act_structures: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     estimated_duration = _positive_int(act.get("estimated_duration_seconds"), 300)
     conflict_ids = _uuid_list(act.get("conflict_brief_ids"))
@@ -629,6 +651,7 @@ def _build_act_prompt_payload(
         "conflict_count": len(conflict_ids),
         "prior_acts_primary_claims": prior_acts_primary_claims,
         "prior_acts_ending_types": prior_acts_ending_types or [],
+        "recent_act_structures": recent_act_structures or [],
         "claims": prompt_claims,
     }
 
@@ -679,7 +702,6 @@ def _collect_prior_acts_primary_claims(
                 seen.add(claim_id)
                 ordered.append(
                     {
-                        "id": claim_id,
                         "statement": statement[:PRIOR_PRIMARY_STATEMENT_CHARS],
                         "act_number": act_number,
                     }
@@ -687,6 +709,100 @@ def _collect_prior_acts_primary_claims(
     if len(ordered) <= MAX_PRIOR_PRIMARY_CLAIMS:
         return ordered
     return ordered[-MAX_PRIOR_PRIMARY_CLAIMS:]
+
+
+def _dominant_value(values: list[str]) -> str:
+    counts: dict[str, int] = {}
+    for value in values:
+        if not value:
+            continue
+        counts[value] = counts.get(value, 0) + 1
+    if not counts:
+        return ""
+    max_count = max(counts.values())
+    for value in values:
+        if value and counts.get(value) == max_count:
+            return value
+    return ""
+
+
+def _act_structure_signature(
+    beat_sheet: list[dict[str, Any]],
+    *,
+    act_number: int | None = None,
+) -> dict[str, Any]:
+    ordered_scenes = sorted(
+        [scene for scene in beat_sheet if isinstance(scene, dict)],
+        key=lambda scene: _positive_int(scene.get("scene"), 0),
+    )
+    if not ordered_scenes:
+        return {
+            "act_number": act_number,
+            "scene_type_sequence": [],
+            "scene_job_sequence": [],
+            "scene_claim_mode_sequence": [],
+            "opening_type": "",
+            "opening_job": "",
+            "ending_type": "",
+            "ending_job": "",
+            "scene_count": 0,
+            "scene_count_bucket": "short",
+            "explanation_ratio_bucket": "none",
+            "case_study_ratio_bucket": "none",
+            "callback_density_bucket": "none",
+            "dominant_middle_type": "",
+            "dominant_middle_job": "",
+        }
+
+    scene_types = [str(scene.get("type") or "").strip() for scene in ordered_scenes]
+    scene_jobs = [_scene_job(scene) for scene in ordered_scenes]
+    scene_claim_modes = [_scene_claim_mode(scene) for scene in ordered_scenes]
+    middle_scenes = ordered_scenes[1:-1] if len(ordered_scenes) > 2 else ordered_scenes
+    middle_types = [str(scene.get("type") or "").strip() for scene in middle_scenes]
+    middle_jobs = [_scene_job(scene) for scene in middle_scenes]
+    explanation_count = sum(1 for scene_type in scene_types if scene_type == "explanation")
+    case_study_count = sum(1 for scene_type in scene_types if scene_type == "case_study")
+    callback_scene_count = sum(1 for mode in scene_claim_modes if mode in {"mixed", "callback"})
+
+    return {
+        "act_number": act_number,
+        "scene_type_sequence": scene_types,
+        "scene_job_sequence": scene_jobs,
+        "scene_claim_mode_sequence": scene_claim_modes,
+        "opening_type": scene_types[0],
+        "opening_job": scene_jobs[0],
+        "ending_type": scene_types[-1],
+        "ending_job": scene_jobs[-1],
+        "scene_count": len(ordered_scenes),
+        "scene_count_bucket": _scene_count_bucket(len(ordered_scenes)),
+        "explanation_ratio_bucket": _ratio_bucket(explanation_count, len(ordered_scenes)),
+        "case_study_ratio_bucket": _ratio_bucket(case_study_count, len(ordered_scenes)),
+        "callback_density_bucket": _ratio_bucket(callback_scene_count, len(ordered_scenes)),
+        "dominant_middle_type": _dominant_value(middle_types),
+        "dominant_middle_job": _dominant_value(middle_jobs),
+    }
+
+
+def _collect_prior_act_structures(
+    acts: list[dict[str, Any]],
+    current_act_idx: int,
+) -> list[dict[str, Any]]:
+    structures: list[dict[str, Any]] = []
+    for act in acts[: max(current_act_idx, 0)]:
+        if not isinstance(act, dict):
+            continue
+        beat_sheet = act.get("beat_sheet")
+        if not isinstance(beat_sheet, list) or not beat_sheet:
+            continue
+        structures.append(
+            _act_structure_signature(
+                beat_sheet,
+                act_number=_positive_int(act.get("act_number"), 0) or None,
+            )
+        )
+    if len(structures) <= MAX_RECENT_ACT_STRUCTURES:
+        return structures
+    return structures[-MAX_RECENT_ACT_STRUCTURES:]
 
 
 def _build_claim_prompt_payloads(

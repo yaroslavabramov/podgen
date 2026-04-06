@@ -6,10 +6,12 @@ import pytest
 
 from app.pipeline.phase5_planning.act_planner import (
     ACT_PLANNER_SYSTEM,
+    _act_structure_signature,
     _assign_scene_jobs,
     _build_act_prompt_payload,
     _collect_prior_acts_ending_types,
     _collect_prior_acts_primary_claims,
+    _collect_prior_act_structures,
     _collect_beat_sheet_quality_issues,
     _hydrate_scene_evidence_ids_from_claim_support,
     _extract_scene_strategy,
@@ -133,9 +135,27 @@ def test_build_act_prompt_payload_carries_story_contract_and_branch_focus() -> N
         output_language="ru",
         prior_acts_primary_claims=[
             {
-                "id": "p1",
                 "statement": "Earlier act already established the reserve rule.",
                 "act_number": 1,
+            }
+        ],
+        recent_act_structures=[
+            {
+                "act_number": 1,
+                "scene_type_sequence": ["hook", "explanation", "takeaway"],
+                "scene_job_sequence": ["introduce", "apply", "synthesize"],
+                "scene_claim_mode_sequence": ["primary", "mixed", "callback"],
+                "opening_type": "hook",
+                "opening_job": "introduce",
+                "ending_type": "takeaway",
+                "ending_job": "synthesize",
+                "scene_count": 3,
+                "scene_count_bucket": "short",
+                "explanation_ratio_bucket": "low",
+                "case_study_ratio_bucket": "none",
+                "callback_density_bucket": "medium",
+                "dominant_middle_type": "explanation",
+                "dominant_middle_job": "apply",
             }
         ],
     )
@@ -150,9 +170,27 @@ def test_build_act_prompt_payload_carries_story_contract_and_branch_focus() -> N
     assert payload["conflict_count"] == 0
     assert payload["prior_acts_primary_claims"] == [
         {
-            "id": "p1",
             "statement": "Earlier act already established the reserve rule.",
             "act_number": 1,
+        }
+    ]
+    assert payload["recent_act_structures"] == [
+        {
+            "act_number": 1,
+            "scene_type_sequence": ["hook", "explanation", "takeaway"],
+            "scene_job_sequence": ["introduce", "apply", "synthesize"],
+            "scene_claim_mode_sequence": ["primary", "mixed", "callback"],
+            "opening_type": "hook",
+            "opening_job": "introduce",
+            "ending_type": "takeaway",
+            "ending_job": "synthesize",
+            "scene_count": 3,
+            "scene_count_bucket": "short",
+            "explanation_ratio_bucket": "low",
+            "case_study_ratio_bucket": "none",
+            "callback_density_bucket": "medium",
+            "dominant_middle_type": "explanation",
+            "dominant_middle_job": "apply",
         }
     ]
     assert "evidence" not in payload
@@ -235,6 +273,89 @@ def test_scene_count_guidance_tracks_duration_bands() -> None:
     assert _scene_count_guidance(300) == {"min_scenes": 4, "target_scenes": 5, "max_scenes": 6}
     assert _scene_count_guidance(420) == {"min_scenes": 5, "target_scenes": 6, "max_scenes": 7}
     assert _scene_count_guidance(600) == {"min_scenes": 6, "target_scenes": 7, "max_scenes": 8}
+
+
+def test_act_structure_signature_summarizes_generic_shape() -> None:
+    claim_a = "11111111-1111-1111-1111-111111111111"
+    claim_b = "22222222-2222-2222-2222-222222222222"
+    beat_sheet = [
+        {"scene": 1, "type": "hook", "primary_claim_ids": [claim_a], "callback_claim_ids": []},
+        {
+            "scene": 2,
+            "type": "explanation",
+            "scene_job": "apply",
+            "primary_claim_ids": [claim_b],
+            "callback_claim_ids": [claim_a],
+        },
+        {
+            "scene": 3,
+            "type": "takeaway",
+            "scene_job": "synthesize",
+            "primary_claim_ids": [],
+            "callback_claim_ids": [claim_a, claim_b],
+        },
+    ]
+
+    signature = _act_structure_signature(beat_sheet, act_number=2)
+
+    assert signature == {
+        "act_number": 2,
+        "scene_type_sequence": ["hook", "explanation", "takeaway"],
+        "scene_job_sequence": ["", "apply", "synthesize"],
+        "scene_claim_mode_sequence": ["primary", "mixed", "callback"],
+        "opening_type": "hook",
+        "opening_job": "",
+        "ending_type": "takeaway",
+        "ending_job": "synthesize",
+        "scene_count": 3,
+        "scene_count_bucket": "short",
+        "explanation_ratio_bucket": "low",
+        "case_study_ratio_bucket": "low",
+        "callback_density_bucket": "medium",
+        "dominant_middle_type": "explanation",
+        "dominant_middle_job": "apply",
+    }
+
+
+def test_collect_prior_act_structures_uses_only_completed_prior_acts() -> None:
+    acts = [
+        {
+            "act_number": 1,
+            "beat_sheet": [
+                {
+                    "scene": 1,
+                    "type": "hook",
+                    "primary_claim_ids": ["11111111-1111-1111-1111-111111111111"],
+                    "callback_claim_ids": [],
+                },
+                {
+                    "scene": 2,
+                    "type": "takeaway",
+                    "scene_job": "synthesize",
+                    "primary_claim_ids": [],
+                    "callback_claim_ids": ["11111111-1111-1111-1111-111111111111"],
+                },
+            ],
+        },
+        {
+            "act_number": 2,
+            "beat_sheet": [
+                {
+                    "scene": 1,
+                    "type": "hook",
+                    "primary_claim_ids": ["22222222-2222-2222-2222-222222222222"],
+                    "callback_claim_ids": [],
+                }
+            ],
+        },
+        {"act_number": 3},
+    ]
+
+    structures = _collect_prior_act_structures(acts, 2)
+
+    assert [structure["act_number"] for structure in structures] == [1, 2]
+    assert structures[0]["ending_type"] == "takeaway"
+    assert structures[1]["scene_count"] == 1
 
 
 def test_act_planner_prompt_enforces_compact_beat_cards() -> None:
@@ -390,9 +511,9 @@ def test_collect_prior_acts_primary_claims_uses_planned_previous_acts_in_order()
         current_act_idx=3,
         claim_context_cache=cache,
     ) == [
-        {"id": claim_a, "statement": "Act one claim A", "act_number": 1},
-        {"id": claim_b, "statement": "Act one claim B", "act_number": 1},
-        {"id": claim_c, "statement": "Act two claim C", "act_number": 2},
+        {"statement": "Act one claim A", "act_number": 1},
+        {"statement": "Act one claim B", "act_number": 1},
+        {"statement": "Act two claim C", "act_number": 2},
     ]
 
 
