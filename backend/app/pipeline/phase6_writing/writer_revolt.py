@@ -144,6 +144,9 @@ Rules:
 - The payload may include a `seam_finding`; if this scene is opening a new act by replaying the previous act's question or punchline, fix that seam without flattening the scene.
 - The payload may include `intervention_targets`; solve those concrete dialogue problems, not generic "rewrite for style" goals.
 - If the boundary context already landed a punchline, do not reopen by paraphrasing it.
+- If this scene opens a new act, continue the same conversation instead of resetting into a more basic pedagogical question unless the scene's job explicitly requires that reset.
+- Do not default to `B asks -> A confirms -> A explains`. B may contribute with a hypothesis, a concrete observation, an objection, a consequence, or a partial answer.
+- When fixing repetitive agreement shapes, prefer removing explicit confirmation markers and changing the move, not just swapping one confirmation phrase for another.
 - Rewrite the whole scene if needed for rhythm, but keep the same scene job and content function.
 - Avoid translated-from-English phrasing or register drift.
 - Keep only speakers `A` and `B`.

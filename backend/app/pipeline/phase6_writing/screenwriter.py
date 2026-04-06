@@ -90,8 +90,10 @@ Writing rules:
   - If evidence, quotes, or source material are in another language, translate or paraphrase them into the dialogue language instead of dropping raw source-language text into the line.
   - Only keep a very short original-language snippet when the scene is explicitly discussing wording, and immediately make its meaning clear in the dialogue language.
 - Use `description` as the main job of the scene. Use `transition_note` only as a light landing/bridge if it helps the ending.
-- Use `act_title`, `previous_scene`, `previous_act_summary`, `already_covered_claims`, and `already_covered_claims_global` only as continuity context. Do not restate material that the listener already heard unless this scene is explicitly reframing or paying it off.
-- For the first scene of a later act, use `previous_act_summary` to build on what the listener already knows instead of resetting the story from zero.
+- Use `act_title`, `previous_scene`, `previous_act_summary`, `previous_act_tail_dialogue`, `already_covered_claims`, and `already_covered_claims_global` only as continuity context. Do not restate material that the listener already heard unless this scene is explicitly reframing or paying it off.
+- For the first scene of a later act, use `previous_act_summary` and `previous_act_tail_dialogue` to continue the same conversation instead of resetting the story from zero.
+- If `previous_act_tail_dialogue` is present, treat it as live conversational momentum, not background notes. Carry the unresolved pressure, cost, contradiction, or hanging question forward before introducing a broader new layer.
+- Do not open a new act by stepping back to a more basic pedagogical question than the previous act already earned unless the current scene explicitly requires that reset.
 - If `prior_scenes_dialogue` is present, read it to understand what this act has already said. Do not repeat insights, formulations, or narrative moves from earlier scenes. Build on the arc — contrast, deepen, complicate, or land. Also scan `prior_scenes_dialogue` for recurring opener words and confirmation markers — if a word or phrase already appears frequently, avoid it in this scene.
 - If `previous_scene.last_line` is present, prefer opening the scene as a natural continuation of that last spoken thought when it fits the beat. Do not hard-reset the conversation if a smooth carry-over is available.
 - The first 1-2 lines of a new scene should advance, challenge, narrow, or reframe what the listener just heard. Do not open by paraphrasing the previous scene's closing proposition unless the beat explicitly requires a callback.
@@ -134,6 +136,8 @@ Writing rules:
   - `transition`: pivot the listener cleanly from one framing to another
   - `summary`: compress what changed in understanding without sounding like bullet points
   - `takeaway`: use this scene's own claims to recontextualize the act — not summarize it
+- B does not have to contribute mainly through questions. B may open or respond with a hypothesis, a partial answer, an objection, a concrete observation, a consequence, or a reframing.
+- Do not default to `B asks -> A confirms -> A explains`. If that rhythm appears, break it by letting B assert, infer, object concretely, or land a consequence instead of teeing up another confirmation.
 - Do not make Host A always explain and Host B always ask for proof in the same rhythm. Vary who initiates, who reframes, and who gets the last word.
 - Do not default every scene to strict `ABAB` alternation. Occasional `AA` or `BB` runs are fine when they sound natural.
 - Vary agreement, confirmation, and challenge shapes. Not every challenge needs an interruption-style opener, and not every agreement needs an explicit confirmation marker.
@@ -341,6 +345,15 @@ async def write_screenplay(state: PipelineState) -> dict:
                     language=state["language"],
                     previous_scene=previous_scene_payload,
                     previous_act_summary=previous_act_summary if scene_idx == 1 else None,
+                    previous_act_tail_dialogue=(
+                        _build_previous_act_tail_dialogue(
+                            manifest.acts_json,
+                            act_idx,
+                            existing_segments=existing_segments,
+                        )
+                        if scene_idx == 1
+                        else None
+                    ),
                     already_covered_claims=already_covered_claims,
                     already_covered_claims_global=already_covered_claims_global,
                     recent_scene_starts=recent_scene_starts,
@@ -706,6 +719,7 @@ def _build_scene_prompt_payload(
     language: str,
     previous_scene: dict | None,
     previous_act_summary: dict | None,
+    previous_act_tail_dialogue: list[dict] | None,
     already_covered_claims: list[dict],
     already_covered_claims_global: list[dict],
     recent_scene_starts: list[str],
@@ -731,6 +745,7 @@ def _build_scene_prompt_payload(
         "estimated_duration_seconds": scene.get("estimated_duration_seconds"),
         "previous_scene": previous_scene,
         "previous_act_summary": previous_act_summary,
+        "previous_act_tail_dialogue": previous_act_tail_dialogue,
         "prior_scenes_dialogue": prior_scenes_dialogue,
         "already_covered_claims": already_covered_claims,
         "already_covered_claims_global": already_covered_claims_global,
@@ -1002,6 +1017,60 @@ def _build_previous_act_summary(
         "what_listener_now_knows": what_listener_now_knows,
         "bridge_to_current_act": last_line or last_scene.get("transition_note", ""),
     }
+
+
+def _build_previous_act_tail_dialogue(
+    acts_json: list[dict],
+    current_act_idx: int,
+    *,
+    existing_segments: dict[tuple[int, int], ScriptSegment],
+    max_scenes: int = 2,
+) -> list[dict]:
+    if current_act_idx <= 1:
+        return []
+    previous_act = acts_json[current_act_idx - 2]
+    if not isinstance(previous_act, dict):
+        return []
+
+    previous_act_number = int(previous_act.get("act_number") or (current_act_idx - 1))
+    beat_sheet = previous_act.get("beat_sheet", [])
+    if not isinstance(beat_sheet, list) or not beat_sheet:
+        return []
+
+    scene_refs: list[tuple[int, dict[str, Any]]] = []
+    for scene_idx, scene in enumerate(beat_sheet, start=1):
+        if not isinstance(scene, dict):
+            continue
+        scene_number = _normalized_scene_number(scene.get("scene"), scene_idx)
+        scene_refs.append((scene_number, scene))
+    if not scene_refs:
+        return []
+
+    tail_dialogue: list[dict] = []
+    for scene_number, scene in scene_refs[-max_scenes:]:
+        segment = existing_segments.get((previous_act_number, scene_number))
+        if segment is None:
+            continue
+        dialogue_json = segment.dialogue_json
+        if not isinstance(dialogue_json, list):
+            continue
+        lines = [
+            {"speaker": line.get("speaker"), "text": text}
+            for line in dialogue_json
+            if isinstance(line, dict)
+            and isinstance(line.get("speaker"), str)
+            and (text := str(line.get("text") or "").strip())
+        ]
+        if not lines:
+            continue
+        tail_dialogue.append(
+            {
+                "scene_number": scene_number,
+                "scene_type": scene.get("type", "explanation"),
+                "lines": lines[-4:],
+            }
+        )
+    return tail_dialogue
 
 
 def _collect_manifest_claim_ids(acts_json: object) -> list[str]:

@@ -12,6 +12,7 @@ from app.pipeline.phase6_writing.screenwriter import (
     _build_recent_scene_starts,
     _extract_last_dialogue_line,
     _build_previous_act_summary,
+    _build_previous_act_tail_dialogue,
     _build_previous_scene_payload,
     _build_scene_prompt_payload,
     _collect_manifest_claim_ids,
@@ -49,6 +50,7 @@ def _scene_prompt_payload_for_fingerprint(**overrides) -> dict:
         "estimated_duration_seconds": 60,
         "previous_scene": None,
         "previous_act_summary": None,
+        "previous_act_tail_dialogue": None,
         "prior_scenes_dialogue": [],
         "already_covered_claims": [],
         "already_covered_claims_global": [],
@@ -121,6 +123,16 @@ def test_build_scene_prompt_payload_uses_local_and_cross_act_context() -> None:
             "what_listener_now_knows": "Теперь слушатель понимает, почему банки не могут печатать без ограничений.",
             "bridge_to_current_act": "Но этот механизм пришлось строить в панике 1983 года.",
         },
+        previous_act_tail_dialogue=[
+            {
+                "scene_number": 5,
+                "scene_type": "takeaway",
+                "lines": [
+                    {"speaker": "A", "text": "Это не доверие к человеку, а жёсткая конструкция."},
+                    {"speaker": "B", "text": "Тогда вопрос уже не как это работает, а откуда это взялось."},
+                ],
+            }
+        ],
         already_covered_claims=[
             {"id": "c0", "statement": "Earlier scene already established the monetary chaos."}
         ],
@@ -162,6 +174,16 @@ def test_build_scene_prompt_payload_uses_local_and_cross_act_context() -> None:
             "what_listener_now_knows": "Теперь слушатель понимает, почему банки не могут печатать без ограничений.",
             "bridge_to_current_act": "Но этот механизм пришлось строить в панике 1983 года.",
         },
+        "previous_act_tail_dialogue": [
+            {
+                "scene_number": 5,
+                "scene_type": "takeaway",
+                "lines": [
+                    {"speaker": "A", "text": "Это не доверие к человеку, а жёсткая конструкция."},
+                    {"speaker": "B", "text": "Тогда вопрос уже не как это работает, а откуда это взялось."},
+                ],
+            }
+        ],
         "prior_scenes_dialogue": [],
         "already_covered_claims": [
             {"id": "c0", "statement": "Earlier scene already established the monetary chaos."}
@@ -205,8 +227,11 @@ def test_screenwriter_prompt_demands_cross_act_memory_and_looser_dialogue() -> N
     assert "Never output host names, role names, localized speaker labels, or other aliases" in SCREENWRITER_SYSTEM
     assert "Use `description` as the main job of the scene." in SCREENWRITER_SYSTEM
     assert "previous_act_summary" in SCREENWRITER_SYSTEM
+    assert "previous_act_tail_dialogue" in SCREENWRITER_SYSTEM
     assert "already_covered_claims_global" in SCREENWRITER_SYSTEM
     assert "prior_scenes_dialogue" in SCREENWRITER_SYSTEM
+    assert "continue the same conversation instead of resetting the story from zero" in SCREENWRITER_SYSTEM
+    assert "Do not open a new act by stepping back to a more basic pedagogical question" in SCREENWRITER_SYSTEM
     assert "Prefer callbacks over re-explanations." in SCREENWRITER_SYSTEM
     assert "Do not default every scene to strict `ABAB` alternation." in SCREENWRITER_SYSTEM
     assert "The first 1-2 lines of a new scene should advance, challenge, narrow, or reframe" in SCREENWRITER_SYSTEM
@@ -224,6 +249,8 @@ def test_screenwriter_prompt_demands_cross_act_memory_and_looser_dialogue() -> N
     assert "scene_claim_mode" in SCREENWRITER_SYSTEM
     assert "scene_job" in SCREENWRITER_SYSTEM
     assert "callback_claims" in SCREENWRITER_SYSTEM
+    assert "B does not have to contribute mainly through questions." in SCREENWRITER_SYSTEM
+    assert "Do not default to `B asks -> A confirms -> A explains`." in SCREENWRITER_SYSTEM
     assert "previous_scene.last_line" in SCREENWRITER_SYSTEM
     assert "recent_scene_starts" in SCREENWRITER_SYSTEM
     assert "takeaway" in SCREENWRITER_SYSTEM
@@ -636,6 +663,87 @@ def test_build_previous_act_summary_prefers_written_dialogue_over_planning_metad
     }
 
 
+def test_build_previous_act_tail_dialogue_prefers_written_tail_of_previous_act() -> None:
+    acts_json = [
+        {
+            "act_number": 1,
+            "title": "Origins",
+            "beat_sheet": [
+                {"scene": 1, "type": "hook"},
+                {"scene": 2, "type": "explanation"},
+                {"scene": 3, "type": "takeaway"},
+            ],
+        },
+        {"act_number": 2, "title": "Mechanism", "beat_sheet": []},
+    ]
+    existing_segments = {
+        (1, 1): SimpleNamespace(dialogue_json=[{"speaker": "A", "text": "Old hook."}]),
+        (1, 2): SimpleNamespace(
+            dialogue_json=[
+                {"speaker": "A", "text": "Mechanism line one."},
+                {"speaker": "B", "text": "Mechanism line two."},
+            ]
+        ),
+        (1, 3): SimpleNamespace(
+            dialogue_json=[
+                {"speaker": "A", "text": "Takeaway line one."},
+                {"speaker": "B", "text": "Takeaway line two."},
+                {"speaker": "A", "text": "Takeaway line three."},
+                {"speaker": "B", "text": "Takeaway line four."},
+                {"speaker": "A", "text": "Takeaway line five."},
+            ]
+        ),
+    }
+
+    assert _build_previous_act_tail_dialogue(acts_json, 1, existing_segments=existing_segments) == []
+    assert _build_previous_act_tail_dialogue(acts_json, 2, existing_segments=existing_segments) == [
+        {
+            "scene_number": 2,
+            "scene_type": "explanation",
+            "lines": [
+                {"speaker": "A", "text": "Mechanism line one."},
+                {"speaker": "B", "text": "Mechanism line two."},
+            ],
+        },
+        {
+            "scene_number": 3,
+            "scene_type": "takeaway",
+            "lines": [
+                {"speaker": "B", "text": "Takeaway line two."},
+                {"speaker": "A", "text": "Takeaway line three."},
+                {"speaker": "B", "text": "Takeaway line four."},
+                {"speaker": "A", "text": "Takeaway line five."},
+            ],
+        },
+    ]
+
+
+def test_build_previous_act_tail_dialogue_skips_non_list_dialogue_json() -> None:
+    acts_json = [
+        {
+            "act_number": 1,
+            "title": "Origins",
+            "beat_sheet": [
+                {"scene": 1, "type": "hook"},
+                {"scene": 2, "type": "takeaway"},
+            ],
+        },
+        {"act_number": 2, "title": "Mechanism", "beat_sheet": []},
+    ]
+    existing_segments = {
+        (1, 1): SimpleNamespace(dialogue_json=[{"speaker": "A", "text": "Still valid."}]),
+        (1, 2): SimpleNamespace(dialogue_json=None),
+    }
+
+    assert _build_previous_act_tail_dialogue(acts_json, 2, existing_segments=existing_segments) == [
+        {
+            "scene_number": 1,
+            "scene_type": "hook",
+            "lines": [{"speaker": "A", "text": "Still valid."}],
+        }
+    ]
+
+
 def test_build_already_covered_claims_payload_uses_written_claim_ids() -> None:
     claim_lookup = {
         "c1": {"statement": "First"},
@@ -765,6 +873,7 @@ def test_build_scene_prompt_payload_marks_callback_only_scene() -> None:
         language="ru",
         previous_scene=None,
         previous_act_summary=None,
+        previous_act_tail_dialogue=None,
         already_covered_claims=[],
         already_covered_claims_global=[],
         recent_scene_starts=["подожди ты"],

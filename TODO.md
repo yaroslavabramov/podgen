@@ -111,9 +111,11 @@
 - [x] Screenwriter prompt payload reduction: remove redundant act-level abstractions, add `previous_scene` + `already_covered_claims` local memory, and bias scene writing toward callbacks over re-explanations
 - [x] Screenwriter scene-level debug dumps: persist prompt payload, attempt history, raw/parsed LLM output, and final dialogue for each scene
 - [x] Screenwriter continuity upgrade: add screenplay-level covered-claim memory plus `previous_act_summary` for first scenes so later acts build on prior explanations instead of resetting
+- [x] Screenwriter cross-act seam continuity: add `previous_act_tail_dialogue` for first scenes of later acts and rewrite continuation contract so the next act continues the same conversation instead of resetting into a more basic question
 - [x] ~~Screenwriter delta framing: add `new_information_goal` prompt field~~ — superseded: `new_information_goal` removed and replaced by `prior_scenes_dialogue` + `callback_claims` objects
 - [x] Screenwriter dialogue de-rigidification: loosen A/B role contract, discourage strict `ABAB` alternation and repeated opener phrases, and add light evidence-attribution guidance for dates/rules/figures
 - [x] Screenwriter local anti-echo + discourse-shape variation: scenes should advance rather than paraphrase the previous punchline, vary agreement/challenge shapes without word blacklists, and normalize speaker labels to canonical `A/B` including ShowBible host-name / role aliases
+- [x] Dialogue polish continuation contract: opening scenes of later acts should follow unresolved boundary pressure, and polish should break `B asks -> A confirms -> A explains` instead of just swapping one confirmation marker for another
 - [x] Writer Revolt style rubric expansion: evaluator can now flag rigid turn-taking, repetitive agreement/challenge shapes, scene-opening echo, and teacherly exposition as rewrite reasons
 
 ---

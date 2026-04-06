@@ -575,6 +575,7 @@ Web extraction использует каскад extractors:
   - `act_title`
   - `previous_scene`
   - `previous_act_summary` для первых сцен новых актов
+  - `previous_act_tail_dialogue` — живой хвост последних 1-2 сцен предыдущего акта (speaker+text), чтобы первая сцена нового акта продолжала тот же разговор, а не ресетилась в более базовый вопрос
   - `prior_scenes_dialogue` — полный диалог всех предыдущих сцен текущего акта (speaker+text), чтобы writer видел, что уже прозвучало и не повторял инсайты
   - `already_covered_claims`
   - `already_covered_claims_global`
@@ -594,6 +595,7 @@ Web extraction использует каскад extractors:
 - continuity для `previous_scene` и первых сцен новых актов строится от фактически написанного диалога:
   - `previous_scene` несёт `what_listener_now_knows`, реально прозвучавшие `claim_ids` и `last_line` предыдущей сцены
   - `previous_act_summary` по возможности собирается из реально использованных `claim_ids` и последней реплики предыдущего акта, а не только из planning metadata
+  - `previous_act_tail_dialogue` собирается из реально написанного хвоста предыдущего акта и даёт writer'у живую seam continuity, а не только compact summary
 
 - в локальный writer prompt попадают только `primary_claim_ids` текущей сцены как `claims`; `callback_claims` (полные объекты), `scene_claim_mode` и `scene_job` нужны как continuity signal
 
@@ -615,6 +617,8 @@ Web extraction использует каскад extractors:
   - не каждый challenge начинается как interruptive opener
   - не каждое clarification exchange обязано идти по схеме question -> explicit confirmation -> explanation
   - direct continuation, answer, or correction часто лучше, чем очередное подтверждение-маркер
+  - первая сцена нового акта по умолчанию продолжает тот же разговор и не должна уходить в более базовый pedagogical reset, если предыдущий акт уже поднял более сильный hanging question
+  - `B asks -> A confirms -> A explains` не считается допустимым default rhythm; B может вносить гипотезу, возражение, наблюдение или последствие без вопросительной формы
 
 - speaker labels в final dialogue нормализуются к ASCII `A/B`, даже если модель вернула кириллические `А/Б`, формы вроде `Host A`, или project-specific host aliases derived from `ShowBible.hosts` (имена / роли ведущих)
 

@@ -50,6 +50,9 @@ def test_writer_revolt_prompt_tracks_boundary_context_and_structured_repair_scop
     assert "The payload may include a `seam_finding`" in POLISH_SYSTEM
     assert "If you split, merge, or otherwise change line alignment" in POLISH_SYSTEM
     assert "If the boundary context already landed a punchline, do not reopen by paraphrasing it." in POLISH_SYSTEM
+    assert "If this scene opens a new act, continue the same conversation" in POLISH_SYSTEM
+    assert "Do not default to `B asks -> A confirms -> A explains`." in POLISH_SYSTEM
+    assert "When fixing repetitive agreement shapes, prefer removing explicit confirmation markers" in POLISH_SYSTEM
     assert "act-level podcast dialogue auditor" in ACT_AUDIT_SYSTEM
     assert '"priority_scene_numbers": [2, 4]' in ACT_AUDIT_SYSTEM
     assert "Focus on act-level distribution problems" in ACT_AUDIT_SYSTEM
