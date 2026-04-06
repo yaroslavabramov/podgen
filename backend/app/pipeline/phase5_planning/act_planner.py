@@ -85,6 +85,12 @@ Use claim/evidence metadata:
 - each claim includes `support_bundle.direct` and optional `support_bundle.illustrative`
 - bundled illustrative evidence is good for hooks, case-study beats, and vivid transitions
 
+Valid act-shape examples:
+- `case_study -> explanation -> debate`: opens with a concrete event, extracts the mechanism, then lands the tradeoff
+- `explanation -> case_study -> takeaway`: starts with the rule, shows it operating in practice, then widens the implication
+- `hook -> explanation -> case_study -> open ending`: opens a question, answers the core model, shows the case, then closes on a sharper unresolved question
+- These are examples, not templates. Do not default to one fixed outer shape across every act.
+
 Rules:
 - Language:
   - All human-readable output fields (`scene_strategy`, `description`, `transition_note`, `notes`) MUST be in `output_language` from the user payload.
@@ -96,8 +102,8 @@ Rules:
     - `story_role` says what kind of movement this act should deliver
     - `purpose` says why the act exists
     - `internal_arc` says how the act should move internally
-    - the act should engage `opening_question` immediately
-    - the final scene must clearly deliver `ending_turn`
+    - the act should engage `opening_question` early, but this does not require a dedicated `hook` scene
+    - the act must deliver `ending_turn`, but this does not require a dedicated `takeaway` or `summary` scene
 - Planning procedure:
   - Before drafting scenes, choose a short `scene_strategy` that captures how this act moves internally.
   - Decide the minimum set of distinct scene moves needed to satisfy the act contract.
@@ -111,6 +117,7 @@ Rules:
   - It is better to return fewer scenes than to keep a weak, repetitive, or purely connective scene.
   - Keep one clear job per scene. Split only when the listener would feel a meaningful shift.
   - Same-topic progression is good only when each scene adds a new layer such as reveal, apply, stress-test, cost, exception, comparison, consequence, or reframe.
+  - Do not default to `hook -> explanation-heavy middle -> takeaway`. Let the act contract determine whether the opening move is a hook, explanation, case study, or debate, and whether the closing move is a takeaway, explanation, debate, case study, or open question.
   - Do not restate the act's main reveal in the next scene as if it were new.
   - Not every claim deserves its own beat. Near-paraphrase claims or one mechanism family often belong in one scene, with the rest serving as support.
   - `prior_acts_primary_claims` lists material already established earlier. If it recurs here, it should usually return as context rather than as a fresh explanation unless this act adds a genuinely new layer.
@@ -1318,7 +1325,7 @@ async def _collect_beat_sheet_quality_issues(
             if len(callback_claim_ids) > MAX_CALLBACK_ENDING_CALLBACK_CLAIMS:
                 issues.append(
                     {
-                        "severity": "structural",
+                        "severity": "advisory",
                         "type": "callback_only_ending_too_many_claims",
                         "scene": scene_number,
                         "scene_type": scene_type,

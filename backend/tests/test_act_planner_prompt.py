@@ -429,14 +429,18 @@ def test_act_planner_prompt_defines_positive_contract_and_hard_constraints() -> 
     assert '"primary_claim_ids": ["id"]' in ACT_PLANNER_SYSTEM
     assert '"callback_claim_ids": ["id"]' in ACT_PLANNER_SYSTEM
     assert "All human-readable output fields (`scene_strategy`, `description`, `transition_note`, `notes`) MUST be in `output_language`" in ACT_PLANNER_SYSTEM
-    assert "the act should engage `opening_question` immediately" in ACT_PLANNER_SYSTEM
-    assert "the final scene must clearly deliver `ending_turn`" in ACT_PLANNER_SYSTEM
+    assert "the act should engage `opening_question` early, but this does not require a dedicated `hook` scene" in ACT_PLANNER_SYSTEM
+    assert "the act must deliver `ending_turn`, but this does not require a dedicated `takeaway` or `summary` scene" in ACT_PLANNER_SYSTEM
     assert "Decide the minimum set of distinct scene moves needed to satisfy the act contract." in ACT_PLANNER_SYSTEM
     assert "`scene_count_guidance` is a soft range, not a quota." in ACT_PLANNER_SYSTEM
     assert "Assign each claim one main home scene using `primary_claim_ids`." in ACT_PLANNER_SYSTEM
     assert "`primary_claim_ids` should be unique within the act." in ACT_PLANNER_SYSTEM
     assert "Neighboring scenes must do different listener work." in ACT_PLANNER_SYSTEM
     assert "It is better to return fewer scenes than to keep a weak, repetitive, or purely connective scene." in ACT_PLANNER_SYSTEM
+    assert "Do not default to `hook -> explanation-heavy middle -> takeaway`." in ACT_PLANNER_SYSTEM
+    assert "Valid act-shape examples:" in ACT_PLANNER_SYSTEM
+    assert "`case_study -> explanation -> debate`" in ACT_PLANNER_SYSTEM
+    assert "`explanation -> case_study -> takeaway`" in ACT_PLANNER_SYSTEM
     assert "Do not restate the act's main reveal in the next scene as if it were new." in ACT_PLANNER_SYSTEM
     assert "`case_study` is optional." in ACT_PLANNER_SYSTEM
     assert "`debate` is optional." in ACT_PLANNER_SYSTEM
@@ -822,6 +826,10 @@ async def test_collect_beat_sheet_quality_issues_flags_oversized_callback_only_e
     issues = await _collect_beat_sheet_quality_issues(beat_sheet)
 
     assert any(issue["type"] == "callback_only_ending_too_many_claims" for issue in issues)
+    assert any(
+        issue["type"] == "callback_only_ending_too_many_claims" and issue["severity"] == "advisory"
+        for issue in issues
+    )
     assert any(
         issue["type"] == "callback_only_ending_too_long" and issue["severity"] == "advisory"
         for issue in issues
