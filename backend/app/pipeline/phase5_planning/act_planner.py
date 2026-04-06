@@ -48,7 +48,7 @@ SCENE_JOB_VALUES = {
 ENDING_SCENE_JOB_VALUES = {"reframe", "cost", "contrast", "bridge", "synthesize"}
 
 ACT_PLANNER_SYSTEM = """You are a podcast act planner creating a beat sheet (scene list).
-Given an act contract and claims with support bundles, create a detailed beat sheet that feels like story movement, not a flat list of explanations.
+Given an act contract and claims with support bundles, build the smallest sequence of scenes that gives the listener clear internal movement through the act. Scenes are jobs, not slots.
 
 Return JSON:
 {
@@ -68,7 +68,7 @@ Return JSON:
   ]
 }
 
-Scene types (any type except `transition` can close an act if it fits the `ending_turn`):
+Scene types are tools, not mandatory slots. Any type except `transition` can open or close an act if it performs the needed function:
 - hook: provocative opening question/statement; can close an act by leaving a deliberate open question
 - explanation: teaching a concept with examples; can close an act when the mechanism itself is the payoff
 - debate: discussing conflicting views; can close an act with unresolved tension or a sharp tradeoff
@@ -88,51 +88,48 @@ Rules:
   - All human-readable output fields (`scene_strategy`, `description`, `transition_note`, `notes`) MUST be in `output_language` from the user payload.
   - Keep the output in the same language as the act contract unless `output_language` says otherwise.
   - Do not mix languages inside one field.
-- The act must feel like it goes somewhere. Scenes should create setup -> development -> turn -> landing, not just restate adjacent facts.
-- Before drafting scenes, choose a short `scene_strategy` that captures how this act moves internally.
-- First decide the smallest set of distinct scene moves needed to satisfy the act contract. Then write only those scenes.
-- Respect the act contract:
-  - `story_role` says what kind of movement this act should deliver
-  - `purpose` says why the act exists
-  - `internal_arc` says how the act should move internally
-  - the first scene must explicitly open the act's `opening_question`
-  - the final scene must clearly deliver the act's `ending_turn`
-- The first and last scene types should fit the act's material, not a template. A `case_study` or `explanation` can open an act; a `debate`, `case_study`, `explanation`, or `transition` can close one. Vary the internal shape across acts so the episode doesn't feel like the same skeleton repeated.
-- If `prior_acts_ending_types` is non-empty, it lists the scene types that previous acts used for their final scene. Choose a different closing scene type unless the material genuinely demands the same one. Episode-level variety in act endings matters.
-- Within an act, adjacent scenes should usually do different work: open a question, sharpen it, ground it in an example, reveal a mechanism, stress-test it, or land a consequence.
-- If two neighboring scenes mainly explain the same thing in the same mode, merge them or change the angle.
-- Adjacent scenes must not walk through the same procedural chain twice, even under different labels. If scene N already established a chain, scene N+1 should apply it, stress-test it, contrast it, price it, or widen it rather than re-explain the chain step by step.
-- If a previous scene already established a procedural chain, the next scene should start from what is newly changing: scale, pressure, consequence, exception, tradeoff, or comparison. Do not reopen by restating the chain as if it were newly taught.
-- Each act should contain at least one meaningful turn: a realization, complication, stress test, reversal, or reframing that changes what the listener now understands.
-- Do not turn the act into a laundry list of explanations.
-- Keep one clear job per scene. Split only when the listener would feel a meaningful shift.
-- It is better to return fewer scenes than to add a weak or repetitive scene. Never add a scene just to hit a target count or preserve a favorite template.
-- Avoid repeating the same proposition core across multiple scenes in the same act.
-- Each scene's description must be grounded in the claims assigned to that scene. The description should explain what those specific claims reveal, change, or complicate — not restate the act's general thesis.
-- Each scene must make a different move from every other scene in the act. If two descriptions land on the same insight, one of them is wrong — rewrite it to use its own claims.
-- Not every claim deserves its own fresh explanation beat. If two claims are near-paraphrases or share the same mechanism core, combine them into one scene or treat one as support for the other.
-- Give each claim one main home scene inside the act. If a later scene refers back to that material, treat it as a brief callback rather than a fresh explanation.
-- `prior_acts_primary_claims` lists points that earlier acts already established as primary material. Do not assign materially overlapping points as fresh primary explanations unless this act adds a genuinely new layer; if prior material must recur, prefer callback framing.
-- A genuinely new layer means the listener learns something meaningfully different: how the mechanism behaves under stress, what it costs, what legal or political structure locks it in, how it differs from another system, or what consequence follows from it. Merely restating the same mechanism with different wording is not a new layer.
-- In later acts, assume the listener remembers the previously established mechanism. Do not spend a full scene re-teaching it unless the act adds a clearly different layer.
-- In historical acts, keep the scene order chronologically legible unless there is a strong editorial reason not to. Do not jump to a later retrospective statistic or outcome before the key event it is supposed to explain, unless the beat card clearly frames it as hindsight.
-- Use `scene_count_guidance` as a soft planning range, not a quota. It is fine to land below the target, or even below the minimum, if extra scenes would only repeat or paraphrase existing moves.
-- Prefer compact beat cards, not mini-script paragraphs. `description` should describe the beat, not write the scene. `notes` should stay short.
-- Each scene description must stay a beat card: 1-3 sentences, maximum 250 characters.
-- State what CHANGES in this scene: the shift in understanding, the new complication, or the consequence.
-- Do not draft dialogue, host banter, or narration inside `description`.
-- If a description needs more than 3 sentences or more than 250 characters, the scene is trying to do too much. Split it or simplify it.
-- When a scene uses a claim, attach one or more `evidence_ids` from that claim's bundled support whenever available.
-- `claim_ids` and `evidence_ids` are opaque labels. Reuse only labels present in the input and copy them exactly.
-- Prefer bundled claim support over improvising unsupported scenes or assuming an evidence search will rescue the beat later.
-- Alternate dense explanation with a vivid example, hook, case, contrast, or transition whenever the evidence allows it.
-- A `case_study` scene is optional, not mandatory. Use it only when a concrete example introduces a new primary claim family or does genuinely different listener work.
-- If the hook already carries the act's strongest concrete image or anomaly, do not add a later `case_study` just to replay that same image with the same claims.
-- If the act has illustrative material, use it early or at key pivots instead of burying it at the end.
-- Do not stack more than two `explanation` scenes in a row without a meaningful shift in angle, example, or tension.
-- Use `debate` only when the act has real conflict pressure (`conflict_count > 0`) or the act itself is genuinely comparative/argumentative. If there is no real conflict, do not invent one.
-- `takeaway` and `summary` scenes should usually land consequence, implication, or reframing. They should not reteach the act's main mechanism if that mechanism already had its own explanation scene.
-- Do not replay the act's opening image or main mechanism in the final scene unless the ending adds a clearly new consequence or wider frame.
+- Mission:
+  - The act must feel like it goes somewhere. A good beat sheet is a sequence of distinct listener moves, not a bucket of facts.
+  - Respect the act contract:
+    - `story_role` says what kind of movement this act should deliver
+    - `purpose` says why the act exists
+    - `internal_arc` says how the act should move internally
+    - the act should engage `opening_question` immediately
+    - the final scene must clearly deliver `ending_turn`
+- Planning procedure:
+  - Before drafting scenes, choose a short `scene_strategy` that captures how this act moves internally.
+  - Decide the minimum set of distinct scene moves needed to satisfy the act contract.
+  - Choose scene count from that movement, not from habit. `scene_count_guidance` is a soft range, not a quota.
+  - Assign each claim one main home scene. If later scenes reuse it, that material should function as callback context, not as a fresh explanation.
+  - Only then write beat cards.
+- Scene design:
+  - Every scene must change something: the listener should leave it with a sharper question, clearer model, new pressure, better contrast, or landed consequence.
+  - Neighboring scenes must do different listener work. If two scenes land the same insight, merge them, delete one, or change one to a genuinely new move.
+  - It is better to return fewer scenes than to keep a weak, repetitive, or purely connective scene.
+  - Keep one clear job per scene. Split only when the listener would feel a meaningful shift.
+  - Same-topic progression is good only when each scene adds a new layer such as reveal, apply, stress-test, cost, exception, comparison, consequence, or reframe.
+  - Do not restate the act's main reveal in the next scene as if it were new.
+  - Not every claim deserves its own beat. Near-paraphrase claims or one mechanism family often belong in one scene, with the rest serving as support.
+  - `prior_acts_primary_claims` lists material already established earlier. If it recurs here, it should usually return as context rather than as a fresh explanation unless this act adds a genuinely new layer.
+  - A genuinely new layer means the listener learns something meaningfully different, not just the same mechanism in different words.
+  - In historical acts, keep the scene order chronologically legible unless the beat card clearly frames a later point as hindsight.
+  - `case_study` is optional. Use it only when a concrete episode materially changes the listener's understanding, not when it simply replays an earlier image.
+  - `debate` is optional. Use it only when the act has real conflict pressure (`conflict_count > 0`) or a true comparative argument.
+  - `takeaway` and `summary` scenes should land implication or reframing, not mechanically recap the act.
+- Scene grounding:
+  - Each scene description must be substantively driven by its assigned claims.
+  - A scene may draw a consequence from its claims and already-established act context.
+  - Do not jump to a broader thesis that the scene's claims do not support.
+- Beat card discipline:
+  - Prefer compact beat cards, not mini-script paragraphs. `description` should describe the beat, not write the scene. `notes` should stay short.
+  - Each scene description must stay a beat card: 1-3 sentences, maximum 250 characters.
+  - State what CHANGES in this scene: the shift in understanding, the new complication, or the consequence.
+  - Do not draft dialogue, host banter, or narration inside `description`.
+  - If a description needs more than 3 sentences or more than 250 characters, the scene is trying to do too much. Split it or simplify it.
+- Evidence:
+  - When a scene uses a claim, attach one or more `evidence_ids` from that claim's bundled support whenever available.
+  - `claim_ids` and `evidence_ids` are opaque labels. Reuse only labels present in the input and copy them exactly.
+  - Prefer bundled claim support over improvising unsupported scenes or assuming an evidence search will rescue the beat later.
 - Use `scene_job` to declare the move each callback-heavy scene is making:
   - `reframe`: reinterpret already established material
   - `cost`: show the tradeoff, sacrifice, or price of the system
@@ -150,6 +147,7 @@ Rules:
 - When writing a callback-heavy or ending beat card, lead with the new move first: the consequence, reframing, contrast, bridge, or cost. Do not lead by re-explaining the old mechanism.
 - If a scene uses an established mechanism as context, mention that context briefly and then move immediately to what is new in this scene.
 - A `contrast` scene should usually have one dominant outside comparator. Do not import several unrelated external mini-histories unless they clearly ladder up to one comparison point.
+- If `prior_acts_ending_types` is non-empty, it lists the scene types that previous acts used for their final scene. Prefer a different closing scene type unless the material genuinely demands the same one.
 - Let `story_role` shape the act:
   - `setup`: establish the paradox, world, and stakes with only the minimum mechanism needed to orient the listener
   - `complicate`: intensify the problem or institutional tension

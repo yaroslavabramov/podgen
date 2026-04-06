@@ -300,44 +300,38 @@ async def test_run_llm_quality_checks_sends_full_description_to_grounding(
     assert captured["scenes"][1]["callback_claims"] == ["Claim three"]
 
 
-def test_act_planner_prompt_demands_compact_beats_and_real_conflict_gate() -> None:
+def test_act_planner_prompt_defines_positive_contract_and_hard_constraints() -> None:
     assert '"scene_strategy": "short phrase describing the act\'s internal movement"' in ACT_PLANNER_SYSTEM
-    assert "`internal_arc` says how the act should move internally" in ACT_PLANNER_SYSTEM
+    assert "build the smallest sequence of scenes that gives the listener clear internal movement" in ACT_PLANNER_SYSTEM
+    assert "Scenes are jobs, not slots." in ACT_PLANNER_SYSTEM
     assert "All human-readable output fields (`scene_strategy`, `description`, `transition_note`, `notes`) MUST be in `output_language`" in ACT_PLANNER_SYSTEM
-    assert "First decide the smallest set of distinct scene moves needed to satisfy the act contract." in ACT_PLANNER_SYSTEM
-    assert "first scene must explicitly open the act's `opening_question`" in ACT_PLANNER_SYSTEM
-    assert "final scene must clearly deliver the act's `ending_turn`" in ACT_PLANNER_SYSTEM
-    assert "Vary the internal shape across acts" in ACT_PLANNER_SYSTEM
-    assert "any type except `transition` can close an act" in ACT_PLANNER_SYSTEM
-    assert "can close an act by leaving a deliberate open question" in ACT_PLANNER_SYSTEM
-    assert "can close an act with unresolved tension" in ACT_PLANNER_SYSTEM
+    assert "the act should engage `opening_question` immediately" in ACT_PLANNER_SYSTEM
+    assert "the final scene must clearly deliver `ending_turn`" in ACT_PLANNER_SYSTEM
+    assert "Decide the minimum set of distinct scene moves needed to satisfy the act contract." in ACT_PLANNER_SYSTEM
+    assert "`scene_count_guidance` is a soft range, not a quota." in ACT_PLANNER_SYSTEM
+    assert "Assign each claim one main home scene." in ACT_PLANNER_SYSTEM
+    assert "Neighboring scenes must do different listener work." in ACT_PLANNER_SYSTEM
+    assert "It is better to return fewer scenes than to keep a weak, repetitive, or purely connective scene." in ACT_PLANNER_SYSTEM
+    assert "Do not restate the act's main reveal in the next scene as if it were new." in ACT_PLANNER_SYSTEM
+    assert "`case_study` is optional." in ACT_PLANNER_SYSTEM
+    assert "`debate` is optional." in ACT_PLANNER_SYSTEM
+    assert "`takeaway` and `summary` scenes should land implication or reframing" in ACT_PLANNER_SYSTEM
     assert "Prefer compact beat cards, not mini-script paragraphs." in ACT_PLANNER_SYSTEM
-    assert "Use `debate` only when the act has real conflict pressure" in ACT_PLANNER_SYSTEM
-    assert "It is better to return fewer scenes than to add a weak or repetitive scene." in ACT_PLANNER_SYSTEM
-    assert "Use `scene_count_guidance` as a soft planning range, not a quota." in ACT_PLANNER_SYSTEM
-    assert "Each act should contain at least one meaningful turn" in ACT_PLANNER_SYSTEM
-    assert "A `case_study` scene is optional, not mandatory." in ACT_PLANNER_SYSTEM
-    assert "do not add a later `case_study` just to replay that same image with the same claims" in ACT_PLANNER_SYSTEM
+    assert "A scene may draw a consequence from its claims and already-established act context." in ACT_PLANNER_SYSTEM
     assert "each claim includes `support_bundle.direct` and optional `support_bundle.illustrative`" in ACT_PLANNER_SYSTEM
     assert "attach one or more `evidence_ids` from that claim's bundled support whenever available" in ACT_PLANNER_SYSTEM
     assert "`claim_ids` and `evidence_ids` are opaque labels" in ACT_PLANNER_SYSTEM
-    assert "Give each claim one main home scene inside the act." in ACT_PLANNER_SYSTEM
-    assert "Not every claim deserves its own fresh explanation beat." in ACT_PLANNER_SYSTEM
-    assert "Adjacent scenes must not walk through the same procedural chain twice" in ACT_PLANNER_SYSTEM
-    assert "the next scene should start from what is newly changing" in ACT_PLANNER_SYSTEM
-    assert "A genuinely new layer means the listener learns something meaningfully different" in ACT_PLANNER_SYSTEM
     assert "In historical acts, keep the scene order chronologically legible" in ACT_PLANNER_SYSTEM
     assert "When writing a callback-heavy or ending beat card, lead with the new move first" in ACT_PLANNER_SYSTEM
     assert "Use `cost` only when the scene is genuinely about what is lost" in ACT_PLANNER_SYSTEM
     assert "A `contrast` scene should usually have one dominant outside comparator." in ACT_PLANNER_SYSTEM
-    assert "`takeaway` and `summary` scenes should usually land consequence, implication, or reframing." in ACT_PLANNER_SYSTEM
-    assert "`prior_acts_primary_claims` lists points that earlier acts already established as primary material." in ACT_PLANNER_SYSTEM
+    assert "`prior_acts_primary_claims` lists material already established earlier." in ACT_PLANNER_SYSTEM
     assert "Use `scene_job` to declare the move each callback-heavy scene is making" in ACT_PLANNER_SYSTEM
     assert "`apply` scenes should begin from the concrete condition or operating case" in ACT_PLANNER_SYSTEM
     assert "`stress_test` scenes should begin from the pressure, failure mode, or attack" in ACT_PLANNER_SYSTEM
     assert "`synthesize` scenes should land the shift through their own claims" in ACT_PLANNER_SYSTEM
     assert "prior_acts_ending_types" in ACT_PLANNER_SYSTEM
-    assert "Choose a different closing scene type" in ACT_PLANNER_SYSTEM
+    assert "Prefer a different closing scene type unless the material genuinely demands the same one." in ACT_PLANNER_SYSTEM
 
 
 def test_collect_prior_acts_ending_types_returns_last_scene_types() -> None:
