@@ -44,22 +44,26 @@ def test_showrunner_prompt_does_not_hardcode_three_acts() -> None:
     assert "compress this to 3 acts" not in SHOWRUNNER_SYSTEM
     assert "do not default to 3 acts" in SHOWRUNNER_SYSTEM
     assert '"internal_arc": "short phrase describing how this act moves internally"' in SHOWRUNNER_SYSTEM
-    assert "Adjacent acts should usually have different `internal_arc` shapes." in SHOWRUNNER_SYSTEM
+    assert "Adjacent acts should usually have different `internal_arc` shapes" in SHOWRUNNER_SYSTEM
+    assert "one dominant dramatic question or editorial burden" in SHOWRUNNER_SYSTEM
     assert "All human-readable fields (`title`, `purpose`, `internal_arc`, `opening_question`, `ending_turn`) MUST be in `output_language`" in SHOWRUNNER_SYSTEM
-    assert "Branch coherence is a hint, not a rule." in SHOWRUNNER_SYSTEM
-    assert "If two claims from different branches are near-paraphrases or materially describe the same mechanism" in SHOWRUNNER_SYSTEM
-    assert "One historical event or institutional decision should usually have one main dramatic home." in SHOWRUNNER_SYSTEM
-    assert "Listener novelty matters more than branch coverage." in SHOWRUNNER_SYSTEM
-    assert "prefer a lean explanatory backbone over exhaustive inclusion" in SHOWRUNNER_SYSTEM
-    assert "Before keeping a claim in an act, ask whether it earns a distinct scene move." in SHOWRUNNER_SYSTEM
-    assert "Keep only the strongest 2-3 as fresh explanatory load" in SHOWRUNNER_SYSTEM
-    assert "one dominant explanatory spine, not several equal mini-explanations" in SHOWRUNNER_SYSTEM
-    assert "same operating rule, safeguard, or institutional constraint" in SHOWRUNNER_SYSTEM
-    assert "Comparative material should stay selective." in SHOWRUNNER_SYSTEM
-    assert "Vary `ending_turn` shapes across acts" in SHOWRUNNER_SYSTEM
+    assert "A major shift in timeframe, abstraction level, or editorial function is evidence for a new act" in SHOWRUNNER_SYSTEM
+    assert "Merge candidate act material only when it would produce substantially the same `opening_question`, `internal_arc`, and `ending_turn`." in SHOWRUNNER_SYSTEM
+    assert "Listener novelty matters more than branch coverage; branch coherence is a hint, not a rule." in SHOWRUNNER_SYSTEM
+    assert "Before keeping a claim in an act, ask whether removing it would force a genuinely different beat." in SHOWRUNNER_SYSTEM
+    assert "it is not fresh backbone" in SHOWRUNNER_SYSTEM
+    assert "one dominant explanatory spine" in SHOWRUNNER_SYSTEM
+    assert "real-world test" in SHOWRUNNER_SYSTEM
+    assert "Comparative material should stay selective; one strong outside comparator is usually enough for one beat." in SHOWRUNNER_SYSTEM
     assert "total_claim_count" in SHOWRUNNER_SYSTEM
     assert "keep every act at or below" in SHOWRUNNER_SYSTEM
-    assert "Distribute claim load roughly in proportion" in SHOWRUNNER_SYSTEM
+    assert "The last act should include takeaways and a clear \"why this matters\" payoff." in SHOWRUNNER_SYSTEM
+    assert "The last act should contain only claims that directly sharpen the final takeaway or reframe the episode-level question." in SHOWRUNNER_SYSTEM
+    assert "Do not use the last act to park leftover operational facts that could be removed without changing the final takeaway." in SHOWRUNNER_SYSTEM
+
+    top_level_rules = [line for line in SHOWRUNNER_SYSTEM.splitlines() if line.startswith("-")]
+    assert len(top_level_rules) <= 18
+    assert len(SHOWRUNNER_SYSTEM.split()) < 1050
 
 
 def test_build_showrunner_prompt_payload_carries_output_language() -> None:
@@ -86,7 +90,7 @@ def test_compute_max_claims_per_act_uses_ceiling() -> None:
     assert _compute_max_claims_per_act(0, 5) == 0
 
 
-def test_rebalance_act_claim_distribution_caps_overloaded_act() -> None:
+def test_rebalance_act_claim_distribution_leaves_overloaded_act_unchanged() -> None:
     claim_ids = [str(i) * 8 + "-" + str(i) * 4 + "-" + str(i) * 4 + "-" + str(i) * 4 + "-" + str(i) * 12 for i in range(1, 10)]
     plan = {
         "act_count": 3,
@@ -118,8 +122,8 @@ def test_rebalance_act_claim_distribution_caps_overloaded_act() -> None:
 
     balanced = _rebalance_act_claim_distribution(plan, claim_lookup=claim_lookup)
 
-    assert [len(act["claim_ids"]) for act in balanced["acts"]] == [8, 1, 0]
-    assert balanced["acts"][1]["claim_ids"] == [claim_ids[-1]]
+    assert [len(act["claim_ids"]) for act in balanced["acts"]] == [9, 0, 0]
+    assert balanced["acts"][0]["claim_ids"] == claim_ids
 
 
 def test_rebalance_act_claim_distribution_dedupes_cross_act_duplicates() -> None:
@@ -155,7 +159,7 @@ def test_rebalance_act_claim_distribution_dedupes_cross_act_duplicates() -> None
     assert balanced["acts"][1]["claim_ids"] == []
 
 
-def test_rebalance_act_claim_distribution_drops_overflow_when_adjacent_acts_are_full() -> None:
+def test_rebalance_act_claim_distribution_never_moves_or_drops_overflow_claims() -> None:
     act_one_claim_ids = [
         "11111111-1111-1111-1111-111111111111",
         "22222222-2222-2222-2222-222222222222",
@@ -213,8 +217,9 @@ def test_rebalance_act_claim_distribution_drops_overflow_when_adjacent_acts_are_
 
     balanced = _rebalance_act_claim_distribution(plan, claim_lookup=claim_lookup)
 
-    assert [len(act["claim_ids"]) for act in balanced["acts"]] == [8, 8, 0, 0]
-    assert balanced["acts"][0]["claim_ids"] == act_one_claim_ids[:8]
+    assert [len(act["claim_ids"]) for act in balanced["acts"]] == [9, 8, 0, 0]
+    assert balanced["acts"][0]["claim_ids"] == act_one_claim_ids
+    assert balanced["acts"][1]["claim_ids"] == act_two_claim_ids
 
 
 def test_rebalance_act_claim_distribution_uses_assigned_claim_count_for_ceiling() -> None:
@@ -248,6 +253,5 @@ def test_rebalance_act_claim_distribution_uses_assigned_claim_count_for_ceiling(
 
     balanced = _rebalance_act_claim_distribution(plan, claim_lookup=claim_lookup)
 
-    assert [len(act["claim_ids"]) for act in balanced["acts"]] == [8, 8, 0, 0, 0]
-    assert balanced["acts"][0]["claim_ids"] == assigned_claim_ids[:8]
-    assert balanced["acts"][1]["claim_ids"] == assigned_claim_ids[8:16]
+    assert [len(act["claim_ids"]) for act in balanced["acts"]] == [18, 0, 0, 0, 0]
+    assert balanced["acts"][0]["claim_ids"] == assigned_claim_ids

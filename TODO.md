@@ -662,10 +662,11 @@ Deferred after Round 68:
 **Round 90 (planning truncation cleanup + act balance):**
 - [x] **P0**: Removed mid-sentence `description[:400]` truncation from the act-planner Haiku grounding gate; quality checks now see the full beat-card text
 - [x] **P1**: Tightened `ACT_PLANNER_SYSTEM` so scene descriptions stay compact beat cards (`1-3` sentences, max `250` chars) instead of drifting into mini-script paragraphs
-- [x] **P1**: Showrunner prompt payload now includes `total_claim_count`, and post-normalization planning applies a soft per-act claim ceiling with deterministic overflow rebalance/drop as a safety valve against pathological act skew
+- [x] **P1**: Showrunner prompt payload now includes `total_claim_count`, and post-normalization planning applies a soft per-act claim ceiling as an advisory/debug signal without deterministically moving or dropping claims across act boundaries
 - [x] **P1**: Removed runtime claim-statement truncation from planning/screenwriting/verifier payload builders; downstream consumers now see full claim text and any future brevity limit should live upstream in prompt contracts
 - [ ] **P2**: Add planning telemetry/debug summaries for per-act claim load and beat-card description length so overloaded acts are visible in run artifacts without manual inspection
 - [ ] **P2**: Audit remaining non-runtime claim-text truncations (for example shownotes/debug-only summaries) and keep only those that serve real compression rather than cargo-cult limits
+- [ ] **P2**: If showrunner repeatedly exceeds the soft per-act ceiling, handle it with prompt / retry logic instead of deterministic post-hoc reassignment
 
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
