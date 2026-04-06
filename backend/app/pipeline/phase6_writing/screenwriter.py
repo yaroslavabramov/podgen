@@ -1,6 +1,7 @@
 """Phase 6.1: Screenwriter — generate dialogue per scene."""
 
 import asyncio
+import hashlib
 import json
 import logging
 import re
@@ -282,17 +283,86 @@ async def write_screenplay(state: PipelineState) -> dict:
                     if existing_segment is not None
                     else 0
                 )
+                scene_primary_claim_ids = _scene_primary_claim_ids(scene)
+                scene_claims = [
+                    act_claim_lookup[cid]
+                    for cid in scene_primary_claim_ids
+                    if isinstance(cid, str) and cid in act_claim_lookup
+                ]
+
+                scene_evidence = []
+                for eid in scene.get("evidence_ids", []):
+                    r = await db.execute(select(EvidenceSpan).where(EvidenceSpan.id == uuid.UUID(eid)))
+                    e = r.scalar_one_or_none()
+                    if e:
+                        scene_evidence.append({
+                            "id": str(e.id), "quote": e.verbatim_quote[:300],
+                            "asset_type": e.asset_type, "tellability": e.tellability_notes,
+                        })
+                previous_scene_payload = _build_previous_scene_payload(
+                    beat_sheet,
+                    scene_idx,
+                    act_number=act_num,
+                    existing_segments=existing_segments,
+                    claim_lookup=act_claim_lookup,
+                )
+                already_covered_claims = _build_already_covered_claims_payload(
+                    covered_claim_ids=covered_claim_ids_in_act,
+                    claim_lookup=act_claim_lookup,
+                )
+                already_covered_claims_global = _build_already_covered_claims_payload(
+                    covered_claim_ids=covered_claim_ids_before_act,
+                    claim_lookup=global_claim_lookup,
+                    max_items=16,
+                    statement_chars=160,
+                )
+                recent_scene_starts = _build_recent_scene_starts(
+                    beat_sheet,
+                    scene_idx,
+                    act_number=act_num,
+                    existing_segments=existing_segments,
+                )
+                prior_scenes_dialogue = _build_prior_scenes_dialogue(
+                    beat_sheet,
+                    scene_idx,
+                    act_number=act_num,
+                    existing_segments=existing_segments,
+                )
+                prompt_payload = _build_scene_prompt_payload(
+                    act=act,
+                    act_number=act_num,
+                    scene=scene,
+                    scene_number=scene_num,
+                    scene_claims=scene_claims,
+                    scene_evidence=scene_evidence,
+                    hosts=hosts,
+                    forbidden_phrases=forbidden,
+                    max_reply_tokens=max_tokens,
+                    language=state["language"],
+                    previous_scene=previous_scene_payload,
+                    previous_act_summary=previous_act_summary if scene_idx == 1 else None,
+                    already_covered_claims=already_covered_claims,
+                    already_covered_claims_global=already_covered_claims_global,
+                    recent_scene_starts=recent_scene_starts,
+                    prior_scenes_dialogue=prior_scenes_dialogue,
+                    act_claim_lookup=act_claim_lookup,
+                )
+                # Shorten claim UUIDs in prompt to reduce LLM token waste and typos
+                prompt_payload = _shorten_prompt_claim_ids(prompt_payload, claim_sid)
+                scene_fingerprint = _scene_fingerprint(
+                    system_prompt=system_prompt,
+                    prompt_payload=prompt_payload,
+                )
+                should_reuse_scene = _should_reuse_existing_scene(
+                    existing_segment,
+                    current_scene_fingerprint=scene_fingerprint,
+                    existing_line_count=existing_line_count,
+                    force_rewrite_on_step_rerun=force_rewrite_on_step_rerun,
+                )
                 should_rewrite_scene = (
                     existing_segment is not None
-                    and (
-                        existing_segment.audit_status == AuditStatus.REVISED
-                        or force_rewrite_on_step_rerun
-                    )
-                )
-                should_reuse_scene = (
-                    existing_segment is not None
-                    and not should_rewrite_scene
                     and existing_line_count > 0
+                    and not should_reuse_scene
                 )
                 planned_scene_count += 1
                 if should_reuse_scene:
@@ -320,69 +390,6 @@ async def write_screenplay(state: PipelineState) -> dict:
                     publish_event(run_id, step_completed("phase6_writing", f"write_{act_num}_{scene_num}"))
                     continue
 
-                # Gather claims and evidence for this scene
-                scene_primary_claim_ids = _scene_primary_claim_ids(scene)
-                scene_claims = [
-                    act_claim_lookup[cid]
-                    for cid in scene_primary_claim_ids
-                    if isinstance(cid, str) and cid in act_claim_lookup
-                ]
-
-                scene_evidence = []
-                for eid in scene.get("evidence_ids", []):
-                    r = await db.execute(select(EvidenceSpan).where(EvidenceSpan.id == uuid.UUID(eid)))
-                    e = r.scalar_one_or_none()
-                    if e:
-                        scene_evidence.append({
-                            "id": str(e.id), "quote": e.verbatim_quote[:300],
-                            "asset_type": e.asset_type, "tellability": e.tellability_notes,
-                        })
-
-                prompt_payload = _build_scene_prompt_payload(
-                    act=act,
-                    act_number=act_num,
-                    scene=scene,
-                    scene_number=scene_num,
-                    scene_claims=scene_claims,
-                    scene_evidence=scene_evidence,
-                    hosts=hosts,
-                    forbidden_phrases=forbidden,
-                    max_reply_tokens=max_tokens,
-                    language=state["language"],
-                    previous_scene=_build_previous_scene_payload(
-                        beat_sheet,
-                        scene_idx,
-                        act_number=act_num,
-                        existing_segments=existing_segments,
-                        claim_lookup=act_claim_lookup,
-                    ),
-                    previous_act_summary=previous_act_summary if scene_idx == 1 else None,
-                    already_covered_claims=_build_already_covered_claims_payload(
-                        covered_claim_ids=covered_claim_ids_in_act,
-                        claim_lookup=act_claim_lookup,
-                    ),
-                    already_covered_claims_global=_build_already_covered_claims_payload(
-                        covered_claim_ids=covered_claim_ids_before_act,
-                        claim_lookup=global_claim_lookup,
-                        max_items=16,
-                        statement_chars=160,
-                    ),
-                    recent_scene_starts=_build_recent_scene_starts(
-                        beat_sheet,
-                        scene_idx,
-                        act_number=act_num,
-                        existing_segments=existing_segments,
-                    ),
-                    prior_scenes_dialogue=_build_prior_scenes_dialogue(
-                        beat_sheet,
-                        scene_idx,
-                        act_number=act_num,
-                        existing_segments=existing_segments,
-                    ),
-                    act_claim_lookup=act_claim_lookup,
-                )
-                # Shorten claim UUIDs in prompt to reduce LLM token waste and typos
-                prompt_payload = _shorten_prompt_claim_ids(prompt_payload, claim_sid)
                 prompt = json.dumps(prompt_payload, ensure_ascii=False)
 
                 dialogue = []
@@ -512,7 +519,11 @@ async def write_screenplay(state: PipelineState) -> dict:
                 else:
                     segment = existing_segment
 
-                _apply_screenwriter_dialogue(segment, dialogue)
+                _apply_screenwriter_dialogue(
+                    segment,
+                    dialogue,
+                    scene_fingerprint=scene_fingerprint,
+                )
 
                 await db.flush()
                 await db.commit()
@@ -566,14 +577,23 @@ def _dialogue_line_count(dialogue_json: object) -> int:
     return count
 
 
-def _apply_screenwriter_dialogue(segment: ScriptSegment, dialogue: list[dict[str, Any]]) -> None:
+def _apply_screenwriter_dialogue(
+    segment: ScriptSegment,
+    dialogue: list[dict[str, Any]],
+    *,
+    scene_fingerprint: str | None = None,
+) -> None:
     baseline_dialogue = deepcopy(dialogue)
     segment.dialogue_json = deepcopy(dialogue)
     segment.writer_original_dialogue_json = baseline_dialogue
     segment.engagement_score = None
     segment.audit_status = AuditStatus.PENDING
     segment.quality_metrics = None
-    segment.audit_findings = None
+    segment.audit_findings = (
+        {"screenwriter": {"scene_fingerprint": scene_fingerprint}}
+        if isinstance(scene_fingerprint, str) and scene_fingerprint.strip()
+        else None
+    )
 
 
 def _uuid_list(value: Any) -> list[str]:
@@ -596,19 +616,57 @@ def _uuid_list(value: Any) -> list[str]:
 
 
 def _should_force_rewrite_for_node_rerun(config: dict | None, *, node_name: str) -> bool:
+    del node_name
     if not isinstance(config, dict):
         return False
     step_control = config.get("step_control")
     if not isinstance(step_control, dict):
         return False
     requested_action = step_control.get("requested_action")
-    if requested_action != "rerun":
+    return requested_action == "rerun"
+
+
+def _scene_fingerprint(
+    *,
+    system_prompt: str,
+    prompt_payload: dict[str, Any],
+) -> str:
+    payload = {
+        "system_prompt_hash": hashlib.sha256(str(system_prompt or "").encode("utf-8")).hexdigest(),
+        "prompt_payload": prompt_payload,
+    }
+    serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _segment_scene_fingerprint(segment: ScriptSegment | Any) -> str | None:
+    if not isinstance(getattr(segment, "audit_findings", None), dict):
+        return None
+    screenwriter_finding = segment.audit_findings.get("screenwriter")
+    if not isinstance(screenwriter_finding, dict):
+        return None
+    scene_fingerprint = screenwriter_finding.get("scene_fingerprint")
+    if not isinstance(scene_fingerprint, str):
+        return None
+    normalized = scene_fingerprint.strip()
+    return normalized or None
+
+
+def _should_reuse_existing_scene(
+    existing_segment: ScriptSegment | Any | None,
+    *,
+    current_scene_fingerprint: str,
+    existing_line_count: int,
+    force_rewrite_on_step_rerun: bool,
+) -> bool:
+    if existing_segment is None or existing_line_count <= 0:
         return False
-    requested_target_node = step_control.get("requested_target_node")
-    if isinstance(requested_target_node, str) and requested_target_node.strip():
-        return requested_target_node.strip() == node_name
-    last_node = step_control.get("last_node")
-    return isinstance(last_node, str) and last_node == node_name
+    if force_rewrite_on_step_rerun:
+        return False
+    if getattr(existing_segment, "audit_status", None) == AuditStatus.REVISED:
+        return False
+    stored_scene_fingerprint = _segment_scene_fingerprint(existing_segment)
+    return stored_scene_fingerprint == current_scene_fingerprint
 
 
 def _append_unique_segment_id(segment_id: str, ordered: list[str], seen: set[str]) -> None:

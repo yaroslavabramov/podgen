@@ -22,11 +22,45 @@ from app.pipeline.phase6_writing.screenwriter import (
     _scene_manifest_claim_ids,
     _scene_callback_claim_ids,
     _scene_claim_mode,
+    _scene_fingerprint,
     _normalize_speaker_label,
     _scene_job,
+    _segment_scene_fingerprint,
     _scene_primary_claim_ids,
+    _should_reuse_existing_scene,
     _should_force_rewrite_for_node_rerun,
 )
+from app.models.script_segment import AuditStatus
+
+
+def _scene_prompt_payload_for_fingerprint(**overrides) -> dict:
+    payload = {
+        "language": "ru",
+        "act_number": 2,
+        "act_title": "Explain",
+        "scene_number": 2,
+        "scene_type": "explanation",
+        "scene_claim_mode": "primary",
+        "scene_job": "",
+        "callback_claims": [],
+        "description": "Same scene brief",
+        "transition_note": "",
+        "notes": "",
+        "estimated_duration_seconds": 60,
+        "previous_scene": None,
+        "previous_act_summary": None,
+        "prior_scenes_dialogue": [],
+        "already_covered_claims": [],
+        "already_covered_claims_global": [],
+        "recent_scene_starts": [],
+        "claims": [],
+        "evidence": [],
+        "hosts": [],
+        "forbidden_phrases": [],
+        "max_reply_tokens": 120,
+    }
+    payload.update(overrides)
+    return payload
 
 
 def test_build_scene_prompt_payload_uses_local_and_cross_act_context() -> None:
@@ -269,6 +303,231 @@ def test_apply_screenwriter_dialogue_resets_quality_and_updates_baseline() -> No
     assert segment.audit_status == "pending"
     assert segment.quality_metrics is None
     assert segment.audit_findings is None
+
+
+def test_apply_screenwriter_dialogue_stores_scene_fingerprint_metadata() -> None:
+    segment = SimpleNamespace(
+        dialogue_json=[],
+        writer_original_dialogue_json=[],
+        engagement_score=None,
+        audit_status="failed",
+        quality_metrics={"fact_coverage_ratio": 0.5},
+        audit_findings={"citation": {"issues": []}},
+    )
+
+    _apply_screenwriter_dialogue(
+        segment,
+        [{"speaker": "A", "text": "Fresh draft", "claim_ids": ["c1"]}],
+        scene_fingerprint="fingerprint-123",
+    )
+
+    assert segment.audit_findings == {
+        "screenwriter": {
+            "scene_fingerprint": "fingerprint-123",
+        }
+    }
+
+
+def test_segment_scene_fingerprint_reads_screenwriter_metadata() -> None:
+    segment = SimpleNamespace(
+        audit_findings={
+            "screenwriter": {"scene_fingerprint": "fingerprint-123"},
+            "citation": {"issues": []},
+        }
+    )
+
+    assert _segment_scene_fingerprint(segment) == "fingerprint-123"
+
+
+def test_scene_fingerprint_changes_when_scene_brief_changes() -> None:
+    assert _scene_fingerprint(
+        system_prompt="system-v1",
+        prompt_payload=_scene_prompt_payload_for_fingerprint(
+            act_number=4,
+            act_title="Stress test",
+            scene_number=3,
+            scene_type="case_study",
+            scene_job="apply",
+            description="Original description",
+            transition_note="Bridge",
+            notes="Note",
+        ),
+    ) != _scene_fingerprint(
+        system_prompt="system-v1",
+        prompt_payload=_scene_prompt_payload_for_fingerprint(
+            act_number=4,
+            act_title="Stress test",
+            scene_number=3,
+            scene_type="case_study",
+            scene_job="apply",
+            description="Changed description",
+            transition_note="Bridge",
+            notes="Note",
+        ),
+    )
+
+
+def test_scene_fingerprint_changes_when_previous_scene_context_changes() -> None:
+    assert _scene_fingerprint(
+        system_prompt="system-v1",
+        prompt_payload=_scene_prompt_payload_for_fingerprint(
+            act_number=5,
+            act_title="Payoff",
+            scene_number=1,
+            previous_scene={"last_line": "старый финал"},
+        ),
+    ) != _scene_fingerprint(
+        system_prompt="system-v1",
+        prompt_payload=_scene_prompt_payload_for_fingerprint(
+            act_number=5,
+            act_title="Payoff",
+            scene_number=1,
+            previous_scene={"last_line": "новый финал"},
+        ),
+    )
+
+
+def test_scene_fingerprint_changes_when_previous_act_summary_changes() -> None:
+    assert _scene_fingerprint(
+        system_prompt="system-v1",
+        prompt_payload=_scene_prompt_payload_for_fingerprint(
+            act_number=5,
+            act_title="Payoff",
+            scene_number=1,
+            previous_act_summary={"what_listener_now_knows": "old summary"},
+        ),
+    ) != _scene_fingerprint(
+        system_prompt="system-v1",
+        prompt_payload=_scene_prompt_payload_for_fingerprint(
+            act_number=5,
+            act_title="Payoff",
+            scene_number=1,
+            previous_act_summary={"what_listener_now_knows": "new summary"},
+        ),
+    )
+
+
+def test_scene_fingerprint_changes_when_system_prompt_changes() -> None:
+    assert _scene_fingerprint(
+        system_prompt="system-v1",
+        prompt_payload=_scene_prompt_payload_for_fingerprint(
+            act_number=5,
+            act_title="Payoff",
+            scene_number=1,
+        ),
+    ) != _scene_fingerprint(
+        system_prompt="system-v2",
+        prompt_payload=_scene_prompt_payload_for_fingerprint(
+            act_number=5,
+            act_title="Payoff",
+            scene_number=1,
+        ),
+    )
+
+
+def test_scene_fingerprint_changes_when_scene_claim_payload_changes() -> None:
+    assert _scene_fingerprint(
+        system_prompt="system-v1",
+        prompt_payload=_scene_prompt_payload_for_fingerprint(
+            claims=[{"id": "c1", "statement": "old statement", "verification": "verified"}],
+        ),
+    ) != _scene_fingerprint(
+        system_prompt="system-v1",
+        prompt_payload=_scene_prompt_payload_for_fingerprint(
+            claims=[{"id": "c1", "statement": "new statement", "verification": "verified"}],
+        ),
+    )
+
+
+def test_scene_fingerprint_changes_when_scene_evidence_payload_changes() -> None:
+    assert _scene_fingerprint(
+        system_prompt="system-v1",
+        prompt_payload=_scene_prompt_payload_for_fingerprint(
+            evidence=[{"id": "e1", "quote": "old quote", "asset_type": "mechanism", "tellability": "old note"}],
+        ),
+    ) != _scene_fingerprint(
+        system_prompt="system-v1",
+        prompt_payload=_scene_prompt_payload_for_fingerprint(
+            evidence=[{"id": "e1", "quote": "new quote", "asset_type": "mechanism", "tellability": "old note"}],
+        ),
+    )
+
+
+def test_scene_fingerprint_changes_when_callback_claim_payload_changes() -> None:
+    assert _scene_fingerprint(
+        system_prompt="system-v1",
+        prompt_payload=_scene_prompt_payload_for_fingerprint(
+            scene_claim_mode="mixed",
+            callback_claims=[{"id": "c2", "statement": "old callback", "verification": "verified"}],
+        ),
+    ) != _scene_fingerprint(
+        system_prompt="system-v1",
+        prompt_payload=_scene_prompt_payload_for_fingerprint(
+            scene_claim_mode="mixed",
+            callback_claims=[{"id": "c2", "statement": "new callback", "verification": "verified"}],
+        ),
+    )
+
+
+def test_should_not_reuse_existing_scene_without_matching_fingerprint() -> None:
+    current_scene_fingerprint = "new-fingerprint"
+    existing_segment = SimpleNamespace(
+        dialogue_json=[{"speaker": "A", "text": "Old line"}],
+        audit_status=AuditStatus.PASSED,
+        audit_findings={},
+    )
+
+    assert not _should_reuse_existing_scene(
+        existing_segment,
+        current_scene_fingerprint=current_scene_fingerprint,
+        existing_line_count=1,
+        force_rewrite_on_step_rerun=False,
+    )
+
+
+def test_should_not_reuse_existing_scene_when_fingerprint_mismatch() -> None:
+    existing_segment = SimpleNamespace(
+        dialogue_json=[{"speaker": "A", "text": "Old line"}],
+        audit_status=AuditStatus.PASSED,
+        audit_findings={"screenwriter": {"scene_fingerprint": "old-fingerprint"}},
+    )
+
+    assert not _should_reuse_existing_scene(
+        existing_segment,
+        current_scene_fingerprint="new-fingerprint",
+        existing_line_count=1,
+        force_rewrite_on_step_rerun=False,
+    )
+
+
+def test_should_reuse_existing_scene_when_fingerprint_matches() -> None:
+    existing_segment = SimpleNamespace(
+        dialogue_json=[{"speaker": "A", "text": "Old line"}],
+        audit_status=AuditStatus.PASSED,
+        audit_findings={"screenwriter": {"scene_fingerprint": "same-fingerprint"}},
+    )
+
+    assert _should_reuse_existing_scene(
+        existing_segment,
+        current_scene_fingerprint="same-fingerprint",
+        existing_line_count=1,
+        force_rewrite_on_step_rerun=False,
+    )
+
+
+def test_should_not_reuse_existing_scene_on_targeted_rerun_even_when_fingerprint_matches() -> None:
+    existing_segment = SimpleNamespace(
+        dialogue_json=[{"speaker": "A", "text": "Old line"}],
+        audit_status=AuditStatus.PASSED,
+        audit_findings={"screenwriter": {"scene_fingerprint": "same-fingerprint"}},
+    )
+
+    assert not _should_reuse_existing_scene(
+        existing_segment,
+        current_scene_fingerprint="same-fingerprint",
+        existing_line_count=1,
+        force_rewrite_on_step_rerun=True,
+    )
 
 
 def test_build_previous_scene_payload_falls_back_to_manifest_claims_and_transition_note() -> None:
@@ -689,22 +948,25 @@ def test_should_force_rewrite_for_last_node_rerun_without_explicit_target() -> N
     )
 
 
-def test_should_not_force_rewrite_for_non_rerun_or_other_target() -> None:
-    assert not _should_force_rewrite_for_node_rerun(
+def test_should_force_rewrite_for_any_rerun_target() -> None:
+    assert _should_force_rewrite_for_node_rerun(
         {
             "step_control": {
-                "requested_action": "next",
-                "requested_target_node": "write_screenplay",
+                "requested_action": "rerun",
+                "requested_target_node": "plan_acts",
                 "last_node": "write_screenplay",
             }
         },
         node_name="write_screenplay",
     )
+
+
+def test_should_not_force_rewrite_for_non_rerun() -> None:
     assert not _should_force_rewrite_for_node_rerun(
         {
             "step_control": {
-                "requested_action": "rerun",
-                "requested_target_node": "plan_acts",
+                "requested_action": "next",
+                "requested_target_node": "write_screenplay",
                 "last_node": "write_screenplay",
             }
         },
