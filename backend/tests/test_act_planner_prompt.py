@@ -24,6 +24,7 @@ from app.pipeline.phase5_planning.act_planner import (
     _split_scene_claim_roles,
     plan_act,
 )
+from app.pipeline.short_ids import ShortIdMap, restore_id_list
 
 
 def test_build_act_prompt_payload_carries_story_contract_and_branch_focus() -> None:
@@ -304,12 +305,15 @@ def test_act_planner_prompt_defines_positive_contract_and_hard_constraints() -> 
     assert '"scene_strategy": "short phrase describing the act\'s internal movement"' in ACT_PLANNER_SYSTEM
     assert "build the smallest sequence of scenes that gives the listener clear internal movement" in ACT_PLANNER_SYSTEM
     assert "Scenes are jobs, not slots." in ACT_PLANNER_SYSTEM
+    assert '"primary_claim_ids": ["id"]' in ACT_PLANNER_SYSTEM
+    assert '"callback_claim_ids": ["id"]' in ACT_PLANNER_SYSTEM
     assert "All human-readable output fields (`scene_strategy`, `description`, `transition_note`, `notes`) MUST be in `output_language`" in ACT_PLANNER_SYSTEM
     assert "the act should engage `opening_question` immediately" in ACT_PLANNER_SYSTEM
     assert "the final scene must clearly deliver `ending_turn`" in ACT_PLANNER_SYSTEM
     assert "Decide the minimum set of distinct scene moves needed to satisfy the act contract." in ACT_PLANNER_SYSTEM
     assert "`scene_count_guidance` is a soft range, not a quota." in ACT_PLANNER_SYSTEM
-    assert "Assign each claim one main home scene." in ACT_PLANNER_SYSTEM
+    assert "Assign each claim one main home scene using `primary_claim_ids`." in ACT_PLANNER_SYSTEM
+    assert "`primary_claim_ids` should be unique within the act." in ACT_PLANNER_SYSTEM
     assert "Neighboring scenes must do different listener work." in ACT_PLANNER_SYSTEM
     assert "It is better to return fewer scenes than to keep a weak, repetitive, or purely connective scene." in ACT_PLANNER_SYSTEM
     assert "Do not restate the act's main reveal in the next scene as if it were new." in ACT_PLANNER_SYSTEM
@@ -320,7 +324,7 @@ def test_act_planner_prompt_defines_positive_contract_and_hard_constraints() -> 
     assert "A scene may draw a consequence from its claims and already-established act context." in ACT_PLANNER_SYSTEM
     assert "each claim includes `support_bundle.direct` and optional `support_bundle.illustrative`" in ACT_PLANNER_SYSTEM
     assert "attach one or more `evidence_ids` from that claim's bundled support whenever available" in ACT_PLANNER_SYSTEM
-    assert "`claim_ids` and `evidence_ids` are opaque labels" in ACT_PLANNER_SYSTEM
+    assert "`primary_claim_ids`, `callback_claim_ids`, and `evidence_ids` are opaque labels" in ACT_PLANNER_SYSTEM
     assert "In historical acts, keep the scene order chronologically legible" in ACT_PLANNER_SYSTEM
     assert "When writing a callback-heavy or ending beat card, lead with the new move first" in ACT_PLANNER_SYSTEM
     assert "Use `cost` only when the scene is genuinely about what is lost" in ACT_PLANNER_SYSTEM
@@ -427,6 +431,102 @@ def test_split_scene_claim_roles_assigns_first_normalized_use_to_primary() -> No
         "11111111-1111-1111-1111-111111111111",
         "22222222-2222-2222-2222-222222222222",
     ]
+
+
+def test_split_scene_claim_roles_preserves_explicit_llm_roles() -> None:
+    claim_a = "11111111-1111-1111-1111-111111111111"
+    claim_b = "22222222-2222-2222-2222-222222222222"
+    beat_sheet = [
+        {
+            "scene": 1,
+            "type": "hook",
+            "claim_ids": [claim_a],
+            "primary_claim_ids": [claim_a],
+            "callback_claim_ids": [],
+            "_claim_role_source": "explicit",
+        },
+        {
+            "scene": 2,
+            "type": "explanation",
+            "claim_ids": [claim_b],
+            "primary_claim_ids": [claim_b],
+            "callback_claim_ids": [claim_a],
+            "_claim_role_source": "explicit",
+        },
+    ]
+
+    _split_scene_claim_roles(beat_sheet)
+
+    assert beat_sheet[0]["primary_claim_ids"] == [claim_a]
+    assert beat_sheet[0]["callback_claim_ids"] == []
+    assert beat_sheet[0]["claim_ids"] == [claim_a]
+    assert beat_sheet[1]["primary_claim_ids"] == [claim_b]
+    assert beat_sheet[1]["callback_claim_ids"] == [claim_a]
+    assert beat_sheet[1]["claim_ids"] == [claim_b]
+
+
+def test_split_scene_claim_roles_demotes_duplicate_explicit_primary_to_callback() -> None:
+    claim_a = "11111111-1111-1111-1111-111111111111"
+    claim_b = "22222222-2222-2222-2222-222222222222"
+    beat_sheet = [
+        {
+            "scene": 1,
+            "type": "hook",
+            "claim_ids": [claim_a],
+            "primary_claim_ids": [claim_a],
+            "callback_claim_ids": [],
+            "_claim_role_source": "explicit",
+        },
+        {
+            "scene": 2,
+            "type": "explanation",
+            "claim_ids": [claim_a, claim_b],
+            "primary_claim_ids": [claim_a, claim_b],
+            "callback_claim_ids": [],
+            "_claim_role_source": "explicit",
+        },
+    ]
+
+    _split_scene_claim_roles(beat_sheet)
+
+    assert beat_sheet[0]["primary_claim_ids"] == [claim_a]
+    assert beat_sheet[0]["callback_claim_ids"] == []
+    assert beat_sheet[1]["primary_claim_ids"] == [claim_b]
+    assert beat_sheet[1]["callback_claim_ids"] == [claim_a]
+    assert beat_sheet[1]["claim_ids"] == [claim_b]
+
+
+def test_split_scene_claim_roles_promotes_future_explicit_callback_to_first_primary_home() -> None:
+    claim_a = "11111111-1111-1111-1111-111111111111"
+    claim_b = "22222222-2222-2222-2222-222222222222"
+    claim_c = "33333333-3333-3333-3333-333333333333"
+    beat_sheet = [
+        {
+            "scene": 1,
+            "type": "hook",
+            "claim_ids": [claim_a],
+            "primary_claim_ids": [claim_a],
+            "callback_claim_ids": [claim_b],
+            "_claim_role_source": "explicit",
+        },
+        {
+            "scene": 2,
+            "type": "explanation",
+            "claim_ids": [claim_b, claim_c],
+            "primary_claim_ids": [claim_b, claim_c],
+            "callback_claim_ids": [],
+            "_claim_role_source": "explicit",
+        },
+    ]
+
+    _split_scene_claim_roles(beat_sheet)
+
+    assert beat_sheet[0]["primary_claim_ids"] == [claim_a, claim_b]
+    assert beat_sheet[0]["callback_claim_ids"] == []
+    assert beat_sheet[0]["claim_ids"] == [claim_a, claim_b]
+    assert beat_sheet[1]["primary_claim_ids"] == [claim_c]
+    assert beat_sheet[1]["callback_claim_ids"] == [claim_b]
+    assert beat_sheet[1]["claim_ids"] == [claim_c]
 
 
 def test_assign_scene_jobs_defaults_callback_and_mixed_scenes() -> None:
@@ -802,6 +902,41 @@ def test_hydrate_scene_evidence_ids_from_claim_support_uses_callback_claims_for_
     assert hydrated == ["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"]
 
 
+def test_hydrate_scene_evidence_ids_from_claim_support_tops_up_mixed_scene_with_callback_support() -> None:
+    primary_claim = "11111111-1111-1111-1111-111111111111"
+    callback_claim = "22222222-2222-2222-2222-222222222222"
+    beat_sheet = [
+        {
+            "scene": 1,
+            "type": "explanation",
+            "primary_claim_ids": [primary_claim],
+            "callback_claim_ids": [callback_claim],
+            "evidence_ids": [],
+        }
+    ]
+    claim_support_lookup = {
+        primary_claim: {
+            "direct": ["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"],
+            "illustrative": [],
+        },
+        callback_claim: {
+            "direct": ["bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"],
+            "illustrative": [],
+        },
+    }
+
+    hydrated = _hydrate_scene_evidence_ids_from_claim_support(beat_sheet, claim_support_lookup)
+
+    assert beat_sheet[0]["evidence_ids"] == [
+        "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    ]
+    assert hydrated == [
+        "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    ]
+
+
 class _FakeResult:
     def __init__(self, scalar) -> None:
         self._scalar = scalar
@@ -1155,7 +1290,7 @@ async def test_plan_act_keeps_quality_retry_budget_after_timeout(monkeypatch: py
     assert len(prompts) == 3
     assert "previous_error" not in prompts[1]
     assert prompts[2]["previous_error"].startswith(
-        "ValueError: beat_sheet failed structural beat validation after claim-role split"
+        "ValueError: beat_sheet failed structural beat validation after claim-role normalization"
     )
     assert "Do NOT solve this by paraphrasing the same mechanism in new words." in prompts[2]["previous_error"]
     assert "merge it into the stronger scene" in prompts[2]["previous_error"]
@@ -1685,3 +1820,77 @@ def test_normalize_beat_sheet_drops_invalid_claim_id():
     )
     assert len(result) == 1
     assert result[0]["claim_ids"] == [correct]
+
+
+def test_normalize_beat_sheet_accepts_explicit_primary_and_callback_claim_ids() -> None:
+    primary = "36e57f2b-4107-4365-9b3c-bade11b91674"
+    callback = "46e57f2b-4107-4365-9b3c-bade11b91675"
+    scenes = [
+        {
+            "scene": 1,
+            "type": "explanation",
+            "description": "Test scene",
+            "primary_claim_ids": [primary],
+            "callback_claim_ids": [callback, primary],
+            "evidence_ids": [],
+            "estimated_duration_seconds": 60,
+        }
+    ]
+
+    result = _normalize_beat_sheet(
+        scenes,
+        allowed_claim_ids={primary, callback},
+        allowed_evidence_ids=set(),
+        default_duration=60,
+    )
+
+    assert len(result) == 1
+    assert result[0]["primary_claim_ids"] == [primary]
+    assert result[0]["callback_claim_ids"] == [callback]
+    assert result[0]["claim_ids"] == [primary]
+
+
+def test_explicit_claim_roles_survive_short_id_restore_runtime_path() -> None:
+    primary = "36e57f2b-4107-4365-9b3c-bade11b91674"
+    callback = "46e57f2b-4107-4365-9b3c-bade11b91675"
+    claim_sid = ShortIdMap({primary, callback}, prefix="c")
+    scenes = [
+        {
+            "scene": 1,
+            "type": "explanation",
+            "description": "Test scene",
+            "primary_claim_ids": [claim_sid.shorten(primary)],
+            "callback_claim_ids": [],
+            "evidence_ids": [],
+            "estimated_duration_seconds": 60,
+        },
+        {
+            "scene": 2,
+            "type": "explanation",
+            "description": "Follow-up scene",
+            "primary_claim_ids": [claim_sid.shorten(callback)],
+            "callback_claim_ids": [claim_sid.shorten(primary)],
+            "evidence_ids": [],
+            "estimated_duration_seconds": 60,
+        }
+    ]
+
+    normalized = _normalize_beat_sheet(
+        scenes,
+        allowed_claim_ids={primary, callback} | claim_sid.short_ids,
+        allowed_evidence_ids=set(),
+        default_duration=60,
+    )
+    for scene in normalized:
+        scene["claim_ids"] = restore_id_list(scene.get("claim_ids"), claim_sid)
+        scene["primary_claim_ids"] = restore_id_list(scene.get("primary_claim_ids"), claim_sid)
+        scene["callback_claim_ids"] = restore_id_list(scene.get("callback_claim_ids"), claim_sid)
+
+    result = _split_scene_claim_roles(normalized)
+
+    assert result[0]["primary_claim_ids"] == [primary]
+    assert result[0]["callback_claim_ids"] == []
+    assert result[0]["claim_ids"] == [primary]
+    assert result[1]["primary_claim_ids"] == [callback]
+    assert result[1]["callback_claim_ids"] == [primary]
+    assert result[1]["claim_ids"] == [callback]

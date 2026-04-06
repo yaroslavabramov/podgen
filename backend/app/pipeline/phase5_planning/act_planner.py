@@ -18,7 +18,7 @@ from app.pipeline.research_context import build_question_context_map
 from app.pipeline.state import PipelineState
 from app.services.llm import call_sonnet_structured, call_haiku_structured
 from app.pipeline.llm_json import parse_llm_json
-from app.pipeline.short_ids import ShortIdMap, shorten_claim_dicts
+from app.pipeline.short_ids import ShortIdMap, restore_id_list, shorten_claim_dicts
 from app.pipeline.step_control import StepExecutionStopped
 from app.realtime.publisher import publish_event
 from app.realtime.events import act_planned, step_started, step_completed
@@ -59,7 +59,8 @@ Return JSON:
       "type": "hook|explanation|debate|case_study|transition|summary|takeaway",
       "scene_job": "reframe|cost|contrast|bridge|synthesize|apply|stress_test|null",
       "description": "1-3 sentence beat card (max 250 characters) describing what changes in this scene",
-      "claim_ids": ["id"],
+      "primary_claim_ids": ["id"],
+      "callback_claim_ids": ["id"],
       "evidence_ids": ["id"],
       "estimated_duration_seconds": 45,
       "transition_note": "short bridge to the next scene or null",
@@ -100,7 +101,8 @@ Rules:
   - Before drafting scenes, choose a short `scene_strategy` that captures how this act moves internally.
   - Decide the minimum set of distinct scene moves needed to satisfy the act contract.
   - Choose scene count from that movement, not from habit. `scene_count_guidance` is a soft range, not a quota.
-  - Assign each claim one main home scene. If later scenes reuse it, that material should function as callback context, not as a fresh explanation.
+  - Assign each claim one main home scene using `primary_claim_ids`. If later scenes reuse it, put it in `callback_claim_ids` as established context, not as a fresh explanation.
+  - `primary_claim_ids` should be unique within the act. `callback_claim_ids` should refer only to material already established earlier in the act.
   - Only then write beat cards.
 - Scene design:
   - Every scene must change something: the listener should leave it with a sharper question, clearer model, new pressure, better contrast, or landed consequence.
@@ -128,7 +130,7 @@ Rules:
   - If a description needs more than 3 sentences or more than 250 characters, the scene is trying to do too much. Split it or simplify it.
 - Evidence:
   - When a scene uses a claim, attach one or more `evidence_ids` from that claim's bundled support whenever available.
-  - `claim_ids` and `evidence_ids` are opaque labels. Reuse only labels present in the input and copy them exactly.
+  - `primary_claim_ids`, `callback_claim_ids`, and `evidence_ids` are opaque labels. Reuse only labels present in the input and copy them exactly.
   - Prefer bundled claim support over improvising unsupported scenes or assuming an evidence search will rescue the beat later.
 - Use `scene_job` to declare the move each callback-heavy scene is making:
   - `reframe`: reinterpret already established material
@@ -313,7 +315,9 @@ async def plan_act(state: PipelineState) -> dict:
                     )
                     # Restore short IDs back to canonical UUIDs
                     for _scene in candidate_beat_sheet:
-                        _scene["claim_ids"] = claim_sid.restore_list(_scene.get("claim_ids", []))
+                        _scene["claim_ids"] = restore_id_list(_scene.get("claim_ids"), claim_sid)
+                        _scene["primary_claim_ids"] = restore_id_list(_scene.get("primary_claim_ids"), claim_sid)
+                        _scene["callback_claim_ids"] = restore_id_list(_scene.get("callback_claim_ids"), claim_sid)
                         _scene["evidence_ids"] = evidence_sid.restore_list(_scene.get("evidence_ids", []))
                     candidate_beat_sheet = _split_scene_claim_roles(candidate_beat_sheet)
                     candidate_beat_sheet = _assign_scene_jobs(candidate_beat_sheet)
@@ -323,7 +327,7 @@ async def plan_act(state: PipelineState) -> dict:
                     structural_quality_failure = _has_structural_overlap_failures(candidate_quality_issues)
                     if candidate_beat_sheet:
                         if structural_quality_failure:
-                            raise ValueError("beat_sheet failed structural beat validation after claim-role split")
+                            raise ValueError("beat_sheet failed structural beat validation after claim-role normalization")
                         attempt_debugs.append(
                             {
                                 "attempt": total_attempts,
@@ -517,6 +521,26 @@ def _recover_scene_claim_ids(
             seen.add(item)
             out.append(item)
     return out
+
+
+def _recover_scene_claim_roles(
+    scene: dict[str, Any],
+    *,
+    allowed_claim_ids: set[str],
+    scene_number: int,
+) -> tuple[list[str], list[str], bool]:
+    raw_primary = scene.get("primary_claim_ids")
+    raw_callback = scene.get("callback_claim_ids")
+    has_explicit_roles = isinstance(raw_primary, list) or isinstance(raw_callback, list)
+
+    if has_explicit_roles:
+        primary_claim_ids = _recover_scene_claim_ids(raw_primary, allowed_claim_ids, scene_number)
+        callback_claim_ids = _recover_scene_claim_ids(raw_callback, allowed_claim_ids, scene_number)
+        primary_set = set(primary_claim_ids)
+        callback_claim_ids = [cid for cid in callback_claim_ids if cid not in primary_set]
+        return primary_claim_ids, callback_claim_ids, True
+
+    return _recover_scene_claim_ids(scene.get("claim_ids"), allowed_claim_ids, scene_number), [], False
 
 
 def _recover_scene_evidence_ids(
@@ -869,11 +893,10 @@ def _hydrate_scene_evidence_ids_from_claim_support(
     seen: set[str] = set()
     for scene in beat_sheet:
         existing_ids = _uuid_list(scene.get("evidence_ids"))
-        claim_ids = _scene_primary_claim_ids(scene)
-        if not claim_ids:
-            claim_ids = _scene_callback_claim_ids(scene)
+        primary_claim_ids = _scene_primary_claim_ids(scene)
+        callback_claim_ids = _scene_callback_claim_ids(scene)
         scene["evidence_ids"] = existing_ids
-        if not claim_ids:
+        if not primary_claim_ids and not callback_claim_ids:
             continue
 
         scene_type = str(scene.get("type") or "").strip()
@@ -887,14 +910,20 @@ def _hydrate_scene_evidence_ids_from_claim_support(
         existing_set = set(existing_ids)
         if len(attached) >= MAX_EXISTING_EVIDENCE_IDS_PER_SCENE:
             continue
+        claim_id_groups = [primary_claim_ids]
+        if callback_claim_ids:
+            claim_id_groups.append(callback_claim_ids)
 
         for mode in preferred_modes:
-            for claim_id in claim_ids:
-                for evidence_id in claim_support_lookup.get(claim_id, {}).get(mode, []):
-                    if evidence_id in attached_set:
-                        continue
-                    attached.append(evidence_id)
-                    attached_set.add(evidence_id)
+            for claim_ids in claim_id_groups:
+                for claim_id in claim_ids:
+                    for evidence_id in claim_support_lookup.get(claim_id, {}).get(mode, []):
+                        if evidence_id in attached_set:
+                            continue
+                        attached.append(evidence_id)
+                        attached_set.add(evidence_id)
+                        if len(attached) >= MAX_EXISTING_EVIDENCE_IDS_PER_SCENE:
+                            break
                     if len(attached) >= MAX_EXISTING_EVIDENCE_IDS_PER_SCENE:
                         break
                 if len(attached) >= MAX_EXISTING_EVIDENCE_IDS_PER_SCENE:
@@ -954,8 +983,10 @@ def _normalize_beat_sheet(
         if not isinstance(scene_type, str) or not scene_type.strip():
             scene_type = "explanation"
 
-        claim_ids = _recover_scene_claim_ids(
-            scene.get("claim_ids"), allowed_claim_ids, scene_number,
+        primary_claim_ids, callback_claim_ids, has_explicit_claim_roles = _recover_scene_claim_roles(
+            scene,
+            allowed_claim_ids=allowed_claim_ids,
+            scene_number=scene_number,
         )
         evidence_ids = _recover_scene_evidence_ids(
             scene.get("evidence_ids"),
@@ -978,11 +1009,14 @@ def _normalize_beat_sheet(
                 "type": scene_type.strip(),
                 "scene_job": _normalize_scene_job(scene.get("scene_job")),
                 "description": description.strip(),
-                "claim_ids": claim_ids,
+                "claim_ids": list(primary_claim_ids),
+                "primary_claim_ids": primary_claim_ids,
+                "callback_claim_ids": callback_claim_ids,
                 "evidence_ids": evidence_ids,
                 "estimated_duration_seconds": duration,
                 "transition_note": transition_note,
                 "notes": notes.strip(),
+                "_claim_role_source": "explicit" if has_explicit_claim_roles else "legacy",
             }
         )
 
@@ -1060,18 +1094,49 @@ def _split_scene_claim_roles(beat_sheet: list[dict[str, Any]]) -> list[dict[str,
         key=lambda scene: _positive_int(scene.get("scene"), 0) if isinstance(scene, dict) else 0,
     )
     for scene in ordered_scenes:
-        original_claim_ids = _uuid_list(scene.get("claim_ids"))
-        primary_claim_ids: list[str] = []
-        callback_claim_ids: list[str] = []
-        for claim_id in original_claim_ids:
-            if claim_id in seen_primary_claim_ids:
-                callback_claim_ids.append(claim_id)
-                continue
-            seen_primary_claim_ids.add(claim_id)
-            primary_claim_ids.append(claim_id)
+        role_source = str(scene.pop("_claim_role_source", "legacy") or "legacy").strip()
+        if role_source == "explicit":
+            explicit_primary_claim_ids = _scene_primary_claim_ids(scene)
+            explicit_callback_claim_ids = [
+                claim_id
+                for claim_id in _scene_callback_claim_ids(scene)
+                if claim_id not in set(explicit_primary_claim_ids)
+            ]
+            callback_claim_ids: list[str] = []
+            callback_seen: set[str] = set()
+            primary_claim_ids = []
+            primary_seen_in_scene: set[str] = set()
+            for claim_id in explicit_primary_claim_ids:
+                if claim_id in seen_primary_claim_ids:
+                    if claim_id not in callback_seen:
+                        callback_claim_ids.append(claim_id)
+                        callback_seen.add(claim_id)
+                    continue
+                if claim_id in primary_seen_in_scene:
+                    continue
+                primary_claim_ids.append(claim_id)
+                primary_seen_in_scene.add(claim_id)
+            for claim_id in explicit_callback_claim_ids:
+                if claim_id in primary_seen_in_scene or claim_id in seen_primary_claim_ids:
+                    if claim_id not in callback_seen:
+                        callback_claim_ids.append(claim_id)
+                        callback_seen.add(claim_id)
+                    continue
+                primary_claim_ids.append(claim_id)
+                primary_seen_in_scene.add(claim_id)
+        else:
+            original_claim_ids = _uuid_list(scene.get("claim_ids"))
+            primary_claim_ids = []
+            callback_claim_ids = []
+            for claim_id in original_claim_ids:
+                if claim_id in seen_primary_claim_ids:
+                    callback_claim_ids.append(claim_id)
+                    continue
+                primary_claim_ids.append(claim_id)
         scene["primary_claim_ids"] = primary_claim_ids
         scene["callback_claim_ids"] = callback_claim_ids
         scene["claim_ids"] = primary_claim_ids
+        seen_primary_claim_ids.update(primary_claim_ids)
     return beat_sheet
 
 
@@ -1387,7 +1452,7 @@ def _format_structural_retry_detail(
         scene_number = _positive_int(issue.get("scene"), 0)
         scene = _find_scene_by_number(beat_sheet, scene_number)
         detail += (
-            "\n  This scene has no new primary claim after claim-role split."
+            "\n  This scene has no new primary claim after claim-role normalization."
             "\n  Do NOT keep it just to preserve a template or to hit `scene_count_guidance`."
             "\n  Either:"
             "\n    - merge this material into the earlier scene that already owns these claims,"

@@ -591,7 +591,7 @@ Deferred after Round 68:
 - [x] **P1**: Add regression tests for integrator prompt/output contract and missing-beat-sheet validation helper
 
 **Round 78 (act-planner novelty split + writer mechanism continuity):**
-- [x] **P0**: Deterministically split repeated scene claim usage into `primary_claim_ids` and `callback_claim_ids` by normalized scene order, instead of reteaching the same claim as primary in multiple scenes
+- [x] **P0**: Introduce `primary_claim_ids` / `callback_claim_ids` scene roles in act planning. Planner now emits them explicitly; deterministic normalized-order split remains only as a legacy fallback for older outputs, instead of being the sole source of truth
 - [x] **P0**: Add a narrow act-planner overlap gate: callback-only `hook` / `explanation` / `case_study` scenes now fail the attempt and use the bounded `ACT_PLANNER_RETRIES = 2` retry budget
 - [x] **P1**: Keep writer scene prompts focused on `primary_claim_ids`, while manifest/debug continuity still preserves primary+callback claim coverage for downstream steps
 - [x] ~~**P1**: Add generic `mechanism_anchors` to global covered-claim memory~~ — superseded: `mechanism_anchors` removed; continuity now handled by `prior_scenes_dialogue` and `already_covered_claims_global`
