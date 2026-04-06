@@ -7,13 +7,13 @@ import pytest
 from app.pipeline.phase5_planning.act_planner import (
     ACT_PLANNER_SYSTEM,
     _assign_scene_jobs,
-    _branch_focus_summary,
     _build_act_prompt_payload,
     _collect_prior_acts_ending_types,
     _collect_prior_acts_primary_claims,
     _collect_beat_sheet_quality_issues,
     _hydrate_scene_evidence_ids_from_claim_support,
     _extract_scene_strategy,
+    _format_structural_retry_detail,
     _has_structural_overlap_failures,
     _normalize_beat_sheet,
     _recover_scene_claim_ids,
@@ -35,7 +35,6 @@ def test_build_act_prompt_payload_carries_story_contract_and_branch_focus() -> N
         "internal_arc": "mystery -> mechanism -> constraint -> resolution",
         "opening_question": "What stops private note issuance from spinning out of control?",
         "ending_turn": "The listener sees that trust comes from the rules, not the logos on the notes.",
-        "focus_branch_ids": ["b3", "b2"],
         "estimated_duration_seconds": 480,
         "content_quotas": {"verified_facts": 5},
     }
@@ -146,12 +145,7 @@ def test_build_act_prompt_payload_carries_story_contract_and_branch_focus() -> N
     assert payload["internal_arc"] == "mystery -> mechanism -> constraint -> resolution"
     assert payload["opening_question"].startswith("What stops private note issuance")
     assert payload["ending_turn"].startswith("The listener sees")
-    assert payload["focus_branch_ids"] == ["b3", "b2"]
     assert payload["scene_count_guidance"] == {"min_scenes": 5, "target_scenes": 6, "max_scenes": 7}
-    assert payload["branch_focus_summary"] == [
-        {"branch_id": "b2", "claim_count": 2},
-        {"branch_id": "b3", "claim_count": 2},
-    ]
     assert payload["conflict_count"] == 0
     assert payload["prior_acts_primary_claims"] == [
         {
@@ -162,6 +156,9 @@ def test_build_act_prompt_payload_carries_story_contract_and_branch_focus() -> N
     ]
     assert "evidence" not in payload
     assert "conflict_brief_ids" not in payload
+    assert "focus_branch_ids" not in payload
+    assert "branch_focus_summary" not in payload
+    assert "content_quotas" not in payload
     assert payload["claims"] == [
         {
             "id": "c1",
@@ -172,8 +169,6 @@ def test_build_act_prompt_payload_carries_story_contract_and_branch_focus() -> N
             "illustrative_evidence_count": 1,
             "direct_support_count": 2,
             "source_diversity": 2,
-            "branch_ids": ["b3"],
-            "intents": ["explain"],
             "support_bundle": {
                 "direct": [
                     {
@@ -204,8 +199,6 @@ def test_build_act_prompt_payload_carries_story_contract_and_branch_focus() -> N
             "illustrative_evidence_count": 0,
             "direct_support_count": 1,
             "source_diversity": 1,
-            "branch_ids": ["b3", "b2"],
-            "intents": ["explain"],
             "support_bundle": {
                 "direct": [
                     {
@@ -228,30 +221,11 @@ def test_build_act_prompt_payload_carries_story_contract_and_branch_focus() -> N
             "illustrative_evidence_count": 0,
             "direct_support_count": 0,
             "source_diversity": 1,
-            "branch_ids": ["b2"],
-            "intents": ["compare"],
             "support_bundle": {
                 "direct": [],
                 "illustrative": [],
             },
         },
-    ]
-
-
-def test_branch_focus_summary_sorts_by_density_then_branch_id() -> None:
-    summary = _branch_focus_summary(
-        [
-            {"branch_ids": ["b4"]},
-            {"branch_ids": ["b1", "b4"]},
-            {"branch_ids": ["b1"]},
-            {"branch_ids": ["b3"]},
-        ]
-    )
-
-    assert summary == [
-        {"branch_id": "b1", "claim_count": 2},
-        {"branch_id": "b4", "claim_count": 2},
-        {"branch_id": "b3", "claim_count": 1},
     ]
 
 
@@ -323,6 +297,7 @@ def test_act_planner_prompt_demands_compact_beats_and_real_conflict_gate() -> No
     assert '"scene_strategy": "short phrase describing the act\'s internal movement"' in ACT_PLANNER_SYSTEM
     assert "`internal_arc` says how the act should move internally" in ACT_PLANNER_SYSTEM
     assert "All human-readable output fields (`scene_strategy`, `description`, `transition_note`, `notes`) MUST be in `output_language`" in ACT_PLANNER_SYSTEM
+    assert "First decide the smallest set of distinct scene moves needed to satisfy the act contract." in ACT_PLANNER_SYSTEM
     assert "first scene must explicitly open the act's `opening_question`" in ACT_PLANNER_SYSTEM
     assert "final scene must clearly deliver the act's `ending_turn`" in ACT_PLANNER_SYSTEM
     assert "Vary the internal shape across acts" in ACT_PLANNER_SYSTEM
@@ -331,9 +306,11 @@ def test_act_planner_prompt_demands_compact_beats_and_real_conflict_gate() -> No
     assert "can close an act with unresolved tension" in ACT_PLANNER_SYSTEM
     assert "Prefer compact beat cards, not mini-script paragraphs." in ACT_PLANNER_SYSTEM
     assert "Use `debate` only when the act has real conflict pressure" in ACT_PLANNER_SYSTEM
-    assert "Use `scene_count_guidance` as the default size target" in ACT_PLANNER_SYSTEM
+    assert "It is better to return fewer scenes than to add a weak or repetitive scene." in ACT_PLANNER_SYSTEM
+    assert "Use `scene_count_guidance` as a soft planning range, not a quota." in ACT_PLANNER_SYSTEM
     assert "Each act should contain at least one meaningful turn" in ACT_PLANNER_SYSTEM
     assert "A `case_study` scene is optional, not mandatory." in ACT_PLANNER_SYSTEM
+    assert "do not add a later `case_study` just to replay that same image with the same claims" in ACT_PLANNER_SYSTEM
     assert "each claim includes `support_bundle.direct` and optional `support_bundle.illustrative`" in ACT_PLANNER_SYSTEM
     assert "attach one or more `evidence_ids` from that claim's bundled support whenever available" in ACT_PLANNER_SYSTEM
     assert "`claim_ids` and `evidence_ids` are opaque labels" in ACT_PLANNER_SYSTEM
@@ -498,6 +475,43 @@ async def test_collect_beat_sheet_quality_issues_flags_structural_callback_only_
         }
     ]
     assert _has_structural_overlap_failures(issues)
+
+
+def test_format_structural_retry_detail_for_callback_only_scene_allows_shorter_act() -> None:
+    claim_id = "11111111-1111-1111-1111-111111111111"
+    detail = _format_structural_retry_detail(
+        {
+            "severity": "structural",
+            "type": "callback_only_scene",
+            "scene": 2,
+            "scene_type": "case_study",
+            "message": "Scene only references already-covered claims and introduces no primary claim.",
+            "callback_claim_ids": [claim_id],
+        },
+        beat_sheet=[
+            {
+                "scene": 1,
+                "type": "hook",
+                "primary_claim_ids": [claim_id],
+                "callback_claim_ids": [],
+            },
+            {
+                "scene": 2,
+                "type": "case_study",
+                "scene_job": "apply",
+                "primary_claim_ids": [],
+                "callback_claim_ids": [claim_id],
+            },
+        ],
+        claim_statements_lookup={
+            claim_id: "Same concrete anomaly claim.",
+        },
+    )
+
+    assert "Do NOT keep it just to preserve a template or to hit `scene_count_guidance`." in detail
+    assert "delete it and return a shorter act" in detail
+    assert "Scene 2 current move: apply" in detail
+    assert "Same concrete anomaly claim." in detail
 
 
 async def test_collect_beat_sheet_quality_issues_keeps_callback_only_takeaway_advisory() -> None:
@@ -1111,7 +1125,7 @@ async def test_plan_act_keeps_quality_retry_budget_after_timeout(monkeypatch: py
     assert len(prompts) == 3
     assert "previous_error" not in prompts[1]
     assert prompts[2]["previous_error"].startswith(
-        "ValueError: beat_sheet failed structural overlap validation after claim-role split"
+        "ValueError: beat_sheet failed structural beat validation after claim-role split"
     )
     assert "Do NOT solve this by paraphrasing the same mechanism in new words." in prompts[2]["previous_error"]
     assert "merge it into the stronger scene" in prompts[2]["previous_error"]

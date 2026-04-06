@@ -48,7 +48,7 @@ SCENE_JOB_VALUES = {
 ENDING_SCENE_JOB_VALUES = {"reframe", "cost", "contrast", "bridge", "synthesize"}
 
 ACT_PLANNER_SYSTEM = """You are a podcast act planner creating a beat sheet (scene list).
-Given an act's role, purpose, claims with support bundles, and quotas, create a detailed beat sheet that feels like story movement, not a flat list of explanations.
+Given an act contract and claims with support bundles, create a detailed beat sheet that feels like story movement, not a flat list of explanations.
 
 Return JSON:
 {
@@ -90,6 +90,7 @@ Rules:
   - Do not mix languages inside one field.
 - The act must feel like it goes somewhere. Scenes should create setup -> development -> turn -> landing, not just restate adjacent facts.
 - Before drafting scenes, choose a short `scene_strategy` that captures how this act moves internally.
+- First decide the smallest set of distinct scene moves needed to satisfy the act contract. Then write only those scenes.
 - Respect the act contract:
   - `story_role` says what kind of movement this act should deliver
   - `purpose` says why the act exists
@@ -105,6 +106,7 @@ Rules:
 - Each act should contain at least one meaningful turn: a realization, complication, stress test, reversal, or reframing that changes what the listener now understands.
 - Do not turn the act into a laundry list of explanations.
 - Keep one clear job per scene. Split only when the listener would feel a meaningful shift.
+- It is better to return fewer scenes than to add a weak or repetitive scene. Never add a scene just to hit a target count or preserve a favorite template.
 - Avoid repeating the same proposition core across multiple scenes in the same act.
 - Each scene's description must be grounded in the claims assigned to that scene. The description should explain what those specific claims reveal, change, or complicate — not restate the act's general thesis.
 - Each scene must make a different move from every other scene in the act. If two descriptions land on the same insight, one of them is wrong — rewrite it to use its own claims.
@@ -114,7 +116,7 @@ Rules:
 - A genuinely new layer means the listener learns something meaningfully different: how the mechanism behaves under stress, what it costs, what legal or political structure locks it in, how it differs from another system, or what consequence follows from it. Merely restating the same mechanism with different wording is not a new layer.
 - In later acts, assume the listener remembers the previously established mechanism. Do not spend a full scene re-teaching it unless the act adds a clearly different layer.
 - In historical acts, keep the scene order chronologically legible unless there is a strong editorial reason not to. Do not jump to a later retrospective statistic or outcome before the key event it is supposed to explain, unless the beat card clearly frames it as hindsight.
-- Use `scene_count_guidance` as the default size target for the act. Do not exceed it unless the act would otherwise feel structurally incomplete.
+- Use `scene_count_guidance` as a soft planning range, not a quota. It is fine to land below the target, or even below the minimum, if extra scenes would only repeat or paraphrase existing moves.
 - Prefer compact beat cards, not mini-script paragraphs. `description` should describe the beat, not write the scene. `notes` should stay short.
 - Each scene description must stay a beat card: 1-3 sentences, maximum 250 characters.
 - State what CHANGES in this scene: the shift in understanding, the new complication, or the consequence.
@@ -124,7 +126,8 @@ Rules:
 - `claim_ids` and `evidence_ids` are opaque labels. Reuse only labels present in the input and copy them exactly.
 - Prefer bundled claim support over improvising unsupported scenes or assuming an evidence search will rescue the beat later.
 - Alternate dense explanation with a vivid example, hook, case, contrast, or transition whenever the evidence allows it.
-- A `case_study` scene is optional, not mandatory. Use it only when a concrete episode materially advances the act.
+- A `case_study` scene is optional, not mandatory. Use it only when a concrete example introduces a new primary claim family or does genuinely different listener work.
+- If the hook already carries the act's strongest concrete image or anomaly, do not add a later `case_study` just to replay that same image with the same claims.
 - If the act has illustrative material, use it early or at key pivots instead of burying it at the end.
 - Do not stack more than two `explanation` scenes in a row without a meaningful shift in angle, example, or tension.
 - Use `debate` only when the act has real conflict pressure (`conflict_count > 0`) or the act itself is genuinely comparative/argumentative. If there is no real conflict, do not invent one.
@@ -148,7 +151,7 @@ Rules:
 - If a scene uses an established mechanism as context, mention that context briefly and then move immediately to what is new in this scene.
 - A `contrast` scene should usually have one dominant outside comparator. Do not import several unrelated external mini-histories unless they clearly ladder up to one comparison point.
 - Let `story_role` shape the act:
-  - `setup`: establish the paradox, world, and stakes
+  - `setup`: establish the paradox, world, and stakes with only the minimum mechanism needed to orient the listener
   - `complicate`: intensify the problem or institutional tension
   - `explain`: answer the act question with the minimum mechanism needed
   - `resolve`: show how the tension settles in practice
@@ -289,7 +292,7 @@ async def plan_act(state: PipelineState) -> dict:
                 candidate_beat_sheet: list[dict[str, Any]] = []
                 candidate_scene_strategy = ""
                 candidate_quality_issues: list[dict[str, Any]] = []
-                structural_overlap_failure = False
+                structural_quality_failure = False
                 try:
                     logger.info(
                         "Act planner calling Sonnet for act %s (attempt %s, request_failures=%s/%s, quality_failures=%s/%s, prompt_chars=%s)",
@@ -319,10 +322,10 @@ async def plan_act(state: PipelineState) -> dict:
                     candidate_quality_issues = await _collect_beat_sheet_quality_issues(
                         candidate_beat_sheet, claim_statements=claim_statements_lookup,
                     )
-                    structural_overlap_failure = _has_structural_overlap_failures(candidate_quality_issues)
+                    structural_quality_failure = _has_structural_overlap_failures(candidate_quality_issues)
                     if candidate_beat_sheet:
-                        if structural_overlap_failure:
-                            raise ValueError("beat_sheet failed structural overlap validation after claim-role split")
+                        if structural_quality_failure:
+                            raise ValueError("beat_sheet failed structural beat validation after claim-role split")
                         attempt_debugs.append(
                             {
                                 "attempt": total_attempts,
@@ -336,7 +339,7 @@ async def plan_act(state: PipelineState) -> dict:
                                 },
                                 "normalized_scene_count": len(candidate_beat_sheet),
                                 "quality_issues": candidate_quality_issues,
-                                "structural_overlap_failure": structural_overlap_failure,
+                                "structural_quality_failure": structural_quality_failure,
                             }
                         )
                         beat_sheet = candidate_beat_sheet
@@ -350,7 +353,7 @@ async def plan_act(state: PipelineState) -> dict:
                         failed_beat_sheet = candidate_beat_sheet
                     quality_issues = candidate_quality_issues
                     last_error = f"{type(exc).__name__}: {exc}"
-                    if structural_overlap_failure:
+                    if structural_quality_failure:
                         quality_failures += 1
                         last_failure_status = "quality_gate_failed"
                         structural_details = []
@@ -573,17 +576,6 @@ def _extract_scene_strategy(payload: Any) -> str:
     return value.strip()
 
 
-def _branch_focus_summary(act_claims: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    branch_counts: dict[str, int] = {}
-    for claim in act_claims:
-        for branch_id in claim.get("branch_ids", []) or []:
-            branch_counts[branch_id] = branch_counts.get(branch_id, 0) + 1
-    return [
-        {"branch_id": branch_id, "claim_count": count}
-        for branch_id, count in sorted(branch_counts.items(), key=lambda item: (-item[1], item[0]))
-    ]
-
-
 def _build_act_prompt_payload(
     *,
     act: dict[str, Any],
@@ -610,15 +602,8 @@ def _build_act_prompt_payload(
         "internal_arc": str(act.get("internal_arc") or "").strip(),
         "opening_question": str(act.get("opening_question") or "").strip(),
         "ending_turn": str(act.get("ending_turn") or "").strip(),
-        "focus_branch_ids": [
-            branch_id
-            for branch_id in (act.get("focus_branch_ids") or [])
-            if isinstance(branch_id, str) and branch_id.strip()
-        ],
-        "branch_focus_summary": _branch_focus_summary(act_claims),
         "estimated_duration_seconds": estimated_duration,
         "scene_count_guidance": _scene_count_guidance(estimated_duration),
-        "content_quotas": act.get("content_quotas", {}) if isinstance(act.get("content_quotas"), dict) else {},
         "conflict_count": len(conflict_ids),
         "prior_acts_primary_claims": prior_acts_primary_claims,
         "prior_acts_ending_types": prior_acts_ending_types or [],
@@ -724,16 +709,6 @@ def _build_claim_prompt_payloads(
                 "illustrative_evidence_count": _positive_int(claim.get("illustrative_evidence_count"), 0),
                 "direct_support_count": _positive_int(claim.get("direct_support_count"), 0),
                 "source_diversity": _positive_int(claim.get("source_diversity"), 0),
-                "branch_ids": [
-                    branch_id
-                    for branch_id in (claim.get("branch_ids") or [])
-                    if isinstance(branch_id, str) and branch_id.strip()
-                ],
-                "intents": [
-                    intent
-                    for intent in (claim.get("intents") or [])
-                    if isinstance(intent, str) and intent.strip()
-                ],
                 "support_bundle": {
                     "direct": direct_bundle,
                     "illustrative": [],
@@ -1390,6 +1365,33 @@ def _format_structural_retry_detail(
                 f"    - {statement}"
                 for statement in scene_claims
             )
+        return detail
+
+    if issue.get("type") == "callback_only_scene":
+        scene_number = _positive_int(issue.get("scene"), 0)
+        scene = _find_scene_by_number(beat_sheet, scene_number)
+        detail += (
+            "\n  This scene has no new primary claim after claim-role split."
+            "\n  Do NOT keep it just to preserve a template or to hit `scene_count_guidance`."
+            "\n  Either:"
+            "\n    - merge this material into the earlier scene that already owns these claims,"
+            "\n    - replace it with a scene built from a different unused primary claim family, or"
+            "\n    - delete it and return a shorter act."
+        )
+        if scene is not None:
+            scene_job = _scene_job(scene) or "none"
+            detail += f"\n  Scene {scene_number} current move: {scene_job}"
+            callback_claims = _scene_callback_claim_ids(scene)
+            scene_claims = [
+                claim_statements_lookup.get(cid, "")
+                for cid in callback_claims
+                if cid in claim_statements_lookup
+            ]
+            if scene_claims:
+                detail += "\n  Scene's callback claims:\n" + "\n".join(
+                    f"    - {statement}"
+                    for statement in scene_claims
+                )
         return detail
 
     if issue.get("type") != "description_overlap":
