@@ -45,15 +45,19 @@ def test_showrunner_prompt_does_not_hardcode_three_acts() -> None:
     assert "do not default to 3 acts" in SHOWRUNNER_SYSTEM
     assert '"internal_arc": "short phrase describing how this act moves internally"' in SHOWRUNNER_SYSTEM
     assert "Adjacent acts should usually have different `internal_arc` shapes" in SHOWRUNNER_SYSTEM
+    assert "Treat `story_role` as listener work, not topic label." in SHOWRUNNER_SYSTEM
+    assert "Before assigning claims, first decide the act jobs." in SHOWRUNNER_SYSTEM
     assert "one dominant dramatic question or editorial burden" in SHOWRUNNER_SYSTEM
     assert "All human-readable fields (`title`, `purpose`, `internal_arc`, `opening_question`, `ending_turn`) MUST be in `output_language`" in SHOWRUNNER_SYSTEM
     assert "A major shift in timeframe, abstraction level, or editorial function is evidence for a new act" in SHOWRUNNER_SYSTEM
     assert "Merge candidate act material only when it would produce substantially the same `opening_question`, `internal_arc`, and `ending_turn`." in SHOWRUNNER_SYSTEM
+    assert "Role purity beats compactness." in SHOWRUNNER_SYSTEM
     assert "Listener novelty matters more than branch coverage; branch coherence is a hint, not a rule." in SHOWRUNNER_SYSTEM
     assert "Before keeping a claim in an act, ask whether removing it would force a genuinely different beat." in SHOWRUNNER_SYSTEM
     assert "it is not fresh backbone" in SHOWRUNNER_SYSTEM
     assert "one dominant explanatory spine" in SHOWRUNNER_SYSTEM
     assert "real-world test" in SHOWRUNNER_SYSTEM
+    assert "`branch_ids` are provenance hints, not targets." in SHOWRUNNER_SYSTEM
     assert "Comparative material should stay selective; one strong outside comparator is usually enough for one beat." in SHOWRUNNER_SYSTEM
     assert "total_claim_count" in SHOWRUNNER_SYSTEM
     assert "keep every act at or below" in SHOWRUNNER_SYSTEM
@@ -62,8 +66,8 @@ def test_showrunner_prompt_does_not_hardcode_three_acts() -> None:
     assert "Do not use the last act to park leftover operational facts that could be removed without changing the final takeaway." in SHOWRUNNER_SYSTEM
 
     top_level_rules = [line for line in SHOWRUNNER_SYSTEM.splitlines() if line.startswith("-")]
-    assert len(top_level_rules) <= 18
-    assert len(SHOWRUNNER_SYSTEM.split()) < 1050
+    assert len(top_level_rules) <= 20
+    assert len(SHOWRUNNER_SYSTEM.split()) < 1150
 
 
 def test_build_showrunner_prompt_payload_carries_output_language() -> None:
@@ -72,7 +76,14 @@ def test_build_showrunner_prompt_payload_carries_output_language() -> None:
         output_language="ru",
         show_style="Conversational",
         rigor_policy="",
-        claims=[],
+        claims=[
+            {
+                "id": "c1",
+                "statement": "test",
+                "branch_ids": ["b1"],
+                "question_ids": ["b1.1"],
+            }
+        ],
         conflicts=[],
         disputed_claim_ids=[],
         duration_fill_layers=[],
@@ -80,7 +91,9 @@ def test_build_showrunner_prompt_payload_carries_output_language() -> None:
 
     assert payload["duration_target_seconds"] == 1800
     assert payload["output_language"] == "ru"
-    assert payload["total_claim_count"] == 0
+    assert payload["total_claim_count"] == 1
+    assert payload["claims"][0]["branch_ids"] == ["b1"]
+    assert "question_ids" not in payload["claims"][0]
     assert payload["duration_fill_layers"] == []
 
 

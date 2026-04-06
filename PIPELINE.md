@@ -507,7 +507,7 @@ Web extraction использует каскад extractors:
   - `focus_branch_ids`
 - showrunner prompt агрессивно курирует claims per act, теперь получает `total_claim_count` + явное правило ceiling-per-act / proportional-by-duration, но post-normalization использует этот ceiling только как advisory signal: pathological overload логируется в debug/worker logs, а claims больше не переносятся между актами и не дропаются без участия LLM; disputed/conflict claims по-прежнему валидируются post-hoc и получают debate slot если LLM его пропустил
 - planning payloads now carry `output_language`, so showrunner and act planner keep human-readable output in the podcast language instead of drifting into English
-- showrunner prompt теперь опирается на более компактный split/merge contract вместо длинного списка частично дублирующих запретов: число актов должно следовать числу distinct listener-work moves, большой сдвиг по времени / уровню абстракции / editorial function обычно означает новый акт, а claim остаётся в акте только если без него исчезает реально другой beat, а не ещё одна формулировка того же backbone-пункта
+- showrunner prompt теперь role-first: LLM должна сначала определить distinct act jobs (`story_role` как тип listener work, а не topic label), затем раскладывать claims; `question_ids` убраны из showrunner payload как provenance-noise, а `branch_ids` оставлены только как слабый anchoring hint после выбора роли акта
 
 - при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` Showrunner пишет JSON dump с input payload, raw/parsed LLM output и normalized act plan
 

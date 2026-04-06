@@ -60,17 +60,19 @@ Rules:
   - All human-readable fields (`title`, `purpose`, `internal_arc`, `opening_question`, `ending_turn`) MUST be in `output_language` from the user payload.
   - Do not mix languages inside one field.
 - Build an episode, not a claim bucket. Choose the act count (2-6) that best fits the material, duration, and style; do not default to 3 acts or compress distinct listener work just to stay compact.
-- Prefer a clean macro-arc where setup, explanation, complication, resolve, and payoff feel like genuinely different jobs when the material supports them.
+- Treat `story_role` as listener work, not topic label. `setup` establishes anomaly, stakes, or the reason to care; `explain` teaches the core model; `complicate` adds context or tension that makes the simple reading less complete; `resolve` delivers the strongest test, consequence, decision, or proof; `payoff` synthesizes, reframes, compares, or lands why it matters.
+- Before assigning claims, first decide the act jobs. Ask how many distinct listener questions the material really supports, then define each act's role, opening question, internal movement, and ending turn. Only after that should you assign claims to acts.
 - Start from the strongest episode-level question: why is this subject strange, how does it work, and why does it matter? Each act should answer one distinct part of that question, hand off naturally to the next act, and have one dominant dramatic question or editorial burden.
 - For each act, define a short `internal_arc` that describes movement, not topic coverage. Adjacent acts should usually have different `internal_arc` shapes, and `ending_turn` shapes should vary too.
 - Use act boundaries for real shifts in listener work. A major shift in timeframe, abstraction level, or editorial function is evidence for a new act, not just a new scene. Merge candidate act material only when it would produce substantially the same `opening_question`, `internal_arc`, and `ending_turn`.
+- Role purity beats compactness. Do not let `setup` fully consume `explain`, `complicate` absorb `resolve`, or `payoff` become a leftovers bin just because the episode can be compressed.
 - Curate aggressively. Keep only claims that make a distinct editorial contribution. If multiple claims restate the same mechanism, rule, fact, event, or decision, keep the single strongest formulation and leave the rest unused unless they clearly enable a different move.
 - Each claim appears in exactly ONE act. Do not spread the same proposition core across acts just because it feels relevant in several places. Listener novelty matters more than branch coverage; branch coherence is a hint, not a rule.
 - Before keeping a claim in an act, ask whether removing it would force a genuinely different beat. If not, it is not fresh backbone. One act may own a mechanism or concept family, but it should stay lean rather than exhaustive.
 - Explanatory acts should usually have one dominant explanatory spine. Keep extra claims only if they enable a meaningfully different move such as application, consequence, tradeoff, exception, contrast, comparison, concrete case, or real-world test.
 - If one branch or theme yields more strong claims than one act can hold cleanly, keep the strongest claims in that act and leave the rest unused rather than overloading the episode.
 - Keep claim load roughly proportional to each act's `estimated_duration_seconds`. The payload includes `total_claim_count`; whatever `act_count` you choose, keep every act at or below `max(8, ceil(total_claim_count / act_count * 1.5))` claims and avoid a huge pile in one short act while neighboring acts stay thin.
-- Prefer acts organized around one dominant branch or a tight pair of related branches, not a random mix of distant topics. Comparative material should stay selective; one strong outside comparator is usually enough for one beat.
+- `branch_ids` are provenance hints, not targets. Use `focus_branch_ids` to describe the branch or tight pair that best anchors an act after you decide its role; do not let branch coverage drive act design. Comparative material should stay selective; one strong outside comparator is usually enough for one beat.
 - Front-load verified facts where grounding is needed. Claims with direct support and stronger source diversity should form the explanatory backbone. Claims with illustrative evidence are good candidates for hooks, case-study moments, and pivots.
 - DISPUTED claims MUST have a "debate moment" (conflicts >= 1 in that act's quotas)
 - The last act should include takeaways and a clear "why this matters" payoff.
@@ -244,13 +246,21 @@ def _build_showrunner_prompt_payload(
     disputed_claim_ids: list[str],
     duration_fill_layers: list | None,
 ) -> dict:
+    sanitized_claims: list[dict] = []
+    for claim in claims:
+        if not isinstance(claim, dict):
+            continue
+        copy = dict(claim)
+        copy.pop("question_ids", None)
+        sanitized_claims.append(copy)
+
     return {
         "duration_target_seconds": duration_target_seconds,
         "output_language": str(output_language or "en").strip() or "en",
         "show_style": show_style,
         "rigor_policy": rigor_policy,
-        "total_claim_count": len(claims),
-        "claims": claims,
+        "total_claim_count": len(sanitized_claims),
+        "claims": sanitized_claims,
         "conflicts": conflicts,
         "disputed_claim_ids": disputed_claim_ids,
         "duration_fill_layers": duration_fill_layers or [],
