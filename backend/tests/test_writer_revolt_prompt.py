@@ -7,6 +7,7 @@ from app.pipeline.phase6_writing.writer_revolt import (
     EVAL_SYSTEM,
     POLISH_SYSTEM,
     _attempt_dialogue_polish,
+    _dialogue_act_monotony_signals,
     _augment_act_dialogue_reports_with_llm,
     _build_act_dialogue_reports,
     _build_act_dialogue_audit_prompt_payload,
@@ -14,6 +15,9 @@ from app.pipeline.phase6_writing.writer_revolt import (
     _build_dialogue_audit_prompt_payload,
     _build_dialogue_polish_prompt_payload,
     _build_episode_seam_audit_prompt_payload,
+    _build_targeted_seam_audit_prompt_payload,
+    _finalize_dialogue_seam_reports,
+    _dialogue_polish_resolves_targets,
     _merge_act_dialogue_report,
     _normalize_dialogue_issues,
     _normalize_act_dialogue_audit,
@@ -35,17 +39,21 @@ def test_writer_revolt_prompt_tracks_boundary_context_and_structured_repair_scop
     assert "boundary_restatement" in EVAL_SYSTEM
     assert '"severity": "low|medium|high"' in EVAL_SYSTEM
     assert '"scope": "scene_polish|scene_rewrite|act_warning"' in EVAL_SYSTEM
+    assert "return a compact machine-facing report" in EVAL_SYSTEM
+    assert "return at most 3 issues" in EVAL_SYSTEM
+    assert "Write `description` and `suggestion` in English" in EVAL_SYSTEM
     assert "closely repeating or paraphrasing the previous scene's punchline" in EVAL_SYSTEM
     assert "topic bridge or thesis-to-example progression is not echo by itself" in EVAL_SYSTEM
     assert "The payload includes `language`." in EVAL_SYSTEM
     assert "Judge the scene as spoken dialogue in that language" in EVAL_SYSTEM
     assert "Replace the current single-scene score gate" not in EVAL_SYSTEM
+    assert "Treat this as a targeted intervention, not a generic rewrite." in POLISH_SYSTEM
     assert "The payload includes `language`; keep the scene natural for that language and spoken register." in POLISH_SYSTEM
     assert "If the original scene contains a foreign-language quote or source snippet" in POLISH_SYSTEM
     assert "Keep the `speaker` field canonical: output only `A` or `B`" in POLISH_SYSTEM
     assert "`claim_ids` are opaque labels" in POLISH_SYSTEM
     assert "Avoid translated-from-English phrasing or register drift." in POLISH_SYSTEM
-    assert "Use the audit issues to improve scene flow, boundary handling, and conversational variety." in POLISH_SYSTEM
+    assert "Use `intervention_targets`, `intervention_mode`, and `success_criteria` as the primary contract." in POLISH_SYSTEM
     assert "The payload may include an `act_repetition_report`" in POLISH_SYSTEM
     assert "The payload may include a `seam_finding`" in POLISH_SYSTEM
     assert "If you split, merge, or otherwise change line alignment" in POLISH_SYSTEM
@@ -53,6 +61,8 @@ def test_writer_revolt_prompt_tracks_boundary_context_and_structured_repair_scop
     assert "If this scene opens a new act, continue the same conversation" in POLISH_SYSTEM
     assert "Do not default to `B asks -> A confirms -> A explains`." in POLISH_SYSTEM
     assert "When fixing repetitive agreement shapes, prefer removing explicit confirmation markers" in POLISH_SYSTEM
+    assert "`intervention_mode` tells you which repair type matters most" in POLISH_SYSTEM
+    assert "`success_criteria` lists what must become true" in POLISH_SYSTEM
     assert "act-level podcast dialogue auditor" in ACT_AUDIT_SYSTEM
     assert '"priority_scene_numbers": [2, 4]' in ACT_AUDIT_SYSTEM
     assert "Focus on act-level distribution problems" in ACT_AUDIT_SYSTEM
@@ -124,6 +134,12 @@ def test_build_dialogue_polish_prompt_payload_includes_scene_job() -> None:
         "act_repetition_report": {"dominant_opening_speaker": "A"},
         "seam_finding": None,
         "intervention_targets": [],
+        "intervention_mode": "general_polish",
+        "success_criteria": [
+            "Preserve the scene job, claim coverage, chronology, and attribution.",
+            "Keep the scene in the payload language and preserve delivery metadata compatibility.",
+            "Keep the scene anchored in its declared job: `cost`.",
+        ],
         "issues": [{"type": "scene_opening_echo", "severity": "medium", "scope": "scene_polish"}],
         "dialogue": [{"speaker": "B", "text": "Current ending."}],
     }
@@ -151,6 +167,44 @@ def test_normalize_dialogue_issues_defaults_invalid_values_to_repairable_medium(
             "suggestion": "Advance instead of restating.",
         }
     ]
+
+
+def test_normalize_dialogue_issues_dedupes_and_caps_output() -> None:
+    issues = _normalize_dialogue_issues(
+        [
+            {"type": "scene_opening_echo", "severity": "medium", "scope": "scene_polish", "description": "a", "suggestion": "b"},
+            {"type": "scene_opening_echo", "severity": "high", "scope": "scene_rewrite", "description": "dup", "suggestion": "dup"},
+            {"type": "rigid_turn_taking", "severity": "low", "scope": "act_warning", "description": "c", "suggestion": "d"},
+            {"type": "teacherly_exposition", "severity": "low", "scope": "act_warning", "description": "e", "suggestion": "f"},
+            {"type": "dry_facts", "severity": "medium", "scope": "scene_polish", "description": "g", "suggestion": "h"},
+        ]
+    )
+
+    assert [issue["type"] for issue in issues] == [
+        "scene_opening_echo",
+        "dry_facts",
+        "rigid_turn_taking",
+    ]
+    assert issues[0]["severity"] == "high"
+    assert issues[0]["scope"] == "scene_rewrite"
+
+
+def test_normalize_dialogue_issues_keeps_late_high_priority_issue_after_cap() -> None:
+    issues = _normalize_dialogue_issues(
+        [
+            {"type": "scene_opening_echo", "severity": "low", "scope": "act_warning", "description": "a", "suggestion": "a"},
+            {"type": "rigid_turn_taking", "severity": "low", "scope": "act_warning", "description": "b", "suggestion": "b"},
+            {"type": "teacherly_exposition", "severity": "low", "scope": "act_warning", "description": "c", "suggestion": "c"},
+            {"type": "persona_mismatch", "severity": "high", "scope": "scene_rewrite", "description": "late", "suggestion": "late"},
+        ]
+    )
+
+    assert [issue["type"] for issue in issues] == [
+        "persona_mismatch",
+        "scene_opening_echo",
+        "rigid_turn_taking",
+    ]
+    assert issues[0]["scope"] == "scene_rewrite"
 
 
 def test_dialogue_issue_scopes_drive_polish_vs_rewrite() -> None:
@@ -232,14 +286,18 @@ def test_act_dialogue_reports_prioritize_echo_and_late_act_scenes_locally() -> N
     assert [row["segment"].scene_number for row in prioritized if row["segment"].act_number == 2] == [6, 3]
 
 
-def test_row_with_act_level_target_can_still_be_polished_without_local_medium_issue() -> None:
+def test_row_with_act_level_target_needs_priority_selection_without_local_medium_issue() -> None:
     row = {
         "issues": [{"type": "scene_opening_echo", "severity": "low", "scope": "act_warning"}],
         "intervention_targets": ["act:repeated_confirmation_first_opening"],
+        "llm_priority_selected": False,
     }
 
     assert not _should_polish_dialogue(row["issues"])
-    assert _row_should_polish_dialogue(row)
+    assert _row_should_polish_dialogue(row) is False
+
+    row["llm_priority_selected"] = True
+    assert _row_should_polish_dialogue(row) is True
 
 
 def test_llm_priority_scene_is_not_dropped_without_distribution_findings() -> None:
@@ -452,6 +510,148 @@ def test_build_and_normalize_episode_seam_audit_payload() -> None:
             "description": "The new act re-asks the previous act's question.",
         }
     }
+
+
+def test_build_targeted_seam_audit_prompt_payload_uses_boundary_and_new_opening() -> None:
+    segment = SimpleNamespace(act_number=5, scene_number=1)
+    payload = _build_targeted_seam_audit_prompt_payload(
+        segment=segment,
+        language="ru",
+        scene_job="payoff",
+        boundary_context={
+            "act_number": 4,
+            "scene_number": 5,
+            "last_lines": ["Last pressure.", "Why keep paying?"],
+        },
+        seam_finding={"from_scene_job": "synthesize"},
+        polished_dialogue=[
+            {"speaker": "B", "text": "Maybe that is the answer."},
+            {"speaker": "A", "text": "Let us test that."},
+        ],
+    )
+
+    assert payload == {
+        "language": "ru",
+        "seams": [
+            {
+                "from_act_number": 4,
+                "from_scene_number": 5,
+                "from_scene_job": "synthesize",
+                "to_act_number": 5,
+                "target_scene_number": 1,
+                "to_scene_job": "payoff",
+                "previous_scene_tail": ["Last pressure.", "Why keep paying?"],
+                "next_scene_opening": ["Maybe that is the answer.", "Let us test that."],
+            }
+        ],
+    }
+
+
+def test_dialogue_act_monotony_signals_extract_repeated_distribution_findings() -> None:
+    report = {
+        "distribution_findings": [
+            {
+                "family": "repeated_explanatory_reset",
+                "severity": "medium",
+                "scene_numbers": [2, 3, 4],
+                "description": "Same explanatory reset repeats.",
+            },
+            {
+                "family": "other",
+                "severity": "high",
+                "scene_numbers": [1, 2],
+                "description": "Too generic to route.",
+            },
+        ]
+    }
+
+    assert _dialogue_act_monotony_signals(report) == [
+        {
+            "family": "repeated_explanatory_reset",
+            "severity": "medium",
+            "scene_numbers": [2, 3, 4],
+            "description": "Same explanatory reset repeats.",
+        }
+    ]
+
+
+def test_finalize_dialogue_seam_reports_prefers_post_polish_recheck() -> None:
+    segment = SimpleNamespace(
+        act_number=5,
+        scene_number=1,
+        audit_findings={
+            "dialogue": {
+                "post_polish_seam_finding": {
+                    "from_act_number": 4,
+                    "to_act_number": 5,
+                    "target_scene_number": 1,
+                    "status": "acceptable_handoff",
+                    "severity": "low",
+                    "description": "Fixed.",
+                }
+            }
+        },
+    )
+    final = _finalize_dialogue_seam_reports(
+        seam_reports=[
+            {
+                "from_act_number": 4,
+                "to_act_number": 5,
+                "target_scene_number": 1,
+                "status": "replay_question",
+                "severity": "high",
+                "description": "Old seam.",
+            }
+        ],
+        audit_rows=[{"segment": segment}],
+    )
+
+    assert final == [
+        {
+            "from_act_number": 4,
+            "to_act_number": 5,
+            "target_scene_number": 1,
+            "status": "acceptable_handoff",
+            "severity": "low",
+            "description": "Fixed.",
+        }
+    ]
+
+
+def test_dialogue_polish_resolves_targets_requires_material_change_for_non_opener_repairs() -> None:
+    original = [
+        {"speaker": "B", "text": "So it is basically the same question?", "claim_ids": []},
+        {"speaker": "A", "text": "Exactly. That is the structure.", "claim_ids": []},
+    ]
+
+    assert (
+        _dialogue_polish_resolves_targets(
+            original_dialogue=original,
+            polished_dialogue=original,
+            issues=[{"type": "repetitive_agreement_shape", "severity": "medium", "scope": "scene_polish"}],
+            boundary_context=None,
+            act_repetition_report=None,
+            seam_finding=None,
+            intervention_targets=["local:repetitive_agreement_shape"],
+        )
+        is False
+    )
+
+    assert (
+        _dialogue_polish_resolves_targets(
+            original_dialogue=original,
+            polished_dialogue=[
+                {"speaker": "B", "text": "Then the structure is doing the work, not trust.", "claim_ids": []},
+                {"speaker": "A", "text": "Right, and that changes what the listener should notice.", "claim_ids": []},
+            ],
+            issues=[{"type": "repetitive_agreement_shape", "severity": "medium", "scope": "scene_polish"}],
+            boundary_context=None,
+            act_repetition_report=None,
+            seam_finding=None,
+            intervention_targets=["local:repetitive_agreement_shape"],
+        )
+        is True
+    )
 
 
 @pytest.mark.asyncio
@@ -706,6 +906,23 @@ async def test_attempt_dialogue_polish_accepts_changed_line_count_when_output_ca
         """
 
     monkeypatch.setattr("app.pipeline.phase6_writing.writer_revolt.call_sonnet_structured", _return_polished)
+    async def _return_good_seam(**_: object) -> str:
+        return """
+        {
+          "seams": [
+            {
+              "from_act_number": 1,
+              "to_act_number": 2,
+              "target_scene_number": 1,
+              "status": "acceptable_handoff",
+              "severity": "low",
+              "description": "The seam now advances."
+            }
+          ]
+        }
+        """
+
+    monkeypatch.setattr("app.pipeline.phase6_writing.writer_revolt.call_haiku_structured", _return_good_seam)
 
     segment = SimpleNamespace(
         act_number=2,
@@ -728,7 +945,12 @@ async def test_attempt_dialogue_polish_accepts_changed_line_count_when_output_ca
         run_id="run-1",
         segment=segment,
         language="en",
-        boundary_context={"last_lines": ["Who stops them now?"], "last_line": "Who stops them now?"},
+        boundary_context={
+            "act_number": 1,
+            "scene_number": 6,
+            "last_lines": ["Who stops them now?"],
+            "last_line": "Who stops them now?",
+        },
         scene_job="mechanism",
         issues=[{"type": "scene_opening_echo", "severity": "medium", "scope": "scene_polish"}],
         act_repetition_report=None,
@@ -753,6 +975,83 @@ async def test_attempt_dialogue_polish_accepts_changed_line_count_when_output_ca
                 "ssml_hints": {"pause_ms": 180},
             },
     ]
+    assert segment.audit_findings["dialogue"]["post_polish_seam_finding"]["status"] == "acceptable_handoff"
+
+
+@pytest.mark.asyncio
+async def test_attempt_dialogue_polish_rejects_when_post_polish_seam_still_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _DummyDb:
+        async def flush(self) -> None:
+            return None
+
+    async def _return_polished(**_: object) -> str:
+        return """
+        {
+          "dialogue": [
+            {"speaker": "B", "text": "But that old question is still hanging.", "claim_ids": []},
+            {"speaker": "A", "text": "So let us restate it safely.", "claim_ids": []}
+          ]
+        }
+        """
+
+    async def _return_bad_seam(**_: object) -> str:
+        return """
+        {
+          "seams": [
+            {
+              "from_act_number": 4,
+              "to_act_number": 5,
+              "target_scene_number": 1,
+              "status": "replay_question",
+              "severity": "high",
+              "description": "Still replaying the old question."
+            }
+          ]
+        }
+        """
+
+    monkeypatch.setattr("app.pipeline.phase6_writing.writer_revolt.call_sonnet_structured", _return_polished)
+    monkeypatch.setattr("app.pipeline.phase6_writing.writer_revolt.call_haiku_structured", _return_bad_seam)
+
+    segment = SimpleNamespace(
+        act_number=5,
+        scene_number=1,
+        dialogue_json=[
+            {"speaker": "B", "text": "Why keep paying for this system?", "claim_ids": []},
+            {"speaker": "A", "text": "That is the question.", "claim_ids": []},
+        ],
+        revision_count=0,
+        audit_findings={"dialogue": {}},
+    )
+
+    accepted = await _attempt_dialogue_polish(
+        db=_DummyDb(),
+        run_id="run-1",
+        segment=segment,
+        language="en",
+        boundary_context={
+            "act_number": 4,
+            "scene_number": 5,
+            "last_lines": ["Why keep paying for this system?"],
+            "last_line": "Why keep paying for this system?",
+        },
+        scene_job="payoff",
+        issues=[{"type": "scene_opening_echo", "severity": "medium", "scope": "scene_polish"}],
+        act_repetition_report=None,
+        seam_finding={
+            "from_act_number": 4,
+            "to_act_number": 5,
+            "target_scene_number": 1,
+            "status": "replay_question",
+            "severity": "high",
+        },
+        intervention_targets=["seam:replay_question"],
+    )
+
+    assert accepted is False
+    assert segment.revision_count == 0
 
 
 @pytest.mark.asyncio

@@ -116,6 +116,10 @@
 - [x] Screenwriter dialogue de-rigidification: loosen A/B role contract, discourage strict `ABAB` alternation and repeated opener phrases, and add light evidence-attribution guidance for dates/rules/figures
 - [x] Screenwriter local anti-echo + discourse-shape variation: scenes should advance rather than paraphrase the previous punchline, vary agreement/challenge shapes without word blacklists, and normalize speaker labels to canonical `A/B` including ShowBible host-name / role aliases
 - [x] Dialogue polish continuation contract: opening scenes of later acts should follow unresolved boundary pressure, and polish should break `B asks -> A confirms -> A explains` instead of just swapping one confirmation marker for another
+- [x] Writer revolt audit compaction: scene-level `dialogue_audit` now returns at most three short machine-facing issues, dedupes root causes, and standardizes internal descriptions/suggestions in English
+- [x] Writer revolt targeted polish contract: `dialogue_polish` payload now carries `intervention_mode` + `success_criteria`, so opener/seam/rhythm repairs are validated against the intended fix instead of generic style cleanup
+- [x] Writer revolt seam loop closure: when polish repairs the opening scene of a later act with a seam target, phase 6 reruns a targeted seam audit for that boundary and stores the post-polish seam result
+- [x] Writer revolt act-level monotony routing: repeated act-level dialogue families now surface as routing/quality signals, while non-priority duplicate scenes no longer auto-spend polish budget just because an act-level family exists
 - [x] Writer Revolt style rubric expansion: evaluator can now flag rigid turn-taking, repetitive agreement/challenge shapes, scene-opening echo, and teacherly exposition as rewrite reasons
 
 ---

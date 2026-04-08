@@ -64,9 +64,16 @@ REPETITION_PRIORITY_TYPES = {
     "rigid_turn_taking",
     "teacherly_exposition",
 }
+ACT_MONOTONY_ROUTING_FAMILIES = {
+    "repeated_explanatory_reset",
+    "repeated_confirmation_first_opening",
+    "repeated_interruption_first_opening",
+}
+MAX_AUDIT_ISSUES = 3
+MAX_AUDIT_TEXT_CHARS = 220
 
 EVAL_SYSTEM = """You are a podcast dialogue quality auditor.
-Score the scene for engagement quality (0.0 to 1.0) and return structured findings.
+Score the scene for engagement quality (0.0 to 1.0) and return a compact machine-facing report.
 
 Return JSON:
 {
@@ -77,8 +84,8 @@ Return JSON:
       "type": "dry_facts|persona_mismatch|repetitive|no_examples|rigid_turn_taking|repetitive_agreement_shape|repetitive_challenge_shape|scene_opening_echo|teacherly_exposition|boundary_restatement",
       "severity": "low|medium|high",
       "scope": "scene_polish|scene_rewrite|act_warning",
-      "description": "what is wrong",
-      "suggestion": "how to improve it"
+      "description": "short machine-facing diagnosis in English",
+      "suggestion": "short machine-facing repair hint in English"
     }
   ]
 }
@@ -98,6 +105,13 @@ Look for:
 - repetitive challenge shapes where objections or questions sound too similar
 - teacherly exposition where dialogue explains correctly but without enough conversational movement
 
+Compactness contract:
+- return at most 3 issues
+- choose the dominant root causes, not every visible symptom
+- do not report the same root cause twice under different labels
+- keep each `description` and `suggestion` brief and operational
+- if the scene is locally acceptable but mainly points to an act-level rhythm problem, prefer `act_warning`
+
 Do not overflag normal continuity:
 - topic bridge or thesis-to-example progression is not echo by itself
 - zooming from a general point to a concrete case is acceptable if the new scene genuinely advances
@@ -116,7 +130,9 @@ Scope guide:
 Language contract:
 - The payload includes `language`.
 - Judge the scene as spoken dialogue in that language, not as translated prose.
-- When describing issues or suggestions, reason about natural spoken register for that language rather than assuming English defaults."""
+- Write `description` and `suggestion` in English for consistency across internal audits.
+- Reason about natural spoken register for the payload language rather than assuming English defaults.
+- Output only JSON."""
 
 POLISH_SYSTEM = """You are polishing a podcast dialogue scene for naturalness and flow.
 
@@ -129,24 +145,29 @@ Return JSON:
 }
 
 Rules:
+- Treat this as a targeted intervention, not a generic rewrite.
 - The payload includes `language`; keep the scene natural for that language and spoken register.
 - Keep spoken lines in the payload language. If the original scene contains a foreign-language quote or source snippet and the beat is not explicitly about the wording itself, rewrite it into the payload language instead of preserving the raw source-language text.
 - Keep the `speaker` field canonical: output only `A` or `B`, never host names, role names, or localized speaker variants.
 - `claim_ids` are opaque labels. Reuse only labels already present in the input dialogue and copy them exactly.
-- Preserve the factual meaning, chronology, and required claim coverage.
+- Preserve the factual meaning, chronology, required claim coverage, and scene order.
 - Preserve attribution and institutional details already present.
 - Preserve line-level delivery intent. If a line already carries `emotion` or `ssml_hints`, return compatible delivery metadata instead of dropping it.
 - If you split, merge, or otherwise change line alignment, every output line must still carry compatible delivery metadata so downstream TTS cues remain usable.
 - Do not add new facts, names, dates, figures, laws, or causal claims.
 - Keep the scene's `scene_job` intact. Improve delivery without changing the scene's intended move.
-- Use the audit issues to improve scene flow, boundary handling, and conversational variety.
+- Use `intervention_targets`, `intervention_mode`, and `success_criteria` as the primary contract. Generic style cleanup is secondary.
 - The payload may include an `act_repetition_report`; if one opener, agreement, or turn-taking pattern is dominating the act, use this scene to break that pattern naturally.
 - The payload may include a `seam_finding`; if this scene is opening a new act by replaying the previous act's question or punchline, fix that seam without flattening the scene.
 - The payload may include `intervention_targets`; solve those concrete dialogue problems, not generic "rewrite for style" goals.
+- `intervention_mode` tells you which repair type matters most: opener repair, seam repair, rhythm repair, agreement-shape repair, or general polish.
+- `success_criteria` lists what must become true for this intervention to count as solved.
 - If the boundary context already landed a punchline, do not reopen by paraphrasing it.
 - If this scene opens a new act, continue the same conversation instead of resetting into a more basic pedagogical question unless the scene's job explicitly requires that reset.
 - Do not default to `B asks -> A confirms -> A explains`. B may contribute with a hypothesis, a concrete observation, an objection, a consequence, or a partial answer.
 - When fixing repetitive agreement shapes, prefer removing explicit confirmation markers and changing the move, not just swapping one confirmation phrase for another.
+- For opener or seam repair, rewrite the first 1-2 turns decisively. Do not keep the same reset and merely soften the wording.
+- For rhythm repair, change the conversational move, not just the phrasing. Replace restatement with implication, objection, hypothesis, consequence, or example when possible.
 - Rewrite the whole scene if needed for rhythm, but keep the same scene job and content function.
 - Avoid translated-from-English phrasing or register drift.
 - Keep only speakers `A` and `B`.
@@ -422,11 +443,16 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
 
     iteration_counts["writer_revolt_counts_by_act"] = revolt_counts_by_act
     iteration_counts["writer_planner_loops"] = rewrite_loop_count + 1 if rewrite_requested_scenes > 0 else rewrite_loop_count
+    seam_reports = _finalize_dialogue_seam_reports(seam_reports=seam_reports, audit_rows=audit_rows)
     quality_signals["dialogue_flagged_scenes"] = flagged_scenes
     quality_signals["dialogue_polished_scenes"] = polished_scenes
     quality_signals["dialogue_rewrite_requested_scenes"] = rewrite_requested_scenes
     quality_signals["dialogue_revolt_counts_by_act"] = revolt_counts_by_act
     quality_signals["dialogue_act_reports"] = act_reports
+    quality_signals["dialogue_act_monotony_signals"] = {
+        act_key: _dialogue_act_monotony_signals(report)
+        for act_key, report in act_reports.items()
+    }
     quality_signals["dialogue_seam_reports"] = seam_reports
     quality_signals["revolt_triggered"] = rewrite_requested_scenes > 0
 
@@ -612,6 +638,35 @@ async def _attempt_dialogue_polish(
         )
         return False
 
+    post_polish_seam_finding: dict[str, Any] | None = None
+    if _should_recheck_seam_after_polish(
+        segment=segment,
+        seam_finding=seam_finding,
+        intervention_targets=intervention_targets or [],
+    ):
+        post_polish_seam_finding = await _rerun_polished_scene_seam_audit(
+            run_id=run_id,
+            segment=segment,
+            language=language,
+            scene_job=scene_job,
+            boundary_context=boundary_context,
+            seam_finding=seam_finding,
+            polished_dialogue=final_dialogue,
+        )
+        if isinstance(post_polish_seam_finding, dict) and str(post_polish_seam_finding.get("status") or "").strip() in PROBLEMATIC_SEAM_STATUSES:
+            _dump_dialogue_polish_debug(
+                run_id=run_id,
+                act_number=segment.act_number,
+                scene_number=segment.scene_number,
+                status="target_not_resolved",
+                payload=prompt_payload,
+                before_dialogue=original_dialogue,
+                after_dialogue=final_dialogue,
+                decision="rejected",
+                error="polish improved the scene locally but did not resolve the targeted seam problem",
+            )
+            return False
+
     segment.dialogue_json = final_dialogue
     segment.revision_count += 1
     _set_segment_audit_finding(
@@ -621,6 +676,7 @@ async def _attempt_dialogue_polish(
             **_segment_audit_finding(segment, "dialogue"),
             "polish_applied": True,
             "rewrite_requested": False,
+            "post_polish_seam_finding": post_polish_seam_finding,
         },
     )
     await db.flush()
@@ -636,6 +692,82 @@ async def _attempt_dialogue_polish(
         error=None,
     )
     return True
+
+
+def _should_recheck_seam_after_polish(
+    *,
+    segment: ScriptSegment,
+    seam_finding: dict[str, Any] | None,
+    intervention_targets: list[str],
+) -> bool:
+    if segment.scene_number <= 1 and any(
+        isinstance(target, str) and target.startswith("seam:")
+        for target in intervention_targets
+    ):
+        return True
+    if not isinstance(seam_finding, dict):
+        return False
+    return (
+        segment.scene_number == _safe_int(seam_finding.get("target_scene_number"), 0)
+        and str(seam_finding.get("status") or "").strip() in PROBLEMATIC_SEAM_STATUSES
+    )
+
+
+async def _rerun_polished_scene_seam_audit(
+    *,
+    run_id: str,
+    segment: ScriptSegment,
+    language: str,
+    scene_job: str,
+    boundary_context: dict[str, Any] | None,
+    seam_finding: dict[str, Any] | None,
+    polished_dialogue: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    prompt_payload = _build_targeted_seam_audit_prompt_payload(
+        segment=segment,
+        language=language,
+        scene_job=scene_job,
+        boundary_context=boundary_context,
+        seam_finding=seam_finding,
+        polished_dialogue=polished_dialogue,
+    )
+    if prompt_payload is None:
+        return None
+    try:
+        raw = await call_haiku_structured(
+            system=SEAM_AUDIT_SYSTEM,
+            prompt=json.dumps(prompt_payload, ensure_ascii=False),
+            max_tokens=512,
+            temperature=0.2,
+        )
+        parsed = parse_llm_json(raw)
+        seams = _normalize_episode_seam_audit(parsed)
+        report = seams[0] if seams else None
+        _dump_dialogue_seam_debug(
+            run_id=run_id,
+            status="post_polish_ok",
+            prompt_payload=prompt_payload,
+            audit=seams,
+            error=None,
+        )
+        return report
+    except StepExecutionStopped:
+        raise
+    except Exception as exc:
+        logger.warning(
+            "Post-polish seam audit failed for act %s scene %s",
+            segment.act_number,
+            segment.scene_number,
+            exc_info=True,
+        )
+        _dump_dialogue_seam_debug(
+            run_id=run_id,
+            status="post_polish_llm_or_parse_failed",
+            prompt_payload=prompt_payload,
+            audit=None,
+            error=f"{type(exc).__name__}: {exc}",
+        )
+        return None
 
 
 def _build_dialogue_claim_sid(dialogue: list[dict[str, Any]] | None) -> ShortIdMap:
@@ -662,6 +794,7 @@ def _build_dialogue_polish_prompt_payload(
     seam_finding: dict[str, Any] | None = None,
     intervention_targets: list[str] | None = None,
 ) -> dict[str, Any]:
+    targets = intervention_targets or []
     return {
         "act_number": segment.act_number,
         "scene_number": segment.scene_number,
@@ -670,10 +803,79 @@ def _build_dialogue_polish_prompt_payload(
         "boundary_context": boundary_context,
         "act_repetition_report": act_repetition_report,
         "seam_finding": seam_finding,
-        "intervention_targets": intervention_targets or [],
+        "intervention_targets": targets,
+        "intervention_mode": _derive_dialogue_polish_intervention_mode(
+            issues=issues,
+            seam_finding=seam_finding,
+            intervention_targets=targets,
+        ),
+        "success_criteria": _build_dialogue_polish_success_criteria(
+            issues=issues,
+            seam_finding=seam_finding,
+            intervention_targets=targets,
+            scene_job=scene_job,
+        ),
         "issues": issues,
         "dialogue": segment.dialogue_json,
     }
+
+
+def _derive_dialogue_polish_intervention_mode(
+    *,
+    issues: list[dict[str, Any]],
+    seam_finding: dict[str, Any] | None,
+    intervention_targets: list[str],
+) -> str:
+    if isinstance(seam_finding, dict) and str(seam_finding.get("status") or "").strip() in PROBLEMATIC_SEAM_STATUSES:
+        return "seam_repair"
+    target_set = {target for target in intervention_targets if isinstance(target, str)}
+    if target_set & {
+        "local:scene_opening_echo",
+        "local:boundary_restatement",
+        "act:replay_question",
+        "act:replay_punchline",
+        "act:repeated_explanatory_reset",
+    }:
+        return "opener_repair"
+    if target_set & {"local:repetitive_agreement_shape", "act:repeated_confirmation_first_opening"}:
+        return "agreement_shape_repair"
+    if target_set & {
+        "local:rigid_turn_taking",
+        "local:repetitive_challenge_shape",
+        "local:teacherly_exposition",
+        "act:repeated_interruption_first_opening",
+        "act:speaker_distribution_imbalance",
+    }:
+        return "rhythm_repair"
+    for issue in issues:
+        if str(issue.get("scope") or "").strip() == "scene_polish":
+            return "general_polish"
+    return "general_polish"
+
+
+def _build_dialogue_polish_success_criteria(
+    *,
+    issues: list[dict[str, Any]],
+    seam_finding: dict[str, Any] | None,
+    intervention_targets: list[str],
+    scene_job: str,
+) -> list[str]:
+    criteria: list[str] = [
+        "Preserve the scene job, claim coverage, chronology, and attribution.",
+        "Keep the scene in the payload language and preserve delivery metadata compatibility.",
+    ]
+    target_set = {target for target in intervention_targets if isinstance(target, str)}
+    if isinstance(seam_finding, dict) and str(seam_finding.get("status") or "").strip() in PROBLEMATIC_SEAM_STATUSES:
+        criteria.append("The opening should answer or sharpen the hanging question from the previous act instead of replaying it.")
+    if target_set & {"local:scene_opening_echo", "local:boundary_restatement", "act:replay_question", "act:replay_punchline", "act:repeated_explanatory_reset"}:
+        criteria.append("The first 1-2 turns must materially change, not just soften the old opener wording.")
+    if target_set & {"local:repetitive_agreement_shape", "act:repeated_confirmation_first_opening"}:
+        criteria.append("Break the confirmation loop by changing the move, not just swapping one confirmation marker for another.")
+    if target_set & {"local:rigid_turn_taking", "local:repetitive_challenge_shape", "local:teacherly_exposition", "act:repeated_interruption_first_opening", "act:speaker_distribution_imbalance"}:
+        criteria.append("Make the exchange less mechanical: vary who advances the idea and how the next turn moves.")
+    if scene_job:
+        criteria.append(f"Keep the scene anchored in its declared job: `{scene_job}`.")
+    return criteria
 
 
 def _build_dialogue_audit_prompt_payload(
@@ -713,8 +915,9 @@ def _build_boundary_context(previous_segment: ScriptSegment | None) -> dict[str,
 def _normalize_dialogue_issues(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         return []
-    normalized: list[dict[str, Any]] = []
-    for item in value:
+    deduped: dict[str, dict[str, Any]] = {}
+    first_index_by_type: dict[str, int] = {}
+    for idx, item in enumerate(value):
         if not isinstance(item, dict):
             continue
         issue_type = item.get("type")
@@ -732,20 +935,57 @@ def _normalize_dialogue_issues(value: Any) -> list[dict[str, Any]]:
             scope = "scene_polish" if severity in {"medium", "high"} else "act_warning"
         else:
             scope = scope.strip().lower()
-        normalized.append(
-            {
-                "type": issue_type.strip(),
-                "severity": severity,
-                "scope": scope,
-                "description": str(description or "").strip(),
-                "suggestion": str(suggestion or "").strip(),
-            }
+        issue_type_value = issue_type.strip()
+        normalized_issue = {
+            "type": issue_type_value,
+            "severity": severity,
+            "scope": scope,
+            "description": _compact_audit_text(description),
+            "suggestion": _compact_audit_text(suggestion),
+        }
+        if issue_type_value not in first_index_by_type:
+            first_index_by_type[issue_type_value] = idx
+            deduped[issue_type_value] = normalized_issue
+            continue
+        existing_issue = deduped[issue_type_value]
+        existing_rank = (
+            _severity_rank(str(existing_issue.get("severity"))),
+            _repair_scope_rank(str(existing_issue.get("scope"))),
         )
-    return normalized
+        new_rank = (
+            _severity_rank(severity),
+            _repair_scope_rank(scope),
+        )
+        if new_rank > existing_rank:
+            deduped[issue_type_value] = normalized_issue
+
+    ordered = sorted(
+        deduped.items(),
+        key=lambda item: (
+            -_severity_rank(str(item[1].get("severity"))),
+            -_repair_scope_rank(str(item[1].get("scope"))),
+            first_index_by_type.get(item[0], 0),
+        ),
+    )
+    return [issue for _, issue in ordered[:MAX_AUDIT_ISSUES]]
+
+
+def _compact_audit_text(value: Any, *, max_chars: int = MAX_AUDIT_TEXT_CHARS) -> str:
+    text = " ".join(str(value or "").strip().split())
+    if len(text) <= max_chars:
+        return text
+    truncated = text[:max_chars].rstrip()
+    if " " not in truncated:
+        return truncated
+    return truncated.rsplit(" ", 1)[0]
 
 
 def _severity_rank(value: str) -> int:
     return {"low": 1, "medium": 2, "high": 3}.get(value, 0)
+
+
+def _repair_scope_rank(value: str) -> int:
+    return {"act_warning": 1, "scene_polish": 2, "scene_rewrite": 3}.get(value, 0)
 
 
 def _should_polish_dialogue(issues: list[dict[str, Any]]) -> bool:
@@ -1103,9 +1343,16 @@ def _row_should_polish_dialogue(row: dict[str, Any]) -> bool:
         return True
     if bool(row.get("llm_priority_selected")):
         return True
+    act_target_present = False
     for target in row.get("intervention_targets") or []:
-        if isinstance(target, str) and (target.startswith("act:") or target.startswith("seam:")):
+        if not isinstance(target, str):
+            continue
+        if target.startswith("seam:"):
             return True
+        if target.startswith("act:"):
+            act_target_present = True
+    if act_target_present:
+        return bool(row.get("llm_priority_selected"))
     return False
 
 
@@ -1154,7 +1401,36 @@ def _dialogue_act_report_excerpt(act_report: dict[str, Any] | None) -> dict[str,
         "repetition_families": act_report.get("repetition_families"),
         "priority_scene_numbers": act_report.get("priority_scene_numbers"),
         "distribution_findings": act_report.get("distribution_findings"),
+        "monotony_signals": _dialogue_act_monotony_signals(act_report),
     }
+
+
+def _dialogue_act_monotony_signals(act_report: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not isinstance(act_report, dict):
+        return []
+    signals: list[dict[str, Any]] = []
+    for finding in act_report.get("distribution_findings", []) or []:
+        if not isinstance(finding, dict):
+            continue
+        family = str(finding.get("family") or "").strip()
+        if family not in ACT_MONOTONY_ROUTING_FAMILIES:
+            continue
+        scene_numbers = [
+            _safe_int(scene_number, 0)
+            for scene_number in finding.get("scene_numbers", [])
+            if _safe_int(scene_number, 0) > 0
+        ]
+        if len(scene_numbers) < 2:
+            continue
+        signals.append(
+            {
+                "family": family,
+                "severity": str(finding.get("severity") or "medium").strip().lower(),
+                "scene_numbers": scene_numbers,
+                "description": str(finding.get("description") or "").strip(),
+            }
+        )
+    return signals
 
 
 async def _augment_act_dialogue_reports_with_llm(
@@ -1344,6 +1620,46 @@ def _build_episode_seam_audit_prompt_payload(
     }
 
 
+def _build_targeted_seam_audit_prompt_payload(
+    *,
+    segment: ScriptSegment,
+    language: str,
+    scene_job: str,
+    boundary_context: dict[str, Any] | None,
+    seam_finding: dict[str, Any] | None,
+    polished_dialogue: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    if not isinstance(boundary_context, dict):
+        return None
+    previous_tail = boundary_context.get("last_lines")
+    if not isinstance(previous_tail, list):
+        return None
+    previous_tail = [str(line).strip() for line in previous_tail if isinstance(line, str) and line.strip()]
+    next_opening = _extract_dialogue_texts(polished_dialogue)[:3]
+    if not previous_tail or not next_opening:
+        return None
+
+    return {
+        "language": str(language or "en").strip() or "en",
+        "seams": [
+            {
+                "from_act_number": _safe_int(boundary_context.get("act_number"), segment.act_number - 1),
+                "from_scene_number": _safe_int(boundary_context.get("scene_number"), 0),
+                "from_scene_job": (
+                    str(seam_finding.get("from_scene_job") or "").strip()
+                    if isinstance(seam_finding, dict)
+                    else ""
+                ),
+                "to_act_number": segment.act_number,
+                "target_scene_number": segment.scene_number,
+                "to_scene_job": scene_job,
+                "previous_scene_tail": previous_tail,
+                "next_scene_opening": next_opening,
+            }
+        ],
+    }
+
+
 def _normalize_seam_status(value: Any) -> str:
     status = str(value or "").strip()
     if status in SEAM_STATUSES:
@@ -1440,6 +1756,27 @@ def _seam_reports_by_target(seam_reports: list[dict[str, Any]]) -> dict[tuple[in
     return mapped
 
 
+def _finalize_dialogue_seam_reports(
+    *,
+    seam_reports: list[dict[str, Any]],
+    audit_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    by_target = _seam_reports_by_target(seam_reports)
+    for row in audit_rows:
+        segment = row.get("segment")
+        if segment is None:
+            continue
+        post_polish = _segment_audit_finding(segment, "dialogue").get("post_polish_seam_finding")
+        if not isinstance(post_polish, dict):
+            continue
+        act_number = _safe_int(getattr(segment, "act_number", 0), 0)
+        scene_number = _safe_int(getattr(segment, "scene_number", 0), 0)
+        if act_number <= 0 or scene_number <= 0:
+            continue
+        by_target[(act_number, scene_number)] = post_polish
+    return list(by_target.values())
+
+
 def _dialogue_intervention_targets(
     *,
     row: dict[str, Any],
@@ -1526,7 +1863,7 @@ def _dialogue_polish_resolves_targets(
         seam_finding=seam_finding,
         intervention_targets=intervention_targets,
     ):
-        return True
+        return _dialogue_changed_materially(original_dialogue, polished_dialogue)
 
     if not _opener_changed_materially(original_dialogue, polished_dialogue):
         return False

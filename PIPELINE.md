@@ -646,10 +646,20 @@ Web extraction использует каскад extractors:
 - сначала аудирует все сцены, затем строит cheap act-level repetition/distribution report и тратит budget на polish **per act**, а не effectively per run
 - act-level audit теперь видит **полный текст акта**, а не только scene edges: он получает full scene dialogue, `scene_job`, local issue types, opener/closer counts и turn-pattern context, поэтому repeated opener / confirmation / explanatory-reset families ранжируются по реальному тексту акта, а не по surrogate summary
 - отдельно добавлен compact episode seam audit по границам актов (`A1->A2`, `A2->A3`, `A3->A4`), чтобы отличать нормальный handoff от `replay_question` / `replay_punchline` / `weak_reset` на opening scene следующего акта
+- scene-level `dialogue_audit` теперь intentionally compact and machine-facing:
+  - максимум `3` issues на сцену
+  - короткие English `description` / `suggestion`
+  - повторяющиеся root causes схлопываются до одного issue перед routing
 - medium-severity проблемы с scope `scene_polish` пытается чинить inline через scene-level polish pass
 - prompt для polish получает `scene_job` и `language`, чтобы polish не ломал intended move сцены и не дрейфовал в translated-from-English phrasing
 - prompt для polish жёстко держит canonical speaker contract: `speaker` должен оставаться только `A/B`; если модель всё же возвращает имена ведущих или role labels, runtime normalization мапит их обратно через aliases из `ShowBible.hosts`
 - prompt для polish может получать compact `act_repetition_report`, `seam_finding` и `intervention_targets`, чтобы сцена чинила конкретный opener / seam / distribution defect, а не делала generic style rewrite
+- `dialogue_polish` payload теперь также несёт `intervention_mode` и `success_criteria`, so repair prompt starts from the concrete target (`opener_repair`, `seam_repair`, `agreement_shape_repair`, `rhythm_repair`) before doing any generic cleanup
+- act-level distribution findings now also become routing signals:
+  - `llm_priority_scene_numbers` remain the main intervention points
+  - non-priority scenes with only act-level duplicate-family pressure no longer auto-spend polish budget
+  - `quality_signals.dialogue_act_monotony_signals` stores repeated-family summaries for downstream inspection
+- если polish правит opening scene later act-а с seam-targetом, phase 6 делает targeted post-polish seam re-check только для этой границы и использует обновлённый seam result как final status
 - acceptance for `scene_opening_echo` / `boundary_restatement` is now target-aware: polish не принимается, если opener по сути остался тем же; для speaker-distribution intervention polish тоже reject, если opener остался в том же dominant-speaker skew
 - metadata safety is now contract-first: `dialogue_polish` должен возвращать compatible `emotion` / `ssml_hints`; same-length rewrites get safe metadata backfill, while changed-length rewrites are accepted only when the returned dialogue itself preserves usable delivery metadata
 - `dialogue_polish` shortens LLM-facing `claim_ids` before the Sonnet call and restores them after parse, so polish can preserve claim coverage without retyping long UUIDs
