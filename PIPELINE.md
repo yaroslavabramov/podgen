@@ -655,10 +655,13 @@ Web extraction использует каскад extractors:
 - prompt для polish жёстко держит canonical speaker contract: `speaker` должен оставаться только `A/B`; если модель всё же возвращает имена ведущих или role labels, runtime normalization мапит их обратно через aliases из `ShowBible.hosts`
 - prompt для polish может получать compact `act_repetition_report`, `seam_finding` и `intervention_targets`, чтобы сцена чинила конкретный opener / seam / distribution defect, а не делала generic style rewrite
 - `dialogue_polish` payload теперь также несёт `intervention_mode` и `success_criteria`, so repair prompt starts from the concrete target (`opener_repair`, `seam_repair`, `agreement_shape_repair`, `rhythm_repair`) before doing any generic cleanup
+- между single-scene polish и full `screenwriter` rewrite добавлен pilot `multi_scene_polish`: если act audit видит contiguous `repeated_explanatory_reset` cluster, Phase 6 может переписать соседний блок сцен одним проходом, не притворяясь, что это три независимых local bugs
+- fresh `write_screenplay` draft resets downstream phase-6 revision state for that scene (`revision_count`, pending audit state, stale findings), so rerun means a new screenplay draft with a new polish budget
 - act-level distribution findings now also become routing signals:
   - `llm_priority_scene_numbers` remain the main intervention points
   - non-priority scenes with only act-level duplicate-family pressure no longer auto-spend polish budget
   - `quality_signals.dialogue_act_monotony_signals` stores repeated-family summaries for downstream inspection
+- `quality_signals` now also carry structural rhythm telemetry (`speaker_question_share`, dominant opener-speaker share, opener-shape diversity, `B question -> A` opening rate), so repeated-word counts are no longer the main repetition diagnostic
 - если polish правит opening scene later act-а с seam-targetом, phase 6 делает targeted post-polish seam re-check только для этой границы и использует обновлённый seam result как final status
 - acceptance for `scene_opening_echo` / `boundary_restatement` is now target-aware: polish не принимается, если opener по сути остался тем же; для speaker-distribution intervention polish тоже reject, если opener остался в том же dominant-speaker skew
 - metadata safety is now contract-first: `dialogue_polish` должен возвращать compatible `emotion` / `ssml_hints`; same-length rewrites get safe metadata backfill, while changed-length rewrites are accepted only when the returned dialogue itself preserves usable delivery metadata

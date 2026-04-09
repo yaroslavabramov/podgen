@@ -601,6 +601,8 @@ def _apply_screenwriter_dialogue(
     segment.writer_original_dialogue_json = baseline_dialogue
     segment.engagement_score = None
     segment.audit_status = AuditStatus.PENDING
+    # A fresh screenplay draft should not inherit stale polish/rewrite budget.
+    segment.revision_count = 0
     segment.quality_metrics = None
     segment.audit_findings = (
         {"screenwriter": {"scene_fingerprint": scene_fingerprint}}

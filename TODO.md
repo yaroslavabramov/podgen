@@ -120,6 +120,7 @@
 - [x] Writer revolt targeted polish contract: `dialogue_polish` payload now carries `intervention_mode` + `success_criteria`, so opener/seam/rhythm repairs are validated against the intended fix instead of generic style cleanup
 - [x] Writer revolt seam loop closure: when polish repairs the opening scene of a later act with a seam target, phase 6 reruns a targeted seam audit for that boundary and stores the post-polish seam result
 - [x] Writer revolt act-level monotony routing: repeated act-level dialogue families now surface as routing/quality signals, while non-priority duplicate scenes no longer auto-spend polish budget just because an act-level family exists
+- [x] Screenwriter fresh-draft reset: `_apply_screenwriter_dialogue` now zeroes `revision_count` so full screenplay reruns do not inherit exhausted phase-6 intervention budget from older drafts
 - [x] Writer Revolt style rubric expansion: evaluator can now flag rigid turn-taking, repetitive agreement/challenge shapes, scene-opening echo, and teacherly exposition as rewrite reasons
 
 ---
@@ -673,6 +674,12 @@ Deferred after Round 68:
 - [ ] **P2**: Add planning telemetry/debug summaries for per-act claim load and beat-card description length so overloaded acts are visible in run artifacts without manual inspection
 - [ ] **P2**: Audit remaining non-runtime claim-text truncations (for example shownotes/debug-only summaries) and keep only those that serve real compression rather than cargo-cult limits
 - [ ] **P2**: If showrunner repeatedly exceeds the soft per-act ceiling, handle it with prompt / retry logic instead of deterministic post-hoc reassignment
+
+**Round 91 (phase-6 act-level rhythm repair):**
+- [x] **P0**: Added pilot `multi_scene_polish` in `writer_revolt` for contiguous `repeated_explanatory_reset` clusters, so adjacent lecture-shaped scenes can be rewritten together before escalating to full screenwriter rewrite
+- [x] **P1**: Added structural dialogue rhythm telemetry (`speaker_question_share`, dominant opener-speaker share, opener-shape diversity, `B question -> A` opening rate) to phase-6 quality signals and act reports, replacing raw repeated-word counts as the main repetition diagnostic
+- [x] **P1**: Extended phase-6 debug dumps with `dialogue_multi_scene_polish` artifacts for accepted/rejected cluster interventions
+- [x] **P1**: Hardened `multi_scene_polish` so cluster rewrites cannot borrow claim material across scenes and `repeated_explanatory_reset` acceptance now requires that the explanatory-reset pattern itself stops dominating the cluster, not just that one opener changes shape
 
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)

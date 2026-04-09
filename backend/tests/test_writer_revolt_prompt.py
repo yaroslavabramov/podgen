@@ -5,16 +5,21 @@ import pytest
 from app.pipeline.phase6_writing.writer_revolt import (
     ACT_AUDIT_SYSTEM,
     EVAL_SYSTEM,
+    MULTI_SCENE_POLISH_SYSTEM,
     POLISH_SYSTEM,
     _attempt_dialogue_polish,
+    _attempt_multi_scene_polish,
     _dialogue_act_monotony_signals,
     _augment_act_dialogue_reports_with_llm,
     _build_act_dialogue_reports,
     _build_act_dialogue_audit_prompt_payload,
     _build_boundary_context,
     _build_dialogue_audit_prompt_payload,
+    _build_dialogue_rhythm_metrics,
     _build_dialogue_polish_prompt_payload,
     _build_episode_seam_audit_prompt_payload,
+    _build_multi_scene_polish_candidates,
+    _build_multi_scene_polish_prompt_payload,
     _build_targeted_seam_audit_prompt_payload,
     _finalize_dialogue_seam_reports,
     _dialogue_polish_resolves_targets,
@@ -63,6 +68,9 @@ def test_writer_revolt_prompt_tracks_boundary_context_and_structured_repair_scop
     assert "When fixing repetitive agreement shapes, prefer removing explicit confirmation markers" in POLISH_SYSTEM
     assert "`intervention_mode` tells you which repair type matters most" in POLISH_SYSTEM
     assert "`success_criteria` lists what must become true" in POLISH_SYSTEM
+    assert "targeted cluster intervention" in MULTI_SCENE_POLISH_SYSTEM
+    assert "Do not let all scenes open with the same skeptical-question reset." in MULTI_SCENE_POLISH_SYSTEM
+    assert "Do not move claim material from one scene into another" in MULTI_SCENE_POLISH_SYSTEM
     assert "act-level podcast dialogue auditor" in ACT_AUDIT_SYSTEM
     assert '"priority_scene_numbers": [2, 4]' in ACT_AUDIT_SYSTEM
     assert "Focus on act-level distribution problems" in ACT_AUDIT_SYSTEM
@@ -375,6 +383,7 @@ def test_build_act_dialogue_audit_prompt_payload_includes_full_act_scene_cards()
             "closing_speaker_counts": {"A": 4},
             "issue_counts": {"scene_opening_echo": 4},
             "turn_pattern_counts": None,
+            "rhythm_metrics": None,
             "heuristic_repetition_families": [{"family": "scene_opening_echo", "scene_numbers": [2, 4], "count": 2}],
         },
         "scenes": [
@@ -573,6 +582,134 @@ def test_dialogue_act_monotony_signals_extract_repeated_distribution_findings() 
             "description": "Same explanatory reset repeats.",
         }
     ]
+
+
+def test_build_multi_scene_polish_candidates_selects_contiguous_explanatory_reset_cluster() -> None:
+    rows = [
+        {
+            "segment": SimpleNamespace(act_number=2, scene_number=2, dialogue_json=[{"speaker": "B", "text": "q?"}]),
+            "can_intervene": True,
+            "scene_job": "mechanism",
+            "boundary_context": None,
+            "issues": [],
+            "intervention_targets": [],
+        },
+        {
+            "segment": SimpleNamespace(act_number=2, scene_number=3, dialogue_json=[{"speaker": "B", "text": "q?"}]),
+            "can_intervene": True,
+            "scene_job": "mechanism",
+            "boundary_context": None,
+            "issues": [],
+            "intervention_targets": [],
+        },
+        {
+            "segment": SimpleNamespace(act_number=2, scene_number=4, dialogue_json=[{"speaker": "B", "text": "q?"}]),
+            "can_intervene": True,
+            "scene_job": "mechanism",
+            "boundary_context": None,
+            "issues": [],
+            "intervention_targets": [],
+        },
+        {
+            "segment": SimpleNamespace(act_number=2, scene_number=5, dialogue_json=[{"speaker": "B", "text": "q?"}]),
+            "can_intervene": True,
+            "scene_job": "mechanism",
+            "boundary_context": None,
+            "issues": [],
+            "intervention_targets": [],
+        },
+    ]
+    act_reports = {
+        "2": {
+            "act_number": 2,
+            "distribution_findings": [
+                {
+                    "family": "repeated_explanatory_reset",
+                    "severity": "medium",
+                    "scene_numbers": [3, 4, 5],
+                    "description": "Same reset repeats.",
+                }
+            ],
+        }
+    }
+
+    candidates = _build_multi_scene_polish_candidates(audit_rows=rows, act_reports=act_reports)
+
+    assert len(candidates) == 1
+    assert candidates[0]["act_number"] == 2
+    assert candidates[0]["scene_numbers"] == [3, 4, 5]
+    assert candidates[0]["family"] == "repeated_explanatory_reset"
+    assert rows[1]["multi_scene_candidate"]["scene_numbers"] == [3, 4, 5]
+
+
+def test_build_dialogue_rhythm_metrics_uses_structural_signals_not_raw_word_counts() -> None:
+    segments = [
+        SimpleNamespace(
+            act_number=2,
+            scene_number=3,
+            dialogue_json=[
+                {"speaker": "B", "text": "Подожди, это вообще как работает?"},
+                {"speaker": "A", "text": "Именно так правило и включается."},
+            ],
+        ),
+        SimpleNamespace(
+            act_number=2,
+            scene_number=4,
+            dialogue_json=[
+                {"speaker": "B", "text": "Тогда что происходит в первый день?"},
+                {"speaker": "A", "text": "То есть база сдвигается сразу."},
+            ],
+        ),
+        SimpleNamespace(
+            act_number=2,
+            scene_number=5,
+            dialogue_json=[
+                {"speaker": "A", "text": "А теперь странность уже не в правиле, а в заводе."},
+                {"speaker": "B", "text": "Вот это уже выглядит как институциональная oddity."},
+            ],
+        ),
+    ]
+
+    metrics = _build_dialogue_rhythm_metrics(segments)
+
+    assert metrics["scene_count"] == 3
+    assert metrics["speaker_question_share"] == {"A": 0.0, "B": 0.667}
+    assert metrics["opening_shape_diversity"] == 2
+    assert metrics["dominant_opening_speaker_share"] == 0.667
+    assert metrics["b_question_a_opening_rate"] == 0.667
+    assert metrics["explanatory_reset_opening_rate"] == 0.0
+
+
+def test_build_multi_scene_polish_prompt_payload_includes_cluster_contract() -> None:
+    candidate = {
+        "act_number": 2,
+        "family": "repeated_explanatory_reset",
+        "severity": "medium",
+        "scene_numbers": [3, 4, 5],
+        "description": "Same mechanism reset repeats.",
+        "rows": [
+            {
+                "segment": SimpleNamespace(
+                    scene_number=3,
+                    dialogue_json=[{"speaker": "B", "text": "How does it work?", "claim_ids": ["c1"]}],
+                ),
+                "scene_job": "mechanism",
+                "boundary_context": {"last_line": "Previous line."},
+                "issues": [{"type": "repetitive_agreement_shape"}],
+                "intervention_targets": ["act:repeated_explanatory_reset"],
+            }
+        ],
+    }
+
+    payload = _build_multi_scene_polish_prompt_payload(
+        candidate=candidate,
+        language="ru",
+        act_repetition_report={"dominant_opening_speaker": "B"},
+    )
+
+    assert payload["cluster_issue"]["family"] == "repeated_explanatory_reset"
+    assert payload["scenes"][0]["scene_number"] == 3
+    assert payload["success_criteria"][1] == "Do not let all scenes open with the same skeptical-question reset."
 
 
 def test_finalize_dialogue_seam_reports_prefers_post_polish_recheck() -> None:
@@ -976,6 +1113,305 @@ async def test_attempt_dialogue_polish_accepts_changed_line_count_when_output_ca
             },
     ]
     assert segment.audit_findings["dialogue"]["post_polish_seam_finding"]["status"] == "acceptable_handoff"
+
+
+@pytest.mark.asyncio
+async def test_attempt_multi_scene_polish_accepts_cluster_with_more_varied_openers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _DummyDb:
+        async def flush(self) -> None:
+            return None
+
+    async def _return_cluster_polish(**_: object) -> str:
+        return """
+        {
+          "scenes": [
+            {
+              "scene_number": 3,
+              "dialogue": [
+                {"speaker": "B", "text": "Не в печати фокус, а в том, что банк сначала приносит доллары США.", "claim_ids": ["c1"]},
+                {"speaker": "A", "text": "И только после этого получает сертификаты задолженности.", "claim_ids": ["c2"]}
+              ]
+            },
+            {
+              "scene_number": 4,
+              "dialogue": [
+                {"speaker": "A", "text": "А теперь представь первый же день оттока капитала: база сжимается автоматически.", "claim_ids": ["c3"]},
+                {"speaker": "B", "text": "То есть правило реагирует раньше, чем любой чиновник успеет придумать манёвр.", "claim_ids": ["c4"]}
+              ]
+            },
+            {
+              "scene_number": 5,
+              "dialogue": [
+                {"speaker": "A", "text": "И последняя странность: печатают разные банки, а физически всё идёт через одну фабрику.", "claim_ids": ["c5"]},
+                {"speaker": "B", "text": "Вот это уже делает систему не просто жёсткой, а ещё и очень сконструированной.", "claim_ids": ["c6"]}
+              ]
+            }
+          ]
+        }
+        """
+
+    monkeypatch.setattr("app.pipeline.phase6_writing.writer_revolt.call_sonnet_structured", _return_cluster_polish)
+
+    rows = [
+        {
+            "segment": SimpleNamespace(
+                act_number=2,
+                scene_number=3,
+                dialogue_json=[
+                    {"speaker": "B", "text": "Просто печатает — и всё?", "claim_ids": ["c1"], "emotion": "skeptical"},
+                    {"speaker": "A", "text": "Нет. Сначала банк приносит доллары США.", "claim_ids": ["c2"], "emotion": "measured"},
+                ],
+                revision_count=0,
+                audit_findings={"dialogue": {}},
+            ),
+            "scene_job": "mechanism",
+            "boundary_context": None,
+            "issues": [{"type": "repetitive_agreement_shape", "severity": "medium", "scope": "scene_polish"}],
+            "intervention_targets": ["act:repeated_explanatory_reset"],
+        },
+        {
+            "segment": SimpleNamespace(
+                act_number=2,
+                scene_number=4,
+                dialogue_json=[
+                    {"speaker": "B", "text": "Что происходит в первый же день?", "claim_ids": ["c3"], "emotion": "skeptical"},
+                    {"speaker": "A", "text": "Именно в первый день база сдвигается.", "claim_ids": ["c4"], "emotion": "measured"},
+                ],
+                revision_count=0,
+                audit_findings={"dialogue": {}},
+            ),
+            "scene_job": "cost",
+            "boundary_context": None,
+            "issues": [{"type": "repetitive_agreement_shape", "severity": "medium", "scope": "scene_polish"}],
+            "intervention_targets": ["act:repeated_explanatory_reset"],
+        },
+        {
+            "segment": SimpleNamespace(
+                act_number=2,
+                scene_number=5,
+                dialogue_json=[
+                    {"speaker": "B", "text": "И все несут заказ в одно место?", "claim_ids": ["c5"], "emotion": "skeptical"},
+                    {"speaker": "A", "text": "Логично, если знаешь, кому принадлежит завод.", "claim_ids": ["c6"], "emotion": "measured"},
+                ],
+                revision_count=0,
+                audit_findings={"dialogue": {}},
+            ),
+            "scene_job": "institutional_oddity",
+            "boundary_context": None,
+            "issues": [{"type": "repetitive_agreement_shape", "severity": "medium", "scope": "scene_polish"}],
+            "intervention_targets": ["act:repeated_explanatory_reset"],
+        },
+    ]
+    candidate = {
+        "act_number": 2,
+        "family": "repeated_explanatory_reset",
+        "severity": "medium",
+        "scene_numbers": [3, 4, 5],
+        "description": "Same explanatory reset repeats.",
+        "rows": rows,
+    }
+
+    accepted = await _attempt_multi_scene_polish(
+        db=_DummyDb(),
+        run_id="run-1",
+        candidate=candidate,
+        language="ru",
+        speaker_aliases=None,
+        act_repetition_report={"dominant_opening_speaker": "B"},
+    )
+
+    assert accepted is True
+    assert rows[1]["segment"].dialogue_json[0]["speaker"] == "A"
+    assert rows[1]["segment"].revision_count == 1
+    assert rows[2]["segment"].audit_findings["dialogue"]["multi_scene_polish_applied"] is True
+
+
+@pytest.mark.asyncio
+async def test_attempt_multi_scene_polish_rejects_cross_scene_claim_borrowing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _DummyDb:
+        async def flush(self) -> None:
+            return None
+
+    async def _return_borrowed_claims(**_: object) -> str:
+        return """
+        {
+          "scenes": [
+            {
+              "scene_number": 3,
+              "dialogue": [
+                {"speaker": "B", "text": "Scene three now carries both claims.", "claim_ids": ["c1", "c2"]}
+              ]
+            },
+            {
+              "scene_number": 4,
+              "dialogue": [
+                {"speaker": "A", "text": "Scene four keeps its own claim.", "claim_ids": ["c1"]}
+              ]
+            },
+            {
+              "scene_number": 5,
+              "dialogue": [
+                {"speaker": "A", "text": "Scene five keeps its own claim too.", "claim_ids": ["c1"]}
+              ]
+            }
+          ]
+        }
+        """
+
+    monkeypatch.setattr("app.pipeline.phase6_writing.writer_revolt.call_sonnet_structured", _return_borrowed_claims)
+
+    rows = [
+        {
+            "segment": SimpleNamespace(
+                act_number=2,
+                scene_number=3,
+                dialogue_json=[{"speaker": "B", "text": "Scene three.", "claim_ids": ["claim-a"]}],
+                revision_count=0,
+                audit_findings={"dialogue": {}},
+            ),
+            "scene_job": "mechanism",
+            "boundary_context": None,
+            "issues": [],
+            "intervention_targets": ["act:repeated_explanatory_reset"],
+        },
+        {
+            "segment": SimpleNamespace(
+                act_number=2,
+                scene_number=4,
+                dialogue_json=[{"speaker": "A", "text": "Scene four.", "claim_ids": ["claim-b"]}],
+                revision_count=0,
+                audit_findings={"dialogue": {}},
+            ),
+            "scene_job": "cost",
+            "boundary_context": None,
+            "issues": [],
+            "intervention_targets": ["act:repeated_explanatory_reset"],
+        },
+        {
+            "segment": SimpleNamespace(
+                act_number=2,
+                scene_number=5,
+                dialogue_json=[{"speaker": "A", "text": "Scene five.", "claim_ids": ["claim-c"]}],
+                revision_count=0,
+                audit_findings={"dialogue": {}},
+            ),
+            "scene_job": "oddity",
+            "boundary_context": None,
+            "issues": [],
+            "intervention_targets": ["act:repeated_explanatory_reset"],
+        },
+    ]
+
+    accepted = await _attempt_multi_scene_polish(
+        db=_DummyDb(),
+        run_id="run-1",
+        candidate={
+            "act_number": 2,
+            "family": "repeated_explanatory_reset",
+            "severity": "medium",
+            "scene_numbers": [3, 4, 5],
+            "description": "Repeated reset.",
+            "rows": rows,
+        },
+        language="en",
+        speaker_aliases=None,
+        act_repetition_report=None,
+    )
+
+    assert accepted is False
+    assert rows[0]["segment"].revision_count == 0
+
+
+@pytest.mark.asyncio
+async def test_attempt_multi_scene_polish_rejects_opener_variation_when_explanatory_reset_pattern_stays(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _DummyDb:
+        async def flush(self) -> None:
+            return None
+
+    async def _return_same_reset_pattern(**_: object) -> str:
+        return """
+        {
+          "scenes": [
+            {
+              "scene_number": 3,
+              "dialogue": [
+                {"speaker": "A", "text": "A different opener wording.", "claim_ids": []},
+                {"speaker": "A", "text": "The explanation still starts immediately.", "claim_ids": []},
+                {"speaker": "B", "text": "So the same practical question follows?", "claim_ids": []},
+                {"speaker": "A", "text": "And the same explanation lands again.", "claim_ids": []}
+              ]
+            },
+            {
+              "scene_number": 4,
+              "dialogue": [
+                {"speaker": "B", "text": "What happens next?", "claim_ids": []},
+                {"speaker": "A", "text": "The mechanism answer comes right away.", "claim_ids": []},
+                {"speaker": "B", "text": "So the listener is still being reset?", "claim_ids": []},
+                {"speaker": "A", "text": "Yes, the explanatory chain still dominates.", "claim_ids": []}
+              ]
+            },
+            {
+              "scene_number": 5,
+              "dialogue": [
+                {"speaker": "B", "text": "And what about the factory?", "claim_ids": []},
+                {"speaker": "A", "text": "Again the explanation arrives immediately.", "claim_ids": []},
+                {"speaker": "B", "text": "So it is still the same cadence?", "claim_ids": []},
+                {"speaker": "A", "text": "It still resolves the same way.", "claim_ids": []}
+              ]
+            }
+          ]
+        }
+        """
+
+    monkeypatch.setattr("app.pipeline.phase6_writing.writer_revolt.call_sonnet_structured", _return_same_reset_pattern)
+
+    rows = []
+    for scene_number in (3, 4, 5):
+        rows.append(
+            {
+                "segment": SimpleNamespace(
+                    act_number=2,
+                    scene_number=scene_number,
+                    dialogue_json=[
+                        {"speaker": "B", "text": "How does this work?", "claim_ids": []},
+                        {"speaker": "A", "text": "Here is the first explanation.", "claim_ids": []},
+                        {"speaker": "B", "text": "So what happens in practice?", "claim_ids": []},
+                        {"speaker": "A", "text": "Here is the second explanation.", "claim_ids": []},
+                    ],
+                    revision_count=0,
+                    audit_findings={"dialogue": {}},
+                ),
+                "scene_job": "mechanism",
+                "boundary_context": None,
+                "issues": [],
+                "intervention_targets": ["act:repeated_explanatory_reset"],
+            }
+        )
+
+    accepted = await _attempt_multi_scene_polish(
+        db=_DummyDb(),
+        run_id="run-1",
+        candidate={
+            "act_number": 2,
+            "family": "repeated_explanatory_reset",
+            "severity": "medium",
+            "scene_numbers": [3, 4, 5],
+            "description": "Repeated reset.",
+            "rows": rows,
+        },
+        language="en",
+        speaker_aliases=None,
+        act_repetition_report=None,
+    )
+
+    assert accepted is False
+    assert all(row["segment"].revision_count == 0 for row in rows)
 
 
 @pytest.mark.asyncio

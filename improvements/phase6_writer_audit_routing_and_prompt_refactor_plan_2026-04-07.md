@@ -482,7 +482,7 @@ Only after this, reconsider whether `max_tokens=1024` should move upward.
 3. Add targeted post-polish seam re-audit for repaired act openings.
 4. Refactor `POLISH_SYSTEM` so it behaves like a targeted intervention prompt rather than a broad rewrite prompt.
 5. Refactor `SCREENWRITER_SYSTEM` so it produces fewer confirmation / restatement loops up front.
-6. Only if the above is still insufficient, add `multi_scene_polish` as the preferred middle intervention between single-scene repair and full act rewrite.
+6. If the above is still insufficient, add `multi_scene_polish` as the preferred middle intervention between single-scene repair and full act rewrite.
 
 ## Implementation Order Adopted
 
@@ -493,13 +493,18 @@ The first implementation pass should stay conservative:
 3. targeted `dialogue_polish` contract
 4. post-polish seam re-audit
 
-`multi_scene_polish` is intentionally deferred.
+Update after the latest phase-6 refactor:
+
+- `multi_scene_polish` is no longer deferred in principle.
+- A narrow pilot now exists for contiguous `repeated_explanatory_reset` clusters.
+- The pilot now also enforces scene-local claim ownership and rejects opener-only wins when the explanatory-reset scaffold still dominates the block.
+- It should stay constrained until runs show whether the `Act 2`-style monotony problem actually improves without new regressions.
 
 Reason:
 
 - it adds a new intervention mode, new prompt surface, and new routing complexity
-- the current system still has cheaper wins available in audit compaction, routing, and seam loop closure
-- Phase 6 should first prove that existing `scene_polish` + better routing cannot solve the remaining pattern before introducing a new repair layer
+- the current system needed cheaper wins first in audit compaction, routing, and seam loop closure
+- now that those prerequisites are in place, the pilot should stay narrow and cluster-only rather than expanding immediately into full act rewrite logic
 
 ## What Should Not Be Done First
 

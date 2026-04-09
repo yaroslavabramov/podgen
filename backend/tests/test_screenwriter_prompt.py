@@ -315,6 +315,7 @@ def test_apply_screenwriter_dialogue_resets_quality_and_updates_baseline() -> No
         writer_original_dialogue_json=[{"speaker": "A", "text": "Older baseline", "claim_ids": ["c-1"]}],
         engagement_score=0.5,
         audit_status="failed",
+        revision_count=2,
         quality_metrics={"fact_coverage_ratio": 0.5},
         audit_findings={"citation": {"issues": []}},
     )
@@ -328,6 +329,7 @@ def test_apply_screenwriter_dialogue_resets_quality_and_updates_baseline() -> No
     assert segment.writer_original_dialogue_json is not new_dialogue
     assert segment.engagement_score is None
     assert segment.audit_status == "pending"
+    assert segment.revision_count == 0
     assert segment.quality_metrics is None
     assert segment.audit_findings is None
 
@@ -338,6 +340,7 @@ def test_apply_screenwriter_dialogue_stores_scene_fingerprint_metadata() -> None
         writer_original_dialogue_json=[],
         engagement_score=None,
         audit_status="failed",
+        revision_count=1,
         quality_metrics={"fact_coverage_ratio": 0.5},
         audit_findings={"citation": {"issues": []}},
     )
@@ -353,6 +356,7 @@ def test_apply_screenwriter_dialogue_stores_scene_fingerprint_metadata() -> None
             "scene_fingerprint": "fingerprint-123",
         }
     }
+    assert segment.revision_count == 0
 
 
 def test_segment_scene_fingerprint_reads_screenwriter_metadata() -> None:

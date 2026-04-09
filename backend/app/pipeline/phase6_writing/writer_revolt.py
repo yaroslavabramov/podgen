@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 import json
 import logging
 import re
@@ -69,6 +70,9 @@ ACT_MONOTONY_ROUTING_FAMILIES = {
     "repeated_confirmation_first_opening",
     "repeated_interruption_first_opening",
 }
+MULTI_SCENE_POLISH_FAMILIES = {"repeated_explanatory_reset"}
+MIN_MULTI_SCENE_CLUSTER_SIZE = 3
+MAX_MULTI_SCENE_CLUSTER_SIZE = 4
 MAX_AUDIT_ISSUES = 3
 MAX_AUDIT_TEXT_CHARS = 220
 
@@ -171,6 +175,40 @@ Rules:
 - Rewrite the whole scene if needed for rhythm, but keep the same scene job and content function.
 - Avoid translated-from-English phrasing or register drift.
 - Keep only speakers `A` and `B`.
+- Output only JSON."""
+
+MULTI_SCENE_POLISH_SYSTEM = """You are polishing a contiguous cluster of podcast dialogue scenes inside one act.
+
+Return JSON:
+{
+  "scenes": [
+    {
+      "scene_number": 3,
+      "dialogue": [
+        {"speaker": "A", "text": "line", "claim_ids": ["id"], "emotion": "measured", "ssml_hints": {"pause_ms": 180}},
+        {"speaker": "B", "text": "line", "claim_ids": [], "emotion": "skeptical", "ssml_hints": {"pause_ms": 220}}
+      ]
+    }
+  ]
+}
+
+Rules:
+- Treat this as a targeted cluster intervention, not an act rewrite.
+- The payload includes `language`; keep all scenes natural for that language and spoken register.
+- Keep the `speaker` field canonical: output only `A` or `B`.
+- Preserve the scene order, scene jobs, factual meaning, chronology, attribution, and required claim coverage.
+- `claim_ids` are opaque labels. Reuse only labels already present in the corresponding input scene and copy them exactly.
+- Do not move claim material from one scene into another just to create fake variety.
+- Do not add new facts, names, dates, figures, laws, or causal claims.
+- Preserve delivery metadata compatibility for every output line.
+- The goal is to reduce cluster-level monotony, not to make every scene louder or more dramatic.
+- Use `cluster_issue`, `cluster_goal`, and `success_criteria` as the primary contract.
+- Across the cluster, avoid repeating the same opener strategy in every scene.
+- Do not let all scenes open with the same skeptical-question reset.
+- Do not make every scene open as `B asks a practical/skeptical question -> A explains`.
+- Let at least one scene advance through consequence, implication, concrete oddity, or institutional contrast instead of a fresh explanatory reset.
+- Rewrite as much of each scene as needed to vary the conversational move, but keep each scene anchored in its declared job.
+- Output one rewritten dialogue for every input `scene_number`.
 - Output only JSON."""
 
 ACT_AUDIT_SYSTEM = """You are an act-level podcast dialogue auditor.
@@ -358,6 +396,10 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
                 seam_finding=row.get("seam_finding"),
             )
         _refresh_dialogue_priorities(audit_rows, act_reports)
+        multi_scene_candidates = _build_multi_scene_polish_candidates(
+            audit_rows=audit_rows,
+            act_reports=act_reports,
+        )
 
         for row in audit_rows:
             segment = row["segment"]
@@ -376,9 +418,38 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
                     "act_report": _dialogue_act_report_excerpt(act_report),
                     "seam_finding": row.get("seam_finding"),
                     "intervention_targets": row.get("intervention_targets") or [],
+                    "multi_scene_candidate": row.get("multi_scene_candidate"),
                     "can_intervene": row["can_intervene"],
                 },
             )
+
+        cluster_polish_results: list[dict[str, Any]] = []
+        for candidate in multi_scene_candidates:
+            act_key = _act_count_key(candidate["act_number"])
+            act_revolt_count = revolt_counts_by_act.get(act_key, 0)
+            if act_revolt_count >= settings.max_writer_revolt_per_act:
+                continue
+            accepted = await _attempt_multi_scene_polish(
+                db=db,
+                run_id=run_id,
+                candidate=candidate,
+                language=language,
+                speaker_aliases=speaker_aliases,
+                act_repetition_report=_dialogue_act_report_excerpt(act_reports.get(act_key)),
+            )
+            if not accepted:
+                continue
+            polished_scenes += len(candidate["rows"])
+            revolt_counts_by_act[act_key] = act_revolt_count + 1
+            cluster_polish_results.append(
+                {
+                    "act_number": candidate["act_number"],
+                    "family": candidate["family"],
+                    "scene_numbers": candidate["scene_numbers"],
+                }
+            )
+            for row in candidate["rows"]:
+                row["cluster_polished"] = True
 
         for row in _prioritize_dialogue_interventions(audit_rows, act_reports):
             segment = row["segment"]
@@ -390,6 +461,8 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
             )
             trigger_label = trigger_label.replace(":", "_")
             if not row["can_intervene"]:
+                continue
+            if bool(row.get("cluster_polished")):
                 continue
 
             act_key = _act_count_key(segment.act_number)
@@ -453,6 +526,9 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
         act_key: _dialogue_act_monotony_signals(report)
         for act_key, report in act_reports.items()
     }
+    quality_signals["dialogue_multi_scene_polish_clusters"] = cluster_polish_results
+    quality_signals["dialogue_rhythm_metrics"] = _build_dialogue_rhythm_metrics(segments)
+    quality_signals["dialogue_rhythm_metrics_by_act"] = _build_dialogue_rhythm_metrics_by_act(segments)
     quality_signals["dialogue_seam_reports"] = seam_reports
     quality_signals["revolt_triggered"] = rewrite_requested_scenes > 0
 
@@ -780,6 +856,38 @@ def _shorten_dialogue_prompt_claim_ids(
 ) -> dict[str, Any]:
     shortened = dict(prompt_payload)
     shortened["dialogue"] = shorten_dialogue_claim_ids(shortened.get("dialogue"), claim_sid)
+    scenes = shortened.get("scenes")
+    if isinstance(scenes, list):
+        rewritten_scenes: list[dict[str, Any]] = []
+        for scene in scenes:
+            if not isinstance(scene, dict):
+                continue
+            copied = dict(scene)
+            copied["dialogue"] = shorten_dialogue_claim_ids(copied.get("dialogue"), claim_sid)
+            rewritten_scenes.append(copied)
+        shortened["scenes"] = rewritten_scenes
+    return shortened
+
+
+def _shorten_multi_scene_prompt_claim_ids(
+    prompt_payload: dict[str, Any],
+    claim_sids_by_scene: dict[int, ShortIdMap],
+) -> dict[str, Any]:
+    shortened = dict(prompt_payload)
+    scenes = shortened.get("scenes")
+    if not isinstance(scenes, list):
+        return shortened
+    rewritten_scenes: list[dict[str, Any]] = []
+    for scene in scenes:
+        if not isinstance(scene, dict):
+            continue
+        copied = dict(scene)
+        scene_number = _safe_int(copied.get("scene_number"), 0)
+        claim_sid = claim_sids_by_scene.get(scene_number)
+        if claim_sid is not None:
+            copied["dialogue"] = shorten_dialogue_claim_ids(copied.get("dialogue"), claim_sid)
+        rewritten_scenes.append(copied)
+    shortened["scenes"] = rewritten_scenes
     return shortened
 
 
@@ -817,6 +925,46 @@ def _build_dialogue_polish_prompt_payload(
         ),
         "issues": issues,
         "dialogue": segment.dialogue_json,
+    }
+
+
+def _build_multi_scene_polish_prompt_payload(
+    *,
+    candidate: dict[str, Any],
+    language: str,
+    act_repetition_report: dict[str, Any] | None,
+) -> dict[str, Any]:
+    scenes: list[dict[str, Any]] = []
+    for row in candidate["rows"]:
+        segment = row["segment"]
+        scenes.append(
+            {
+                "scene_number": segment.scene_number,
+                "scene_job": row.get("scene_job") or "",
+                "boundary_context": row.get("boundary_context"),
+                "issues": row.get("issues") or [],
+                "intervention_targets": row.get("intervention_targets") or [],
+                "dialogue": segment.dialogue_json,
+            }
+        )
+    return {
+        "act_number": candidate["act_number"],
+        "language": str(language or "en").strip() or "en",
+        "cluster_issue": {
+            "family": candidate["family"],
+            "severity": candidate["severity"],
+            "scene_numbers": candidate["scene_numbers"],
+            "description": candidate.get("description") or "",
+        },
+        "cluster_goal": "Differentiate the conversational move across these neighboring scenes without changing their facts or scene jobs.",
+        "success_criteria": [
+            "Preserve every scene's claim coverage, chronology, attribution, and declared scene job.",
+            "Do not let all scenes open with the same skeptical-question reset.",
+            "Increase opener variety across the cluster and reduce repeated explanatory resets.",
+            "Keep the scenes in order and maintain delivery metadata compatibility.",
+        ],
+        "act_repetition_report": act_repetition_report,
+        "scenes": scenes,
     }
 
 
@@ -876,6 +1024,20 @@ def _build_dialogue_polish_success_criteria(
     if scene_job:
         criteria.append(f"Keep the scene anchored in its declared job: `{scene_job}`.")
     return criteria
+
+
+def _build_multi_scene_polish_claim_sids(rows: list[dict[str, Any]]) -> dict[int, ShortIdMap]:
+    claim_sids: dict[int, ShortIdMap] = {}
+    for row in rows:
+        segment = row.get("segment")
+        if segment is None:
+            continue
+        scene_number = _safe_int(getattr(segment, "scene_number", 0), 0)
+        if scene_number <= 0:
+            continue
+        claim_ids = _extract_dialogue_claim_ids(segment.dialogue_json)
+        claim_sids[scene_number] = ShortIdMap(_dedupe_preserve_order(claim_ids), prefix="c")
+    return claim_sids
 
 
 def _build_dialogue_audit_prompt_payload(
@@ -1064,6 +1226,10 @@ def _normalized_text_signature(text: Any) -> str:
     return re.sub(r"\W+", " ", text.casefold()).strip()
 
 
+def _line_is_question(text: Any) -> bool:
+    return isinstance(text, str) and text.rstrip().endswith("?")
+
+
 def _opener_signature(dialogue: Any) -> tuple[str, str]:
     line = _first_valid_line(dialogue)
     if not isinstance(line, dict):
@@ -1088,6 +1254,144 @@ def _dialogue_turn_pattern(dialogue: Any) -> str:
         if speaker:
             pattern.append(speaker)
     return "".join(pattern)
+
+
+def _opening_exchange_shape(dialogue: Any) -> str:
+    if not isinstance(dialogue, list):
+        return ""
+    valid_lines = [line for line in dialogue if isinstance(line, dict) and str(line.get("text") or "").strip()]
+    if len(valid_lines) < 2:
+        return ""
+    first = valid_lines[0]
+    second = valid_lines[1]
+    first_speaker = str(first.get("speaker") or "").strip()
+    second_speaker = str(second.get("speaker") or "").strip()
+    if not first_speaker or not second_speaker:
+        return ""
+    first_question = _line_is_question(str(first.get("text") or ""))
+    if first_speaker == "B" and second_speaker == "A" and first_question:
+        return "B_question_to_A"
+    return f"{first_speaker}_{'question' if first_question else 'statement'}_to_{second_speaker}"
+
+
+def _is_explanatory_reset_opening(dialogue: Any) -> bool:
+    if not isinstance(dialogue, list):
+        return False
+    valid_lines = [line for line in dialogue if isinstance(line, dict) and str(line.get("text") or "").strip()]
+    if len(valid_lines) < 4:
+        return False
+    speakers = [str(line.get("speaker") or "").strip() for line in valid_lines[:4]]
+    if speakers != ["B", "A", "B", "A"]:
+        return False
+    texts = [str(line.get("text") or "").strip() for line in valid_lines[:4]]
+    return _line_is_question(texts[0]) and not _line_is_question(texts[1]) and not _line_is_question(texts[3])
+
+
+def _opener_shape(dialogue: Any) -> str:
+    line = _first_valid_line(dialogue)
+    if not isinstance(line, dict):
+        return ""
+    speaker = str(line.get("speaker") or "").strip()
+    text = str(line.get("text") or "").strip()
+    if not speaker or not text:
+        return ""
+    exchange_shape = _opening_exchange_shape(dialogue) or "single_turn"
+    return f"{speaker}:{'question' if _line_is_question(text) else 'statement'}:{exchange_shape}"
+
+
+def _dialogue_cluster_rhythm_metrics(dialogues: list[Any]) -> dict[str, Any]:
+    opener_shapes = [_opener_shape(dialogue) for dialogue in dialogues if _opener_shape(dialogue)]
+    opening_speakers = [_dialogue_edge_speaker(dialogue, edge="first") for dialogue in dialogues if _dialogue_edge_speaker(dialogue, edge="first")]
+    opening_exchange_shapes = [_opening_exchange_shape(dialogue) for dialogue in dialogues if _opening_exchange_shape(dialogue)]
+
+    opener_counts = Counter(opener_shapes)
+    opening_speaker_counts = Counter(opening_speakers)
+    scene_count = max(len(dialogues), 1)
+    dominant_opening_speaker_count = max(opening_speaker_counts.values(), default=0)
+    return {
+        "scene_count": len(dialogues),
+        "distinct_opener_shapes": len(opener_counts),
+        "max_repeated_opener_shape": max(opener_counts.values(), default=0),
+        "b_question_a_openings": sum(
+            1 for shape in opening_exchange_shapes if shape == "B_question_to_A"
+        ),
+        "explanatory_reset_openings": sum(1 for dialogue in dialogues if _is_explanatory_reset_opening(dialogue)),
+        "dominant_opening_speaker_share": round(dominant_opening_speaker_count / scene_count, 3),
+    }
+
+
+def _build_dialogue_rhythm_metrics(segments: list[ScriptSegment]) -> dict[str, Any]:
+    dialogues = [segment.dialogue_json for segment in segments]
+    lines = [
+        line
+        for segment in segments
+        for line in (segment.dialogue_json or [])
+        if isinstance(line, dict) and str(line.get("text") or "").strip()
+    ]
+    opening_lines = [
+        line
+        for segment in segments
+        if isinstance((line := _first_valid_line(segment.dialogue_json)), dict)
+    ]
+    speaker_question_share = _speaker_question_share(lines)
+    cluster_metrics = _dialogue_cluster_rhythm_metrics(dialogues)
+    return {
+        "scene_count": len(segments),
+        "line_count": len(lines),
+        "opening_speaker_counts": dict(
+            Counter(
+                _dialogue_edge_speaker(segment.dialogue_json, edge="first")
+                for segment in segments
+                if _dialogue_edge_speaker(segment.dialogue_json, edge="first")
+            )
+        ),
+        "speaker_question_share": speaker_question_share,
+        "dominant_opening_speaker_share": cluster_metrics["dominant_opening_speaker_share"],
+        "scene_opening_question_rate": round(
+            sum(1 for line in opening_lines if _line_is_question(str(line.get("text") or ""))) / max(len(opening_lines), 1),
+            3,
+        ),
+        "opening_shape_diversity": cluster_metrics["distinct_opener_shapes"],
+        "opening_shape_diversity_rate": round(
+            cluster_metrics["distinct_opener_shapes"] / max(len(opening_lines), 1),
+            3,
+        ),
+        "b_question_a_opening_rate": round(
+            cluster_metrics["b_question_a_openings"] / max(len(opening_lines), 1),
+            3,
+        ),
+        "explanatory_reset_opening_rate": round(
+            cluster_metrics["explanatory_reset_openings"] / max(len(opening_lines), 1),
+            3,
+        ),
+    }
+
+
+def _build_dialogue_rhythm_metrics_by_act(segments: list[ScriptSegment]) -> dict[str, dict[str, Any]]:
+    by_act: dict[str, list[ScriptSegment]] = {}
+    for segment in segments:
+        by_act.setdefault(_act_count_key(segment.act_number), []).append(segment)
+    return {
+        act_key: _build_dialogue_rhythm_metrics(sorted(act_segments, key=lambda item: item.scene_number))
+        for act_key, act_segments in by_act.items()
+    }
+
+
+def _speaker_question_share(lines: list[dict[str, Any]]) -> dict[str, float]:
+    per_speaker: dict[str, Counter[str]] = {}
+    for line in lines:
+        speaker = str(line.get("speaker") or "").strip()
+        text = str(line.get("text") or "").strip()
+        if not speaker or not text:
+            continue
+        counter = per_speaker.setdefault(speaker, Counter())
+        counter["lines"] += 1
+        if _line_is_question(text):
+            counter["questions"] += 1
+    return {
+        speaker: round(counter["questions"] / max(counter["lines"], 1), 3)
+        for speaker, counter in per_speaker.items()
+    }
 
 
 def _dialogue_has_delivery_metadata(dialogue: Any) -> bool:
@@ -1225,6 +1529,19 @@ def _build_act_dialogue_reports(audit_rows: list[dict[str, Any]]) -> dict[str, d
             for issue_type, scene_numbers in sorted(act_issue_scenes.items())
             if issue_type in REPETITION_PRIORITY_TYPES and scene_numbers
         ]
+        report["rhythm_metrics"] = _build_dialogue_rhythm_metrics(
+            [
+                row["segment"]
+                for row in sorted(
+                    (
+                        row
+                        for row in audit_rows
+                        if _act_count_key(row["segment"].act_number) == act_key
+                    ),
+                    key=lambda item: item["segment"].scene_number,
+                )
+            ]
+        )
     _refresh_dialogue_priorities(audit_rows, reports)
     return reports
 
@@ -1402,6 +1719,7 @@ def _dialogue_act_report_excerpt(act_report: dict[str, Any] | None) -> dict[str,
         "priority_scene_numbers": act_report.get("priority_scene_numbers"),
         "distribution_findings": act_report.get("distribution_findings"),
         "monotony_signals": _dialogue_act_monotony_signals(act_report),
+        "rhythm_metrics": act_report.get("rhythm_metrics"),
     }
 
 
@@ -1431,6 +1749,319 @@ def _dialogue_act_monotony_signals(act_report: dict[str, Any] | None) -> list[di
             }
         )
     return signals
+
+
+def _build_multi_scene_polish_candidates(
+    *,
+    audit_rows: list[dict[str, Any]],
+    act_reports: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows_by_act_scene: dict[str, dict[int, dict[str, Any]]] = {}
+    for row in audit_rows:
+        segment = row.get("segment")
+        if segment is None:
+            continue
+        rows_by_act_scene.setdefault(_act_count_key(segment.act_number), {})[segment.scene_number] = row
+
+    candidates: list[dict[str, Any]] = []
+    for act_key, act_report in act_reports.items():
+        act_rows = rows_by_act_scene.get(act_key, {})
+        for signal in _dialogue_act_monotony_signals(act_report):
+            if signal["family"] not in MULTI_SCENE_POLISH_FAMILIES:
+                continue
+            contiguous_runs = _contiguous_scene_runs(signal["scene_numbers"])
+            selected_run = next(
+                (
+                    run[:MAX_MULTI_SCENE_CLUSTER_SIZE]
+                    for run in contiguous_runs
+                    if len(run) >= MIN_MULTI_SCENE_CLUSTER_SIZE
+                ),
+                None,
+            )
+            if not selected_run:
+                continue
+            rows = [act_rows.get(scene_number) for scene_number in selected_run]
+            if any(row is None for row in rows):
+                continue
+            candidate_rows = [row for row in rows if isinstance(row, dict)]
+            if len(candidate_rows) < MIN_MULTI_SCENE_CLUSTER_SIZE:
+                continue
+            if not all(bool(row.get("can_intervene")) for row in candidate_rows):
+                continue
+            candidate = {
+                "act_number": _safe_int(act_report.get("act_number"), 0),
+                "family": signal["family"],
+                "severity": signal["severity"],
+                "scene_numbers": selected_run,
+                "description": signal["description"],
+                "rows": candidate_rows,
+            }
+            candidates.append(candidate)
+            for row in candidate_rows:
+                row["multi_scene_candidate"] = {
+                    "family": signal["family"],
+                    "scene_numbers": selected_run,
+                    "severity": signal["severity"],
+                }
+            break
+    return candidates
+
+
+def _contiguous_scene_runs(scene_numbers: list[int]) -> list[list[int]]:
+    ordered = sorted({number for number in scene_numbers if isinstance(number, int) and number > 0})
+    if not ordered:
+        return []
+    runs: list[list[int]] = [[ordered[0]]]
+    for scene_number in ordered[1:]:
+        current = runs[-1]
+        if scene_number == current[-1] + 1:
+            current.append(scene_number)
+            continue
+        runs.append([scene_number])
+    return runs
+
+
+async def _attempt_multi_scene_polish(
+    *,
+    db,
+    run_id: str,
+    candidate: dict[str, Any],
+    language: str,
+    speaker_aliases: dict[str, str] | None,
+    act_repetition_report: dict[str, Any] | None,
+) -> bool:
+    rows = candidate["rows"]
+    original_dialogues = {
+        row["segment"].scene_number: row["segment"].dialogue_json
+        for row in rows
+    }
+    claim_sids_by_scene = _build_multi_scene_polish_claim_sids(rows)
+    prompt_payload = _build_multi_scene_polish_prompt_payload(
+        candidate=candidate,
+        language=language,
+        act_repetition_report=act_repetition_report,
+    )
+    prompt_payload = _shorten_multi_scene_prompt_claim_ids(prompt_payload, claim_sids_by_scene)
+
+    try:
+        raw = await call_sonnet_structured(
+            system=MULTI_SCENE_POLISH_SYSTEM,
+            prompt=json.dumps(prompt_payload, ensure_ascii=False),
+            max_tokens=4096,
+            temperature=0.2,
+        )
+        parsed = parse_llm_json(raw)
+        polished_by_scene = _normalize_multi_scene_polish_output(
+            parsed.get("scenes"),
+            expected_scene_numbers=candidate["scene_numbers"],
+            speaker_aliases=speaker_aliases,
+            claim_sids_by_scene=claim_sids_by_scene,
+        )
+    except StepExecutionStopped:
+        raise
+    except Exception as exc:
+        _dump_multi_scene_polish_debug(
+            run_id=run_id,
+            candidate=candidate,
+            status="llm_or_parse_failed",
+            payload=prompt_payload,
+            before_dialogues=original_dialogues,
+            after_dialogues=None,
+            decision="rejected",
+            error=f"{type(exc).__name__}: {exc}",
+        )
+        return False
+
+    if not polished_by_scene:
+        _dump_multi_scene_polish_debug(
+            run_id=run_id,
+            candidate=candidate,
+            status="empty_dialogue",
+            payload=prompt_payload,
+            before_dialogues=original_dialogues,
+            after_dialogues=polished_by_scene,
+            decision="rejected",
+            error="multi-scene polish produced no usable dialogue",
+        )
+        return False
+
+    final_by_scene: dict[int, list[dict[str, Any]]] = {}
+    for row in rows:
+        segment = row["segment"]
+        scene_number = segment.scene_number
+        polished_dialogue = polished_by_scene.get(scene_number)
+        if not polished_dialogue:
+            _dump_multi_scene_polish_debug(
+                run_id=run_id,
+                candidate=candidate,
+                status="scene_missing",
+                payload=prompt_payload,
+                before_dialogues=original_dialogues,
+                after_dialogues=polished_by_scene,
+                decision="rejected",
+                error=f"multi-scene polish did not return scene {scene_number}",
+            )
+            return False
+        original_claim_ids = set(_extract_dialogue_claim_ids(segment.dialogue_json))
+        polished_claim_ids = set(_extract_dialogue_claim_ids(polished_dialogue))
+        if original_claim_ids and not original_claim_ids.issubset(polished_claim_ids):
+            _dump_multi_scene_polish_debug(
+                run_id=run_id,
+                candidate=candidate,
+                status="claim_coverage_regressed",
+                payload=prompt_payload,
+                before_dialogues=original_dialogues,
+                after_dialogues=polished_by_scene,
+                decision="rejected",
+                error=f"multi-scene polish dropped required claim ids for scene {scene_number}",
+            )
+            return False
+        if polished_claim_ids and not polished_claim_ids.issubset(original_claim_ids):
+            _dump_multi_scene_polish_debug(
+                run_id=run_id,
+                candidate=candidate,
+                status="claim_scope_expanded",
+                payload=prompt_payload,
+                before_dialogues=original_dialogues,
+                after_dialogues=polished_by_scene,
+                decision="rejected",
+                error=f"multi-scene polish introduced borrowed claim ids in scene {scene_number}",
+            )
+            return False
+        final_dialogue = _finalize_polished_dialogue(
+            original_dialogue=segment.dialogue_json,
+            polished_dialogue=polished_dialogue,
+        )
+        if not final_dialogue:
+            _dump_multi_scene_polish_debug(
+                run_id=run_id,
+                candidate=candidate,
+                status="metadata_contract_failed",
+                payload=prompt_payload,
+                before_dialogues=original_dialogues,
+                after_dialogues=polished_by_scene,
+                decision="rejected",
+                error=f"multi-scene polish did not preserve delivery metadata safely for scene {scene_number}",
+            )
+            return False
+        final_by_scene[scene_number] = final_dialogue
+
+    if not _multi_scene_polish_resolves_targets(
+        family=str(candidate.get("family") or "").strip(),
+        original_by_scene=original_dialogues,
+        polished_by_scene=final_by_scene,
+    ):
+        _dump_multi_scene_polish_debug(
+            run_id=run_id,
+            candidate=candidate,
+            status="target_not_resolved",
+            payload=prompt_payload,
+            before_dialogues=original_dialogues,
+            after_dialogues=final_by_scene,
+            decision="rejected",
+            error="multi-scene polish changed text but did not improve cluster-level rhythm enough",
+        )
+        return False
+
+    for row in rows:
+        segment = row["segment"]
+        scene_number = segment.scene_number
+        segment.dialogue_json = final_by_scene[scene_number]
+        segment.revision_count += 1
+        _set_segment_audit_finding(
+            segment,
+            "dialogue",
+            {
+                **_segment_audit_finding(segment, "dialogue"),
+                "multi_scene_polish_applied": True,
+                "multi_scene_cluster": {
+                    "family": candidate["family"],
+                    "scene_numbers": candidate["scene_numbers"],
+                },
+            },
+        )
+    await db.flush()
+    _dump_multi_scene_polish_debug(
+        run_id=run_id,
+        candidate=candidate,
+        status="accepted",
+        payload=prompt_payload,
+        before_dialogues=original_dialogues,
+        after_dialogues=final_by_scene,
+        decision="accepted",
+        error=None,
+    )
+    return True
+
+
+def _normalize_multi_scene_polish_output(
+    value: Any,
+    *,
+    expected_scene_numbers: list[int],
+    speaker_aliases: dict[str, str] | None,
+    claim_sids_by_scene: dict[int, ShortIdMap],
+) -> dict[int, list[dict[str, Any]]] | None:
+    if not isinstance(value, list):
+        return None
+    expected = set(expected_scene_numbers)
+    normalized: dict[int, list[dict[str, Any]]] = {}
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        scene_number = _safe_int(item.get("scene_number"), 0)
+        if scene_number not in expected or scene_number in normalized:
+            continue
+        dialogue = _normalize_dialogue_output(
+            item.get("dialogue"),
+            speaker_aliases=speaker_aliases,
+        )
+        claim_sid = claim_sids_by_scene.get(scene_number)
+        if claim_sid is not None:
+            dialogue = restore_dialogue_claim_ids(dialogue, claim_sid)
+        if dialogue:
+            normalized[scene_number] = dialogue
+    if set(normalized) != expected:
+        return None
+    return normalized
+
+
+def _multi_scene_polish_resolves_targets(
+    *,
+    family: str,
+    original_by_scene: dict[int, list[dict[str, Any]]],
+    polished_by_scene: dict[int, list[dict[str, Any]]],
+) -> bool:
+    changed_scene_count = sum(
+        1
+        for scene_number, original_dialogue in original_by_scene.items()
+        if _dialogue_changed_materially(original_dialogue, polished_by_scene.get(scene_number))
+    )
+    if changed_scene_count < 2:
+        return False
+
+    before_metrics = _dialogue_cluster_rhythm_metrics(list(original_by_scene.values()))
+    after_metrics = _dialogue_cluster_rhythm_metrics(
+        [polished_by_scene[scene_number] for scene_number in sorted(polished_by_scene)]
+    )
+
+    if (
+        family == "repeated_explanatory_reset"
+        and before_metrics["explanatory_reset_openings"] > 0
+    ):
+        if after_metrics["explanatory_reset_openings"] >= before_metrics["explanatory_reset_openings"]:
+            return False
+        if after_metrics["explanatory_reset_openings"] > max(0, before_metrics["scene_count"] // 2):
+            return False
+
+    return any(
+        [
+            after_metrics["distinct_opener_shapes"] > before_metrics["distinct_opener_shapes"],
+            after_metrics["max_repeated_opener_shape"] < before_metrics["max_repeated_opener_shape"],
+            after_metrics["b_question_a_openings"] < before_metrics["b_question_a_openings"],
+            after_metrics["explanatory_reset_openings"] < before_metrics["explanatory_reset_openings"],
+            after_metrics["dominant_opening_speaker_share"] < before_metrics["dominant_opening_speaker_share"],
+        ]
+    )
 
 
 async def _augment_act_dialogue_reports_with_llm(
@@ -1494,6 +2125,7 @@ def _build_act_dialogue_audit_prompt_payload(
             "closing_speaker_counts": act_report.get("closing_speaker_counts"),
             "issue_counts": act_report.get("issue_counts"),
             "turn_pattern_counts": act_report.get("turn_pattern_counts"),
+            "rhythm_metrics": act_report.get("rhythm_metrics"),
             "heuristic_repetition_families": act_report.get("repetition_families"),
         },
         "scenes": scene_summaries,
@@ -1969,6 +2601,44 @@ def _dump_dialogue_polish_debug(
             "input": payload,
             "before_dialogue": before_dialogue,
             "after_dialogue": after_dialogue,
+            "error": error,
+        },
+    )
+
+
+def _dump_multi_scene_polish_debug(
+    *,
+    run_id: str,
+    candidate: dict[str, Any],
+    status: str,
+    payload: dict[str, Any],
+    before_dialogues: dict[int, Any],
+    after_dialogues: dict[int, Any] | None,
+    decision: str,
+    error: str | None,
+) -> None:
+    dump_dir = (settings.web_extractor_debug_dump_dir or "").strip()
+    if not dump_dir:
+        return
+    act_number = _safe_int(candidate.get("act_number"), 0)
+    scene_numbers = "-".join(f"{scene_number:02d}" for scene_number in candidate.get("scene_numbers", []) if isinstance(scene_number, int))
+    write_json_debug_dump(
+        raw_dir=dump_dir,
+        subdir="dialogue_multi_scene_polish",
+        filename_stem=(
+            f"run-{safe_filename_token(run_id)}_"
+            f"act-{act_number:02d}_scenes-{safe_filename_token(scene_numbers)}_{safe_filename_token(status)}"
+        ),
+        payload={
+            "run_id": run_id,
+            "act_number": act_number,
+            "scene_numbers": candidate.get("scene_numbers"),
+            "family": candidate.get("family"),
+            "status": status,
+            "decision": decision,
+            "input": payload,
+            "before_dialogues": before_dialogues,
+            "after_dialogues": after_dialogues,
             "error": error,
         },
     )
