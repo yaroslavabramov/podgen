@@ -65,6 +65,17 @@ REPETITION_PRIORITY_TYPES = {
     "rigid_turn_taking",
     "teacherly_exposition",
 }
+COMPREHENSION_ISSUE_TYPES = {
+    "undefined_actor",
+    "unexplained_term",
+    "namedrop_without_grounding",
+    "causal_gap",
+    "missing_bridge",
+    "assumed_context",
+    "summary_instead_of_scene",
+    "compressed_history_dump",
+    "payoff_restarts_explanation",
+}
 ACT_MONOTONY_ROUTING_FAMILIES = {
     "repeated_explanatory_reset",
     "repeated_confirmation_first_opening",
@@ -85,7 +96,7 @@ Return JSON:
   "passed": true,
   "issues": [
     {
-      "type": "dry_facts|persona_mismatch|repetitive|no_examples|rigid_turn_taking|repetitive_agreement_shape|repetitive_challenge_shape|scene_opening_echo|teacherly_exposition|boundary_restatement",
+      "type": "dry_facts|persona_mismatch|repetitive|no_examples|rigid_turn_taking|repetitive_agreement_shape|repetitive_challenge_shape|scene_opening_echo|teacherly_exposition|boundary_restatement|undefined_actor|unexplained_term|namedrop_without_grounding|causal_gap|missing_bridge|assumed_context|summary_instead_of_scene|compressed_history_dump|payoff_restarts_explanation",
       "severity": "low|medium|high",
       "scope": "scene_polish|scene_rewrite|act_warning",
       "description": "short machine-facing diagnosis in English",
@@ -104,10 +115,19 @@ Look for:
 - whether the scene opens in a way that matches its `scene_job` instead of drifting back into the previous beat
 - scene-to-scene echo only when the new scene opens by closely repeating or paraphrasing the previous scene's punchline without adding a new angle, consequence, example, or pressure
 - boundary restatement only when the opening merely restates what the boundary context already established instead of advancing the scene's move
+- undefined actors: the dialogue leaves it unclear who acted, decided, issued, changed policy, or intervened
+- unexplained terms: a technical, legal, or institutional label appears without enough local explanation for a non-expert listener
+- namedrops without grounding: a person, institution, law, or date appears as if already meaningful
+- causal gaps: the scene jumps from setup to consequence without a clear bridge
+- assumed context: the dialogue depends on background knowledge that the scene should not assume
+- summary instead of scene: the exchange mostly states conclusions rather than making the beat legible step by step
+- compressed history dump: chronology or institutional change is packed too tightly to follow comfortably
+- payoff restarts explanation: a late payoff / closing beat reopens already-covered mechanism instead of advancing the current question
 - rigid turn-taking that makes the exchange feel mechanically alternating
 - repetitive agreement shapes where explicit confirmations dominate the rhythm
 - repetitive challenge shapes where objections or questions sound too similar
 - teacherly exposition where dialogue explains correctly but without enough conversational movement
+- use `scene_metadata` when present as the intended clarity contract for the scene
 
 Compactness contract:
 - return at most 3 issues
@@ -151,6 +171,7 @@ Return JSON:
 Rules:
 - Treat this as a targeted intervention, not a generic rewrite.
 - The payload includes `language`; keep the scene natural for that language and spoken register.
+- The payload may include `scene_metadata`; use it as the clarity contract for what the listener should understand by the end.
 - Keep spoken lines in the payload language. If the original scene contains a foreign-language quote or source snippet and the beat is not explicitly about the wording itself, rewrite it into the payload language instead of preserving the raw source-language text.
 - Keep the `speaker` field canonical: output only `A` or `B`, never host names, role names, or localized speaker variants.
 - `claim_ids` are opaque labels. Reuse only labels already present in the input dialogue and copy them exactly.
@@ -163,8 +184,9 @@ Rules:
 - Use `intervention_targets`, `intervention_mode`, and `success_criteria` as the primary contract. Generic style cleanup is secondary.
 - The payload may include an `act_repetition_report`; if one opener, agreement, or turn-taking pattern is dominating the act, use this scene to break that pattern naturally.
 - The payload may include a `seam_finding`; if this scene is opening a new act by replaying the previous act's question or punchline, fix that seam without flattening the scene.
+- If the target problem is comprehension, prioritize listener clarity over clever phrasing: make actors, causality, and any new term legible without adding new facts.
 - The payload may include `intervention_targets`; solve those concrete dialogue problems, not generic "rewrite for style" goals.
-- `intervention_mode` tells you which repair type matters most: opener repair, seam repair, rhythm repair, agreement-shape repair, or general polish.
+- `intervention_mode` tells you which repair type matters most: opener repair, seam repair, rhythm repair, agreement-shape repair, clarity repair, or general polish.
 - `success_criteria` lists what must become true for this intervention to count as solved.
 - If the boundary context already landed a punchline, do not reopen by paraphrasing it.
 - If this scene opens a new act, continue the same conversation instead of resetting into a more basic pedagogical question unless the scene's job explicitly requires that reset.
@@ -302,7 +324,12 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
             if bible is not None:
                 speaker_aliases = _build_speaker_aliases(bible.hosts)
         segments = await _load_segments_for_audit(db, segment_ids)
-        scene_job_lookup = await _load_scene_job_lookup(db, state.get("manifest_id"))
+        scene_metadata_lookup = await _load_manifest_scene_metadata_lookup(db, state.get("manifest_id"))
+        scene_job_lookup = {
+            key: str(metadata.get("scene_job") or "").strip()
+            for key, metadata in scene_metadata_lookup.items()
+            if isinstance(metadata, dict) and str(metadata.get("scene_job") or "").strip()
+        }
 
         for idx, segment in enumerate(segments):
             dialogue_text = json.dumps(segment.dialogue_json, ensure_ascii=False)
@@ -311,12 +338,14 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
 
             previous_segment = segments[idx - 1] if idx > 0 else None
             boundary_context = _build_boundary_context(previous_segment)
+            scene_metadata = scene_metadata_lookup.get((segment.act_number, segment.scene_number), {})
             scene_job = scene_job_lookup.get((segment.act_number, segment.scene_number), "")
             prompt_payload = _build_dialogue_audit_prompt_payload(
                 segment=segment,
                 language=language,
                 boundary_context=boundary_context,
                 scene_job=scene_job,
+                scene_metadata=scene_metadata,
             )
             prompt_payload = _shorten_dialogue_prompt_claim_ids(
                 prompt_payload,
@@ -368,6 +397,7 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
                     "issues": issues,
                     "boundary_context": boundary_context,
                     "scene_job": scene_job,
+                    "scene_metadata": scene_metadata,
                     "can_intervene": segment.revision_count < settings.max_writer_revolt_per_scene,
                 }
             )
@@ -412,6 +442,7 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
                     "passed": row["passed"],
                     "issues": row["issues"],
                     "boundary_context": row["boundary_context"],
+                    "scene_metadata": row.get("scene_metadata"),
                     "polish_applied": False,
                     "rewrite_requested": False,
                     "priority_score": row.get("priority_score", 0),
@@ -484,6 +515,7 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
                     speaker_aliases=speaker_aliases,
                     boundary_context=row["boundary_context"],
                     scene_job=row["scene_job"],
+                    scene_metadata=row.get("scene_metadata"),
                     issues=issues,
                     act_repetition_report=_dialogue_act_report_excerpt(act_report),
                     seam_finding=row.get("seam_finding"),
@@ -529,6 +561,10 @@ async def evaluate_and_revolt(state: PipelineState) -> dict:
     quality_signals["dialogue_multi_scene_polish_clusters"] = cluster_polish_results
     quality_signals["dialogue_rhythm_metrics"] = _build_dialogue_rhythm_metrics(segments)
     quality_signals["dialogue_rhythm_metrics_by_act"] = _build_dialogue_rhythm_metrics_by_act(segments)
+    quality_signals["dialogue_timing"] = _estimate_dialogue_timing(
+        segments=segments,
+        scene_metadata_lookup=scene_metadata_lookup,
+    )
     quality_signals["dialogue_seam_reports"] = seam_reports
     quality_signals["revolt_triggered"] = rewrite_requested_scenes > 0
 
@@ -595,6 +631,7 @@ async def _attempt_dialogue_polish(
     language: str,
     boundary_context: dict[str, Any] | None,
     scene_job: str,
+    scene_metadata: dict[str, Any] | None = None,
     issues: list[dict[str, Any]],
     act_repetition_report: dict[str, Any] | None,
     seam_finding: dict[str, Any] | None = None,
@@ -608,6 +645,7 @@ async def _attempt_dialogue_polish(
         segment=segment,
         language=language,
         scene_job=scene_job,
+        scene_metadata=scene_metadata,
         boundary_context=boundary_context,
         issues=issues,
         act_repetition_report=act_repetition_report,
@@ -700,6 +738,7 @@ async def _attempt_dialogue_polish(
         act_repetition_report=act_repetition_report,
         seam_finding=seam_finding,
         intervention_targets=intervention_targets or [],
+        scene_metadata=scene_metadata,
     ):
         _dump_dialogue_polish_debug(
             run_id=run_id,
@@ -896,6 +935,7 @@ def _build_dialogue_polish_prompt_payload(
     segment: ScriptSegment,
     language: str,
     scene_job: str,
+    scene_metadata: dict[str, Any] | None = None,
     boundary_context: dict[str, Any] | None,
     issues: list[dict[str, Any]],
     act_repetition_report: dict[str, Any] | None,
@@ -908,6 +948,7 @@ def _build_dialogue_polish_prompt_payload(
         "scene_number": segment.scene_number,
         "language": str(language or "en").strip() or "en",
         "scene_job": scene_job,
+        "scene_metadata": _dialogue_scene_metadata_prompt_excerpt(scene_metadata),
         "boundary_context": boundary_context,
         "act_repetition_report": act_repetition_report,
         "seam_finding": seam_finding,
@@ -976,6 +1017,11 @@ def _derive_dialogue_polish_intervention_mode(
 ) -> str:
     if isinstance(seam_finding, dict) and str(seam_finding.get("status") or "").strip() in PROBLEMATIC_SEAM_STATUSES:
         return "seam_repair"
+    if any(
+        isinstance(issue, dict) and str(issue.get("type") or "").strip() in COMPREHENSION_ISSUE_TYPES
+        for issue in issues
+    ):
+        return "clarity_repair"
     target_set = {target for target in intervention_targets if isinstance(target, str)}
     if target_set & {
         "local:scene_opening_echo",
@@ -1012,6 +1058,11 @@ def _build_dialogue_polish_success_criteria(
         "Preserve the scene job, claim coverage, chronology, and attribution.",
         "Keep the scene in the payload language and preserve delivery metadata compatibility.",
     ]
+    if any(
+        isinstance(issue, dict) and str(issue.get("type") or "").strip() in COMPREHENSION_ISSUE_TYPES
+        for issue in issues
+    ):
+        criteria.append("Make the beat easier to follow in real time: clarify actors, causality, and any newly introduced term.")
     target_set = {target for target in intervention_targets if isinstance(target, str)}
     if isinstance(seam_finding, dict) and str(seam_finding.get("status") or "").strip() in PROBLEMATIC_SEAM_STATUSES:
         criteria.append("The opening should answer or sharpen the hanging question from the previous act instead of replaying it.")
@@ -1046,6 +1097,7 @@ def _build_dialogue_audit_prompt_payload(
     language: str,
     boundary_context: dict[str, Any] | None,
     scene_job: str,
+    scene_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         "act_number": segment.act_number,
@@ -1053,6 +1105,7 @@ def _build_dialogue_audit_prompt_payload(
         "language": str(language or "en").strip() or "en",
         "scene_job": scene_job,
         "boundary_context": boundary_context,
+        "scene_metadata": _dialogue_scene_metadata_prompt_excerpt(scene_metadata),
         "dialogue": segment.dialogue_json,
     }
 
@@ -1556,6 +1609,9 @@ def _dialogue_priority_score(row: dict[str, Any], act_report: dict[str, Any]) ->
         scope = str(issue.get("scope") or "")
         if scope == "scene_rewrite":
             score += 80 + severity_rank * 10
+            continue
+        if issue_type in COMPREHENSION_ISSUE_TYPES:
+            score += 34 + severity_rank * 9
             continue
         if issue_type in ECHO_ISSUE_TYPES:
             score += 45 + severity_rank * 10
@@ -2486,16 +2542,31 @@ def _dialogue_polish_resolves_targets(
     act_repetition_report: dict[str, Any] | None,
     seam_finding: dict[str, Any] | None,
     intervention_targets: list[str],
+    scene_metadata: dict[str, Any] | None = None,
 ) -> bool:
     if not issues and not isinstance(seam_finding, dict) and not intervention_targets:
         return _dialogue_changed_materially(original_dialogue, polished_dialogue)
+
+    has_comprehension_issue = any(
+        isinstance(issue, dict) and str(issue.get("type") or "").strip() in COMPREHENSION_ISSUE_TYPES
+        for issue in issues
+    )
 
     if not _intervention_requires_opener_change(
         issues=issues,
         seam_finding=seam_finding,
         intervention_targets=intervention_targets,
     ):
-        return _dialogue_changed_materially(original_dialogue, polished_dialogue)
+        if not _dialogue_changed_materially(original_dialogue, polished_dialogue):
+            return False
+        if has_comprehension_issue:
+            return _dialogue_comprehension_repair_is_substantive(
+                original_dialogue=original_dialogue,
+                polished_dialogue=polished_dialogue,
+                issues=issues,
+                scene_metadata=scene_metadata,
+            )
+        return True
 
     if not _opener_changed_materially(original_dialogue, polished_dialogue):
         return False
@@ -2511,6 +2582,266 @@ def _dialogue_polish_resolves_targets(
                 return False
 
     return True
+
+
+def _dialogue_line_tokens(text: Any) -> list[str]:
+    if not isinstance(text, str):
+        return []
+    return re.findall(r"\b[\wА-Яа-яЁё'-]+\b", text.casefold())
+
+
+def _dialogue_line_tokens_with_case(text: Any) -> list[str]:
+    if not isinstance(text, str):
+        return []
+    return re.findall(r"\b[\wА-Яа-яЁё'-]+\b", text)
+
+
+def _dialogue_text_ends_with_question(text: Any) -> bool:
+    if not isinstance(text, str):
+        return False
+    stripped = text.strip()
+    return bool(stripped) and stripped.endswith("?")
+
+
+def _dialogue_lexical_delta(original_text: Any, polished_text: Any) -> int:
+    original_set = set(_dialogue_line_tokens(original_text))
+    polished_set = set(_dialogue_line_tokens(polished_text))
+    return len((original_set - polished_set) | (polished_set - original_set))
+
+
+def _dialogue_line_pair_candidates(
+    *,
+    original_dialogue: Any,
+    polished_dialogue: Any,
+) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    if not isinstance(original_dialogue, list) or not isinstance(polished_dialogue, list):
+        return []
+    candidate_pairs: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    for original_line, polished_line in zip(original_dialogue, polished_dialogue):
+        if not isinstance(original_line, dict) or not isinstance(polished_line, dict):
+            continue
+        if str(original_line.get("speaker") or "").strip() != str(polished_line.get("speaker") or "").strip():
+            continue
+        candidate_pairs.append((original_line, polished_line))
+    return candidate_pairs
+
+
+def _dialogue_generic_comprehension_delta_is_substantive(
+    *,
+    line_pairs: list[tuple[dict[str, Any], dict[str, Any]]],
+) -> bool:
+    declarative_pairs = [
+        (original_line, polished_line)
+        for original_line, polished_line in line_pairs
+        if not _dialogue_text_ends_with_question(original_line.get("text"))
+        and not _dialogue_text_ends_with_question(polished_line.get("text"))
+    ]
+    pairs_to_check = declarative_pairs or line_pairs
+    for original_line, polished_line in pairs_to_check:
+        if _dialogue_lexical_delta(original_line.get("text"), polished_line.get("text")) >= 2:
+            return True
+    return False
+
+
+def _candidate_new_terms_for_comprehension_check(
+    *,
+    original_dialogue: Any,
+    scene_metadata: dict[str, Any] | None,
+) -> list[str]:
+    candidates: list[str] = []
+    seen: set[str] = set()
+    if isinstance(scene_metadata, dict):
+        for item in scene_metadata.get("new_terms_to_introduce", []) or []:
+            if not isinstance(item, str):
+                continue
+            term = " ".join(item.strip().split())
+            if not term:
+                continue
+            key = term.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            candidates.append(term)
+    if isinstance(original_dialogue, list):
+        for line in original_dialogue:
+            if not isinstance(line, dict):
+                continue
+            for token in _dialogue_line_tokens_with_case(line.get("text")):
+                if len(token) < 2:
+                    continue
+                if not any(char.isalpha() for char in token):
+                    continue
+                if token.upper() != token:
+                    continue
+                key = token.casefold()
+                if key in seen:
+                    continue
+                seen.add(key)
+                candidates.append(token)
+    return candidates
+
+
+def _dialogue_text_contains_term(text: Any, term: str) -> bool:
+    if not isinstance(text, str):
+        return False
+    return term.casefold() in text.casefold()
+
+
+def _dialogue_term_repair_is_substantive(
+    *,
+    line_pairs: list[tuple[dict[str, Any], dict[str, Any]]],
+    original_dialogue: Any,
+    polished_dialogue: Any,
+    scene_metadata: dict[str, Any] | None,
+) -> bool:
+    candidate_terms = _candidate_new_terms_for_comprehension_check(
+        original_dialogue=original_dialogue,
+        scene_metadata=scene_metadata,
+    )
+    if not candidate_terms:
+        return _dialogue_generic_comprehension_delta_is_substantive(line_pairs=line_pairs)
+
+    if not isinstance(polished_dialogue, list):
+        return False
+
+    for term in candidate_terms:
+        original_has_term = any(
+            isinstance(original_line, dict) and _dialogue_text_contains_term(original_line.get("text"), term)
+            for original_line in (original_dialogue or [])
+        )
+        if not original_has_term:
+            continue
+
+        polished_has_term = any(
+            isinstance(polished_line, dict) and _dialogue_text_contains_term(polished_line.get("text"), term)
+            for polished_line in polished_dialogue
+        )
+
+        if not polished_has_term:
+            if _dialogue_generic_comprehension_delta_is_substantive(line_pairs=line_pairs):
+                return True
+            continue
+
+        for original_line, polished_line in line_pairs:
+            original_text = original_line.get("text")
+            polished_text = polished_line.get("text")
+            if not _dialogue_text_contains_term(original_text, term):
+                continue
+            if not _dialogue_text_contains_term(polished_text, term):
+                continue
+            original_tokens = _dialogue_line_tokens(original_text)
+            polished_tokens = _dialogue_line_tokens(polished_text)
+            if not original_tokens or not polished_tokens:
+                continue
+            if len(polished_tokens) < len(original_tokens) + 3:
+                continue
+            if _dialogue_lexical_delta(original_text, polished_text) >= 3:
+                return True
+
+    return False
+
+
+def _dialogue_comprehension_repair_is_substantive(
+    *,
+    original_dialogue: Any,
+    polished_dialogue: Any,
+    issues: list[dict[str, Any]],
+    scene_metadata: dict[str, Any] | None,
+) -> bool:
+    line_pairs = _dialogue_line_pair_candidates(
+        original_dialogue=original_dialogue,
+        polished_dialogue=polished_dialogue,
+    )
+    if not line_pairs:
+        return False
+
+    validators_run = False
+    for issue in issues:
+        if not isinstance(issue, dict):
+            continue
+        issue_type = str(issue.get("type") or "").strip()
+        if issue_type == "unexplained_term":
+            validators_run = True
+            if not _dialogue_term_repair_is_substantive(
+                line_pairs=line_pairs,
+                original_dialogue=original_dialogue,
+                polished_dialogue=polished_dialogue,
+                scene_metadata=scene_metadata,
+            ):
+                return False
+            continue
+
+    if validators_run:
+        return True
+    return _dialogue_generic_comprehension_delta_is_substantive(line_pairs=line_pairs)
+
+
+def _dialogue_scene_metadata_prompt_excerpt(scene_metadata: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(scene_metadata, dict) or not scene_metadata:
+        return None
+    return {
+        "scene_type": str(scene_metadata.get("scene_type") or "").strip(),
+        "description": str(scene_metadata.get("description") or "").strip(),
+        "listener_state_before": str(scene_metadata.get("listener_state_before") or "").strip(),
+        "listener_state_after": str(scene_metadata.get("listener_state_after") or "").strip(),
+        "must_make_clear": [
+            str(item).strip()
+            for item in scene_metadata.get("must_make_clear", [])
+            if isinstance(item, str) and str(item).strip()
+        ],
+        "must_not_assume": [
+            str(item).strip()
+            for item in scene_metadata.get("must_not_assume", [])
+            if isinstance(item, str) and str(item).strip()
+        ],
+        "new_terms_to_introduce": [
+            str(item).strip()
+            for item in scene_metadata.get("new_terms_to_introduce", [])
+            if isinstance(item, str) and str(item).strip()
+        ],
+        "required_bridge_from_previous_scene": str(
+            scene_metadata.get("required_bridge_from_previous_scene") or ""
+        ).strip(),
+    }
+
+
+def _dialogue_word_count(dialogue: Any) -> int:
+    if not isinstance(dialogue, list):
+        return 0
+    count = 0
+    for line in dialogue:
+        if not isinstance(line, dict):
+            continue
+        text = str(line.get("text") or "").strip()
+        if not text:
+            continue
+        count += len(re.findall(r"\b[\wА-Яа-яЁё'-]+\b", text))
+    return count
+
+
+def _estimate_dialogue_timing(
+    *,
+    segments: list[ScriptSegment],
+    scene_metadata_lookup: dict[tuple[int, int], dict[str, Any]],
+) -> dict[str, Any]:
+    word_count = sum(_dialogue_word_count(segment.dialogue_json) for segment in segments)
+    target_seconds = sum(
+        int(metadata.get("estimated_duration_seconds") or 0)
+        for metadata in scene_metadata_lookup.values()
+        if isinstance(metadata, dict)
+    )
+    estimated_seconds_150 = round(word_count / 150 * 60)
+    estimated_seconds_145 = round(word_count / 145 * 60)
+    estimated_seconds_130 = round(word_count / 130 * 60)
+    return {
+        "word_count": word_count,
+        "estimated_seconds_150_wpm": estimated_seconds_150,
+        "estimated_seconds_145_wpm": estimated_seconds_145,
+        "estimated_seconds_130_wpm": estimated_seconds_130,
+        "target_seconds": target_seconds,
+        "delta_seconds_vs_target_145_wpm": estimated_seconds_145 - target_seconds if target_seconds > 0 else None,
+        "below_target_warning": estimated_seconds_145 < round(target_seconds * 0.9) if target_seconds > 0 else False,
+    }
 
 
 def _dump_dialogue_audit_debug(

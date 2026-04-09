@@ -90,6 +90,11 @@ Writing rules:
   - If evidence, quotes, or source material are in another language, translate or paraphrase them into the dialogue language instead of dropping raw source-language text into the line.
   - Only keep a very short original-language snippet when the scene is explicitly discussing wording, and immediately make its meaning clear in the dialogue language.
 - Use `description` as the main job of the scene. Use `transition_note` only as a light landing/bridge if it helps the ending.
+- Treat `listener_state_before`, `listener_state_after`, `must_make_clear`, `must_not_assume`, `new_terms_to_introduce`, and `required_bridge_from_previous_scene` as the clarity contract for the scene.
+- By the end of the scene, a non-expert listener should be able to say the `must_make_clear` points in plain language.
+- Do not rely on background listed in `must_not_assume` unless you first introduce it naturally in the scene.
+- If `new_terms_to_introduce` is non-empty, introduce those terms gently and make their meaning clear before leaning on them.
+- If `required_bridge_from_previous_scene` is present, the opening should cash out that bridge rather than jumping sideways into a fresh abstraction.
 - Use `act_title`, `previous_scene`, `previous_act_summary`, `previous_act_tail_dialogue`, `already_covered_claims`, and `already_covered_claims_global` only as continuity context. Do not restate material that the listener already heard unless this scene is explicitly reframing or paying it off.
 - For the first scene of a later act, use `previous_act_summary` and `previous_act_tail_dialogue` to continue the same conversation instead of resetting the story from zero.
 - If `previous_act_tail_dialogue` is present, treat it as live conversational momentum, not background notes. Carry the unresolved pressure, cost, contradiction, or hanging question forward before introducing a broader new layer.
@@ -109,6 +114,10 @@ Writing rules:
   - Better: turn that opening into a sharper sub-question, objection, or concrete consequence.
 - If the current scene overlaps with covered local or global material, briefly refer back and move to what is new in this scene.
 - If the current scene's claims overlap with `already_covered_claims_global`, treat that material as already established. Do not reteach it from zero unless this scene adds a new consequence, stress test, or reframing.
+- Always keep actor clarity. If the beat depends on who acted, decided, issued, changed, or intervened, make that actor legible in the dialogue instead of hiding it behind vague `they`, `the system`, or `Hong Kong`.
+- Avoid namedrops without grounding. If you use a person, institution, law, or date, make it clear why the listener should know or care.
+- Avoid empty authority or significance phrases such as `people often miss`, `what matters here is`, `here is the interesting part`, or similar setup lines unless the very next line cashes them out concretely.
+- Do not replace explanation with a slogan. A contrastive line like `not X, but Y` is only allowed if the listener already understands both sides of the contrast.
 - Use `scene_claim_mode` to decide how much explanation is still allowed:
   - `primary`: introduce the new material clearly
   - `mixed`: explain the primary part, but treat `callback_claims` as already established
@@ -736,6 +745,12 @@ def _build_scene_prompt_payload(
         "scene_type": scene.get("type", "explanation"),
         "scene_claim_mode": _scene_claim_mode(scene),
         "scene_job": _scene_job(scene),
+        "listener_state_before": scene.get("listener_state_before", ""),
+        "listener_state_after": scene.get("listener_state_after", ""),
+        "must_make_clear": scene.get("must_make_clear", []),
+        "must_not_assume": scene.get("must_not_assume", []),
+        "new_terms_to_introduce": scene.get("new_terms_to_introduce", []),
+        "required_bridge_from_previous_scene": scene.get("required_bridge_from_previous_scene", ""),
         "callback_claims": [
             act_claim_lookup[cid]
             for cid in _scene_callback_claim_ids(scene)

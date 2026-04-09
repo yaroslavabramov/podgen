@@ -372,6 +372,29 @@ def build_manifest_scene_metadata_lookup(acts_json: object) -> dict[tuple[int, i
                 "scene_job": normalize_scene_job_value(scene.get("scene_job")),
                 "scene_type": scene_type.strip().lower() if isinstance(scene_type, str) else "",
                 "description": " ".join(description.strip().split()) if isinstance(description, str) else "",
+                "estimated_duration_seconds": int(scene.get("estimated_duration_seconds") or 0)
+                if str(scene.get("estimated_duration_seconds") or "").strip()
+                else 0,
+                "listener_state_before": " ".join(str(scene.get("listener_state_before") or "").strip().split()),
+                "listener_state_after": " ".join(str(scene.get("listener_state_after") or "").strip().split()),
+                "must_make_clear": [
+                    " ".join(str(item or "").strip().split())
+                    for item in scene.get("must_make_clear", [])
+                    if isinstance(item, str) and str(item).strip()
+                ],
+                "must_not_assume": [
+                    " ".join(str(item or "").strip().split())
+                    for item in scene.get("must_not_assume", [])
+                    if isinstance(item, str) and str(item).strip()
+                ],
+                "new_terms_to_introduce": [
+                    " ".join(str(item or "").strip().split())
+                    for item in scene.get("new_terms_to_introduce", [])
+                    if isinstance(item, str) and str(item).strip()
+                ],
+                "required_bridge_from_previous_scene": " ".join(
+                    str(scene.get("required_bridge_from_previous_scene") or "").strip().split()
+                ),
                 "claim_ids": scene_manifest_claim_ids(scene),
                 "primary_claim_ids": scene_primary_claim_ids(scene),
                 "callback_claim_ids": scene_callback_claim_ids(scene),

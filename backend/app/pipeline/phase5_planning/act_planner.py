@@ -47,6 +47,9 @@ SCENE_JOB_VALUES = {
     "stress_test",
 }
 ENDING_SCENE_JOB_VALUES = {"reframe", "cost", "contrast", "bridge", "synthesize"}
+MAX_SCENE_CLARITY_TEXT_CHARS = 180
+MAX_SCENE_CLARITY_ITEMS = 4
+MAX_SCENE_CLARITY_ITEM_CHARS = 90
 
 ACT_PLANNER_SYSTEM = """You are a podcast act planner creating a beat sheet (scene list).
 Given an act contract and claims with support bundles, build the smallest sequence of scenes that gives the listener clear internal movement through the act. Scenes are jobs, not slots.
@@ -62,6 +65,12 @@ Return JSON:
       "description": "1-3 sentence beat card (max 250 characters) describing what changes in this scene",
       "primary_claim_ids": ["id"],
       "callback_claim_ids": ["id"],
+      "listener_state_before": "what the listener is assumed to understand before this scene",
+      "listener_state_after": "what should become clear by the end of this scene",
+      "must_make_clear": ["short listener-facing clarity goals"],
+      "must_not_assume": ["background the scene is not allowed to assume"],
+      "new_terms_to_introduce": ["technical or institutional terms that need gentle introduction"],
+      "required_bridge_from_previous_scene": "short note about what unresolved point must carry over, or null",
       "evidence_ids": ["id"],
       "estimated_duration_seconds": 45,
       "transition_note": "short bridge to the next scene or null",
@@ -93,7 +102,7 @@ Valid act-shape examples:
 
 Rules:
 - Language:
-  - All human-readable output fields (`scene_strategy`, `description`, `transition_note`, `notes`) MUST be in `output_language` from the user payload.
+  - All human-readable output fields (`scene_strategy`, `description`, `transition_note`, `notes`, `listener_state_before`, `listener_state_after`, `required_bridge_from_previous_scene`, list items in `must_make_clear`, `must_not_assume`, `new_terms_to_introduce`) MUST be in `output_language` from the user payload.
   - Keep the output in the same language as the act contract unless `output_language` says otherwise.
   - Do not mix languages inside one field.
 - Mission:
@@ -110,6 +119,7 @@ Rules:
   - Choose scene count from that movement, not from habit. `scene_count_guidance` is a soft range, not a quota.
   - Assign each claim one main home scene using `primary_claim_ids`. If later scenes reuse it, put it in `callback_claim_ids` as established context, not as a fresh explanation.
   - `primary_claim_ids` should be unique within the act. `callback_claim_ids` should refer only to material already established earlier in the act.
+  - For every scene, think in listener terms: what the listener knows before, what must become clear, what the scene must not assume, and which new terms need explicit introduction.
   - Only then write beat cards.
 - Scene design:
   - Every scene must change something: the listener should leave it with a sharper question, clearer model, new pressure, better contrast, or landed consequence.
@@ -117,6 +127,7 @@ Rules:
   - It is better to return fewer scenes than to keep a weak, repetitive, or purely connective scene.
   - Keep one clear job per scene. Split only when the listener would feel a meaningful shift.
   - Same-topic progression is good only when each scene adds a new layer such as reveal, apply, stress-test, cost, exception, comparison, consequence, or reframe.
+  - A scene is not good enough if it sounds plausible but a non-expert listener would still not know who acted, what changed, or why it follows from the previous beat.
   - Do not default to `hook -> explanation-heavy middle -> takeaway`. Let the act contract determine whether the opening move is a hook, explanation, case study, or debate, and whether the closing move is a takeaway, explanation, debate, case study, or open question.
   - Do not restate the act's main reveal in the next scene as if it were new.
   - Not every claim deserves its own beat. Near-paraphrase claims or one mechanism family often belong in one scene, with the rest serving as support.
@@ -136,6 +147,7 @@ Rules:
   - Prefer compact beat cards, not mini-script paragraphs. `description` should describe the beat, not write the scene. `notes` should stay short.
   - Each scene description must stay a beat card: 1-3 sentences, maximum 250 characters.
   - State what CHANGES in this scene: the shift in understanding, the new complication, or the consequence.
+  - Use `listener_state_before`, `listener_state_after`, `must_make_clear`, `must_not_assume`, and `new_terms_to_introduce` as compact planning metadata, not prose decoration.
   - Do not draft dialogue, host banter, or narration inside `description`.
   - If a description needs more than 3 sentences or more than 250 characters, the scene is trying to do too much. Split it or simplify it.
 - Evidence:
@@ -476,6 +488,42 @@ def _positive_int(value: Any, default: int) -> int:
     except (TypeError, ValueError):
         return default
     return parsed if parsed > 0 else default
+
+
+def _compact_scene_meta_text(value: Any, *, max_chars: int = MAX_SCENE_CLARITY_TEXT_CHARS) -> str:
+    if not isinstance(value, str):
+        return ""
+    compact = " ".join(value.strip().split())
+    if not compact:
+        return ""
+    return compact[:max_chars]
+
+
+def _compact_scene_meta_list(
+    value: Any,
+    *,
+    max_items: int = MAX_SCENE_CLARITY_ITEMS,
+    max_item_chars: int = MAX_SCENE_CLARITY_ITEM_CHARS,
+) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        compact = " ".join(item.strip().split())
+        if not compact:
+            continue
+        compact = compact[:max_item_chars]
+        key = compact.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(compact)
+        if len(out) >= max_items:
+            break
+    return out
 
 
 def _scene_count_bucket(scene_count: int) -> str:
@@ -1135,6 +1183,14 @@ def _normalize_beat_sheet(
                 "claim_ids": list(primary_claim_ids),
                 "primary_claim_ids": primary_claim_ids,
                 "callback_claim_ids": callback_claim_ids,
+                "listener_state_before": _compact_scene_meta_text(scene.get("listener_state_before")),
+                "listener_state_after": _compact_scene_meta_text(scene.get("listener_state_after")),
+                "must_make_clear": _compact_scene_meta_list(scene.get("must_make_clear")),
+                "must_not_assume": _compact_scene_meta_list(scene.get("must_not_assume")),
+                "new_terms_to_introduce": _compact_scene_meta_list(scene.get("new_terms_to_introduce")),
+                "required_bridge_from_previous_scene": _compact_scene_meta_text(
+                    scene.get("required_bridge_from_previous_scene")
+                ),
                 "evidence_ids": evidence_ids,
                 "estimated_duration_seconds": duration,
                 "transition_note": transition_note,

@@ -43,6 +43,12 @@ def _scene_prompt_payload_for_fingerprint(**overrides) -> dict:
         "scene_type": "explanation",
         "scene_claim_mode": "primary",
         "scene_job": "",
+        "listener_state_before": "",
+        "listener_state_after": "",
+        "must_make_clear": [],
+        "must_not_assume": [],
+        "new_terms_to_introduce": [],
+        "required_bridge_from_previous_scene": "",
         "callback_claims": [],
         "description": "Same scene brief",
         "transition_note": "",
@@ -86,6 +92,15 @@ def test_build_scene_prompt_payload_uses_local_and_cross_act_context() -> None:
             "transition_note": "После паники перейти к механике привязки.",
             "notes": "Один ведущий начинает с конкретной паники, второй расширяет рамку.",
             "estimated_duration_seconds": 75,
+            "listener_state_before": "Слушатель уже знает, что система жёсткая, но не знает, откуда она взялась.",
+            "listener_state_after": "Слушатель понимает, что паника 1983 года сделала привязку политически необходимой.",
+            "must_make_clear": [
+                "Паника была реальной и бытовой, а не только валютной",
+                "Привязка была ответом на кризис доверия",
+            ],
+            "must_not_assume": ["Что слушатель уже знает, что такое Чёрная суббота"],
+            "new_terms_to_introduce": ["привязка"],
+            "required_bridge_from_previous_scene": "Из жёсткой механики перейти к моменту, когда её пришлось строить в панике.",
         },
         scene_number=1,
         scene_claims=[
@@ -155,6 +170,15 @@ def test_build_scene_prompt_payload_uses_local_and_cross_act_context() -> None:
         "scene_type": "case_study",
         "scene_claim_mode": "primary",
         "scene_job": "",
+        "listener_state_before": "Слушатель уже знает, что система жёсткая, но не знает, откуда она взялась.",
+        "listener_state_after": "Слушатель понимает, что паника 1983 года сделала привязку политически необходимой.",
+        "must_make_clear": [
+            "Паника была реальной и бытовой, а не только валютной",
+            "Привязка была ответом на кризис доверия",
+        ],
+        "must_not_assume": ["Что слушатель уже знает, что такое Чёрная суббота"],
+        "new_terms_to_introduce": ["привязка"],
+        "required_bridge_from_previous_scene": "Из жёсткой механики перейти к моменту, когда её пришлось строить в панике.",
         "callback_claims": [],
         "description": "Черная суббота 1983 года как момент потери доверия.",
         "transition_note": "После паники перейти к механике привязки.",
@@ -226,6 +250,12 @@ def test_screenwriter_prompt_demands_cross_act_memory_and_looser_dialogue() -> N
     assert "The `speaker` field must use canonical IDs `A` or `B` only." in SCREENWRITER_SYSTEM
     assert "Never output host names, role names, localized speaker labels, or other aliases" in SCREENWRITER_SYSTEM
     assert "Use `description` as the main job of the scene." in SCREENWRITER_SYSTEM
+    assert "Treat `listener_state_before`, `listener_state_after`, `must_make_clear`" in SCREENWRITER_SYSTEM
+    assert "Do not rely on background listed in `must_not_assume`" in SCREENWRITER_SYSTEM
+    assert "introduce those terms gently and make their meaning clear" in SCREENWRITER_SYSTEM
+    assert "Always keep actor clarity." in SCREENWRITER_SYSTEM
+    assert "Avoid namedrops without grounding." in SCREENWRITER_SYSTEM
+    assert "Do not replace explanation with a slogan." in SCREENWRITER_SYSTEM
     assert "previous_act_summary" in SCREENWRITER_SYSTEM
     assert "previous_act_tail_dialogue" in SCREENWRITER_SYSTEM
     assert "already_covered_claims_global" in SCREENWRITER_SYSTEM
@@ -867,6 +897,12 @@ def test_build_scene_prompt_payload_marks_callback_only_scene() -> None:
             "transition_note": "",
             "notes": "",
             "estimated_duration_seconds": 45,
+            "listener_state_before": "Listener already knows the mechanism.",
+            "listener_state_after": "Listener sees the implication.",
+            "must_make_clear": ["This is about implication, not mechanism replay."],
+            "must_not_assume": [],
+            "new_terms_to_introduce": [],
+            "required_bridge_from_previous_scene": "Carry the solved mechanism into implication.",
         },
         scene_number=6,
         scene_claims=[],
@@ -887,6 +923,10 @@ def test_build_scene_prompt_payload_marks_callback_only_scene() -> None:
 
     assert payload["scene_claim_mode"] == "callback"
     assert payload["scene_job"] == "synthesize"
+    assert payload["listener_state_before"] == "Listener already knows the mechanism."
+    assert payload["listener_state_after"] == "Listener sees the implication."
+    assert payload["must_make_clear"] == ["This is about implication, not mechanism replay."]
+    assert payload["required_bridge_from_previous_scene"] == "Carry the solved mechanism into implication."
     assert payload["callback_claims"] == [act_claim_lookup[c1]]
     assert payload["recent_scene_starts"] == ["подожди ты"]
 

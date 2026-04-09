@@ -610,6 +610,14 @@ Web extraction использует каскад extractors:
   - `stress_test`
 
 - `recent_scene_starts` — детерминированный список недавних opener-shapes внутри текущего акта; writer использует его как soft anti-repetition cue, чтобы сцены не начинались одним и тем же маркером снова и снова
+- planner-to-writer handoff теперь несёт и listener-facing clarity contract:
+  - `listener_state_before`
+  - `listener_state_after`
+  - `must_make_clear`
+  - `must_not_assume`
+  - `new_terms_to_introduce`
+  - `required_bridge_from_previous_scene`
+- writer должен использовать эти поля как constraint на понятность сцены, а не как ещё один слой декоративных заметок
 
 - если предыдущая сцена уже сформулировала punchline, новая сцена должна по возможности продвигать разговор дальше, а не перефразировать тот же вывод в первых 1-2 репликах
 
@@ -650,6 +658,17 @@ Web extraction использует каскад extractors:
   - максимум `3` issues на сцену
   - короткие English `description` / `suggestion`
   - повторяющиеся root causes схлопываются до одного issue перед routing
+- audit теперь также смотрит на scene-level comprehension failures, а не только на rhythm/style:
+  - `undefined_actor`
+  - `unexplained_term`
+  - `namedrop_without_grounding`
+  - `causal_gap`
+  - `missing_bridge`
+  - `assumed_context`
+  - `summary_instead_of_scene`
+  - `compressed_history_dump`
+  - `payoff_restarts_explanation`
+- эти comprehension issues оцениваются against planning-side `scene_metadata`; они не должны прятаться под generic `teacherly_exposition` или `dry_facts`
 - medium-severity проблемы с scope `scene_polish` пытается чинить inline через scene-level polish pass
 - prompt для polish получает `scene_job` и `language`, чтобы polish не ломал intended move сцены и не дрейфовал в translated-from-English phrasing
 - prompt для polish жёстко держит canonical speaker contract: `speaker` должен оставаться только `A/B`; если модель всё же возвращает имена ведущих или role labels, runtime normalization мапит их обратно через aliases из `ShowBible.hosts`
@@ -662,6 +681,7 @@ Web extraction использует каскад extractors:
   - non-priority scenes with only act-level duplicate-family pressure no longer auto-spend polish budget
   - `quality_signals.dialogue_act_monotony_signals` stores repeated-family summaries for downstream inspection
 - `quality_signals` now also carry structural rhythm telemetry (`speaker_question_share`, dominant opener-speaker share, opener-shape diversity, `B question -> A` opening rate), so repeated-word counts are no longer the main repetition diagnostic
+- `quality_signals.dialogue_timing` теперь также хранит rough runtime estimate (`word_count`, `estimated_seconds_150/145/130_wpm`, `target_seconds`, `delta_seconds_vs_target_145_wpm`, `below_target_warning`)
 - если polish правит opening scene later act-а с seam-targetом, phase 6 делает targeted post-polish seam re-check только для этой границы и использует обновлённый seam result как final status
 - acceptance for `scene_opening_echo` / `boundary_restatement` is now target-aware: polish не принимается, если opener по сути остался тем же; для speaker-distribution intervention polish тоже reject, если opener остался в том же dominant-speaker skew
 - metadata safety is now contract-first: `dialogue_polish` должен возвращать compatible `emotion` / `ssml_hints`; same-length rewrites get safe metadata backfill, while changed-length rewrites are accepted only when the returned dialogue itself preserves usable delivery metadata

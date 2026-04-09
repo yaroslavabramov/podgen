@@ -362,6 +362,8 @@ def test_act_planner_prompt_enforces_compact_beat_cards() -> None:
     assert "maximum 250 characters" in ACT_PLANNER_SYSTEM
     assert "State what CHANGES in this scene" in ACT_PLANNER_SYSTEM
     assert "If a description needs more than 3 sentences or more than 250 characters" in ACT_PLANNER_SYSTEM
+    assert "listener_state_before" in ACT_PLANNER_SYSTEM
+    assert "must_make_clear" in ACT_PLANNER_SYSTEM
 
 
 @pytest.mark.asyncio
@@ -428,14 +430,18 @@ def test_act_planner_prompt_defines_positive_contract_and_hard_constraints() -> 
     assert "Scenes are jobs, not slots." in ACT_PLANNER_SYSTEM
     assert '"primary_claim_ids": ["id"]' in ACT_PLANNER_SYSTEM
     assert '"callback_claim_ids": ["id"]' in ACT_PLANNER_SYSTEM
-    assert "All human-readable output fields (`scene_strategy`, `description`, `transition_note`, `notes`) MUST be in `output_language`" in ACT_PLANNER_SYSTEM
+    assert '"listener_state_before": "what the listener is assumed to understand before this scene"' in ACT_PLANNER_SYSTEM
+    assert '"listener_state_after": "what should become clear by the end of this scene"' in ACT_PLANNER_SYSTEM
+    assert "All human-readable output fields (`scene_strategy`, `description`, `transition_note`, `notes`, `listener_state_before`, `listener_state_after`, `required_bridge_from_previous_scene`, list items in `must_make_clear`, `must_not_assume`, `new_terms_to_introduce`) MUST be in `output_language`" in ACT_PLANNER_SYSTEM
     assert "the act should engage `opening_question` early, but this does not require a dedicated `hook` scene" in ACT_PLANNER_SYSTEM
     assert "the act must deliver `ending_turn`, but this does not require a dedicated `takeaway` or `summary` scene" in ACT_PLANNER_SYSTEM
     assert "Decide the minimum set of distinct scene moves needed to satisfy the act contract." in ACT_PLANNER_SYSTEM
     assert "`scene_count_guidance` is a soft range, not a quota." in ACT_PLANNER_SYSTEM
     assert "Assign each claim one main home scene using `primary_claim_ids`." in ACT_PLANNER_SYSTEM
+    assert "For every scene, think in listener terms" in ACT_PLANNER_SYSTEM
     assert "`primary_claim_ids` should be unique within the act." in ACT_PLANNER_SYSTEM
     assert "Neighboring scenes must do different listener work." in ACT_PLANNER_SYSTEM
+    assert "A scene is not good enough if it sounds plausible but a non-expert listener would still not know who acted" in ACT_PLANNER_SYSTEM
     assert "It is better to return fewer scenes than to keep a weak, repetitive, or purely connective scene." in ACT_PLANNER_SYSTEM
     assert "Do not default to `hook -> explanation-heavy middle -> takeaway`." in ACT_PLANNER_SYSTEM
     assert "Valid act-shape examples:" in ACT_PLANNER_SYSTEM
@@ -1977,6 +1983,40 @@ def test_normalize_beat_sheet_accepts_explicit_primary_and_callback_claim_ids() 
     assert result[0]["primary_claim_ids"] == [primary]
     assert result[0]["callback_claim_ids"] == [callback]
     assert result[0]["claim_ids"] == [primary]
+
+
+def test_normalize_beat_sheet_preserves_compact_clarity_metadata() -> None:
+    primary = "36e57f2b-4107-4365-9b3c-bade11b91674"
+    scenes = [
+        {
+            "scene": 1,
+            "type": "explanation",
+            "description": "Test scene",
+            "primary_claim_ids": [primary],
+            "listener_state_before": " Listener has the setup but not the actor. ",
+            "listener_state_after": " Listener knows who acted and why it matters. ",
+            "must_make_clear": [" Who acted ", "Why it follows", "Who acted"],
+            "must_not_assume": [" Prior knowledge of Greenwood "],
+            "new_terms_to_introduce": [" Exchange Fund "],
+            "required_bridge_from_previous_scene": " Carry over the unresolved panic. ",
+            "evidence_ids": [],
+            "estimated_duration_seconds": 60,
+        }
+    ]
+
+    result = _normalize_beat_sheet(
+        scenes,
+        allowed_claim_ids={primary},
+        allowed_evidence_ids=set(),
+        default_duration=60,
+    )
+
+    assert result[0]["listener_state_before"] == "Listener has the setup but not the actor."
+    assert result[0]["listener_state_after"] == "Listener knows who acted and why it matters."
+    assert result[0]["must_make_clear"] == ["Who acted", "Why it follows"]
+    assert result[0]["must_not_assume"] == ["Prior knowledge of Greenwood"]
+    assert result[0]["new_terms_to_introduce"] == ["Exchange Fund"]
+    assert result[0]["required_bridge_from_previous_scene"] == "Carry over the unresolved panic."
 
 
 def test_explicit_claim_roles_survive_short_id_restore_runtime_path() -> None:

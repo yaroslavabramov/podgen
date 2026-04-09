@@ -686,6 +686,12 @@ Deferred after Round 68:
 - [x] **P1**: Added a step-mode artifact panel on the generation page with tabs for `Episode Plan`, `Beat Sheets`, and `Screenplay`
 - [x] **P2**: Added regression coverage for artifact serialization from persisted manifest + screenplay rows
 
+**Round 93 (clarity/comprehension contract, first implementation slice):**
+- [x] **P0**: `act_planner` scene briefs now carry listener-facing clarity metadata (`listener_state_before/after`, `must_make_clear`, `must_not_assume`, `new_terms_to_introduce`, `required_bridge_from_previous_scene`) so planning can specify what must become understandable, not only what claims are covered
+- [x] **P0**: `screenwriter` now receives those clarity fields in every scene payload and the writer prompt is explicitly clarity-first about actors, causal bridges, grounded namedrops, and gentle term introduction
+- [x] **P1**: Phase 6 `dialogue_audit` now sees scene-level clarity metadata and can flag comprehension failures (`undefined_actor`, `unexplained_term`, `namedrop_without_grounding`, `causal_gap`, `summary_instead_of_scene`, `payoff_restarts_explanation`, etc.) as first-class repair targets
+- [x] **P1**: Phase 6 quality signals now expose rough screenplay timing telemetry (`word_count`, multi-WPM runtime estimate, target delta, below-target warning) so under-length drafts become visible before audio
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

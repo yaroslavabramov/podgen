@@ -42,6 +42,11 @@ from app.pipeline.step_control import StepExecutionStopped
 
 def test_writer_revolt_prompt_tracks_boundary_context_and_structured_repair_scopes() -> None:
     assert "boundary_restatement" in EVAL_SYSTEM
+    assert "undefined_actor" in EVAL_SYSTEM
+    assert "unexplained_term" in EVAL_SYSTEM
+    assert "namedrop_without_grounding" in EVAL_SYSTEM
+    assert "causal_gap" in EVAL_SYSTEM
+    assert "summary_instead_of_scene" in EVAL_SYSTEM
     assert '"severity": "low|medium|high"' in EVAL_SYSTEM
     assert '"scope": "scene_polish|scene_rewrite|act_warning"' in EVAL_SYSTEM
     assert "return a compact machine-facing report" in EVAL_SYSTEM
@@ -49,11 +54,14 @@ def test_writer_revolt_prompt_tracks_boundary_context_and_structured_repair_scop
     assert "Write `description` and `suggestion` in English" in EVAL_SYSTEM
     assert "closely repeating or paraphrasing the previous scene's punchline" in EVAL_SYSTEM
     assert "topic bridge or thesis-to-example progression is not echo by itself" in EVAL_SYSTEM
+    assert "undefined actors" in EVAL_SYSTEM
+    assert "use `scene_metadata` when present as the intended clarity contract" in EVAL_SYSTEM
     assert "The payload includes `language`." in EVAL_SYSTEM
     assert "Judge the scene as spoken dialogue in that language" in EVAL_SYSTEM
     assert "Replace the current single-scene score gate" not in EVAL_SYSTEM
     assert "Treat this as a targeted intervention, not a generic rewrite." in POLISH_SYSTEM
     assert "The payload includes `language`; keep the scene natural for that language and spoken register." in POLISH_SYSTEM
+    assert "The payload may include `scene_metadata`" in POLISH_SYSTEM
     assert "If the original scene contains a foreign-language quote or source snippet" in POLISH_SYSTEM
     assert "Keep the `speaker` field canonical: output only `A` or `B`" in POLISH_SYSTEM
     assert "`claim_ids` are opaque labels" in POLISH_SYSTEM
@@ -61,12 +69,14 @@ def test_writer_revolt_prompt_tracks_boundary_context_and_structured_repair_scop
     assert "Use `intervention_targets`, `intervention_mode`, and `success_criteria` as the primary contract." in POLISH_SYSTEM
     assert "The payload may include an `act_repetition_report`" in POLISH_SYSTEM
     assert "The payload may include a `seam_finding`" in POLISH_SYSTEM
+    assert "If the target problem is comprehension, prioritize listener clarity over clever phrasing" in POLISH_SYSTEM
     assert "If you split, merge, or otherwise change line alignment" in POLISH_SYSTEM
     assert "If the boundary context already landed a punchline, do not reopen by paraphrasing it." in POLISH_SYSTEM
     assert "If this scene opens a new act, continue the same conversation" in POLISH_SYSTEM
     assert "Do not default to `B asks -> A confirms -> A explains`." in POLISH_SYSTEM
     assert "When fixing repetitive agreement shapes, prefer removing explicit confirmation markers" in POLISH_SYSTEM
     assert "`intervention_mode` tells you which repair type matters most" in POLISH_SYSTEM
+    assert "clarity repair" in POLISH_SYSTEM
     assert "`success_criteria` lists what must become true" in POLISH_SYSTEM
     assert "targeted cluster intervention" in MULTI_SCENE_POLISH_SYSTEM
     assert "Do not let all scenes open with the same skeptical-question reset." in MULTI_SCENE_POLISH_SYSTEM
@@ -109,12 +119,32 @@ def test_build_dialogue_audit_prompt_payload_includes_boundary_context() -> None
         language="ru",
         boundary_context=boundary_context,
         scene_job="stress_test",
+        scene_metadata={
+            "scene_type": "case_study",
+            "description": "Show the pressure point.",
+            "listener_state_before": "Listener knows the rule.",
+            "listener_state_after": "Listener sees the cost.",
+            "must_make_clear": ["The pressure is concrete."],
+            "must_not_assume": ["Listener knows the institutional name already."],
+            "new_terms_to_introduce": ["corridor"],
+            "required_bridge_from_previous_scene": "Move from mechanism to cost.",
+        },
     ) == {
         "act_number": 3,
         "scene_number": 2,
         "language": "ru",
         "scene_job": "stress_test",
         "boundary_context": {"last_line": "Previous punchline."},
+        "scene_metadata": {
+            "scene_type": "case_study",
+            "description": "Show the pressure point.",
+            "listener_state_before": "Listener knows the rule.",
+            "listener_state_after": "Listener sees the cost.",
+            "must_make_clear": ["The pressure is concrete."],
+            "must_not_assume": ["Listener knows the institutional name already."],
+            "new_terms_to_introduce": ["corridor"],
+            "required_bridge_from_previous_scene": "Move from mechanism to cost.",
+        },
         "dialogue": [{"speaker": "A", "text": "Current scene."}],
     }
 
@@ -130,6 +160,16 @@ def test_build_dialogue_polish_prompt_payload_includes_scene_job() -> None:
         segment=segment,
         language="ru",
         scene_job="cost",
+        scene_metadata={
+            "scene_type": "debate",
+            "description": "Land the price of intervention.",
+            "listener_state_before": "Listener knows the defense worked.",
+            "listener_state_after": "Listener knows what it cost.",
+            "must_make_clear": ["The intervention had a price."],
+            "must_not_assume": [],
+            "new_terms_to_introduce": [],
+            "required_bridge_from_previous_scene": "Carry success into cost.",
+        },
         boundary_context={"last_line": "Previous line."},
         issues=[{"type": "scene_opening_echo", "severity": "medium", "scope": "scene_polish"}],
         act_repetition_report={"dominant_opening_speaker": "A"},
@@ -138,6 +178,16 @@ def test_build_dialogue_polish_prompt_payload_includes_scene_job() -> None:
         "scene_number": 6,
         "language": "ru",
         "scene_job": "cost",
+        "scene_metadata": {
+            "scene_type": "debate",
+            "description": "Land the price of intervention.",
+            "listener_state_before": "Listener knows the defense worked.",
+            "listener_state_after": "Listener knows what it cost.",
+            "must_make_clear": ["The intervention had a price."],
+            "must_not_assume": [],
+            "new_terms_to_introduce": [],
+            "required_bridge_from_previous_scene": "Carry success into cost.",
+        },
         "boundary_context": {"last_line": "Previous line."},
         "act_repetition_report": {"dominant_opening_speaker": "A"},
         "seam_finding": None,
@@ -786,6 +836,104 @@ def test_dialogue_polish_resolves_targets_requires_material_change_for_non_opene
             act_repetition_report=None,
             seam_finding=None,
             intervention_targets=["local:repetitive_agreement_shape"],
+        )
+        is True
+    )
+
+
+def test_dialogue_polish_resolves_targets_rejects_cosmetic_comprehension_repair() -> None:
+    original = [
+        {"speaker": "A", "text": "They changed it.", "claim_ids": []},
+        {"speaker": "B", "text": "Why?", "claim_ids": []},
+    ]
+
+    assert (
+        _dialogue_polish_resolves_targets(
+            original_dialogue=original,
+            polished_dialogue=[
+                {"speaker": "A", "text": "They suddenly changed it.", "claim_ids": []},
+                {"speaker": "B", "text": "Why exactly?", "claim_ids": []},
+            ],
+            issues=[{"type": "undefined_actor", "severity": "medium", "scope": "scene_polish"}],
+            boundary_context=None,
+            act_repetition_report=None,
+            seam_finding=None,
+            intervention_targets=["local:undefined_actor"],
+        )
+        is False
+    )
+
+
+def test_dialogue_polish_resolves_targets_accepts_substantive_comprehension_repair() -> None:
+    original = [
+        {"speaker": "A", "text": "They changed it.", "claim_ids": []},
+        {"speaker": "B", "text": "Why?", "claim_ids": []},
+    ]
+
+    assert (
+        _dialogue_polish_resolves_targets(
+            original_dialogue=original,
+            polished_dialogue=[
+                {"speaker": "A", "text": "The Hong Kong government changed the peg rule.", "claim_ids": []},
+                {"speaker": "B", "text": "Why would the government do that in the middle of panic?", "claim_ids": []},
+            ],
+            issues=[{"type": "undefined_actor", "severity": "medium", "scope": "scene_polish"}],
+            boundary_context=None,
+            act_repetition_report=None,
+            seam_finding=None,
+            intervention_targets=["local:undefined_actor"],
+        )
+        is True
+    )
+
+
+def test_dialogue_polish_resolves_targets_rejects_unexplained_term_relabel() -> None:
+    original = [
+        {"speaker": "A", "text": "Then the LERS tightened.", "claim_ids": []},
+        {"speaker": "B", "text": "Why?", "claim_ids": []},
+    ]
+
+    assert (
+        _dialogue_polish_resolves_targets(
+            original_dialogue=original,
+            polished_dialogue=[
+                {"speaker": "A", "text": "Then the LERS corridor tightened sharply.", "claim_ids": []},
+                {"speaker": "B", "text": "Why so quickly?", "claim_ids": []},
+            ],
+            issues=[{"type": "unexplained_term", "severity": "medium", "scope": "scene_polish"}],
+            boundary_context=None,
+            act_repetition_report=None,
+            seam_finding=None,
+            intervention_targets=["local:unexplained_term"],
+            scene_metadata={"new_terms_to_introduce": ["LERS"]},
+        )
+        is False
+    )
+
+
+def test_dialogue_polish_resolves_targets_accepts_substantive_term_explanation() -> None:
+    original = [
+        {"speaker": "A", "text": "Then the LERS tightened.", "claim_ids": []},
+        {"speaker": "B", "text": "Why?", "claim_ids": []},
+    ]
+
+    assert (
+        _dialogue_polish_resolves_targets(
+            original_dialogue=original,
+            polished_dialogue=[
+                {
+                    "speaker": "A",
+                    "text": "Then the LERS, Hong Kong's exchange-rate corridor, tightened sharply.",
+                    "claim_ids": [],
+                },
+                {"speaker": "B", "text": "Why did that corridor tighten so quickly?", "claim_ids": []},
+            ],
+            issues=[{"type": "unexplained_term", "severity": "medium", "scope": "scene_polish"}],
+            boundary_context=None,
+            act_repetition_report=None,
+            seam_finding=None,
+            intervention_targets=["local:unexplained_term"],
+            scene_metadata={"new_terms_to_introduce": ["LERS"]},
         )
         is True
     )
