@@ -126,15 +126,17 @@ Rules:
   - Neighboring scenes must do different listener work. If two scenes land the same insight, merge them, delete one, or change one to a genuinely new move.
   - It is better to return fewer scenes than to keep a weak, repetitive, or purely connective scene.
   - Keep one clear job per scene. Split only when the listener would feel a meaningful shift.
+  - One scene should usually carry one irreversible listener step. Do not pack two independent turns into one beat card.
   - Same-topic progression is good only when each scene adds a new layer such as reveal, apply, stress-test, cost, exception, comparison, consequence, or reframe.
   - A scene is not good enough if it sounds plausible but a non-expert listener would still not know who acted, what changed, or why it follows from the previous beat.
+  - Do not compress event plus meta-thesis, two distant time jumps, or two separate causal turns into one scene just to sound efficient.
   - Do not default to `hook -> explanation-heavy middle -> takeaway`. Let the act contract determine whether the opening move is a hook, explanation, case study, or debate, and whether the closing move is a takeaway, explanation, debate, case study, or open question.
   - Do not restate the act's main reveal in the next scene as if it were new.
   - Not every claim deserves its own beat. Near-paraphrase claims or one mechanism family often belong in one scene, with the rest serving as support.
   - `prior_acts_primary_claims` lists material already established earlier. If it recurs here, it should usually return as context rather than as a fresh explanation unless this act adds a genuinely new layer.
   - `recent_act_structures` summarizes how the latest acts were shaped structurally. Use it to avoid repeating the same opening move, explanation-heavy middle, and ending function in back-to-back acts.
   - A genuinely new layer means the listener learns something meaningfully different, not just the same mechanism in different words.
-  - In historical acts, keep the scene order chronologically legible unless the beat card clearly frames a later point as hindsight.
+  - When an act depends on sequence or chronology, keep scene order monotonic by default. Do not jump backward in time unless the beat explicitly frames it as comparison or hindsight.
   - `case_study` is optional. Use it only when a concrete episode materially changes the listener's understanding, not when it simply replays an earlier image.
   - `debate` is optional. Use it only when the act has real conflict pressure (`conflict_count > 0`) or a true comparative argument.
   - `takeaway` and `summary` scenes should land implication or reframing, not mechanically recap the act.
@@ -149,7 +151,7 @@ Rules:
   - State what CHANGES in this scene: the shift in understanding, the new complication, or the consequence.
   - Use `listener_state_before`, `listener_state_after`, `must_make_clear`, `must_not_assume`, and `new_terms_to_introduce` as compact planning metadata, not prose decoration.
   - Do not draft dialogue, host banter, or narration inside `description`.
-  - If a description needs more than 3 sentences or more than 250 characters, the scene is trying to do too much. Split it or simplify it.
+  - If a description needs more than 3 sentences or more than 250 characters, the scene is trying to do too much. Split it, drop one move, or convert one layer into callback context.
 - Evidence:
   - When a scene uses a claim, attach one or more `evidence_ids` from that claim's bundled support whenever available.
   - `primary_claim_ids`, `callback_claim_ids`, and `evidence_ids` are opaque labels. Reuse only labels present in the input and copy them exactly.
@@ -1610,6 +1612,25 @@ def _format_structural_retry_detail(
     scene_key = issue.get("scene", issue.get("scene_a", "?"))
     detail = f"[S{scene_key}] {issue['type']}: {issue['message']}"
 
+    if issue.get("type") == "beat_card_description_too_long":
+        scene_number = _positive_int(issue.get("scene"), 0)
+        scene = _find_scene_by_number(beat_sheet, scene_number)
+        if scene is not None:
+            description = str(scene.get("description") or "").strip()
+            if description:
+                detail += f"\n  Current beat card: {description}"
+            scene_job = _scene_job(scene) or "none"
+            detail += f"\n  Scene {scene_number} current move: {scene_job}"
+        detail += (
+            "\n  Do NOT solve this by shaving a few words while keeping the same packed beat."
+            "\n  Treat this as scene overload."
+            "\n  Keep only one main listener turn in the scene, and move the rest by:"
+            "\n    - splitting the extra event or time jump into its own scene,"
+            "\n    - dropping the weaker layer, or"
+            "\n    - turning one layer into brief callback context instead of fresh beat-card material."
+        )
+        return detail
+
     if issue.get("type") == "description_claim_mismatch":
         scene_number = _positive_int(issue.get("scene"), 0)
         scene = _find_scene_by_number(beat_sheet, scene_number)
@@ -1682,6 +1703,7 @@ def _format_structural_retry_detail(
             detail += "\n" + "\n".join(f"    - {statement}" for statement in scene_claims)
 
     return detail
+
 
 
 def _dump_act_planner_debug(

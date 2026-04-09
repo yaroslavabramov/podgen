@@ -692,6 +692,10 @@ Deferred after Round 68:
 - [x] **P1**: Phase 6 `dialogue_audit` now sees scene-level clarity metadata and can flag comprehension failures (`undefined_actor`, `unexplained_term`, `namedrop_without_grounding`, `causal_gap`, `summary_instead_of_scene`, `payoff_restarts_explanation`, etc.) as first-class repair targets
 - [x] **P1**: Phase 6 quality signals now expose rough screenplay timing telemetry (`word_count`, multi-WPM runtime estimate, target delta, below-target warning) so under-length drafts become visible before audio
 
+**Round 94 (planner anti-packing contract):**
+- [x] **P1**: `act_planner` prompt now treats overlong beat cards as structural overload, not wording cleanup, and explicitly tells the model to keep one irreversible listener turn per scene
+- [x] **P1**: structural retry guidance for overlong beat cards now tells the model to split/drop/callback extra turns instead of shaving words
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

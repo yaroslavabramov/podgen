@@ -618,6 +618,7 @@ Web extraction использует каскад extractors:
   - `new_terms_to_introduce`
   - `required_bridge_from_previous_scene`
 - writer должен использовать эти поля как constraint на понятность сцены, а не как ещё один слой декоративных заметок
+- planner также держит anti-packing contract: одна сцена должна нести один основной listener turn; если beat card вылезает за допустимый размер, retry должен просить split/drop/callback, а не просто укорачивать wording
 
 - если предыдущая сцена уже сформулировала punchline, новая сцена должна по возможности продвигать разговор дальше, а не перефразировать тот же вывод в первых 1-2 репликах
 

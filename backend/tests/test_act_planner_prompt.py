@@ -364,6 +364,8 @@ def test_act_planner_prompt_enforces_compact_beat_cards() -> None:
     assert "If a description needs more than 3 sentences or more than 250 characters" in ACT_PLANNER_SYSTEM
     assert "listener_state_before" in ACT_PLANNER_SYSTEM
     assert "must_make_clear" in ACT_PLANNER_SYSTEM
+    assert "One scene should usually carry one irreversible listener step." in ACT_PLANNER_SYSTEM
+    assert "Do not compress event plus meta-thesis, two distant time jumps, or two separate causal turns into one scene" in ACT_PLANNER_SYSTEM
 
 
 @pytest.mark.asyncio
@@ -456,7 +458,7 @@ def test_act_planner_prompt_defines_positive_contract_and_hard_constraints() -> 
     assert "each claim includes `support_bundle.direct` and optional `support_bundle.illustrative`" in ACT_PLANNER_SYSTEM
     assert "attach one or more `evidence_ids` from that claim's bundled support whenever available" in ACT_PLANNER_SYSTEM
     assert "`primary_claim_ids`, `callback_claim_ids`, and `evidence_ids` are opaque labels" in ACT_PLANNER_SYSTEM
-    assert "In historical acts, keep the scene order chronologically legible" in ACT_PLANNER_SYSTEM
+    assert "When an act depends on sequence or chronology, keep scene order monotonic by default." in ACT_PLANNER_SYSTEM
     assert "When writing a callback-heavy or ending beat card, lead with the new move first" in ACT_PLANNER_SYSTEM
     assert "Use `cost` only when the scene is genuinely about what is lost" in ACT_PLANNER_SYSTEM
     assert "A `contrast` scene should usually have one dominant outside comparator." in ACT_PLANNER_SYSTEM
@@ -773,6 +775,32 @@ def test_format_structural_retry_detail_for_description_mismatch_includes_callba
     assert "Scene's actual claims and callback context:" in detail
     assert "Shops refuse the 1000 HKD note." in detail
     assert "Multiple versions of the same note circulate at once." in detail
+
+
+def test_format_structural_retry_detail_for_overlong_scene_demands_unpacking() -> None:
+    detail = _format_structural_retry_detail(
+        {
+            "severity": "structural",
+            "type": "beat_card_description_too_long",
+            "scene": 3,
+            "scene_type": "explanation",
+            "message": "Scene description exceeds the beat-card budget and may drift into mini-draft narration.",
+        },
+        beat_sheet=[
+            {
+                "scene": 3,
+                "type": "explanation",
+                "scene_job": "cost",
+                "description": "1866: mint fails. 1935: silver collapses and the system re-pegs.",
+            }
+        ],
+        claim_statements_lookup={},
+    )
+
+    assert "Current beat card: 1866: mint fails. 1935: silver collapses and the system re-pegs." in detail
+    assert "Do NOT solve this by shaving a few words while keeping the same packed beat." in detail
+    assert "Treat this as scene overload." in detail
+    assert "splitting the extra event or time jump into its own scene" in detail
 
 
 async def test_collect_beat_sheet_quality_issues_keeps_callback_only_takeaway_advisory() -> None:
