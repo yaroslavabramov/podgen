@@ -5,20 +5,50 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select, func, update
 
 from app.api.deps import CurrentUser, DB
+from app.models.episode_manifest import EpisodeManifest
 from app.models.project import Project
 from app.models.source import Source
 from app.models.show_bible import ShowBible
 from app.models.generation_run import GenerationRun, GenerationStatus
+from app.models.script_segment import ScriptSegment
 from app.schemas.generation import (
     CostEstimateRequest,
     CostEstimateResponse,
     GenerationCreate,
+    GenerationArtifactsResponse,
     GenerationRunResponse,
+    EpisodePlanActArtifact,
+    BeatSheetActArtifact,
+    BeatSheetSceneArtifact,
+    ScreenplayActArtifact,
+    ScreenplayLineArtifact,
+    ScreenplaySceneArtifact,
     StepRerunRequest,
 )
 from app.services.cost_estimator import estimate_cost
 
 router = APIRouter(prefix="/api", tags=["generations"])
+
+_STEP_NODE_SEQUENCE = [
+    "setup_show",
+    "decompose",
+    "hunt_closed_book",
+    "research_fast_web",
+    "build_claims",
+    "dedupe_claims",
+    "verify_claims",
+    "resolve_conflicts",
+    "plan_episode",
+    "plan_acts",
+    "integrate_acts",
+    "write_screenplay",
+    "evaluate_and_revolt",
+    "audit_citations",
+    "generate_audio",
+    "build_shownotes",
+]
+
+_STEP_NODE_INDEX = {node: idx for idx, node in enumerate(_STEP_NODE_SEQUENCE)}
 
 
 @router.post("/projects/{project_id}/estimate", response_model=CostEstimateResponse)
@@ -168,6 +198,34 @@ async def get_generation(run_id: uuid.UUID, user: CurrentUser, db: DB):
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Generation run not found")
     return GenerationRunResponse.model_validate(run)
+
+
+@router.get("/generations/{run_id}/artifacts", response_model=GenerationArtifactsResponse)
+async def get_generation_artifacts(run_id: uuid.UUID, user: CurrentUser, db: DB):
+    run = await _get_user_run(run_id, user.id, db)
+
+    manifest_result = await db.execute(
+        select(EpisodeManifest).where(EpisodeManifest.generation_run_id == run.id)
+    )
+    manifest = manifest_result.scalar_one_or_none()
+
+    segment_result = await db.execute(
+        select(ScriptSegment)
+        .where(ScriptSegment.generation_run_id == run.id)
+        .order_by(ScriptSegment.act_number.asc(), ScriptSegment.scene_number.asc())
+    )
+    segments = segment_result.scalars().all()
+
+    acts_json = manifest.acts_json if manifest is not None and isinstance(manifest.acts_json, list) else []
+    show_episode_plan = _artifact_available_for_run(run, required_node="plan_episode")
+    show_beat_sheets = _artifact_available_for_run(run, required_node="plan_acts")
+    show_screenplay = _artifact_available_for_run(run, required_node="write_screenplay")
+    return GenerationArtifactsResponse(
+        run_id=run.id,
+        episode_plan=_build_episode_plan_artifacts(acts_json) if show_episode_plan else [],
+        beat_sheets=_build_beat_sheet_artifacts(acts_json) if show_beat_sheets else [],
+        screenplay=_build_screenplay_artifacts(segments) if show_screenplay else [],
+    )
 
 
 @router.get("/projects/{project_id}/generations/latest", response_model=GenerationRunResponse)
@@ -490,6 +548,124 @@ def _mark_step_action_requested(config: dict | None, action: str, target_node: s
     step_control["stop_reason"] = None
     merged["step_control"] = step_control
     return merged
+
+
+def _build_episode_plan_artifacts(acts_json: list[dict]) -> list[EpisodePlanActArtifact]:
+    artifacts: list[EpisodePlanActArtifact] = []
+    for idx, act in enumerate(acts_json, start=1):
+        if not isinstance(act, dict):
+            continue
+        artifacts.append(
+            EpisodePlanActArtifact(
+                act_number=_safe_int(act.get("act_number"), idx),
+                story_role=_clean_optional_str(act.get("story_role")),
+                act_title=_clean_optional_str(act.get("act_title")),
+                purpose=_clean_optional_str(act.get("purpose")),
+                internal_arc=_clean_optional_str(act.get("internal_arc")),
+                opening_question=_clean_optional_str(act.get("opening_question")),
+                ending_turn=_clean_optional_str(act.get("ending_turn")),
+            )
+        )
+    return artifacts
+
+
+def _build_beat_sheet_artifacts(acts_json: list[dict]) -> list[BeatSheetActArtifact]:
+    artifacts: list[BeatSheetActArtifact] = []
+    for idx, act in enumerate(acts_json, start=1):
+        if not isinstance(act, dict):
+            continue
+        beat_sheet = act.get("beat_sheet")
+        if not isinstance(beat_sheet, list):
+            continue
+        scenes: list[BeatSheetSceneArtifact] = []
+        for scene_idx, scene in enumerate(beat_sheet, start=1):
+            if not isinstance(scene, dict):
+                continue
+            scenes.append(
+                BeatSheetSceneArtifact(
+                    scene_number=_safe_int(scene.get("scene"), scene_idx),
+                    scene_type=_clean_optional_str(scene.get("scene_type")),
+                    scene_job=_clean_optional_str(scene.get("scene_job")),
+                    description=_clean_optional_str(scene.get("description")),
+                    transition_note=_clean_optional_str(scene.get("transition_note")),
+                )
+            )
+        artifacts.append(
+            BeatSheetActArtifact(
+                act_number=_safe_int(act.get("act_number"), idx),
+                story_role=_clean_optional_str(act.get("story_role")),
+                act_title=_clean_optional_str(act.get("act_title")),
+                scenes=scenes,
+            )
+        )
+    return artifacts
+
+
+def _build_screenplay_artifacts(segments: list[ScriptSegment]) -> list[ScreenplayActArtifact]:
+    acts: dict[int, list[ScreenplaySceneArtifact]] = {}
+    for segment in segments:
+        if not isinstance(segment.dialogue_json, list):
+            continue
+        dialogue = [
+            ScreenplayLineArtifact(
+                speaker=str(item.get("speaker") or "").strip(),
+                text=str(item.get("text") or "").strip(),
+            )
+            for item in segment.dialogue_json
+            if isinstance(item, dict)
+            and str(item.get("speaker") or "").strip()
+            and str(item.get("text") or "").strip()
+        ]
+        acts.setdefault(segment.act_number, []).append(
+            ScreenplaySceneArtifact(scene_number=segment.scene_number, dialogue=dialogue)
+        )
+
+    return [
+        ScreenplayActArtifact(
+            act_number=act_number,
+            scenes=sorted(scenes, key=lambda item: item.scene_number),
+        )
+        for act_number, scenes in sorted(acts.items())
+    ]
+
+
+def _clean_optional_str(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip()
+    return cleaned or None
+
+
+def _safe_int(value: object, default: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
+
+
+def _artifact_available_for_run(run: GenerationRun, *, required_node: str) -> bool:
+    config = getattr(run, "config", None) or {}
+    if config.get("execution_mode") != "step":
+        return True
+    step_control = config.get("step_control") or {}
+    last_node = step_control.get("last_node")
+    if not isinstance(last_node, str) or last_node not in _STEP_NODE_INDEX:
+        return False
+    effective_completed_index = _STEP_NODE_INDEX[last_node]
+    requested_action = step_control.get("requested_action")
+    requested_target_node = step_control.get("requested_target_node")
+    if requested_action == "rerun":
+        rerun_target = (
+            requested_target_node
+            if isinstance(requested_target_node, str) and requested_target_node in _STEP_NODE_INDEX
+            else last_node
+        )
+        effective_completed_index = min(
+            effective_completed_index,
+            _STEP_NODE_INDEX[rerun_target] - 1,
+        )
+    return effective_completed_index >= _STEP_NODE_INDEX[required_node]
 
 
 def _mark_run_stop_requested(config: dict | None) -> dict:

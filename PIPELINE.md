@@ -786,11 +786,14 @@ Web extraction использует каскад extractors:
 - `execution_mode=step`: полный граф автоматически не запускается; выполнение идет по одному node.
 
 Для `step` режима:
+- `GET /api/generations/{run_id}/artifacts` — вернуть persisted артефакты текущего run (`episode plan`, `beat sheets`, screenplay) для step-mode UI.
 - `POST /api/generations/{run_id}/steps/next` — выполнить следующий node.
 - `POST /api/generations/{run_id}/steps/rerun` — переисполнить выбранный уже выполненный node; если `target_node` не передан, берется последний выполненный шаг.
 - `POST /api/generations/{run_id}/steps/stop` — остановить текущий/очередной step action.
 - `rerun` доступен только после как минимум одного успешно завершенного шага (нужен checkpoint + `last_node`).
 - после каждого шага и после подтвержденной остановки публикуется realtime-событие `generation_paused` с `executed_node` и `next_node` (дополнительно может содержать `stopped=true` и `reason`).
+- step-mode UI показывает именно persisted содержимое pipeline, а не debug dumps: `EpisodeManifest.acts_json` для `episode plan` / `beat sheets` и `ScriptSegment.dialogue_json` для текущего screenplay.
+- показ артефактов тоже привязан к `last_node`: если rerun ушёл назад до `write_screenplay`, UI скрывает stale screenplay, пока phase 6 не будет выполнена заново.
 
 Назначение: отладка и итеративная проверка фаз без стоимости полного прогона.
 

@@ -48,3 +48,50 @@ class GenerationRunResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class EpisodePlanActArtifact(BaseModel):
+    act_number: int
+    story_role: str | None
+    act_title: str | None
+    purpose: str | None
+    internal_arc: str | None
+    opening_question: str | None
+    ending_turn: str | None
+
+
+class BeatSheetSceneArtifact(BaseModel):
+    scene_number: int
+    scene_type: str | None
+    scene_job: str | None
+    description: str | None
+    transition_note: str | None
+
+
+class BeatSheetActArtifact(BaseModel):
+    act_number: int
+    story_role: str | None
+    act_title: str | None
+    scenes: list[BeatSheetSceneArtifact]
+
+
+class ScreenplayLineArtifact(BaseModel):
+    speaker: str
+    text: str
+
+
+class ScreenplaySceneArtifact(BaseModel):
+    scene_number: int
+    dialogue: list[ScreenplayLineArtifact]
+
+
+class ScreenplayActArtifact(BaseModel):
+    act_number: int
+    scenes: list[ScreenplaySceneArtifact]
+
+
+class GenerationArtifactsResponse(BaseModel):
+    run_id: uuid.UUID
+    episode_plan: list[EpisodePlanActArtifact]
+    beat_sheets: list[BeatSheetActArtifact]
+    screenplay: list[ScreenplayActArtifact]

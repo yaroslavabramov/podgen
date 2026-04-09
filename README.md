@@ -243,6 +243,7 @@ All endpoints prefixed with `/api/`. Auth via JWT Bearer token.
 | POST | `/api/projects/{id}/show-bible` | Create/update show bible |
 | POST | `/api/projects/{id}/generate` | Start generation (`execution_mode=full|step`) |
 | GET | `/api/generations/{id}` | Generation status |
+| GET | `/api/generations/{id}/artifacts` | Persisted step-mode artifacts (`episode plan`, `beat sheets`, screenplay) |
 | POST | `/api/generations/{id}/steps/next` | Run exactly one next pipeline step (step mode only) |
 | POST | `/api/generations/{id}/steps/rerun` | Rerun a selected completed pipeline step (defaults to the last executed step; step mode only) |
 | POST | `/api/generations/{id}/steps/stop` | Request stop for running/queued step action (step mode only) |
@@ -284,6 +285,8 @@ Use this mode to debug one pipeline step at a time and reduce LLM/TTS spend duri
    - `Stop Current Step` to request cooperative stop of the current step action
 4. Progress/events continue via WebSocket (`generation_paused` is emitted after each step, including stop acknowledgements).
 5. `rerun` is available only after at least one completed step with checkpoint metadata.
+6. Step-mode UI now also shows persisted artifacts from the current run: `episode plan`, `beat sheets`, and the latest screenplay assembled from `script_segments`.
+7. Artifact visibility is gated by the last completed step, so rerunning an earlier planning node will hide stale downstream screenplay artifacts until writing runs again.
 
 ## Documentation
 

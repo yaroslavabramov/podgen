@@ -681,6 +681,11 @@ Deferred after Round 68:
 - [x] **P1**: Extended phase-6 debug dumps with `dialogue_multi_scene_polish` artifacts for accepted/rejected cluster interventions
 - [x] **P1**: Hardened `multi_scene_polish` so cluster rewrites cannot borrow claim material across scenes and `repeated_explanatory_reset` acceptance now requires that the explanatory-reset pattern itself stops dominating the cluster, not just that one opener changes shape
 
+**Round 92 (step-mode persisted artifact panel):**
+- [x] **P1**: Added `GET /api/generations/{run_id}/artifacts` so step-mode UI can load persisted `episode plan`, `beat sheets`, and screenplay from `EpisodeManifest` / `ScriptSegment` state instead of reading debug dumps
+- [x] **P1**: Added a step-mode artifact panel on the generation page with tabs for `Episode Plan`, `Beat Sheets`, and `Screenplay`
+- [x] **P2**: Added regression coverage for artifact serialization from persisted manifest + screenplay rows
+
 Deferred (by design):
 - **P2**: OAuth endpoints (using dev-login for development)
 - **P2**: Missing frontend pages (episodes list, register) — low priority

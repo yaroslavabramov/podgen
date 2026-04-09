@@ -5,12 +5,13 @@ import { useParams } from "next/navigation";
 import { useTranslations } from "use-intl";
 import Link from "next/link";
 import { HTTPError } from "ky";
-import { api, type CostEstimate, type GenerationRun } from "@/lib/api";
+import { api, type CostEstimate, type GenerationArtifacts, type GenerationRun } from "@/lib/api";
 import { useGenerationStore } from "@/stores/generation-store";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { GenerationProgress } from "@/components/generation-progress";
+import { GenerationArtifactsPanel } from "@/components/generation-artifacts-panel";
 import { CostEstimateCard } from "@/components/cost-estimate-card";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 
@@ -64,6 +65,9 @@ export default function GeneratePage() {
   const [stepActionLoading, setStepActionLoading] = useState<"next" | "rerun" | "stop" | null>(null);
   const [fullStopLoading, setFullStopLoading] = useState(false);
   const [selectedRerunNode, setSelectedRerunNode] = useState<string | null>(null);
+  const [artifacts, setArtifacts] = useState<GenerationArtifacts | null>(null);
+  const [artifactsLoading, setArtifactsLoading] = useState(false);
+  const [artifactsError, setArtifactsError] = useState<string | null>(null);
   const [launching, setLaunching] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -187,6 +191,19 @@ export default function GeneratePage() {
     }
   };
 
+  const refreshArtifacts = async (currentRunId: string) => {
+    setArtifactsLoading(true);
+    setArtifactsError(null);
+    try {
+      const payload = await api.get(`api/generations/${currentRunId}/artifacts`).json<GenerationArtifacts>();
+      setArtifacts(payload);
+    } catch (error) {
+      setArtifactsError(await extractApiError(error, t("artifactsLoadFailed")));
+    } finally {
+      setArtifactsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!prompt) return;
     const timer = setTimeout(async () => {
@@ -261,9 +278,27 @@ export default function GeneratePage() {
   }, [projectId, runId, status, startListening, autoRestoreSuppressed]);
 
   useEffect(() => {
+    if (!runId || activeExecutionMode !== "step") {
+      setArtifacts(null);
+      setArtifactsError(null);
+      setArtifactsLoading(false);
+      return;
+    }
+    refreshArtifacts(runId).catch(() => undefined);
+  }, [runId, activeExecutionMode]);
+
+  useEffect(() => {
     if (!runId || activeExecutionMode !== "step" || !lastEvent) return;
     if (!["generation_paused", "generation_failed", "generation_completed"].includes(lastEvent.type)) return;
     refreshRun(runId).catch(() => undefined);
+  }, [runId, activeExecutionMode, lastEvent]);
+
+  useEffect(() => {
+    if (!runId || activeExecutionMode !== "step" || !lastEvent) return;
+    if (!["generation_paused", "generation_failed", "generation_completed", "step_completed"].includes(lastEvent.type)) {
+      return;
+    }
+    refreshArtifacts(runId).catch(() => undefined);
   }, [runId, activeExecutionMode, lastEvent]);
 
   useEffect(() => {
@@ -389,6 +424,9 @@ export default function GeneratePage() {
         json: { target_node: targetNode },
       }).json<GenerationRun>();
       applyRunData(run);
+      setArtifacts(null);
+      setArtifactsError(null);
+      refreshArtifacts(run.id).catch(() => undefined);
     } catch (err) {
       setActionError(await extractApiError(err, t("stepRerunFailed")));
     } finally {
@@ -430,6 +468,9 @@ export default function GeneratePage() {
     setActiveExecutionMode(null);
     setStepControl(null);
     setRunStopState({ stop_requested: false, stop_reason: null });
+    setArtifacts(null);
+    setArtifactsError(null);
+    setArtifactsLoading(false);
     setActionError(null);
   };
 
@@ -455,7 +496,7 @@ export default function GeneratePage() {
           <h1 className="text-xl font-bold">{t("runningTitle")}</h1>
           <LocaleSwitcher />
         </header>
-        <main className="max-w-4xl mx-auto px-6 py-8">
+        <main className="max-w-6xl mx-auto px-6 py-8">
           {isStepModeRun && (
             <Card className="mb-6">
               <CardHeader>
@@ -547,6 +588,14 @@ export default function GeneratePage() {
                 )}
               </CardContent>
             </Card>
+          )}
+
+          {isStepModeRun && (
+            <GenerationArtifactsPanel
+              artifacts={artifacts}
+              loading={artifactsLoading}
+              error={artifactsError}
+            />
           )}
 
           <GenerationProgress />

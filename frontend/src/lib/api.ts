@@ -71,6 +71,53 @@ export interface GenerationRun {
   created_at: string;
 }
 
+export interface EpisodePlanActArtifact {
+  act_number: number;
+  story_role: string | null;
+  act_title: string | null;
+  purpose: string | null;
+  internal_arc: string | null;
+  opening_question: string | null;
+  ending_turn: string | null;
+}
+
+export interface BeatSheetSceneArtifact {
+  scene_number: number;
+  scene_type: string | null;
+  scene_job: string | null;
+  description: string | null;
+  transition_note: string | null;
+}
+
+export interface BeatSheetActArtifact {
+  act_number: number;
+  story_role: string | null;
+  act_title: string | null;
+  scenes: BeatSheetSceneArtifact[];
+}
+
+export interface ScreenplayLineArtifact {
+  speaker: string;
+  text: string;
+}
+
+export interface ScreenplaySceneArtifact {
+  scene_number: number;
+  dialogue: ScreenplayLineArtifact[];
+}
+
+export interface ScreenplayActArtifact {
+  act_number: number;
+  scenes: ScreenplaySceneArtifact[];
+}
+
+export interface GenerationArtifacts {
+  run_id: string;
+  episode_plan: EpisodePlanActArtifact[];
+  beat_sheets: BeatSheetActArtifact[];
+  screenplay: ScreenplayActArtifact[];
+}
+
 export interface CostEstimate {
   estimated_llm_cost: number;
   estimated_tts_cost: number;
