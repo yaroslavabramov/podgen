@@ -504,10 +504,12 @@ Web extraction использует каскад extractors:
   - `internal_arc`
   - `opening_question`
   - `ending_turn`
-  - `focus_branch_ids`
-- showrunner prompt агрессивно курирует claims per act, теперь получает `total_claim_count` + явное правило ceiling-per-act / proportional-by-duration, но post-normalization использует этот ceiling только как advisory signal: pathological overload логируется в debug/worker logs, а claims больше не переносятся между актами и не дропаются без участия LLM; disputed/conflict claims по-прежнему валидируются post-hoc и получают debate slot если LLM его пропустил
+- showrunner prompt теперь использует `total_claim_count` как smell test перегруза, а не как quota-first cap: LLM должна сначала распределить эфирное внимание (один главный listener question / dominant attention mode / anchor spine на акт), подчинить support material этому spine и предпочесть более lean act pool вместо попытки "спасти всё"; post-normalization по-прежнему только логирует pathological overload и не переносит claims между актами без участия LLM, disputed/conflict claims post-hoc валидируются и получают debate slot если LLM его пропустил
 - planning payloads now carry `output_language`, so showrunner and act planner keep human-readable output in the podcast language instead of drifting into English
-- showrunner prompt теперь role-first: LLM должна сначала определить distinct act jobs (`story_role` как тип listener work, а не topic label), затем раскладывать claims; `question_ids` убраны из showrunner payload как provenance-noise, а `branch_ids` оставлены только как слабый anchoring hint после выбора роли акта
+- showrunner prompt теперь role-first: LLM должна сначала определить distinct act jobs (`story_role` как тип listener work, а не topic label), затем раскладывать claims; `question_ids` и `branch_ids` убраны из showrunner payload как provenance-noise
+- showrunner payload теперь также несёт `episode_goal` (`state.user_prompt`) и `root_question` из `research_tree_json`, а `rigor_policy` из него убран: showrunner должен планировать под пользовательский замысел эпизода, а не под phase-6 factual-rigor policy
+- showrunner теперь сначала выбирает минимальный editorial backbone, а уже потом раскладывает его по act jobs; после нормализации поверх плана идёт узкий Haiku selection audit/retry, который флагует только selection/design mistakes (`weak_claim_selected`, `strong_claim_omitted`, `act_overpacked_same_move`, `payoff_fresh_explainer_load`, `goal_misalignment`)
+- showrunner retries больше не идут через мягкий `revision_request` внутри исходного planning prompt: для ретраев используется отдельный revision-system prompt с `current_plan` + `revision_request.selection_issues`, а debug dump `planning_showrunner` теперь хранит полный `attempts[]` с каждым request payload, raw/parsed output, normalized candidate plan и selection audit
 
 - при включённом `WEB_EXTRACTOR_DEBUG_DUMP_DIR` Showrunner пишет JSON dump с input payload, raw/parsed LLM output и normalized act plan
 

@@ -573,7 +573,14 @@ Deferred after Round 68:
 - [ ] **P1**: Reintroduce claim-vs-claim conflict detection as an upstream LLM adjudication pass instead of showrunner-side numeric heuristics
 - [x] **P1**: Fix semantic claim-to-branch/question assignment so verifier-loop corroborates the right research target instead of following only broad provenance lineage
 - [x] **P1**: Rework targeted rebuild / verifier reuse so fingerprint-based skipping can actually save LLM calls for unchanged rebuilt claims (prefer update-over-delete semantics where feasible)
-- [x] **P1**: Reintroduce showrunner claim-density caps as a soft prompt constraint plus deterministic overload rebalance for pathological act skew
+- [x] **P1**: Reframe `showrunner` away from quota-first density wording: `total_claim_count` is now an overload smell, and the prompt teaches editorial allocation (`anchor` vs `support` material, one dominant act burden) before any hard guardrails
+- [x] **P1**: Remove `branch_ids` / `focus_branch_ids` from LLM-facing `showrunner` design so research-tree provenance stops quietly steering act grouping when downstream planning does not use it
+- [x] **P1**: Feed `showrunner` explicit episode intent (`user_prompt`) + `root_question`, and remove `rigor_policy` from its prompt payload so act selection keys off what the user wanted the episode to answer rather than phase-6 rigor metadata
+- [x] **P1**: Make `showrunner` selection-first instead of assignment-first, and add a narrow Haiku selection audit/retry that catches editorial selection mistakes without hard caps or topic-specific heuristics
+- [x] **P1**: Fix `showrunner` selection-audit ID namespace mismatch so the Haiku audit/retry sees the same short claim IDs as the Sonnet planning prompt instead of mixing restored UUIDs with short IDs
+- [x] **P1**: Replace soft showrunner regeneration on retry with a dedicated revision prompt that receives `current_plan` + audit issues, and persist all showrunner attempts in debug dumps so retry behavior is inspectable end-to-end
+- [x] **P1**: Make `showrunner` selection-audit failures advisory rather than fatal: malformed/timeout Haiku audit responses now accept the valid Sonnet candidate plan and record `audit_failed` in debug output
+- [x] **P2**: Validate selection-audit claim IDs against actual selected/omitted sets so parseable Haiku audits with invented IDs cannot force bogus showrunner revision attempts
 - [ ] **P2**: Improve claim-level multi-source diversity via post-build merge/corroboration or richer builder prompting, instead of leaving almost all planning claims at `source_diversity = 1`
 
 **Round 74 (act-planner claim-first evidence packaging):**
@@ -669,7 +676,7 @@ Deferred after Round 68:
 **Round 90 (planning truncation cleanup + act balance):**
 - [x] **P0**: Removed mid-sentence `description[:400]` truncation from the act-planner Haiku grounding gate; quality checks now see the full beat-card text
 - [x] **P1**: Tightened `ACT_PLANNER_SYSTEM` so scene descriptions stay compact beat cards (`1-3` sentences, max `250` chars) instead of drifting into mini-script paragraphs
-- [x] **P1**: Showrunner prompt payload now includes `total_claim_count`, and post-normalization planning applies a soft per-act claim ceiling as an advisory/debug signal without deterministically moving or dropping claims across act boundaries
+- [x] **P1**: Showrunner prompt payload now includes `total_claim_count`, but the prompt uses it as an overload smell instead of a target; post-normalization planning still logs pathological act skew as an advisory/debug signal without deterministically moving or dropping claims across act boundaries
 - [x] **P1**: Removed runtime claim-statement truncation from planning/screenwriting/verifier payload builders; downstream consumers now see full claim text and any future brevity limit should live upstream in prompt contracts
 - [ ] **P2**: Add planning telemetry/debug summaries for per-act claim load and beat-card description length so overloaded acts are visible in run artifacts without manual inspection
 - [ ] **P2**: Audit remaining non-runtime claim-text truncations (for example shownotes/debug-only summaries) and keep only those that serve real compression rather than cargo-cult limits

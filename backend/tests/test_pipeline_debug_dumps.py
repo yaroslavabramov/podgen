@@ -39,6 +39,19 @@ def test_dump_showrunner_debug_writes_file(tmp_path, monkeypatch) -> None:
         llm_raw_output='{"acts":[]}',
         parsed_plan={"acts": []},
         normalized_plan={"act_count": 0, "acts": []},
+        selection_audit={"passed": True, "issues": []},
+        attempts=[
+            {
+                "attempt_number": 1,
+                "mode": "initial",
+                "request_payload": {"claims": []},
+                "llm_output": {"raw": '{"acts":[]}'},
+                "normalized_plan": {"act_count": 0, "acts": []},
+                "selection_audit": {"passed": True, "issues": []},
+                "blocker_issues": [],
+                "accepted": True,
+            }
+        ],
     )
 
     files = list((tmp_path / "planning_showrunner").glob("*.json"))
@@ -47,6 +60,9 @@ def test_dump_showrunner_debug_writes_file(tmp_path, monkeypatch) -> None:
     assert payload["run_id"] == "run-200"
     assert payload["status"] == "ok"
     assert payload["normalized_plan"]["act_count"] == 0
+    assert payload["selection_audit"] == {"passed": True, "issues": []}
+    assert payload["attempts"][0]["mode"] == "initial"
+    assert payload["attempts"][0]["accepted"] is True
 
 
 def test_dump_act_planner_debug_writes_file(tmp_path, monkeypatch) -> None:

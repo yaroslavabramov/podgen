@@ -1,10 +1,22 @@
+import pytest
+
 from app.pipeline.phase5_planning.showrunner import (
+    SHOWRUNNER_REVISION_SYSTEM,
     SHOWRUNNER_SYSTEM,
     _build_showrunner_prompt_payload,
+    _build_showrunner_revision_payload,
+    _compact_selection_act_view,
     _compute_max_claims_per_act,
+    _normalize_showrunner_selection_issues,
     _normalize_plan,
     _rebalance_act_claim_distribution,
+    _run_showrunner_selection_audit,
+    _selected_claim_ids,
+    _shorten_plan_for_selection_audit,
+    _showrunner_selection_blockers,
+    _validate_showrunner_selection_issue_ids,
 )
+from app.pipeline.short_ids import ShortIdMap
 
 
 def test_normalize_plan_preserves_story_fields() -> None:
@@ -19,7 +31,6 @@ def test_normalize_plan_preserves_story_fields() -> None:
                     "internal_arc": "paradox -> failed fix -> institutional turn",
                     "opening_question": "Why would a city let private banks print money?",
                     "ending_turn": "The historical oddity becomes an institutional design puzzle.",
-                    "focus_branch_ids": ["b1", "b2", "b1"],
                     "estimated_duration_seconds": 420,
                     "claim_ids": [],
                     "conflict_brief_ids": [],
@@ -36,7 +47,6 @@ def test_normalize_plan_preserves_story_fields() -> None:
     assert act["internal_arc"] == "paradox -> failed fix -> institutional turn"
     assert act["opening_question"] == "Why would a city let private banks print money?"
     assert act["ending_turn"] == "The historical oddity becomes an institutional design puzzle."
-    assert act["focus_branch_ids"] == ["b1", "b2"]
 
 
 def test_showrunner_prompt_does_not_hardcode_three_acts() -> None:
@@ -46,21 +56,33 @@ def test_showrunner_prompt_does_not_hardcode_three_acts() -> None:
     assert '"internal_arc": "short phrase describing how this act moves internally"' in SHOWRUNNER_SYSTEM
     assert "Adjacent acts should usually have different `internal_arc` shapes" in SHOWRUNNER_SYSTEM
     assert "Treat `story_role` as listener work, not topic label." in SHOWRUNNER_SYSTEM
-    assert "Before assigning claims, first decide the act jobs." in SHOWRUNNER_SYSTEM
+    assert "`episode_goal` is the user's stated intent for the podcast" in SHOWRUNNER_SYSTEM
+    assert "`root_question` is the best current statement of the episode-level question" in SHOWRUNNER_SYSTEM
+    assert "Selection comes before act assignment." in SHOWRUNNER_SYSTEM
+    assert "First choose the smallest coherent editorial backbone" in SHOWRUNNER_SYSTEM
+    assert "Then decide how many distinct listener questions that selected backbone really supports" in SHOWRUNNER_SYSTEM
     assert "one dominant dramatic question or editorial burden" in SHOWRUNNER_SYSTEM
+    assert "not from a fixed universal arc" in SHOWRUNNER_SYSTEM
+    assert "The best opener might be anomaly, mechanism, crisis, history, conflict, or comparison." in SHOWRUNNER_SYSTEM
+    assert "why is this subject strange, how does it work, and why does it matter?" not in SHOWRUNNER_SYSTEM
     assert "All human-readable fields (`title`, `purpose`, `internal_arc`, `opening_question`, `ending_turn`) MUST be in `output_language`" in SHOWRUNNER_SYSTEM
     assert "A major shift in timeframe, abstraction level, or editorial function is evidence for a new act" in SHOWRUNNER_SYSTEM
     assert "Merge candidate act material only when it would produce substantially the same `opening_question`, `internal_arc`, and `ending_turn`." in SHOWRUNNER_SYSTEM
     assert "Role purity beats compactness." in SHOWRUNNER_SYSTEM
-    assert "Listener novelty matters more than branch coverage; branch coherence is a hint, not a rule." in SHOWRUNNER_SYSTEM
     assert "Before keeping a claim in an act, ask whether removing it would force a genuinely different beat." in SHOWRUNNER_SYSTEM
     assert "it is not fresh backbone" in SHOWRUNNER_SYSTEM
+    assert "Allocate airtime, not just claims." in SHOWRUNNER_SYSTEM
+    assert "one main anchor mechanism, event, example, or conflict" in SHOWRUNNER_SYSTEM
+    assert "Prefer claims that earn airtime." in SHOWRUNNER_SYSTEM
+    assert "change the listener's model instead of adding trivia" in SHOWRUNNER_SYSTEM
+    assert "treat that as a sign of overload" in SHOWRUNNER_SYSTEM
+    assert "Downrank claims that mainly provide taxonomy, decorative detail, broad comparator context, repeated thesis language" in SHOWRUNNER_SYSTEM
     assert "one dominant explanatory spine" in SHOWRUNNER_SYSTEM
     assert "real-world test" in SHOWRUNNER_SYSTEM
-    assert "`branch_ids` are provenance hints, not targets." in SHOWRUNNER_SYSTEM
+    assert "Ignore research-tree provenance when it does not help the editorial decision." in SHOWRUNNER_SYSTEM
     assert "Comparative material should stay selective; one strong outside comparator is usually enough for one beat." in SHOWRUNNER_SYSTEM
     assert "total_claim_count" in SHOWRUNNER_SYSTEM
-    assert "keep every act at or below" in SHOWRUNNER_SYSTEM
+    assert "Use `total_claim_count` as an overload smell, not a quota" in SHOWRUNNER_SYSTEM
     assert "The last act should include takeaways and a clear \"why this matters\" payoff." in SHOWRUNNER_SYSTEM
     assert "The last act should contain only claims that directly sharpen the final takeaway or reframe the episode-level question." in SHOWRUNNER_SYSTEM
     assert "Do not use the last act to park leftover operational facts that could be removed without changing the final takeaway." in SHOWRUNNER_SYSTEM
@@ -70,12 +92,22 @@ def test_showrunner_prompt_does_not_hardcode_three_acts() -> None:
     assert len(SHOWRUNNER_SYSTEM.split()) < 1150
 
 
+def test_showrunner_revision_prompt_uses_revision_contract() -> None:
+    assert "revising an existing podcast act plan" in SHOWRUNNER_REVISION_SYSTEM
+    assert "`current_plan`: the current act plan to revise" in SHOWRUNNER_REVISION_SYSTEM
+    assert "`revision_request.selection_issues`" in SHOWRUNNER_REVISION_SYSTEM
+    assert "revise `current_plan`, not regenerate from scratch" in SHOWRUNNER_REVISION_SYSTEM
+    assert "Treat `revision_request.selection_issues` as the highest-priority editorial instructions." in SHOWRUNNER_REVISION_SYSTEM
+    assert "Preserve acts, timings, and claim placements that are not implicated by the issues." in SHOWRUNNER_REVISION_SYSTEM
+
+
 def test_build_showrunner_prompt_payload_carries_output_language() -> None:
     payload = _build_showrunner_prompt_payload(
         duration_target_seconds=1800,
         output_language="ru",
         show_style="Conversational",
-        rigor_policy="",
+        episode_goal="Explain why Hong Kong money works this way.",
+        root_question="Why does Hong Kong let private banks issue money?",
         claims=[
             {
                 "id": "c1",
@@ -91,10 +123,296 @@ def test_build_showrunner_prompt_payload_carries_output_language() -> None:
 
     assert payload["duration_target_seconds"] == 1800
     assert payload["output_language"] == "ru"
+    assert payload["episode_goal"] == "Explain why Hong Kong money works this way."
+    assert payload["root_question"] == "Why does Hong Kong let private banks issue money?"
+    assert "rigor_policy" not in payload
     assert payload["total_claim_count"] == 1
-    assert payload["claims"][0]["branch_ids"] == ["b1"]
+    assert "branch_ids" not in payload["claims"][0]
     assert "question_ids" not in payload["claims"][0]
     assert payload["duration_fill_layers"] == []
+
+
+def test_build_showrunner_revision_payload_includes_current_plan_and_issues() -> None:
+    claim_uuid = "11111111-1111-1111-1111-111111111111"
+    sid = ShortIdMap([claim_uuid])
+
+    payload = _build_showrunner_revision_payload(
+        base_payload={
+            "duration_target_seconds": 1800,
+            "output_language": "ru",
+            "claims": [{"id": "c1", "statement": "test"}],
+        },
+        current_plan={
+            "act_count": 1,
+            "acts": [
+                {
+                    "act_number": 1,
+                    "story_role": "explain",
+                    "title": "Act 1",
+                    "purpose": "Explain it.",
+                    "internal_arc": "rule -> consequence",
+                    "opening_question": "How?",
+                    "ending_turn": "Clear enough.",
+                    "estimated_duration_seconds": 300,
+                    "claim_ids": [claim_uuid],
+                }
+            ],
+        },
+        revision_request={
+            "message": "Fix the plan.",
+            "selection_issues": [{"type": "weak_claim_selected", "severity": "medium"}],
+        },
+        sid=sid,
+    )
+
+    assert payload["current_plan"]["acts"][0]["claim_ids"] == ["c1"]
+    assert payload["revision_request"]["message"] == "Fix the plan."
+
+
+def test_normalize_showrunner_selection_issues_keeps_only_known_issue_types() -> None:
+    normalized = _normalize_showrunner_selection_issues(
+        [
+            {
+                "type": "weak_claim_selected",
+                "severity": "medium",
+                "act_number": 2,
+                "selected_claim_ids": ["c40"],
+                "omitted_claim_ids": ["c3"],
+                "why_it_hurts": "Decorative detail displaced a stronger scene-bearing claim.",
+                "fix_direction": "Drop the weaker detail.",
+            },
+            {
+                "type": "invented_type",
+                "severity": "high",
+                "why_it_hurts": "Should be discarded.",
+                "fix_direction": "Ignore me.",
+            },
+        ]
+    )
+
+    assert normalized == [
+        {
+            "type": "weak_claim_selected",
+            "severity": "medium",
+            "act_number": 2,
+            "selected_claim_ids": ["c40"],
+            "omitted_claim_ids": ["c3"],
+            "why_it_hurts": "Decorative detail displaced a stronger scene-bearing claim.",
+            "fix_direction": "Drop the weaker detail.",
+        }
+    ]
+
+
+def test_showrunner_selection_blockers_only_returns_medium_or_high() -> None:
+    blockers = _showrunner_selection_blockers(
+        {
+            "issues": [
+                {"type": "weak_claim_selected", "severity": "low"},
+                {"type": "goal_misalignment", "severity": "medium"},
+                {"type": "act_overpacked_same_move", "severity": "high"},
+            ]
+        }
+    )
+
+    assert blockers == [
+        {"type": "goal_misalignment", "severity": "medium"},
+        {"type": "act_overpacked_same_move", "severity": "high"},
+    ]
+
+
+def test_validate_showrunner_selection_issue_ids_drops_invented_claim_ids() -> None:
+    validated = _validate_showrunner_selection_issue_ids(
+        [
+            {
+                "type": "strong_claim_omitted",
+                "severity": "high",
+                "selected_claim_ids": ["c999"],
+                "omitted_claim_ids": ["c888"],
+                "why_it_hurts": "Invented IDs.",
+                "fix_direction": "Should not matter.",
+            },
+            {
+                "type": "weak_claim_selected",
+                "severity": "medium",
+                "selected_claim_ids": ["c1", "c999"],
+                "omitted_claim_ids": ["c2", "c888"],
+                "why_it_hurts": "Valid selected claim has a weaker role.",
+                "fix_direction": "Use valid IDs only.",
+            },
+        ],
+        selected_ids={"c1"},
+        omitted_ids={"c2"},
+    )
+
+    assert validated == [
+        {
+            "type": "weak_claim_selected",
+            "severity": "medium",
+            "selected_claim_ids": ["c1"],
+            "omitted_claim_ids": ["c2"],
+            "why_it_hurts": "Valid selected claim has a weaker role.",
+            "fix_direction": "Use valid IDs only.",
+        }
+    ]
+
+
+def test_selection_audit_uses_short_id_namespace_for_normalized_plan() -> None:
+    claim_uuid = "11111111-1111-1111-1111-111111111111"
+    sid = ShortIdMap([claim_uuid])
+    normalized_plan = {
+        "act_count": 1,
+        "acts": [
+            {
+                "act_number": 1,
+                "story_role": "explain",
+                "title": "Act 1",
+                "purpose": "Explain the mechanism.",
+                "internal_arc": "rule -> consequence",
+                "opening_question": "How does it work?",
+                "ending_turn": "The mechanism becomes concrete.",
+                "estimated_duration_seconds": 300,
+                "claim_ids": [claim_uuid],
+            }
+        ],
+    }
+    prompt_claim_lookup = {
+        "c1": {
+            "id": "c1",
+            "statement": "Hong Kong banks issue notes against USD backing.",
+            "type": "FACT",
+            "verification": "verified",
+            "intents": ["explain"],
+            "has_illustrative": False,
+            "direct_support_count": 2,
+            "source_diversity": 2,
+        }
+    }
+
+    audit_plan = _shorten_plan_for_selection_audit(normalized_plan, sid=sid)
+
+    assert _selected_claim_ids(audit_plan) == ["c1"]
+    assert _compact_selection_act_view(audit_plan, prompt_claim_lookup)[0]["claims"] == [
+        {
+            "id": "c1",
+            "statement": "Hong Kong banks issue notes against USD backing.",
+            "type": "FACT",
+            "verification": "verified",
+            "intents": ["explain"],
+            "has_illustrative": False,
+            "direct_support_count": 2,
+            "source_diversity": 2,
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_selection_audit_failure_is_advisory_not_blocking(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _bad_haiku(**_kwargs):
+        return "not json"
+
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.showrunner.call_haiku_structured",
+        _bad_haiku,
+    )
+    claim_uuid = "11111111-1111-1111-1111-111111111111"
+    sid = ShortIdMap([claim_uuid])
+    audit = await _run_showrunner_selection_audit(
+        prompt_payload={
+            "episode_goal": "Explain why Hong Kong money works this way.",
+            "root_question": "Why private banknotes?",
+            "claims": [
+                {
+                    "id": "c1",
+                    "statement": "Hong Kong banks issue notes against USD backing.",
+                    "type": "FACT",
+                    "verification": "verified",
+                    "intents": ["explain"],
+                    "has_illustrative": False,
+                    "direct_support_count": 2,
+                    "source_diversity": 2,
+                }
+            ],
+        },
+        plan={
+            "act_count": 1,
+            "acts": [
+                {
+                    "act_number": 1,
+                    "story_role": "explain",
+                    "title": "Act 1",
+                    "claim_ids": [claim_uuid],
+                }
+            ],
+        },
+        sid=sid,
+    )
+
+    assert audit["passed"] is True
+    assert audit["issues"] == []
+    assert audit["audit_failed"] is True
+    assert audit["error_type"] == "ValueError"
+    assert "No valid JSON" in audit["error"]
+
+
+@pytest.mark.asyncio
+async def test_selection_audit_drops_parseable_issues_with_invented_claim_ids(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _invented_issue(**_kwargs):
+        return (
+            '{"passed": false, "issues": ['
+            '{"type": "strong_claim_omitted", "severity": "high", '
+            '"selected_claim_ids": ["c999"], "omitted_claim_ids": ["c888"], '
+            '"why_it_hurts": "Invented IDs.", "fix_direction": "Ignore."}'
+            ']}'
+        )
+
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.showrunner.call_haiku_structured",
+        _invented_issue,
+    )
+    claim_uuid = "11111111-1111-1111-1111-111111111111"
+    sid = ShortIdMap([claim_uuid])
+    audit = await _run_showrunner_selection_audit(
+        prompt_payload={
+            "episode_goal": "Explain why Hong Kong money works this way.",
+            "root_question": "Why private banknotes?",
+            "claims": [
+                {
+                    "id": "c1",
+                    "statement": "Hong Kong banks issue notes against USD backing.",
+                    "type": "FACT",
+                    "verification": "verified",
+                    "intents": ["explain"],
+                    "has_illustrative": False,
+                    "direct_support_count": 2,
+                    "source_diversity": 2,
+                },
+                {
+                    "id": "c2",
+                    "statement": "A stronger omitted claim.",
+                    "type": "FACT",
+                    "verification": "verified",
+                    "intents": ["case_study"],
+                    "has_illustrative": True,
+                    "direct_support_count": 2,
+                    "source_diversity": 2,
+                },
+            ],
+        },
+        plan={
+            "act_count": 1,
+            "acts": [
+                {
+                    "act_number": 1,
+                    "story_role": "explain",
+                    "title": "Act 1",
+                    "claim_ids": [claim_uuid],
+                }
+            ],
+        },
+        sid=sid,
+    )
+
+    assert audit == {"passed": True, "issues": []}
 
 
 def test_compute_max_claims_per_act_uses_ceiling() -> None:
@@ -110,19 +428,16 @@ def test_rebalance_act_claim_distribution_leaves_overloaded_act_unchanged() -> N
         "acts": [
             {
                 "act_number": 1,
-                "focus_branch_ids": ["b1"],
                 "estimated_duration_seconds": 360,
                 "claim_ids": claim_ids,
             },
             {
                 "act_number": 2,
-                "focus_branch_ids": ["b2"],
                 "estimated_duration_seconds": 240,
                 "claim_ids": [],
             },
             {
                 "act_number": 3,
-                "focus_branch_ids": ["b3"],
                 "estimated_duration_seconds": 240,
                 "claim_ids": [],
             },
@@ -147,13 +462,11 @@ def test_rebalance_act_claim_distribution_dedupes_cross_act_duplicates() -> None
         "acts": [
             {
                 "act_number": 1,
-                "focus_branch_ids": ["b1"],
                 "estimated_duration_seconds": 360,
                 "claim_ids": [claim_a, claim_b],
             },
             {
                 "act_number": 2,
-                "focus_branch_ids": ["b2"],
                 "estimated_duration_seconds": 360,
                 "claim_ids": [claim_b],
             },
@@ -199,25 +512,21 @@ def test_rebalance_act_claim_distribution_never_moves_or_drops_overflow_claims()
         "acts": [
             {
                 "act_number": 1,
-                "focus_branch_ids": ["b1"],
                 "estimated_duration_seconds": 360,
                 "claim_ids": act_one_claim_ids,
             },
             {
                 "act_number": 2,
-                "focus_branch_ids": ["b2"],
                 "estimated_duration_seconds": 240,
                 "claim_ids": act_two_claim_ids,
             },
             {
                 "act_number": 3,
-                "focus_branch_ids": ["b3"],
                 "estimated_duration_seconds": 240,
                 "claim_ids": [],
             },
             {
                 "act_number": 4,
-                "focus_branch_ids": ["b4"],
                 "estimated_duration_seconds": 240,
                 "claim_ids": [],
             },
@@ -249,14 +558,13 @@ def test_rebalance_act_claim_distribution_uses_assigned_claim_count_for_ceiling(
         "acts": [
             {
                 "act_number": 1,
-                "focus_branch_ids": ["b1"],
                 "estimated_duration_seconds": 360,
                 "claim_ids": assigned_claim_ids,
             },
-            {"act_number": 2, "focus_branch_ids": ["b2"], "estimated_duration_seconds": 240, "claim_ids": []},
-            {"act_number": 3, "focus_branch_ids": ["b3"], "estimated_duration_seconds": 240, "claim_ids": []},
-            {"act_number": 4, "focus_branch_ids": ["b4"], "estimated_duration_seconds": 240, "claim_ids": []},
-            {"act_number": 5, "focus_branch_ids": ["b5"], "estimated_duration_seconds": 240, "claim_ids": []},
+            {"act_number": 2, "estimated_duration_seconds": 240, "claim_ids": []},
+            {"act_number": 3, "estimated_duration_seconds": 240, "claim_ids": []},
+            {"act_number": 4, "estimated_duration_seconds": 240, "claim_ids": []},
+            {"act_number": 5, "estimated_duration_seconds": 240, "claim_ids": []},
         ],
     }
     claim_lookup = {
