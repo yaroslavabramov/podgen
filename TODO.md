@@ -581,6 +581,8 @@ Deferred after Round 68:
 - [x] **P1**: Replace soft showrunner regeneration on retry with a dedicated revision prompt that receives `current_plan` + audit issues, and persist all showrunner attempts in debug dumps so retry behavior is inspectable end-to-end
 - [x] **P1**: Make `showrunner` selection-audit failures advisory rather than fatal: malformed/timeout Haiku audit responses now accept the valid Sonnet candidate plan and record `audit_failed` in debug output
 - [x] **P2**: Validate selection-audit claim IDs against actual selected/omitted sets so parseable Haiku audits with invented IDs cannot force bogus showrunner revision attempts
+- [x] **P1**: Expand `showrunner` selection audit/revision beyond claim swaps: audit can now flag too-low act count, incompatible act jobs, decorative hook overweight, and missing minimal claim spine; retries preserve `minimal_spine_claim_ids` and resolve issue tradeoffs before local reshuffling
+- [x] **P2**: Validate all parseable `showrunner` selection-audit issues before applying the four-issue cap, so invalid early issues cannot hide later valid blockers
 - [ ] **P2**: Improve claim-level multi-source diversity via post-build merge/corroboration or richer builder prompting, instead of leaving almost all planning claims at `source_diversity = 1`
 
 **Round 74 (act-planner claim-first evidence packaging):**

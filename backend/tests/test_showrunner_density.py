@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from app.pipeline.phase5_planning.showrunner import (
@@ -97,8 +99,23 @@ def test_showrunner_revision_prompt_uses_revision_contract() -> None:
     assert "`current_plan`: the current act plan to revise" in SHOWRUNNER_REVISION_SYSTEM
     assert "`revision_request.selection_issues`" in SHOWRUNNER_REVISION_SYSTEM
     assert "revise `current_plan`, not regenerate from scratch" in SHOWRUNNER_REVISION_SYSTEM
-    assert "Treat `revision_request.selection_issues` as the highest-priority editorial instructions." in SHOWRUNNER_REVISION_SYSTEM
+    assert "Treat `revision_request.selection_issues` as the highest-priority editorial diagnosis" in SHOWRUNNER_REVISION_SYSTEM
+    assert "resolve tradeoffs across issues" in SHOWRUNNER_REVISION_SYSTEM
+    assert "`minimal_spine_claim_ids`" in SHOWRUNNER_REVISION_SYSTEM
+    assert "split or reshape acts before doing local claim swaps" in SHOWRUNNER_REVISION_SYSTEM
     assert "Preserve acts, timings, and claim placements that are not implicated by the issues." in SHOWRUNNER_REVISION_SYSTEM
+
+
+def test_showrunner_selection_audit_prompt_covers_structural_failure_modes() -> None:
+    from app.pipeline.phase5_planning.showrunner import SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+
+    assert "act_count_too_low" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "act_combines_incompatible_jobs" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "hook_overweights_decorative_detail" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "minimal_spine_missing" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "`minimal_spine_claim_ids`" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "Resolve tradeoffs inside the audit" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "do not ask to remove a claim as redundant and then require it as missing support" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
 
 
 def test_build_showrunner_prompt_payload_carries_output_language() -> None:
@@ -182,6 +199,13 @@ def test_normalize_showrunner_selection_issues_keeps_only_known_issue_types() ->
                 "fix_direction": "Drop the weaker detail.",
             },
             {
+                "type": "minimal_spine_missing",
+                "severity": "high",
+                "minimal_spine_claim_ids": ["c10", "c11"],
+                "why_it_hurts": "The act cannot explain its own mechanism.",
+                "fix_direction": "Preserve the smallest viable spine.",
+            },
+            {
                 "type": "invented_type",
                 "severity": "high",
                 "why_it_hurts": "Should be discarded.",
@@ -199,7 +223,14 @@ def test_normalize_showrunner_selection_issues_keeps_only_known_issue_types() ->
             "omitted_claim_ids": ["c3"],
             "why_it_hurts": "Decorative detail displaced a stronger scene-bearing claim.",
             "fix_direction": "Drop the weaker detail.",
-        }
+        },
+        {
+            "type": "minimal_spine_missing",
+            "severity": "high",
+            "minimal_spine_claim_ids": ["c10", "c11"],
+            "why_it_hurts": "The act cannot explain its own mechanism.",
+            "fix_direction": "Preserve the smallest viable spine.",
+        },
     ]
 
 
@@ -253,6 +284,76 @@ def test_validate_showrunner_selection_issue_ids_drops_invented_claim_ids() -> N
             "why_it_hurts": "Valid selected claim has a weaker role.",
             "fix_direction": "Use valid IDs only.",
         }
+    ]
+
+
+def test_validate_showrunner_selection_issue_ids_handles_structural_issue_types() -> None:
+    validated = _validate_showrunner_selection_issue_ids(
+        [
+            {
+                "type": "act_count_too_low",
+                "severity": "high",
+                "why_it_hurts": "Different listener jobs are compressed into one act.",
+                "fix_direction": "Split the mechanism and crisis into separate acts.",
+            },
+            {
+                "type": "minimal_spine_missing",
+                "severity": "high",
+                "minimal_spine_claim_ids": ["c1", "c2", "c999"],
+                "omitted_claim_ids": ["c3", "c888"],
+                "why_it_hurts": "The act lacks the minimal mechanism spine.",
+                "fix_direction": "Build around the valid spine.",
+            },
+            {
+                "type": "minimal_spine_missing",
+                "severity": "medium",
+                "minimal_spine_claim_ids": ["c999"],
+                "omitted_claim_ids": ["c888"],
+                "why_it_hurts": "Only invented IDs.",
+                "fix_direction": "Should be dropped.",
+            },
+            {
+                "type": "hook_overweights_decorative_detail",
+                "severity": "medium",
+                "selected_claim_ids": ["c2", "c999"],
+                "why_it_hurts": "The setup spends too much time on decorative detail.",
+                "fix_direction": "Downgrade the vivid detail to support.",
+            },
+            {
+                "type": "hook_overweights_decorative_detail",
+                "severity": "medium",
+                "selected_claim_ids": ["c999"],
+                "why_it_hurts": "No valid selected IDs.",
+                "fix_direction": "Should be dropped.",
+            },
+        ],
+        selected_ids={"c1", "c2"},
+        omitted_ids={"c3"},
+        all_ids={"c1", "c2", "c3"},
+    )
+
+    assert validated == [
+        {
+            "type": "act_count_too_low",
+            "severity": "high",
+            "why_it_hurts": "Different listener jobs are compressed into one act.",
+            "fix_direction": "Split the mechanism and crisis into separate acts.",
+        },
+        {
+            "type": "minimal_spine_missing",
+            "severity": "high",
+            "minimal_spine_claim_ids": ["c1", "c2"],
+            "omitted_claim_ids": ["c3"],
+            "why_it_hurts": "The act lacks the minimal mechanism spine.",
+            "fix_direction": "Build around the valid spine.",
+        },
+        {
+            "type": "hook_overweights_decorative_detail",
+            "severity": "medium",
+            "selected_claim_ids": ["c2"],
+            "why_it_hurts": "The setup spends too much time on decorative detail.",
+            "fix_direction": "Downgrade the vivid detail to support.",
+        },
     ]
 
 
@@ -413,6 +514,87 @@ async def test_selection_audit_drops_parseable_issues_with_invented_claim_ids(mo
     )
 
     assert audit == {"passed": True, "issues": []}
+
+
+@pytest.mark.asyncio
+async def test_selection_audit_validates_before_limiting_issues(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _invalid_then_valid_issue(**_kwargs):
+        invalid_issues = [
+            {
+                "type": "strong_claim_omitted",
+                "severity": "high",
+                "omitted_claim_ids": [f"c999{idx}"],
+                "why_it_hurts": "Invented ID.",
+                "fix_direction": "Ignore.",
+            }
+            for idx in range(4)
+        ]
+        valid_issue = {
+            "type": "goal_misalignment",
+            "severity": "high",
+            "why_it_hurts": "The selected act set no longer answers the episode goal.",
+            "fix_direction": "Reshape the backbone around the stated goal.",
+        }
+        return json.dumps({"passed": False, "issues": invalid_issues + [valid_issue]})
+
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.showrunner.call_haiku_structured",
+        _invalid_then_valid_issue,
+    )
+    claim_uuid = "11111111-1111-1111-1111-111111111111"
+    sid = ShortIdMap([claim_uuid])
+    audit = await _run_showrunner_selection_audit(
+        prompt_payload={
+            "episode_goal": "Explain why Hong Kong money works this way.",
+            "root_question": "Why private banknotes?",
+            "claims": [
+                {
+                    "id": "c1",
+                    "statement": "Hong Kong banks issue notes against USD backing.",
+                    "type": "FACT",
+                    "verification": "verified",
+                    "intents": ["explain"],
+                    "has_illustrative": False,
+                    "direct_support_count": 2,
+                    "source_diversity": 2,
+                },
+                {
+                    "id": "c2",
+                    "statement": "A stronger omitted claim.",
+                    "type": "FACT",
+                    "verification": "verified",
+                    "intents": ["case_study"],
+                    "has_illustrative": True,
+                    "direct_support_count": 2,
+                    "source_diversity": 2,
+                },
+            ],
+        },
+        plan={
+            "act_count": 1,
+            "acts": [
+                {
+                    "act_number": 1,
+                    "story_role": "explain",
+                    "title": "Act 1",
+                    "claim_ids": [claim_uuid],
+                }
+            ],
+        },
+        sid=sid,
+    )
+
+    assert audit == {
+        "passed": False,
+        "issues": [
+            {
+                "type": "goal_misalignment",
+                "severity": "high",
+                "why_it_hurts": "The selected act set no longer answers the episode goal.",
+                "fix_direction": "Reshape the backbone around the stated goal.",
+            }
+        ],
+    }
 
 
 def test_compute_max_claims_per_act_uses_ceiling() -> None:

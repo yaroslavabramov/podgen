@@ -26,6 +26,7 @@ from app.realtime.events import phase_started, step_started, step_completed, pro
 
 logger = logging.getLogger(__name__)
 SHOWRUNNER_SELECTION_RETRIES = 2
+SHOWRUNNER_SELECTION_AUDIT_MAX_ISSUES = 4
 
 SHOWRUNNER_SYSTEM = """You are a podcast showrunner planning the episode structure.
 Given claims, conflicts, duration target, and show bible, create an act structure that feels like a strong episode arc, not a bucket of claims.
@@ -89,11 +90,12 @@ Return:
   "passed": true,
   "issues": [
     {
-      "type": "weak_claim_selected|strong_claim_omitted|act_overpacked_same_move|payoff_fresh_explainer_load|goal_misalignment",
+      "type": "weak_claim_selected|strong_claim_omitted|act_overpacked_same_move|payoff_fresh_explainer_load|goal_misalignment|act_count_too_low|act_combines_incompatible_jobs|hook_overweights_decorative_detail|minimal_spine_missing",
       "severity": "low|medium|high",
       "act_number": 1,
       "selected_claim_ids": ["c1"],
       "omitted_claim_ids": ["c2"],
+      "minimal_spine_claim_ids": ["c3"],
       "why_it_hurts": "short explanation",
       "fix_direction": "short revision direction"
     }
@@ -106,12 +108,18 @@ Audit only these failure modes:
 - An act contains too many same-function claims (for example several mechanism claims that all do the same explanatory move).
 - A payoff act still carries fresh explainer load that should have been handled earlier.
 - The selected act set does not cleanly answer `episode_goal` / `root_question`.
+- The act count is too low for the selected material, forcing incompatible listener jobs into the same act.
+- One act combines listener jobs that need different treatment (for example history + mechanism + payoff, crisis + mechanism without room, setup + taxonomy).
+- The hook/setup overweights decorative detail or inventory instead of a scene-worthy reason to care.
+- A mechanism/history/crisis/payoff act lacks the minimal claim spine needed to make its declared job intelligible.
 
 Rules:
 - Return at most 4 issues.
 - Prefer medium/high issues over minor observations.
 - If the plan is directionally sound, pass it.
 - Do not invent omitted claims; only reference IDs present in `omitted_claims`.
+- For mechanism/history/crisis/payoff issues, include `minimal_spine_claim_ids` when you can name the smallest viable set of claims needed for the act to work. Use only IDs from selected claims or `omitted_claims`.
+- Resolve tradeoffs inside the audit: do not ask to remove a claim as redundant and then require it as missing support in the same response. Prefer one minimal spine plus optional drops over contradictory claim swaps.
 - Do not request more coverage just because a claim is interesting. Flag only selection/design mistakes that materially weaken the episode."""
 
 SHOWRUNNER_REVISION_SYSTEM = """You are an editorial planner revising an existing podcast act plan. Return JSON only.
@@ -150,9 +158,13 @@ Return a JSON object shaped exactly like:
 }
 
 Rules:
-- Treat `revision_request.selection_issues` as the highest-priority editorial instructions. If an issue names `selected_claim_ids` and `omitted_claim_ids`, prefer solving it with those claims instead of making unrelated reshuffles.
+- Treat `revision_request.selection_issues` as the highest-priority editorial diagnosis, but resolve tradeoffs across issues instead of obeying each claim swap mechanically. Do not fix one issue by recreating another.
+- If an issue includes `minimal_spine_claim_ids`, preserve or create that minimal spine unless it conflicts with `episode_goal` / `root_question`; then drop redundant claims around it.
+- Treat `selected_claim_ids` and `omitted_claim_ids` as evidence for the diagnosis, not a checklist. Prefer those claims when they solve the act job, but reshape the act structure if claim swaps alone cannot solve the problem.
 - Preserve acts, timings, and claim placements that are not implicated by the issues. Edit surgically.
 - Revise the backbone first, then adjust act titles/purpose/opening/ending so the wording matches the revised claim set.
+- If an issue says act count is too low or an act combines incompatible jobs, split or reshape acts before doing local claim swaps.
+- If an issue says the hook overweights decorative detail, cut or downgrade that detail instead of preserving it because it feels vivid.
 - If an issue says an act is overloaded with same-function claims, remove or replace redundant claims rather than merely rewording the act summary.
 - If an issue says payoff carries fresh explainer load, move or drop that explanatory material so the payoff act becomes synthesis, not a new explainer.
 - If an issue says a weaker selected claim displaced a stronger omitted one, prefer the stronger omitted one if it better serves the same act job.
@@ -523,6 +535,10 @@ def _normalize_showrunner_selection_issues(value: Any) -> list[dict[str, Any]]:
         "act_overpacked_same_move",
         "payoff_fresh_explainer_load",
         "goal_misalignment",
+        "act_count_too_low",
+        "act_combines_incompatible_jobs",
+        "hook_overweights_decorative_detail",
+        "minimal_spine_missing",
     }
     allowed_severities = {"low", "medium", "high"}
     normalized: list[dict[str, Any]] = []
@@ -544,14 +560,26 @@ def _normalize_showrunner_selection_issues(value: Any) -> list[dict[str, Any]]:
             issue["act_number"] = act_number
         selected_claim_ids = [item for item in raw_issue.get("selected_claim_ids", []) if isinstance(item, str)]
         omitted_claim_ids = [item for item in raw_issue.get("omitted_claim_ids", []) if isinstance(item, str)]
+        minimal_spine_claim_ids = [
+            item for item in raw_issue.get("minimal_spine_claim_ids", []) if isinstance(item, str)
+        ]
         if selected_claim_ids:
             issue["selected_claim_ids"] = selected_claim_ids
         if omitted_claim_ids:
             issue["omitted_claim_ids"] = omitted_claim_ids
+        if minimal_spine_claim_ids:
+            issue["minimal_spine_claim_ids"] = minimal_spine_claim_ids
         normalized.append(issue)
-        if len(normalized) >= 4:
-            break
     return normalized
+
+
+def _limit_showrunner_selection_issues(issues: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if len(issues) <= SHOWRUNNER_SELECTION_AUDIT_MAX_ISSUES:
+        return issues
+    high = [issue for issue in issues if issue.get("severity") == "high"]
+    medium = [issue for issue in issues if issue.get("severity") == "medium"]
+    low = [issue for issue in issues if issue.get("severity") == "low"]
+    return (high + medium + low)[:SHOWRUNNER_SELECTION_AUDIT_MAX_ISSUES]
 
 
 def _validate_showrunner_selection_issue_ids(
@@ -559,7 +587,9 @@ def _validate_showrunner_selection_issue_ids(
     *,
     selected_ids: set[str],
     omitted_ids: set[str],
+    all_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
+    known_ids = all_ids or selected_ids | omitted_ids
     validated: list[dict[str, Any]] = []
     for issue in issues:
         issue_type = issue.get("type")
@@ -573,9 +603,21 @@ def _validate_showrunner_selection_issue_ids(
             for claim_id in issue.get("omitted_claim_ids", [])
             if isinstance(claim_id, str) and claim_id in omitted_ids
         ]
-        if issue_type in {"weak_claim_selected", "act_overpacked_same_move", "payoff_fresh_explainer_load"} and not selected_claim_ids:
+        minimal_spine_claim_ids = [
+            claim_id
+            for claim_id in issue.get("minimal_spine_claim_ids", [])
+            if isinstance(claim_id, str) and claim_id in known_ids
+        ]
+        if issue_type in {
+            "weak_claim_selected",
+            "act_overpacked_same_move",
+            "payoff_fresh_explainer_load",
+            "hook_overweights_decorative_detail",
+        } and not selected_claim_ids:
             continue
         if issue_type == "strong_claim_omitted" and not omitted_claim_ids:
+            continue
+        if issue_type == "minimal_spine_missing" and not (minimal_spine_claim_ids or omitted_claim_ids):
             continue
         cleaned = dict(issue)
         if selected_claim_ids:
@@ -586,6 +628,10 @@ def _validate_showrunner_selection_issue_ids(
             cleaned["omitted_claim_ids"] = omitted_claim_ids
         else:
             cleaned.pop("omitted_claim_ids", None)
+        if minimal_spine_claim_ids:
+            cleaned["minimal_spine_claim_ids"] = minimal_spine_claim_ids
+        else:
+            cleaned.pop("minimal_spine_claim_ids", None)
         validated.append(cleaned)
     return validated
 
@@ -643,10 +689,13 @@ async def _run_showrunner_selection_audit(
             "error": str(exc),
             "raw": raw,
         }
-    issues = _validate_showrunner_selection_issue_ids(
-        _normalize_showrunner_selection_issues(parsed.get("issues") if isinstance(parsed, dict) else None),
-        selected_ids=selected_ids,
-        omitted_ids=omitted_ids,
+    issues = _limit_showrunner_selection_issues(
+        _validate_showrunner_selection_issue_ids(
+            _normalize_showrunner_selection_issues(parsed.get("issues") if isinstance(parsed, dict) else None),
+            selected_ids=selected_ids,
+            omitted_ids=omitted_ids,
+            all_ids=set(claim_lookup),
+        )
     )
     passed = (bool(parsed.get("passed", not issues)) if isinstance(parsed, dict) else not issues) or not issues
     return {"passed": passed and not _showrunner_selection_blockers({"issues": issues}), "issues": issues}
