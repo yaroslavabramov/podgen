@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     llm_request_timeout_seconds: int = 300
+    showrunner_generation_provider: str = "anthropic"
+    showrunner_openai_model: str = "gpt-5.4"
+    showrunner_openai_reasoning_effort: str = "medium"
 
     # LangSmith tracing
     langsmith_tracing: bool = False

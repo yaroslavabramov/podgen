@@ -109,10 +109,16 @@ Rules:
   - The act must feel like it goes somewhere. A good beat sheet is a sequence of distinct listener moves, not a bucket of facts.
   - Respect the act contract:
     - `story_role` says what kind of movement this act should deliver
+    - `act_job` says the concrete editorial job to protect
     - `purpose` says why the act exists
     - `internal_arc` says how the act should move internally
     - the act should engage `opening_question` early, but this does not require a dedicated `hook` scene
     - the act must deliver `ending_turn`, but this does not require a dedicated `takeaway` or `summary` scene
+  - Respect act-level claim roles:
+    - Build the scene arc around `backbone_claim_ids`.
+    - `support_claim_ids` may clarify or enrich a backbone scene, but should not create a standalone scene.
+    - `callback_claim_ids` may appear only as established context in `callback_claim_ids`, not as fresh `primary_claim_ids`.
+    - If a support/callback claim would need its own explanation, do not expand it; leave it unused or use it only as a compact callback.
 - Planning procedure:
   - Before drafting scenes, choose a short `scene_strategy` that captures how this act moves internally.
   - Decide the minimum set of distinct scene moves needed to satisfy the act contract.
@@ -270,6 +276,7 @@ async def plan_act(state: PipelineState) -> dict:
                 claim_sid=claim_sid,
                 evidence_sid=evidence_sid,
             )
+            base_prompt = _shorten_act_prompt_claim_role_ids(base_prompt, claim_sid=claim_sid)
             prompt_allowed_claim_ids = allowed_claim_ids | claim_sid.short_ids
             prompt_allowed_evidence_ids = allowed_evidence_ids | evidence_sid.short_ids
 
@@ -346,6 +353,7 @@ async def plan_act(state: PipelineState) -> dict:
                     candidate_quality_issues = await _collect_beat_sheet_quality_issues(
                         candidate_beat_sheet,
                         claim_statements=claim_statements_lookup,
+                        allowed_primary_claim_ids=_act_primary_claim_ids(act, allowed_claim_ids=allowed_claim_ids),
                     )
                     structural_quality_failure = _has_structural_overlap_failures(candidate_quality_issues)
                     if candidate_beat_sheet:
@@ -566,6 +574,22 @@ def _uuid_list(value: Any) -> list[str]:
     return out
 
 
+def _id_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        token = item.strip()
+        if not token or token in seen:
+            continue
+        seen.add(token)
+        out.append(token)
+    return out
+
+
 def _recover_scene_claim_ids(
     raw_value: Any,
     allowed_claim_ids: set[str],
@@ -694,15 +718,29 @@ def _build_act_prompt_payload(
         act_evidence=act_evidence,
         max_support_evidence=MAX_SUPPORT_EVIDENCE_PER_ACT,
     )
+    act_claim_ids = _uuid_list(act.get("claim_ids"))
+    backbone_claim_ids = _id_list(act.get("backbone_claim_ids")) or list(act_claim_ids)
+    support_claim_ids = [claim_id for claim_id in _id_list(act.get("support_claim_ids")) if claim_id not in backbone_claim_ids]
+    support_set = set(support_claim_ids)
+    callback_claim_ids = [
+        claim_id
+        for claim_id in _id_list(act.get("callback_claim_ids"))
+        if claim_id not in backbone_claim_ids and claim_id not in support_set
+    ]
     return {
         "act_number": act_number,
         "output_language": str(output_language or "en").strip() or "en",
         "story_role": str(act.get("story_role") or "").strip(),
+        "act_job": str(act.get("act_job") or "").strip(),
         "act_title": act.get("title", ""),
         "purpose": str(act.get("purpose") or "").strip(),
         "internal_arc": str(act.get("internal_arc") or "").strip(),
         "opening_question": str(act.get("opening_question") or "").strip(),
         "ending_turn": str(act.get("ending_turn") or "").strip(),
+        "backbone_claim_ids": backbone_claim_ids,
+        "support_claim_ids": support_claim_ids,
+        "callback_claim_ids": callback_claim_ids,
+        "why_this_is_enough": str(act.get("why_this_is_enough") or "").strip(),
         "estimated_duration_seconds": estimated_duration,
         "scene_count_guidance": _scene_count_guidance(estimated_duration),
         "conflict_count": len(conflict_ids),
@@ -711,6 +749,16 @@ def _build_act_prompt_payload(
         "recent_act_structures": recent_act_structures or [],
         "claims": prompt_claims,
     }
+
+
+def _act_primary_claim_ids(act: dict[str, Any], *, allowed_claim_ids: set[str]) -> set[str]:
+    if isinstance(act.get("backbone_claim_ids"), list):
+        return {
+            claim_id
+            for claim_id in _uuid_list(act.get("backbone_claim_ids"))
+            if claim_id in allowed_claim_ids
+        }
+    return set(allowed_claim_ids)
 
 
 def _collect_prior_acts_ending_types(
@@ -1042,6 +1090,13 @@ def _shorten_act_prompt_claims(
     return shortened
 
 
+def _shorten_act_prompt_claim_role_ids(payload: dict[str, Any], *, claim_sid: ShortIdMap) -> dict[str, Any]:
+    shortened = dict(payload)
+    for field in ("backbone_claim_ids", "support_claim_ids", "callback_claim_ids"):
+        shortened[field] = claim_sid.shorten_list(_id_list(shortened.get(field)))
+    return shortened
+
+
 def _bundle_evidence_ids(items: Any) -> list[str]:
     if not isinstance(items, list):
         return []
@@ -1324,6 +1379,7 @@ def _split_scene_claim_roles(beat_sheet: list[dict[str, Any]]) -> list[dict[str,
 async def _collect_beat_sheet_quality_issues(
     beat_sheet: list[dict[str, Any]],
     claim_statements: dict[str, str] | None = None,
+    allowed_primary_claim_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Collect deterministic quality issues + LLM-based grounding/overlap checks.
 
@@ -1333,6 +1389,8 @@ async def _collect_beat_sheet_quality_issues(
             If None, LLM-based checks are skipped (e.g. in tests).
     """
     issues: list[dict[str, Any]] = []
+    has_primary_claim_restriction = allowed_primary_claim_ids is not None
+    allowed_primary_claim_ids = allowed_primary_claim_ids or set()
     explanation_like = {"explanation", "case_study", "hook"}
     ending_like = {"takeaway", "summary", "transition"}
     last_scene_number = len(beat_sheet)
@@ -1345,6 +1403,24 @@ async def _collect_beat_sheet_quality_issues(
         scene_job = _scene_job(scene)
         is_last_scene = idx == (last_scene_number - 1)
         description = str(scene.get("description") or "").strip()
+        if has_primary_claim_restriction:
+            non_backbone_primary_claim_ids = [
+                claim_id
+                for claim_id in primary_claim_ids
+                if claim_id not in allowed_primary_claim_ids
+            ]
+            if non_backbone_primary_claim_ids:
+                issues.append(
+                    {
+                        "severity": "structural",
+                        "type": "non_backbone_primary_claim",
+                        "scene": scene_number,
+                        "scene_type": scene_type,
+                        "message": "Scene uses support/callback material as fresh primary claim material.",
+                        "primary_claim_ids": primary_claim_ids,
+                        "non_backbone_primary_claim_ids": non_backbone_primary_claim_ids,
+                    }
+                )
 
         if description and len(description) > MAX_BEAT_CARD_DESCRIPTION_CHARS:
             issues.append(
@@ -1673,6 +1749,30 @@ def _format_structural_retry_detail(
                     f"    - {statement}"
                     for statement in scene_claims
                 )
+        return detail
+
+    if issue.get("type") == "non_backbone_primary_claim":
+        scene_number = _positive_int(issue.get("scene"), 0)
+        scene = _find_scene_by_number(beat_sheet, scene_number)
+        detail += (
+            "\n  This scene uses support/callback material as a fresh primary beat."
+            "\n  Build standalone scenes only from act-level `backbone_claim_ids`."
+            "\n  Either demote this material to `callback_claim_ids` inside a backbone scene, "
+            "or replace it with an unused backbone claim."
+        )
+        if scene is not None:
+            scene_job = _scene_job(scene) or "none"
+            detail += f"\n  Scene {scene_number} current move: {scene_job}"
+        non_backbone_claims = [
+            claim_statements_lookup.get(cid, "")
+            for cid in issue.get("non_backbone_primary_claim_ids", [])
+            if cid in claim_statements_lookup
+        ]
+        if non_backbone_claims:
+            detail += "\n  Non-backbone primary claims:\n" + "\n".join(
+                f"    - {statement}"
+                for statement in non_backbone_claims
+            )
         return detail
 
     if issue.get("type") != "description_overlap":

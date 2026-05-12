@@ -83,7 +83,7 @@ EMBEDDING_DIMENSIONS = 3072
 DEFAULT_STRUCTURED_MAX_TOKENS = 16384
 
 
-def _llm_trace_inputs(system: str, prompt: str, max_tokens: int, temperature: float) -> dict[str, Any]:
+def _llm_trace_inputs(system: str, prompt: str, max_tokens: int, temperature: float | None) -> dict[str, Any]:
     return {
         "system_chars": len(system),
         "prompt_chars": len(prompt),
@@ -116,7 +116,7 @@ def _openai_usage(response: Any) -> dict[str, Any]:
         return {}
 
     out: dict[str, Any] = {}
-    for field in ("prompt_tokens", "completion_tokens", "total_tokens"):
+    for field in ("prompt_tokens", "completion_tokens", "total_tokens", "input_tokens", "output_tokens"):
         value = getattr(usage, field, None)
         if value is not None:
             out[field] = value
@@ -268,6 +268,72 @@ async def call_haiku_structured(
                 "response_chars": len(text),
                 "stop_reason": response.stop_reason,
                 **_anthropic_usage(response),
+            },
+        )
+        return text
+
+
+async def call_openai_structured(
+    system: str,
+    prompt: str,
+    *,
+    model: str,
+    schema: dict[str, Any],
+    schema_name: str = "structured_response",
+    strict: bool = True,
+    max_tokens: int = DEFAULT_STRUCTURED_MAX_TOKENS,
+    temperature: float | None = None,
+    reasoning_effort: str | None = None,
+) -> str:
+    """Call OpenAI Responses API expecting JSON output."""
+    client = get_openai_client()
+    await assert_step_not_stopped()
+    reasoning = {"effort": reasoning_effort} if reasoning_effort else openai.NOT_GIVEN
+    temperature_arg = temperature if temperature is not None else openai.NOT_GIVEN
+    with trace_span(
+        "llm.call_openai_structured",
+        run_type="llm",
+        inputs=_llm_trace_inputs(system, prompt, max_tokens, temperature),
+        metadata={
+            "provider": "openai",
+            "model": model,
+            "structured": True,
+            "reasoning_effort": reasoning_effort or "",
+            "timeout_seconds": _request_timeout_seconds(),
+        },
+        tags=["llm", "openai", f"model:{model}", "structured"],
+    ) as run_tree:
+        response = await _call_with_request_timeout(
+            "OpenAI structured request",
+            lambda: client.responses.create(
+                model=model,
+                instructions=system + "\n\nYou MUST respond with valid JSON only. No markdown, no explanation.",
+                input=prompt,
+                max_output_tokens=max_tokens,
+                temperature=temperature_arg,
+                reasoning=reasoning,
+                text={
+                    "format": {
+                        "type": "json_schema",
+                        "name": schema_name,
+                        "schema": schema,
+                        "strict": strict,
+                    }
+                },
+            ),
+        )
+        status = getattr(response, "status", "")
+        incomplete_details = getattr(response, "incomplete_details", None)
+        if status == "incomplete":
+            logger.warning("OpenAI structured response incomplete: %s", incomplete_details)
+        text = response.output_text or ""
+        safe_set_run(
+            run_tree,
+            outputs={
+                "response_chars": len(text),
+                "status": status,
+                "incomplete_details": str(incomplete_details) if incomplete_details else None,
+                **_openai_usage(response),
             },
         )
         return text

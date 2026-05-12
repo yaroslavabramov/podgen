@@ -39,7 +39,13 @@ def test_dump_showrunner_debug_writes_file(tmp_path, monkeypatch) -> None:
         llm_raw_output='{"acts":[]}',
         parsed_plan={"acts": []},
         normalized_plan={"act_count": 0, "acts": []},
-        selection_audit={"passed": True, "issues": []},
+        selection_audit={
+            "passed": True,
+            "rationale": "No omitted claim materially improves the listener transformation.",
+            "issues": [],
+            "raw": '{"passed":true}',
+            "parsed": {"passed": True},
+        },
         attempts=[
             {
                 "attempt_number": 1,
@@ -47,7 +53,13 @@ def test_dump_showrunner_debug_writes_file(tmp_path, monkeypatch) -> None:
                 "request_payload": {"claims": []},
                 "llm_output": {"raw": '{"acts":[]}'},
                 "normalized_plan": {"act_count": 0, "acts": []},
-                "selection_audit": {"passed": True, "issues": []},
+                "selection_audit": {
+                    "passed": True,
+                    "rationale": "No omitted claim materially improves the listener transformation.",
+                    "issues": [],
+                    "raw": '{"passed":true}',
+                    "parsed": {"passed": True},
+                },
                 "blocker_issues": [],
                 "accepted": True,
             }
@@ -60,7 +72,11 @@ def test_dump_showrunner_debug_writes_file(tmp_path, monkeypatch) -> None:
     assert payload["run_id"] == "run-200"
     assert payload["status"] == "ok"
     assert payload["normalized_plan"]["act_count"] == 0
-    assert payload["selection_audit"] == {"passed": True, "issues": []}
+    assert payload["selection_audit"]["passed"] is True
+    assert payload["selection_audit"]["rationale"].startswith("No omitted claim")
+    assert payload["selection_audit"]["raw"] == '{"passed":true}'
+    assert payload["selection_audit"]["parsed"] == {"passed": True}
+    assert payload["attempts"][0]["selection_audit"]["raw"] == '{"passed":true}'
     assert payload["attempts"][0]["mode"] == "initial"
     assert payload["attempts"][0]["accepted"] is True
 

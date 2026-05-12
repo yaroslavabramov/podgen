@@ -20,16 +20,88 @@ from app.pipeline.research_context import build_question_context_map
 from app.pipeline.state import PipelineState
 from app.pipeline.llm_json import parse_llm_json
 from app.pipeline.short_ids import ShortIdMap, shorten_claim_dicts, restore_id_list
-from app.services.llm import call_haiku_structured, call_sonnet_structured
+from app.services.llm import call_haiku_structured, call_openai_structured, call_sonnet_structured
 from app.realtime.publisher import publish_event, update_generation_progress
 from app.realtime.events import phase_started, step_started, step_completed, progress
 
 logger = logging.getLogger(__name__)
 SHOWRUNNER_SELECTION_RETRIES = 2
 SHOWRUNNER_SELECTION_AUDIT_MAX_ISSUES = 4
+SHOWRUNNER_SELECTION_AUDIT_MAX_TOKENS = 4096
+SHOWRUNNER_ACT_CLAIM_ROLE_FIELDS = ("backbone_claim_ids", "support_claim_ids", "callback_claim_ids")
+SHOWRUNNER_OPENAI_REASONING_EFFORTS = {"none", "low", "medium", "high", "xhigh"}
+SHOWRUNNER_PLAN_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "act_count": {"type": "integer"},
+        "acts": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "act_number": {"type": "integer"},
+                    "story_role": {"type": "string", "enum": ["setup", "complicate", "explain", "resolve", "payoff"]},
+                    "title": {"type": "string"},
+                    "purpose": {"type": "string"},
+                    "act_job": {"type": "string"},
+                    "internal_arc": {"type": "string"},
+                    "opening_question": {"type": "string"},
+                    "ending_turn": {"type": "string"},
+                    "estimated_duration_seconds": {"type": "integer"},
+                    "backbone_claim_ids": {"type": "array", "items": {"type": "string"}},
+                    "support_claim_ids": {"type": "array", "items": {"type": "string"}},
+                    "callback_claim_ids": {"type": "array", "items": {"type": "string"}},
+                    "claim_ids": {"type": "array", "items": {"type": "string"}},
+                    "conflict_brief_ids": {"type": "array", "items": {"type": "string"}},
+                    "content_quotas": {
+                        "type": "object",
+                        "properties": {
+                            "verified_facts": {"type": "integer"},
+                            "attributed_opinions": {"type": "integer"},
+                            "narrative_assets": {"type": "integer"},
+                            "conflicts": {"type": "integer"},
+                            "takeaways": {"type": "integer"},
+                        },
+                        "required": [
+                            "verified_facts",
+                            "attributed_opinions",
+                            "narrative_assets",
+                            "conflicts",
+                            "takeaways",
+                        ],
+                        "additionalProperties": False,
+                    },
+                    "why_this_is_enough": {"type": "string"},
+                },
+                "required": [
+                    "act_number",
+                    "story_role",
+                    "title",
+                    "purpose",
+                    "act_job",
+                    "internal_arc",
+                    "opening_question",
+                    "ending_turn",
+                    "estimated_duration_seconds",
+                    "backbone_claim_ids",
+                    "support_claim_ids",
+                    "callback_claim_ids",
+                    "claim_ids",
+                    "conflict_brief_ids",
+                    "content_quotas",
+                    "why_this_is_enough",
+                ],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["act_count", "acts"],
+    "additionalProperties": False,
+}
+
 
 SHOWRUNNER_SYSTEM = """You are a podcast showrunner planning the episode structure.
-Given claims, conflicts, duration target, and show bible, create an act structure that feels like a strong episode arc, not a bucket of claims.
+Create a strong episode arc, not a bucket of claims.
 
 Return a JSON object shaped like:
 {
@@ -40,10 +112,14 @@ Return a JSON object shaped like:
       "story_role": "setup|complicate|explain|resolve|payoff",
       "title": "Act title",
       "purpose": "one-sentence editorial function of this act",
+      "act_job": "short concrete editorial job this act performs",
       "internal_arc": "short phrase describing how this act moves internally",
       "opening_question": "listener-facing question or tension that opens this act",
       "ending_turn": "what changes, lands, or becomes clearer by the end of the act",
       "estimated_duration_seconds": 600,
+      "backbone_claim_ids": ["id1"],
+      "support_claim_ids": ["id2"],
+      "callback_claim_ids": ["id3"],
       "claim_ids": ["id1", "id2"],
       "conflict_brief_ids": [],
       "content_quotas": {
@@ -52,7 +128,8 @@ Return a JSON object shaped like:
         "narrative_assets": 1,
         "conflicts": 0,
         "takeaways": 1
-      }
+      },
+      "why_this_is_enough": "why this act is complete without adding more selected claims"
     }
   ]
 }
@@ -61,19 +138,32 @@ Rules:
 - Language:
   - All human-readable fields (`title`, `purpose`, `internal_arc`, `opening_question`, `ending_turn`) MUST be in `output_language` from the user payload.
   - Do not mix languages inside one field.
-- Build an episode, not a claim bucket. `episode_goal` is the user's stated intent for the podcast, and `root_question` is the best current statement of the episode-level question; use both as the editorial source of truth when deciding what deserves act time. Choose the act count (2-6) that best fits the material, duration, and style; do not default to 3 acts or compress distinct listener work just to stay compact.
-- Treat `story_role` as listener work, not topic label. `setup` establishes anomaly, stakes, or the reason to care; `explain` teaches the core model; `complicate` adds context or tension that makes the simple reading less complete; `resolve` delivers the strongest test, consequence, decision, or proof; `payoff` synthesizes, reframes, compares, or lands why it matters.
-- Selection comes before act assignment. First choose the smallest coherent editorial backbone that best answers `episode_goal` and `root_question`. Then decide how many distinct listener questions that selected backbone really supports, define the act jobs, and only after that assign selected claims to acts.
-- Start from the strongest episode-level way into the material, not from a fixed universal arc. The best opener might be anomaly, mechanism, crisis, history, conflict, or comparison. Choose the act sequence that makes this specific episode strongest, and make sure each act has one dominant dramatic question or editorial burden.
-- For each act, define a short `internal_arc` that describes movement, not topic coverage. Adjacent acts should usually have different `internal_arc` shapes, and `ending_turn` shapes should vary too.
+- Build an episode, not a claim bucket. `episode_goal` is the user's stated intent, and `root_question` is the episode-level question; use both as the source of truth for what deserves act time. Choose the act count (2-6) that fits the material, duration, and style; do not default to 3 acts or compress distinct listener work just to stay compact.
+- Treat `story_role` as listener work, not topic label or fixed position. The first act does not have to be `setup`; a mechanism, crisis, conflict, decision, or historical turn can open if it creates stronger listener momentum. `setup` establishes anomaly, stakes, or the reason to care; `explain` teaches the core model; `complicate` deepens the simple reading; `resolve` delivers the strongest test, consequence, decision, or proof; `payoff` synthesizes why it matters.
+- Selection comes before act assignment. First choose the smallest coherent editorial backbone that best answers `episode_goal` and `root_question`; then decide how many listener questions it supports, define act jobs, and only then assign selected claims.
+  - Do not start by arranging every available claim. Start by imagining the episode pitch to an editor: "the listener comes in thinking X; after these acts, they now understand Y." A claim that would not help that listener transformation is rarely backbone material.
+  - For every act, split selected material by airtime role: `backbone_claim_ids` are the claims that scenes should be built around; `support_claim_ids` may be used inside those scenes but should not create scenes by themselves; `callback_claim_ids` may return as context only. `claim_ids` must be the union for compatibility.
+- Start from the strongest episode-level way into the material, not from a fixed universal arc. Silently compare possible centers of gravity: present contradiction, origin story, mechanism, crisis/test, decision, conflict, consequence, comparison, or payoff. Do not default to present-anomaly -> chronology -> mechanism -> payoff; choose the strongest listener transformation, not the most obvious chronological or topical order.
+  - Treat those centers of gravity as options, not templates. Any order can work if `opening_question`, `internal_arc`, `ending_turn`, and backbone claims make the listener transformation clear.
+- For each act, define a short `internal_arc` that describes movement, not topic coverage. Adjacent acts should usually have different `internal_arc` and `ending_turn` shapes.
 - Use act boundaries for real shifts in listener work. A major shift in timeframe, abstraction level, or editorial function is evidence for a new act, not just a new scene. Merge candidate act material only when it would produce substantially the same `opening_question`, `internal_arc`, and `ending_turn`.
 - Role purity beats compactness. Do not let `setup` fully consume `explain`, `complicate` absorb `resolve`, or `payoff` become a leftovers bin just because the episode can be compressed.
-- Allocate airtime, not just claims. A strong act usually has one main listener question, one dominant mode of attention, and one main anchor mechanism, event, example, or conflict that earns most of the airtime. Prefer claims that earn airtime. In practice, prefer claims that materially answer `episode_goal` / `root_question`, change the listener's model instead of adding trivia, explain why the system works, changes, breaks, or costs what it costs, or give scene-bearing material such as an event, decision, conflict, consequence, or institutional turn.
+  - For setup/hook work, pose the paradox; do not make answer/control/issuance-condition/reserve/peg/mechanism claims backbone unless that act's job is to teach that mechanism. Foreshadow at most as support/callback so later explain/resolve acts still land the reveal.
+- Treat airtime as editorial investment. Every minute must buy a stronger reason to care, a necessary mental model, a consequential event/decision/test, a reversal/complication, or a payoff that changes the listener's answer to the episode question.
+  - Set `estimated_duration_seconds` from earned listener work, not equal blocks. Lightweight hook, recognition, or setup should be a short launchpad; do not pad it. Give surplus to the hardest mechanism, crisis/test, decision, or payoff.
+  - Pure setup/hook work usually earns 90-180 seconds, not a full explainer act. Exceed that only when setup carries a real event, decision, conflict, or mechanism.
+  - If an act mainly buys recognition, inventory, texture, taxonomy, generic background, or "more examples," compress it into support for a stronger act.
+  - A strong act has one main listener question, one dominant mode of attention, and one anchor mechanism, event, example, or conflict that earns most airtime.
+  - A backbone claim earns airtime only if the listener needs time to understand it, feel its consequence, or use it to answer the episode question. Good backbone usually introduces a necessary mechanism, a decision by a real actor, a crisis or test, a cost/tradeoff, a consequence, or an irreversible turn in understanding.
+  - A claim is weak backbone when it mainly lists surface details, names categories, repeats an already-landed thesis, gives a second example of the same move, or supplies broad comparator context without changing the listener's model. Such claims can be hooks, support, or callbacks.
+  - Vivid detail is an entrance, not a destination. Use detail to open curiosity, then move to the pressure, mechanism, choice, or consequence that makes the detail matter.
+  - Dense mechanisms, crises, and consequential decisions need more oxygen than color, taxonomy, or scene-setting. If the episode contains a hard mechanism or high-stakes test, protect time for that before giving time to decorative setup.
 - If an act seems to need several heavy mechanisms, several anchor events, or several kinds of listener work, treat that as a sign of overload. Move material to another act, downgrade it to support or callback material, or leave it unused instead of rescuing everything.
-- Curate aggressively. Keep only claims that make a distinct editorial contribution. If multiple claims restate the same mechanism, rule, fact, event, or decision, keep the single strongest formulation and leave the rest unused unless they clearly enable a different move. Each claim appears in exactly ONE act. Do not spread the same proposition core across acts just because it feels relevant in several places. Downrank claims that mainly provide taxonomy, decorative detail, broad comparator context, repeated thesis language, or another example of a pattern the selected backbone already proves.
+- Curate aggressively. Keep only claims that make a distinct editorial contribution. If multiple claims restate the same mechanism, rule, fact, event, or decision, keep the strongest formulation unless another enables a different move. Each claim appears in exactly ONE act.
 - Before keeping a claim in an act, ask whether removing it would force a genuinely different beat. If not, it is not fresh backbone. One act may own a mechanism or concept family, but it should stay lean rather than exhaustive.
-- Explanatory acts should usually have one dominant explanatory spine. Keep extra claims only if they enable a meaningfully different move such as application, consequence, tradeoff, exception, contrast, comparison, concrete case, or real-world test.
-- If one branch or theme yields more strong claims than one act can hold cleanly, keep the strongest claims in that act and leave the rest unused rather than overloading the episode. Use `total_claim_count` as an overload smell, not a quota: if one act absorbs far more claims than neighboring acts, ask whether it is trying to carry too many distinct beats or rescue too much material. Prefer a leaner act pool over exhaustive coverage.
+  - Keep each act backbone lean enough to produce clear scenes, usually 3-7 claims. Decorative hooks, comparators, repeated mechanism details, and already-landed thesis claims should be support/callback or unused, not backbone.
+- Explanatory acts should usually have one dominant explanatory spine. Keep extra claims only for a different move: application, consequence, tradeoff, exception, contrast, comparison, case, or real-world test.
+- Use `total_claim_count` as an overload smell, not a quota. If one act absorbs far more claims than neighboring acts, ask whether it is carrying too many distinct beats or rescuing too much material. Prefer a leaner act pool over exhaustive coverage.
 - Ignore research-tree provenance when it does not help the editorial decision. Do not group material just because claims came from the same branch. Comparative material should stay selective; one strong outside comparator is usually enough for one beat.
 - Front-load verified facts where grounding is needed. Claims with direct support and stronger source diversity should form the explanatory backbone. Claims with illustrative evidence are good candidates for hooks, case-study moments, and pivots.
 - DISPUTED claims MUST have a "debate moment" (conflicts >= 1 in that act's quotas)
@@ -88,37 +178,53 @@ You are auditing selection/design mistakes, not factual accuracy and not prose s
 Return:
 {
   "passed": true,
+  "rationale": "why the plan passed or failed, including the strongest omitted alternative considered",
   "issues": [
     {
-      "type": "weak_claim_selected|strong_claim_omitted|act_overpacked_same_move|payoff_fresh_explainer_load|goal_misalignment|act_count_too_low|act_combines_incompatible_jobs|hook_overweights_decorative_detail|minimal_spine_missing",
       "severity": "low|medium|high",
+      "scope": "episode|act|claim_role|claim",
+      "revision_mode": "local_edit|act_rebuild|episode_rebuild",
       "act_number": 1,
-      "selected_claim_ids": ["c1"],
-      "omitted_claim_ids": ["c2"],
-      "minimal_spine_claim_ids": ["c3"],
-      "why_it_hurts": "short explanation",
+      "diagnosis": "short explanation of the editorial problem",
+      "minimal_backbone_claim_ids": ["c1"],
+      "drop_or_demote_claim_ids": ["c2"],
+      "add_or_promote_claim_ids": ["c3"],
+      "support_or_callback_claim_ids": ["c4"],
       "fix_direction": "short revision direction"
     }
   ]
 }
 
-Audit only these failure modes:
-- A selected claim does not earn airtime because it is mostly decorative detail, taxonomy, broad comparator context, or repeated thesis language.
-- A stronger omitted claim would better serve the act or episode backbone than a weaker selected one.
-- An act contains too many same-function claims (for example several mechanism claims that all do the same explanatory move).
-- A payoff act still carries fresh explainer load that should have been handled earlier.
-- The selected act set does not cleanly answer `episode_goal` / `root_question`.
-- The act count is too low for the selected material, forcing incompatible listener jobs into the same act.
-- One act combines listener jobs that need different treatment (for example history + mechanism + payoff, crisis + mechanism without room, setup + taxonomy).
-- The hook/setup overweights decorative detail or inventory instead of a scene-worthy reason to care.
-- A mechanism/history/crisis/payoff act lacks the minimal claim spine needed to make its declared job intelligible.
+Audit only material selection/design failures:
+- `episode` scope: the whole act sequence fails the episode goal, has too few/many acts for the listener work, or uses the wrong macro-arc.
+- `act` scope: one act combines incompatible jobs, has the wrong act job, lacks a minimal spine, or carries fresh explainer load in payoff.
+- `claim_role` scope: a claim is in the wrong airtime role, such as support/callback material promoted to backbone, or support material that would demand its own scene.
+- `claim` scope: a selected claim should be dropped/demoted, or an omitted claim should be added/promoted because it better serves the stated act job.
+
+Audit the same airtime-worthiness standard the showrunner used:
+- Does each backbone claim earn act-level time by changing the listener's model, carrying a necessary mechanism, decision, crisis/test, cost/tradeoff, consequence, or irreversible turn?
+- Would the act still work if a backbone claim were removed? If yes, that claim is probably support/callback, not backbone.
+- Does `estimated_duration_seconds` match the act's actual listener work, or is a lightweight hook/setup/bridge being padded while a harder mechanism, crisis/test, decision, or payoff is underfunded?
+- If setup/hook mainly poses an anomaly or recognition beat, is it kept near 90-180 seconds, or is it overfunded without a real event, decision, conflict, or mechanism?
+- Does a setup/hook act prematurely put answer/control/issuance-condition/reserve/peg/mechanism claims in backbone, mini-solving the episode question before a later explain/resolve act can land the reveal?
+- Is vivid detail only an entrance into a larger tension, or has the plan made decorative setup the destination?
+- Do dense mechanisms, crises, and consequential decisions get enough oxygen relative to color, taxonomy, broad comparators, or scene-setting?
+- Is the plan coverage-first, trying to rescue all interesting claims, instead of choosing the smallest spine that answers `episode_goal` / `root_question`?
+- Compare selected backbone claims against omitted claims as opportunity cost. If an omitted mechanism, decision, crisis/test, consequence, or reversal would buy a stronger listener transformation than selected inventory/context, flag the tradeoff.
+- For hard mechanisms, avoid treating zero-direct-support claims as backbone when stronger supported claims can carry the same beat. Use weakly supported mechanism claims as support unless they are the only claim that makes the listener turn possible.
 
 Rules:
 - Return at most 4 issues.
+- Return compact JSON only: no Markdown fences, rationale <= 90 words, each diagnosis/fix_direction <= 280 characters.
+- Always include `rationale`. If passing, name the strongest omitted opportunity-cost candidate you considered, or say no omitted claim would materially improve the listener transformation.
 - Prefer medium/high issues over minor observations.
-- If the plan is directionally sound, pass it.
-- Do not invent omitted claims; only reference IDs present in `omitted_claims`.
-- For mechanism/history/crisis/payoff issues, include `minimal_spine_claim_ids` when you can name the smallest viable set of claims needed for the act to work. Use only IDs from selected claims or `omitted_claims`.
+- Do not pass merely because the plan is coherent or uses an obvious arc. Pass only when no selection/design issue would materially improve the listener transformation.
+- Each issue must first name the broken listener-work invariant: which `act_job`, `opening_question`, `internal_arc`, `ending_turn`, or episode transformation fails. Claim IDs are evidence for that diagnosis, not the diagnosis itself.
+- Do not ask for claim swaps just because an omitted claim is interesting, more concrete, or source-rich. Add/promote an omitted claim only when the current backbone cannot perform the stated listener work without it.
+- Do not prescribe a universal story order. If you flag sequencing, diagnose the broken listener question, missing turn, or unsupported act job; do not fail a plan merely because it puts event before mechanism, mechanism before event, chronology before payoff, or payoff before history.
+- Do not invent claim IDs. Use only IDs present in the current acts or in `omitted_claims`.
+- For mechanism/history/crisis/payoff issues, include `minimal_backbone_claim_ids` when you can name the smallest viable set of claims needed for the act to work.
+- Audit `backbone_claim_ids` as the real act spine. Do not penalize a decorative or comparator claim merely for existing as support/callback unless it would still demand fresh explanation.
 - Resolve tradeoffs inside the audit: do not ask to remove a claim as redundant and then require it as missing support in the same response. Prefer one minimal spine plus optional drops over contradictory claim swaps.
 - Do not request more coverage just because a claim is interesting. Flag only selection/design mistakes that materially weaken the episode."""
 
@@ -140,10 +246,14 @@ Return a JSON object shaped exactly like:
       "story_role": "setup|complicate|explain|resolve|payoff",
       "title": "Act title",
       "purpose": "one-sentence editorial function of this act",
+      "act_job": "short concrete editorial job this act performs",
       "internal_arc": "short phrase describing how this act moves internally",
       "opening_question": "listener-facing question or tension that opens this act",
       "ending_turn": "what changes, lands, or becomes clearer by the end of the act",
       "estimated_duration_seconds": 600,
+      "backbone_claim_ids": ["id1"],
+      "support_claim_ids": ["id2"],
+      "callback_claim_ids": ["id3"],
       "claim_ids": ["id1", "id2"],
       "conflict_brief_ids": [],
       "content_quotas": {
@@ -152,26 +262,73 @@ Return a JSON object shaped exactly like:
         "narrative_assets": 1,
         "conflicts": 0,
         "takeaways": 1
-      }
+      },
+      "why_this_is_enough": "why this act is complete without adding more selected claims"
     }
   ]
 }
 
 Rules:
-- Treat `revision_request.selection_issues` as the highest-priority editorial diagnosis, but resolve tradeoffs across issues instead of obeying each claim swap mechanically. Do not fix one issue by recreating another.
-- If an issue includes `minimal_spine_claim_ids`, preserve or create that minimal spine unless it conflicts with `episode_goal` / `root_question`; then drop redundant claims around it.
-- Treat `selected_claim_ids` and `omitted_claim_ids` as evidence for the diagnosis, not a checklist. Prefer those claims when they solve the act job, but reshape the act structure if claim swaps alone cannot solve the problem.
+- Treat `revision_request.selection_issues` as the highest-priority editorial diagnosis, but resolve tradeoffs across issues instead of obeying each claim list mechanically. Do not fix one issue by recreating another.
+- Use `revision_mode` to decide edit depth: `local_edit` means adjust claim roles/placements; `act_rebuild` means rebuild the implicated act around its job and minimal backbone; `episode_rebuild` means change act count or macro sequence if needed.
+- If an issue includes `minimal_backbone_claim_ids`, preserve or create that minimal backbone unless it conflicts with `episode_goal` / `root_question`; then drop or demote redundant claims around it.
+- Treat `drop_or_demote_claim_ids`, `add_or_promote_claim_ids`, and `support_or_callback_claim_ids` as concrete evidence for the diagnosis, not a checklist. Prefer those claims when they solve the act job, but reshape the act structure if claim swaps alone cannot solve the problem.
+- Before applying a requested claim swap, identify the listener-work gap it fixes. If the issue is only claim preference, inventory expansion, or stronger-but-nonessential detail, preserve the plan and make only minimal role/timing edits.
 - Preserve acts, timings, and claim placements that are not implicated by the issues. Edit surgically.
+- If setup/hook backbone prematurely answers the episode question with control, issuance-condition, reserve, peg, or mechanism claims, demote those claims to support/callback or move them into the later explain/resolve act that owns the reveal.
+- If setup/hook is overfunded for anomaly/recognition work, shorten it and give time to the hardest mechanism, crisis/test, decision, or payoff.
+- Do not convert sequencing issues into a fixed story template. Choose the order that best serves the act's own `act_job`, then make `opening_question`, `internal_arc`, `ending_turn`, and claim roles match that choice.
 - Revise the backbone first, then adjust act titles/purpose/opening/ending so the wording matches the revised claim set.
-- If an issue says act count is too low or an act combines incompatible jobs, split or reshape acts before doing local claim swaps.
-- If an issue says the hook overweights decorative detail, cut or downgrade that detail instead of preserving it because it feels vivid.
-- If an issue says an act is overloaded with same-function claims, remove or replace redundant claims rather than merely rewording the act summary.
-- If an issue says payoff carries fresh explainer load, move or drop that explanatory material so the payoff act becomes synthesis, not a new explainer.
-- If an issue says a weaker selected claim displaced a stronger omitted one, prefer the stronger omitted one if it better serves the same act job.
+- Preserve the distinction between `backbone_claim_ids`, `support_claim_ids`, and `callback_claim_ids`. Do not hide unresolved overload by moving a claim from backbone to support if it would still require its own scene.
+- If `scope` is `episode` or `revision_mode` is `episode_rebuild`, split or reshape acts before doing local claim edits.
+- If `scope` is `act` or `revision_mode` is `act_rebuild`, rebuild the implicated act around its act job and minimal backbone rather than merely rewording the summary.
 - Keep each claim in exactly one act.
 - Keep all human-readable fields in `output_language`.
 - Do not add claims that are not in the provided `claims` list.
 - If you must change act count, do so only because the issues cannot be solved cleanly within the current count."""
+
+
+def _showrunner_generation_metadata() -> dict[str, str]:
+    provider = str(settings.showrunner_generation_provider or "anthropic").strip().lower()
+    if provider in {"anthropic", "claude", "sonnet"}:
+        return {"provider": "anthropic", "model": "claude-sonnet-4-6", "reasoning_effort": ""}
+    if provider in {"openai", "gpt"}:
+        reasoning_effort = str(settings.showrunner_openai_reasoning_effort or "").strip().lower()
+        if reasoning_effort not in SHOWRUNNER_OPENAI_REASONING_EFFORTS:
+            reasoning_effort = "medium"
+        return {
+            "provider": "openai",
+            "model": str(settings.showrunner_openai_model or "gpt-5.4").strip() or "gpt-5.4",
+            "reasoning_effort": reasoning_effort,
+        }
+    raise ValueError(
+        "Unsupported SHOWRUNNER_GENERATION_PROVIDER "
+        f"{settings.showrunner_generation_provider!r}; use 'anthropic' or 'openai'."
+    )
+
+
+async def _call_showrunner_generation_structured(
+    *,
+    system: str,
+    prompt: str,
+    temperature: float,
+) -> str:
+    metadata = _showrunner_generation_metadata()
+    if metadata["provider"] == "openai":
+        return await call_openai_structured(
+            system=system,
+            prompt=prompt,
+            model=metadata["model"],
+            schema=SHOWRUNNER_PLAN_SCHEMA,
+            schema_name="showrunner_plan",
+            temperature=None,
+            reasoning_effort=metadata["reasoning_effort"] or None,
+        )
+    return await call_sonnet_structured(
+        system=system,
+        prompt=prompt,
+        temperature=temperature,
+    )
 
 
 async def plan_episode(state: PipelineState) -> dict:
@@ -276,9 +433,12 @@ async def plan_episode(state: PipelineState) -> dict:
         revision_request: dict[str, Any] | None = None
         attempt_records: list[dict[str, Any]] = []
         current_revision_plan: dict[str, Any] | None = None
+        generation_model: dict[str, str] | None = None
         try:
             quality_failures = 0
+            attempt_recorded = False
             while True:
+                attempt_recorded = False
                 is_revision_attempt = revision_request is not None
                 request_payload = (
                     _build_showrunner_revision_payload(
@@ -291,7 +451,8 @@ async def plan_episode(state: PipelineState) -> dict:
                     else dict(prompt_payload)
                 )
                 prompt = json.dumps(request_payload, ensure_ascii=False)
-                raw = await call_sonnet_structured(
+                generation_model = _showrunner_generation_metadata()
+                raw = await _call_showrunner_generation_structured(
                     system=SHOWRUNNER_REVISION_SYSTEM if is_revision_attempt else SHOWRUNNER_SYSTEM,
                     prompt=prompt,
                     temperature=0.5,
@@ -310,6 +471,7 @@ async def plan_episode(state: PipelineState) -> dict:
                     {
                         "attempt_number": len(attempt_records) + 1,
                         "mode": "revision" if is_revision_attempt else "initial",
+                        "generation_model": generation_model,
                         "request_payload": request_payload,
                         "llm_output": {
                             "raw_chars": len(raw or ""),
@@ -323,6 +485,7 @@ async def plan_episode(state: PipelineState) -> dict:
                         "accepted": not blocker_issues,
                     }
                 )
+                attempt_recorded = True
                 if not blocker_issues:
                     plan = candidate_plan
                     selection_audit = candidate_selection_audit
@@ -330,6 +493,14 @@ async def plan_episode(state: PipelineState) -> dict:
                 if quality_failures >= SHOWRUNNER_SELECTION_RETRIES:
                     plan = candidate_plan
                     selection_audit = candidate_selection_audit
+                    attempt_records[-1]["returned"] = True
+                    attempt_records[-1]["return_reason"] = "selection_audit_blockers_after_retries"
+                    logger.warning(
+                        "Showrunner selection audit still has %d medium/high blockers after %d retries; "
+                        "returning latest candidate plan with audit metadata",
+                        len(blocker_issues),
+                        SHOWRUNNER_SELECTION_RETRIES,
+                    )
                     break
                 quality_failures += 1
                 current_revision_plan = candidate_plan
@@ -342,23 +513,25 @@ async def plan_episode(state: PipelineState) -> dict:
                     "selection_issues": blocker_issues,
                 }
         except Exception:
-            attempt_records.append(
-                {
-                    "attempt_number": len(attempt_records) + 1,
-                    "mode": "revision" if revision_request is not None else "initial",
-                    "request_payload": request_payload if "request_payload" in locals() else None,
-                    "llm_output": {
-                        "raw_chars": len(raw or ""),
-                        "raw": raw,
-                        "parsed_type": type(parsed_plan).__name__ if parsed_plan is not None else None,
-                        "parsed": parsed_plan,
-                    },
-                    "normalized_plan": None,
-                    "selection_audit": selection_audit,
-                    "blocker_issues": _showrunner_selection_blockers(selection_audit),
-                    "accepted": False,
-                }
-            )
+            if not attempt_recorded:
+                attempt_records.append(
+                    {
+                        "attempt_number": len(attempt_records) + 1,
+                        "mode": "revision" if revision_request is not None else "initial",
+                        "generation_model": generation_model,
+                        "request_payload": request_payload if "request_payload" in locals() else None,
+                        "llm_output": {
+                            "raw_chars": len(raw or ""),
+                            "raw": raw,
+                            "parsed_type": type(parsed_plan).__name__ if parsed_plan is not None else None,
+                            "parsed": parsed_plan,
+                        },
+                        "normalized_plan": None,
+                        "selection_audit": selection_audit,
+                        "blocker_issues": _showrunner_selection_blockers(selection_audit),
+                        "accepted": False,
+                    }
+                )
             _dump_showrunner_debug(
                 run_id=run_id,
                 status="llm_or_normalize_failed",
@@ -371,16 +544,11 @@ async def plan_episode(state: PipelineState) -> dict:
             )
             raise
 
-        # Validate: all disputed claims have debate slots
-        for act in plan.get("acts", []):
-            act_disputed = [c for c in act.get("claim_ids", []) if c in disputed_ids]
-            act_conflicts = [
-                conflict
-                for conflict in conflicts_summary
-                if set(conflict.get("claim_ids", [])) & set(act.get("claim_ids", []))
-            ]
-            if (act_disputed or act_conflicts) and act.get("content_quotas", {}).get("conflicts", 0) < 1:
-                act.setdefault("content_quotas", {})["conflicts"] = max(1, len(act_disputed) or len(act_conflicts))
+        _align_conflict_quotas(
+            plan,
+            disputed_ids=disputed_ids,
+            conflicts_summary=conflicts_summary,
+        )
 
         # Update manifest
         if manifest:
@@ -390,7 +558,11 @@ async def plan_episode(state: PipelineState) -> dict:
 
     _dump_showrunner_debug(
         run_id=run_id,
-        status="ok",
+        status=(
+            "ok_with_selection_audit_blockers"
+            if _showrunner_selection_blockers(selection_audit)
+            else "ok"
+        ),
         input_payload=prompt_payload,
         llm_raw_output=raw,
         parsed_plan=parsed_plan,
@@ -411,6 +583,36 @@ def _positive_int(value, default: int) -> int:
     except (TypeError, ValueError):
         return default
     return parsed if parsed > 0 else default
+
+
+def _align_conflict_quotas(
+    plan: dict,
+    *,
+    disputed_ids: list[str],
+    conflicts_summary: list[dict],
+) -> dict:
+    disputed_set = set(disputed_ids)
+    for act in plan.get("acts", []):
+        if not isinstance(act, dict):
+            continue
+        claim_ids = set(_id_list(act.get("claim_ids")))
+        quotas = act.get("content_quotas")
+        if not isinstance(quotas, dict):
+            quotas = {}
+            act["content_quotas"] = quotas
+        act_disputed = claim_ids & disputed_set
+        act_conflicts = [
+            conflict
+            for conflict in conflicts_summary
+            if claim_ids & set(_id_list(conflict.get("claim_ids")))
+        ]
+        if not act_disputed and not act_conflicts:
+            quotas["conflicts"] = 0
+            continue
+        required_conflicts = max(1, len(act_disputed), len(act_conflicts))
+        if _positive_int(quotas.get("conflicts"), 0) < required_conflicts:
+            quotas["conflicts"] = required_conflicts
+    return plan
 
 
 def _build_showrunner_prompt_payload(
@@ -511,11 +713,16 @@ def _compact_selection_act_view(plan: dict, claim_lookup: dict[str, dict[str, An
                 "story_role": str(act.get("story_role") or ""),
                 "title": str(act.get("title") or ""),
                 "purpose": str(act.get("purpose") or ""),
+                "act_job": str(act.get("act_job") or ""),
                 "internal_arc": str(act.get("internal_arc") or ""),
                 "opening_question": str(act.get("opening_question") or ""),
                 "ending_turn": str(act.get("ending_turn") or ""),
                 "estimated_duration_seconds": _positive_int(act.get("estimated_duration_seconds"), 0),
+                "backbone_claim_ids": _id_list(act.get("backbone_claim_ids")),
+                "support_claim_ids": _id_list(act.get("support_claim_ids")),
+                "callback_claim_ids": _id_list(act.get("callback_claim_ids")),
                 "claim_ids": claim_ids,
+                "why_this_is_enough": str(act.get("why_this_is_enough") or ""),
                 "claims": [
                     _compact_selection_claim_view(claim_lookup[claim_id])
                     for claim_id in claim_ids
@@ -529,46 +736,38 @@ def _compact_selection_act_view(plan: dict, claim_lookup: dict[str, dict[str, An
 def _normalize_showrunner_selection_issues(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         return []
-    allowed_types = {
-        "weak_claim_selected",
-        "strong_claim_omitted",
-        "act_overpacked_same_move",
-        "payoff_fresh_explainer_load",
-        "goal_misalignment",
-        "act_count_too_low",
-        "act_combines_incompatible_jobs",
-        "hook_overweights_decorative_detail",
-        "minimal_spine_missing",
-    }
     allowed_severities = {"low", "medium", "high"}
+    allowed_scopes = {"episode", "act", "claim_role", "claim"}
+    allowed_revision_modes = {"local_edit", "act_rebuild", "episode_rebuild"}
     normalized: list[dict[str, Any]] = []
     for raw_issue in value:
         if not isinstance(raw_issue, dict):
             continue
-        issue_type = str(raw_issue.get("type") or "").strip()
         severity = str(raw_issue.get("severity") or "").strip().lower()
-        if issue_type not in allowed_types or severity not in allowed_severities:
+        scope = str(raw_issue.get("scope") or "").strip().lower()
+        revision_mode = str(raw_issue.get("revision_mode") or "").strip().lower()
+        if severity not in allowed_severities or scope not in allowed_scopes or revision_mode not in allowed_revision_modes:
             continue
         issue: dict[str, Any] = {
-            "type": issue_type,
             "severity": severity,
-            "why_it_hurts": str(raw_issue.get("why_it_hurts") or "").strip(),
+            "scope": scope,
+            "revision_mode": revision_mode,
+            "diagnosis": str(raw_issue.get("diagnosis") or raw_issue.get("why_it_hurts") or "").strip(),
             "fix_direction": str(raw_issue.get("fix_direction") or "").strip(),
         }
         act_number = raw_issue.get("act_number")
         if isinstance(act_number, int) and act_number > 0:
             issue["act_number"] = act_number
-        selected_claim_ids = [item for item in raw_issue.get("selected_claim_ids", []) if isinstance(item, str)]
-        omitted_claim_ids = [item for item in raw_issue.get("omitted_claim_ids", []) if isinstance(item, str)]
-        minimal_spine_claim_ids = [
-            item for item in raw_issue.get("minimal_spine_claim_ids", []) if isinstance(item, str)
-        ]
-        if selected_claim_ids:
-            issue["selected_claim_ids"] = selected_claim_ids
-        if omitted_claim_ids:
-            issue["omitted_claim_ids"] = omitted_claim_ids
-        if minimal_spine_claim_ids:
-            issue["minimal_spine_claim_ids"] = minimal_spine_claim_ids
+        for field in (
+            "affected_claim_ids",
+            "minimal_backbone_claim_ids",
+            "drop_or_demote_claim_ids",
+            "add_or_promote_claim_ids",
+            "support_or_callback_claim_ids",
+        ):
+            claim_ids = [item for item in raw_issue.get(field, []) if isinstance(item, str)]
+            if claim_ids:
+                issue[field] = claim_ids
         normalized.append(issue)
     return normalized
 
@@ -592,48 +791,108 @@ def _validate_showrunner_selection_issue_ids(
     known_ids = all_ids or selected_ids | omitted_ids
     validated: list[dict[str, Any]] = []
     for issue in issues:
-        issue_type = issue.get("type")
-        selected_claim_ids = [
+        affected_claim_ids = [
             claim_id
-            for claim_id in issue.get("selected_claim_ids", [])
-            if isinstance(claim_id, str) and claim_id in selected_ids
-        ]
-        omitted_claim_ids = [
-            claim_id
-            for claim_id in issue.get("omitted_claim_ids", [])
-            if isinstance(claim_id, str) and claim_id in omitted_ids
-        ]
-        minimal_spine_claim_ids = [
-            claim_id
-            for claim_id in issue.get("minimal_spine_claim_ids", [])
+            for claim_id in issue.get("affected_claim_ids", [])
             if isinstance(claim_id, str) and claim_id in known_ids
         ]
-        if issue_type in {
-            "weak_claim_selected",
-            "act_overpacked_same_move",
-            "payoff_fresh_explainer_load",
-            "hook_overweights_decorative_detail",
-        } and not selected_claim_ids:
-            continue
-        if issue_type == "strong_claim_omitted" and not omitted_claim_ids:
-            continue
-        if issue_type == "minimal_spine_missing" and not (minimal_spine_claim_ids or omitted_claim_ids):
+        minimal_backbone_claim_ids = [
+            claim_id
+            for claim_id in issue.get("minimal_backbone_claim_ids", [])
+            if isinstance(claim_id, str) and claim_id in known_ids
+        ]
+        drop_or_demote_claim_ids = [
+            claim_id
+            for claim_id in issue.get("drop_or_demote_claim_ids", [])
+            if isinstance(claim_id, str) and claim_id in selected_ids
+        ]
+        add_or_promote_claim_ids = [
+            claim_id
+            for claim_id in issue.get("add_or_promote_claim_ids", [])
+            if isinstance(claim_id, str) and claim_id in known_ids
+        ]
+        support_or_callback_claim_ids = [
+            claim_id
+            for claim_id in issue.get("support_or_callback_claim_ids", [])
+            if isinstance(claim_id, str) and claim_id in selected_ids
+        ]
+        has_valid_claim_reference = any(
+            (
+                affected_claim_ids,
+                minimal_backbone_claim_ids,
+                drop_or_demote_claim_ids,
+                add_or_promote_claim_ids,
+                support_or_callback_claim_ids,
+            )
+        )
+        if issue.get("scope") in {"claim", "claim_role"} and not has_valid_claim_reference:
             continue
         cleaned = dict(issue)
-        if selected_claim_ids:
-            cleaned["selected_claim_ids"] = selected_claim_ids
-        else:
-            cleaned.pop("selected_claim_ids", None)
-        if omitted_claim_ids:
-            cleaned["omitted_claim_ids"] = omitted_claim_ids
-        else:
-            cleaned.pop("omitted_claim_ids", None)
-        if minimal_spine_claim_ids:
-            cleaned["minimal_spine_claim_ids"] = minimal_spine_claim_ids
-        else:
-            cleaned.pop("minimal_spine_claim_ids", None)
+        cleaned["affected_claim_ids"] = affected_claim_ids
+        cleaned["minimal_backbone_claim_ids"] = minimal_backbone_claim_ids
+        cleaned["drop_or_demote_claim_ids"] = drop_or_demote_claim_ids
+        cleaned["add_or_promote_claim_ids"] = add_or_promote_claim_ids
+        cleaned["support_or_callback_claim_ids"] = support_or_callback_claim_ids
+        for field in (
+            "affected_claim_ids",
+            "minimal_backbone_claim_ids",
+            "drop_or_demote_claim_ids",
+            "add_or_promote_claim_ids",
+            "support_or_callback_claim_ids",
+        ):
+            if not cleaned[field]:
+                cleaned.pop(field, None)
         validated.append(cleaned)
     return validated
+
+
+def _selection_audit_raw_signals_failure(raw: str) -> bool:
+    compact = "".join(str(raw or "").lower().split())
+    return (
+        '"passed":false' in compact
+        or '"severity":"medium"' in compact
+        or '"severity":"high"' in compact
+    )
+
+
+def _selection_audit_parse_failure_response(raw: str, exc: Exception) -> dict[str, Any]:
+    if _selection_audit_raw_signals_failure(raw):
+        return {
+            "passed": False,
+            "rationale": (
+                "Selection audit returned invalid JSON while signaling a failure; treating it as blocking "
+                "instead of accepting an unaudited plan."
+            ),
+            "issues": [
+                {
+                    "severity": "high",
+                    "scope": "episode",
+                    "revision_mode": "episode_rebuild",
+                    "diagnosis": "Selection audit output was invalid or truncated while indicating the plan failed.",
+                    "fix_direction": (
+                        "Revise the candidate and rerun the audit with compact JSON; do not accept this plan "
+                        "as auditor-approved."
+                    ),
+                }
+            ],
+            "audit_failed": True,
+            "raw_signaled_failure": True,
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+            "raw": raw,
+            "parsed": None,
+        }
+    return {
+        "passed": True,
+        "rationale": "",
+        "issues": [],
+        "audit_failed": True,
+        "raw_signaled_failure": False,
+        "error_type": type(exc).__name__,
+        "error": str(exc),
+        "raw": raw,
+        "parsed": None,
+    }
 
 
 async def _run_showrunner_selection_audit(
@@ -659,11 +918,13 @@ async def _run_showrunner_selection_audit(
         {
             "episode_goal": prompt_payload.get("episode_goal", ""),
             "root_question": prompt_payload.get("root_question", ""),
+            "duration_target_seconds": prompt_payload.get("duration_target_seconds", 0),
             "acts": _compact_selection_act_view(audit_plan, claim_lookup),
             "omitted_claims": omitted_claims,
             "task": (
                 "Audit the selected backbone for editorial selection/design mistakes only. "
-                "Prefer medium/high issues. If the plan is directionally sound, pass it."
+                "Prefer medium/high issues. Do not approve coherence; test whether omitted alternatives "
+                "would materially improve the listener transformation. Return compact JSON only."
             ),
         },
         ensure_ascii=False,
@@ -673,22 +934,17 @@ async def _run_showrunner_selection_audit(
         raw = await call_haiku_structured(
             system=SHOWRUNNER_SELECTION_AUDIT_SYSTEM,
             prompt=audit_prompt,
-            max_tokens=2048,
+            max_tokens=SHOWRUNNER_SELECTION_AUDIT_MAX_TOKENS,
         )
         parsed = parse_llm_json(raw)
     except Exception as exc:
+        failure_response = _selection_audit_parse_failure_response(raw, exc)
         logger.warning(
-            "Showrunner selection audit failed after a valid candidate plan; accepting candidate without selection retry: %s",
+            "Showrunner selection audit failed after a valid candidate plan; raw_signaled_failure=%s: %s",
+            failure_response["raw_signaled_failure"],
             exc,
         )
-        return {
-            "passed": True,
-            "issues": [],
-            "audit_failed": True,
-            "error_type": type(exc).__name__,
-            "error": str(exc),
-            "raw": raw,
-        }
+        return failure_response
     issues = _limit_showrunner_selection_issues(
         _validate_showrunner_selection_issue_ids(
             _normalize_showrunner_selection_issues(parsed.get("issues") if isinstance(parsed, dict) else None),
@@ -697,8 +953,15 @@ async def _run_showrunner_selection_audit(
             all_ids=set(claim_lookup),
         )
     )
+    rationale = str(parsed.get("rationale") or "").strip() if isinstance(parsed, dict) else ""
     passed = (bool(parsed.get("passed", not issues)) if isinstance(parsed, dict) else not issues) or not issues
-    return {"passed": passed and not _showrunner_selection_blockers({"issues": issues}), "issues": issues}
+    return {
+        "passed": passed and not _showrunner_selection_blockers({"issues": issues}),
+        "rationale": rationale,
+        "issues": issues,
+        "raw": raw,
+        "parsed": parsed if isinstance(parsed, dict) else None,
+    }
 
 
 def _showrunner_selection_blockers(audit: dict[str, Any] | None) -> list[dict[str, Any]]:
@@ -727,6 +990,9 @@ def _shorten_plan_claim_ids(plan: dict, *, sid: ShortIdMap | None) -> dict:
         {
             **act,
             "claim_ids": sid.shorten_list(_uuid_list(act.get("claim_ids"))),
+            "backbone_claim_ids": sid.shorten_list(_uuid_list(act.get("backbone_claim_ids"))),
+            "support_claim_ids": sid.shorten_list(_uuid_list(act.get("support_claim_ids"))),
+            "callback_claim_ids": sid.shorten_list(_uuid_list(act.get("callback_claim_ids"))),
         }
         for act in acts_raw
         if isinstance(act, dict)
@@ -773,6 +1039,75 @@ def _uuid_list(value) -> list[str]:
     return out
 
 
+def _dedupe_preserve_order(values: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if not isinstance(value, str) or not value or value in seen:
+            continue
+        seen.add(value)
+        out.append(value)
+    return out
+
+
+def _union_preserve_order(*groups: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for group in groups:
+        for value in group:
+            if not value or value in seen:
+                continue
+            seen.add(value)
+            out.append(value)
+    return out
+
+
+def _restore_plan_claim_ids(value: Any, *, sid: ShortIdMap | None) -> list[str]:
+    return restore_id_list(value, sid) if sid else _uuid_list(value)
+
+
+def _normalize_act_claim_roles(act: dict[str, Any], *, sid: ShortIdMap | None) -> dict[str, list[str]]:
+    explicit_claim_ids = _restore_plan_claim_ids(act.get("claim_ids"), sid=sid)
+    roles_provided = any(isinstance(act.get(field), list) for field in SHOWRUNNER_ACT_CLAIM_ROLE_FIELDS)
+    backbone_claim_ids = _restore_plan_claim_ids(act.get("backbone_claim_ids"), sid=sid)
+    support_claim_ids = _restore_plan_claim_ids(act.get("support_claim_ids"), sid=sid)
+    callback_claim_ids = _restore_plan_claim_ids(act.get("callback_claim_ids"), sid=sid)
+
+    if not roles_provided:
+        claim_ids = _dedupe_preserve_order(explicit_claim_ids)
+        return {
+            "claim_ids": claim_ids,
+            "backbone_claim_ids": list(claim_ids),
+            "support_claim_ids": [],
+            "callback_claim_ids": [],
+        }
+
+    role_union = _union_preserve_order(backbone_claim_ids, support_claim_ids, callback_claim_ids)
+    unassigned_claim_ids = [claim_id for claim_id in explicit_claim_ids if claim_id not in set(role_union)]
+    if not backbone_claim_ids and unassigned_claim_ids:
+        backbone_claim_ids = list(unassigned_claim_ids)
+        unassigned_claim_ids = []
+
+    backbone_claim_ids = _dedupe_preserve_order(backbone_claim_ids)
+    backbone_set = set(backbone_claim_ids)
+    support_claim_ids = _dedupe_preserve_order(
+        [claim_id for claim_id in support_claim_ids + unassigned_claim_ids if claim_id not in backbone_set]
+    )
+    support_set = set(support_claim_ids)
+    callback_claim_ids = _dedupe_preserve_order(
+        [claim_id for claim_id in callback_claim_ids if claim_id not in backbone_set and claim_id not in support_set]
+    )
+    claim_ids = _union_preserve_order(backbone_claim_ids, support_claim_ids, callback_claim_ids)
+    if claim_ids and not backbone_claim_ids:
+        raise RuntimeError("Showrunner act selected support/callback claims but no backbone claims")
+    return {
+        "claim_ids": claim_ids,
+        "backbone_claim_ids": backbone_claim_ids,
+        "support_claim_ids": support_claim_ids,
+        "callback_claim_ids": callback_claim_ids,
+    }
+
+
 def _normalize_plan(plan, duration_target: int, *, sid: ShortIdMap | None = None) -> dict:
     if isinstance(plan, dict):
         acts_raw = plan.get("acts")
@@ -807,6 +1142,10 @@ def _normalize_plan(plan, duration_target: int, *, sid: ShortIdMap | None = None
         if not isinstance(purpose, str) or not purpose.strip():
             purpose = title.strip()
 
+        act_job = act.get("act_job")
+        if not isinstance(act_job, str):
+            act_job = ""
+
         internal_arc = act.get("internal_arc")
         if not isinstance(internal_arc, str):
             internal_arc = ""
@@ -819,12 +1158,19 @@ def _normalize_plan(plan, duration_target: int, *, sid: ShortIdMap | None = None
         if not isinstance(ending_turn, str):
             ending_turn = ""
 
+        why_this_is_enough = act.get("why_this_is_enough")
+        if not isinstance(why_this_is_enough, str):
+            why_this_is_enough = ""
+
+        claim_roles = _normalize_act_claim_roles(act, sid=sid)
+
         normalized_acts.append(
             {
                 "act_number": act_number,
                 "story_role": story_role.strip(),
                 "title": title.strip(),
                 "purpose": purpose.strip(),
+                "act_job": act_job.strip(),
                 "internal_arc": internal_arc.strip(),
                 "opening_question": opening_question.strip(),
                 "ending_turn": ending_turn.strip(),
@@ -832,9 +1178,13 @@ def _normalize_plan(plan, duration_target: int, *, sid: ShortIdMap | None = None
                     act.get("estimated_duration_seconds"),
                     default_act_duration,
                 ),
-                "claim_ids": restore_id_list(act.get("claim_ids"), sid) if sid else _uuid_list(act.get("claim_ids")),
+                "claim_ids": claim_roles["claim_ids"],
+                "backbone_claim_ids": claim_roles["backbone_claim_ids"],
+                "support_claim_ids": claim_roles["support_claim_ids"],
+                "callback_claim_ids": claim_roles["callback_claim_ids"],
                 "conflict_brief_ids": _uuid_list(act.get("conflict_brief_ids")),
                 "content_quotas": content_quotas,
+                "why_this_is_enough": why_this_is_enough.strip(),
             }
         )
 
@@ -873,6 +1223,7 @@ def _rebalance_act_claim_distribution(
 
     seen_claim_ids: set[str] = set()
     for idx, act in enumerate(acts):
+        roles_provided = any(isinstance(act.get(field), list) for field in SHOWRUNNER_ACT_CLAIM_ROLE_FIELDS)
         deduped_claim_ids: list[str] = []
         for claim_id in _uuid_list(act.get("claim_ids")):
             if claim_id in seen_claim_ids:
@@ -885,6 +1236,15 @@ def _rebalance_act_claim_distribution(
             seen_claim_ids.add(claim_id)
             deduped_claim_ids.append(claim_id)
         act["claim_ids"] = deduped_claim_ids
+        allowed_claim_ids = set(deduped_claim_ids)
+        for field in SHOWRUNNER_ACT_CLAIM_ROLE_FIELDS:
+            act[field] = [claim_id for claim_id in _uuid_list(act.get(field)) if claim_id in allowed_claim_ids]
+        if deduped_claim_ids and not act.get("backbone_claim_ids"):
+            if roles_provided:
+                raise RuntimeError(
+                    f"Showrunner act {_positive_int(act.get('act_number'), idx + 1)} has selected claims but no backbone claims"
+                )
+            act["backbone_claim_ids"] = list(deduped_claim_ids)
 
     assigned_claim_count = sum(len(_uuid_list(act.get("claim_ids"))) for act in acts)
     max_claims_per_act = _compute_max_claims_per_act(assigned_claim_count, len(acts))

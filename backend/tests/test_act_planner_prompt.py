@@ -23,6 +23,7 @@ from app.pipeline.phase5_planning.act_planner import (
     _run_llm_quality_checks,
     _scene_job,
     _scene_count_guidance,
+    _shorten_act_prompt_claim_role_ids,
     _split_scene_claim_roles,
     plan_act,
 )
@@ -35,9 +36,14 @@ def test_build_act_prompt_payload_carries_story_contract_and_branch_focus() -> N
         "story_role": "explain",
         "title": "How the machine holds together",
         "purpose": "Explain the mechanism and remove the mystery from the system.",
+        "act_job": "explain the reserve constraint without replaying the hook",
         "internal_arc": "mystery -> mechanism -> constraint -> resolution",
         "opening_question": "What stops private note issuance from spinning out of control?",
         "ending_turn": "The listener sees that trust comes from the rules, not the logos on the notes.",
+        "backbone_claim_ids": ["c1", "c2"],
+        "support_claim_ids": ["c3"],
+        "callback_claim_ids": [],
+        "why_this_is_enough": "The mechanism is clear with two backbone claims and one comparator support claim.",
         "estimated_duration_seconds": 480,
         "content_quotas": {"verified_facts": 5},
     }
@@ -162,10 +168,15 @@ def test_build_act_prompt_payload_carries_story_contract_and_branch_focus() -> N
 
     assert payload["output_language"] == "ru"
     assert payload["story_role"] == "explain"
+    assert payload["act_job"] == "explain the reserve constraint without replaying the hook"
     assert payload["purpose"].startswith("Explain the mechanism")
     assert payload["internal_arc"] == "mystery -> mechanism -> constraint -> resolution"
     assert payload["opening_question"].startswith("What stops private note issuance")
     assert payload["ending_turn"].startswith("The listener sees")
+    assert payload["backbone_claim_ids"] == ["c1", "c2"]
+    assert payload["support_claim_ids"] == ["c3"]
+    assert payload["callback_claim_ids"] == []
+    assert payload["why_this_is_enough"].startswith("The mechanism is clear")
     assert payload["scene_count_guidance"] == {"min_scenes": 5, "target_scenes": 6, "max_scenes": 7}
     assert payload["conflict_count"] == 0
     assert payload["prior_acts_primary_claims"] == [
@@ -266,6 +277,26 @@ def test_build_act_prompt_payload_carries_story_contract_and_branch_focus() -> N
             },
         },
     ]
+
+
+def test_shorten_act_prompt_claim_role_ids_shortens_role_fields() -> None:
+    claim_uuid_one = "11111111-1111-1111-1111-111111111111"
+    claim_uuid_two = "22222222-2222-2222-2222-222222222222"
+    claim_uuid_three = "33333333-3333-3333-3333-333333333333"
+    claim_sid = ShortIdMap([claim_uuid_one, claim_uuid_two, claim_uuid_three])
+
+    payload = _shorten_act_prompt_claim_role_ids(
+        {
+            "backbone_claim_ids": [claim_uuid_one],
+            "support_claim_ids": [claim_uuid_two],
+            "callback_claim_ids": [claim_uuid_three],
+        },
+        claim_sid=claim_sid,
+    )
+
+    assert payload["backbone_claim_ids"] == ["c1"]
+    assert payload["support_claim_ids"] == ["c2"]
+    assert payload["callback_claim_ids"] == ["c3"]
 
 
 def test_scene_count_guidance_tracks_duration_bands() -> None:
@@ -437,6 +468,11 @@ def test_act_planner_prompt_defines_positive_contract_and_hard_constraints() -> 
     assert "All human-readable output fields (`scene_strategy`, `description`, `transition_note`, `notes`, `listener_state_before`, `listener_state_after`, `required_bridge_from_previous_scene`, list items in `must_make_clear`, `must_not_assume`, `new_terms_to_introduce`) MUST be in `output_language`" in ACT_PLANNER_SYSTEM
     assert "the act should engage `opening_question` early, but this does not require a dedicated `hook` scene" in ACT_PLANNER_SYSTEM
     assert "the act must deliver `ending_turn`, but this does not require a dedicated `takeaway` or `summary` scene" in ACT_PLANNER_SYSTEM
+    assert "`act_job` says the concrete editorial job to protect" in ACT_PLANNER_SYSTEM
+    assert "Respect act-level claim roles" in ACT_PLANNER_SYSTEM
+    assert "Build the scene arc around `backbone_claim_ids`" in ACT_PLANNER_SYSTEM
+    assert "`support_claim_ids` may clarify or enrich a backbone scene, but should not create a standalone scene" in ACT_PLANNER_SYSTEM
+    assert "`callback_claim_ids` may appear only as established context" in ACT_PLANNER_SYSTEM
     assert "Decide the minimum set of distinct scene moves needed to satisfy the act contract." in ACT_PLANNER_SYSTEM
     assert "`scene_count_guidance` is a soft range, not a quota." in ACT_PLANNER_SYSTEM
     assert "Assign each claim one main home scene using `primary_claim_ids`." in ACT_PLANNER_SYSTEM
@@ -711,6 +747,37 @@ async def test_collect_beat_sheet_quality_issues_flags_structural_callback_only_
     assert _has_structural_overlap_failures(issues)
 
 
+async def test_collect_beat_sheet_quality_issues_flags_non_backbone_primary_claim() -> None:
+    backbone_claim = "11111111-1111-1111-1111-111111111111"
+    support_claim = "22222222-2222-2222-2222-222222222222"
+    beat_sheet = [
+        {
+            "scene": 1,
+            "type": "explanation",
+            "primary_claim_ids": [support_claim],
+            "callback_claim_ids": [],
+        }
+    ]
+
+    issues = await _collect_beat_sheet_quality_issues(
+        beat_sheet,
+        allowed_primary_claim_ids={backbone_claim},
+    )
+
+    assert issues == [
+        {
+            "severity": "structural",
+            "type": "non_backbone_primary_claim",
+            "scene": 1,
+            "scene_type": "explanation",
+            "message": "Scene uses support/callback material as fresh primary claim material.",
+            "primary_claim_ids": [support_claim],
+            "non_backbone_primary_claim_ids": [support_claim],
+        }
+    ]
+    assert _has_structural_overlap_failures(issues)
+
+
 def test_format_structural_retry_detail_for_callback_only_scene_allows_shorter_act() -> None:
     claim_id = "11111111-1111-1111-1111-111111111111"
     detail = _format_structural_retry_detail(
@@ -746,6 +813,34 @@ def test_format_structural_retry_detail_for_callback_only_scene_allows_shorter_a
     assert "delete it and return a shorter act" in detail
     assert "Scene 2 current move: apply" in detail
     assert "Same concrete anomaly claim." in detail
+
+
+def test_format_structural_retry_detail_for_non_backbone_primary_claim() -> None:
+    support_claim = "22222222-2222-2222-2222-222222222222"
+    detail = _format_structural_retry_detail(
+        {
+            "severity": "structural",
+            "type": "non_backbone_primary_claim",
+            "scene": 2,
+            "scene_type": "explanation",
+            "message": "Scene uses support/callback material as fresh primary claim material.",
+            "non_backbone_primary_claim_ids": [support_claim],
+        },
+        beat_sheet=[
+            {
+                "scene": 2,
+                "type": "explanation",
+                "scene_job": "apply",
+                "primary_claim_ids": [support_claim],
+                "callback_claim_ids": [],
+            }
+        ],
+        claim_statements_lookup={support_claim: "Support detail that should not create a standalone scene."},
+    )
+
+    assert "Build standalone scenes only from act-level `backbone_claim_ids`." in detail
+    assert "Scene 2 current move: apply" in detail
+    assert "Support detail that should not create a standalone scene." in detail
 
 
 def test_format_structural_retry_detail_for_description_mismatch_includes_callback_context() -> None:
@@ -1422,6 +1517,23 @@ async def test_plan_act_keeps_quality_retry_budget_after_timeout(monkeypatch: py
             raise next_response
         return json.dumps(next_response, ensure_ascii=False)
 
+    quality_check_calls = 0
+
+    async def _fake_run_llm_quality_checks(_beat_sheet, _claim_statements):
+        nonlocal quality_check_calls
+        quality_check_calls += 1
+        if quality_check_calls == 1:
+            return [
+                {
+                    "severity": "structural",
+                    "type": "description_overlap",
+                    "scene_a": 1,
+                    "scene_b": 2,
+                    "message": "Scenes 1 and 2 land the same insight: the same mechanism.",
+                }
+            ]
+        return []
+
     monkeypatch.setattr("app.pipeline.phase5_planning.act_planner.async_session_factory", lambda: db)
     monkeypatch.setattr(
         "app.pipeline.phase5_planning.act_planner.load_planning_context",
@@ -1430,6 +1542,10 @@ async def test_plan_act_keeps_quality_retry_budget_after_timeout(monkeypatch: py
     monkeypatch.setattr(
         "app.pipeline.phase5_planning.act_planner.call_sonnet_structured",
         _fake_call_sonnet_structured,
+    )
+    monkeypatch.setattr(
+        "app.pipeline.phase5_planning.act_planner._run_llm_quality_checks",
+        _fake_run_llm_quality_checks,
     )
     monkeypatch.setattr(
         "app.pipeline.phase5_planning.act_planner.publish_event",
