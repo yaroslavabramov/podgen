@@ -60,11 +60,6 @@ def test_normalize_plan_preserves_story_fields() -> None:
                     "backbone_claim_ids": ["11111111-1111-1111-1111-111111111111"],
                     "support_claim_ids": ["22222222-2222-2222-2222-222222222222"],
                     "callback_claim_ids": ["33333333-3333-3333-3333-333333333333"],
-                    "claim_ids": [
-                        "11111111-1111-1111-1111-111111111111",
-                        "22222222-2222-2222-2222-222222222222",
-                        "33333333-3333-3333-3333-333333333333",
-                    ],
                     "conflict_brief_ids": [],
                     "content_quotas": {},
                     "why_this_is_enough": "The act needs the anomaly and one support detail, not the whole mechanism.",
@@ -103,7 +98,6 @@ def test_normalize_plan_rejects_support_only_role_payload() -> None:
                         "act_number": 1,
                         "story_role": "setup",
                         "title": "Support only",
-                        "claim_ids": [claim_id],
                         "backbone_claim_ids": [],
                         "support_claim_ids": [claim_id],
                         "callback_claim_ids": [],
@@ -157,6 +151,11 @@ def test_showrunner_prompt_does_not_hardcode_three_acts() -> None:
     assert '"backbone_claim_ids": ["id1"]' in SHOWRUNNER_SYSTEM
     assert '"support_claim_ids": ["id2"]' in SHOWRUNNER_SYSTEM
     assert '"callback_claim_ids": ["id3"]' in SHOWRUNNER_SYSTEM
+    assert '"claim_ids": [' not in SHOWRUNNER_SYSTEM
+    assert "Do not output a combined `claim_ids` list" in SHOWRUNNER_SYSTEM
+    act_schema = SHOWRUNNER_PLAN_SCHEMA["properties"]["acts"]["items"]
+    assert "claim_ids" not in act_schema["properties"]
+    assert "claim_ids" not in act_schema["required"]
     assert "Adjacent acts should usually have different `internal_arc` and `ending_turn` shapes." in SHOWRUNNER_SYSTEM
     assert "Treat `story_role` as listener work, not topic label or fixed position." in SHOWRUNNER_SYSTEM
     assert "`episode_goal` is the user's stated intent" in SHOWRUNNER_SYSTEM
@@ -168,6 +167,8 @@ def test_showrunner_prompt_does_not_hardcode_three_acts() -> None:
     assert "split selected material by airtime role" in SHOWRUNNER_SYSTEM
     assert "`backbone_claim_ids` are the claims that scenes should be built around" in SHOWRUNNER_SYSTEM
     assert "`support_claim_ids` may be used inside those scenes but should not create scenes by themselves" in SHOWRUNNER_SYSTEM
+    assert "Match question type to backbone." in SHOWRUNNER_SYSTEM
+    assert "A chronology-only spine answers what happened, not why" in SHOWRUNNER_SYSTEM
     assert "one main listener question" in SHOWRUNNER_SYSTEM
     assert "not from a fixed universal arc" in SHOWRUNNER_SYSTEM
     assert "Silently compare possible centers of gravity" in SHOWRUNNER_SYSTEM
@@ -181,6 +182,7 @@ def test_showrunner_prompt_does_not_hardcode_three_acts() -> None:
     assert "Merge candidate act material only when it would produce substantially the same `opening_question`, `internal_arc`, and `ending_turn`." in SHOWRUNNER_SYSTEM
     assert "Role purity beats compactness." in SHOWRUNNER_SYSTEM
     assert "For setup/hook work, pose the paradox" in SHOWRUNNER_SYSTEM
+    assert "backbone should carry visible anomaly/stakes, not the answer" in SHOWRUNNER_SYSTEM
     assert "do not make answer/control/issuance-condition/reserve/peg/mechanism claims backbone" in SHOWRUNNER_SYSTEM
     assert "Foreshadow at most as support/callback so later explain/resolve acts still land the reveal" in SHOWRUNNER_SYSTEM
     assert "Before keeping a claim in an act, ask whether removing it would force a genuinely different beat." in SHOWRUNNER_SYSTEM
@@ -199,11 +201,13 @@ def test_showrunner_prompt_does_not_hardcode_three_acts() -> None:
     assert "A claim is weak backbone when it mainly lists surface details" in SHOWRUNNER_SYSTEM
     assert "Vivid detail is an entrance, not a destination." in SHOWRUNNER_SYSTEM
     assert "Dense mechanisms, crises, and consequential decisions need more oxygen" in SHOWRUNNER_SYSTEM
+    assert "Never require stress-tests by default" in SHOWRUNNER_SYSTEM
+    assert "proof-under-pressure case only when it beats weaker support/comparator/context" in SHOWRUNNER_SYSTEM
     assert "treat that as a sign of overload" in SHOWRUNNER_SYSTEM
     assert "one dominant explanatory spine" in SHOWRUNNER_SYSTEM
     assert "real-world test" in SHOWRUNNER_SYSTEM
     assert "Ignore research-tree provenance when it does not help the editorial decision." in SHOWRUNNER_SYSTEM
-    assert "Comparative material should stay selective; one strong outside comparator is usually enough for one beat." in SHOWRUNNER_SYSTEM
+    assert "Comparative material should stay selective." in SHOWRUNNER_SYSTEM
     assert "total_claim_count" in SHOWRUNNER_SYSTEM
     assert "Use `total_claim_count` as an overload smell, not a quota" in SHOWRUNNER_SYSTEM
     assert "The last act should include takeaways and a clear \"why this matters\" payoff." in SHOWRUNNER_SYSTEM
@@ -221,6 +225,7 @@ def test_showrunner_revision_prompt_uses_revision_contract() -> None:
     assert "`revision_request.selection_issues`" in SHOWRUNNER_REVISION_SYSTEM
     assert "revise `current_plan`, not regenerate from scratch" in SHOWRUNNER_REVISION_SYSTEM
     assert "Treat `revision_request.selection_issues` as the highest-priority editorial diagnosis" in SHOWRUNNER_REVISION_SYSTEM
+    assert "Do not output a combined `claim_ids` list" in SHOWRUNNER_REVISION_SYSTEM
     assert "resolve tradeoffs across issues" in SHOWRUNNER_REVISION_SYSTEM
     assert "`minimal_backbone_claim_ids`" in SHOWRUNNER_REVISION_SYSTEM
     assert "`revision_mode`" in SHOWRUNNER_REVISION_SYSTEM
@@ -233,6 +238,10 @@ def test_showrunner_revision_prompt_uses_revision_contract() -> None:
     assert "Choose the order that best serves the act's own `act_job`" in SHOWRUNNER_REVISION_SYSTEM
     assert "Before applying a requested claim swap, identify the listener-work gap it fixes." in SHOWRUNNER_REVISION_SYSTEM
     assert "If the issue is only claim preference, inventory expansion, or stronger-but-nonessential detail" in SHOWRUNNER_REVISION_SYSTEM
+    assert "a requested causal/choice/rationale claim that fixes the gap belongs in the implicated act's backbone" in SHOWRUNNER_REVISION_SYSTEM
+    assert "Do not swing in the next revision by demoting a causal/rationale claim merely because it answers well" in SHOWRUNNER_REVISION_SYSTEM
+    assert "keep the backbone on visible anomaly/stakes" in SHOWRUNNER_REVISION_SYSTEM
+    assert "Do not add a stress-test/case-study by default" in SHOWRUNNER_REVISION_SYSTEM
 
 
 def test_showrunner_selection_audit_prompt_uses_scope_and_revision_mode_contract() -> None:
@@ -246,6 +255,10 @@ def test_showrunner_selection_audit_prompt_uses_scope_and_revision_mode_contract
     assert "Audit only material selection/design failures" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "claim is in the wrong airtime role" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "Audit the same airtime-worthiness standard the showrunner used" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "Mandatory first check" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "answer/control/issuance-condition/reserve/peg/mechanism claims kept out of backbone" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "Causal-claim anti-pendulum" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "do not call a causal/rationale claim premature when it directly answers the current `opening_question`/`act_job`" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "Would the act still work if a backbone claim were removed?" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "`estimated_duration_seconds` match the act's actual listener work" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "lightweight hook/setup/bridge being padded" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
@@ -256,10 +269,17 @@ def test_showrunner_selection_audit_prompt_uses_scope_and_revision_mode_contract
     assert "Do dense mechanisms, crises, and consequential decisions get enough oxygen" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "Is the plan coverage-first" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "Compare selected backbone claims against omitted claims as opportunity cost" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "Do not require a stress-test/case-study beat for every topic" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "claims actually contain it" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "the plan lacks an equivalent test" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "If an act asks why/what allowed/why persisted but backbone only proves sequence or existence" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "avoid treating zero-direct-support claims as backbone" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "Return compact JSON only" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "rationale <= 90 words" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
-    assert "Do not pass merely because the plan is coherent or uses an obvious arc" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "Pass when the selected act spine performs the stated listener work" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "remaining alternatives are optional improvements" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "Use `medium` or `high` only for blockers" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "Use `low` for non-blocking improvements" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "Each issue must first name the broken listener-work invariant" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "Claim IDs are evidence for that diagnosis, not the diagnosis itself." in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "Do not ask for claim swaps just because an omitted claim is interesting" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
@@ -270,6 +290,7 @@ def test_showrunner_selection_audit_prompt_uses_scope_and_revision_mode_contract
     assert "Always include `rationale`" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "name the strongest omitted opportunity-cost candidate" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "Resolve tradeoffs inside the audit" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "Each selected claim object includes `role`" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "do not ask to remove a claim as redundant and then require it as missing support" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "weak_claim_selected" not in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "hook_overweights_decorative_detail" not in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
@@ -424,7 +445,8 @@ def test_build_showrunner_revision_payload_includes_current_plan_and_issues() ->
         sid=sid,
     )
 
-    assert payload["current_plan"]["acts"][0]["claim_ids"] == ["c1"]
+    assert "claim_ids" not in payload["current_plan"]["acts"][0]
+    assert payload["current_plan"]["acts"][0]["backbone_claim_ids"] == ["c1"]
     assert payload["revision_request"]["message"] == "Fix the plan."
 
 
@@ -449,7 +471,7 @@ def test_shorten_plan_claim_ids_preserves_act_claim_roles() -> None:
         sid=sid,
     )
 
-    assert payload["acts"][0]["claim_ids"] == ["c1", "c2", "c3"]
+    assert "claim_ids" not in payload["acts"][0]
     assert payload["acts"][0]["backbone_claim_ids"] == ["c1"]
     assert payload["acts"][0]["support_claim_ids"] == ["c2"]
     assert payload["acts"][0]["callback_claim_ids"] == ["c3"]
@@ -649,6 +671,130 @@ def test_validate_showrunner_selection_issue_ids_handles_scoped_structural_issue
     ]
 
 
+def test_validate_showrunner_selection_issue_ids_drops_contradictory_role_repairs() -> None:
+    validated = _validate_showrunner_selection_issue_ids(
+        [
+            {
+                "severity": "high",
+                "scope": "act",
+                "revision_mode": "act_rebuild",
+                "act_number": 4,
+                "diagnosis": "The issue asks for the same claim as required backbone and demotion.",
+                "fix_direction": "This should not survive post-validation.",
+                "minimal_backbone_claim_ids": ["c1", "c2"],
+                "drop_or_demote_claim_ids": ["c1"],
+                "support_or_callback_claim_ids": ["c1"],
+                "add_or_promote_claim_ids": ["c3"],
+            }
+        ],
+        selected_ids={"c1", "c2"},
+        omitted_ids={"c3"},
+        all_ids={"c1", "c2", "c3"},
+        act_roles={
+            4: {
+                "backbone": {"c1", "c2"},
+                "support": set(),
+                "callback": set(),
+                "selected": {"c1", "c2"},
+            }
+        },
+    )
+
+    assert validated == []
+
+
+def test_validate_showrunner_selection_issue_ids_filters_noop_and_mismatched_act_roles() -> None:
+    validated = _validate_showrunner_selection_issue_ids(
+        [
+            {
+                "severity": "medium",
+                "scope": "claim_role",
+                "revision_mode": "local_edit",
+                "act_number": 1,
+                "diagnosis": "Callback demotion is a no-op.",
+                "fix_direction": "Should drop.",
+                "drop_or_demote_claim_ids": ["c3"],
+            },
+            {
+                "severity": "medium",
+                "scope": "claim_role",
+                "revision_mode": "local_edit",
+                "act_number": 1,
+                "diagnosis": "Claim is selected in another act, not this one.",
+                "fix_direction": "Should drop.",
+                "drop_or_demote_claim_ids": ["c4"],
+            },
+            {
+                "severity": "medium",
+                "scope": "claim_role",
+                "revision_mode": "local_edit",
+                "act_number": 1,
+                "diagnosis": "Already backbone.",
+                "fix_direction": "Should drop.",
+                "add_or_promote_claim_ids": ["c1"],
+            },
+            {
+                "severity": "medium",
+                "scope": "claim_role",
+                "revision_mode": "local_edit",
+                "act_number": 1,
+                "diagnosis": "Backbone claim can be demoted.",
+                "fix_direction": "Move to support.",
+                "drop_or_demote_claim_ids": ["c1"],
+                "support_or_callback_claim_ids": ["c1"],
+            },
+            {
+                "severity": "medium",
+                "scope": "claim",
+                "revision_mode": "local_edit",
+                "act_number": 1,
+                "diagnosis": "Support claim can be promoted.",
+                "fix_direction": "Promote to backbone.",
+                "add_or_promote_claim_ids": ["c2"],
+            },
+        ],
+        selected_ids={"c1", "c2", "c3", "c4"},
+        omitted_ids={"c5"},
+        all_ids={"c1", "c2", "c3", "c4", "c5"},
+        act_roles={
+            1: {
+                "backbone": {"c1"},
+                "support": {"c2"},
+                "callback": {"c3"},
+                "selected": {"c1", "c2", "c3"},
+            },
+            2: {
+                "backbone": {"c4"},
+                "support": set(),
+                "callback": set(),
+                "selected": {"c4"},
+            },
+        },
+    )
+
+    assert validated == [
+        {
+            "severity": "medium",
+            "scope": "claim_role",
+            "revision_mode": "local_edit",
+            "act_number": 1,
+            "diagnosis": "Backbone claim can be demoted.",
+            "fix_direction": "Move to support.",
+            "drop_or_demote_claim_ids": ["c1"],
+            "support_or_callback_claim_ids": ["c1"],
+        },
+        {
+            "severity": "medium",
+            "scope": "claim",
+            "revision_mode": "local_edit",
+            "act_number": 1,
+            "diagnosis": "Support claim can be promoted.",
+            "fix_direction": "Promote to backbone.",
+            "add_or_promote_claim_ids": ["c2"],
+        },
+    ]
+
+
 def test_selection_audit_raw_signals_failure_detects_invalid_negative_audits() -> None:
     assert _selection_audit_raw_signals_failure('```json\n{"passed": false, "issues": []')
     assert _selection_audit_raw_signals_failure('{"issues":[{"severity":"high"}')
@@ -701,6 +847,7 @@ def test_selection_audit_uses_short_id_namespace_for_normalized_plan() -> None:
     assert act_view["backbone_claim_ids"] == ["c1"]
     assert act_view["support_claim_ids"] == []
     assert act_view["callback_claim_ids"] == []
+    assert "claim_ids" not in act_view
     assert act_view["why_this_is_enough"] == "One claim carries the mechanism."
     assert act_view["claims"] == [
         {
@@ -712,6 +859,7 @@ def test_selection_audit_uses_short_id_namespace_for_normalized_plan() -> None:
             "has_illustrative": False,
             "direct_support_count": 2,
             "source_diversity": 2,
+            "role": "backbone",
         }
     ]
 
