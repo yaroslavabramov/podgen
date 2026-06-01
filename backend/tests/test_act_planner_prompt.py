@@ -22,7 +22,6 @@ from app.pipeline.phase5_planning.act_planner import (
     _recover_scene_evidence_ids,
     _run_llm_quality_checks,
     _scene_job,
-    _scene_count_guidance,
     _shorten_act_prompt_claim_role_ids,
     _split_scene_claim_roles,
     plan_act,
@@ -177,7 +176,7 @@ def test_build_act_prompt_payload_carries_story_contract_and_branch_focus() -> N
     assert payload["support_claim_ids"] == ["c3"]
     assert payload["callback_claim_ids"] == []
     assert payload["why_this_is_enough"].startswith("The mechanism is clear")
-    assert payload["scene_count_guidance"] == {"min_scenes": 5, "target_scenes": 6, "max_scenes": 7}
+    assert "scene_count_guidance" not in payload
     assert payload["conflict_count"] == 0
     assert payload["prior_acts_primary_claims"] == [
         {
@@ -297,13 +296,6 @@ def test_shorten_act_prompt_claim_role_ids_shortens_role_fields() -> None:
     assert payload["backbone_claim_ids"] == ["c1"]
     assert payload["support_claim_ids"] == ["c2"]
     assert payload["callback_claim_ids"] == ["c3"]
-
-
-def test_scene_count_guidance_tracks_duration_bands() -> None:
-    assert _scene_count_guidance(180) == {"min_scenes": 3, "target_scenes": 4, "max_scenes": 5}
-    assert _scene_count_guidance(300) == {"min_scenes": 4, "target_scenes": 5, "max_scenes": 6}
-    assert _scene_count_guidance(420) == {"min_scenes": 5, "target_scenes": 6, "max_scenes": 7}
-    assert _scene_count_guidance(600) == {"min_scenes": 6, "target_scenes": 7, "max_scenes": 8}
 
 
 def test_act_structure_signature_summarizes_generic_shape() -> None:
@@ -474,7 +466,8 @@ def test_act_planner_prompt_defines_positive_contract_and_hard_constraints() -> 
     assert "`support_claim_ids` may clarify or enrich a backbone scene, but should not create a standalone scene" in ACT_PLANNER_SYSTEM
     assert "`callback_claim_ids` may appear only as established context" in ACT_PLANNER_SYSTEM
     assert "Decide the minimum set of distinct scene moves needed to satisfy the act contract." in ACT_PLANNER_SYSTEM
-    assert "`scene_count_guidance` is a soft range, not a quota." in ACT_PLANNER_SYSTEM
+    assert "Return only the scenes required by the act contract and available backbone moves." in ACT_PLANNER_SYSTEM
+    assert "Do not create a scene to fill time, match an assumed count, preserve a template, or use leftover support material." in ACT_PLANNER_SYSTEM
     assert "Assign each claim one main home scene using `primary_claim_ids`." in ACT_PLANNER_SYSTEM
     assert "For every scene, think in listener terms" in ACT_PLANNER_SYSTEM
     assert "`primary_claim_ids` should be unique within the act." in ACT_PLANNER_SYSTEM
@@ -809,7 +802,7 @@ def test_format_structural_retry_detail_for_callback_only_scene_allows_shorter_a
         },
     )
 
-    assert "Do NOT keep it just to preserve a template or to hit `scene_count_guidance`." in detail
+    assert "Do NOT keep it just to preserve a template, fill time, or satisfy an assumed scene count." in detail
     assert "delete it and return a shorter act" in detail
     assert "Scene 2 current move: apply" in detail
     assert "Same concrete anomaly claim." in detail

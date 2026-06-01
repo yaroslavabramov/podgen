@@ -164,32 +164,34 @@ def test_showrunner_prompt_does_not_hardcode_three_acts() -> None:
     assert "First choose the smallest coherent editorial backbone" in SHOWRUNNER_SYSTEM
     assert 'Start by imagining the episode pitch to an editor' in SHOWRUNNER_SYSTEM
     assert "then decide how many listener questions it supports" in SHOWRUNNER_SYSTEM
+    assert "Treat each act's `title`, `act_job`, `opening_question`, and `ending_turn` as a contract" in SHOWRUNNER_SYSTEM
+    assert "Backbone claims must directly pay that contract" in SHOWRUNNER_SYSTEM
     assert "split selected material by airtime role" in SHOWRUNNER_SYSTEM
     assert "`backbone_claim_ids` are the claims that scenes should be built around" in SHOWRUNNER_SYSTEM
     assert "`support_claim_ids` may be used inside those scenes but should not create scenes by themselves" in SHOWRUNNER_SYSTEM
     assert "Match question type to backbone." in SHOWRUNNER_SYSTEM
-    assert "A chronology-only spine answers what happened, not why" in SHOWRUNNER_SYSTEM
+    assert "if it asks how, backbone needs mechanism/process" in SHOWRUNNER_SYSTEM
+    assert "if it asks so-what, backbone needs consequence/meaning" in SHOWRUNNER_SYSTEM
     assert "one main listener question" in SHOWRUNNER_SYSTEM
     assert "not from a fixed universal arc" in SHOWRUNNER_SYSTEM
-    assert "Silently compare possible centers of gravity" in SHOWRUNNER_SYSTEM
-    assert "Treat those centers of gravity as options, not templates." in SHOWRUNNER_SYSTEM
-    assert "Any order can work if `opening_question`, `internal_arc`, `ending_turn`, and backbone claims make the listener transformation clear." in SHOWRUNNER_SYSTEM
+    assert "Compare possible centers of gravity as options, not templates" in SHOWRUNNER_SYSTEM
+    assert "Any order can work if act contracts and backbone claims make the listener transformation clear" in SHOWRUNNER_SYSTEM
     assert "Do not default to present-anomaly -> chronology -> mechanism -> payoff" in SHOWRUNNER_SYSTEM
-    assert "not the most obvious chronological or topical order" in SHOWRUNNER_SYSTEM
     assert "why is this subject strange, how does it work, and why does it matter?" not in SHOWRUNNER_SYSTEM
     assert "All human-readable fields (`title`, `purpose`, `internal_arc`, `opening_question`, `ending_turn`) MUST be in `output_language`" in SHOWRUNNER_SYSTEM
-    assert "A major shift in timeframe, abstraction level, or editorial function is evidence for a new act" in SHOWRUNNER_SYSTEM
-    assert "Merge candidate act material only when it would produce substantially the same `opening_question`, `internal_arc`, and `ending_turn`." in SHOWRUNNER_SYSTEM
+    assert "A major shift in timeframe, abstraction level, or editorial function can justify a new act" in SHOWRUNNER_SYSTEM
+    assert "Merge material only when it would produce substantially the same `opening_question`, `internal_arc`, and `ending_turn`." in SHOWRUNNER_SYSTEM
     assert "Role purity beats compactness." in SHOWRUNNER_SYSTEM
     assert "For setup/hook work, pose the paradox" in SHOWRUNNER_SYSTEM
     assert "backbone should carry visible anomaly/stakes, not the answer" in SHOWRUNNER_SYSTEM
-    assert "do not make answer/control/issuance-condition/reserve/peg/mechanism claims backbone" in SHOWRUNNER_SYSTEM
+    assert "Do not make answer-revealing authority, cause, outcome, or mechanism claims backbone" in SHOWRUNNER_SYSTEM
     assert "Foreshadow at most as support/callback so later explain/resolve acts still land the reveal" in SHOWRUNNER_SYSTEM
     assert "Before keeping a claim in an act, ask whether removing it would force a genuinely different beat." in SHOWRUNNER_SYSTEM
     assert "it is not fresh backbone" in SHOWRUNNER_SYSTEM
+    assert "Before final JSON, silently verify each act promise, backbone payment, context-only claims, and premature setup reveals." in SHOWRUNNER_SYSTEM
     assert "usually 3-7 claims" in SHOWRUNNER_SYSTEM
     assert "Treat airtime as editorial investment." in SHOWRUNNER_SYSTEM
-    assert "Every minute must buy a stronger reason to care" in SHOWRUNNER_SYSTEM
+    assert "Every minute must buy stronger care" in SHOWRUNNER_SYSTEM
     assert "Set `estimated_duration_seconds` from earned listener work, not equal blocks." in SHOWRUNNER_SYSTEM
     assert "Pure setup/hook work usually earns 90-180 seconds" in SHOWRUNNER_SYSTEM
     assert "do not pad it" in SHOWRUNNER_SYSTEM
@@ -197,7 +199,7 @@ def test_showrunner_prompt_does_not_hardcode_three_acts() -> None:
     assert "compress it into support for a stronger act" in SHOWRUNNER_SYSTEM
     assert "one anchor mechanism, event, example, or conflict" in SHOWRUNNER_SYSTEM
     assert "A backbone claim earns airtime only if the listener needs time to understand it" in SHOWRUNNER_SYSTEM
-    assert "Good backbone usually introduces a necessary mechanism" in SHOWRUNNER_SYSTEM
+    assert "Good backbone introduces a necessary mechanism" in SHOWRUNNER_SYSTEM
     assert "A claim is weak backbone when it mainly lists surface details" in SHOWRUNNER_SYSTEM
     assert "Vivid detail is an entrance, not a destination." in SHOWRUNNER_SYSTEM
     assert "Dense mechanisms, crises, and consequential decisions need more oxygen" in SHOWRUNNER_SYSTEM
@@ -213,6 +215,9 @@ def test_showrunner_prompt_does_not_hardcode_three_acts() -> None:
     assert "The last act should include takeaways and a clear \"why this matters\" payoff." in SHOWRUNNER_SYSTEM
     assert "The last act should contain only claims that directly sharpen the final takeaway or reframe the episode-level question." in SHOWRUNNER_SYSTEM
     assert "Do not use the last act to park leftover operational facts that could be removed without changing the final takeaway." in SHOWRUNNER_SYSTEM
+    assert "issuance-condition" not in SHOWRUNNER_SYSTEM
+    assert "reserve/peg" not in SHOWRUNNER_SYSTEM
+    assert "answer/control" not in SHOWRUNNER_SYSTEM
 
     top_level_rules = [line for line in SHOWRUNNER_SYSTEM.splitlines() if line.startswith("-")]
     assert len(top_level_rules) <= 20
@@ -230,6 +235,8 @@ def test_showrunner_revision_prompt_uses_revision_contract() -> None:
     assert "`minimal_backbone_claim_ids`" in SHOWRUNNER_REVISION_SYSTEM
     assert "`revision_mode`" in SHOWRUNNER_REVISION_SYSTEM
     assert "`act_rebuild` means rebuild the implicated act" in SHOWRUNNER_REVISION_SYSTEM
+    assert "make the smallest change that makes `title`, `act_job`, `opening_question`, and `ending_turn` true of the selected backbone" in SHOWRUNNER_REVISION_SYSTEM
+    assert "If the current backbone is stronger than the wording, rewrite the wording instead of swapping claims" in SHOWRUNNER_REVISION_SYSTEM
     assert "Preserve acts, timings, and claim placements that are not implicated by the issues." in SHOWRUNNER_REVISION_SYSTEM
     assert "If setup/hook backbone prematurely answers the episode question" in SHOWRUNNER_REVISION_SYSTEM
     assert "move them into the later explain/resolve act that owns the reveal" in SHOWRUNNER_REVISION_SYSTEM
@@ -242,6 +249,9 @@ def test_showrunner_revision_prompt_uses_revision_contract() -> None:
     assert "Do not swing in the next revision by demoting a causal/rationale claim merely because it answers well" in SHOWRUNNER_REVISION_SYSTEM
     assert "keep the backbone on visible anomaly/stakes" in SHOWRUNNER_REVISION_SYSTEM
     assert "Do not add a stress-test/case-study by default" in SHOWRUNNER_REVISION_SYSTEM
+    assert "issuance-condition" not in SHOWRUNNER_REVISION_SYSTEM
+    assert "reserve, peg" not in SHOWRUNNER_REVISION_SYSTEM
+    assert "answer/control" not in SHOWRUNNER_REVISION_SYSTEM
 
 
 def test_showrunner_selection_audit_prompt_uses_scope_and_revision_mode_contract() -> None:
@@ -255,15 +265,19 @@ def test_showrunner_selection_audit_prompt_uses_scope_and_revision_mode_contract
     assert "Audit only material selection/design failures" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "claim is in the wrong airtime role" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "Audit the same airtime-worthiness standard the showrunner used" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
-    assert "Mandatory first check" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
-    assert "answer/control/issuance-condition/reserve/peg/mechanism claims kept out of backbone" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "Act-contract first check" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "read `title`, `act_job`, `opening_question`, and `ending_turn` as the promise" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "The backbone must be able to pay that promise" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "why current backbone fails to pay it" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "Setup/hook check" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "answer-revealing authority/cause/outcome/mechanism claims kept out of backbone" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "Causal-claim anti-pendulum" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "do not call a causal/rationale claim premature when it directly answers the current `opening_question`/`act_job`" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "Would the act still work if a backbone claim were removed?" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "`estimated_duration_seconds` match the act's actual listener work" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "lightweight hook/setup/bridge being padded" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "setup/hook mainly poses an anomaly or recognition beat" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
-    assert "Does a setup/hook act prematurely put answer/control/issuance-condition/reserve/peg/mechanism claims in backbone" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "Does a setup/hook act prematurely put answer-revealing authority/cause/outcome/mechanism claims in backbone" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "mini-solving the episode question before a later explain/resolve act can land the reveal" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "has the plan made decorative setup the destination?" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "Do dense mechanisms, crises, and consequential decisions get enough oxygen" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
@@ -272,7 +286,9 @@ def test_showrunner_selection_audit_prompt_uses_scope_and_revision_mode_contract
     assert "Do not require a stress-test/case-study beat for every topic" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "claims actually contain it" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "the plan lacks an equivalent test" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
-    assert "If an act asks why/what allowed/why persisted but backbone only proves sequence or existence" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "Match question type to proof type" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "if it asks how, backbone needs mechanism/process" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "if it asks so-what, backbone needs consequence/meaning" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "avoid treating zero-direct-support claims as backbone" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "Return compact JSON only" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "rationale <= 90 words" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
@@ -282,6 +298,8 @@ def test_showrunner_selection_audit_prompt_uses_scope_and_revision_mode_contract
     assert "Use `low` for non-blocking improvements" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "Each issue must first name the broken listener-work invariant" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "Claim IDs are evidence for that diagnosis, not the diagnosis itself." in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "Do not raise medium/high if you cannot explain why the current backbone fails the act contract" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "A better, more vivid, or more complete alternative is low severity" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "Do not ask for claim swaps just because an omitted claim is interesting" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "only when the current backbone cannot perform the stated listener work without it" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "Do not prescribe a universal story order." in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
@@ -292,6 +310,9 @@ def test_showrunner_selection_audit_prompt_uses_scope_and_revision_mode_contract
     assert "Resolve tradeoffs inside the audit" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "Each selected claim object includes `role`" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "do not ask to remove a claim as redundant and then require it as missing support" in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "issuance-condition" not in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "reserve/peg" not in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
+    assert "answer/control" not in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "weak_claim_selected" not in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
     assert "hook_overweights_decorative_detail" not in SHOWRUNNER_SELECTION_AUDIT_SYSTEM
 
@@ -1088,6 +1109,8 @@ async def test_selection_audit_parse_failure_blocks_when_raw_signals_failure(
 
     assert calls[0]["max_tokens"] == SHOWRUNNER_SELECTION_AUDIT_MAX_TOKENS
     assert '"duration_target_seconds": 1800' in calls[0]["prompt"]
+    assert "Audit act-contract failures in the selected backbone only" in calls[0]["prompt"]
+    assert "act spine cannot pay its title/job/opening/ending promise" in calls[0]["prompt"]
     assert audit["passed"] is False
     assert audit["audit_failed"] is True
     assert audit["raw_signaled_failure"] is True

@@ -122,7 +122,7 @@ Rules:
 - Planning procedure:
   - Before drafting scenes, choose a short `scene_strategy` that captures how this act moves internally.
   - Decide the minimum set of distinct scene moves needed to satisfy the act contract.
-  - Choose scene count from that movement, not from habit. `scene_count_guidance` is a soft range, not a quota.
+  - Return only the scenes required by the act contract and available backbone moves. Do not create a scene to fill time, match an assumed count, preserve a template, or use leftover support material.
   - Assign each claim one main home scene using `primary_claim_ids`. If later scenes reuse it, put it in `callback_claim_ids` as established context, not as a fresh explanation.
   - `primary_claim_ids` should be unique within the act. `callback_claim_ids` should refer only to material already established earlier in the act.
   - For every scene, think in listener terms: what the listener knows before, what must become clear, what the scene must not assume, and which new terms need explicit introduction.
@@ -742,7 +742,6 @@ def _build_act_prompt_payload(
         "callback_claim_ids": callback_claim_ids,
         "why_this_is_enough": str(act.get("why_this_is_enough") or "").strip(),
         "estimated_duration_seconds": estimated_duration,
-        "scene_count_guidance": _scene_count_guidance(estimated_duration),
         "conflict_count": len(conflict_ids),
         "prior_acts_primary_claims": prior_acts_primary_claims,
         "prior_acts_ending_types": prior_acts_ending_types or [],
@@ -1170,16 +1169,6 @@ def _hydrate_scene_evidence_ids_from_claim_support(
             hydrated_ids.append(evidence_id)
 
     return hydrated_ids
-
-
-def _scene_count_guidance(estimated_duration_seconds: int) -> dict[str, int]:
-    if estimated_duration_seconds <= 210:
-        return {"min_scenes": 3, "target_scenes": 4, "max_scenes": 5}
-    if estimated_duration_seconds <= 360:
-        return {"min_scenes": 4, "target_scenes": 5, "max_scenes": 6}
-    if estimated_duration_seconds <= 480:
-        return {"min_scenes": 5, "target_scenes": 6, "max_scenes": 7}
-    return {"min_scenes": 6, "target_scenes": 7, "max_scenes": 8}
 
 
 def _normalize_beat_sheet(
@@ -1729,7 +1718,7 @@ def _format_structural_retry_detail(
         scene = _find_scene_by_number(beat_sheet, scene_number)
         detail += (
             "\n  This scene has no new primary claim after claim-role normalization."
-            "\n  Do NOT keep it just to preserve a template or to hit `scene_count_guidance`."
+            "\n  Do NOT keep it just to preserve a template, fill time, or satisfy an assumed scene count."
             "\n  Either:"
             "\n    - merge this material into the earlier scene that already owns these claims,"
             "\n    - replace it with a scene built from a different unused primary claim family, or"

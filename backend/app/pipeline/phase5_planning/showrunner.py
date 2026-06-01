@@ -139,28 +139,29 @@ Rules:
 - Treat `story_role` as listener work, not topic label or fixed position. The first act can be a mechanism, crisis, conflict, decision, or historical turn if that creates stronger momentum. `setup` establishes anomaly/stakes; `explain` teaches the model; `complicate` deepens the simple reading; `resolve` delivers the strongest test/consequence/decision/proof; `payoff` synthesizes why it matters.
 - Selection comes before act assignment. First choose the smallest coherent editorial backbone that best answers `episode_goal` and `root_question`; then decide how many listener questions it supports, define act jobs, and only then assign selected claims.
   - Do not start by arranging every available claim. Start by imagining the episode pitch to an editor: "the listener comes in thinking X; after these acts, they now understand Y." A claim that would not help that listener transformation is rarely backbone material.
+  - Treat each act's `title`, `act_job`, `opening_question`, and `ending_turn` as a contract. Backbone claims must directly pay that contract; support/callback claims may clarify it but cannot carry the promised answer.
   - For every act, split selected material by airtime role: `backbone_claim_ids` are the claims that scenes should be built around; `support_claim_ids` may be used inside those scenes but should not create scenes by themselves; `callback_claim_ids` may return as context only. Do not output a combined `claim_ids` list; pipeline derives it.
-  - Match question type to backbone. If `opening_question` or `act_job` asks why something happened, persisted, was allowed, or did not disappear, backbone needs a causal choice, constraint, incentive, permission, or institutional rationale. A chronology-only spine answers what happened, not why; promote the causal claim or rewrite the act question/job.
-- Start from the strongest episode-level way into the material, not from a fixed universal arc. Silently compare possible centers of gravity: present contradiction, origin story, mechanism, crisis/test, decision, conflict, consequence, comparison, or payoff. Do not default to present-anomaly -> chronology -> mechanism -> payoff; choose the strongest listener transformation, not the most obvious chronological or topical order.
-  - Treat those centers of gravity as options, not templates. Any order can work if `opening_question`, `internal_arc`, `ending_turn`, and backbone claims make the listener transformation clear.
+  - Match question type to backbone. If the act asks why, backbone needs cause/choice/constraint/incentive/rationale; if it asks how, backbone needs mechanism/process; if it asks so-what, backbone needs consequence/meaning; if it asks what happened, backbone may use event/chronology. Promote the claim that answers the contract or rewrite the act question/job.
+- Start from the strongest episode-level way into the material, not from a fixed universal arc. Compare possible centers of gravity as options, not templates: contradiction, origin, mechanism, crisis/test, decision, conflict, consequence, comparison, or payoff. Any order can work if act contracts and backbone claims make the listener transformation clear; do not default to present-anomaly -> chronology -> mechanism -> payoff.
 - For each act, define a short `internal_arc` that describes movement, not topic coverage. Adjacent acts should usually have different `internal_arc` and `ending_turn` shapes.
-- Use act boundaries for real shifts in listener work. A major shift in timeframe, abstraction level, or editorial function is evidence for a new act, not just a new scene. Merge candidate act material only when it would produce substantially the same `opening_question`, `internal_arc`, and `ending_turn`.
+- Use act boundaries for real shifts in listener work. A major shift in timeframe, abstraction level, or editorial function can justify a new act. Merge material only when it would produce substantially the same `opening_question`, `internal_arc`, and `ending_turn`.
 - Role purity beats compactness. Do not let `setup` fully consume `explain`, `complicate` absorb `resolve`, or `payoff` become a leftovers bin just because the episode can be compressed.
-  - For setup/hook work, pose the paradox; backbone should carry visible anomaly/stakes, not the answer. Do not make answer/control/issuance-condition/reserve/peg/mechanism claims backbone unless that act teaches that mechanism. Foreshadow at most as support/callback so later explain/resolve acts still land the reveal.
-- Treat airtime as editorial investment. Every minute must buy a stronger reason to care, a necessary mental model, a consequential event/decision/test, a reversal/complication, or a payoff that changes the listener's answer to the episode question.
+  - For setup/hook work, pose the paradox; backbone should carry visible anomaly/stakes, not the answer. Do not make answer-revealing authority, cause, outcome, or mechanism claims backbone unless that act teaches that answer. Foreshadow at most as support/callback so later explain/resolve acts still land the reveal.
+- Treat airtime as editorial investment. Every minute must buy stronger care, a mental model, consequential event/decision/test, reversal/complication, or payoff that changes the listener's answer.
   - Set `estimated_duration_seconds` from earned listener work, not equal blocks. Lightweight hook, recognition, or setup should be a short launchpad; do not pad it. Give surplus to the hardest mechanism, crisis/test, decision, or payoff.
   - Pure setup/hook work usually earns 90-180 seconds, not a full explainer act. Exceed that only when setup carries a real event, decision, conflict, or mechanism.
   - If an act mainly buys recognition, inventory, texture, taxonomy, generic background, or "more examples," compress it into support for a stronger act.
   - A strong act has one main listener question, one dominant mode of attention, and one anchor mechanism, event, example, or conflict that earns most airtime.
-  - A backbone claim earns airtime only if the listener needs time to understand it, feel its consequence, or use it to answer the episode question. Good backbone usually introduces a necessary mechanism, a decision by a real actor, a crisis or test, a cost/tradeoff, a consequence, or an irreversible turn in understanding.
+  - A backbone claim earns airtime only if the listener needs time to understand it, feel its consequence, or use it to answer the episode question. Good backbone introduces a necessary mechanism, real decision, crisis/test, cost/tradeoff, consequence, or irreversible turn.
   - A claim is weak backbone when it mainly lists surface details, names categories, repeats an already-landed thesis, gives a second example of the same move, or supplies broad comparator context without changing the listener's model. Such claims can be hooks, support, or callbacks.
   - Vivid detail is an entrance, not a destination. Use it to open curiosity, then move to the pressure, mechanism, choice, or consequence.
   - Dense mechanisms, crises, and consequential decisions need more oxygen than color, taxonomy, or scene-setting. If the episode contains a hard mechanism or high-stakes test, protect time for that before giving time to decorative setup.
   - Never require stress-tests by default; use a present, strongly relevant proof-under-pressure case only when it beats weaker support/comparator/context.
 - If an act seems to need several heavy mechanisms, several anchor events, or several kinds of listener work, treat that as a sign of overload. Move material to another act, downgrade it to support or callback material, or leave it unused instead of rescuing everything.
-- Curate aggressively. Keep only claims that make a distinct editorial contribution. If multiple claims restate the same mechanism, rule, fact, event, or decision, keep the strongest formulation unless another enables a different move. Each claim appears in exactly ONE act.
+- Curate aggressively. Keep only claims with a distinct editorial contribution. If multiple claims restate the same mechanism, rule, fact, event, or decision, keep the strongest unless another enables a different move. Each claim appears in exactly ONE act.
 - Before keeping a claim in an act, ask whether removing it would force a genuinely different beat. If not, it is not fresh backbone. One act may own a mechanism or concept family, but it should stay lean rather than exhaustive.
   - Keep each act backbone lean enough to produce clear scenes, usually 3-7 claims. Decorative hooks, comparators, repeated mechanism details, and already-landed thesis claims should be support/callback or unused, not backbone.
+  - Before final JSON, silently verify each act promise, backbone payment, context-only claims, and premature setup reveals.
 - Explanatory acts should usually have one dominant explanatory spine. Keep extra claims only for a different move: application, consequence, tradeoff, exception, contrast, comparison, case, or real-world test.
 - Use `total_claim_count` as an overload smell, not a quota. If one act absorbs far more claims than neighboring acts, ask whether it is carrying too many distinct beats or rescuing too much material. Prefer a leaner act pool over exhaustive coverage.
 - Ignore research-tree provenance when it does not help the editorial decision. Do not group material just because claims came from the same branch. Comparative material should stay selective.
@@ -201,19 +202,21 @@ Audit only material selection/design failures:
 - `claim` scope: a selected claim should be dropped/demoted, or an omitted claim should be added/promoted because it better serves the stated act job.
 
 Audit the same airtime-worthiness standard the showrunner used:
-- Mandatory first check: if an act is setup/hook/anomaly/recognition and not a mechanism explainer, are answer/control/issuance-condition/reserve/peg/mechanism claims kept out of backbone so the act poses the question instead of solving it?
+- Act-contract first check: for each act, read `title`, `act_job`, `opening_question`, and `ending_turn` as the promise. The backbone must be able to pay that promise without unsupported inference from support/callback.
+- If an issue is medium/high, diagnose the broken act contract: what the act promises, why current backbone fails to pay it, and why the fix is not just a richer optional alternative.
+- Setup/hook check: if an act mainly poses anomaly/recognition and not explanation, are answer-revealing authority/cause/outcome/mechanism claims kept out of backbone so the act opens the question instead of solving it?
 - Causal-claim anti-pendulum: do not call a causal/rationale claim premature when it directly answers the current `opening_question`/`act_job`. It is premature only when it answers a later act's listener question and is not needed by the current act; if demoting it, name what still answers the current question.
 - Does each backbone claim earn act-level time by changing the listener's model, carrying a necessary mechanism, decision, crisis/test, cost/tradeoff, consequence, or irreversible turn?
 - Would the act still work if a backbone claim were removed? If yes, that claim is probably support/callback, not backbone.
 - Does `estimated_duration_seconds` match the act's actual listener work, or is a lightweight hook/setup/bridge being padded while a harder mechanism, crisis/test, decision, or payoff is underfunded?
 - If setup/hook mainly poses an anomaly or recognition beat, is it kept near 90-180 seconds, or is it overfunded without a real event, decision, conflict, or mechanism?
-- Does a setup/hook act prematurely put answer/control/issuance-condition/reserve/peg/mechanism claims in backbone, mini-solving the episode question before a later explain/resolve act can land the reveal?
+- Does a setup/hook act prematurely put answer-revealing authority/cause/outcome/mechanism claims in backbone, mini-solving the episode question before a later explain/resolve act can land the reveal?
 - Is vivid detail only an entrance into a larger tension, or has the plan made decorative setup the destination?
 - Do dense mechanisms, crises, and consequential decisions get enough oxygen relative to color, taxonomy, broad comparators, or scene-setting?
 - Is the plan coverage-first, trying to rescue all interesting claims, instead of choosing the smallest spine that answers `episode_goal` / `root_question`?
 - Compare selected backbone claims against omitted claims as opportunity cost. If an omitted mechanism, decision, crisis/test, consequence, or reversal would buy a stronger listener transformation than selected inventory/context, flag the tradeoff.
 - Do not require a stress-test/case-study beat for every topic. Only flag omitted proof-under-pressure material when claims actually contain it, it is strongly relevant to `episode_goal`/`root_question`, the plan lacks an equivalent test, and it would materially improve the listener transformation over selected support/comparator/context.
-- If an act asks why/what allowed/why persisted but backbone only proves sequence or existence, flag the missing causal-choice or institutional-rationale claim in that act; do not defer it as callback if needed to answer the current opening.
+- Match question type to proof type: if an act asks why/what allowed/why persisted, backbone needs cause/choice/constraint/rationale; if it asks how, backbone needs mechanism/process; if it asks so-what, backbone needs consequence/meaning; if it asks what happened, event/chronology may be enough. Flag only when proof type and act promise do not match.
 - For hard mechanisms, avoid treating zero-direct-support claims as backbone when stronger supported claims can carry the same beat. Use weakly supported mechanism claims as support unless they are the only claim that makes the listener turn possible.
 
 Rules:
@@ -223,6 +226,7 @@ Rules:
 - Pass when the selected act spine performs the stated listener work and remaining alternatives are optional improvements, polish, extra color, or marginal strengthening.
 - Use `medium` or `high` only for blockers that leave a stated act job, opening question, ending turn, or episode transformation materially unsupported, overloaded, or misleading. Use `low` for non-blocking improvements, or pass and mention them in `rationale`.
 - Each issue must first name the broken listener-work invariant: which `act_job`, `opening_question`, `internal_arc`, `ending_turn`, or episode transformation fails. Claim IDs are evidence for that diagnosis, not the diagnosis itself.
+- Do not raise medium/high if you cannot explain why the current backbone fails the act contract. A better, more vivid, or more complete alternative is low severity unless the promised listener transformation is currently unsupported.
 - Do not ask for claim swaps just because an omitted claim is interesting, more concrete, or source-rich. Add/promote an omitted claim only when the current backbone cannot perform the stated listener work without it.
 - Do not prescribe a universal story order. If you flag sequencing, diagnose the broken listener question, missing turn, or unsupported act job; do not fail a plan merely because it puts event before mechanism, mechanism before event, chronology before payoff, or payoff before history.
 - Do not invent claim IDs. Use only IDs present in the current acts or in `omitted_claims`.
@@ -277,13 +281,14 @@ Rules:
 - Use `revision_mode` to decide edit depth: `local_edit` means adjust claim roles/placements; `act_rebuild` means rebuild the implicated act around its job and minimal backbone; `episode_rebuild` means change act count or macro sequence if needed.
 - If an issue includes `minimal_backbone_claim_ids`, preserve or create that minimal backbone unless it conflicts with `episode_goal` / `root_question`; then drop or demote redundant claims around it.
 - Treat `drop_or_demote_claim_ids`, `add_or_promote_claim_ids`, and `support_or_callback_claim_ids` as concrete evidence for the diagnosis, not a checklist. Prefer those claims when they solve the act job, but reshape the act structure if claim swaps alone cannot solve the problem.
+- For the implicated act, make the smallest change that makes `title`, `act_job`, `opening_question`, and `ending_turn` true of the selected backbone. If the current backbone is stronger than the wording, rewrite the wording instead of swapping claims.
 - Before applying a requested claim swap, identify the listener-work gap it fixes. If the issue is only claim preference, inventory expansion, or stronger-but-nonessential detail, preserve the plan and make only minimal role/timing edits.
 - For a why/allowed/persisted issue, a requested causal/choice/rationale claim that fixes the gap belongs in the implicated act's backbone, not as later callback, unless you rewrite that act's question/job so it no longer asks that question.
 - Do not swing in the next revision by demoting a causal/rationale claim merely because it answers well. It is premature only if it answers a later act's question and is not needed by the current `opening_question`/`act_job`.
-- If a setup/hook act carries answer/control/mechanism claims in backbone, demote them to support/callback unless the act explicitly teaches that mechanism; keep the backbone on visible anomaly/stakes.
+- If a setup/hook act carries answer-revealing authority, cause, outcome, or mechanism claims in backbone, demote them to support/callback unless the act explicitly teaches that answer; keep the backbone on visible anomaly/stakes.
 - Do not add a stress-test/case-study by default. Add or promote one only when the claims contain a strongly relevant proof-under-pressure beat, the plan lacks an equivalent test, and it improves the episode goal more than selected support/comparator/context.
 - Preserve acts, timings, and claim placements that are not implicated by the issues. Edit surgically.
-- If setup/hook backbone prematurely answers the episode question with control, issuance-condition, reserve, peg, or mechanism claims, demote those claims to support/callback or move them into the later explain/resolve act that owns the reveal.
+- If setup/hook backbone prematurely answers the episode question with answer-revealing authority, cause, outcome, or mechanism claims, demote those claims to support/callback or move them into the later explain/resolve act that owns the reveal.
 - If setup/hook is overfunded for anomaly/recognition work, shorten it and give time to the hardest mechanism, crisis/test, decision, or payoff.
 - Do not convert sequencing issues into a fixed story template. Choose the order that best serves the act's own `act_job`, then make `opening_question`, `internal_arc`, `ending_turn`, and claim roles match that choice.
 - Revise the backbone first, then adjust act titles/purpose/opening/ending so the wording matches the revised claim set.
@@ -1018,8 +1023,8 @@ async def _run_showrunner_selection_audit(
             "acts": _compact_selection_act_view(audit_plan, claim_lookup),
             "omitted_claims": omitted_claims,
             "task": (
-                "Audit the selected backbone for editorial selection/design mistakes only. "
-                "Return medium/high issues only for blockers where the act spine materially fails its listener work. "
+                "Audit act-contract failures in the selected backbone only. "
+                "Return medium/high issues only where the act spine cannot pay its title/job/opening/ending promise. "
                 "Treat optional alternatives as low severity or mention them in rationale. Return compact JSON only."
             ),
         },
