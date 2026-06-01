@@ -24,6 +24,30 @@ def run_generation_step(self, generation_run_id: str, action: str = "next"):
     asyncio.run(_run_step_async(generation_run_id, action))
 
 
+@celery_app.task(name="app.workers.generation_tasks.run_generation_v2", bind=True, max_retries=0)
+def run_generation_v2(self, generation_run_id: str, generate_audio: bool = True):
+    """Launch the Generation V2 editorial pipeline."""
+    import asyncio
+
+    asyncio.run(_run_generation_v2_async(generation_run_id, generate_audio=generate_audio))
+
+
+@celery_app.task(name="app.workers.generation_tasks.run_generation_compare", bind=True, max_retries=0)
+def run_generation_compare(self, generation_run_id: str):
+    """Launch a V1/V2 draft comparison run."""
+    import asyncio
+
+    asyncio.run(_run_generation_compare_async(generation_run_id))
+
+
+@celery_app.task(name="app.workers.generation_tasks.promote_generation_variant_to_audio", bind=True, max_retries=0)
+def promote_generation_variant_to_audio(self, generation_run_id: str):
+    """Generate audio for a completed draft variant."""
+    import asyncio
+
+    asyncio.run(_promote_generation_variant_to_audio_async(generation_run_id))
+
+
 def _merge_step_control(config: dict[str, Any] | None, action: str, result: dict[str, Any] | None = None) -> dict[str, Any]:
     merged = dict(config or {})
     merged["execution_mode"] = "step"
@@ -434,3 +458,269 @@ async def _run_step_async(generation_run_id: str, action: str = "next"):
 
                         publish_event(generation_run_id, generation_failed(str(e)))
                         raise
+
+
+async def _run_generation_v2_async(generation_run_id: str, *, generate_audio: bool = True):
+    from app.workers.worker_db import worker_session_factory
+    from app.models.generation_run import GenerationRun, GenerationStatus
+    from app.realtime.publisher import publish_event
+    from app.realtime.events import generation_cancelled, generation_completed, generation_failed
+    from app.pipeline.step_control import StepExecutionStopped, assert_step_not_stopped
+
+    async with worker_session_factory() as db:
+        result = await db.execute(select(GenerationRun).where(GenerationRun.id == uuid.UUID(generation_run_id)))
+        run = result.scalar_one_or_none()
+        if run is None or run.status == GenerationStatus.CANCELLED:
+            return
+
+        trace_ctx = _trace_context(run, component="worker.generation.v2")
+        with push_trace_context(trace_ctx):
+            with tracing_scope(metadata=trace_ctx, tags=["worker", "generation", "v2"]):
+                with trace_span(
+                    "worker.run_generation_v2",
+                    run_type="chain",
+                    inputs={"generation_run_id": generation_run_id, "generate_audio": generate_audio},
+                    tags=["celery-task", "generation-v2"],
+                ) as task_run:
+                    claimed = await _claim_run_for_worker(db, run)
+                    if not claimed:
+                        return
+                    result = await db.execute(select(GenerationRun).where(GenerationRun.id == run.id))
+                    run = result.scalar_one_or_none()
+                    if run is None or run.status == GenerationStatus.CANCELLED:
+                        return
+                    try:
+                        await assert_step_not_stopped()
+                        from app.generation_v2.orchestrator import execute_generation_v2
+
+                        episode_id = await execute_generation_v2(run, db, generate_audio=generate_audio)
+                        run.status = GenerationStatus.COMPLETED
+                        run.completed_at = datetime.utcnow()
+                        await db.commit()
+                        publish_event(generation_run_id, generation_completed(str(episode_id or "")))
+                        safe_set_run(task_run, outputs={"status": "completed", "episode_id": str(episode_id or "")})
+                    except StepExecutionStopped as stop_exc:
+                        run.status = GenerationStatus.CANCELLED
+                        run.error_message = None
+                        run.completed_at = datetime.utcnow()
+                        run.config = _ack_run_stop_requested(run.config, str(stop_exc))
+                        await db.commit()
+                        publish_event(generation_run_id, generation_cancelled(str(stop_exc)))
+                    except Exception as exc:
+                        run.status = GenerationStatus.FAILED
+                        run.error_message = str(exc)
+                        run.completed_at = datetime.utcnow()
+                        await db.commit()
+                        publish_event(generation_run_id, generation_failed(str(exc)))
+                        raise
+
+
+async def _run_generation_compare_async(generation_run_id: str):
+    from app.workers.worker_db import worker_session_factory
+    from app.models.generation_run import GenerationRun, GenerationStatus
+    from app.realtime.publisher import publish_event
+    from app.realtime.events import generation_completed, generation_failed, progress
+
+    async with worker_session_factory() as db:
+        result = await db.execute(select(GenerationRun).where(GenerationRun.id == uuid.UUID(generation_run_id)))
+        coordinator = result.scalar_one_or_none()
+        if coordinator is None or coordinator.status == GenerationStatus.CANCELLED:
+            return
+
+        trace_ctx = _trace_context(coordinator, component="worker.generation.compare")
+        with push_trace_context(trace_ctx):
+            with tracing_scope(metadata=trace_ctx, tags=["worker", "generation", "compare"]):
+                with trace_span(
+                    "worker.run_generation_compare",
+                    run_type="chain",
+                    inputs={"generation_run_id": generation_run_id},
+                    tags=["celery-task", "generation-compare"],
+                ) as task_run:
+                    claimed = await _claim_run_for_worker(db, coordinator)
+                    if not claimed:
+                        return
+                    result = await db.execute(select(GenerationRun).where(GenerationRun.id == coordinator.id))
+                    coordinator = result.scalar_one_or_none()
+                    if coordinator is None or coordinator.status == GenerationStatus.CANCELLED:
+                        return
+
+                    v1_child = _make_compare_child(coordinator, variant="v1")
+                    v2_child = _make_compare_child(coordinator, variant="v2")
+                    db.add_all([v1_child, v2_child])
+                    await db.flush()
+                    coordinator.config = {
+                        **(coordinator.config or {}),
+                        "compare_v1_run_id": str(v1_child.id),
+                        "compare_v2_run_id": str(v2_child.id),
+                    }
+                    await db.commit()
+                    publish_event(generation_run_id, progress(5, "Compare child runs created"))
+
+                    errors: dict[str, str] = {}
+                    try:
+                        await _execute_v1_compare_child(db, v1_child)
+                    except Exception as exc:
+                        errors["v1"] = str(exc)
+                    publish_event(generation_run_id, progress(45, "V1 draft comparison branch finished"))
+
+                    try:
+                        await _execute_v2_compare_child(db, v2_child)
+                    except Exception as exc:
+                        errors["v2"] = str(exc)
+                    publish_event(generation_run_id, progress(95, "V2 draft comparison branch finished"))
+
+                    coordinator.config = {**(coordinator.config or {}), "compare_errors": errors}
+                    coordinator.status = GenerationStatus.FAILED if len(errors) == 2 else GenerationStatus.COMPLETED
+                    coordinator.completed_at = datetime.utcnow()
+                    coordinator.progress_pct = 100.0
+                    await db.commit()
+                    if coordinator.status == GenerationStatus.COMPLETED:
+                        publish_event(generation_run_id, generation_completed(""))
+                        safe_set_run(task_run, outputs={"status": "completed", "errors": errors})
+                    else:
+                        message = "; ".join(f"{key}: {value}" for key, value in errors.items())
+                        coordinator.error_message = message
+                        await db.commit()
+                        publish_event(generation_run_id, generation_failed(message))
+                        safe_set_run(task_run, outputs={"status": "failed", "errors": errors})
+
+
+async def _promote_generation_variant_to_audio_async(generation_run_id: str):
+    from app.workers.worker_db import worker_session_factory
+    from app.models.generation_run import GenerationRun, GenerationStatus
+    from app.realtime.publisher import publish_event
+    from app.realtime.events import generation_completed, generation_failed
+
+    async with worker_session_factory() as db:
+        result = await db.execute(select(GenerationRun).where(GenerationRun.id == uuid.UUID(generation_run_id)))
+        run = result.scalar_one_or_none()
+        if run is None or run.status == GenerationStatus.CANCELLED:
+            return
+        claimed = await _claim_run_for_worker(db, run)
+        if not claimed:
+            return
+        result = await db.execute(select(GenerationRun).where(GenerationRun.id == run.id))
+        run = result.scalar_one_or_none()
+        if run is None:
+            return
+        try:
+            from app.generation_v2.finalize import generate_audio_from_segments
+
+            episode_id = await generate_audio_from_segments(run)
+            run.status = GenerationStatus.COMPLETED
+            run.completed_at = datetime.utcnow()
+            run.progress_pct = 100.0
+            run.config = {**(run.config or {}), "audio_promoted": True, "promoted_episode_id": episode_id}
+            await db.commit()
+            publish_event(generation_run_id, generation_completed(episode_id))
+        except Exception as exc:
+            run.status = GenerationStatus.FAILED
+            run.error_message = str(exc)
+            run.completed_at = datetime.utcnow()
+            await db.commit()
+            publish_event(generation_run_id, generation_failed(str(exc)))
+            raise
+
+
+async def _claim_run_for_worker(db, run) -> bool:
+    from app.models.generation_run import GenerationRun, GenerationStatus
+
+    start_at = datetime.utcnow()
+    claimed = await db.execute(
+        update(GenerationRun)
+        .where(
+            GenerationRun.id == run.id,
+            GenerationRun.status == GenerationStatus.QUEUED,
+        )
+        .values(
+            status=GenerationStatus.RUNNING,
+            error_message=None,
+            started_at=start_at if run.started_at is None else run.started_at,
+            completed_at=None,
+        )
+    )
+    await db.commit()
+    return (claimed.rowcount or 0) > 0
+
+
+def _trace_context(run, *, component: str) -> dict[str, Any]:
+    return {
+        "component": component,
+        "generation_run_id": str(run.id),
+        "project_id": str(run.project_id),
+        "user_id": str(run.user_id),
+        "language": (run.config or {}).get("language", "en"),
+        "execution_mode": (run.config or {}).get("execution_mode", "full"),
+        "generation_mode": (run.config or {}).get("generation_mode", "v1"),
+    }
+
+
+def _make_compare_child(coordinator, *, variant: str):
+    from app.models.generation_run import GenerationRun, GenerationStatus
+
+    config = dict(coordinator.config or {})
+    config.update(
+        {
+            "generation_mode": variant,
+            "execution_mode": "full",
+            "compare_parent_run_id": str(coordinator.id),
+            "compare_variant": variant,
+            "compare_draft_only": True,
+        }
+    )
+    if variant == "v1":
+        config["stop_after_node"] = "audit_citations"
+    return GenerationRun(
+        project_id=coordinator.project_id,
+        user_id=coordinator.user_id,
+        show_bible_id=coordinator.show_bible_id,
+        status=GenerationStatus.QUEUED,
+        config=config,
+        estimated_cost=coordinator.estimated_cost,
+    )
+
+
+async def _execute_v1_compare_child(db, run) -> None:
+    from app.models.generation_run import GenerationStatus
+    from app.pipeline.graph import execute_pipeline_until
+
+    await _claim_run_for_worker(db, run)
+    result = await db.execute(select(type(run)).where(type(run).id == run.id))
+    run = result.scalar_one_or_none()
+    if run is None:
+        return
+    try:
+        await execute_pipeline_until(run, db, stop_after_node="audit_citations")
+        run.status = GenerationStatus.COMPLETED
+        run.completed_at = datetime.utcnow()
+        run.progress_pct = 100.0
+        await db.commit()
+    except Exception as exc:
+        run.status = GenerationStatus.FAILED
+        run.error_message = str(exc)
+        run.completed_at = datetime.utcnow()
+        await db.commit()
+        raise
+
+
+async def _execute_v2_compare_child(db, run) -> None:
+    from app.models.generation_run import GenerationStatus
+    from app.generation_v2.orchestrator import execute_generation_v2
+
+    await _claim_run_for_worker(db, run)
+    result = await db.execute(select(type(run)).where(type(run).id == run.id))
+    run = result.scalar_one_or_none()
+    if run is None:
+        return
+    try:
+        await execute_generation_v2(run, db, generate_audio=False)
+        run.status = GenerationStatus.COMPLETED
+        run.completed_at = datetime.utcnow()
+        run.progress_pct = 100.0
+        await db.commit()
+    except Exception as exc:
+        run.status = GenerationStatus.FAILED
+        run.error_message = str(exc)
+        run.completed_at = datetime.utcnow()
+        await db.commit()
+        raise

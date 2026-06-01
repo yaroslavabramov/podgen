@@ -30,7 +30,8 @@ function pickEventText(event: Record<string, unknown>, t: (key: string, values?:
 
 export function GenerationProgress() {
   const t = useTranslations("generationProgress");
-  const phases = [
+  const { status, currentPhase, progressPct, events, episodeId, error } = useGenerationStore();
+  const v1Phases = [
     { id: "phase0_setup", label: t("phaseSetup"), icon: "1" },
     { id: "phase2_decomposition", label: t("phaseDecompose"), icon: "2" },
     { id: "phase3_research", label: t("phaseResearch"), icon: "3" },
@@ -39,7 +40,17 @@ export function GenerationProgress() {
     { id: "phase6_writing", label: t("phaseWriting"), icon: "6" },
     { id: "phase7_audio", label: t("phaseAudio"), icon: "7" },
   ];
-  const { status, currentPhase, progressPct, events, episodeId, error } = useGenerationStore();
+  const v2Phases = [
+    { id: "v2_source_workspace", label: "Source Workspace", icon: "1" },
+    { id: "v2_editorial_research", label: "Editorial Research", icon: "2" },
+    { id: "v2_research_audit", label: "Research Audit", icon: "3" },
+    { id: "v2_treatment", label: "Treatment", icon: "4" },
+    { id: "v2_act_drafting", label: "Act Drafts", icon: "5" },
+    { id: "v2_critique_rewrite", label: "Critique", icon: "6" },
+    { id: "v2_fact_citation", label: "Citations", icon: "7" },
+    { id: "v2_audio", label: t("phaseAudio"), icon: "8" },
+  ];
+  const phases = currentPhase.startsWith("v2_") ? v2Phases : v1Phases;
 
   const currentPhaseIndex = phases.findIndex((p) => p.id === currentPhase);
 

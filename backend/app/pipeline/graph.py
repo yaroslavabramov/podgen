@@ -650,3 +650,88 @@ async def execute_pipeline(run: GenerationRun, db: AsyncSession, resume: bool = 
                     },
                 )
                 return episode_id
+
+
+async def execute_pipeline_until(
+    run: GenerationRun,
+    db: AsyncSession,
+    *,
+    stop_after_node: str,
+    resume: bool = False,
+) -> dict[str, Any]:
+    """Execute V1 pipeline until a draft checkpoint without requiring audio artifacts."""
+    if stop_after_node not in _NODE_PHASES:
+        raise RuntimeError(f"Unsupported draft stop node: {stop_after_node}")
+
+    result = await db.execute(
+        select(Source.id).where(
+            Source.project_id == run.project_id,
+            Source.is_temporary.is_(False),
+            Source.ingestion_status == "completed",
+        )
+    )
+    source_ids = [str(row[0]) for row in result.fetchall()]
+
+    result = await db.execute(
+        select(ContentMap.id)
+        .where(ContentMap.project_id == run.project_id)
+        .order_by(ContentMap.created_at.desc())
+    )
+    content_map_row = result.first()
+    content_map_id = str(content_map_row[0]) if content_map_row else ""
+
+    initial_state = _build_initial_state(run, source_ids, content_map_id)
+    thread_id = run.langgraph_thread_id or str(run.id)
+    run.langgraph_thread_id = thread_id
+    graph_config = {"configurable": {"thread_id": thread_id}}
+    await db.commit()
+
+    try:
+        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+    except ImportError as exc:
+        raise RuntimeError(
+            "LangGraph checkpoint backend requires psycopg with libpq support. "
+            "Install `psycopg[binary]` in backend env and restart worker."
+        ) from exc
+
+    final_state = None
+    async with AsyncPostgresSaver.from_conn_string(_checkpoint_conn_string()) as checkpointer:
+        await _ensure_checkpointer_schema(checkpointer)
+        compiled = get_compiled_graph(checkpointer=checkpointer)
+        graph_input = None if resume else initial_state
+        try:
+            async for state in compiled.astream(
+                graph_input,
+                config=graph_config,
+                interrupt_after=[stop_after_node],
+            ):
+                final_state = state
+                if isinstance(state, dict):
+                    for node_output in state.values():
+                        if isinstance(node_output, dict) and node_output.get("current_phase"):
+                            run.current_phase = node_output["current_phase"]
+                            await db.commit()
+        except EmptyInputError as exc:
+            if resume:
+                raise RuntimeError(
+                    "Resume is unavailable for this run: no resumable checkpoint. "
+                    "Start a new generation run."
+                ) from exc
+            raise
+
+        latest = await compiled.aget_state(graph_config)
+        checkpoint_id = _checkpoint_id_from_config(getattr(latest, "config", None))
+        next_node = _first_next_node(getattr(latest, "next", None))
+
+    run.current_phase = _NODE_PHASES.get(stop_after_node, run.current_phase)
+    run.current_step = stop_after_node
+    run.progress_pct = 80.0
+    await db.commit()
+    return {
+        "stopped_after": stop_after_node,
+        "next_node": next_node,
+        "checkpoint_id": checkpoint_id,
+        "source_count": len(source_ids),
+        "content_map_id": content_map_id,
+        "final_state_keys": sorted(final_state.keys()) if isinstance(final_state, dict) else [],
+    }

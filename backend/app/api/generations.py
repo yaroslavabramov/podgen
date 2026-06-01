@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select, func, update
@@ -17,6 +18,8 @@ from app.schemas.generation import (
     GenerationCreate,
     GenerationArtifactsResponse,
     GenerationRunResponse,
+    V2ArtifactsResponse,
+    V2ToolTracesResponse,
     EpisodePlanActArtifact,
     BeatSheetActArtifact,
     BeatSheetSceneArtifact,
@@ -64,6 +67,11 @@ async def estimate_generation_cost(project_id: uuid.UUID, data: CostEstimateRequ
 async def start_generation(project_id: uuid.UUID, data: GenerationCreate, user: CurrentUser, db: DB):
     project = await _get_user_project(project_id, user.id, db)
     created_run_scoped_bible = False
+    if data.generation_mode in {"v2", "compare"} and data.execution_mode != "full":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Generation V2 and compare mode currently support full execution only.",
+        )
 
     # Resolve ShowBible
     if data.show_bible_id:
@@ -154,6 +162,7 @@ async def start_generation(project_id: uuid.UUID, data: GenerationCreate, user: 
         "voice_a_id": data.voice_a_id,
         "voice_b_id": data.voice_b_id,
         "execution_mode": data.execution_mode,
+        "generation_mode": data.generation_mode,
     }
     if data.execution_mode == "step":
         run_config["step_control"] = _initial_step_control()
@@ -180,9 +189,18 @@ async def start_generation(project_id: uuid.UUID, data: GenerationCreate, user: 
 
     # Trigger async generation for full mode only.
     if data.execution_mode == "full":
-        from app.workers.generation_tasks import run_generation_pipeline
+        if data.generation_mode == "v2":
+            from app.workers.generation_tasks import run_generation_v2
 
-        run_generation_pipeline.delay(str(run.id))
+            run_generation_v2.delay(str(run.id), generate_audio=True)
+        elif data.generation_mode == "compare":
+            from app.workers.generation_tasks import run_generation_compare
+
+            run_generation_compare.delay(str(run.id))
+        else:
+            from app.workers.generation_tasks import run_generation_pipeline
+
+            run_generation_pipeline.delay(str(run.id))
 
     return GenerationRunResponse.model_validate(run)
 
@@ -203,6 +221,76 @@ async def get_generation(run_id: uuid.UUID, user: CurrentUser, db: DB):
 @router.get("/generations/{run_id}/artifacts", response_model=GenerationArtifactsResponse)
 async def get_generation_artifacts(run_id: uuid.UUID, user: CurrentUser, db: DB):
     run = await _get_user_run(run_id, user.id, db)
+    return await _build_generation_artifacts_response(run, db)
+
+
+@router.get("/generations/{run_id}/artifacts/v2", response_model=V2ArtifactsResponse)
+async def get_generation_v2_artifacts(run_id: uuid.UUID, user: CurrentUser, db: DB):
+    run = await _get_user_run(run_id, user.id, db)
+    from app.generation_v2.artifacts import list_artifacts_grouped
+
+    artifacts = await list_artifacts_grouped(db, run.id)
+    config = run.config or {}
+    v1_child_id = _uuid_from_config(config.get("compare_v1_run_id"))
+    v2_child_id = _uuid_from_config(config.get("compare_v2_run_id"))
+    compare_v1_artifacts = None
+    compare_v2_artifacts = None
+
+    if v1_child_id:
+        v1_child = await _get_user_run(v1_child_id, user.id, db)
+        compare_v1_artifacts = await _build_generation_artifacts_response(v1_child, db)
+    if v2_child_id:
+        v2_child = await _get_user_run(v2_child_id, user.id, db)
+        compare_v2_artifacts = await list_artifacts_grouped(db, v2_child.id)
+
+    return V2ArtifactsResponse(
+        run_id=run.id,
+        artifacts=artifacts,
+        compare_v1_run_id=v1_child_id,
+        compare_v2_run_id=v2_child_id,
+        compare_v1_artifacts=compare_v1_artifacts,
+        compare_v2_artifacts=compare_v2_artifacts,
+    )
+
+
+@router.get("/generations/{run_id}/tool-traces", response_model=V2ToolTracesResponse)
+async def get_generation_v2_tool_traces(run_id: uuid.UUID, user: CurrentUser, db: DB):
+    run = await _get_user_run(run_id, user.id, db)
+    from app.generation_v2.artifacts import list_tool_traces
+
+    return V2ToolTracesResponse(run_id=run.id, traces=await list_tool_traces(db, run.id))
+
+
+@router.post("/generations/{run_id}/promote-audio", response_model=GenerationRunResponse)
+async def promote_generation_audio(run_id: uuid.UUID, user: CurrentUser, db: DB, variant: Literal["v1", "v2"] = "v2"):
+    run = await _get_user_run(run_id, user.id, db)
+    target_run = run
+    if (run.config or {}).get("generation_mode") == "compare":
+        target_id = _uuid_from_config((run.config or {}).get(f"compare_{variant}_run_id"))
+        if not target_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Compare run has no {variant.upper()} child to promote yet.",
+            )
+        target_run = await _get_user_run(target_id, user.id, db)
+
+    if target_run.status != GenerationStatus.COMPLETED:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only completed draft runs can be promoted to audio.")
+
+    target_run.status = GenerationStatus.QUEUED
+    target_run.error_message = None
+    target_run.completed_at = None
+    target_run.config = {**(target_run.config or {}), "audio_promotion_requested": True}
+    await db.flush()
+    await db.refresh(target_run)
+
+    from app.workers.generation_tasks import promote_generation_variant_to_audio
+
+    promote_generation_variant_to_audio.delay(str(target_run.id))
+    return GenerationRunResponse.model_validate(target_run)
+
+
+async def _build_generation_artifacts_response(run: GenerationRun, db: DB) -> GenerationArtifactsResponse:
 
     manifest_result = await db.execute(
         select(EpisodeManifest).where(EpisodeManifest.generation_run_id == run.id)
@@ -349,7 +437,8 @@ async def resume_generation(run_id: uuid.UUID, user: CurrentUser, db: DB):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Use step controls for runs started in step mode.",
         )
-    if not run.langgraph_thread_id:
+    generation_mode = (run.config or {}).get("generation_mode", "v1")
+    if generation_mode == "v1" and not run.langgraph_thread_id:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Resume unavailable for this run (missing checkpoint thread). Start a new generation run.",
@@ -361,8 +450,18 @@ async def resume_generation(run_id: uuid.UUID, user: CurrentUser, db: DB):
     await db.flush()
     await db.refresh(run)
 
-    from app.workers.generation_tasks import run_generation_pipeline
-    run_generation_pipeline.delay(str(run.id), resume=True)
+    if generation_mode == "v2":
+        from app.workers.generation_tasks import run_generation_v2
+
+        run_generation_v2.delay(str(run.id), generate_audio=not bool((run.config or {}).get("compare_draft_only")))
+    elif generation_mode == "compare":
+        from app.workers.generation_tasks import run_generation_compare
+
+        run_generation_compare.delay(str(run.id))
+    else:
+        from app.workers.generation_tasks import run_generation_pipeline
+
+        run_generation_pipeline.delay(str(run.id), resume=True)
 
     return GenerationRunResponse.model_validate(run)
 
@@ -533,6 +632,15 @@ def _initial_step_control() -> dict:
         "stop_reason": None,
         "updated_at": datetime.utcnow().isoformat(),
     }
+
+
+def _uuid_from_config(value: object) -> uuid.UUID | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return uuid.UUID(value)
+    except ValueError:
+        return None
 
 
 def _mark_step_action_requested(config: dict | None, action: str, target_node: str | None = None) -> dict:

@@ -13,6 +13,7 @@ class GenerationCreate(BaseModel):
     voice_a_id: str | None = None
     voice_b_id: str | None = None
     execution_mode: Literal["full", "step"] = "full"
+    generation_mode: Literal["v1", "v2", "compare"] = "v1"
 
 
 class CostEstimateRequest(BaseModel):
@@ -95,3 +96,43 @@ class GenerationArtifactsResponse(BaseModel):
     episode_plan: list[EpisodePlanActArtifact]
     beat_sheets: list[BeatSheetActArtifact]
     screenplay: list[ScreenplayActArtifact]
+
+
+class V2ArtifactItem(BaseModel):
+    id: str
+    artifact_key: str
+    version: int
+    status: str
+    provider: str | None = None
+    model: str | None = None
+    created_at: str | None = None
+    payload: dict
+
+
+class V2ArtifactsResponse(BaseModel):
+    run_id: uuid.UUID
+    artifacts: dict[str, list[V2ArtifactItem]]
+    compare_v1_run_id: uuid.UUID | None = None
+    compare_v2_run_id: uuid.UUID | None = None
+    compare_v1_artifacts: GenerationArtifactsResponse | None = None
+    compare_v2_artifacts: dict[str, list[V2ArtifactItem]] | None = None
+
+
+class V2ToolTraceItem(BaseModel):
+    id: str
+    phase: str
+    agent_name: str
+    tool_name: str
+    input_json: dict
+    output_json: dict
+    provider_call_id: str | None = None
+    latency_ms: float | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cost_usd: float | None = None
+    created_at: str | None = None
+
+
+class V2ToolTracesResponse(BaseModel):
+    run_id: uuid.UUID
+    traces: list[V2ToolTraceItem]

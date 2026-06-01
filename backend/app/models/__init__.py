@@ -11,6 +11,16 @@ from app.models.generation_run import GenerationRun, GenerationStatus
 from app.models.episode_manifest import EpisodeManifest
 from app.models.script_segment import ScriptSegment, AuditStatus
 from app.models.episode import Episode
+from app.models.generation_v2 import (
+    CorpusWorkspace,
+    SourceRepresentation,
+    SourceRepresentationKind,
+    V2Artifact,
+    V2ArtifactStatus,
+    V2ArtifactType,
+    V2RecordStatus,
+    V2ToolTrace,
+)
 
 __all__ = [
     "User",
@@ -26,4 +36,8 @@ __all__ = [
     "EpisodeManifest",
     "ScriptSegment", "AuditStatus",
     "Episode",
+    "CorpusWorkspace",
+    "SourceRepresentation", "SourceRepresentationKind",
+    "V2Artifact", "V2ArtifactStatus", "V2ArtifactType",
+    "V2RecordStatus", "V2ToolTrace",
 ]

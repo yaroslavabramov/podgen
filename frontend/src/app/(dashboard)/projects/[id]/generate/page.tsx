@@ -5,13 +5,22 @@ import { useParams } from "next/navigation";
 import { useTranslations } from "use-intl";
 import Link from "next/link";
 import { HTTPError } from "ky";
-import { api, type CostEstimate, type GenerationArtifacts, type GenerationRun } from "@/lib/api";
+import {
+  api,
+  type CostEstimate,
+  type ExecutionMode,
+  type GenerationArtifacts,
+  type GenerationMode,
+  type GenerationRun,
+  type V2Artifacts,
+} from "@/lib/api";
 import { useGenerationStore } from "@/stores/generation-store";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { GenerationProgress } from "@/components/generation-progress";
 import { GenerationArtifactsPanel } from "@/components/generation-artifacts-panel";
+import { GenerationV2ArtifactsPanel } from "@/components/generation-v2-artifacts-panel";
 import { CostEstimateCard } from "@/components/cost-estimate-card";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 
@@ -26,8 +35,6 @@ interface ShowBibleSummary {
   tone_and_mood: string;
   hosts?: Array<{ name?: string }>;
 }
-
-type ExecutionMode = "full" | "step";
 
 interface StepControlState {
   last_node: string | null;
@@ -58,6 +65,8 @@ export default function GeneratePage() {
   const [voiceA, setVoiceA] = useState("");
   const [voiceB, setVoiceB] = useState("");
   const [showBibleSummary, setShowBibleSummary] = useState<ShowBibleSummary | null>(null);
+  const [generationMode, setGenerationMode] = useState<GenerationMode>("v1");
+  const [activeGenerationMode, setActiveGenerationMode] = useState<GenerationMode>("v1");
   const [executionMode, setExecutionMode] = useState<ExecutionMode>("full");
   const [activeExecutionMode, setActiveExecutionMode] = useState<ExecutionMode | null>(null);
   const [stepControl, setStepControl] = useState<StepControlState | null>(null);
@@ -68,6 +77,10 @@ export default function GeneratePage() {
   const [artifacts, setArtifacts] = useState<GenerationArtifacts | null>(null);
   const [artifactsLoading, setArtifactsLoading] = useState(false);
   const [artifactsError, setArtifactsError] = useState<string | null>(null);
+  const [v2Artifacts, setV2Artifacts] = useState<V2Artifacts | null>(null);
+  const [v2ArtifactsLoading, setV2ArtifactsLoading] = useState(false);
+  const [v2ArtifactsError, setV2ArtifactsError] = useState<string | null>(null);
+  const [promotingAudio, setPromotingAudio] = useState(false);
   const [launching, setLaunching] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -101,6 +114,13 @@ export default function GeneratePage() {
     return (config as { execution_mode?: string }).execution_mode === "step" ? "step" : "full";
   };
 
+  const parseGenerationMode = (config: unknown): GenerationMode => {
+    if (!config || typeof config !== "object") return "v1";
+    const value = (config as { generation_mode?: string }).generation_mode;
+    if (value === "v2" || value === "compare") return value;
+    return "v1";
+  };
+
   const parseRunStopState = (config: unknown): RunStopState => {
     if (!config || typeof config !== "object") {
       return { stop_requested: false, stop_reason: null };
@@ -120,6 +140,8 @@ export default function GeneratePage() {
       progress_pct: run.progress_pct,
     });
     const mode = parseExecutionMode(run.config);
+    const genMode = parseGenerationMode(run.config);
+    setActiveGenerationMode(genMode);
     setActiveExecutionMode(mode);
     setRunStopState(mode === "full" ? parseRunStopState(run.config) : { stop_requested: false, stop_reason: null });
     setStepControl(mode === "step" ? parseStepControl(run.config) : null);
@@ -204,6 +226,19 @@ export default function GeneratePage() {
     }
   };
 
+  const refreshV2Artifacts = async (currentRunId: string) => {
+    setV2ArtifactsLoading(true);
+    setV2ArtifactsError(null);
+    try {
+      const payload = await api.get(`api/generations/${currentRunId}/artifacts/v2`).json<V2Artifacts>();
+      setV2Artifacts(payload);
+    } catch (error) {
+      setV2ArtifactsError(await extractApiError(error, t("artifactsLoadFailed")));
+    } finally {
+      setV2ArtifactsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!prompt) return;
     const timer = setTimeout(async () => {
@@ -278,14 +313,18 @@ export default function GeneratePage() {
   }, [projectId, runId, status, startListening, autoRestoreSuppressed]);
 
   useEffect(() => {
-    if (!runId || activeExecutionMode !== "step") {
+    if (!runId || (activeExecutionMode !== "step" && activeGenerationMode === "v1")) {
       setArtifacts(null);
       setArtifactsError(null);
       setArtifactsLoading(false);
       return;
     }
-    refreshArtifacts(runId).catch(() => undefined);
-  }, [runId, activeExecutionMode]);
+    if (activeGenerationMode === "v1") {
+      refreshArtifacts(runId).catch(() => undefined);
+    } else {
+      refreshV2Artifacts(runId).catch(() => undefined);
+    }
+  }, [runId, activeExecutionMode, activeGenerationMode]);
 
   useEffect(() => {
     if (!runId || activeExecutionMode !== "step" || !lastEvent) return;
@@ -294,12 +333,17 @@ export default function GeneratePage() {
   }, [runId, activeExecutionMode, lastEvent]);
 
   useEffect(() => {
-    if (!runId || activeExecutionMode !== "step" || !lastEvent) return;
+    if (!runId || !lastEvent) return;
     if (!["generation_paused", "generation_failed", "generation_completed", "step_completed"].includes(lastEvent.type)) {
       return;
     }
-    refreshArtifacts(runId).catch(() => undefined);
-  }, [runId, activeExecutionMode, lastEvent]);
+    if (activeGenerationMode === "v1" && activeExecutionMode === "step") {
+      refreshArtifacts(runId).catch(() => undefined);
+    }
+    if (activeGenerationMode !== "v1") {
+      refreshV2Artifacts(runId).catch(() => undefined);
+    }
+  }, [runId, activeExecutionMode, activeGenerationMode, lastEvent]);
 
   useEffect(() => {
     if (!runId || activeExecutionMode !== "step") return;
@@ -362,15 +406,17 @@ export default function GeneratePage() {
           user_prompt: prompt,
           voice_a_id: voiceA || null,
           voice_b_id: voiceB || null,
-          execution_mode: executionMode,
+          execution_mode: generationMode === "v1" ? executionMode : "full",
+          generation_mode: generationMode,
         },
       }).json<GenerationRun>();
       setAutoRestoreSuppressed(false);
       startListening(run.id);
-      if (executionMode === "step") {
+      if (generationMode === "v1" && executionMode === "step") {
         applyRunData(run);
       } else {
         setActiveExecutionMode("full");
+        setActiveGenerationMode(generationMode);
         setStepControl(null);
         setRunStopState({ stop_requested: false, stop_reason: null });
       }
@@ -466,12 +512,33 @@ export default function GeneratePage() {
     setAutoRestoreSuppressed(true);
     reset();
     setActiveExecutionMode(null);
+    setActiveGenerationMode("v1");
     setStepControl(null);
     setRunStopState({ stop_requested: false, stop_reason: null });
     setArtifacts(null);
     setArtifactsError(null);
     setArtifactsLoading(false);
+    setV2Artifacts(null);
+    setV2ArtifactsError(null);
+    setV2ArtifactsLoading(false);
     setActionError(null);
+  };
+
+  const handlePromoteAudio = async (variant?: "v1" | "v2") => {
+    if (!runId) return;
+    setPromotingAudio(true);
+    setActionError(null);
+    try {
+      const run = await api.post(`api/generations/${runId}/promote-audio`, {
+        searchParams: variant ? { variant } : undefined,
+      }).json<GenerationRun>();
+      startListening(run.id);
+      applyRunData(run);
+    } catch (err) {
+      setActionError(await extractApiError(err, "Failed to promote draft to audio"));
+    } finally {
+      setPromotingAudio(false);
+    }
   };
 
   const isStepModeRun = activeExecutionMode === "step";
@@ -595,6 +662,17 @@ export default function GeneratePage() {
               artifacts={artifacts}
               loading={artifactsLoading}
               error={artifactsError}
+            />
+          )}
+
+          {activeGenerationMode !== "v1" && (
+            <GenerationV2ArtifactsPanel
+              artifacts={v2Artifacts}
+              loading={v2ArtifactsLoading}
+              error={v2ArtifactsError}
+              isCompare={activeGenerationMode === "compare"}
+              onPromoteAudio={status === "completed" ? handlePromoteAudio : undefined}
+              promoting={promotingAudio}
             />
           )}
 
@@ -749,6 +827,42 @@ export default function GeneratePage() {
 
         <Card>
           <CardHeader>
+            <CardTitle>Generation Mode</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid gap-2 sm:grid-cols-3">
+              {(["v1", "v2", "compare"] as GenerationMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => {
+                    setGenerationMode(mode);
+                    if (mode !== "v1") setExecutionMode("full");
+                  }}
+                  className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+                    generationMode === mode
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border hover:border-primary/50"
+                  }`}
+                >
+                  <span className="block font-medium">
+                    {mode === "v1" ? "V1" : mode === "v2" ? "V2" : "Compare"}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {mode === "v1"
+                      ? "Current pipeline"
+                      : mode === "v2"
+                        ? "Native-source editorial agent"
+                        : "Draft V1 and V2 side by side"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>{t("executionModeTitle")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -757,6 +871,7 @@ export default function GeneratePage() {
                 type="checkbox"
                 checked={executionMode === "step"}
                 onChange={(e) => setExecutionMode(e.target.checked ? "step" : "full")}
+                disabled={generationMode !== "v1"}
                 className="mt-1"
               />
               <span className="text-sm text-muted-foreground">

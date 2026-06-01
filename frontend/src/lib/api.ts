@@ -71,6 +71,9 @@ export interface GenerationRun {
   created_at: string;
 }
 
+export type GenerationMode = "v1" | "v2" | "compare";
+export type ExecutionMode = "full" | "step";
+
 export interface EpisodePlanActArtifact {
   act_number: number;
   story_role: string | null;
@@ -116,6 +119,41 @@ export interface GenerationArtifacts {
   episode_plan: EpisodePlanActArtifact[];
   beat_sheets: BeatSheetActArtifact[];
   screenplay: ScreenplayActArtifact[];
+}
+
+export interface V2ArtifactItem {
+  id: string;
+  artifact_key: string;
+  version: number;
+  status: string;
+  provider: string | null;
+  model: string | null;
+  created_at: string | null;
+  payload: Record<string, unknown>;
+}
+
+export interface V2Artifacts {
+  run_id: string;
+  artifacts: Record<string, V2ArtifactItem[]>;
+  compare_v1_run_id: string | null;
+  compare_v2_run_id: string | null;
+  compare_v1_artifacts: GenerationArtifacts | null;
+  compare_v2_artifacts: Record<string, V2ArtifactItem[]> | null;
+}
+
+export interface V2ToolTrace {
+  id: string;
+  phase: string;
+  agent_name: string;
+  tool_name: string;
+  input_json: Record<string, unknown>;
+  output_json: Record<string, unknown>;
+  provider_call_id: string | null;
+  latency_ms: number | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cost_usd: number | null;
+  created_at: string | null;
 }
 
 export interface CostEstimate {
