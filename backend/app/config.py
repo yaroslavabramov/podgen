@@ -46,7 +46,9 @@ class Settings(BaseSettings):
     generation_v2_openai_reasoning_effort: str = "medium"
     generation_v2_enable_provider_uploads: bool = True
     generation_v2_enable_web_search: bool = True
+    generation_v2_enable_web_search_research: bool = True
     generation_v2_enable_rendered_snapshots: bool = True
+    generation_v2_cleanup_provider_files: bool = False
     generation_v2_max_tool_rounds: int = 4
 
     # LangSmith tracing

@@ -5,8 +5,10 @@ import uuid
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.generation_v2.schemas import ActDraft, ClaimCitationBundle, FinalTranscript, Treatment
+from app.generation_v2.artifacts import list_artifacts_grouped
+from app.generation_v2.schemas import ActDraft, ClaimCitationBundle, FinalTranscript, SourceCard, Treatment
 from app.models.script_segment import AuditStatus, ScriptSegment
+from app.models.episode import Episode
 from app.pipeline.phase7_audio.shownotes import build_shownotes
 from app.pipeline.phase7_audio.tts import generate_audio
 from app.pipeline.state import PipelineState
@@ -43,6 +45,7 @@ async def generate_audio_from_segments(
     *,
     script_segment_ids: list[str] | None = None,
     quality_metrics: dict | None = None,
+    shownotes_json: dict | None = None,
 ) -> str:
     ids = script_segment_ids or await _load_script_segment_ids(run.id)
     if not ids:
@@ -53,11 +56,21 @@ async def generate_audio_from_segments(
     episode_id = str(audio_result.get("episode_id") or "")
     if not episode_id:
         raise RuntimeError("Audio generation completed without episode id")
-    await build_shownotes({**state, "episode_id": episode_id})
+    if shownotes_json is None and _uses_v2_shownotes(run):
+        shownotes_json = await build_v2_shownotes_from_artifacts(run.id)
+    if shownotes_json:
+        await _store_v2_shownotes(episode_id, shownotes_json, quality_metrics or {})
+    else:
+        await build_shownotes({**state, "episode_id": episode_id})
     return episode_id
 
 
-def transcript_payload(treatment: Treatment, drafts: list[ActDraft], bundle: ClaimCitationBundle) -> FinalTranscript:
+def transcript_payload(
+    treatment: Treatment,
+    drafts: list[ActDraft],
+    bundle: ClaimCitationBundle,
+    source_cards: list[SourceCard] | None = None,
+) -> FinalTranscript:
     from app.generation_v2.agents.editorial import final_transcript
 
     return final_transcript(
@@ -65,7 +78,107 @@ def transcript_payload(treatment: Treatment, drafts: list[ActDraft], bundle: Cla
         treatment=treatment,
         drafts=drafts,
         issues=bundle.fact_issues,
+        bundle=bundle,
+        source_cards=source_cards or [],
     )
+
+
+def build_v2_shownotes(
+    *,
+    final: FinalTranscript,
+    bundle: ClaimCitationBundle,
+    source_cards: list[SourceCard],
+) -> dict:
+    sources_by_id = {source.source_id: source for source in source_cards}
+    links_by_claim: dict[str, list] = {}
+    for link in bundle.citation_links:
+        links_by_claim.setdefault(link.claim_id, []).append(link)
+    sections = []
+    references = []
+    for claim in bundle.claims:
+        claim_links = links_by_claim.get(claim.claim_id, [])
+        references.append(
+            {
+                "claim": claim.statement,
+                "verification": claim.support_level.upper(),
+                "act_number": claim.act_number,
+                "risk_level": claim.risk_level,
+                "sources": [
+                    {
+                        "title": sources_by_id.get(link.source_id).title if sources_by_id.get(link.source_id) else link.source_id,
+                        "url": sources_by_id.get(link.source_id).url if sources_by_id.get(link.source_id) else "",
+                        "quote": link.quote or "",
+                        "locator": link.locator,
+                    }
+                    for link in claim_links[:4]
+                ],
+            }
+        )
+    sections.append({"title": final.title, "references": references, "conflicts": []})
+    return {"sections": sections, "v2": True, "quality_metrics": final.quality_metrics}
+
+
+async def build_v2_shownotes_from_artifacts(run_id: uuid.UUID) -> dict | None:
+    from app.workers.worker_db import worker_session_factory
+
+    async with worker_session_factory() as db:
+        artifacts = await list_artifacts_grouped(db, run_id)
+    final_payload = _first_payload(artifacts, "final_transcript")
+    if not final_payload:
+        return None
+    references = []
+    sources = {item["payload"]["source_id"]: item["payload"] for item in artifacts.get("source_card", []) if item.get("payload")}
+    links_by_claim: dict[str, list[dict]] = {}
+    for item in artifacts.get("citation_link", []):
+        payload = item.get("payload") or {}
+        links_by_claim.setdefault(str(payload.get("claim_id")), []).append(payload)
+    for item in artifacts.get("draft_claim", []):
+        claim = item.get("payload") or {}
+        claim_links = links_by_claim.get(str(claim.get("claim_id")), [])
+        references.append(
+            {
+                "claim": claim.get("statement", ""),
+                "verification": str(claim.get("support_level", "weak")).upper(),
+                "act_number": claim.get("act_number"),
+                "risk_level": claim.get("risk_level"),
+                "sources": [
+                    {
+                        "title": (sources.get(link.get("source_id")) or {}).get("title", link.get("source_id", "")),
+                        "url": (sources.get(link.get("source_id")) or {}).get("url", ""),
+                        "quote": link.get("quote") or "",
+                        "locator": link.get("locator") or "",
+                    }
+                    for link in claim_links[:4]
+                ],
+            }
+        )
+    return {
+        "sections": [{"title": final_payload.get("title", "Episode"), "references": references, "conflicts": []}],
+        "v2": True,
+        "quality_metrics": final_payload.get("quality_metrics", {}),
+    }
+
+
+def _first_payload(artifacts: dict, artifact_type: str) -> dict | None:
+    items = artifacts.get(artifact_type) or []
+    return items[0].get("payload") if items else None
+
+
+def _uses_v2_shownotes(run: GenerationRun) -> bool:
+    return (run.config or {}).get("generation_mode") == "v2"
+
+
+async def _store_v2_shownotes(episode_id: str, shownotes_json: dict, quality_metrics: dict) -> None:
+    from app.workers.worker_db import worker_session_factory
+
+    async with worker_session_factory() as db:
+        result = await db.execute(select(Episode).where(Episode.id == uuid.UUID(episode_id)))
+        episode = result.scalar_one_or_none()
+        if episode is None:
+            raise RuntimeError("V2 shownotes could not find episode generated by audio phase")
+        episode.shownotes_json = shownotes_json
+        episode.quality_metrics = quality_metrics
+        await db.commit()
 
 
 async def _load_script_segment_ids(run_id: uuid.UUID) -> list[str]:

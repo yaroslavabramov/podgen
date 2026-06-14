@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import String, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -36,6 +36,11 @@ class WorkspaceBuildResult:
     source_cards: list[SourceCard]
     quote_cards: list[QuoteCard]
     vector_store_id: str | None
+    ready_source_count: int
+    failed_source_count: int
+    ready_representation_count: int
+    failed_representation_count: int
+    workspace_warnings: list[str]
 
 
 async def build_source_workspace(db: AsyncSession, run: GenerationRun) -> WorkspaceBuildResult:
@@ -44,9 +49,19 @@ async def build_source_workspace(db: AsyncSession, run: GenerationRun) -> Worksp
     Original files/URLs are represented directly. Extracted text and chunks become
     searchable support views, but the workspace keeps originals/snapshots visible.
     """
+    attached_source_ids = set(str(value) for value in (run.config or {}).get("source_ids", []) if value)
     result = await db.execute(
         select(Source)
-        .where(Source.project_id == run.project_id, Source.is_temporary.is_(False))
+        .where(
+            Source.project_id == run.project_id,
+            or_(Source.is_temporary.is_(False), Source.id.cast(String).in_(attached_source_ids)),
+            or_(
+                Source.ingestion_status == "completed",
+                Source.file_path.is_not(None),
+                Source.original_url.is_not(None),
+                Source.raw_text_path.is_not(None),
+            ),
+        )
         .order_by(Source.created_at.asc())
     )
     sources = list(result.scalars())
@@ -73,10 +88,25 @@ async def build_source_workspace(db: AsyncSession, run: GenerationRun) -> Worksp
 
     source_cards: list[SourceCard] = []
     quote_cards: list[QuoteCard] = []
+    ready_source_count = 0
+    failed_source_count = 0
+    ready_representation_count = 0
+    failed_representation_count = 0
+    workspace_warnings: list[str] = []
     for source in sources:
         representation_ids = await _register_source_representations(db, run, source, vector_store_id)
+        ready_count, failed_count, coverage_status = await _representation_counts(db, representation_ids)
+        ready_representation_count += ready_count
+        failed_representation_count += failed_count
+        if ready_count:
+            ready_source_count += 1
+        else:
+            failed_source_count += 1
         chunks = await _load_source_chunks(db, source.id)
         extracted_preview = await _source_preview(source, chunks)
+        cautions = _infer_cautions(source, extracted_preview)
+        if not extracted_preview.strip() and ready_count:
+            workspace_warnings.append(f"{source.title or source.id}: deterministic text missing; native/provider views available.")
         source_card = SourceCard(
             source_id=str(source.id),
             title=source.title or source.original_url or source.file_path or "Untitled source",
@@ -86,13 +116,55 @@ async def build_source_workspace(db: AsyncSession, run: GenerationRun) -> Worksp
             authority=source.authority_type or "unknown",
             summary=_compact_preview(extracted_preview, 900),
             useful_for=_infer_useful_for(extracted_preview),
-            gaps_or_cautions=_infer_cautions(source, extracted_preview),
+            gaps_or_cautions=cautions,
             representation_ids=[str(value) for value in representation_ids],
+            representation_summary=f"{ready_count} ready, {failed_count} failed representations",
+            ready_representation_count=ready_count,
+            failed_representation_count=failed_count,
+            coverage_status=coverage_status,
         )
         source_cards.append(source_card)
         quote_cards.extend(_quote_cards_from_chunks(source, chunks))
 
+    if ready_source_count == 0 or ready_representation_count == 0:
+        workspace.status = V2RecordStatus.FAILED
+        workspace.config = {
+            **(workspace.config or {}),
+            "workspace_warnings": workspace_warnings,
+            "ready_source_count": ready_source_count,
+            "failed_source_count": failed_source_count,
+            "ready_representation_count": ready_representation_count,
+            "failed_representation_count": failed_representation_count,
+        }
+        await db.flush()
+        await save_tool_trace(
+            db,
+            generation_run_id=run.id,
+            phase="v2_source_workspace",
+            agent_name="source_workspace",
+            tool_name="build_source_workspace",
+            input_json={"source_count": len(sources)},
+            output_json={
+                "workspace_id": str(workspace.id),
+                "status": "failed",
+                "ready_source_count": ready_source_count,
+                "failed_source_count": failed_source_count,
+                "ready_representation_count": ready_representation_count,
+                "failed_representation_count": failed_representation_count,
+                "workspace_warnings": workspace_warnings,
+            },
+        )
+        raise RuntimeError("V2 source workspace has no ready source representations")
+
     workspace.status = V2RecordStatus.READY
+    workspace.config = {
+        **(workspace.config or {}),
+        "workspace_warnings": workspace_warnings,
+        "ready_source_count": ready_source_count,
+        "failed_source_count": failed_source_count,
+        "ready_representation_count": ready_representation_count,
+        "failed_representation_count": failed_representation_count,
+    }
     await db.flush()
     await save_tool_trace(
         db,
@@ -106,9 +178,59 @@ async def build_source_workspace(db: AsyncSession, run: GenerationRun) -> Worksp
             "source_cards": len(source_cards),
             "quote_cards": len(quote_cards),
             "vector_store_id": vector_store_id,
+            "ready_source_count": ready_source_count,
+            "failed_source_count": failed_source_count,
+            "ready_representation_count": ready_representation_count,
+            "failed_representation_count": failed_representation_count,
+            "workspace_warnings": workspace_warnings,
         },
     )
-    return WorkspaceBuildResult(workspace, source_cards, quote_cards[:80], vector_store_id)
+    return WorkspaceBuildResult(
+        workspace,
+        source_cards,
+        quote_cards[:80],
+        vector_store_id,
+        ready_source_count,
+        failed_source_count,
+        ready_representation_count,
+        failed_representation_count,
+        workspace_warnings,
+    )
+
+
+async def cleanup_provider_workspace(db: AsyncSession, run_id: uuid.UUID) -> None:
+    if not settings.openai_api_key or not settings.generation_v2_cleanup_provider_files:
+        return
+    client = get_openai_client()
+    workspace_result = await db.execute(
+        select(CorpusWorkspace).where(CorpusWorkspace.generation_run_id == run_id, CorpusWorkspace.provider == "openai")
+    )
+    workspaces = list(workspace_result.scalars())
+    vector_store_ids = [workspace.provider_vector_store_id for workspace in workspaces if workspace.provider_vector_store_id]
+    rep_result = await db.execute(
+        select(SourceRepresentation).where(
+            SourceRepresentation.provider == "openai",
+            SourceRepresentation.provider_file_id.is_not(None),
+            SourceRepresentation.provider_vector_store_id.in_(vector_store_ids or [""]),
+        )
+    )
+    provider_reps = list(rep_result.scalars())
+    for rep in provider_reps:
+        try:
+            await client.files.delete(rep.provider_file_id)
+            rep.status = V2RecordStatus.FAILED
+            rep.metadata_ = {**(rep.metadata_ or {}), "provider_cleanup": "deleted"}
+        except Exception:
+            logger.info("OpenAI provider file cleanup failed for %s", rep.provider_file_id, exc_info=True)
+    for workspace in workspaces:
+        if not workspace.provider_vector_store_id:
+            continue
+        try:
+            await client.vector_stores.delete(workspace.provider_vector_store_id)
+            workspace.config = {**(workspace.config or {}), "provider_cleanup": "deleted"}
+        except Exception:
+            logger.info("OpenAI vector store cleanup failed for %s", workspace.provider_vector_store_id, exc_info=True)
+    await db.flush()
 
 
 async def _register_source_representations(
@@ -414,6 +536,20 @@ async def _load_source_chunks(db: AsyncSession, source_id: uuid.UUID) -> list[Ch
     return list(result.scalars())
 
 
+async def _representation_counts(db: AsyncSession, representation_ids: list[uuid.UUID]) -> tuple[int, int, str]:
+    if not representation_ids:
+        return 0, 0, "failed"
+    result = await db.execute(select(SourceRepresentation).where(SourceRepresentation.id.in_(representation_ids)))
+    reps = list(result.scalars())
+    ready = len([rep for rep in reps if rep.status == V2RecordStatus.READY])
+    failed = len([rep for rep in reps if rep.status == V2RecordStatus.FAILED])
+    if ready and not failed:
+        return ready, failed, "ready"
+    if ready:
+        return ready, failed, "partial"
+    return ready, failed, "failed"
+
+
 async def _source_preview(source: Source, chunks: list[Chunk]) -> str:
     if source.text_preview:
         return source.text_preview
@@ -491,7 +627,10 @@ def _quote_cards_from_chunks(source: Source, chunks: list[Chunk]) -> list[QuoteC
                 quote=quote,
                 locator=" > ".join(chunk.heading_path or []) or f"chunk {chunk.chunk_index}",
                 narrative_use=", ".join(_infer_useful_for(chunk.content)),
+                representation_id=None,
+                source_kind=SourceRepresentationKind.EXTRACTED_TEXT,
                 confidence=0.65,
+                confidence_reason="Selected from deterministic chunk text.",
             )
         )
     return cards

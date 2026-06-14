@@ -494,6 +494,9 @@ async def _run_generation_v2_async(generation_run_id: str, *, generate_audio: bo
                         from app.generation_v2.orchestrator import execute_generation_v2
 
                         episode_id = await execute_generation_v2(run, db, generate_audio=generate_audio)
+                        from app.generation_v2.source_workspace import cleanup_provider_workspace
+
+                        await cleanup_provider_workspace(db, run.id)
                         run.status = GenerationStatus.COMPLETED
                         run.completed_at = datetime.utcnow()
                         await db.commit()
@@ -504,12 +507,18 @@ async def _run_generation_v2_async(generation_run_id: str, *, generate_audio: bo
                         run.error_message = None
                         run.completed_at = datetime.utcnow()
                         run.config = _ack_run_stop_requested(run.config, str(stop_exc))
+                        from app.generation_v2.source_workspace import cleanup_provider_workspace
+
+                        await cleanup_provider_workspace(db, run.id)
                         await db.commit()
                         publish_event(generation_run_id, generation_cancelled(str(stop_exc)))
                     except Exception as exc:
                         run.status = GenerationStatus.FAILED
                         run.error_message = str(exc)
                         run.completed_at = datetime.utcnow()
+                        from app.generation_v2.source_workspace import cleanup_provider_workspace
+
+                        await cleanup_provider_workspace(db, run.id)
                         await db.commit()
                         publish_event(generation_run_id, generation_failed(str(exc)))
                         raise
@@ -544,10 +553,8 @@ async def _run_generation_compare_async(generation_run_id: str):
                     if coordinator is None or coordinator.status == GenerationStatus.CANCELLED:
                         return
 
-                    v1_child = _make_compare_child(coordinator, variant="v1")
-                    v2_child = _make_compare_child(coordinator, variant="v2")
-                    db.add_all([v1_child, v2_child])
-                    await db.flush()
+                    v1_child = await _get_or_create_compare_child(db, coordinator, variant="v1")
+                    v2_child = await _get_or_create_compare_child(db, coordinator, variant="v2")
                     coordinator.config = {
                         **(coordinator.config or {}),
                         "compare_v1_run_id": str(v1_child.id),
@@ -680,11 +687,35 @@ def _make_compare_child(coordinator, *, variant: str):
     )
 
 
+async def _get_or_create_compare_child(db, coordinator, *, variant: str):
+    from app.models.generation_run import GenerationRun
+
+    config_key = f"compare_{variant}_run_id"
+    existing_id = (coordinator.config or {}).get(config_key)
+    if existing_id:
+        try:
+            result = await db.execute(select(GenerationRun).where(GenerationRun.id == uuid.UUID(str(existing_id))))
+            existing = result.scalar_one_or_none()
+            if existing is not None:
+                return existing
+        except ValueError:
+            pass
+    child = _make_compare_child(coordinator, variant=variant)
+    db.add(child)
+    await db.flush()
+    return child
+
+
 async def _execute_v1_compare_child(db, run) -> None:
     from app.models.generation_run import GenerationStatus
     from app.pipeline.graph import execute_pipeline_until
 
-    await _claim_run_for_worker(db, run)
+    if not await _claim_run_for_worker(db, run):
+        if run.status == GenerationStatus.COMPLETED:
+            return
+        if run.status == GenerationStatus.FAILED:
+            raise RuntimeError(run.error_message or "V1 compare child already failed")
+        return
     result = await db.execute(select(type(run)).where(type(run).id == run.id))
     run = result.scalar_one_or_none()
     if run is None:
@@ -707,13 +738,21 @@ async def _execute_v2_compare_child(db, run) -> None:
     from app.models.generation_run import GenerationStatus
     from app.generation_v2.orchestrator import execute_generation_v2
 
-    await _claim_run_for_worker(db, run)
+    if not await _claim_run_for_worker(db, run):
+        if run.status == GenerationStatus.COMPLETED:
+            return
+        if run.status == GenerationStatus.FAILED:
+            raise RuntimeError(run.error_message or "V2 compare child already failed")
+        return
     result = await db.execute(select(type(run)).where(type(run).id == run.id))
     run = result.scalar_one_or_none()
     if run is None:
         return
     try:
         await execute_generation_v2(run, db, generate_audio=False)
+        from app.generation_v2.source_workspace import cleanup_provider_workspace
+
+        await cleanup_provider_workspace(db, run.id)
         run.status = GenerationStatus.COMPLETED
         run.completed_at = datetime.utcnow()
         run.progress_pct = 100.0
@@ -722,5 +761,8 @@ async def _execute_v2_compare_child(db, run) -> None:
         run.status = GenerationStatus.FAILED
         run.error_message = str(exc)
         run.completed_at = datetime.utcnow()
+        from app.generation_v2.source_workspace import cleanup_provider_workspace
+
+        await cleanup_provider_workspace(db, run.id)
         await db.commit()
         raise

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 import uuid
 from types import SimpleNamespace
 
 import pytest
 
+from app.config import settings
 from app.generation_v2.agents.editorial import (
     _fallback_act_draft,
     _fallback_claims,
@@ -14,7 +16,8 @@ from app.generation_v2.agents.editorial import (
     build_research_memo,
     update_continuity_ledger,
 )
-from app.generation_v2.runtime import V2RuntimeUnavailable, _function_calls, _strict_json_schema
+from app.generation_v2.finalize import generate_audio_from_segments
+from app.generation_v2.runtime import AgentTool, ToolPolicy, V2Runtime, V2RuntimeUnavailable, _function_calls, _strict_json_schema
 from app.generation_v2.schemas import ContinuityLedger, FactIssue, QuoteCard, ResearchMemo, SourceCard
 from app.schemas.generation import GenerationCreate
 from app.workers.generation_tasks import _make_compare_child
@@ -49,6 +52,36 @@ def test_function_call_parser_accepts_sdk_objects_and_dicts() -> None:
     assert _function_calls(dict_response)[0]["arguments"] == {"kind": None}
 
 
+def test_writer_tool_policy_excludes_web_search() -> None:
+    runtime = V2Runtime()
+    tools = runtime._tool_specs(
+        vector_store_id="vs_123",
+        local_tools=[
+            AgentTool(
+                name="fetch_source_view",
+                description="Fetch source",
+                parameters={"type": "object", "properties": {"source_id": {"type": "string"}}},
+                handler=None,  # type: ignore[arg-type]
+            )
+        ],
+        policy=ToolPolicy(file_search=True, web_search=False, local_tools=True),
+    )
+
+    assert "web_search" not in [tool.get("type") for tool in tools]
+    assert "file_search" in [tool.get("type") for tool in tools]
+
+
+def test_research_tool_policy_can_include_web_search() -> None:
+    runtime = V2Runtime()
+    tools = runtime._tool_specs(
+        vector_store_id=None,
+        local_tools=[],
+        policy=ToolPolicy(file_search=False, web_search=True, local_tools=False),
+    )
+
+    assert [tool.get("type") for tool in tools] == ["web_search"]
+
+
 def test_fallback_editorial_flow_produces_draft_and_claims() -> None:
     run = SimpleNamespace(
         config={"user_prompt": "Bank note politics", "duration_target": 3600, "language": "en"},
@@ -65,6 +98,7 @@ def test_fallback_editorial_flow_produces_draft_and_claims() -> None:
         QuoteCard(
             source_id=source_cards[0].source_id,
             quote="The central bank describes several constraints on issuance.",
+            locator="p. 1",
             narrative_use="mechanism",
         )
     ]
@@ -98,6 +132,7 @@ def test_fact_issue_contract_includes_act_number() -> None:
     )
 
     assert issue.model_dump()["act_number"] == 2
+    assert issue.blocking is True
 
 
 @pytest.mark.asyncio
@@ -140,6 +175,94 @@ async def test_v2_agent_does_not_mask_prompt_or_schema_errors() -> None:
             quote_cards=[],
             vector_store_id=None,
         )
+
+
+@pytest.mark.asyncio
+async def test_runtime_records_prompt_hash_before_runtime_availability_check(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "openai_api_key", "")
+    runtime = V2Runtime()
+
+    with pytest.raises(V2RuntimeUnavailable):
+        await runtime.call_structured(
+            db=None,  # type: ignore[arg-type]
+            generation_run_id=uuid.uuid4(),
+            phase="v2_test_phase",
+            agent_name="test_agent",
+            schema_model=ResearchMemo,
+            system="system",
+            prompt="prompt body",
+        )
+
+    assert runtime.prompt_hash_for("v2_test_phase", "test_agent") == hashlib.sha256(b"prompt body").hexdigest()
+
+
+@pytest.mark.asyncio
+async def test_v1_audio_promotion_uses_v1_shownotes(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+
+    async def _fake_generate_audio(_state):
+        return {"episode_id": str(uuid.uuid4())}
+
+    async def _unexpected_v2_shownotes(_run_id):
+        raise AssertionError("V1 promotion must not build V2 shownotes")
+
+    async def _unexpected_store(_episode_id, _shownotes_json, _quality_metrics):
+        raise AssertionError("V1 promotion must not store V2 shownotes")
+
+    async def _fake_build_shownotes(_state):
+        calls.append("v1_shownotes")
+        return {"sections": [{"title": "V1"}]}
+
+    monkeypatch.setattr("app.generation_v2.finalize.generate_audio", _fake_generate_audio)
+    monkeypatch.setattr("app.generation_v2.finalize.build_v2_shownotes_from_artifacts", _unexpected_v2_shownotes)
+    monkeypatch.setattr("app.generation_v2.finalize._store_v2_shownotes", _unexpected_store)
+    monkeypatch.setattr("app.generation_v2.finalize.build_shownotes", _fake_build_shownotes)
+
+    run = SimpleNamespace(
+        id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        user_id=uuid.uuid4(),
+        show_bible_id=None,
+        config={"generation_mode": "v1", "user_prompt": "Topic"},
+    )
+
+    await generate_audio_from_segments(run, script_segment_ids=[str(uuid.uuid4())])
+
+    assert calls == ["v1_shownotes"]
+
+
+@pytest.mark.asyncio
+async def test_v2_audio_promotion_uses_v2_shownotes(monkeypatch: pytest.MonkeyPatch) -> None:
+    stored: list[dict] = []
+
+    async def _fake_generate_audio(_state):
+        return {"episode_id": str(uuid.uuid4())}
+
+    async def _fake_v2_shownotes(_run_id):
+        return {"sections": [{"title": "V2"}], "v2": True}
+
+    async def _fake_store(_episode_id, shownotes_json, _quality_metrics):
+        stored.append(shownotes_json)
+
+    async def _unexpected_build_shownotes(_state):
+        raise AssertionError("V2 promotion must use V2 shownotes")
+
+    monkeypatch.setattr("app.generation_v2.finalize.generate_audio", _fake_generate_audio)
+    monkeypatch.setattr("app.generation_v2.finalize.build_v2_shownotes_from_artifacts", _fake_v2_shownotes)
+    monkeypatch.setattr("app.generation_v2.finalize._store_v2_shownotes", _fake_store)
+    monkeypatch.setattr("app.generation_v2.finalize.build_shownotes", _unexpected_build_shownotes)
+
+    run = SimpleNamespace(
+        id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        user_id=uuid.uuid4(),
+        show_bible_id=None,
+        config={"generation_mode": "v2", "user_prompt": "Topic"},
+    )
+
+    await generate_audio_from_segments(run, script_segment_ids=[str(uuid.uuid4())])
+
+    assert stored == [{"sections": [{"title": "V2"}], "v2": True}]
 
 
 def test_compare_child_config_is_draft_only_and_variant_scoped() -> None:

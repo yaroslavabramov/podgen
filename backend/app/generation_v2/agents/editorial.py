@@ -6,6 +6,7 @@ from functools import partial
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.generation_v2.prompts import (
     ACT_DRAFT_PROMPT,
     ACT_REWRITE_PROMPT,
@@ -16,7 +17,7 @@ from app.generation_v2.prompts import (
     TREATMENT_PROMPT,
     V2_SYSTEM_BASE,
 )
-from app.generation_v2.runtime import AgentTool, V2Runtime, V2RuntimeUnavailable
+from app.generation_v2.runtime import AgentTool, ToolPolicy, V2Runtime, V2RuntimeUnavailable
 from app.generation_v2.schemas import (
     ActDossier,
     ActDraft,
@@ -30,6 +31,7 @@ from app.generation_v2.schemas import (
     FinalTranscript,
     ResearchAudit,
     ResearchMemo,
+    ShowBibleContext,
     SourceCard,
     QuoteCard,
     CitationLink,
@@ -48,11 +50,13 @@ async def build_research_memo(
     source_cards: list[SourceCard],
     quote_cards: list[QuoteCard],
     vector_store_id: str | None,
+    show_bible: ShowBibleContext | None = None,
 ) -> ResearchMemo:
     prompt = RESEARCH_MEMO_PROMPT.format(
         user_prompt=(run.config or {}).get("user_prompt", ""),
         duration_minutes=int((run.config or {}).get("duration_target", 1800)) // 60,
         language=(run.config or {}).get("language", "en"),
+        show_bible_json=(show_bible or ShowBibleContext()).model_dump_json(),
         source_cards_json=_json(source_cards),
         quote_cards_json=_json(quote_cards[:40]),
     )
@@ -67,6 +71,12 @@ async def build_research_memo(
             prompt=prompt,
             vector_store_id=vector_store_id,
             local_tools=_corpus_tools(db, run.project_id),
+            tool_policy=ToolPolicy(
+                file_search=True,
+                web_search=bool(settings.generation_v2_enable_web_search_research),
+                local_tools=True,
+                max_file_search_results=12,
+            ),
             max_output_tokens=16000,
         )
     except V2RuntimeUnavailable:
@@ -80,6 +90,7 @@ async def audit_research_memo(
     *,
     research_memo: ResearchMemo,
     vector_store_id: str | None,
+    show_bible: ShowBibleContext | None = None,
 ) -> ResearchAudit:
     prompt = RESEARCH_AUDIT_PROMPT.format(
         duration_minutes=int((run.config or {}).get("duration_target", 1800)) // 60,
@@ -95,6 +106,8 @@ async def audit_research_memo(
             system=V2_SYSTEM_BASE,
             prompt=prompt,
             vector_store_id=vector_store_id,
+            local_tools=_corpus_tools(db, run.project_id),
+            tool_policy=ToolPolicy(file_search=True, web_search=False, local_tools=True),
             max_output_tokens=5000,
         )
     except V2RuntimeUnavailable:
@@ -115,12 +128,14 @@ async def build_treatment(
     *,
     research_memo: ResearchMemo,
     vector_store_id: str | None,
+    show_bible: ShowBibleContext | None = None,
 ) -> Treatment:
     act_count = _act_count(int((run.config or {}).get("duration_target", 1800)))
     prompt = TREATMENT_PROMPT.format(
         user_prompt=(run.config or {}).get("user_prompt", ""),
         duration_minutes=int((run.config or {}).get("duration_target", 1800)) // 60,
         language=(run.config or {}).get("language", "en"),
+        show_bible_json=(show_bible or ShowBibleContext()).model_dump_json(),
         act_count=act_count,
         research_memo_json=research_memo.model_dump_json(),
     )
@@ -134,6 +149,7 @@ async def build_treatment(
             system=V2_SYSTEM_BASE,
             prompt=prompt,
             vector_store_id=vector_store_id,
+            tool_policy=ToolPolicy(file_search=True, web_search=False, local_tools=False),
             max_output_tokens=12000,
         )
     except V2RuntimeUnavailable:
@@ -146,20 +162,26 @@ def build_act_dossier(
     source_cards: list[SourceCard],
     quote_cards: list[QuoteCard],
     ledger: ContinuityLedger,
+    show_bible: ShowBibleContext | None = None,
 ) -> ActDossier:
     source_ids = treatment_act.source_focus or [card.source_id for card in source_cards[:4]]
     selected_quotes = [quote for quote in quote_cards if quote.source_id in source_ids][:8] or quote_cards[:6]
+    bible = show_bible or ShowBibleContext()
     return ActDossier(
         act_number=treatment_act.act_number,
         title=treatment_act.title,
         core_question=treatment_act.opening_question,
         must_use_sources=source_ids[:8],
         quote_cards=selected_quotes,
+        anchor_refs=[*treatment_act.required_atom_refs, *treatment_act.required_quote_refs],
         continuity_constraints=[
             *ledger.unresolved_promises[-6:],
             *[f"Avoid repeating phrase: {phrase}" for phrase in ledger.repeated_phrases[-8:]],
         ],
         claim_risks=[f"Verify: {claim}" for claim in ledger.citation_sensitive_claims[-8:]],
+        forbidden_phrases=bible.forbidden_phrases,
+        host_instructions={"hosts": bible.hosts, "tone_and_mood": bible.tone_and_mood, "show_style": bible.show_style},
+        source_density_minimum=max(1, min(treatment_act.source_density_target, len(source_ids[:8]) or 1)),
     )
 
 
@@ -172,11 +194,13 @@ async def write_act_draft(
     dossier: ActDossier,
     ledger: ContinuityLedger,
     vector_store_id: str | None,
+    show_bible: ShowBibleContext | None = None,
 ) -> ActDraft:
     prompt = ACT_DRAFT_PROMPT.format(
         act_number=treatment_act.act_number,
         language=(run.config or {}).get("language", "en"),
         target_minutes=treatment_act.target_minutes,
+        show_bible_json=(show_bible or ShowBibleContext()).model_dump_json(),
         treatment_act_json=treatment_act.model_dump_json(),
         dossier_json=dossier.model_dump_json(),
         ledger_json=ledger.model_dump_json(),
@@ -191,7 +215,8 @@ async def write_act_draft(
             system=V2_SYSTEM_BASE,
             prompt=prompt,
             vector_store_id=vector_store_id,
-            local_tools=_corpus_tools(db, run.project_id),
+            local_tools=_source_lookup_tools(db),
+            tool_policy=ToolPolicy(file_search=True, web_search=False, local_tools=True, max_file_search_results=6),
             max_output_tokens=18000,
         )
     except V2RuntimeUnavailable:
@@ -242,9 +267,11 @@ async def critique_episode(
     quote_cards: list[QuoteCard],
     drafts: list[ActDraft],
     vector_store_id: str | None,
+    show_bible: ShowBibleContext | None = None,
 ) -> EpisodeCritique:
     prompt = EPISODE_CRITIQUE_PROMPT.format(
         treatment_json=treatment.model_dump_json(),
+        show_bible_json=(show_bible or ShowBibleContext()).model_dump_json(),
         source_cards_json=_json(source_cards),
         quote_cards_json=_json(quote_cards[:60]),
         draft_json=_json(drafts),
@@ -259,6 +286,7 @@ async def critique_episode(
             system=V2_SYSTEM_BASE,
             prompt=prompt,
             vector_store_id=vector_store_id,
+            tool_policy=ToolPolicy(file_search=True, web_search=False, local_tools=False),
             max_output_tokens=7000,
         )
     except V2RuntimeUnavailable:
@@ -280,10 +308,12 @@ async def rewrite_act_draft(
     critique: EpisodeCritique,
     fact_issues: list[FactIssue] | None = None,
     vector_store_id: str | None,
+    show_bible: ShowBibleContext | None = None,
 ) -> ActDraft:
     prompt = ACT_REWRITE_PROMPT.format(
         act_number=treatment_act.act_number,
         language=(run.config or {}).get("language", "en"),
+        show_bible_json=(show_bible or ShowBibleContext()).model_dump_json(),
         treatment_act_json=treatment_act.model_dump_json(),
         dossier_json=dossier.model_dump_json(),
         draft_json=draft.model_dump_json(),
@@ -301,7 +331,8 @@ async def rewrite_act_draft(
             system=V2_SYSTEM_BASE,
             prompt=prompt,
             vector_store_id=vector_store_id,
-            local_tools=_corpus_tools(db, run.project_id),
+            local_tools=_source_lookup_tools(db),
+            tool_policy=ToolPolicy(file_search=True, web_search=False, local_tools=True, max_file_search_results=4),
             max_output_tokens=18000,
         )
         if revised.act_number != treatment_act.act_number:
@@ -321,6 +352,7 @@ async def extract_and_link_claims(
     drafts: list[ActDraft],
     critique: EpisodeCritique,
     vector_store_id: str | None,
+    show_bible: ShowBibleContext | None = None,
 ) -> ClaimCitationBundle:
     prompt = CLAIM_CITATION_PROMPT.format(
         source_cards_json=_json(source_cards),
@@ -339,25 +371,58 @@ async def extract_and_link_claims(
             prompt=prompt,
             vector_store_id=vector_store_id,
             local_tools=_corpus_tools(db, run.project_id),
+            tool_policy=ToolPolicy(file_search=True, web_search=False, local_tools=True, max_file_search_results=12),
             max_output_tokens=14000,
         )
     except V2RuntimeUnavailable:
         return _fallback_claims(source_cards, quote_cards, drafts)
 
 
-def final_transcript(run: GenerationRun, treatment: Treatment, drafts: list[ActDraft], issues: list[FactIssue]) -> FinalTranscript:
+def final_transcript(
+    run: GenerationRun,
+    treatment: Treatment,
+    drafts: list[ActDraft],
+    issues: list[FactIssue],
+    bundle: ClaimCitationBundle | None = None,
+    source_cards: list[SourceCard] | None = None,
+) -> FinalTranscript:
     lines = [line for draft in drafts for line in draft.lines if line.text.strip()]
+    claims = bundle.claims if bundle else []
+    citation_links = bundle.citation_links if bundle else []
     return FinalTranscript(
         title=treatment.title,
         description=treatment.logline,
         lines=lines,
         quality_metrics={
             "v2_fact_issue_count": len(issues),
+            "blocking_fact_issue_count": len([issue for issue in issues if issue.blocking]),
+            "remaining_low_fact_issue_count": len([issue for issue in issues if issue.severity == "low"]),
+            "supported_claim_count": len([claim for claim in claims if claim.support_level == "supported"]),
+            "weak_claim_count": len([claim for claim in claims if claim.support_level == "weak"]),
+            "citation_link_count": len(citation_links),
+            "source_coverage_status": _source_coverage_status(source_cards or []),
             "v2_dialogue_line_count": len(lines),
             "v2_act_count": len(drafts),
             "verified_fact_pct": 100 if not issues else max(50, 100 - len(issues) * 10),
         },
     )
+
+
+def _source_lookup_tools(db: AsyncSession) -> list[AgentTool]:
+    return [
+        AgentTool(
+            name="fetch_source_view",
+            description="Fetch a stored source representation view by source id and optional kind.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "source_id": {"type": "string"},
+                    "kind": {"type": ["string", "null"]},
+                },
+            },
+            handler=partial(_fetch_source_view_tool, db=db),
+        )
+    ]
 
 
 def _corpus_tools(db: AsyncSession, project_id: uuid.UUID) -> list[AgentTool]:
@@ -387,6 +452,16 @@ def _corpus_tools(db: AsyncSession, project_id: uuid.UUID) -> list[AgentTool]:
             handler=partial(_fetch_source_view_tool, db=db),
         ),
     ]
+
+
+def _source_coverage_status(source_cards: list[SourceCard]) -> str:
+    if not source_cards:
+        return "failed"
+    if all(card.coverage_status == "ready" for card in source_cards):
+        return "ready"
+    if any(card.coverage_status in {"ready", "partial"} for card in source_cards):
+        return "partial"
+    return "failed"
 
 
 async def _fetch_source_view_tool(args: dict, *, db: AsyncSession) -> dict:
@@ -420,6 +495,10 @@ def _fallback_research_memo(run: GenerationRun, source_cards: list[SourceCard], 
                 source_ids=[card.source_id],
                 quote_refs=[quote.quote[:120] for quote in quote_cards if quote.source_id == card.source_id][:2],
                 story_value=f"Use as {kind.replace('_', ' ')} material in the episode.",
+                anchor_refs=[str(ref) for ref in card.representation_ids[:3]],
+                confidence=0.55 if card.coverage_status == "ready" else 0.35,
+                risk="low" if card.coverage_status == "ready" else "medium",
+                source_coverage_status="ready" if card.coverage_status == "ready" else "partial",
             )
         )
     if not atoms:
@@ -429,6 +508,9 @@ def _fallback_research_memo(run: GenerationRun, source_cards: list[SourceCard], 
                 title="Source gap",
                 explanation="No project sources were available for V2 research.",
                 story_value="Blocks high-confidence editorial generation.",
+                confidence=0.0,
+                risk="high",
+                source_coverage_status="weak",
             )
         )
     title = str((run.config or {}).get("user_prompt") or "Podcast episode")[:120]
@@ -459,6 +541,9 @@ def _fallback_treatment(run: GenerationRun, memo: ResearchMemo, act_count: int) 
                 ending_turn=f"The next layer changes how we understand {memo.title}.",
                 source_focus=atom.source_ids,
                 target_minutes=per_act,
+                required_atom_refs=atom.anchor_refs,
+                required_quote_refs=atom.quote_refs,
+                source_density_target=max(1, min(3, len(atom.source_ids) or 1)),
             )
         )
     return Treatment(
@@ -534,6 +619,11 @@ def _fallback_claims(
                 claim_id=claim_id,
                 statement=statement[:500],
                 act_number=draft.act_number,
+                line_index=0,
+                text_span=statement[:240],
+                claim_type="factual",
+                source_need="required",
+                risk_level="low" if source_id else "high",
                 support_level="supported" if source_id else "unsupported",
             )
         )
@@ -544,7 +634,10 @@ def _fallback_claims(
                     claim_id=claim_id,
                     source_id=source_id,
                     quote=quote.quote if quote else None,
-                    locator=quote.locator if quote else None,
+                    locator=quote.locator if quote else "act-level source focus",
+                    representation_id=quote.representation_id if quote else None,
+                    quote_card_ref=quote.locator if quote else None,
+                    supports_span=statement[:240],
                     confidence=0.55,
                 )
             )
@@ -556,6 +649,7 @@ def _fallback_claims(
                     issue="No source is available for this act-level claim.",
                     repair="Add sources or rewrite as an open question.",
                     severity="high",
+                    blocking=True,
                 )
             )
     return ClaimCitationBundle(claims=claims, citation_links=links, fact_issues=issues)
@@ -567,7 +661,7 @@ def _act_count(duration_seconds: int) -> int:
         return 3
     if minutes <= 45:
         return 4
-    if minutes <= 60:
+    if minutes < 60:
         return 5
     return 6
 

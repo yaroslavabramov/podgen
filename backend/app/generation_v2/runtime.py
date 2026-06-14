@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import time
@@ -33,12 +34,24 @@ class AgentTool:
     handler: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
 
 
+@dataclass(frozen=True)
+class ToolPolicy:
+    file_search: bool = True
+    web_search: bool = False
+    local_tools: bool = True
+    max_file_search_results: int = 8
+
+
 class V2Runtime:
     """OpenAI-first structured runtime with hosted and local tools."""
 
     def __init__(self) -> None:
         self.model = settings.generation_v2_openai_model
         self.reasoning_effort = settings.generation_v2_openai_reasoning_effort
+        self._prompt_hashes: dict[tuple[str, str], str] = {}
+
+    def prompt_hash_for(self, phase: str, agent_name: str) -> str | None:
+        return self._prompt_hashes.get((phase, agent_name))
 
     async def call_structured(
         self,
@@ -52,14 +65,18 @@ class V2Runtime:
         prompt: str,
         vector_store_id: str | None = None,
         local_tools: list[AgentTool] | None = None,
+        tool_policy: ToolPolicy | None = None,
         max_output_tokens: int = 12000,
         temperature: float | None = None,
     ) -> T:
+        prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+        self._prompt_hashes[(phase, agent_name)] = prompt_hash
         if not settings.openai_api_key:
             raise V2RuntimeUnavailable("OPENAI_API_KEY is not configured")
 
         client = get_openai_client()
-        tools = self._tool_specs(vector_store_id=vector_store_id, local_tools=local_tools or [])
+        policy = tool_policy or ToolPolicy(web_search=settings.generation_v2_enable_web_search)
+        tools = self._tool_specs(vector_store_id=vector_store_id, local_tools=local_tools or [], policy=policy)
         schema = _strict_json_schema(schema_model.model_json_schema())
         input_payload: Any = prompt
         previous_response_id: str | None = None
@@ -97,8 +114,15 @@ class V2Runtime:
                 tool_name="openai.responses.create",
                 input_json={
                     "prompt_chars": len(prompt),
+                    "prompt_hash": prompt_hash,
                     "round": round_idx + 1,
                     "tools": [tool.get("type") or tool.get("name") for tool in tools],
+                    "tool_policy": {
+                        "file_search": policy.file_search,
+                        "web_search": policy.web_search,
+                        "local_tools": policy.local_tools,
+                        "max_file_search_results": policy.max_file_search_results,
+                    },
                 },
                 output_json={
                     "response_id": response.id,
@@ -154,13 +178,25 @@ class V2Runtime:
 
         raise RuntimeError(f"{agent_name} exceeded V2 tool round budget")
 
-    def _tool_specs(self, *, vector_store_id: str | None, local_tools: list[AgentTool]) -> list[dict[str, Any]]:
+    def _tool_specs(
+        self,
+        *,
+        vector_store_id: str | None,
+        local_tools: list[AgentTool],
+        policy: ToolPolicy,
+    ) -> list[dict[str, Any]]:
         tools: list[dict[str, Any]] = []
-        if vector_store_id:
-            tools.append({"type": "file_search", "vector_store_ids": [vector_store_id], "max_num_results": 8})
-        if settings.generation_v2_enable_web_search:
+        if vector_store_id and policy.file_search:
+            tools.append(
+                {
+                    "type": "file_search",
+                    "vector_store_ids": [vector_store_id],
+                    "max_num_results": policy.max_file_search_results,
+                }
+            )
+        if policy.web_search:
             tools.append({"type": "web_search"})
-        for tool in local_tools:
+        for tool in local_tools if policy.local_tools else []:
             tools.append(
                 {
                     "type": "function",

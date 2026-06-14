@@ -30,7 +30,7 @@ class _FakeDB:
         return _FakeResult(self._results.pop(0))
 
 
-def _fake_run(status: GenerationStatus) -> SimpleNamespace:
+def _fake_run(status: GenerationStatus, *, config: dict | None = None) -> SimpleNamespace:
     now = datetime.utcnow()
     return SimpleNamespace(
         id=uuid.uuid4(),
@@ -38,7 +38,7 @@ def _fake_run(status: GenerationStatus) -> SimpleNamespace:
         user_id=uuid.uuid4(),
         show_bible_id=uuid.uuid4(),
         status=status,
-        config={},
+        config=config or {},
         current_phase="phase5_planning",
         current_step="plan_episode",
         progress_pct=50.0,
@@ -89,3 +89,24 @@ async def test_get_latest_project_generation_falls_back_to_latest_failed_when_no
     assert response.id == failed_run.id
     assert response.status == GenerationStatus.FAILED
     assert db.execute_calls == 2
+
+
+@pytest.mark.asyncio
+async def test_get_latest_project_generation_restores_completed_compare_coordinator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    compare_run = _fake_run(GenerationStatus.COMPLETED, config={"generation_mode": "compare"})
+    db = _FakeDB([None, None, compare_run])
+    user = SimpleNamespace(id=uuid.uuid4())
+
+    async def _noop_verify(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr("app.api.generations._verify_project_ownership", _noop_verify)
+
+    response = await get_latest_project_generation(compare_run.project_id, user, db)
+
+    assert response.id == compare_run.id
+    assert response.status == GenerationStatus.COMPLETED
+    assert response.config["generation_mode"] == "compare"
+    assert db.execute_calls == 3

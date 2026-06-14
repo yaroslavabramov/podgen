@@ -125,6 +125,11 @@ export interface V2ArtifactItem {
   id: string;
   artifact_key: string;
   version: number;
+  attempt: number;
+  is_current: boolean;
+  prompt_hash: string | null;
+  input_artifact_ids: string[];
+  superseded_by_id: string | null;
   status: string;
   provider: string | null;
   model: string | null;

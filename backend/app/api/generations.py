@@ -2,8 +2,8 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, status
-from sqlalchemy import select, func, update
+from fastapi import APIRouter, HTTPException, Query, status
+from sqlalchemy import not_, select, func, update
 
 from app.api.deps import CurrentUser, DB
 from app.models.episode_manifest import EpisodeManifest
@@ -225,11 +225,16 @@ async def get_generation_artifacts(run_id: uuid.UUID, user: CurrentUser, db: DB)
 
 
 @router.get("/generations/{run_id}/artifacts/v2", response_model=V2ArtifactsResponse)
-async def get_generation_v2_artifacts(run_id: uuid.UUID, user: CurrentUser, db: DB):
+async def get_generation_v2_artifacts(
+    run_id: uuid.UUID,
+    user: CurrentUser,
+    db: DB,
+    include_versions: bool = Query(False),
+):
     run = await _get_user_run(run_id, user.id, db)
     from app.generation_v2.artifacts import list_artifacts_grouped
 
-    artifacts = await list_artifacts_grouped(db, run.id)
+    artifacts = await list_artifacts_grouped(db, run.id, include_versions=include_versions)
     config = run.config or {}
     v1_child_id = _uuid_from_config(config.get("compare_v1_run_id"))
     v2_child_id = _uuid_from_config(config.get("compare_v2_run_id"))
@@ -241,7 +246,7 @@ async def get_generation_v2_artifacts(run_id: uuid.UUID, user: CurrentUser, db: 
         compare_v1_artifacts = await _build_generation_artifacts_response(v1_child, db)
     if v2_child_id:
         v2_child = await _get_user_run(v2_child_id, user.id, db)
-        compare_v2_artifacts = await list_artifacts_grouped(db, v2_child.id)
+        compare_v2_artifacts = await list_artifacts_grouped(db, v2_child.id, include_versions=include_versions)
 
     return V2ArtifactsResponse(
         run_id=run.id,
@@ -276,6 +281,11 @@ async def promote_generation_audio(run_id: uuid.UUID, user: CurrentUser, db: DB,
 
     if target_run.status != GenerationStatus.COMPLETED:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only completed draft runs can be promoted to audio.")
+    segment_count = (
+        await db.execute(select(func.count(ScriptSegment.id)).where(ScriptSegment.generation_run_id == target_run.id))
+    ).scalar() or 0
+    if segment_count <= 0:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Selected variant has no script segments for audio.")
 
     target_run.status = GenerationStatus.QUEUED
     target_run.error_message = None
@@ -323,6 +333,7 @@ async def get_latest_project_generation(project_id: uuid.UUID, user: CurrentUser
         select(GenerationRun)
         .where(
             GenerationRun.project_id == project_id,
+            _not_compare_child(),
             GenerationRun.status.in_([
                 GenerationStatus.QUEUED,
                 GenerationStatus.RUNNING,
@@ -337,12 +348,25 @@ async def get_latest_project_generation(project_id: uuid.UUID, user: CurrentUser
             select(GenerationRun)
             .where(
                 GenerationRun.project_id == project_id,
+                _not_compare_child(),
                 GenerationRun.status == GenerationStatus.FAILED,
             )
             .order_by(GenerationRun.created_at.desc())
             .limit(1)
         )
         run = failed_result.scalar_one_or_none()
+    if run is None:
+        completed_compare_result = await db.execute(
+            select(GenerationRun)
+            .where(
+                GenerationRun.project_id == project_id,
+                _is_compare_coordinator(),
+                GenerationRun.status == GenerationStatus.COMPLETED,
+            )
+            .order_by(GenerationRun.created_at.desc())
+            .limit(1)
+        )
+        run = completed_compare_result.scalar_one_or_none()
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Generation run not found")
     return GenerationRunResponse.model_validate(run)
@@ -641,6 +665,14 @@ def _uuid_from_config(value: object) -> uuid.UUID | None:
         return uuid.UUID(value)
     except ValueError:
         return None
+
+
+def _not_compare_child():
+    return not_(GenerationRun.config.has_key("compare_parent_run_id"))  # noqa: W601
+
+
+def _is_compare_coordinator():
+    return _not_compare_child() & (GenerationRun.config["generation_mode"].as_string() == "compare")
 
 
 def _mark_step_action_requested(config: dict | None, action: str, target_node: str | None = None) -> dict:

@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -129,6 +129,11 @@ class V2Artifact(Base):
     artifact_type: Mapped[str] = mapped_column(String(50), nullable=False)
     artifact_key: Mapped[str] = mapped_column(String(160), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    prompt_hash: Mapped[str | None] = mapped_column(String(64))
+    input_artifact_ids: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    superseded_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("v2_artifacts.id"))
     parent_artifact_ids: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     model: Mapped[str | None] = mapped_column(String(100))

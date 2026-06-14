@@ -19,6 +19,9 @@ Topic/user prompt:
 Target duration: {duration_minutes} minutes
 Language: {language}
 
+Show Bible context:
+{show_bible_json}
+
 Available source cards. Treat summary text as a triage view, not the full source:
 {source_cards_json}
 
@@ -52,6 +55,9 @@ Language: {language}
 Research memo:
 {research_memo_json}
 
+Show Bible context:
+{show_bible_json}
+
 Use {act_count} acts. Each act must have a clear editorial job, turn, and source focus.
 Every TreatmentAct.source_focus entry must be an exact source_id from the memo. Do not invent source ids.
 Allocate target_minutes so the acts add up approximately to the target duration."""
@@ -61,6 +67,9 @@ ACT_DRAFT_PROMPT = """Write act {act_number} as dialogue between hosts A and B.
 
 Language: {language}
 Target act duration: about {target_minutes} minutes.
+
+Show Bible context:
+{show_bible_json}
 
 Treatment act:
 {treatment_act_json}
@@ -77,6 +86,8 @@ Rules:
 - Avoid repeated openers, repeated metaphors, and generic podcast phrasing.
 - Hosts should move the story forward through questions, objections, mechanisms, and turns.
 - Keep lines TTS-friendly.
+- Keep speaker field canonical: only "A" or "B"; host names belong only in natural spoken text when useful.
+- Never use forbidden phrases from the Show Bible.
 - Fill used_source_ids only with exact ids used in the act.
 - Put phrases you may be overusing into repeated_phrase_watchlist."""
 
@@ -84,6 +95,9 @@ Rules:
 ACT_REWRITE_PROMPT = """Revise act {act_number} using the critique and repair constraints.
 
 Language: {language}
+
+Show Bible context:
+{show_bible_json}
 
 Treatment act:
 {treatment_act_json}
@@ -107,6 +121,8 @@ Rules:
 - Preserve the ActDraft schema and act_number.
 - Apply only the critique/repair instructions that are relevant to this act.
 - Remove or soften unsupported claims instead of adding unsupported new claims.
+- Keep speaker field canonical: only "A" or "B".
+- Never use forbidden phrases from the Show Bible.
 - Preserve strong source-grounded material and source ids.
 - Reduce repeated phrasing and improve transitions."""
 
@@ -115,6 +131,9 @@ EPISODE_CRITIQUE_PROMPT = """Critique the complete episode draft.
 
 Treatment:
 {treatment_json}
+
+Show Bible context:
+{show_bible_json}
 
 Source cards:
 {source_cards_json}
@@ -125,7 +144,7 @@ Quote cards:
 Draft:
 {draft_json}
 
-Check repetition, pacing, weak sections, unsupported leaps, missing payoffs, and flat transitions.
+Check repetition, pacing, weak sections, unsupported leaps, missing payoffs, flat transitions, forbidden phrases, and host dynamic drift.
 If the draft should be rewritten before citation finalization, set passed=false and provide concrete rewrite_instructions."""
 
 

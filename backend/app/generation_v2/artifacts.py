@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import uuid
+import hashlib
 from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.generation_v2 import V2Artifact, V2ArtifactStatus, V2ToolTrace
@@ -28,6 +29,10 @@ async def save_artifact(
     model: str | None = None,
     status: str = V2ArtifactStatus.DRAFT,
     parent_artifact_ids: list[str] | None = None,
+    input_artifact_ids: list[str] | None = None,
+    prompt: str | None = None,
+    prompt_hash: str | None = None,
+    attempt: int = 1,
 ) -> V2Artifact:
     version_result = await db.execute(
         select(func.max(V2Artifact.version)).where(
@@ -37,11 +42,24 @@ async def save_artifact(
         )
     )
     next_version = int(version_result.scalar() or 0) + 1
+    previous_result = await db.execute(
+        select(V2Artifact).where(
+            V2Artifact.generation_run_id == generation_run_id,
+            V2Artifact.artifact_type == artifact_type,
+            V2Artifact.artifact_key == artifact_key,
+            V2Artifact.is_current.is_(True),
+        )
+    )
+    previous_current = list(previous_result.scalars())
     artifact = V2Artifact(
         generation_run_id=generation_run_id,
         artifact_type=artifact_type,
         artifact_key=artifact_key,
         version=next_version,
+        attempt=attempt,
+        is_current=True,
+        prompt_hash=prompt_hash or (hashlib.sha256(prompt.encode("utf-8")).hexdigest() if prompt else None),
+        input_artifact_ids=input_artifact_ids or [],
         parent_artifact_ids=parent_artifact_ids or [],
         payload=payload_from_model(payload),
         provider=provider,
@@ -50,14 +68,27 @@ async def save_artifact(
     )
     db.add(artifact)
     await db.flush()
+    if previous_current:
+        await db.execute(
+            update(V2Artifact)
+            .where(V2Artifact.id.in_([item.id for item in previous_current]))
+            .values(is_current=False, status=V2ArtifactStatus.SUPERSEDED, superseded_by_id=artifact.id)
+        )
+        await db.flush()
     return artifact
 
 
-async def list_artifacts_grouped(db: AsyncSession, generation_run_id: uuid.UUID) -> dict[str, list[dict[str, Any]]]:
+async def list_artifacts_grouped(
+    db: AsyncSession,
+    generation_run_id: uuid.UUID,
+    *,
+    include_versions: bool = False,
+) -> dict[str, list[dict[str, Any]]]:
+    query = select(V2Artifact).where(V2Artifact.generation_run_id == generation_run_id)
+    if not include_versions:
+        query = query.where(V2Artifact.is_current.is_(True))
     result = await db.execute(
-        select(V2Artifact)
-        .where(V2Artifact.generation_run_id == generation_run_id)
-        .order_by(V2Artifact.artifact_type.asc(), V2Artifact.artifact_key.asc(), V2Artifact.version.asc())
+        query.order_by(V2Artifact.artifact_type.asc(), V2Artifact.artifact_key.asc(), V2Artifact.version.asc())
     )
     grouped: dict[str, list[dict[str, Any]]] = {}
     for artifact in result.scalars():
@@ -66,6 +97,11 @@ async def list_artifacts_grouped(db: AsyncSession, generation_run_id: uuid.UUID)
                 "id": str(artifact.id),
                 "artifact_key": artifact.artifact_key,
                 "version": artifact.version,
+                "attempt": artifact.attempt,
+                "is_current": artifact.is_current,
+                "prompt_hash": artifact.prompt_hash,
+                "input_artifact_ids": artifact.input_artifact_ids,
+                "superseded_by_id": str(artifact.superseded_by_id) if artifact.superseded_by_id else None,
                 "status": artifact.status,
                 "provider": artifact.provider,
                 "model": artifact.model,

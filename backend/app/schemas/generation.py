@@ -102,6 +102,11 @@ class V2ArtifactItem(BaseModel):
     id: str
     artifact_key: str
     version: int
+    attempt: int = 1
+    is_current: bool = True
+    prompt_hash: str | None = None
+    input_artifact_ids: list[str] = []
+    superseded_by_id: str | None = None
     status: str
     provider: str | None = None
     model: str | None = None

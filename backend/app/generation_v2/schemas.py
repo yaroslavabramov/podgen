@@ -16,14 +16,21 @@ class SourceCard(BaseModel):
     useful_for: list[str] = Field(default_factory=list)
     gaps_or_cautions: list[str] = Field(default_factory=list)
     representation_ids: list[str] = Field(default_factory=list)
+    representation_summary: str = ""
+    ready_representation_count: int = 0
+    failed_representation_count: int = 0
+    coverage_status: Literal["ready", "partial", "failed"] = "partial"
 
 
 class QuoteCard(BaseModel):
     source_id: str
     quote: str
-    locator: str | None = None
+    locator: str
     narrative_use: str
+    representation_id: str | None = None
+    source_kind: str = "unknown"
     confidence: float = Field(default=0.7, ge=0, le=1)
+    confidence_reason: str = ""
 
 
 class EditorialAtom(BaseModel):
@@ -43,6 +50,10 @@ class EditorialAtom(BaseModel):
     source_ids: list[str] = Field(default_factory=list)
     quote_refs: list[str] = Field(default_factory=list)
     story_value: str
+    anchor_refs: list[str] = Field(default_factory=list)
+    confidence: float = Field(default=0.5, ge=0, le=1)
+    risk: str = "medium"
+    source_coverage_status: Literal["ready", "partial", "weak"] = "partial"
 
 
 class ResearchMemo(BaseModel):
@@ -72,6 +83,9 @@ class TreatmentAct(BaseModel):
     ending_turn: str
     source_focus: list[str] = Field(default_factory=list)
     target_minutes: float
+    required_atom_refs: list[str] = Field(default_factory=list)
+    required_quote_refs: list[str] = Field(default_factory=list)
+    source_density_target: int = 2
 
 
 class Treatment(BaseModel):
@@ -89,14 +103,19 @@ class ActDossier(BaseModel):
     core_question: str
     must_use_sources: list[str] = Field(default_factory=list)
     quote_cards: list[QuoteCard] = Field(default_factory=list)
+    anchor_refs: list[str] = Field(default_factory=list)
     continuity_constraints: list[str] = Field(default_factory=list)
     claim_risks: list[str] = Field(default_factory=list)
+    forbidden_phrases: list[str] = Field(default_factory=list)
+    host_instructions: dict = Field(default_factory=dict)
+    source_density_minimum: int = 2
 
 
 class DialogueLine(BaseModel):
     speaker: Literal["A", "B"]
     text: str
     ssml_hints: dict = Field(default_factory=dict)
+    claim_refs: list[str] = Field(default_factory=list)
 
 
 class ActDraft(BaseModel):
@@ -128,6 +147,11 @@ class DraftClaim(BaseModel):
     claim_id: str
     statement: str
     act_number: int
+    line_index: int = 0
+    text_span: str = ""
+    claim_type: Literal["factual", "interpretive", "quote", "causal", "statistical", "historical"] = "factual"
+    source_need: Literal["required", "recommended", "none"] = "required"
+    risk_level: Literal["low", "medium", "high"] = "medium"
     support_level: Literal["supported", "weak", "unsupported"] = "weak"
 
 
@@ -135,7 +159,10 @@ class CitationLink(BaseModel):
     claim_id: str
     source_id: str
     quote: str | None = None
-    locator: str | None = None
+    locator: str
+    representation_id: str | None = None
+    quote_card_ref: str | None = None
+    supports_span: str = ""
     confidence: float = Field(default=0.6, ge=0, le=1)
 
 
@@ -145,6 +172,7 @@ class FactIssue(BaseModel):
     issue: str
     repair: str
     severity: Literal["low", "medium", "high"] = "medium"
+    blocking: bool = True
 
 
 class ClaimCitationBundle(BaseModel):
@@ -158,3 +186,14 @@ class FinalTranscript(BaseModel):
     description: str
     lines: list[DialogueLine]
     quality_metrics: dict = Field(default_factory=dict)
+
+
+class ShowBibleContext(BaseModel):
+    show_style: str = "Conversational"
+    tone_and_mood: str = "conversational"
+    hosts: list[dict] = Field(default_factory=list)
+    forbidden_phrases: list[str] = Field(default_factory=list)
+    rigor_policy: str | None = None
+    adjacency_policy: str | None = None
+    explanation_policy: str | None = None
+    format_rules: dict = Field(default_factory=dict)
