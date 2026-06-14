@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 
 class SourceCard(BaseModel):
     source_id: str
+    source_version_ids: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
     title: str
     source_type: str
     url: str | None = None
@@ -24,6 +26,8 @@ class SourceCard(BaseModel):
 
 class QuoteCard(BaseModel):
     source_id: str
+    source_version_id: str | None = None
+    evidence_id: str | None = None
     quote: str
     locator: str
     narrative_use: str
@@ -35,6 +39,8 @@ class QuoteCard(BaseModel):
 
 class SourceTriageItem(BaseModel):
     source_id: str
+    source_version_ids: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
     rank: int
     score: float
     authority: str = "unknown"
@@ -48,6 +54,15 @@ class SourceTriageItem(BaseModel):
 class SourceTriageReport(BaseModel):
     ranked_sources: list[SourceTriageItem] = Field(default_factory=list)
     top_sources_by_function: dict[str, list[str]] = Field(default_factory=dict)
+    gaps: list[str] = Field(default_factory=list)
+    contradictions: list[str] = Field(default_factory=list)
+
+
+class SourceMap(BaseModel):
+    source_cards: list[SourceCard] = Field(default_factory=list)
+    quote_cards: list[QuoteCard] = Field(default_factory=list)
+    source_triage: SourceTriageReport = Field(default_factory=SourceTriageReport)
+    evidence_ids: list[str] = Field(default_factory=list)
     gaps: list[str] = Field(default_factory=list)
     contradictions: list[str] = Field(default_factory=list)
 
@@ -70,6 +85,7 @@ class EditorialAtom(BaseModel):
     quote_refs: list[str] = Field(default_factory=list)
     story_value: str
     anchor_refs: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
     confidence: float = Field(default=0.5, ge=0, le=1)
     risk: str = "medium"
     source_coverage_status: Literal["ready", "partial", "weak"] = "partial"
@@ -104,6 +120,7 @@ class TreatmentAct(BaseModel):
     target_minutes: float
     required_atom_refs: list[str] = Field(default_factory=list)
     required_quote_refs: list[str] = Field(default_factory=list)
+    required_evidence_ids: list[str] = Field(default_factory=list)
     source_density_target: int = 2
 
 
@@ -123,6 +140,7 @@ class ActDossier(BaseModel):
     must_use_sources: list[str] = Field(default_factory=list)
     quote_cards: list[QuoteCard] = Field(default_factory=list)
     anchor_refs: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
     continuity_constraints: list[str] = Field(default_factory=list)
     claim_risks: list[str] = Field(default_factory=list)
     forbidden_phrases: list[str] = Field(default_factory=list)
@@ -168,6 +186,7 @@ class DraftClaim(BaseModel):
     act_number: int
     line_index: int = 0
     text_span: str = ""
+    evidence_ids: list[str] = Field(default_factory=list)
     claim_type: Literal["factual", "interpretive", "quote", "causal", "statistical", "historical"] = "factual"
     source_need: Literal["required", "recommended", "none"] = "required"
     risk_level: Literal["low", "medium", "high"] = "medium"
@@ -177,6 +196,8 @@ class DraftClaim(BaseModel):
 class CitationLink(BaseModel):
     claim_id: str
     source_id: str
+    source_version_id: str | None = None
+    evidence_id: str | None = None
     quote: str | None = None
     locator: str
     representation_id: str | None = None
@@ -208,6 +229,22 @@ class CitationValidationReport(BaseModel):
     low_confidence_link_count: int = 0
     nonblocking_low_issue_count: int = 0
     blocking_issue_count: int = 0
+    support_judgment_count: int = 0
+    unsupported_judgment_count: int = 0
+
+
+class SupportJudgment(BaseModel):
+    claim_id: str
+    evidence_id: str
+    supported: bool
+    support_level: Literal["supported", "weak", "unsupported", "overstrong", "needs_attribution"] = "unsupported"
+    rationale: str
+    required_repair: str = ""
+    blocking: bool = True
+
+
+class SupportJudgmentBundle(BaseModel):
+    judgments: list[SupportJudgment] = Field(default_factory=list)
 
 
 class ClaimCitationBundle(BaseModel):

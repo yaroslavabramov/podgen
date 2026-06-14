@@ -3,6 +3,7 @@
 Date: 2026-06-01
 Status: proposal
 Scope: replacement architecture for generation quality, not a local fix to the current claim-first pipeline
+Storage/evidence amendment: `improvements/generation_v2_storage_and_evidence_architecture.md`
 
 ## Why V2 Exists
 
@@ -108,7 +109,7 @@ OpenAI's current Responses API supports stateful interactions and tools such as 
 - [Web search tool](https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses)
 - [Agents SDK](https://platform.openai.com/docs/guides/agents-sdk/)
 
-V2 should use these capabilities where they help, while keeping local artifacts and source locators as the product source of truth.
+V2 should use these capabilities where they help. The product source of truth is not "local chunks"; it is the saved source registry, source versions, tool traces, artifacts, and evidence records that connect model outputs to inspectable source material. Broad research can use hosted file search directly; citation/fact verification should use controlled evidence tools that persist retrieval results before the model judges support.
 
 ### 7. Native Source Understanding Should Be First-Class
 
@@ -435,7 +436,7 @@ Add V2 workspace creation:
 
 - upload original files or stable fetched artifacts, not only normalized text, to optional hosted file/vector-store systems when provider supports it
 - upload normalized text only as a fallback or as a second retrieval view
-- keep local Qdrant/Postgres/MinIO as source of truth
+- keep local Postgres/MinIO as the source registry, source-version store, and artifact/evidence store; do not treat local chunks as the mandatory truth layer for V2 citations
 - attach source IDs and locators to all model-visible snippets
 - create an initial corpus map
 
@@ -1080,7 +1081,7 @@ For PDFs, web articles, and other complex sources, V2 should actively compare re
 
 - If the deterministic parse is clean, cheap, and locator-preserving, use it for most local search.
 - If the parse is noisy, layout-damaged, table-heavy, or stripped of important web context, prefer the original uploaded file, original URL, rendered browser snapshot, provider web search result, or rendered pages for understanding.
-- If the model finds something through hosted file search, resolve it back to a local source/page/locator before final citation.
+- If the model finds something through hosted file search, persist the provider retrieval result as evidence and connect it to a known local source/version before final citation. A local chunk match is useful when it improves locator quality, but it should not be mandatory when provider-native evidence is already inspectable. For the final citation/fact pass, prefer controlled evidence search over raw self-reported file-search citations.
 - If the model finds something through web search, snapshot the URL and resolve the claim to a stable local source record before final citation.
 - If exact page/line provenance cannot be recovered from provider-native retrieval, run a targeted local read/OCR/page render pass only for that cited region.
 - If article extraction and browser-visible content disagree, prefer the browser-visible/source-canonical representation and record the extractor discrepancy.
@@ -1469,9 +1470,11 @@ Mitigation:
 
 Mitigation:
 
-- use hosted file search for discovery
-- use local corpus tools for exact locator reads
-- final citations must resolve to local source IDs/locators
+- treat hosted file search as a valid primary reader, not only as discovery
+- persist provider retrieval results, annotations, source ids, source versions, snippets, scores, and tool traces as first-class evidence
+- use controlled evidence tools for the final verifier so the model judges saved evidence instead of inventing citation records
+- use local corpus tools only when they improve locator quality or provide fallback evidence
+- final citations must resolve to saved evidence records, not just source ids written by the model
 
 ### Risk: Cost Explosion
 

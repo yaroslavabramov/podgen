@@ -141,3 +141,46 @@ class V2ToolTraceItem(BaseModel):
 class V2ToolTracesResponse(BaseModel):
     run_id: uuid.UUID
     traces: list[V2ToolTraceItem]
+
+
+class V2EvidenceItem(BaseModel):
+    id: str
+    generation_run_id: str
+    project_id: str
+    source_id: str
+    source_version_id: str
+    provider: str | None = None
+    provider_vector_store_id: str | None = None
+    provider_file_id: str | None = None
+    provider_vector_store_file_id: str | None = None
+    response_id: str | None = None
+    tool_call_id: str | None = None
+    retrieval_channel: str
+    query_text: str | None = None
+    purpose: str | None = None
+    search_result_index: int | None = None
+    score: float | None = None
+    snippet_text: str
+    normalized_quote_text: str | None = None
+    locator_text: str | None = None
+    locator_type: str
+    evidence_strength: str
+    snippet_hash: str
+    metadata: dict = Field(default_factory=dict)
+    created_at: str | None = None
+
+
+class V2EvidenceResponse(BaseModel):
+    run_id: uuid.UUID
+    evidence: list[V2EvidenceItem]
+    compare_v2_run_id: uuid.UUID | None = None
+    compare_v2_evidence: list[V2EvidenceItem] | None = None
+
+
+class ProjectCorpusIndexResponse(BaseModel):
+    project_id: uuid.UUID
+    provider_index: dict
+    source_version_count: int
+    active_source_version_count: int
+    provider_file_count: int
+    ready_provider_file_count: int

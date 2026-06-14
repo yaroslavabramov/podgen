@@ -1,12 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { GenerationArtifacts, V2ArtifactItem, V2Artifacts, V2ToolTrace } from "@/lib/api";
+import type { GenerationArtifacts, V2ArtifactItem, V2Artifacts, V2EvidenceItem, V2ToolTrace } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-type V2Tab = "research" | "treatment" | "draft" | "critique" | "claims" | "final" | "traces" | "compare";
+type V2Tab = "research" | "evidence" | "treatment" | "draft" | "critique" | "claims" | "final" | "traces" | "compare";
 
 interface GenerationV2ArtifactsPanelProps {
   artifacts: V2Artifacts | null;
@@ -15,13 +15,17 @@ interface GenerationV2ArtifactsPanelProps {
   toolTraces: V2ToolTrace[] | null;
   toolTracesLoading: boolean;
   toolTracesError: string | null;
+  evidence: V2EvidenceItem[] | null;
+  evidenceLoading: boolean;
+  evidenceError: string | null;
   isCompare: boolean;
   onPromoteAudio?: (variant?: "v1" | "v2") => void;
   promoting?: boolean;
 }
 
 const tabTypes: Record<V2Tab, string[]> = {
-  research: ["source_card", "quote_card", "source_triage", "editorial_atom", "research_memo", "research_audit"],
+  research: ["source_map", "source_card", "quote_card", "source_triage", "editorial_atom", "research_memo", "research_audit"],
+  evidence: ["evidence_item"],
   treatment: ["treatment", "act_dossier"],
   draft: ["act_draft", "continuity_ledger"],
   critique: ["episode_critique"],
@@ -38,6 +42,9 @@ export function GenerationV2ArtifactsPanel({
   toolTraces,
   toolTracesLoading,
   toolTracesError,
+  evidence,
+  evidenceLoading,
+  evidenceError,
   isCompare,
   onPromoteAudio,
   promoting,
@@ -80,7 +87,7 @@ export function GenerationV2ArtifactsPanel({
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap gap-2">
-          {(["research", "treatment", "draft", "critique", "claims", "final", "traces"] as V2Tab[]).map((value) => (
+          {(["research", "evidence", "treatment", "draft", "critique", "claims", "final", "traces"] as V2Tab[]).map((value) => (
             <Button
               key={value}
               type="button"
@@ -111,6 +118,8 @@ export function GenerationV2ArtifactsPanel({
 
         {tab === "traces" ? (
           <ToolTraceList traces={toolTraces || []} loading={toolTracesLoading} error={toolTracesError} />
+        ) : tab === "evidence" ? (
+          <EvidenceList evidence={evidence || []} loading={evidenceLoading} error={evidenceError} />
         ) : tab === "compare" && isCompare ? (
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="rounded-md border border-border p-4">
@@ -143,6 +152,7 @@ function collectItems(groups: Record<string, V2ArtifactItem[]>, types: string[])
 function label(tab: V2Tab): string {
   const labels: Record<V2Tab, string> = {
     research: "Research",
+    evidence: "Evidence",
     treatment: "Treatment",
     draft: "Act Drafts",
     critique: "Critique",
@@ -152,6 +162,54 @@ function label(tab: V2Tab): string {
     compare: "Compare",
   };
   return labels[tab];
+}
+
+function EvidenceList({
+  evidence,
+  loading,
+  error,
+}: {
+  evidence: V2EvidenceItem[];
+  loading: boolean;
+  error: string | null;
+}) {
+  if (loading && evidence.length === 0) {
+    return <p className="text-sm text-muted-foreground">Loading evidence...</p>;
+  }
+  if (error) {
+    return <p className="text-sm text-destructive">{error}</p>;
+  }
+  if (evidence.length === 0) {
+    return <p className="text-sm text-muted-foreground">No evidence saved yet.</p>;
+  }
+  return (
+    <div className="space-y-3">
+      {evidence.map((item) => (
+        <div key={item.id} className="rounded-md border border-border p-3">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <Badge variant="secondary">{item.purpose || "evidence"}</Badge>
+            <Badge variant="outline">{item.retrieval_channel}</Badge>
+            <Badge variant="outline">{item.evidence_strength}</Badge>
+            {item.score !== null && <Badge variant="outline">score {item.score.toFixed(2)}</Badge>}
+          </div>
+          <div className="space-y-2 text-sm">
+            <p className="font-mono text-xs text-muted-foreground">
+              evidence {item.id.slice(0, 8)} / source {item.source_id.slice(0, 8)} / version {item.source_version_id.slice(0, 8)}
+            </p>
+            <p className="text-muted-foreground">
+              Locator: <span className="text-foreground">{item.locator_type}: {item.locator_text || "provider snippet"}</span>
+            </p>
+            <p>{item.snippet_text}</p>
+            {(item.provider_file_id || item.provider_vector_store_file_id) && (
+              <p className="font-mono text-xs text-muted-foreground">
+                provider file {item.provider_file_id || "n/a"} / vector file {item.provider_vector_store_file_id || "n/a"}
+              </p>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function ToolTraceList({

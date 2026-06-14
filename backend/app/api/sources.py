@@ -11,11 +11,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, status, Request, Response
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.api.deps import CurrentUser, DB
 from app.models.project import Project
 from app.models.source import Source, SourceType, IngestionStatus
+from app.models.generation_v2 import SourceVersion
 from app.schemas.source import SourceURLCreate, SourceResponse, SourceListResponse
 from app.services.storage import get_minio_client, upload_file, generate_object_name
 
@@ -248,7 +249,7 @@ async def patch_resumable_upload(project_id: uuid.UUID, upload_id: uuid.UUID, re
 async def list_sources(project_id: uuid.UUID, user: CurrentUser, db: DB):
     await _verify_project_ownership(project_id, user.id, db)
     result = await db.execute(
-        select(Source).where(Source.project_id == project_id, Source.is_temporary == False).order_by(Source.created_at.desc())
+        select(Source).where(Source.project_id == project_id, Source.is_temporary.is_(False)).order_by(Source.created_at.desc())
     )
     sources = result.scalars().all()
     return SourceListResponse(items=[SourceResponse.model_validate(s) for s in sources], total=len(sources))
@@ -262,7 +263,22 @@ async def delete_source(source_id: uuid.UUID, user: CurrentUser, db: DB):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source not found")
     # Verify ownership through project
     await _verify_project_ownership(source.project_id, user.id, db)
-    await db.delete(source)
+    source.is_temporary = True
+    source.fully_ingested = False
+    source.metadata_ = {**(source.metadata_ or {}), "deleted": True, "deleted_at": datetime.now(timezone.utc).isoformat()}
+    source.status_changed_at = datetime.utcnow()
+    await db.execute(
+        update(SourceVersion)
+        .where(SourceVersion.source_id == source.id, SourceVersion.is_active.is_(True))
+        .values(is_active=False)
+    )
+    from app.generation_v2.source_corpus import mark_provider_files_inactive
+
+    await mark_provider_files_inactive(
+        db,
+        source_id=source.id,
+        cleanup_status="retained_for_historical_evidence",
+    )
 
 
 @router.post("/sources/{source_id}/reingest", response_model=SourceResponse)

@@ -14,6 +14,7 @@ from app.generation_v2.agents.editorial import (
     critique_episode,
     rewrite_act_draft,
     extract_and_link_claims,
+    judge_claim_support,
     update_continuity_ledger,
     write_act_draft,
 )
@@ -35,12 +36,13 @@ from app.generation_v2.schemas import (
     QuoteCard,
     ShowBibleContext,
     SourceCard,
+    SupportJudgmentBundle,
     Treatment,
 )
-from app.generation_v2.source_triage import build_source_triage
-from app.generation_v2.source_workspace import build_source_workspace
+from app.generation_v2.source_corpus import list_evidence_dicts, prepare_v2_corpus
+from app.generation_v2.tools.evidence import EvidenceToolset, build_source_map_from_evidence
 from app.models.generation_run import GenerationRun
-from app.models.generation_v2 import V2ArtifactStatus, V2ArtifactType
+from app.models.generation_v2 import RunCorpusView, V2ArtifactStatus, V2ArtifactType
 from app.models.show_bible import ShowBible
 from app.pipeline.step_control import assert_step_not_stopped
 from app.realtime.events import phase_completed, phase_started, progress, step_completed, step_started
@@ -58,9 +60,39 @@ async def execute_generation_v2(
     source_artifact_ids: list[str] = []
     quote_artifact_ids: list[str] = []
 
-    await _phase(run, db, "v2_source_workspace", "Building native source workspace", 4)
-    workspace_result = await build_source_workspace(db, run)
-    for card in workspace_result.source_cards:
+    await _phase(run, db, "v2_corpus_prepare", "Preparing evidence corpus", 4)
+    corpus = await prepare_v2_corpus(db, run)
+    evidence_toolset = EvidenceToolset(
+        db=db,
+        run=run,
+        run_view=corpus.run_view,
+        provider_index=corpus.provider_index,
+    )
+    evidence_tools = evidence_toolset.agent_tools()
+    source_map = await build_source_map_from_evidence(
+        db,
+        run=run,
+        toolset=evidence_toolset,
+        query=str((run.config or {}).get("user_prompt") or ""),
+    )
+    source_cards = source_map.source_cards
+    quote_cards = source_map.quote_cards
+    source_map_artifact = await save_artifact(
+        db,
+        generation_run_id=run.id,
+        artifact_type=V2ArtifactType.SOURCE_MAP,
+        artifact_key="main",
+        payload=source_map,
+        provider="openai" if corpus.vector_store_id else None,
+        status=V2ArtifactStatus.PASSED,
+    )
+    evidence_artifact_ids = await _save_evidence_artifacts(
+        db,
+        run,
+        evidence_ids=source_map.evidence_ids,
+        input_artifact_ids=[str(source_map_artifact.id)],
+    )
+    for card in source_cards:
         artifact = await save_artifact(
             db,
             generation_run_id=run.id,
@@ -68,9 +100,10 @@ async def execute_generation_v2(
             artifact_key=card.source_id,
             payload=card,
             status=V2ArtifactStatus.PASSED,
+            input_artifact_ids=[str(source_map_artifact.id), *evidence_artifact_ids],
         )
         source_artifact_ids.append(str(artifact.id))
-    for idx, quote in enumerate(workspace_result.quote_cards):
+    for idx, quote in enumerate(quote_cards):
         artifact = await save_artifact(
             db,
             generation_run_id=run.id,
@@ -78,13 +111,10 @@ async def execute_generation_v2(
             artifact_key=f"{quote.source_id}:{idx}",
             payload=quote,
             status=V2ArtifactStatus.PASSED,
+            input_artifact_ids=[str(source_map_artifact.id), *evidence_artifact_ids],
         )
         quote_artifact_ids.append(str(artifact.id))
-    source_triage = build_source_triage(
-        source_cards=workspace_result.source_cards,
-        quote_cards=workspace_result.quote_cards,
-        user_prompt=str((run.config or {}).get("user_prompt") or ""),
-    )
+    source_triage = source_map.source_triage
     triage_artifact = await save_artifact(
         db,
         generation_run_id=run.id,
@@ -92,28 +122,35 @@ async def execute_generation_v2(
         artifact_key="main",
         payload=source_triage,
         status=V2ArtifactStatus.PASSED,
-        input_artifact_ids=[*source_artifact_ids, *quote_artifact_ids],
+        input_artifact_ids=[str(source_map_artifact.id), *source_artifact_ids, *quote_artifact_ids],
     )
-    await _commit_step(run, db, "source_workspace", 12)
+    await _commit_step(run, db, "corpus_prepare", 12)
 
     await _phase(run, db, "v2_editorial_research", "Building editorial research memo", 14)
     memo = await build_research_memo(
         db,
         run,
         runtime,
-        source_cards=workspace_result.source_cards,
-        quote_cards=workspace_result.quote_cards,
-        vector_store_id=workspace_result.vector_store_id,
+        source_cards=source_cards,
+        quote_cards=quote_cards,
+        source_map=source_map,
+        evidence_tools=evidence_tools,
         show_bible=show_bible,
     )
-    source_workspace_artifact_ids = [*source_artifact_ids, *quote_artifact_ids, str(triage_artifact.id)]
+    source_workspace_artifact_ids = [
+        str(source_map_artifact.id),
+        *evidence_artifact_ids,
+        *source_artifact_ids,
+        *quote_artifact_ids,
+        str(triage_artifact.id),
+    ]
     memo_artifact = await save_artifact(
         db,
         generation_run_id=run.id,
         artifact_type=V2ArtifactType.RESEARCH_MEMO,
         artifact_key="main",
         payload=memo,
-        provider="openai" if workspace_result.vector_store_id else None,
+        provider="openai" if corpus.vector_store_id else None,
         model=runtime.model,
         status=V2ArtifactStatus.PASSED,
         input_artifact_ids=source_workspace_artifact_ids,
@@ -141,7 +178,8 @@ async def execute_generation_v2(
         run,
         runtime,
         research_memo=memo,
-        vector_store_id=workspace_result.vector_store_id,
+        source_map=source_map,
+        evidence_tools=evidence_tools,
         show_bible=show_bible,
     )
     audit_artifact = await save_artifact(
@@ -166,17 +204,18 @@ async def execute_generation_v2(
         run,
         runtime,
         research_memo=memo,
-        vector_store_id=workspace_result.vector_store_id,
+        source_map=source_map,
+        evidence_tools=evidence_tools,
         show_bible=show_bible,
     )
-    treatment_gate = _validate_treatment(treatment, workspace_result.source_cards, int((run.config or {}).get("duration_target", 1800)))
+    treatment_gate = _validate_treatment(treatment, source_cards, int((run.config or {}).get("duration_target", 1800)))
     treatment_artifact = await save_artifact(
         db,
         generation_run_id=run.id,
         artifact_type=V2ArtifactType.TREATMENT,
         artifact_key="main",
         payload=treatment,
-        provider="openai" if workspace_result.vector_store_id else None,
+        provider="openai" if corpus.vector_store_id else None,
         model=runtime.model,
         status=V2ArtifactStatus.PASSED if treatment_gate.passed else V2ArtifactStatus.FAILED,
         input_artifact_ids=[str(memo_artifact.id), str(audit_artifact.id), *atom_artifact_ids],
@@ -191,7 +230,7 @@ async def execute_generation_v2(
             artifact_key="treatment_gate",
             payload=treatment_gate,
             status=V2ArtifactStatus.FAILED,
-            input_artifact_ids=[str(treatment_artifact.id), *source_artifact_ids],
+            input_artifact_ids=[str(treatment_artifact.id), str(source_map_artifact.id), *source_artifact_ids],
         )
         await db.commit()
         raise RuntimeError(f"V2 treatment gate failed: {treatment_gate.summary}")
@@ -208,13 +247,13 @@ async def execute_generation_v2(
         await _phase(run, db, "v2_act_drafting", f"Writing act {treatment_act.act_number}", 42 + (idx - 1) * 28 / total_acts)
         dossier = build_act_dossier(
             treatment_act=treatment_act,
-            source_cards=workspace_result.source_cards,
-            quote_cards=workspace_result.quote_cards,
+            source_cards=source_cards,
+            quote_cards=quote_cards,
             ledger=ledger,
             show_bible=show_bible,
             source_triage=source_triage,
         )
-        dossier_gate = _validate_dossier(dossier, workspace_result.source_cards)
+        dossier_gate = _validate_dossier(dossier, source_cards)
         dossiers.append(dossier)
         dossier_input_artifact_ids = [
             str(treatment_artifact.id),
@@ -243,7 +282,7 @@ async def execute_generation_v2(
             treatment_act=treatment_act,
             dossier=dossier,
             ledger=ledger,
-            vector_store_id=workspace_result.vector_store_id,
+            evidence_tools=evidence_tools,
             show_bible=show_bible,
         )
         drafts.append(draft)
@@ -258,7 +297,7 @@ async def execute_generation_v2(
             artifact_type=V2ArtifactType.ACT_DRAFT,
             artifact_key=f"act-{draft.act_number}",
             payload=draft,
-            provider="openai" if workspace_result.vector_store_id else None,
+            provider="openai" if corpus.vector_store_id else None,
             model=runtime.model,
             status=V2ArtifactStatus.PASSED,
             input_artifact_ids=draft_input_artifact_ids,
@@ -285,10 +324,10 @@ async def execute_generation_v2(
         run,
         runtime,
         treatment=treatment,
-        source_cards=workspace_result.source_cards,
-        quote_cards=workspace_result.quote_cards,
+        source_cards=source_cards,
+        quote_cards=quote_cards,
         drafts=drafts,
-        vector_store_id=workspace_result.vector_store_id,
+        evidence_tools=evidence_tools,
         show_bible=show_bible,
     )
     critique = _apply_forbidden_phrase_gate(critique, drafts, show_bible)
@@ -323,7 +362,7 @@ async def execute_generation_v2(
                 draft=draft,
                 ledger=rewrite_ledger,
                 critique=critique,
-                vector_store_id=workspace_result.vector_store_id,
+                evidence_tools=evidence_tools,
                 show_bible=show_bible,
             )
             revised_drafts.append(revised)
@@ -341,7 +380,7 @@ async def execute_generation_v2(
                 artifact_type=V2ArtifactType.ACT_DRAFT,
                 artifact_key=f"act-{revised.act_number}",
                 payload=revised,
-                provider="openai" if workspace_result.vector_store_id else None,
+                provider="openai" if corpus.vector_store_id else None,
                 model=runtime.model,
                 status=V2ArtifactStatus.PASSED,
                 input_artifact_ids=rewrite_input_artifact_ids,
@@ -362,11 +401,12 @@ async def execute_generation_v2(
         db,
         run,
         runtime,
-        source_cards=workspace_result.source_cards,
-        quote_cards=workspace_result.quote_cards,
+        source_cards=source_cards,
+        quote_cards=quote_cards,
+        evidence_records=await list_evidence_dicts(db, run.id),
+        evidence_tools=evidence_tools,
         drafts=drafts,
         critique=critique,
-        vector_store_id=workspace_result.vector_store_id,
         show_bible=show_bible,
     )
     claim_input_artifact_ids = [
@@ -378,9 +418,12 @@ async def execute_generation_v2(
     bundle, bundle_artifact_ids, validation_report, validation_artifact_id = await _validate_and_save_claim_bundle(
         db,
         run,
+        runtime,
         bundle,
-        source_cards=workspace_result.source_cards,
-        quote_cards=workspace_result.quote_cards,
+        source_cards=source_cards,
+        quote_cards=quote_cards,
+        run_view=corpus.run_view,
+        evidence_tools=evidence_tools,
         input_artifact_ids=claim_input_artifact_ids,
         prompt_hash=runtime.prompt_hash_for("v2_fact_citation", "citation_linker"),
         pass_key="initial",
@@ -404,7 +447,7 @@ async def execute_generation_v2(
                     ledger=repair_ledger,
                     critique=critique,
                     fact_issues=act_issues,
-                    vector_store_id=workspace_result.vector_store_id,
+                    evidence_tools=evidence_tools,
                     show_bible=show_bible,
                 )
                 repair_input_artifact_ids = [
@@ -421,7 +464,7 @@ async def execute_generation_v2(
                     artifact_type=V2ArtifactType.ACT_DRAFT,
                     artifact_key=f"act-{repaired.act_number}",
                     payload=repaired,
-                    provider="openai" if workspace_result.vector_store_id else None,
+                    provider="openai" if corpus.vector_store_id else None,
                     model=runtime.model,
                     status=V2ArtifactStatus.PASSED,
                     input_artifact_ids=repair_input_artifact_ids,
@@ -446,11 +489,12 @@ async def execute_generation_v2(
             db,
             run,
             runtime,
-            source_cards=workspace_result.source_cards,
-            quote_cards=workspace_result.quote_cards,
+            source_cards=source_cards,
+            quote_cards=quote_cards,
+            evidence_records=await list_evidence_dicts(db, run.id),
+            evidence_tools=evidence_tools,
             drafts=drafts,
             critique=critique,
-            vector_store_id=workspace_result.vector_store_id,
             show_bible=show_bible,
         )
         claim_input_artifact_ids = [
@@ -462,9 +506,12 @@ async def execute_generation_v2(
         bundle, bundle_artifact_ids, validation_report, validation_artifact_id = await _validate_and_save_claim_bundle(
             db,
             run,
+            runtime,
             bundle,
-            source_cards=workspace_result.source_cards,
-            quote_cards=workspace_result.quote_cards,
+            source_cards=source_cards,
+            quote_cards=quote_cards,
+            run_view=corpus.run_view,
+            evidence_tools=evidence_tools,
             input_artifact_ids=claim_input_artifact_ids,
             prompt_hash=runtime.prompt_hash_for("v2_fact_citation", "citation_linker"),
             pass_key="post_repair",
@@ -476,7 +523,7 @@ async def execute_generation_v2(
         await db.commit()
         raise RuntimeError(f"V2 fact gate failed with {len(blocking_issues)} blocking issue(s)")
 
-    final = transcript_payload(treatment, drafts, bundle, source_cards=workspace_result.source_cards)
+    final = transcript_payload(treatment, drafts, bundle, source_cards=source_cards)
     final.quality_metrics.update(validation_quality_metrics(validation_report))
     final.quality_metrics["runtime_fallback_used"] = runtime.fallback_used
     await save_artifact(
@@ -504,7 +551,12 @@ async def execute_generation_v2(
 
     await _phase(run, db, "v2_audio", "Generating audio from V2 transcript", 90)
     await db.commit()
-    shownotes = build_v2_shownotes(final=final, bundle=bundle, source_cards=workspace_result.source_cards)
+    shownotes = build_v2_shownotes(
+        final=final,
+        bundle=bundle,
+        source_cards=source_cards,
+        evidence_records=await list_evidence_dicts(db, run.id),
+    )
     episode_id = await generate_audio_from_segments(
         run,
         script_segment_ids=segment_ids,
@@ -607,30 +659,61 @@ async def _save_claim_bundle(
 async def _validate_and_save_claim_bundle(
     db: AsyncSession,
     run: GenerationRun,
+    runtime: V2Runtime,
     bundle: ClaimCitationBundle,
     *,
     source_cards: list[SourceCard],
     quote_cards: list[QuoteCard],
+    run_view: RunCorpusView,
+    evidence_tools,
     input_artifact_ids: list[str],
     prompt_hash: str | None,
     pass_key: str,
     metadata: dict | None = None,
 ) -> tuple[ClaimCitationBundle, list[str], CitationValidationReport, str]:
+    evidence_records = await list_evidence_dicts(db, run.id)
+    linked_evidence_ids = [link.evidence_id for link in bundle.citation_links if link.evidence_id]
+    evidence_artifact_ids = await _save_evidence_artifacts(
+        db,
+        run,
+        evidence_ids=linked_evidence_ids,
+        input_artifact_ids=input_artifact_ids,
+    )
+    support_bundle = await judge_claim_support(
+        db,
+        run,
+        runtime,
+        bundle=bundle,
+        evidence_records=evidence_records,
+        evidence_tools=evidence_tools,
+    )
+    support_artifact_ids = await _save_support_judgments(
+        db,
+        run,
+        support_bundle,
+        input_artifact_ids=[*input_artifact_ids, *evidence_artifact_ids],
+        prompt_hash=runtime.prompt_hash_for("v2_fact_citation", "support_judge"),
+        metadata=runtime.fallback_metadata_for("v2_fact_citation", "support_judge"),
+    )
     validation_report = await validate_citations(
         db,
         bundle=bundle,
         source_cards=source_cards,
         quote_cards=quote_cards,
+        evidence_records=evidence_records,
+        support_judgments=support_bundle.judgments,
+        run_view=run_view,
     )
     bundle = merge_validation_issues(bundle, validation_report)
     bundle_artifact_ids = await _save_claim_bundle(
         db,
         run,
         bundle,
-        input_artifact_ids=input_artifact_ids,
+        input_artifact_ids=[*input_artifact_ids, *evidence_artifact_ids, *support_artifact_ids],
         prompt_hash=prompt_hash,
         metadata=metadata,
     )
+    bundle_artifact_ids = [*evidence_artifact_ids, *support_artifact_ids, *bundle_artifact_ids]
     validation_artifact = await save_artifact(
         db,
         generation_run_id=run.id,
@@ -643,6 +726,60 @@ async def _validate_and_save_claim_bundle(
         metadata=metadata,
     )
     return bundle, bundle_artifact_ids, validation_report, str(validation_artifact.id)
+
+
+async def _save_support_judgments(
+    db: AsyncSession,
+    run: GenerationRun,
+    support_bundle: SupportJudgmentBundle,
+    *,
+    input_artifact_ids: list[str],
+    prompt_hash: str | None,
+    metadata: dict | None = None,
+) -> list[str]:
+    artifact_ids: list[str] = []
+    for idx, judgment in enumerate(support_bundle.judgments):
+        artifact = await save_artifact(
+            db,
+            generation_run_id=run.id,
+            artifact_type=V2ArtifactType.SUPPORT_JUDGMENT,
+            artifact_key=f"{judgment.claim_id}:{judgment.evidence_id}:{idx}",
+            payload=judgment,
+            status=V2ArtifactStatus.PASSED if judgment.supported and not judgment.blocking else V2ArtifactStatus.FAILED,
+            input_artifact_ids=input_artifact_ids,
+            prompt_hash=prompt_hash,
+            metadata=metadata,
+        )
+        artifact_ids.append(str(artifact.id))
+    return artifact_ids
+
+
+async def _save_evidence_artifacts(
+    db: AsyncSession,
+    run: GenerationRun,
+    *,
+    evidence_ids: list[str],
+    input_artifact_ids: list[str],
+) -> list[str]:
+    if not evidence_ids:
+        return []
+    evidence_by_id = {item["id"]: item for item in await list_evidence_dicts(db, run.id)}
+    artifact_ids: list[str] = []
+    for evidence_id in evidence_ids:
+        payload = evidence_by_id.get(evidence_id)
+        if not payload:
+            continue
+        artifact = await save_artifact(
+            db,
+            generation_run_id=run.id,
+            artifact_type=V2ArtifactType.EVIDENCE_ITEM,
+            artifact_key=evidence_id,
+            payload=payload,
+            status=V2ArtifactStatus.PASSED,
+            input_artifact_ids=input_artifact_ids,
+        )
+        artifact_ids.append(str(artifact.id))
+    return artifact_ids
 
 
 async def _load_show_bible_context(db: AsyncSession, run: GenerationRun) -> ShowBibleContext:
@@ -674,6 +811,8 @@ def _validate_treatment(treatment: Treatment, source_cards: list[SourceCard], du
             issues.append(f"Act {act.act_number} does not meet source density target.")
         if not act.required_atom_refs and duration_seconds >= 3600:
             issues.append(f"Act {act.act_number} lacks required editorial atom anchors.")
+        if duration_seconds >= 3600 and len(act.required_evidence_ids) < max(1, min(act.source_density_target, 2)):
+            issues.append(f"Act {act.act_number} lacks enough required evidence ids for long-form drafting.")
     return EpisodeCritique(
         passed=not issues,
         summary="Treatment gate passed." if not issues else "Treatment gate failed.",
@@ -687,8 +826,10 @@ def _validate_dossier(dossier: ActDossier, source_cards: list[SourceCard]) -> Ep
     issues = []
     if len(set(dossier.must_use_sources) & known_sources) < dossier.source_density_minimum:
         issues.append("Act dossier does not meet source density minimum.")
-    if not dossier.quote_cards and not dossier.anchor_refs:
-        issues.append("Act dossier has no quote cards or anchor refs.")
+    if len(dossier.evidence_ids) < max(1, dossier.source_density_minimum):
+        issues.append("Act dossier does not meet evidence density minimum.")
+    if not dossier.quote_cards and not dossier.anchor_refs and not dossier.evidence_ids:
+        issues.append("Act dossier has no quote cards, anchor refs, or evidence ids.")
     return EpisodeCritique(
         passed=not issues,
         summary="Act dossier gate passed." if not issues else "Act dossier gate failed.",

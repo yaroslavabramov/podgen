@@ -88,8 +88,10 @@ def build_v2_shownotes(
     final: FinalTranscript,
     bundle: ClaimCitationBundle,
     source_cards: list[SourceCard],
+    evidence_records: list[dict] | None = None,
 ) -> dict:
     sources_by_id = {source.source_id: source for source in source_cards}
+    evidence_by_id = {str(item.get("id")): item for item in evidence_records or []}
     links_by_claim: dict[str, list] = {}
     for link in bundle.citation_links:
         links_by_claim.setdefault(link.claim_id, []).append(link)
@@ -108,7 +110,11 @@ def build_v2_shownotes(
                         "title": sources_by_id.get(link.source_id).title if sources_by_id.get(link.source_id) else link.source_id,
                         "url": sources_by_id.get(link.source_id).url if sources_by_id.get(link.source_id) else "",
                         "quote": link.quote or "",
-                        "locator": link.locator,
+                        "locator": _honest_locator(link, evidence_by_id.get(str(link.evidence_id or ""))),
+                        "evidence_id": link.evidence_id,
+                        "source_version_id": link.source_version_id,
+                        "retrieval_channel": (evidence_by_id.get(str(link.evidence_id or "")) or {}).get("retrieval_channel"),
+                        "evidence_strength": (evidence_by_id.get(str(link.evidence_id or "")) or {}).get("evidence_strength"),
                     }
                     for link in claim_links[:4]
                 ],
@@ -128,6 +134,7 @@ async def build_v2_shownotes_from_artifacts(run_id: uuid.UUID) -> dict | None:
         return None
     references = []
     sources = {item["payload"]["source_id"]: item["payload"] for item in artifacts.get("source_card", []) if item.get("payload")}
+    evidence = {item["payload"]["id"]: item["payload"] for item in artifacts.get("evidence_item", []) if item.get("payload")}
     links_by_claim: dict[str, list[dict]] = {}
     for item in artifacts.get("citation_link", []):
         payload = item.get("payload") or {}
@@ -146,7 +153,11 @@ async def build_v2_shownotes_from_artifacts(run_id: uuid.UUID) -> dict | None:
                         "title": (sources.get(link.get("source_id")) or {}).get("title", link.get("source_id", "")),
                         "url": (sources.get(link.get("source_id")) or {}).get("url", ""),
                         "quote": link.get("quote") or "",
-                        "locator": link.get("locator") or "",
+                        "locator": _honest_locator_payload(link, evidence.get(str(link.get("evidence_id") or ""))),
+                        "evidence_id": link.get("evidence_id"),
+                        "source_version_id": link.get("source_version_id"),
+                        "retrieval_channel": (evidence.get(str(link.get("evidence_id") or "")) or {}).get("retrieval_channel"),
+                        "evidence_strength": (evidence.get(str(link.get("evidence_id") or "")) or {}).get("evidence_strength"),
                     }
                     for link in claim_links[:4]
                 ],
@@ -166,6 +177,32 @@ def _first_payload(artifacts: dict, artifact_type: str) -> dict | None:
 
 def _uses_v2_shownotes(run: GenerationRun) -> bool:
     return (run.config or {}).get("generation_mode") == "v2"
+
+
+def _honest_locator(link, evidence: dict | None) -> str:
+    if evidence:
+        locator = str(evidence.get("locator_text") or "").strip()
+        locator_type = str(evidence.get("locator_type") or "").strip()
+        if locator and locator_type and locator_type != "unknown":
+            return f"{locator_type}: {locator}"
+        if locator:
+            return locator
+        if evidence.get("snippet_text"):
+            return "provider snippet"
+    return link.locator
+
+
+def _honest_locator_payload(link: dict, evidence: dict | None) -> str:
+    if evidence:
+        locator = str(evidence.get("locator_text") or "").strip()
+        locator_type = str(evidence.get("locator_type") or "").strip()
+        if locator and locator_type and locator_type != "unknown":
+            return f"{locator_type}: {locator}"
+        if locator:
+            return locator
+        if evidence.get("snippet_text"):
+            return "provider snippet"
+    return str(link.get("locator") or "")
 
 
 async def _store_v2_shownotes(episode_id: str, shownotes_json: dict, quality_metrics: dict) -> None:

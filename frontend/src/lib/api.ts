@@ -166,6 +166,40 @@ export interface V2ToolTraces {
   traces: V2ToolTrace[];
 }
 
+export interface V2EvidenceItem {
+  id: string;
+  generation_run_id: string;
+  project_id: string;
+  source_id: string;
+  source_version_id: string;
+  provider: string | null;
+  provider_vector_store_id: string | null;
+  provider_file_id: string | null;
+  provider_vector_store_file_id: string | null;
+  response_id: string | null;
+  tool_call_id: string | null;
+  retrieval_channel: string;
+  query_text: string | null;
+  purpose: string | null;
+  search_result_index: number | null;
+  score: number | null;
+  snippet_text: string;
+  normalized_quote_text: string | null;
+  locator_text: string | null;
+  locator_type: string;
+  evidence_strength: string;
+  snippet_hash: string;
+  metadata: Record<string, unknown>;
+  created_at: string | null;
+}
+
+export interface V2EvidenceResponse {
+  run_id: string;
+  evidence: V2EvidenceItem[];
+  compare_v2_run_id: string | null;
+  compare_v2_evidence: V2EvidenceItem[] | null;
+}
+
 export interface CostEstimate {
   estimated_llm_cost: number;
   estimated_tts_cost: number;

@@ -155,4 +155,4 @@ def _quote_ref(quote: QuoteCard) -> str:
 
 
 def _tokens(text: str) -> set[str]:
-    return {token for token in re.findall(r"[A-Za-z0-9]{3,}", text.lower()) if token}
+    return {token for token in re.findall(r"[^\W_]{3,}", text.lower(), flags=re.UNICODE) if token}

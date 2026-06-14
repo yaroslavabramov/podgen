@@ -14,6 +14,7 @@ from app.generation_v2.agents.editorial import (
     _fallback_treatment,
     build_act_dossier,
     build_research_memo,
+    judge_claim_support,
     update_continuity_ledger,
 )
 from app.generation_v2.citation_validation import validate_citations
@@ -28,9 +29,15 @@ from app.generation_v2.schemas import (
     QuoteCard,
     ResearchMemo,
     SourceCard,
+    SupportJudgment,
+    SupportJudgmentBundle,
+    TreatmentAct,
 )
 from app.generation_v2.source_triage import build_source_triage
+from app.generation_v2.source_corpus import _version_has_snapshot, _version_upload_payload
 from app.generation_v2.source_workspace import _quote_cards_from_chunks
+from app.generation_v2.tools.evidence import _CHUNK_BACKED_VERSION_KINDS, _query_tokens, _source_map_queries
+from app.models.generation_v2 import SourceRepresentationKind, SourceVersion
 from app.schemas.generation import GenerationCreate
 from app.workers.generation_tasks import _make_compare_child
 
@@ -532,6 +539,506 @@ def test_compare_child_config_is_draft_only_and_variant_scoped() -> None:
     assert "stop_after_node" not in v2_child.config
 
 
+@pytest.mark.asyncio
+async def test_evidence_backed_citation_validation_passes_with_saved_evidence() -> None:
+    source_id = str(uuid.uuid4())
+    source_version_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    source = _source_card(source_id=source_id)
+    quote = "The audit found that the mechanism depends on three concrete constraints."
+    bundle = ClaimCitationBundle(
+        claims=[_claim("claim-1", support_level="supported")],
+        citation_links=[
+            CitationLink(
+                claim_id="claim-1",
+                source_id=source_id,
+                source_version_id=source_version_id,
+                evidence_id=evidence_id,
+                locator="section: section 2",
+                quote=quote,
+                supports_span="A specific factual statement",
+                confidence=0.92,
+            )
+        ],
+    )
+
+    report = await validate_citations(
+        None,
+        bundle=bundle,
+        source_cards=[source],
+        quote_cards=[],
+        evidence_records=[
+            _evidence_record(
+                evidence_id=evidence_id,
+                source_id=source_id,
+                source_version_id=source_version_id,
+                snippet_text=f"{quote} The rest of the snippet explains the result.",
+                evidence_strength="snippet",
+            )
+        ],
+        support_judgments=[
+            SupportJudgment(
+                claim_id="claim-1",
+                evidence_id=evidence_id,
+                supported=True,
+                support_level="supported",
+                rationale="The linked snippet directly supports the claim.",
+                required_repair="",
+                blocking=False,
+            )
+        ],
+        run_view=SimpleNamespace(
+            selected_source_ids=[source_id],
+            selected_source_version_ids=[source_version_id],
+            generation_run_id=uuid.uuid4(),
+        ),
+    )
+
+    assert report.passed is True
+    assert report.quote_match_count == 1
+    assert report.blocking_issue_count == 0
+
+
+@pytest.mark.asyncio
+async def test_evidence_gate_blocks_missing_evidence_and_source_level_support() -> None:
+    source_id = str(uuid.uuid4())
+    source_version_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    source = _source_card(source_id=source_id)
+    bundle = ClaimCitationBundle(
+        claims=[
+            _claim("missing-evidence", support_level="supported"),
+            _claim("weak-evidence", support_level="supported"),
+        ],
+        citation_links=[
+            CitationLink(
+                claim_id="missing-evidence",
+                source_id=source_id,
+                source_version_id=source_version_id,
+                locator="section 2",
+                confidence=0.9,
+            ),
+            CitationLink(
+                claim_id="weak-evidence",
+                source_id=source_id,
+                source_version_id=source_version_id,
+                evidence_id=evidence_id,
+                locator="source snapshot",
+                confidence=0.9,
+            ),
+        ],
+    )
+
+    report = await validate_citations(
+        None,
+        bundle=bundle,
+        source_cards=[source],
+        quote_cards=[],
+        evidence_records=[
+            _evidence_record(
+                evidence_id=evidence_id,
+                source_id=source_id,
+                source_version_id=source_version_id,
+                evidence_strength="source_level",
+            )
+        ],
+        run_view=SimpleNamespace(
+            selected_source_ids=[source_id],
+            selected_source_version_ids=[source_version_id],
+            generation_run_id=uuid.uuid4(),
+        ),
+    )
+
+    issue_text = " ".join(issue.issue for issue in report.issues)
+    assert report.passed is False
+    assert "missing evidence_id" in issue_text
+    assert "weak or source-level evidence" in issue_text
+
+
+@pytest.mark.asyncio
+async def test_required_evidence_link_requires_support_judgment() -> None:
+    source_id = str(uuid.uuid4())
+    source_version_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    source = _source_card(source_id=source_id)
+    bundle = ClaimCitationBundle(
+        claims=[_claim("claim-1", support_level="supported")],
+        citation_links=[
+            CitationLink(
+                claim_id="claim-1",
+                source_id=source_id,
+                source_version_id=source_version_id,
+                evidence_id=evidence_id,
+                locator="section 2",
+                confidence=0.9,
+            )
+        ],
+    )
+
+    report = await validate_citations(
+        None,
+        bundle=bundle,
+        source_cards=[source],
+        quote_cards=[],
+        evidence_records=[
+            _evidence_record(
+                evidence_id=evidence_id,
+                source_id=source_id,
+                source_version_id=source_version_id,
+            )
+        ],
+        support_judgments=[],
+        run_view=SimpleNamespace(
+            selected_source_ids=[source_id],
+            selected_source_version_ids=[source_version_id],
+            generation_run_id=uuid.uuid4(),
+        ),
+    )
+
+    assert report.passed is False
+    assert any("missing a saved support judgment" in issue.issue for issue in report.issues)
+
+
+@pytest.mark.asyncio
+async def test_supported_judgment_overrides_linker_self_reported_weak_support() -> None:
+    source_id = str(uuid.uuid4())
+    source_version_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    source = _source_card(source_id=source_id)
+    bundle = ClaimCitationBundle(
+        claims=[_claim("claim-1", support_level="weak")],
+        citation_links=[
+            CitationLink(
+                claim_id="claim-1",
+                source_id=source_id,
+                source_version_id=source_version_id,
+                evidence_id=evidence_id,
+                locator="section 2",
+                confidence=0.9,
+            )
+        ],
+    )
+
+    report = await validate_citations(
+        None,
+        bundle=bundle,
+        source_cards=[source],
+        quote_cards=[],
+        evidence_records=[
+            _evidence_record(
+                evidence_id=evidence_id,
+                source_id=source_id,
+                source_version_id=source_version_id,
+            )
+        ],
+        support_judgments=[
+            SupportJudgment(
+                claim_id="claim-1",
+                evidence_id=evidence_id,
+                supported=True,
+                support_level="supported",
+                rationale="Saved evidence supports the claim.",
+                blocking=False,
+            )
+        ],
+        run_view=SimpleNamespace(
+            selected_source_ids=[source_id],
+            selected_source_version_ids=[source_version_id],
+            generation_run_id=uuid.uuid4(),
+        ),
+    )
+
+    assert report.passed is True
+    assert report.supported_required_claim_count == 1
+    assert not any("self-reported support" in issue.issue for issue in report.issues)
+
+
+@pytest.mark.asyncio
+async def test_support_judgment_blocks_unsupported_saved_evidence() -> None:
+    source_id = str(uuid.uuid4())
+    source_version_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    source = _source_card(source_id=source_id)
+    bundle = ClaimCitationBundle(
+        claims=[_claim("claim-1", support_level="supported")],
+        citation_links=[
+            CitationLink(
+                claim_id="claim-1",
+                source_id=source_id,
+                source_version_id=source_version_id,
+                evidence_id=evidence_id,
+                locator="section 2",
+                confidence=0.9,
+            )
+        ],
+    )
+
+    report = await validate_citations(
+        None,
+        bundle=bundle,
+        source_cards=[source],
+        quote_cards=[],
+        evidence_records=[
+            _evidence_record(
+                evidence_id=evidence_id,
+                source_id=source_id,
+                source_version_id=source_version_id,
+            )
+        ],
+        support_judgments=[
+            SupportJudgment(
+                claim_id="claim-1",
+                evidence_id=evidence_id,
+                supported=False,
+                support_level="unsupported",
+                rationale="Snippet discusses a different point.",
+                required_repair="Relink to stronger evidence.",
+                blocking=True,
+            )
+        ],
+        run_view=SimpleNamespace(
+            selected_source_ids=[source_id],
+            selected_source_version_ids=[source_version_id],
+            generation_run_id=uuid.uuid4(),
+        ),
+    )
+
+    assert report.passed is False
+    assert report.unsupported_judgment_count == 1
+    assert any("Support judge marked evidence as not supported" in issue.issue for issue in report.issues)
+
+
+@pytest.mark.asyncio
+async def test_support_judgment_supported_false_blocks_even_with_supported_level() -> None:
+    source_id = str(uuid.uuid4())
+    source_version_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    source = _source_card(source_id=source_id)
+    bundle = ClaimCitationBundle(
+        claims=[_claim("claim-1", support_level="supported")],
+        citation_links=[
+            CitationLink(
+                claim_id="claim-1",
+                source_id=source_id,
+                source_version_id=source_version_id,
+                evidence_id=evidence_id,
+                locator="section 2",
+                confidence=0.9,
+            )
+        ],
+    )
+
+    report = await validate_citations(
+        None,
+        bundle=bundle,
+        source_cards=[source],
+        quote_cards=[],
+        evidence_records=[
+            _evidence_record(
+                evidence_id=evidence_id,
+                source_id=source_id,
+                source_version_id=source_version_id,
+            )
+        ],
+        support_judgments=[
+            SupportJudgment(
+                claim_id="claim-1",
+                evidence_id=evidence_id,
+                supported=False,
+                support_level="supported",
+                rationale="Contradictory verifier payload.",
+                required_repair="Relink to stronger evidence.",
+                blocking=False,
+            )
+        ],
+        run_view=SimpleNamespace(
+            selected_source_ids=[source_id],
+            selected_source_version_ids=[source_version_id],
+            generation_run_id=uuid.uuid4(),
+        ),
+    )
+
+    assert report.passed is False
+    assert report.unsupported_judgment_count == 1
+    assert any("marked evidence as not supported" in issue.issue for issue in report.issues)
+
+
+@pytest.mark.asyncio
+async def test_support_judge_cannot_call_evidence_tools() -> None:
+    source_id = str(uuid.uuid4())
+    source_version_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    bundle = ClaimCitationBundle(
+        claims=[_claim("claim-1", support_level="supported")],
+        citation_links=[
+            CitationLink(
+                claim_id="claim-1",
+                source_id=source_id,
+                source_version_id=source_version_id,
+                evidence_id=evidence_id,
+                locator="section 2",
+                confidence=0.9,
+            )
+        ],
+    )
+    runtime = _FakeSupportJudgeRuntime(evidence_id=evidence_id)
+    dummy_tool = AgentTool(
+        name="search_evidence",
+        description="Should not be exposed to support judge",
+        parameters={"type": "object", "properties": {}},
+        handler=None,  # type: ignore[arg-type]
+    )
+
+    await judge_claim_support(
+        None,  # type: ignore[arg-type]
+        SimpleNamespace(id=uuid.uuid4()),
+        runtime,  # type: ignore[arg-type]
+        bundle=bundle,
+        evidence_records=[
+            _evidence_record(
+                evidence_id=evidence_id,
+                source_id=source_id,
+                source_version_id=source_version_id,
+            )
+        ],
+        evidence_tools=[dummy_tool],
+    )
+
+    assert runtime.local_tools == []
+    assert runtime.tool_policy.local_tools is False
+    assert runtime.tool_policy.web_search is False
+
+
+def test_unicode_query_tokens_include_cyrillic_terms() -> None:
+    assert {"корпус", "модель"} <= set(_query_tokens("Корпус большой, модель ищет источники"))
+
+
+def test_source_map_queries_sample_editorial_functions() -> None:
+    labels = [label for label, _query in _source_map_queries("AI regulation")]
+
+    assert {"overview", "conflict", "mechanism", "history", "consequence", "human_cost", "exception"} <= set(labels)
+
+
+def test_url_and_original_file_versions_are_not_local_snapshots() -> None:
+    base = {
+        "id": uuid.uuid4(),
+        "source_id": uuid.uuid4(),
+        "project_id": uuid.uuid4(),
+        "content_hash": "hash",
+        "metadata_": {},
+        "status": "ready",
+        "upload_status": "pending",
+        "is_active": True,
+    }
+    url_version = SourceVersion(kind=SourceRepresentationKind.ORIGINAL_URL, storage_path="https://example.com", **base)
+    file_version = SourceVersion(kind=SourceRepresentationKind.ORIGINAL_FILE, storage_path="sources/project/report.pdf", **base)
+    html_version = SourceVersion(kind=SourceRepresentationKind.FETCHED_HTML, storage_path="snapshots/fetched.html", **base)
+
+    assert _version_has_snapshot(url_version) is False
+    assert _version_has_snapshot(file_version) is False
+    assert _version_has_snapshot(html_version) is True
+
+
+def test_chunk_backed_version_kinds_exclude_snapshots_and_originals() -> None:
+    assert SourceRepresentationKind.EXTRACTED_TEXT in _CHUNK_BACKED_VERSION_KINDS
+    assert SourceRepresentationKind.TRANSCRIPT in _CHUNK_BACKED_VERSION_KINDS
+    assert SourceRepresentationKind.ORIGINAL_FILE not in _CHUNK_BACKED_VERSION_KINDS
+    assert SourceRepresentationKind.FETCHED_HTML not in _CHUNK_BACKED_VERSION_KINDS
+    assert SourceRepresentationKind.PAGE_MARKED_TEXT not in _CHUNK_BACKED_VERSION_KINDS
+
+
+def test_original_file_provider_upload_payload_preserves_native_bytes(monkeypatch) -> None:
+    payload = b"%PDF-1.7\nbinary-ish bytes\x00\xff"
+
+    def fake_download_file(_client, path):
+        assert path == "sources/project/report.pdf"
+        return payload
+
+    monkeypatch.setattr("app.generation_v2.source_corpus.download_file", fake_download_file)
+    version = SourceVersion(
+        id=uuid.uuid4(),
+        source_id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        kind=SourceRepresentationKind.ORIGINAL_FILE,
+        storage_path="sources/project/report.pdf",
+        content_hash=hashlib.sha256(payload).hexdigest(),
+        metadata_={"original_filename": "report.pdf", "source_type": "pdf"},
+        status="ready",
+        upload_status="pending",
+        is_active=True,
+    )
+
+    filename, content = _version_upload_payload(version)
+
+    assert filename == "report.pdf"
+    assert content == payload
+
+
+def test_act_dossier_preserves_required_evidence_ids() -> None:
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    quote = QuoteCard(
+        source_id=source_id,
+        source_version_id=str(uuid.uuid4()),
+        evidence_id=evidence_id,
+        quote="A precise saved quote.",
+        locator="section 2",
+        narrative_use="mechanism",
+    )
+    act = TreatmentAct(
+        act_number=1,
+        title="Mechanism",
+        story_role="mechanism",
+        opening_question="How does this work?",
+        main_turn="The mechanism is specific.",
+        ending_turn="The next act raises the stakes.",
+        source_focus=[source_id],
+        target_minutes=10,
+        required_evidence_ids=[evidence_id],
+        source_density_target=1,
+    )
+
+    dossier = build_act_dossier(
+        treatment_act=act,
+        source_cards=[_source_card(source_id=source_id)],
+        quote_cards=[quote],
+        ledger=ContinuityLedger(),
+    )
+
+    assert dossier.evidence_ids == [evidence_id]
+    assert evidence_id in dossier.anchor_refs
+
+
+class _FakeSupportJudgeRuntime:
+    model = "fake-support-judge"
+
+    def __init__(self, *, evidence_id: str) -> None:
+        self.evidence_id = evidence_id
+        self.local_tools = None
+        self.tool_policy = None
+
+    async def call_structured(self, **kwargs):
+        self.local_tools = kwargs["local_tools"]
+        self.tool_policy = kwargs["tool_policy"]
+        schema_model = kwargs["schema_model"]
+        assert schema_model is SupportJudgmentBundle
+        return schema_model.model_validate(
+            {
+                "judgments": [
+                    {
+                        "claim_id": "claim-1",
+                        "evidence_id": self.evidence_id,
+                        "supported": True,
+                        "support_level": "supported",
+                        "rationale": "Saved evidence supports the claim.",
+                        "required_repair": "",
+                        "blocking": False,
+                    }
+                ]
+            }
+        )
+
+
 def _source_card(
     *,
     source_id: str | None = None,
@@ -552,6 +1059,39 @@ def _source_card(
         ready_representation_count=1,
         coverage_status=coverage_status,  # type: ignore[arg-type]
     )
+
+
+def _evidence_record(
+    *,
+    evidence_id: str,
+    source_id: str,
+    source_version_id: str,
+    snippet_text: str = "The audit found that the mechanism depends on three concrete constraints.",
+    evidence_strength: str = "snippet",
+) -> dict:
+    return {
+        "id": evidence_id,
+        "generation_run_id": str(uuid.uuid4()),
+        "project_id": str(uuid.uuid4()),
+        "source_id": source_id,
+        "source_version_id": source_version_id,
+        "provider": "openai",
+        "provider_vector_store_id": "vs_test",
+        "provider_file_id": "file_test",
+        "provider_vector_store_file_id": "vsf_test",
+        "retrieval_channel": "provider_vector_search",
+        "query_text": "mechanism",
+        "purpose": "citation_linking",
+        "search_result_index": 0,
+        "score": 0.9,
+        "snippet_text": snippet_text,
+        "normalized_quote_text": snippet_text.lower(),
+        "locator_text": "section 2",
+        "locator_type": "section",
+        "evidence_strength": evidence_strength,
+        "snippet_hash": hashlib.sha256(snippet_text.encode("utf-8")).hexdigest(),
+        "metadata": {},
+    }
 
 
 def _claim(

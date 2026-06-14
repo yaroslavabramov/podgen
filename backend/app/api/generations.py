@@ -19,7 +19,9 @@ from app.schemas.generation import (
     GenerationArtifactsResponse,
     GenerationRunResponse,
     V2ArtifactsResponse,
+    V2EvidenceResponse,
     V2ToolTracesResponse,
+    ProjectCorpusIndexResponse,
     EpisodePlanActArtifact,
     BeatSheetActArtifact,
     BeatSheetSceneArtifact,
@@ -264,6 +266,53 @@ async def get_generation_v2_tool_traces(run_id: uuid.UUID, user: CurrentUser, db
     from app.generation_v2.artifacts import list_tool_traces
 
     return V2ToolTracesResponse(run_id=run.id, traces=await list_tool_traces(db, run.id))
+
+
+@router.get("/generations/{run_id}/evidence", response_model=V2EvidenceResponse)
+async def get_generation_v2_evidence(run_id: uuid.UUID, user: CurrentUser, db: DB):
+    run = await _get_user_run(run_id, user.id, db)
+    from app.generation_v2.source_corpus import list_evidence_dicts
+
+    config = run.config or {}
+    v2_child_id = _uuid_from_config(config.get("compare_v2_run_id"))
+    compare_v2_evidence = None
+    if v2_child_id:
+        v2_child = await _get_user_run(v2_child_id, user.id, db)
+        compare_v2_evidence = await list_evidence_dicts(db, v2_child.id)
+    return V2EvidenceResponse(
+        run_id=run.id,
+        evidence=await list_evidence_dicts(db, run.id),
+        compare_v2_run_id=v2_child_id,
+        compare_v2_evidence=compare_v2_evidence,
+    )
+
+
+@router.get("/generations/{run_id}/evidence/{evidence_id}", response_model=dict)
+async def get_generation_v2_evidence_item(run_id: uuid.UUID, evidence_id: uuid.UUID, user: CurrentUser, db: DB):
+    run = await _get_user_run(run_id, user.id, db)
+    from app.generation_v2.source_corpus import get_evidence_dict
+
+    item = await get_evidence_dict(db, run.id, evidence_id)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evidence item not found")
+    return item
+
+
+@router.get("/projects/{project_id}/corpus-index", response_model=ProjectCorpusIndexResponse)
+async def get_project_corpus_index(project_id: uuid.UUID, user: CurrentUser, db: DB):
+    await _verify_project_ownership(project_id, user.id, db)
+    from app.generation_v2.source_corpus import project_corpus_index_summary
+
+    return await project_corpus_index_summary(db, project_id)
+
+
+@router.post("/projects/{project_id}/corpus-index/sync", response_model=ProjectCorpusIndexResponse)
+async def sync_project_corpus_index(project_id: uuid.UUID, user: CurrentUser, db: DB):
+    await _verify_project_ownership(project_id, user.id, db)
+    from app.generation_v2.source_corpus import sync_project_corpus_index_now, project_corpus_index_summary
+
+    await sync_project_corpus_index_now(db, project_id)
+    return await project_corpus_index_summary(db, project_id)
 
 
 @router.post("/generations/{run_id}/promote-audio", response_model=GenerationRunResponse)

@@ -428,6 +428,7 @@ async def _ingest_source_async(source_id: str, *, reset_existing: bool = False) 
                         if source.metadata_ and isinstance(source.metadata_, dict) and "error" in source.metadata_:
                             source.metadata_ = {k: v for k, v in source.metadata_.items() if k != "error"}
                         await db.commit()
+                        await _sync_v2_corpus_after_ingestion(source, db)
                         content_map_task_id: str | None = None
                         try:
                             content_map_task_id = await request_project_content_map_rebuild(
@@ -500,6 +501,21 @@ async def _reset_source_for_reingestion(source, db) -> None:
     metadata.pop("web_quality", None)
     source.metadata_ = metadata or None
     await db.flush()
+
+
+async def _sync_v2_corpus_after_ingestion(source, db) -> None:
+    try:
+        from app.generation_v2.source_corpus import sync_project_corpus_index_now
+
+        await sync_project_corpus_index_now(db, source.project_id)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        logger.warning(
+            "Failed to sync V2 project corpus index after ingestion for source %s",
+            source.id,
+            exc_info=True,
+        )
 
 
 async def _mark_source_failed(source_id: str, message: str) -> None:
@@ -578,6 +594,7 @@ async def _deep_ingest_async(source_id: str, generation_run_id: str):
                         if source.metadata_ and isinstance(source.metadata_, dict) and "error" in source.metadata_:
                             source.metadata_ = {k: v for k, v in source.metadata_.items() if k != "error"}
                         await db.commit()
+                        await _sync_v2_corpus_after_ingestion(source, db)
                         content_map_task_id: str | None = None
                         try:
                             content_map_task_id = await request_project_content_map_rebuild(
@@ -643,6 +660,7 @@ async def _cleanup_async():
     from app.workers.worker_db import worker_session_factory
     from app.models.source import Source, IngestionStatus
     from app.models.generation_run import GenerationRun, GenerationStatus
+    from app.models.generation_v2 import EvidenceItem, ProviderCorpusFile, SourceVersion
 
     cutoff = datetime.utcnow() - timedelta(days=settings.temp_source_ttl_days)
     stale_cutoff = datetime.utcnow() - timedelta(hours=1)
@@ -691,7 +709,25 @@ async def _cleanup_async():
                             ),
                         )
                     )
-                    expired = result.scalars().all()
+                    expired = []
+                    retained_for_evidence = 0
+                    for source in result.scalars().all():
+                        if isinstance(source.metadata_, dict) and source.metadata_.get("deleted") is True:
+                            continue
+                        has_v2_refs = False
+                        for model in (SourceVersion, ProviderCorpusFile, EvidenceItem):
+                            ref_result = await db.execute(select(model.id).where(model.source_id == source.id).limit(1))
+                            if ref_result.scalar_one_or_none() is not None:
+                                has_v2_refs = True
+                                break
+                        if has_v2_refs:
+                            retained_for_evidence += 1
+                            source.metadata_ = {
+                                **(source.metadata_ or {}),
+                                "temp_cleanup_status": "retained_for_v2_evidence",
+                            }
+                            continue
+                        expired.append(source)
                     for source in expired:
                         await db.delete(source)
 
@@ -699,7 +735,11 @@ async def _cleanup_async():
 
                 safe_set_run(
                     cleanup_run,
-                    outputs={"stale_reset_count": len(stale_sources), "deleted_count": len(expired)},
+                    outputs={
+                        "stale_reset_count": len(stale_sources),
+                        "deleted_count": len(expired),
+                        "retained_for_v2_evidence_count": retained_for_evidence,
+                    },
                 )
 
 
