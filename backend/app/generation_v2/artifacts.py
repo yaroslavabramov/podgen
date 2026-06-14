@@ -32,6 +32,7 @@ async def save_artifact(
     input_artifact_ids: list[str] | None = None,
     prompt: str | None = None,
     prompt_hash: str | None = None,
+    metadata: dict[str, Any] | None = None,
     attempt: int = 1,
 ) -> V2Artifact:
     version_result = await db.execute(
@@ -51,6 +52,9 @@ async def save_artifact(
         )
     )
     previous_current = list(previous_result.scalars())
+    payload_json = payload_from_model(payload)
+    if metadata:
+        payload_json = {**payload_json, "_metadata": {**(payload_json.get("_metadata") or {}), **metadata}}
     artifact = V2Artifact(
         generation_run_id=generation_run_id,
         artifact_type=artifact_type,
@@ -61,7 +65,7 @@ async def save_artifact(
         prompt_hash=prompt_hash or (hashlib.sha256(prompt.encode("utf-8")).hexdigest() if prompt else None),
         input_artifact_ids=input_artifact_ids or [],
         parent_artifact_ids=parent_artifact_ids or [],
-        payload=payload_from_model(payload),
+        payload=payload_json,
         provider=provider,
         model=model,
         status=status,

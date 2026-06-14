@@ -161,6 +161,11 @@ export interface V2ToolTrace {
   created_at: string | null;
 }
 
+export interface V2ToolTraces {
+  run_id: string;
+  traces: V2ToolTrace[];
+}
+
 export interface CostEstimate {
   estimated_llm_cost: number;
   estimated_tts_cost: number;

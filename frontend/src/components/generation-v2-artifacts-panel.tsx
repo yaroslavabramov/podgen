@@ -1,29 +1,33 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { GenerationArtifacts, V2ArtifactItem, V2Artifacts } from "@/lib/api";
+import type { GenerationArtifacts, V2ArtifactItem, V2Artifacts, V2ToolTrace } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-type V2Tab = "research" | "treatment" | "draft" | "critique" | "claims" | "final" | "compare";
+type V2Tab = "research" | "treatment" | "draft" | "critique" | "claims" | "final" | "traces" | "compare";
 
 interface GenerationV2ArtifactsPanelProps {
   artifacts: V2Artifacts | null;
   loading: boolean;
   error: string | null;
+  toolTraces: V2ToolTrace[] | null;
+  toolTracesLoading: boolean;
+  toolTracesError: string | null;
   isCompare: boolean;
   onPromoteAudio?: (variant?: "v1" | "v2") => void;
   promoting?: boolean;
 }
 
 const tabTypes: Record<V2Tab, string[]> = {
-  research: ["source_card", "quote_card", "editorial_atom", "research_memo", "research_audit"],
+  research: ["source_card", "quote_card", "source_triage", "editorial_atom", "research_memo", "research_audit"],
   treatment: ["treatment", "act_dossier"],
   draft: ["act_draft", "continuity_ledger"],
   critique: ["episode_critique"],
-  claims: ["draft_claim", "citation_link", "fact_issue"],
+  claims: ["draft_claim", "citation_link", "fact_issue", "citation_validation"],
   final: ["final_transcript"],
+  traces: [],
   compare: [],
 };
 
@@ -31,6 +35,9 @@ export function GenerationV2ArtifactsPanel({
   artifacts,
   loading,
   error,
+  toolTraces,
+  toolTracesLoading,
+  toolTracesError,
   isCompare,
   onPromoteAudio,
   promoting,
@@ -73,7 +80,7 @@ export function GenerationV2ArtifactsPanel({
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap gap-2">
-          {(["research", "treatment", "draft", "critique", "claims", "final"] as V2Tab[]).map((value) => (
+          {(["research", "treatment", "draft", "critique", "claims", "final", "traces"] as V2Tab[]).map((value) => (
             <Button
               key={value}
               type="button"
@@ -102,7 +109,9 @@ export function GenerationV2ArtifactsPanel({
           <p className="text-sm text-muted-foreground">No V2 artifacts yet.</p>
         )}
 
-        {tab === "compare" && isCompare ? (
+        {tab === "traces" ? (
+          <ToolTraceList traces={toolTraces || []} loading={toolTracesLoading} error={toolTracesError} />
+        ) : tab === "compare" && isCompare ? (
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="rounded-md border border-border p-4">
               <div className="mb-3 flex items-center gap-2">
@@ -139,9 +148,75 @@ function label(tab: V2Tab): string {
     critique: "Critique",
     claims: "Claims",
     final: "Final",
+    traces: "Tool Traces",
     compare: "Compare",
   };
   return labels[tab];
+}
+
+function ToolTraceList({
+  traces,
+  loading,
+  error,
+}: {
+  traces: V2ToolTrace[];
+  loading: boolean;
+  error: string | null;
+}) {
+  if (loading && traces.length === 0) {
+    return <p className="text-sm text-muted-foreground">Loading tool traces...</p>;
+  }
+  if (error) {
+    return <p className="text-sm text-destructive">{error}</p>;
+  }
+  if (traces.length === 0) {
+    return <p className="text-sm text-muted-foreground">No tool traces recorded yet.</p>;
+  }
+  return (
+    <div className="space-y-3">
+      {traces.map((trace) => {
+        const toolPolicy = objectValue(trace.input_json.tool_policy);
+        const promptHash = stringValue(trace.input_json.prompt_hash);
+        return (
+          <div key={trace.id} className="rounded-md border border-border p-3">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <Badge variant="secondary">{trace.phase}</Badge>
+              <Badge variant="outline">{trace.agent_name}</Badge>
+              <Badge variant="outline">{trace.tool_name}</Badge>
+              {trace.latency_ms !== null && <Badge variant="outline">{Math.round(trace.latency_ms)} ms</Badge>}
+              {trace.input_tokens !== null && <Badge variant="outline">{trace.input_tokens} in</Badge>}
+              {trace.output_tokens !== null && <Badge variant="outline">{trace.output_tokens} out</Badge>}
+            </div>
+            <div className="space-y-2 text-sm">
+              {promptHash && (
+                <p className="text-muted-foreground">
+                  Prompt hash: <span className="font-mono text-foreground">{promptHash.slice(0, 16)}</span>
+                </p>
+              )}
+              {trace.provider_call_id && (
+                <p className="text-muted-foreground">
+                  Provider call: <span className="font-mono text-foreground">{trace.provider_call_id}</span>
+                </p>
+              )}
+              {toolPolicy && (
+                <p className="text-muted-foreground">
+                  Policy: <span className="font-mono text-foreground">{JSON.stringify(toolPolicy)}</span>
+                </p>
+              )}
+              <details className="rounded-md bg-muted/40 p-3">
+                <summary className="cursor-pointer text-muted-foreground">Input</summary>
+                <pre className="mt-2 overflow-x-auto text-xs">{JSON.stringify(trace.input_json, null, 2)}</pre>
+              </details>
+              <details className="rounded-md bg-muted/40 p-3">
+                <summary className="cursor-pointer text-muted-foreground">Output</summary>
+                <pre className="mt-2 overflow-x-auto text-xs">{JSON.stringify(trace.output_json, null, 2)}</pre>
+              </details>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function ArtifactList({ items }: { items: V2ArtifactItem[] }) {
@@ -242,4 +317,8 @@ function V1Summary({ artifacts }: { artifacts: GenerationArtifacts | null }) {
 
 function stringValue(value: unknown): string {
   return typeof value === "string" ? value : "";
+}
+
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }

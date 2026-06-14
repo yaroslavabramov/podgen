@@ -5,6 +5,7 @@ import time
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.generation_v2.agents.editorial import (
     audit_research_memo,
     build_act_dossier,
@@ -17,18 +18,26 @@ from app.generation_v2.agents.editorial import (
     write_act_draft,
 )
 from app.generation_v2.artifacts import save_artifact
+from app.generation_v2.citation_validation import (
+    merge_validation_issues,
+    validate_citations,
+    validation_quality_metrics,
+)
 from app.generation_v2.finalize import build_v2_shownotes, generate_audio_from_segments, transcript_payload, write_v2_script_segments
 from app.generation_v2.runtime import V2Runtime
 from app.generation_v2.schemas import (
     ActDossier,
+    CitationValidationReport,
     ClaimCitationBundle,
     ContinuityLedger,
     EpisodeCritique,
     FactIssue,
+    QuoteCard,
     ShowBibleContext,
     SourceCard,
     Treatment,
 )
+from app.generation_v2.source_triage import build_source_triage
 from app.generation_v2.source_workspace import build_source_workspace
 from app.models.generation_run import GenerationRun
 from app.models.generation_v2 import V2ArtifactStatus, V2ArtifactType
@@ -71,6 +80,20 @@ async def execute_generation_v2(
             status=V2ArtifactStatus.PASSED,
         )
         quote_artifact_ids.append(str(artifact.id))
+    source_triage = build_source_triage(
+        source_cards=workspace_result.source_cards,
+        quote_cards=workspace_result.quote_cards,
+        user_prompt=str((run.config or {}).get("user_prompt") or ""),
+    )
+    triage_artifact = await save_artifact(
+        db,
+        generation_run_id=run.id,
+        artifact_type=V2ArtifactType.SOURCE_TRIAGE,
+        artifact_key="main",
+        payload=source_triage,
+        status=V2ArtifactStatus.PASSED,
+        input_artifact_ids=[*source_artifact_ids, *quote_artifact_ids],
+    )
     await _commit_step(run, db, "source_workspace", 12)
 
     await _phase(run, db, "v2_editorial_research", "Building editorial research memo", 14)
@@ -83,7 +106,7 @@ async def execute_generation_v2(
         vector_store_id=workspace_result.vector_store_id,
         show_bible=show_bible,
     )
-    source_workspace_artifact_ids = [*source_artifact_ids, *quote_artifact_ids]
+    source_workspace_artifact_ids = [*source_artifact_ids, *quote_artifact_ids, str(triage_artifact.id)]
     memo_artifact = await save_artifact(
         db,
         generation_run_id=run.id,
@@ -95,6 +118,7 @@ async def execute_generation_v2(
         status=V2ArtifactStatus.PASSED,
         input_artifact_ids=source_workspace_artifact_ids,
         prompt_hash=runtime.prompt_hash_for("v2_editorial_research", "research_agent"),
+        metadata=runtime.fallback_metadata_for("v2_editorial_research", "research_agent"),
     )
     atom_artifact_ids: list[str] = []
     for idx, atom in enumerate(memo.editorial_atoms):
@@ -129,6 +153,7 @@ async def execute_generation_v2(
         status=V2ArtifactStatus.PASSED if audit.passed else V2ArtifactStatus.FAILED,
         input_artifact_ids=[str(memo_artifact.id), *atom_artifact_ids],
         prompt_hash=runtime.prompt_hash_for("v2_research_audit", "research_auditor"),
+        metadata=runtime.fallback_metadata_for("v2_research_audit", "research_auditor"),
     )
     if not audit.passed:
         await db.commit()
@@ -156,6 +181,7 @@ async def execute_generation_v2(
         status=V2ArtifactStatus.PASSED if treatment_gate.passed else V2ArtifactStatus.FAILED,
         input_artifact_ids=[str(memo_artifact.id), str(audit_artifact.id), *atom_artifact_ids],
         prompt_hash=runtime.prompt_hash_for("v2_treatment", "story_editor"),
+        metadata=runtime.fallback_metadata_for("v2_treatment", "story_editor"),
     )
     if not treatment_gate.passed:
         await save_artifact(
@@ -186,11 +212,13 @@ async def execute_generation_v2(
             quote_cards=workspace_result.quote_cards,
             ledger=ledger,
             show_bible=show_bible,
+            source_triage=source_triage,
         )
         dossier_gate = _validate_dossier(dossier, workspace_result.source_cards)
         dossiers.append(dossier)
         dossier_input_artifact_ids = [
             str(treatment_artifact.id),
+            str(triage_artifact.id),
             *source_artifact_ids,
             *quote_artifact_ids,
             *([ledger_artifact_id] if ledger_artifact_id else []),
@@ -235,6 +263,7 @@ async def execute_generation_v2(
             status=V2ArtifactStatus.PASSED,
             input_artifact_ids=draft_input_artifact_ids,
             prompt_hash=runtime.prompt_hash_for("v2_act_drafting", f"act_writer_{treatment_act.act_number}"),
+            metadata=runtime.fallback_metadata_for("v2_act_drafting", f"act_writer_{treatment_act.act_number}"),
         )
         draft_artifact_ids_by_act[draft.act_number] = str(draft_artifact.id)
         ledger = update_continuity_ledger(ledger, draft)
@@ -278,6 +307,7 @@ async def execute_generation_v2(
         status=V2ArtifactStatus.PASSED if critique.passed else V2ArtifactStatus.FAILED,
         input_artifact_ids=critique_input_artifact_ids,
         prompt_hash=runtime.prompt_hash_for("v2_critique_rewrite", "episode_critic"),
+        metadata=runtime.fallback_metadata_for("v2_critique_rewrite", "episode_critic"),
     )
     if not critique.passed and critique.rewrite_instructions:
         revised_drafts = []
@@ -316,6 +346,10 @@ async def execute_generation_v2(
                 status=V2ArtifactStatus.PASSED,
                 input_artifact_ids=rewrite_input_artifact_ids,
                 prompt_hash=runtime.prompt_hash_for("v2_critique_rewrite", f"act_rewriter_{treatment_act.act_number}"),
+                metadata=runtime.fallback_metadata_for(
+                    "v2_critique_rewrite",
+                    f"act_rewriter_{treatment_act.act_number}",
+                ),
             )
             rewritten_draft_artifact_ids_by_act[revised.act_number] = str(revised_artifact.id)
         drafts = revised_drafts
@@ -335,17 +369,22 @@ async def execute_generation_v2(
         vector_store_id=workspace_result.vector_store_id,
         show_bible=show_bible,
     )
-    bundle_artifact_ids = await _save_claim_bundle(
+    claim_input_artifact_ids = [
+        str(critique_artifact.id),
+        *draft_artifact_ids_by_act.values(),
+        *source_artifact_ids,
+        *quote_artifact_ids,
+    ]
+    bundle, bundle_artifact_ids, validation_report, validation_artifact_id = await _validate_and_save_claim_bundle(
         db,
         run,
         bundle,
-        input_artifact_ids=[
-            str(critique_artifact.id),
-            *draft_artifact_ids_by_act.values(),
-            *source_artifact_ids,
-            *quote_artifact_ids,
-        ],
+        source_cards=workspace_result.source_cards,
+        quote_cards=workspace_result.quote_cards,
+        input_artifact_ids=claim_input_artifact_ids,
         prompt_hash=runtime.prompt_hash_for("v2_fact_citation", "citation_linker"),
+        pass_key="initial",
+        metadata=runtime.fallback_metadata_for("v2_fact_citation", "citation_linker"),
     )
 
     if bundle.fact_issues:
@@ -387,6 +426,10 @@ async def execute_generation_v2(
                     status=V2ArtifactStatus.PASSED,
                     input_artifact_ids=repair_input_artifact_ids,
                     prompt_hash=runtime.prompt_hash_for("v2_critique_rewrite", f"act_rewriter_{treatment_act.act_number}"),
+                    metadata=runtime.fallback_metadata_for(
+                        "v2_critique_rewrite",
+                        f"act_rewriter_{treatment_act.act_number}",
+                    ),
                 )
                 repaired_draft_artifact_ids_by_act[repaired.act_number] = str(repaired_artifact.id)
             else:
@@ -410,17 +453,22 @@ async def execute_generation_v2(
             vector_store_id=workspace_result.vector_store_id,
             show_bible=show_bible,
         )
-        bundle_artifact_ids = await _save_claim_bundle(
+        claim_input_artifact_ids = [
+            str(critique_artifact.id),
+            *draft_artifact_ids_by_act.values(),
+            *source_artifact_ids,
+            *quote_artifact_ids,
+        ]
+        bundle, bundle_artifact_ids, validation_report, validation_artifact_id = await _validate_and_save_claim_bundle(
             db,
             run,
             bundle,
-            input_artifact_ids=[
-                str(critique_artifact.id),
-                *draft_artifact_ids_by_act.values(),
-                *source_artifact_ids,
-                *quote_artifact_ids,
-            ],
+            source_cards=workspace_result.source_cards,
+            quote_cards=workspace_result.quote_cards,
+            input_artifact_ids=claim_input_artifact_ids,
             prompt_hash=runtime.prompt_hash_for("v2_fact_citation", "citation_linker"),
+            pass_key="post_repair",
+            metadata=runtime.fallback_metadata_for("v2_fact_citation", "citation_linker"),
         )
 
     blocking_issues = _blocking_fact_issues(bundle.fact_issues)
@@ -429,6 +477,8 @@ async def execute_generation_v2(
         raise RuntimeError(f"V2 fact gate failed with {len(blocking_issues)} blocking issue(s)")
 
     final = transcript_payload(treatment, drafts, bundle, source_cards=workspace_result.source_cards)
+    final.quality_metrics.update(validation_quality_metrics(validation_report))
+    final.quality_metrics["runtime_fallback_used"] = runtime.fallback_used
     await save_artifact(
         db,
         generation_run_id=run.id,
@@ -436,8 +486,16 @@ async def execute_generation_v2(
         artifact_key="main",
         payload=final,
         status=V2ArtifactStatus.PASSED,
-        input_artifact_ids=[str(treatment_artifact.id), *draft_artifact_ids_by_act.values(), *bundle_artifact_ids],
+        input_artifact_ids=[
+            str(treatment_artifact.id),
+            *draft_artifact_ids_by_act.values(),
+            *bundle_artifact_ids,
+            validation_artifact_id,
+        ],
     )
+    if runtime.fallback_used and generate_audio and not settings.generation_v2_allow_fallback_audio:
+        await db.commit()
+        raise RuntimeError("V2 runtime fallback was used; audio generation is disabled for fallback runs")
     segment_ids = await write_v2_script_segments(db, run, drafts=drafts)
     await _commit_step(run, db, "fact_citation", 88)
 
@@ -490,6 +548,7 @@ async def _save_claim_bundle(
     *,
     input_artifact_ids: list[str],
     prompt_hash: str | None,
+    metadata: dict | None = None,
 ) -> list[str]:
     artifact_ids: list[str] = []
     claim_artifact_ids_by_claim: dict[str, str] = {}
@@ -503,6 +562,7 @@ async def _save_claim_bundle(
             status=V2ArtifactStatus.PASSED if claim.support_level != "unsupported" else V2ArtifactStatus.FAILED,
             input_artifact_ids=input_artifact_ids,
             prompt_hash=prompt_hash,
+            metadata=metadata,
         )
         artifact_id = str(artifact.id)
         artifact_ids.append(artifact_id)
@@ -521,6 +581,7 @@ async def _save_claim_bundle(
             status=V2ArtifactStatus.PASSED,
             input_artifact_ids=link_inputs,
             prompt_hash=prompt_hash,
+            metadata=metadata,
         )
         artifact_ids.append(str(artifact.id))
     for issue in bundle.fact_issues:
@@ -537,9 +598,51 @@ async def _save_claim_bundle(
             status=V2ArtifactStatus.FAILED,
             input_artifact_ids=issue_inputs,
             prompt_hash=prompt_hash,
+            metadata=metadata,
         )
         artifact_ids.append(str(artifact.id))
     return artifact_ids
+
+
+async def _validate_and_save_claim_bundle(
+    db: AsyncSession,
+    run: GenerationRun,
+    bundle: ClaimCitationBundle,
+    *,
+    source_cards: list[SourceCard],
+    quote_cards: list[QuoteCard],
+    input_artifact_ids: list[str],
+    prompt_hash: str | None,
+    pass_key: str,
+    metadata: dict | None = None,
+) -> tuple[ClaimCitationBundle, list[str], CitationValidationReport, str]:
+    validation_report = await validate_citations(
+        db,
+        bundle=bundle,
+        source_cards=source_cards,
+        quote_cards=quote_cards,
+    )
+    bundle = merge_validation_issues(bundle, validation_report)
+    bundle_artifact_ids = await _save_claim_bundle(
+        db,
+        run,
+        bundle,
+        input_artifact_ids=input_artifact_ids,
+        prompt_hash=prompt_hash,
+        metadata=metadata,
+    )
+    validation_artifact = await save_artifact(
+        db,
+        generation_run_id=run.id,
+        artifact_type=V2ArtifactType.CITATION_VALIDATION,
+        artifact_key=pass_key,
+        payload=validation_report,
+        status=V2ArtifactStatus.PASSED if validation_report.passed else V2ArtifactStatus.FAILED,
+        input_artifact_ids=[*input_artifact_ids, *bundle_artifact_ids],
+        prompt_hash=prompt_hash,
+        metadata=metadata,
+    )
+    return bundle, bundle_artifact_ids, validation_report, str(validation_artifact.id)
 
 
 async def _load_show_bible_context(db: AsyncSession, run: GenerationRun) -> ShowBibleContext:

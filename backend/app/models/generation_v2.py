@@ -37,6 +37,7 @@ class V2ArtifactStatus(StrEnum):
 class V2ArtifactType(StrEnum):
     SOURCE_CARD = "source_card"
     QUOTE_CARD = "quote_card"
+    SOURCE_TRIAGE = "source_triage"
     EDITORIAL_ATOM = "editorial_atom"
     RESEARCH_MEMO = "research_memo"
     RESEARCH_AUDIT = "research_audit"
@@ -47,6 +48,7 @@ class V2ArtifactType(StrEnum):
     EPISODE_CRITIQUE = "episode_critique"
     DRAFT_CLAIM = "draft_claim"
     CITATION_LINK = "citation_link"
+    CITATION_VALIDATION = "citation_validation"
     FACT_ISSUE = "fact_issue"
     FINAL_TRANSCRIPT = "final_transcript"
 

@@ -124,7 +124,8 @@ async def build_source_workspace(db: AsyncSession, run: GenerationRun) -> Worksp
             coverage_status=coverage_status,
         )
         source_cards.append(source_card)
-        quote_cards.extend(_quote_cards_from_chunks(source, chunks))
+        quote_representation_id = await _ready_text_representation_id(db, source.id)
+        quote_cards.extend(_quote_cards_from_chunks(source, chunks, representation_id=quote_representation_id))
 
     if ready_source_count == 0 or ready_representation_count == 0:
         workspace.status = V2RecordStatus.FAILED
@@ -218,8 +219,7 @@ async def cleanup_provider_workspace(db: AsyncSession, run_id: uuid.UUID) -> Non
     for rep in provider_reps:
         try:
             await client.files.delete(rep.provider_file_id)
-            rep.status = V2RecordStatus.FAILED
-            rep.metadata_ = {**(rep.metadata_ or {}), "provider_cleanup": "deleted"}
+            rep.metadata_ = {**(rep.metadata_ or {}), "provider_cleanup_status": "deleted"}
         except Exception:
             logger.info("OpenAI provider file cleanup failed for %s", rep.provider_file_id, exc_info=True)
     for workspace in workspaces:
@@ -550,6 +550,21 @@ async def _representation_counts(db: AsyncSession, representation_ids: list[uuid
     return ready, failed, "failed"
 
 
+async def _ready_text_representation_id(db: AsyncSession, source_id: uuid.UUID) -> str | None:
+    result = await db.execute(
+        select(SourceRepresentation)
+        .where(
+            SourceRepresentation.source_id == source_id,
+            SourceRepresentation.status == V2RecordStatus.READY,
+            SourceRepresentation.kind.in_([SourceRepresentationKind.EXTRACTED_TEXT, SourceRepresentationKind.TRANSCRIPT]),
+        )
+        .order_by(SourceRepresentation.created_at.asc())
+        .limit(1)
+    )
+    rep = result.scalar_one_or_none()
+    return str(rep.id) if rep else None
+
+
 async def _source_preview(source: Source, chunks: list[Chunk]) -> str:
     if source.text_preview:
         return source.text_preview
@@ -615,7 +630,7 @@ def _infer_cautions(source: Source, text: str) -> list[str]:
     return cautions
 
 
-def _quote_cards_from_chunks(source: Source, chunks: list[Chunk]) -> list[QuoteCard]:
+def _quote_cards_from_chunks(source: Source, chunks: list[Chunk], *, representation_id: str | None = None) -> list[QuoteCard]:
     cards: list[QuoteCard] = []
     for chunk in chunks[:5]:
         quote = _best_quote(chunk.content)
@@ -627,7 +642,7 @@ def _quote_cards_from_chunks(source: Source, chunks: list[Chunk]) -> list[QuoteC
                 quote=quote,
                 locator=" > ".join(chunk.heading_path or []) or f"chunk {chunk.chunk_index}",
                 narrative_use=", ".join(_infer_useful_for(chunk.content)),
-                representation_id=None,
+                representation_id=representation_id,
                 source_kind=SourceRepresentationKind.EXTRACTED_TEXT,
                 confidence=0.65,
                 confidence_reason="Selected from deterministic chunk text.",

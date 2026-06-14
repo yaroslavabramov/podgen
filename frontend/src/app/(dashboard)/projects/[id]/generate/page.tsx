@@ -13,6 +13,8 @@ import {
   type GenerationMode,
   type GenerationRun,
   type V2Artifacts,
+  type V2ToolTrace,
+  type V2ToolTraces,
 } from "@/lib/api";
 import { useGenerationStore } from "@/stores/generation-store";
 import { Button } from "@/components/ui/button";
@@ -80,6 +82,9 @@ export default function GeneratePage() {
   const [v2Artifacts, setV2Artifacts] = useState<V2Artifacts | null>(null);
   const [v2ArtifactsLoading, setV2ArtifactsLoading] = useState(false);
   const [v2ArtifactsError, setV2ArtifactsError] = useState<string | null>(null);
+  const [v2ToolTraces, setV2ToolTraces] = useState<V2ToolTrace[] | null>(null);
+  const [v2ToolTracesLoading, setV2ToolTracesLoading] = useState(false);
+  const [v2ToolTracesError, setV2ToolTracesError] = useState<string | null>(null);
   const [promotingAudio, setPromotingAudio] = useState(false);
   const [launching, setLaunching] = useState(false);
   const [resuming, setResuming] = useState(false);
@@ -229,13 +234,26 @@ export default function GeneratePage() {
   const refreshV2Artifacts = async (currentRunId: string) => {
     setV2ArtifactsLoading(true);
     setV2ArtifactsError(null);
+    setV2ToolTracesLoading(true);
+    setV2ToolTracesError(null);
     try {
       const payload = await api.get(`api/generations/${currentRunId}/artifacts/v2`).json<V2Artifacts>();
       setV2Artifacts(payload);
+      const traceRunId = payload.compare_v2_run_id || currentRunId;
+      try {
+        const tracePayload = await api.get(`api/generations/${traceRunId}/tool-traces`).json<V2ToolTraces>();
+        setV2ToolTraces(tracePayload.traces);
+      } catch (traceError) {
+        setV2ToolTraces(null);
+        setV2ToolTracesError(await extractApiError(traceError, "Failed to load V2 tool traces"));
+      }
     } catch (error) {
+      setV2Artifacts(null);
+      setV2ToolTraces(null);
       setV2ArtifactsError(await extractApiError(error, t("artifactsLoadFailed")));
     } finally {
       setV2ArtifactsLoading(false);
+      setV2ToolTracesLoading(false);
     }
   };
 
@@ -317,6 +335,9 @@ export default function GeneratePage() {
       setArtifacts(null);
       setArtifactsError(null);
       setArtifactsLoading(false);
+      setV2ToolTraces(null);
+      setV2ToolTracesError(null);
+      setV2ToolTracesLoading(false);
       return;
     }
     if (activeGenerationMode === "v1") {
@@ -521,6 +542,9 @@ export default function GeneratePage() {
     setV2Artifacts(null);
     setV2ArtifactsError(null);
     setV2ArtifactsLoading(false);
+    setV2ToolTraces(null);
+    setV2ToolTracesError(null);
+    setV2ToolTracesLoading(false);
     setActionError(null);
   };
 
@@ -670,6 +694,9 @@ export default function GeneratePage() {
               artifacts={v2Artifacts}
               loading={v2ArtifactsLoading}
               error={v2ArtifactsError}
+              toolTraces={v2ToolTraces}
+              toolTracesLoading={v2ToolTracesLoading}
+              toolTracesError={v2ToolTracesError}
               isCompare={activeGenerationMode === "compare"}
               onPromoteAudio={status === "completed" ? handlePromoteAudio : undefined}
               promoting={promotingAudio}

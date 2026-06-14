@@ -33,6 +33,25 @@ class QuoteCard(BaseModel):
     confidence_reason: str = ""
 
 
+class SourceTriageItem(BaseModel):
+    source_id: str
+    rank: int
+    score: float
+    authority: str = "unknown"
+    reliability: str = "unknown"
+    useful_for: list[str] = Field(default_factory=list)
+    top_quote_refs: list[str] = Field(default_factory=list)
+    relevance_reasons: list[str] = Field(default_factory=list)
+    cautions: list[str] = Field(default_factory=list)
+
+
+class SourceTriageReport(BaseModel):
+    ranked_sources: list[SourceTriageItem] = Field(default_factory=list)
+    top_sources_by_function: dict[str, list[str]] = Field(default_factory=dict)
+    gaps: list[str] = Field(default_factory=list)
+    contradictions: list[str] = Field(default_factory=list)
+
+
 class EditorialAtom(BaseModel):
     kind: Literal[
         "conflict",
@@ -173,6 +192,22 @@ class FactIssue(BaseModel):
     repair: str
     severity: Literal["low", "medium", "high"] = "medium"
     blocking: bool = True
+
+
+class CitationValidationReport(BaseModel):
+    passed: bool
+    issues: list[FactIssue] = Field(default_factory=list)
+    checked_claim_count: int = 0
+    checked_link_count: int = 0
+    supported_required_claim_count: int = 0
+    weak_required_claim_count: int = 0
+    missing_required_link_count: int = 0
+    invalid_link_count: int = 0
+    quote_match_count: int = 0
+    quote_mismatch_count: int = 0
+    low_confidence_link_count: int = 0
+    nonblocking_low_issue_count: int = 0
+    blocking_issue_count: int = 0
 
 
 class ClaimCitationBundle(BaseModel):

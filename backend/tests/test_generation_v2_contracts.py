@@ -16,9 +16,21 @@ from app.generation_v2.agents.editorial import (
     build_research_memo,
     update_continuity_ledger,
 )
+from app.generation_v2.citation_validation import validate_citations
 from app.generation_v2.finalize import generate_audio_from_segments
 from app.generation_v2.runtime import AgentTool, ToolPolicy, V2Runtime, V2RuntimeUnavailable, _function_calls, _strict_json_schema
-from app.generation_v2.schemas import ContinuityLedger, FactIssue, QuoteCard, ResearchMemo, SourceCard
+from app.generation_v2.schemas import (
+    CitationLink,
+    ClaimCitationBundle,
+    ContinuityLedger,
+    DraftClaim,
+    FactIssue,
+    QuoteCard,
+    ResearchMemo,
+    SourceCard,
+)
+from app.generation_v2.source_triage import build_source_triage
+from app.generation_v2.source_workspace import _quote_cards_from_chunks
 from app.schemas.generation import GenerationCreate
 from app.workers.generation_tasks import _make_compare_child
 
@@ -136,26 +148,255 @@ def test_fact_issue_contract_includes_act_number() -> None:
 
 
 @pytest.mark.asyncio
-async def test_v2_agent_falls_back_only_when_runtime_unavailable() -> None:
+async def test_citation_validator_blocks_missing_link_for_required_claim() -> None:
+    source = _source_card()
+    bundle = ClaimCitationBundle(
+        claims=[_claim("claim-1")],
+        citation_links=[],
+    )
+
+    report = await validate_citations(None, bundle=bundle, source_cards=[source], quote_cards=[])
+
+    assert report.passed is False
+    assert report.missing_required_link_count == 1
+    assert report.blocking_issue_count == 1
+    assert "no citation link" in report.issues[0].issue
+
+
+@pytest.mark.asyncio
+async def test_citation_validator_blocks_invalid_links_and_weak_support() -> None:
+    source = _source_card()
+    bundle = ClaimCitationBundle(
+        claims=[_claim("claim-1", support_level="weak")],
+        citation_links=[
+            CitationLink(
+                claim_id="claim-1",
+                source_id="unknown-source",
+                locator="",
+                confidence=0.4,
+                supports_span="A specific factual statement",
+            ),
+            CitationLink(
+                claim_id="unknown-claim",
+                source_id=source.source_id,
+                locator="p. 1",
+                confidence=0.9,
+            ),
+        ],
+    )
+
+    report = await validate_citations(None, bundle=bundle, source_cards=[source], quote_cards=[])
+
+    issue_text = " ".join(issue.issue for issue in report.issues)
+    assert report.passed is False
+    assert report.invalid_link_count >= 2
+    assert report.low_confidence_link_count == 1
+    assert report.weak_required_claim_count == 1
+    assert "unknown claim id" in issue_text
+    assert "unknown source id" in issue_text
+    assert "locator is empty" in issue_text
+
+
+@pytest.mark.asyncio
+async def test_citation_validator_blocks_quote_mismatch() -> None:
+    source = _source_card()
+    quote = QuoteCard(
+        source_id=source.source_id,
+        quote="This exact sentence exists in the prepared quote card.",
+        locator="p. 1",
+        narrative_use="mechanism",
+        representation_id="rep-1",
+    )
+    bundle = ClaimCitationBundle(
+        claims=[_claim("claim-1", support_level="supported")],
+        citation_links=[
+            CitationLink(
+                claim_id="claim-1",
+                source_id=source.source_id,
+                locator="p. 99",
+                quote="A different sentence that is not in the quote cards.",
+                representation_id="rep-1",
+                confidence=0.9,
+            )
+        ],
+    )
+
+    report = await validate_citations(None, bundle=bundle, source_cards=[source], quote_cards=[quote])
+
+    assert report.passed is False
+    assert report.quote_mismatch_count == 1
+    assert any("could not be found" in issue.issue for issue in report.issues)
+
+
+@pytest.mark.asyncio
+async def test_citation_validator_accepts_valid_quote_card_link() -> None:
+    source = _source_card()
+    quote = QuoteCard(
+        source_id=source.source_id,
+        quote="The audit found that the mechanism depends on three concrete constraints.",
+        locator="section 2",
+        narrative_use="mechanism",
+        representation_id="rep-1",
+    )
+    bundle = ClaimCitationBundle(
+        claims=[_claim("claim-1", support_level="supported")],
+        citation_links=[
+            CitationLink(
+                claim_id="claim-1",
+                source_id=source.source_id,
+                locator="section 2",
+                quote=quote.quote,
+                representation_id="rep-1",
+                quote_card_ref=quote.locator,
+                confidence=0.9,
+            )
+        ],
+    )
+
+    report = await validate_citations(None, bundle=bundle, source_cards=[source], quote_cards=[quote])
+
+    assert report.passed is True
+    assert report.blocking_issue_count == 0
+    assert report.quote_match_count == 1
+
+
+@pytest.mark.asyncio
+async def test_citation_validator_allows_only_nonblocking_low_issues() -> None:
+    source = _source_card()
+    link = CitationLink(
+        claim_id="claim-1",
+        source_id=source.source_id,
+        locator="section 2",
+        confidence=0.9,
+    )
+    blocking_low = FactIssue(
+        claim_id="claim-1",
+        act_number=1,
+        issue="Low severity but explicitly blocking.",
+        repair="Repair before publishing.",
+        severity="low",
+        blocking=True,
+    )
+    nonblocking_low = blocking_low.model_copy(
+        update={"issue": "Low severity and nonblocking.", "blocking": False}
+    )
+
+    blocked_report = await validate_citations(
+        None,
+        bundle=ClaimCitationBundle(
+            claims=[_claim("claim-1", support_level="supported")],
+            citation_links=[link],
+            fact_issues=[blocking_low],
+        ),
+        source_cards=[source],
+        quote_cards=[],
+    )
+    allowed_report = await validate_citations(
+        None,
+        bundle=ClaimCitationBundle(
+            claims=[_claim("claim-1", support_level="supported")],
+            citation_links=[link],
+            fact_issues=[nonblocking_low],
+        ),
+        source_cards=[source],
+        quote_cards=[],
+    )
+
+    assert blocked_report.passed is False
+    assert blocked_report.blocking_issue_count == 1
+    assert allowed_report.passed is True
+    assert allowed_report.nonblocking_low_issue_count == 1
+
+
+def test_quote_cards_from_chunks_include_representation_id() -> None:
+    source = SimpleNamespace(id=uuid.uuid4())
+    chunk = SimpleNamespace(
+        content="This is a short lead.\nThe audit found that the mechanism depends on three concrete constraints across the institution and its suppliers.",
+        heading_path=["Report", "Mechanism"],
+        chunk_index=3,
+    )
+
+    cards = _quote_cards_from_chunks(source, [chunk], representation_id="rep-123")
+
+    assert cards[0].representation_id == "rep-123"
+    assert cards[0].locator == "Report > Mechanism"
+
+
+def test_source_triage_ranks_stronger_sources_above_weak_sources() -> None:
+    strong = _source_card(
+        source_id="strong",
+        title="Primary audit on banking mechanism",
+        reliability="high",
+        authority="primary",
+        coverage_status="ready",
+        useful_for=["mechanism", "conflict"],
+    )
+    weak = _source_card(
+        source_id="weak",
+        title="Unsourced blog",
+        reliability="low",
+        authority="unknown",
+        coverage_status="partial",
+        useful_for=["background"],
+    )
+
+    triage = build_source_triage(
+        source_cards=[weak, strong],
+        quote_cards=[],
+        user_prompt="banking mechanism conflict",
+    )
+
+    assert triage.ranked_sources[0].source_id == "strong"
+    assert "strong" in triage.top_sources_by_function["mechanism"]
+
+
+@pytest.mark.asyncio
+async def test_v2_agent_runtime_unavailable_fails_closed_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     class RuntimeUnavailable:
         async def call_structured(self, **kwargs):
             raise V2RuntimeUnavailable("no key")
 
+    monkeypatch.setattr(settings, "generation_v2_allow_runtime_fallback", False)
+    run = SimpleNamespace(id=uuid.uuid4(), project_id=uuid.uuid4(), config={"user_prompt": "Topic"})
+
+    with pytest.raises(V2RuntimeUnavailable, match="no key"):
+        await build_research_memo(
+            None,
+            run,
+            RuntimeUnavailable(),
+            source_cards=[],
+            quote_cards=[],
+            vector_store_id=None,
+        )
+
+
+@pytest.mark.asyncio
+async def test_v2_agent_falls_back_only_when_explicitly_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    class RuntimeUnavailable:
+        async def call_structured(self, **kwargs):
+            raise V2RuntimeUnavailable("no key")
+
+        def mark_fallback_used(self, phase: str, agent_name: str) -> None:
+            self.fallback = (phase, agent_name)
+
+    monkeypatch.setattr(settings, "generation_v2_allow_runtime_fallback", True)
     run = SimpleNamespace(id=uuid.uuid4(), project_id=uuid.uuid4(), config={"user_prompt": "Topic"})
     source_cards = [
         SourceCard(source_id=str(uuid.uuid4()), title="Source", source_type="pdf", summary="Specific source text.")
     ]
+    runtime = RuntimeUnavailable()
 
     memo = await build_research_memo(
         None,
         run,
-        RuntimeUnavailable(),
+        runtime,
         source_cards=source_cards,
         quote_cards=[],
         vector_store_id=None,
     )
 
     assert memo.risk_register == ["Fallback memo used because provider runtime was unavailable."]
+    assert runtime.fallback == ("v2_editorial_research", "research_agent")
 
 
 @pytest.mark.asyncio
@@ -289,3 +530,45 @@ def test_compare_child_config_is_draft_only_and_variant_scoped() -> None:
     assert v1_child.config["stop_after_node"] == "audit_citations"
     assert v2_child.config["compare_variant"] == "v2"
     assert "stop_after_node" not in v2_child.config
+
+
+def _source_card(
+    *,
+    source_id: str | None = None,
+    title: str = "Primary source",
+    reliability: str = "high",
+    authority: str = "primary",
+    coverage_status: str = "ready",
+    useful_for: list[str] | None = None,
+) -> SourceCard:
+    return SourceCard(
+        source_id=source_id or str(uuid.uuid4()),
+        title=title,
+        source_type="pdf",
+        reliability=reliability,
+        authority=authority,
+        summary="A concrete source with enough detail for factual claims.",
+        useful_for=useful_for or ["mechanism"],
+        ready_representation_count=1,
+        coverage_status=coverage_status,  # type: ignore[arg-type]
+    )
+
+
+def _claim(
+    claim_id: str,
+    *,
+    support_level: str = "supported",
+    source_need: str = "required",
+    claim_type: str = "factual",
+) -> DraftClaim:
+    return DraftClaim(
+        claim_id=claim_id,
+        statement="A specific factual statement",
+        act_number=1,
+        line_index=0,
+        text_span="A specific factual statement",
+        claim_type=claim_type,  # type: ignore[arg-type]
+        source_need=source_need,  # type: ignore[arg-type]
+        risk_level="medium",
+        support_level=support_level,  # type: ignore[arg-type]
+    )

@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     generation_v2_enable_web_search_research: bool = True
     generation_v2_enable_rendered_snapshots: bool = True
     generation_v2_cleanup_provider_files: bool = False
+    generation_v2_allow_runtime_fallback: bool = False
+    generation_v2_allow_fallback_audio: bool = False
     generation_v2_max_tool_rounds: int = 4
 
     # LangSmith tracing

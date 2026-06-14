@@ -49,9 +49,22 @@ class V2Runtime:
         self.model = settings.generation_v2_openai_model
         self.reasoning_effort = settings.generation_v2_openai_reasoning_effort
         self._prompt_hashes: dict[tuple[str, str], str] = {}
+        self._fallback_agents: set[tuple[str, str]] = set()
 
     def prompt_hash_for(self, phase: str, agent_name: str) -> str | None:
         return self._prompt_hashes.get((phase, agent_name))
+
+    @property
+    def fallback_used(self) -> bool:
+        return bool(self._fallback_agents)
+
+    def mark_fallback_used(self, phase: str, agent_name: str) -> None:
+        self._fallback_agents.add((phase, agent_name))
+
+    def fallback_metadata_for(self, phase: str, agent_name: str) -> dict[str, Any] | None:
+        if (phase, agent_name) not in self._fallback_agents:
+            return None
+        return {"runtime_fallback": True, "fallback_phase": phase, "fallback_agent": agent_name}
 
     async def call_structured(
         self,

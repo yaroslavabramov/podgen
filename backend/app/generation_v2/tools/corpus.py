@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import or_, select
@@ -21,8 +22,7 @@ async def search_corpus(db: AsyncSession, project_id: uuid.UUID, query: str, lim
         select(Chunk, Source)
         .join(Source, Source.id == Chunk.source_id)
         .where(Source.project_id == project_id, or_(*clauses))
-        .order_by(Chunk.chunk_index.asc())
-        .limit(max(1, min(limit, 20)))
+        .limit(80)
     )
     rows = []
     for chunk, source in result.fetchall():
@@ -33,9 +33,11 @@ async def search_corpus(db: AsyncSession, project_id: uuid.UUID, query: str, lim
                 "chunk_id": str(chunk.id),
                 "heading_path": chunk.heading_path or [],
                 "content": chunk.content[:1400],
+                "score": _chunk_score(chunk, source, tokens),
             }
         )
-    return {"results": rows}
+    rows.sort(key=lambda row: row["score"], reverse=True)
+    return {"results": rows[: max(1, min(limit, 20))]}
 
 
 async def fetch_source_view(db: AsyncSession, source_id: uuid.UUID, kind: str | None = None) -> dict[str, Any]:
@@ -64,3 +66,14 @@ async def fetch_source_view(db: AsyncSession, source_id: uuid.UUID, kind: str | 
         "metadata": rep.metadata_,
         "text": text,
     }
+
+
+def _chunk_score(chunk: Chunk, source: Source, tokens: list[str]) -> float:
+    content = chunk.content.lower()
+    score = sum(content.count(token.lower()) for token in tokens) * 2.0
+    score += {"primary": 3.0, "secondary": 2.0, "tertiary": 0.8, "unknown": 0.0}.get(source.authority_type, 0.0)
+    score += {"high": 2.0, "medium": 1.0, "unknown": 0.0, "low": -1.0}.get(source.domain_reliability, 0.0)
+    if source.published_at and source.published_at > datetime.utcnow() - timedelta(days=365 * 5):
+        score += 0.5
+    score -= min(1.0, chunk.chunk_index * 0.02)
+    return round(score, 3)

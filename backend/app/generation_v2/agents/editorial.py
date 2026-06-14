@@ -18,6 +18,7 @@ from app.generation_v2.prompts import (
     V2_SYSTEM_BASE,
 )
 from app.generation_v2.runtime import AgentTool, ToolPolicy, V2Runtime, V2RuntimeUnavailable
+from app.generation_v2.source_triage import quote_ref, select_sources_for_act
 from app.generation_v2.schemas import (
     ActDossier,
     ActDraft,
@@ -33,6 +34,7 @@ from app.generation_v2.schemas import (
     ResearchMemo,
     ShowBibleContext,
     SourceCard,
+    SourceTriageReport,
     QuoteCard,
     CitationLink,
     Treatment,
@@ -79,7 +81,8 @@ async def build_research_memo(
             ),
             max_output_tokens=16000,
         )
-    except V2RuntimeUnavailable:
+    except V2RuntimeUnavailable as exc:
+        _allow_runtime_fallback(runtime, "v2_editorial_research", "research_agent", exc)
         return _fallback_research_memo(run, source_cards, quote_cards)
 
 
@@ -110,7 +113,8 @@ async def audit_research_memo(
             tool_policy=ToolPolicy(file_search=True, web_search=False, local_tools=True),
             max_output_tokens=5000,
         )
-    except V2RuntimeUnavailable:
+    except V2RuntimeUnavailable as exc:
+        _allow_runtime_fallback(runtime, "v2_research_audit", "research_auditor", exc)
         atom_count = len(research_memo.editorial_atoms)
         return ResearchAudit(
             passed=atom_count >= 3,
@@ -152,7 +156,8 @@ async def build_treatment(
             tool_policy=ToolPolicy(file_search=True, web_search=False, local_tools=False),
             max_output_tokens=12000,
         )
-    except V2RuntimeUnavailable:
+    except V2RuntimeUnavailable as exc:
+        _allow_runtime_fallback(runtime, "v2_treatment", "story_editor", exc)
         return _fallback_treatment(run, research_memo, act_count)
 
 
@@ -163,9 +168,33 @@ def build_act_dossier(
     quote_cards: list[QuoteCard],
     ledger: ContinuityLedger,
     show_bible: ShowBibleContext | None = None,
+    source_triage: SourceTriageReport | None = None,
 ) -> ActDossier:
-    source_ids = treatment_act.source_focus or [card.source_id for card in source_cards[:4]]
-    selected_quotes = [quote for quote in quote_cards if quote.source_id in source_ids][:8] or quote_cards[:6]
+    source_density_minimum = max(1, treatment_act.source_density_target)
+    act_text = " ".join(
+        [
+            treatment_act.title,
+            treatment_act.story_role,
+            treatment_act.opening_question,
+            treatment_act.main_turn,
+            treatment_act.ending_turn,
+        ]
+    )
+    source_ids = select_sources_for_act(
+        source_triage=source_triage,
+        preferred_source_ids=treatment_act.source_focus,
+        act_text=act_text,
+        minimum=source_density_minimum,
+    ) or [card.source_id for card in source_cards[:source_density_minimum]]
+    quote_refs = set(treatment_act.required_quote_refs)
+    selected_quotes = [
+        quote
+        for quote in quote_cards
+        if quote.source_id in source_ids and (not quote_refs or quote_ref(quote) in quote_refs or quote.locator in quote_refs)
+    ]
+    if len(selected_quotes) < 4:
+        selected_quotes.extend([quote for quote in quote_cards if quote.source_id in source_ids and quote not in selected_quotes])
+    selected_quotes = selected_quotes[:8] or quote_cards[:6]
     bible = show_bible or ShowBibleContext()
     return ActDossier(
         act_number=treatment_act.act_number,
@@ -181,7 +210,7 @@ def build_act_dossier(
         claim_risks=[f"Verify: {claim}" for claim in ledger.citation_sensitive_claims[-8:]],
         forbidden_phrases=bible.forbidden_phrases,
         host_instructions={"hosts": bible.hosts, "tone_and_mood": bible.tone_and_mood, "show_style": bible.show_style},
-        source_density_minimum=max(1, min(treatment_act.source_density_target, len(source_ids[:8]) or 1)),
+        source_density_minimum=source_density_minimum,
     )
 
 
@@ -219,7 +248,8 @@ async def write_act_draft(
             tool_policy=ToolPolicy(file_search=True, web_search=False, local_tools=True, max_file_search_results=6),
             max_output_tokens=18000,
         )
-    except V2RuntimeUnavailable:
+    except V2RuntimeUnavailable as exc:
+        _allow_runtime_fallback(runtime, "v2_act_drafting", f"act_writer_{treatment_act.act_number}", exc)
         return _fallback_act_draft(run, treatment_act, dossier)
 
 
@@ -289,7 +319,8 @@ async def critique_episode(
             tool_policy=ToolPolicy(file_search=True, web_search=False, local_tools=False),
             max_output_tokens=7000,
         )
-    except V2RuntimeUnavailable:
+    except V2RuntimeUnavailable as exc:
+        _allow_runtime_fallback(runtime, "v2_critique_rewrite", "episode_critic", exc)
         return EpisodeCritique(
             passed=True,
             summary="Fallback critique passed. Draft is structurally complete; inspect artifacts for editorial quality.",
@@ -338,7 +369,8 @@ async def rewrite_act_draft(
         if revised.act_number != treatment_act.act_number:
             revised.act_number = treatment_act.act_number
         return revised
-    except V2RuntimeUnavailable:
+    except V2RuntimeUnavailable as exc:
+        _allow_runtime_fallback(runtime, "v2_critique_rewrite", f"act_rewriter_{treatment_act.act_number}", exc)
         return _fallback_rewrite_act_draft(draft, critique, fact_issues or [])
 
 
@@ -374,7 +406,8 @@ async def extract_and_link_claims(
             tool_policy=ToolPolicy(file_search=True, web_search=False, local_tools=True, max_file_search_results=12),
             max_output_tokens=14000,
         )
-    except V2RuntimeUnavailable:
+    except V2RuntimeUnavailable as exc:
+        _allow_runtime_fallback(runtime, "v2_fact_citation", "citation_linker", exc)
         return _fallback_claims(source_cards, quote_cards, drafts)
 
 
@@ -462,6 +495,12 @@ def _source_coverage_status(source_cards: list[SourceCard]) -> str:
     if any(card.coverage_status in {"ready", "partial"} for card in source_cards):
         return "partial"
     return "failed"
+
+
+def _allow_runtime_fallback(runtime: V2Runtime, phase: str, agent_name: str, exc: V2RuntimeUnavailable) -> None:
+    if not settings.generation_v2_allow_runtime_fallback:
+        raise exc
+    runtime.mark_fallback_used(phase, agent_name)
 
 
 async def _fetch_source_view_tool(args: dict, *, db: AsyncSession) -> dict:
