@@ -900,7 +900,7 @@ async def _extract_content_map(
             '  "topics": [{"name": str, "description": str, "chunk_count": int}],\n'
             '  "entities": [{"name": str, "type": str, "mentions": int}],\n'
             '  "key_terms": [{"term": str, "context": str}],\n'
-            '  "source_coverage": [{"source": str, "topics_covered": [str]}],\n'
+            '  "source_coverage": [{"source_id": str, "source": str, "topics_covered": [str]}],\n'
             '  "gaps": [str],\n'
             '  "summary": str\n'
             "}\n"
@@ -920,6 +920,7 @@ async def _extract_content_map(
             "- Rank topics by cross-source coverage and evidence density (section leads + token coverage).\n"
             "- Do not output near-duplicate topic names.\n"
             "- Prefer canonical entity names; avoid duplicates caused by formatting or abbreviations.\n"
+            "- Copy source_id exactly from source_summaries into source_coverage.source_id.\n"
             "- Use source titles exactly as given in source_summaries for source_coverage.source.\n\n"
             "Grounding and safety:\n"
             "- Ground every topic/entity/key_term/gap in the provided source_summaries only.\n"

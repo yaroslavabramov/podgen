@@ -147,6 +147,8 @@ Definitions:
 - tertiary: encyclopedia, aggregator, reference compilation, summary of summaries
 - unknown: cannot tell reliably from metadata/preview
 
+Use only the provided URL, title, preview, and metadata. Do not use outside knowledge.
+If the provided fields are insufficient, return unknown.
 Be conservative. Output JSON only."""
 
 

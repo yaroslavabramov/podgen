@@ -343,11 +343,13 @@ async def _extract_date(source: Source) -> tuple[datetime | None, str, str]:
         f"URL: {source.original_url or 'N/A'}\n"
         f"Text preview (first 500 chars):\n{source.text_preview or ''}\n\n"
         "Extract the publication date of this content. "
+        "Use only an explicit date visible in the title, URL path, or text preview above. "
+        "Do not infer from crawl date, current date, topic recency, or outside knowledge. "
         "Return JSON: {\"date\": \"YYYY-MM-DD\"} or {\"date\": null} if not found."
     )
 
     raw = await call_haiku_structured(
-        system="You are a metadata extractor. Extract publication dates from content.",
+        system="You are a conservative metadata extractor. Extract publication dates only from provided fields.",
         prompt=prompt,
         max_tokens=64,
         temperature=0.0,

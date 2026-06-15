@@ -710,5 +710,7 @@ async def test_extract_content_map_prompt_enforces_groundedness(monkeypatch: pyt
     )
 
     assert result["summary"] == "ok"
+    assert '"source_coverage": [{"source_id": str, "source": str, "topics_covered": [str]}]' in captured["system"]
+    assert "Copy source_id exactly from source_summaries into source_coverage.source_id." in captured["system"]
     assert "Ground every topic/entity/key_term/gap in the provided source_summaries only." in captured["system"]
     assert "Do not introduce entities or terms from prior knowledge; if uncertain, omit." in captured["system"]

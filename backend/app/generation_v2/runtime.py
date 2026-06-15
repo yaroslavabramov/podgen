@@ -80,6 +80,7 @@ class V2Runtime:
         local_tools: list[AgentTool] | None = None,
         tool_policy: ToolPolicy | None = None,
         max_output_tokens: int = 12000,
+        max_tool_rounds: int | None = None,
         temperature: float | None = None,
     ) -> T:
         prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
@@ -94,7 +95,8 @@ class V2Runtime:
         input_payload: Any = prompt
         previous_response_id: str | None = None
 
-        for round_idx in range(max(1, settings.generation_v2_max_tool_rounds)):
+        tool_round_limit = max(1, max_tool_rounds or settings.generation_v2_max_tool_rounds)
+        for round_idx in range(tool_round_limit):
             await assert_step_not_stopped()
             started = time.perf_counter()
             response = await client.responses.create(
@@ -129,7 +131,8 @@ class V2Runtime:
                     "prompt_chars": len(prompt),
                     "prompt_hash": prompt_hash,
                     "round": round_idx + 1,
-                    "tools": [tool.get("type") or tool.get("name") for tool in tools],
+                    "tools": [_tool_trace_name(tool) for tool in tools],
+                    "allowed_tool_names": [_tool_trace_name(tool) for tool in tools],
                     "tool_policy": {
                         "file_search": policy.file_search,
                         "web_search": policy.web_search,
@@ -240,6 +243,12 @@ def _function_calls(response: Any) -> list[dict[str, Any]]:
             }
         )
     return calls
+
+
+def _tool_trace_name(tool: dict[str, Any]) -> str:
+    if tool.get("type") == "function":
+        return str(tool.get("name") or "function")
+    return str(tool.get("type") or tool.get("name") or "unknown")
 
 
 def _item_get(item: Any, key: str, default: Any = None) -> Any:

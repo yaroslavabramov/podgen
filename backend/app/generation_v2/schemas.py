@@ -12,6 +12,10 @@ class SourceCard(BaseModel):
     title: str
     source_type: str
     url: str | None = None
+    domain: str | None = None
+    published_at: str | None = None
+    length_hint: str = ""
+    provider_status: str = "unknown"
     reliability: str = "unknown"
     authority: str = "unknown"
     summary: str
@@ -51,11 +55,33 @@ class SourceTriageItem(BaseModel):
     cautions: list[str] = Field(default_factory=list)
 
 
+class SourceCluster(BaseModel):
+    cluster_id: str
+    label: str
+    source_ids: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+    rationale: str = ""
+    primary_source_ids: list[str] = Field(default_factory=list)
+    secondary_source_ids: list[str] = Field(default_factory=list)
+    duplicate_source_ids: list[str] = Field(default_factory=list)
+
+
+class SourceRelationship(BaseModel):
+    source_id: str
+    related_source_id: str
+    relationship: Literal["primary_to_secondary", "duplicate", "near_duplicate", "contradicts", "updates", "background_for"]
+    evidence_ids: list[str] = Field(default_factory=list)
+    rationale: str = ""
+
+
 class SourceTriageReport(BaseModel):
     ranked_sources: list[SourceTriageItem] = Field(default_factory=list)
     top_sources_by_function: dict[str, list[str]] = Field(default_factory=dict)
     gaps: list[str] = Field(default_factory=list)
     contradictions: list[str] = Field(default_factory=list)
+    source_clusters: list[SourceCluster] = Field(default_factory=list)
+    source_relationships: list[SourceRelationship] = Field(default_factory=list)
+    top_evidence_by_function: dict[str, list[str]] = Field(default_factory=dict)
 
 
 class SourceMap(BaseModel):
@@ -65,6 +91,21 @@ class SourceMap(BaseModel):
     evidence_ids: list[str] = Field(default_factory=list)
     gaps: list[str] = Field(default_factory=list)
     contradictions: list[str] = Field(default_factory=list)
+    retrieval_notes: list[str] = Field(default_factory=list)
+
+
+class SourceTriageGate(BaseModel):
+    passed: bool
+    summary: str
+    tool_call_count: int = 0
+    checked_source_count: int = 0
+    checked_evidence_count: int = 0
+    invalid_source_ids: list[str] = Field(default_factory=list)
+    invalid_source_version_ids: list[str] = Field(default_factory=list)
+    invalid_evidence_ids: list[str] = Field(default_factory=list)
+    ungrounded_relationships: list[str] = Field(default_factory=list)
+    missing_function_evidence: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class EditorialAtom(BaseModel):
@@ -143,6 +184,7 @@ class ActDossier(BaseModel):
     evidence_ids: list[str] = Field(default_factory=list)
     continuity_constraints: list[str] = Field(default_factory=list)
     claim_risks: list[str] = Field(default_factory=list)
+    source_gaps: list[str] = Field(default_factory=list)
     forbidden_phrases: list[str] = Field(default_factory=list)
     host_instructions: dict = Field(default_factory=dict)
     source_density_minimum: int = 2

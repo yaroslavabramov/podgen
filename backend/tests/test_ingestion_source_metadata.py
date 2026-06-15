@@ -70,3 +70,27 @@ async def test_classify_source_authority_uses_llm_fallback(monkeypatch: pytest.M
     authority = await classify_source_authority(source)
 
     assert authority == AuthorityType.TERTIARY
+
+
+@pytest.mark.asyncio
+async def test_classify_source_authority_prompt_limits_external_knowledge(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, str] = {}
+
+    async def _fake_call(**kwargs) -> str:
+        captured["system"] = kwargs["system"]
+        captured["prompt"] = kwargs["prompt"]
+        return '{"authority_type": "unknown"}'
+
+    monkeypatch.setattr("app.ingestion.source_metadata.call_haiku_structured", _fake_call)
+    source = _make_source(
+        url="https://example.com/article",
+        title="Ambiguous note",
+        text_preview="A preview with no official markers.",
+    )
+
+    authority = await classify_source_authority(source)
+
+    assert authority == AuthorityType.UNKNOWN
+    assert "Use only the provided URL, title, preview, and metadata." in captured["system"]
+    assert "Do not use outside knowledge." in captured["system"]
+    assert "If the provided fields are insufficient, return unknown." in captured["system"]

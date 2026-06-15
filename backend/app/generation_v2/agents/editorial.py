@@ -12,6 +12,7 @@ from app.generation_v2.prompts import (
     EPISODE_CRITIQUE_PROMPT,
     RESEARCH_AUDIT_PROMPT,
     RESEARCH_MEMO_PROMPT,
+    SOURCE_TRIAGE_PROMPT,
     SUPPORT_JUDGMENT_PROMPT,
     TREATMENT_PROMPT,
     V2_SYSTEM_BASE,
@@ -44,6 +45,202 @@ from app.generation_v2.schemas import (
 from app.models.generation_run import GenerationRun
 
 
+TRIAGE_TOOL_NAMES = {
+    "list_sources",
+    "search_sources",
+    "search_evidence",
+    "find_quotes",
+    "read_evidence",
+    "read_source",
+    "skim_source",
+    "compare_sources",
+}
+RESEARCH_TOOL_NAMES = {"search_sources", "search_evidence", "find_quotes", "read_evidence", "read_source", "skim_source"}
+AUDIT_TOOL_NAMES = {"search_evidence", "read_evidence"}
+TREATMENT_TOOL_NAMES = {"search_evidence", "read_evidence"}
+WRITER_TOOL_NAMES = {"search_evidence", "read_evidence"}
+CRITIC_TOOL_NAMES = {"search_evidence", "read_evidence"}
+REWRITER_TOOL_NAMES = {"search_evidence", "read_evidence"}
+CITATION_TOOL_NAMES = {"search_evidence", "read_evidence", "find_quotes"}
+
+
+def _phase_tools(evidence_tools: list[AgentTool] | None, allowed_names: set[str]) -> list[AgentTool]:
+    return [tool for tool in evidence_tools or [] if tool.name in allowed_names]
+
+
+def _source_inventory(source_cards: list[SourceCard], *, limit: int = 80) -> list[dict]:
+    return [
+        {
+            "source_id": card.source_id,
+            "title": card.title,
+            "source_type": card.source_type,
+            "url": card.url,
+            "domain": card.domain,
+            "published_at": card.published_at,
+            "length_hint": card.length_hint,
+            "provider_status": card.provider_status,
+            "authority": card.authority,
+            "reliability": card.reliability,
+            "coverage_status": card.coverage_status,
+            "useful_for": card.useful_for[:8],
+            "evidence_ids": card.evidence_ids[:8],
+            "source_version_ids": card.source_version_ids[:4],
+            "summary": _trim(card.summary, 700),
+            "cautions": card.gaps_or_cautions[:6],
+        }
+        for card in source_cards[:limit]
+    ]
+
+
+def _quote_inventory(quote_cards: list[QuoteCard], *, limit: int = 80) -> list[dict]:
+    return [
+        {
+            "quote_ref": quote_ref(card),
+            "source_id": card.source_id,
+            "source_version_id": card.source_version_id,
+            "evidence_id": card.evidence_id,
+            "locator": card.locator,
+            "narrative_use": card.narrative_use,
+            "confidence": card.confidence,
+            "source_kind": card.source_kind,
+            "quote_excerpt": _trim(card.quote, 500),
+        }
+        for card in quote_cards[:limit]
+    ]
+
+
+def _triage_inventory(source_triage: SourceTriageReport | None, *, source_limit: int = 40) -> dict:
+    triage = source_triage or SourceTriageReport()
+    return {
+        "ranked_sources": [
+            {
+                "source_id": item.source_id,
+                "rank": item.rank,
+                "score": item.score,
+                "authority": item.authority,
+                "reliability": item.reliability,
+                "useful_for": item.useful_for[:8],
+                "evidence_ids": item.evidence_ids[:8],
+                "top_quote_refs": item.top_quote_refs[:8],
+                "relevance_reasons": item.relevance_reasons[:5],
+                "cautions": item.cautions[:5],
+            }
+            for item in triage.ranked_sources[:source_limit]
+        ],
+        "top_sources_by_function": {key: value[:10] for key, value in triage.top_sources_by_function.items()},
+        "top_evidence_by_function": {key: value[:10] for key, value in triage.top_evidence_by_function.items()},
+        "gaps": triage.gaps[:12],
+        "contradictions": triage.contradictions[:12],
+        "source_clusters": [cluster.model_dump(mode="json") for cluster in triage.source_clusters[:20]],
+        "source_relationships": [rel.model_dump(mode="json") for rel in triage.source_relationships[:40]],
+    }
+
+
+def _evidence_inventory(
+    evidence_records: list[dict] | None,
+    *,
+    source_cards: list[SourceCard] | None = None,
+    quote_cards: list[QuoteCard] | None = None,
+    dossiers: list[ActDossier] | None = None,
+    limit: int = 80,
+) -> list[dict]:
+    records = evidence_records or []
+    by_id = {str(item.get("id")): item for item in records if item.get("id")}
+    preferred_ids: list[str] = []
+    for card in source_cards or []:
+        preferred_ids.extend(card.evidence_ids[:8])
+    for quote in quote_cards or []:
+        if quote.evidence_id:
+            preferred_ids.append(quote.evidence_id)
+    for dossier in dossiers or []:
+        preferred_ids.extend(dossier.evidence_ids[:12])
+        for quote in dossier.quote_cards[:8]:
+            if quote.evidence_id:
+                preferred_ids.append(quote.evidence_id)
+
+    selected: list[dict] = []
+    seen: set[str] = set()
+    for evidence_id in preferred_ids:
+        item = by_id.get(str(evidence_id))
+        if item and str(evidence_id) not in seen:
+            selected.append(item)
+            seen.add(str(evidence_id))
+        if len(selected) >= limit:
+            break
+    if len(selected) < limit:
+        remainder = sorted(
+            [item for item in records if str(item.get("id")) not in seen],
+            key=lambda item: float(item.get("score") or 0.0),
+            reverse=True,
+        )
+        selected.extend(remainder[: limit - len(selected)])
+
+    return [
+        {
+            "id": str(item.get("id")),
+            "source_id": str(item.get("source_id")),
+            "source_version_id": str(item.get("source_version_id")),
+            "retrieval_channel": item.get("retrieval_channel"),
+            "score": item.get("score"),
+            "purpose": item.get("purpose"),
+            "locator_text": item.get("locator_text"),
+            "locator_type": item.get("locator_type"),
+            "evidence_strength": item.get("evidence_strength"),
+            "snippet_text": _trim(str(item.get("snippet_text") or ""), 900),
+        }
+        for item in selected[:limit]
+    ]
+
+
+def _trim(text: str, limit: int) -> str:
+    text = " ".join((text or "").split())
+    if len(text) <= limit:
+        return text
+    return f"{text[: max(0, limit - 3)].rstrip()}..."
+
+
+def _quote_matches_requirements(quote: QuoteCard, refs: set[str]) -> bool:
+    return bool(
+        (quote.evidence_id and quote.evidence_id in refs)
+        or quote_ref(quote) in refs
+        or quote.locator in refs
+    )
+
+
+async def build_source_triage_agent(
+    db: AsyncSession,
+    run: GenerationRun,
+    runtime: V2Runtime,
+    *,
+    source_inventory: SourceMap,
+    prefetch_seed: SourceMap | None = None,
+    evidence_tools: list[AgentTool] | None = None,
+) -> SourceMap:
+    prompt = SOURCE_TRIAGE_PROMPT.format(
+        user_prompt=(run.config or {}).get("user_prompt", ""),
+        source_inventory_json=_json(_source_inventory(source_inventory.source_cards, limit=160)),
+        prefetch_seed_json=(prefetch_seed or SourceMap()).model_dump_json(),
+    )
+    try:
+        return await runtime.call_structured(
+            db=db,
+            generation_run_id=run.id,
+            phase="v2_source_triage",
+            agent_name="source_triage_agent",
+            schema_model=SourceMap,
+            system=V2_SYSTEM_BASE,
+            prompt=prompt,
+            vector_store_id=None,
+            local_tools=_phase_tools(evidence_tools, TRIAGE_TOOL_NAMES),
+            tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
+            max_output_tokens=10000,
+            max_tool_rounds=settings.generation_v2_triage_max_tool_rounds,
+        )
+    except V2RuntimeUnavailable as exc:
+        _allow_runtime_fallback(runtime, "v2_source_triage", "source_triage_agent", exc)
+        return source_inventory
+
+
 async def build_research_memo(
     db: AsyncSession,
     run: GenerationRun,
@@ -62,9 +259,9 @@ async def build_research_memo(
         duration_minutes=int((run.config or {}).get("duration_target", 1800)) // 60,
         language=(run.config or {}).get("language", "en"),
         show_bible_json=(show_bible or ShowBibleContext()).model_dump_json(),
-        source_cards_json=_json(source_cards),
-        quote_cards_json=_json(quote_cards[:40]),
-        source_map_json=source_map.model_dump_json(),
+        source_inventory_json=_json(_source_inventory(source_cards)),
+        quote_inventory_json=_json(_quote_inventory(quote_cards, limit=60)),
+        triage_inventory_json=_json(_triage_inventory(source_map.source_triage)),
     )
     try:
         return await runtime.call_structured(
@@ -76,7 +273,7 @@ async def build_research_memo(
             system=V2_SYSTEM_BASE,
             prompt=prompt,
             vector_store_id=None,
-            local_tools=evidence_tools or [],
+            local_tools=_phase_tools(evidence_tools, RESEARCH_TOOL_NAMES),
             tool_policy=ToolPolicy(
                 file_search=False,
                 web_search=False,
@@ -104,7 +301,12 @@ async def audit_research_memo(
     prompt = RESEARCH_AUDIT_PROMPT.format(
         duration_minutes=int((run.config or {}).get("duration_target", 1800)) // 60,
         research_memo_json=research_memo.model_dump_json(),
-        source_map_json=source_map.model_dump_json(),
+        source_map_json=_json(
+            {
+                "sources": _source_inventory(source_map.source_cards, limit=80),
+                "triage": _triage_inventory(source_map.source_triage),
+            }
+        ),
     )
     try:
         return await runtime.call_structured(
@@ -116,7 +318,7 @@ async def audit_research_memo(
             system=V2_SYSTEM_BASE,
             prompt=prompt,
             vector_store_id=None,
-            local_tools=evidence_tools or [],
+            local_tools=_phase_tools(evidence_tools, AUDIT_TOOL_NAMES),
             tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
             max_output_tokens=5000,
         )
@@ -152,7 +354,13 @@ async def build_treatment(
         show_bible_json=(show_bible or ShowBibleContext()).model_dump_json(),
         act_count=act_count,
         research_memo_json=research_memo.model_dump_json(),
-        source_map_json=source_map.model_dump_json(),
+        source_map_json=_json(
+            {
+                "sources": _source_inventory(source_map.source_cards, limit=80),
+                "quotes": _quote_inventory(source_map.quote_cards, limit=60),
+                "triage": _triage_inventory(source_map.source_triage),
+            }
+        ),
     )
     try:
         return await runtime.call_structured(
@@ -164,7 +372,7 @@ async def build_treatment(
             system=V2_SYSTEM_BASE,
             prompt=prompt,
             vector_store_id=None,
-            local_tools=evidence_tools or [],
+            local_tools=_phase_tools(evidence_tools, TREATMENT_TOOL_NAMES),
             tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
             max_output_tokens=12000,
         )
@@ -202,7 +410,7 @@ def build_act_dossier(
     selected_quotes = [
         quote
         for quote in quote_cards
-        if quote.source_id in source_ids and (not quote_refs or quote_ref(quote) in quote_refs or quote.locator in quote_refs)
+        if quote.source_id in source_ids and (not quote_refs or _quote_matches_requirements(quote, quote_refs))
     ]
     if len(selected_quotes) < 4:
         selected_quotes.extend([quote for quote in quote_cards if quote.source_id in source_ids and quote not in selected_quotes])
@@ -212,9 +420,24 @@ def build_act_dossier(
     for evidence_id in treatment_act.required_evidence_ids:
         if evidence_id and evidence_id not in evidence_ids:
             evidence_ids.append(evidence_id)
+    if source_triage:
+        for item in source_triage.ranked_sources:
+            if item.source_id in source_ids:
+                for evidence_id in item.evidence_ids[:4]:
+                    if evidence_id and evidence_id not in evidence_ids:
+                        evidence_ids.append(evidence_id)
     for quote in selected_quotes:
         if quote.evidence_id and quote.evidence_id not in evidence_ids:
             evidence_ids.append(quote.evidence_id)
+    source_gaps = []
+    if len(set(source_ids)) < source_density_minimum:
+        source_gaps.append(
+            f"Only {len(set(source_ids))} usable source(s) selected for density minimum {source_density_minimum}."
+        )
+    if len(evidence_ids) < source_density_minimum:
+        source_gaps.append(
+            f"Only {len(evidence_ids)} evidence anchor(s) selected for density minimum {source_density_minimum}."
+        )
     return ActDossier(
         act_number=treatment_act.act_number,
         title=treatment_act.title,
@@ -228,6 +451,7 @@ def build_act_dossier(
             *[f"Avoid repeating phrase: {phrase}" for phrase in ledger.repeated_phrases[-8:]],
         ],
         claim_risks=[f"Verify: {claim}" for claim in ledger.citation_sensitive_claims[-8:]],
+        source_gaps=source_gaps,
         forbidden_phrases=bible.forbidden_phrases,
         host_instructions={"hosts": bible.hosts, "tone_and_mood": bible.tone_and_mood, "show_style": bible.show_style},
         source_density_minimum=source_density_minimum,
@@ -265,7 +489,7 @@ async def write_act_draft(
             system=V2_SYSTEM_BASE,
             prompt=prompt,
             vector_store_id=None,
-            local_tools=evidence_tools or [],
+            local_tools=_phase_tools(evidence_tools, WRITER_TOOL_NAMES),
             tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
             max_output_tokens=18000,
         )
@@ -324,8 +548,8 @@ async def critique_episode(
     prompt = EPISODE_CRITIQUE_PROMPT.format(
         treatment_json=treatment.model_dump_json(),
         show_bible_json=(show_bible or ShowBibleContext()).model_dump_json(),
-        source_cards_json=_json(source_cards),
-        quote_cards_json=_json(quote_cards[:60]),
+        source_cards_json=_json(_source_inventory(source_cards, limit=80)),
+        quote_cards_json=_json(_quote_inventory(quote_cards, limit=60)),
         draft_json=_json(drafts),
     )
     try:
@@ -338,7 +562,7 @@ async def critique_episode(
             system=V2_SYSTEM_BASE,
             prompt=prompt,
             vector_store_id=None,
-            local_tools=evidence_tools or [],
+            local_tools=_phase_tools(evidence_tools, CRITIC_TOOL_NAMES),
             tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
             max_output_tokens=7000,
         )
@@ -386,7 +610,7 @@ async def rewrite_act_draft(
             system=V2_SYSTEM_BASE,
             prompt=prompt,
             vector_store_id=None,
-            local_tools=evidence_tools or [],
+            local_tools=_phase_tools(evidence_tools, REWRITER_TOOL_NAMES),
             tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
             max_output_tokens=18000,
         )
@@ -407,15 +631,24 @@ async def extract_and_link_claims(
     quote_cards: list[QuoteCard],
     evidence_records: list[dict] | None = None,
     evidence_tools: list[AgentTool] | None = None,
+    dossiers: list[ActDossier] | None = None,
     drafts: list[ActDraft],
     critique: EpisodeCritique,
     vector_store_id: str | None = None,
     show_bible: ShowBibleContext | None = None,
 ) -> ClaimCitationBundle:
     prompt = CLAIM_CITATION_PROMPT.format(
-        source_cards_json=_json(source_cards),
-        quote_cards_json=_json(quote_cards[:60]),
-        evidence_json=_json(evidence_records or []),
+        source_inventory_json=_json(_source_inventory(source_cards, limit=100)),
+        quote_inventory_json=_json(_quote_inventory(quote_cards, limit=80)),
+        evidence_inventory_json=_json(
+            _evidence_inventory(
+                evidence_records,
+                source_cards=source_cards,
+                quote_cards=quote_cards,
+                dossiers=dossiers,
+                limit=90,
+            )
+        ),
         draft_json=_json(drafts),
         critique_json=critique.model_dump_json(),
     )
@@ -429,7 +662,7 @@ async def extract_and_link_claims(
             system=V2_SYSTEM_BASE,
             prompt=prompt,
             vector_store_id=None,
-            local_tools=evidence_tools or [],
+            local_tools=_phase_tools(evidence_tools, CITATION_TOOL_NAMES),
             tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
             max_output_tokens=14000,
         )

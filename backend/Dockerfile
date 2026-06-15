@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 FROM python:3.13-slim
 
 WORKDIR /app
@@ -30,9 +31,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+ENV UV_LINK_MODE=copy \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
 
 COPY pyproject.toml uv.lock* ./
-RUN uv sync --frozen --no-dev 2>/dev/null || uv sync
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev || uv sync --no-dev
 RUN uv run playwright install chromium
 
 COPY . .

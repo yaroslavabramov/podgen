@@ -45,10 +45,16 @@ def build_source_triage(
         item.rank = index
 
     top_sources_by_function: dict[str, list[str]] = {}
+    top_evidence_by_function: dict[str, list[str]] = {}
     for item in ranked:
         for function in item.useful_for or ["background"]:
             top_sources_by_function.setdefault(function, []).append(item.source_id)
+            top_evidence_by_function.setdefault(function, []).extend(item.evidence_ids[:4])
     top_sources_by_function = {key: value[:6] for key, value in top_sources_by_function.items()}
+    top_evidence_by_function = {
+        key: _dedupe(value)[:12]
+        for key, value in top_evidence_by_function.items()
+    }
 
     gaps = _coverage_gaps(top_sources_by_function)
     contradictions = [
@@ -59,6 +65,7 @@ def build_source_triage(
     return SourceTriageReport(
         ranked_sources=ranked,
         top_sources_by_function=top_sources_by_function,
+        top_evidence_by_function=top_evidence_by_function,
         gaps=gaps,
         contradictions=contradictions,
     )
@@ -151,8 +158,18 @@ def _act_functions(text: str) -> list[str]:
 
 
 def _quote_ref(quote: QuoteCard) -> str:
+    if quote.evidence_id:
+        return quote.evidence_id
     return f"{quote.source_id}:{quote.locator}"
 
 
 def _tokens(text: str) -> set[str]:
     return {token for token in re.findall(r"[^\W_]{3,}", text.lower(), flags=re.UNICODE) if token}
+
+
+def _dedupe(values: list[str]) -> list[str]:
+    result: list[str] = []
+    for value in values:
+        if value and value not in result:
+            result.append(value)
+    return result

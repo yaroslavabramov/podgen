@@ -10,6 +10,7 @@ from app.generation_v2.agents.editorial import (
     audit_research_memo,
     build_act_dossier,
     build_research_memo,
+    build_source_triage_agent,
     build_treatment,
     critique_episode,
     rewrite_act_draft,
@@ -34,13 +35,20 @@ from app.generation_v2.schemas import (
     EpisodeCritique,
     FactIssue,
     QuoteCard,
+    ResearchAudit,
+    ResearchMemo,
     ShowBibleContext,
     SourceCard,
     SupportJudgmentBundle,
     Treatment,
 )
 from app.generation_v2.source_corpus import list_evidence_dicts, prepare_v2_corpus
-from app.generation_v2.tools.evidence import EvidenceToolset, build_source_map_from_evidence
+from app.generation_v2.tools.evidence import (
+    EvidenceToolset,
+    build_source_inventory,
+    materialize_source_map,
+    validate_source_map_gate,
+)
 from app.models.generation_run import GenerationRun
 from app.models.generation_v2 import RunCorpusView, V2ArtifactStatus, V2ArtifactType
 from app.models.show_bible import ShowBible
@@ -69,11 +77,27 @@ async def execute_generation_v2(
         provider_index=corpus.provider_index,
     )
     evidence_tools = evidence_toolset.agent_tools()
-    source_map = await build_source_map_from_evidence(
+    source_inventory = await build_source_inventory(
         db,
-        run=run,
-        toolset=evidence_toolset,
-        query=str((run.config or {}).get("user_prompt") or ""),
+        corpus.run_view,
+    )
+    source_map = await build_source_triage_agent(
+        db,
+        run,
+        runtime,
+        source_inventory=source_inventory,
+        evidence_tools=evidence_tools,
+    )
+    source_map = materialize_source_map(
+        source_map,
+        inventory=source_inventory,
+        evidence_records=await list_evidence_dicts(db, run.id),
+    )
+    triage_gate = await validate_source_map_gate(
+        db,
+        generation_run_id=run.id,
+        source_map=source_map,
+        run_view=corpus.run_view,
     )
     source_cards = source_map.source_cards
     quote_cards = source_map.quote_cards
@@ -84,7 +108,9 @@ async def execute_generation_v2(
         artifact_key="main",
         payload=source_map,
         provider="openai" if corpus.vector_store_id else None,
-        status=V2ArtifactStatus.PASSED,
+        status=V2ArtifactStatus.PASSED if triage_gate.passed else V2ArtifactStatus.FAILED,
+        prompt_hash=runtime.prompt_hash_for("v2_source_triage", "source_triage_agent"),
+        metadata=runtime.fallback_metadata_for("v2_source_triage", "source_triage_agent"),
     )
     evidence_artifact_ids = await _save_evidence_artifacts(
         db,
@@ -121,9 +147,23 @@ async def execute_generation_v2(
         artifact_type=V2ArtifactType.SOURCE_TRIAGE,
         artifact_key="main",
         payload=source_triage,
-        status=V2ArtifactStatus.PASSED,
+        status=V2ArtifactStatus.PASSED if triage_gate.passed else V2ArtifactStatus.FAILED,
         input_artifact_ids=[str(source_map_artifact.id), *source_artifact_ids, *quote_artifact_ids],
+        prompt_hash=runtime.prompt_hash_for("v2_source_triage", "source_triage_agent"),
+        metadata=runtime.fallback_metadata_for("v2_source_triage", "source_triage_agent"),
     )
+    triage_gate_artifact = await save_artifact(
+        db,
+        generation_run_id=run.id,
+        artifact_type=V2ArtifactType.SOURCE_TRIAGE,
+        artifact_key="gate",
+        payload=triage_gate,
+        status=V2ArtifactStatus.PASSED if triage_gate.passed else V2ArtifactStatus.FAILED,
+        input_artifact_ids=[str(source_map_artifact.id), str(triage_artifact.id)],
+    )
+    if not triage_gate.passed:
+        await db.commit()
+        raise RuntimeError(f"V2 source triage gate failed: {triage_gate.summary}")
     await _commit_step(run, db, "corpus_prepare", 12)
 
     await _phase(run, db, "v2_editorial_research", "Building editorial research memo", 14)
@@ -143,6 +183,7 @@ async def execute_generation_v2(
         *source_artifact_ids,
         *quote_artifact_ids,
         str(triage_artifact.id),
+        str(triage_gate_artifact.id),
     ]
     memo_artifact = await save_artifact(
         db,
@@ -170,6 +211,23 @@ async def execute_generation_v2(
             parent_artifact_ids=[str(memo_artifact.id)],
         )
         atom_artifact_ids.append(str(artifact.id))
+    memo_evidence_gate = _validate_research_memo_evidence(
+        memo,
+        source_map,
+        int((run.config or {}).get("duration_target", 1800)),
+    )
+    memo_gate_artifact = await save_artifact(
+        db,
+        generation_run_id=run.id,
+        artifact_type=V2ArtifactType.RESEARCH_AUDIT,
+        artifact_key="memo_evidence_gate",
+        payload=memo_evidence_gate,
+        status=V2ArtifactStatus.PASSED if memo_evidence_gate.passed else V2ArtifactStatus.FAILED,
+        input_artifact_ids=[str(memo_artifact.id), *atom_artifact_ids, str(source_map_artifact.id)],
+    )
+    if not memo_evidence_gate.passed:
+        await db.commit()
+        raise RuntimeError(f"V2 research memo evidence gate failed: {memo_evidence_gate.verdict}")
     await _commit_step(run, db, "editorial_research", 24)
 
     await _phase(run, db, "v2_research_audit", "Auditing research readiness", 26)
@@ -189,7 +247,7 @@ async def execute_generation_v2(
         artifact_key="main",
         payload=audit,
         status=V2ArtifactStatus.PASSED if audit.passed else V2ArtifactStatus.FAILED,
-        input_artifact_ids=[str(memo_artifact.id), *atom_artifact_ids],
+        input_artifact_ids=[str(memo_artifact.id), *atom_artifact_ids, str(memo_gate_artifact.id)],
         prompt_hash=runtime.prompt_hash_for("v2_research_audit", "research_auditor"),
         metadata=runtime.fallback_metadata_for("v2_research_audit", "research_auditor"),
     )
@@ -405,6 +463,7 @@ async def execute_generation_v2(
         quote_cards=quote_cards,
         evidence_records=await list_evidence_dicts(db, run.id),
         evidence_tools=evidence_tools,
+        dossiers=dossiers,
         drafts=drafts,
         critique=critique,
         show_bible=show_bible,
@@ -493,6 +552,7 @@ async def execute_generation_v2(
             quote_cards=quote_cards,
             evidence_records=await list_evidence_dicts(db, run.id),
             evidence_tools=evidence_tools,
+            dossiers=dossiers,
             drafts=drafts,
             critique=critique,
             show_bible=show_bible,
@@ -818,6 +878,40 @@ def _validate_treatment(treatment: Treatment, source_cards: list[SourceCard], du
         summary="Treatment gate passed." if not issues else "Treatment gate failed.",
         weak_sections=issues,
         rewrite_instructions=issues,
+    )
+
+
+def _validate_research_memo_evidence(memo: ResearchMemo, source_map, duration_seconds: int) -> ResearchAudit:
+    valid_source_ids = {card.source_id for card in source_map.source_cards}
+    valid_evidence_ids = set(source_map.evidence_ids)
+    high_impact = {"conflict", "mechanism", "turning_point", "consequence", "human_cost", "institutional_incentive"}
+    issues: list[str] = []
+    for idx, atom in enumerate(memo.editorial_atoms, start=1):
+        invalid_sources = [source_id for source_id in atom.source_ids if source_id not in valid_source_ids]
+        invalid_evidence = [evidence_id for evidence_id in atom.evidence_ids if evidence_id not in valid_evidence_ids]
+        if invalid_sources:
+            issues.append(f"Atom {idx} references unknown source ids: {', '.join(invalid_sources)}.")
+        if invalid_evidence:
+            issues.append(f"Atom {idx} references unknown evidence ids: {', '.join(invalid_evidence)}.")
+        if atom.kind in high_impact and not atom.evidence_ids:
+            issues.append(f"High-impact atom {idx} ({atom.kind}) has no evidence ids.")
+        if atom.source_coverage_status == "weak" and atom.kind in high_impact:
+            issues.append(f"High-impact atom {idx} ({atom.kind}) is marked weak.")
+    if duration_seconds >= 3600:
+        grounded_high_impact = [
+            atom
+            for atom in memo.editorial_atoms
+            if atom.kind in high_impact and atom.evidence_ids and not [eid for eid in atom.evidence_ids if eid not in valid_evidence_ids]
+        ]
+        if len(grounded_high_impact) < 4:
+            issues.append("Long-form V2 memo requires at least four grounded high-impact editorial atoms.")
+    score = 1.0 if not issues else max(0.0, 1.0 - len(issues) * 0.15)
+    return ResearchAudit(
+        passed=not issues,
+        score=score,
+        verdict="Research memo evidence gate passed." if not issues else "Research memo evidence gate failed.",
+        missing_material=issues,
+        required_followups=issues,
     )
 
 

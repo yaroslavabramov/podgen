@@ -8,35 +8,59 @@ import pytest
 
 from app.config import settings
 from app.generation_v2.agents.editorial import (
+    _evidence_inventory,
     _fallback_act_draft,
     _fallback_claims,
     _fallback_research_memo,
     _fallback_treatment,
+    audit_research_memo,
     build_act_dossier,
     build_research_memo,
+    build_source_triage_agent,
+    build_treatment,
+    critique_episode,
+    extract_and_link_claims,
     judge_claim_support,
+    rewrite_act_draft,
     update_continuity_ledger,
+    write_act_draft,
 )
 from app.generation_v2.citation_validation import validate_citations
 from app.generation_v2.finalize import generate_audio_from_segments
+from app.generation_v2.orchestrator import _validate_research_memo_evidence
+from app.generation_v2.prompts import ACT_DRAFT_PROMPT, ACT_REWRITE_PROMPT, CLAIM_CITATION_PROMPT, SOURCE_TRIAGE_PROMPT
 from app.generation_v2.runtime import AgentTool, ToolPolicy, V2Runtime, V2RuntimeUnavailable, _function_calls, _strict_json_schema
 from app.generation_v2.schemas import (
+    ActDraft,
     CitationLink,
     ClaimCitationBundle,
     ContinuityLedger,
+    DialogueLine,
     DraftClaim,
+    EditorialAtom,
+    EpisodeCritique,
     FactIssue,
     QuoteCard,
+    ResearchAudit,
     ResearchMemo,
     SourceCard,
+    SourceMap,
+    SourceTriageReport,
     SupportJudgment,
     SupportJudgmentBundle,
+    Treatment,
     TreatmentAct,
 )
 from app.generation_v2.source_triage import build_source_triage
 from app.generation_v2.source_corpus import _version_has_snapshot, _version_upload_payload
 from app.generation_v2.source_workspace import _quote_cards_from_chunks
-from app.generation_v2.tools.evidence import _CHUNK_BACKED_VERSION_KINDS, _query_tokens, _source_map_queries
+from app.generation_v2.tools.evidence import (
+    _CHUNK_BACKED_VERSION_KINDS,
+    _query_tokens,
+    _source_map_queries,
+    materialize_source_map,
+    validate_source_map_gate,
+)
 from app.models.generation_v2 import SourceRepresentationKind, SourceVersion
 from app.schemas.generation import GenerationCreate
 from app.workers.generation_tasks import _make_compare_child
@@ -99,6 +123,193 @@ def test_research_tool_policy_can_include_web_search() -> None:
     )
 
     assert [tool.get("type") for tool in tools] == ["web_search"]
+
+
+def test_evidence_tool_descriptions_define_usage_and_citation_contracts() -> None:
+    from app.generation_v2.tools.evidence import EvidenceToolset
+
+    tools = EvidenceToolset(db=None, run=None, run_view=None, provider_index=None).agent_tools()  # type: ignore[arg-type]
+    descriptions = {tool.name: tool.description for tool in tools}
+
+    assert "neutral metadata" in descriptions["list_sources"]
+    assert "source_ids=[]" in descriptions["search_evidence"]
+    assert "persist" in descriptions["search_evidence"].lower()
+    assert "source_level or weak evidence is not sufficient" in descriptions["search_evidence"]
+    assert "Copy source_id, source_version_id, locator_text, snippet_text" in descriptions["read_evidence"]
+    assert "persist that window as an EvidenceItem" in descriptions["read_source"]
+    assert "persist representative windows as EvidenceItems" in descriptions["skim_source"]
+    assert "not a generic source search tool" in descriptions["find_quotes"]
+    assert "corpus/source triage only" in descriptions["search_sources"]
+    assert "Compare selected sources" in descriptions["compare_sources"]
+
+
+def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() -> None:
+    assert "claim_refs are optional temporary fact-check hints only" in ACT_DRAFT_PROMPT
+    assert "not claim ids, citation ids, evidence ids, or source ids" in ACT_DRAFT_PROMPT
+    assert "You may call search_evidence/read_evidence only to repair a known gap" in ACT_REWRITE_PROMPT
+    assert "quote_refs must be evidence_id values or exact source_id:locator refs" in SOURCE_TRIAGE_PROMPT
+    assert "Retrieval/read plan" in SOURCE_TRIAGE_PROMPT
+    assert "return a complete SourceMap" in SOURCE_TRIAGE_PROMPT
+    assert "claim_type=factual" in CLAIM_CITATION_PROMPT
+    assert "source_need=required" in CLAIM_CITATION_PROMPT
+    assert "risk_level=high" in CLAIM_CITATION_PROMPT
+    assert "support_level=supported only when saved evidence directly supports" in CLAIM_CITATION_PROMPT
+    assert "If compact evidence is insufficient, call search_evidence" in CLAIM_CITATION_PROMPT
+    assert "blocking=true for missing evidence" in CLAIM_CITATION_PROMPT
+
+
+def test_runtime_tool_trace_names_include_function_tool_names() -> None:
+    runtime = V2Runtime()
+    tools = runtime._tool_specs(
+        vector_store_id=None,
+        local_tools=[
+            AgentTool(
+                name="search_evidence",
+                description="Search",
+                parameters={"type": "object", "properties": {}},
+                handler=None,  # type: ignore[arg-type]
+            )
+        ],
+        policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
+    )
+
+    assert tools[0]["name"] == "search_evidence"
+
+
+@pytest.mark.asyncio
+async def test_phase_specific_agent_tool_sets_are_not_broad() -> None:
+    _CaptureRuntime.calls = {}
+    run = SimpleNamespace(
+        id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        config={"user_prompt": "Topic", "duration_target": 1800, "language": "en"},
+    )
+    all_tools = _all_evidence_tools()
+    source = _source_card()
+    quote = QuoteCard(
+        source_id=source.source_id,
+        source_version_id=str(uuid.uuid4()),
+        evidence_id=str(uuid.uuid4()),
+        quote="A precise saved quote.",
+        locator="section 2",
+        narrative_use="mechanism",
+    )
+    treatment_act = TreatmentAct(
+        act_number=1,
+        title="Mechanism",
+        story_role="mechanism",
+        opening_question="How does it work?",
+        main_turn="The mechanism is concrete.",
+        ending_turn="The stakes rise.",
+        source_focus=[source.source_id],
+        target_minutes=8,
+        required_evidence_ids=[quote.evidence_id or ""],
+        source_density_target=1,
+    )
+    treatment = Treatment(
+        title="Episode",
+        logline="A specific episode.",
+        host_dynamic="A asks, B probes.",
+        acts=[treatment_act],
+    )
+    dossier = build_act_dossier(
+        treatment_act=treatment_act,
+        source_cards=[source],
+        quote_cards=[quote],
+        ledger=ContinuityLedger(),
+    )
+    draft = ActDraft(
+        act_number=1,
+        title="Mechanism",
+        lines=[DialogueLine(speaker="A", text="A specific factual statement.")],
+        used_source_ids=[source.source_id],
+    )
+    source_map = SourceMap(source_cards=[source], quote_cards=[quote])
+    research_memo = _fallback_research_memo(run, [source], [quote])
+
+    await build_research_memo(
+        None,  # type: ignore[arg-type]
+        run,
+        _CaptureRuntime(research_memo),
+        source_cards=[source],
+        quote_cards=[quote],
+        source_map=source_map,
+        evidence_tools=all_tools,
+    )
+    await audit_research_memo(
+        None,  # type: ignore[arg-type]
+        run,
+        _CaptureRuntime(ResearchAudit(passed=True, score=0.9, verdict="ok")),
+        research_memo=research_memo,
+        source_map=source_map,
+        evidence_tools=all_tools,
+    )
+    await build_treatment(
+        None,  # type: ignore[arg-type]
+        run,
+        _CaptureRuntime(treatment),
+        research_memo=research_memo,
+        source_map=source_map,
+        evidence_tools=all_tools,
+    )
+    await write_act_draft(
+        None,  # type: ignore[arg-type]
+        run,
+        _CaptureRuntime(draft),
+        treatment_act=treatment_act,
+        dossier=dossier,
+        ledger=ContinuityLedger(),
+        evidence_tools=all_tools,
+    )
+    await critique_episode(
+        None,  # type: ignore[arg-type]
+        run,
+        _CaptureRuntime(EpisodeCritique(passed=True, summary="ok")),
+        treatment=treatment,
+        source_cards=[source],
+        quote_cards=[quote],
+        drafts=[draft],
+        evidence_tools=all_tools,
+    )
+    await rewrite_act_draft(
+        None,  # type: ignore[arg-type]
+        run,
+        _CaptureRuntime(draft),
+        treatment_act=treatment_act,
+        dossier=dossier,
+        draft=draft,
+        ledger=ContinuityLedger(),
+        critique=EpisodeCritique(passed=False, summary="revise", rewrite_instructions=["tighten"]),
+        evidence_tools=all_tools,
+    )
+    await extract_and_link_claims(
+        None,  # type: ignore[arg-type]
+        run,
+        _CaptureRuntime(ClaimCitationBundle(claims=[], citation_links=[])),
+        source_cards=[source],
+        quote_cards=[quote],
+        evidence_records=[],
+        evidence_tools=all_tools,
+        dossiers=[dossier],
+        drafts=[draft],
+        critique=EpisodeCritique(passed=True, summary="ok"),
+    )
+
+    calls = _CaptureRuntime.calls
+    assert set(calls["research_agent"]) == {
+        "search_sources",
+        "search_evidence",
+        "find_quotes",
+        "read_evidence",
+        "read_source",
+        "skim_source",
+    }
+    assert set(calls["research_auditor"]) == {"search_evidence", "read_evidence"}
+    assert set(calls["story_editor"]) == {"search_evidence", "read_evidence"}
+    assert set(calls["act_writer_1"]) == {"search_evidence", "read_evidence"}
+    assert set(calls["episode_critic"]) == {"search_evidence", "read_evidence"}
+    assert set(calls["act_rewriter_1"]) == {"search_evidence", "read_evidence"}
+    assert set(calls["citation_linker"]) == {"search_evidence", "read_evidence", "find_quotes"}
 
 
 def test_fallback_editorial_flow_produces_draft_and_claims() -> None:
@@ -355,6 +566,287 @@ def test_source_triage_ranks_stronger_sources_above_weak_sources() -> None:
 
     assert triage.ranked_sources[0].source_id == "strong"
     assert "strong" in triage.top_sources_by_function["mechanism"]
+
+
+def test_source_triage_schema_accepts_clusters_relationships_and_top_evidence() -> None:
+    report = SourceTriageReport.model_validate(
+        {
+            "ranked_sources": [],
+            "top_sources_by_function": {"mechanism": ["s1"]},
+            "top_evidence_by_function": {"mechanism": ["ev1"]},
+            "source_clusters": [
+                {
+                    "cluster_id": "cluster-1",
+                    "label": "Primary filings",
+                    "source_ids": ["s1", "s2"],
+                    "evidence_ids": ["ev1"],
+                    "rationale": "Same institution.",
+                    "primary_source_ids": ["s1"],
+                    "secondary_source_ids": ["s2"],
+                }
+            ],
+            "source_relationships": [
+                {
+                    "source_id": "s1",
+                    "related_source_id": "s2",
+                    "relationship": "primary_to_secondary",
+                    "evidence_ids": ["ev1"],
+                    "rationale": "Article discusses the filing.",
+                }
+            ],
+        }
+    )
+
+    assert report.source_clusters[0].primary_source_ids == ["s1"]
+    assert report.source_relationships[0].relationship == "primary_to_secondary"
+    assert report.top_evidence_by_function["mechanism"] == ["ev1"]
+
+
+def test_quote_ref_prefers_evidence_id_and_dossier_matches_exact_refs() -> None:
+    from app.generation_v2.source_triage import quote_ref
+
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    quote = QuoteCard(
+        source_id=source_id,
+        source_version_id=str(uuid.uuid4()),
+        evidence_id=evidence_id,
+        quote="A precise saved quote.",
+        locator="section 2",
+        narrative_use="mechanism",
+    )
+    act = TreatmentAct(
+        act_number=1,
+        title="Mechanism",
+        story_role="mechanism",
+        opening_question="How?",
+        main_turn="Mechanism.",
+        ending_turn="Next.",
+        source_focus=[source_id],
+        target_minutes=5,
+        required_quote_refs=[evidence_id],
+        source_density_target=1,
+    )
+
+    dossier = build_act_dossier(
+        treatment_act=act,
+        source_cards=[_source_card(source_id=source_id)],
+        quote_cards=[quote],
+        ledger=ContinuityLedger(),
+    )
+
+    assert quote_ref(quote) == evidence_id
+    assert dossier.quote_cards == [quote]
+    assert evidence_id in dossier.evidence_ids
+
+
+def test_compact_evidence_inventory_caps_and_preserves_preferred_ids() -> None:
+    source_id = str(uuid.uuid4())
+    source_version_id = str(uuid.uuid4())
+    preferred_id = str(uuid.uuid4())
+    extra_records = [
+        _evidence_record(
+            evidence_id=str(uuid.uuid4()),
+            source_id=source_id,
+            source_version_id=source_version_id,
+            snippet_text=f"Evidence {idx} " * 100,
+        )
+        for idx in range(12)
+    ]
+    preferred_record = _evidence_record(
+        evidence_id=preferred_id,
+        source_id=source_id,
+        source_version_id=source_version_id,
+        snippet_text="Preferred evidence " * 100,
+    )
+
+    inventory = _evidence_inventory(
+        [*extra_records, preferred_record],
+        source_cards=[_source_card(source_id=source_id)],
+        quote_cards=[
+            QuoteCard(
+                source_id=source_id,
+                source_version_id=source_version_id,
+                evidence_id=preferred_id,
+                quote="Preferred evidence.",
+                locator="section 2",
+                narrative_use="mechanism",
+            )
+        ],
+        limit=5,
+    )
+
+    assert len(inventory) == 5
+    assert inventory[0]["id"] == preferred_id
+    assert len(inventory[0]["snippet_text"]) <= 900
+
+
+def test_materialize_source_map_adds_new_triage_evidence_and_quote_cards() -> None:
+    source_id = str(uuid.uuid4())
+    source_version_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    inventory = SourceMap(
+        source_cards=[
+            _source_card(source_id=source_id).model_copy(
+                update={"source_version_ids": [source_version_id], "evidence_ids": []}
+            )
+        ]
+    )
+    source_map = SourceMap(
+        source_cards=[],
+        quote_cards=[],
+        source_triage=SourceTriageReport(top_evidence_by_function={"mechanism": [evidence_id]}),
+        evidence_ids=[],
+    )
+
+    materialized = materialize_source_map(
+        source_map,
+        inventory=inventory,
+        evidence_records=[
+            _evidence_record(
+                evidence_id=evidence_id,
+                source_id=source_id,
+                source_version_id=source_version_id,
+                snippet_text="A saved source window explains the mechanism clearly.",
+            )
+        ],
+    )
+
+    assert materialized.evidence_ids == [evidence_id]
+    assert materialized.source_cards[0].evidence_ids == [evidence_id]
+    assert materialized.quote_cards[0].evidence_id == evidence_id
+    assert materialized.retrieval_notes
+
+
+def test_research_memo_evidence_gate_blocks_unanchored_high_impact_atoms() -> None:
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    memo = ResearchMemo(
+        title="Memo",
+        thesis="Thesis",
+        narrative_spine="Spine",
+        editorial_atoms=[
+            EditorialAtom(
+                kind="mechanism",
+                title="Mechanism",
+                explanation="A specific mechanism.",
+                source_ids=[source_id],
+                evidence_ids=[],
+                story_value="Explains the system.",
+            )
+        ],
+    )
+    source_map = SourceMap(
+        source_cards=[_source_card(source_id=source_id).model_copy(update={"evidence_ids": [evidence_id]})],
+        evidence_ids=[evidence_id],
+    )
+
+    gate = _validate_research_memo_evidence(memo, source_map, 3600)
+
+    assert gate.passed is False
+    assert "High-impact atom 1" in gate.missing_material[0]
+
+
+@pytest.mark.asyncio
+async def test_source_triage_gate_rejects_missing_tool_calls_for_non_tiny_corpus() -> None:
+    source_id = uuid.uuid4()
+    other_source_id = uuid.uuid4()
+    source_version_id = uuid.uuid4()
+    evidence_id = uuid.uuid4()
+    source_map = SourceMap(
+        source_cards=[
+            _source_card(source_id=str(source_id)).model_copy(
+                update={"source_version_ids": [str(source_version_id)], "evidence_ids": [str(evidence_id)]}
+            )
+        ],
+        source_triage=SourceTriageReport(top_evidence_by_function={"mechanism": [str(evidence_id)]}),
+        evidence_ids=[str(evidence_id)],
+    )
+
+    gate = await validate_source_map_gate(
+        _FakeGateDb(
+            evidence=[
+                SimpleNamespace(id=evidence_id, source_id=source_id, source_version_id=source_version_id),
+            ],
+            traces=[],
+        ),
+        generation_run_id=uuid.uuid4(),
+        source_map=source_map,
+        run_view=SimpleNamespace(
+            selected_source_ids=[str(source_id), str(other_source_id)],
+            selected_source_version_ids=[str(source_version_id)],
+        ),
+    )
+
+    assert gate.passed is False
+    assert gate.tool_call_count == 0
+    assert "No triage reading/search tool calls" in gate.summary
+
+
+@pytest.mark.asyncio
+async def test_source_triage_gate_rejects_hallucinated_evidence_ids() -> None:
+    source_id = uuid.uuid4()
+    source_version_id = uuid.uuid4()
+    valid_evidence_id = uuid.uuid4()
+    hallucinated_evidence_id = uuid.uuid4()
+    source_map = SourceMap(
+        source_cards=[
+            _source_card(source_id=str(source_id)).model_copy(
+                update={
+                    "source_version_ids": [str(source_version_id)],
+                    "evidence_ids": [str(valid_evidence_id), str(hallucinated_evidence_id)],
+                }
+            )
+        ],
+        source_triage=SourceTriageReport(top_evidence_by_function={"mechanism": [str(hallucinated_evidence_id)]}),
+        evidence_ids=[str(valid_evidence_id), str(hallucinated_evidence_id)],
+    )
+
+    gate = await validate_source_map_gate(
+        _FakeGateDb(
+            evidence=[
+                SimpleNamespace(id=valid_evidence_id, source_id=source_id, source_version_id=source_version_id),
+            ],
+            traces=[SimpleNamespace(tool_name="skim_source")],
+        ),
+        generation_run_id=uuid.uuid4(),
+        source_map=source_map,
+        run_view=SimpleNamespace(
+            selected_source_ids=[str(source_id), str(uuid.uuid4())],
+            selected_source_version_ids=[str(source_version_id)],
+        ),
+    )
+
+    assert gate.passed is False
+    assert gate.invalid_evidence_ids == [str(hallucinated_evidence_id)]
+    assert gate.missing_function_evidence == ["mechanism"]
+
+
+@pytest.mark.asyncio
+async def test_source_triage_agent_uses_full_reading_tool_set() -> None:
+    _CaptureRuntime.calls = {}
+    run = SimpleNamespace(id=uuid.uuid4(), project_id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    source_map = SourceMap(source_cards=[_source_card()], quote_cards=[], gaps=["Need primary sources"])
+
+    result = await build_source_triage_agent(
+        None,  # type: ignore[arg-type]
+        run,
+        _CaptureRuntime(source_map),
+        source_inventory=SourceMap(source_cards=[_source_card()], quote_cards=[]),
+        evidence_tools=_all_evidence_tools(),
+    )
+
+    assert result.gaps == ["Need primary sources"]
+    assert set(_CaptureRuntime.calls["source_triage_agent"]) == {
+        "list_sources",
+        "search_sources",
+        "search_evidence",
+        "find_quotes",
+        "read_evidence",
+        "read_source",
+        "skim_source",
+        "compare_sources",
+    }
 
 
 @pytest.mark.asyncio
@@ -1037,6 +1529,64 @@ class _FakeSupportJudgeRuntime:
                 ]
             }
         )
+
+
+class _CaptureRuntime:
+    model = "fake-capture"
+    calls: dict[str, list[str]] = {}
+
+    def __init__(self, response):
+        self.response = response
+
+    async def call_structured(self, **kwargs):
+        self.calls[kwargs["agent_name"]] = [tool.name for tool in kwargs.get("local_tools") or []]
+        return self.response
+
+    def prompt_hash_for(self, _phase: str, _agent_name: str) -> str | None:
+        return None
+
+    def fallback_metadata_for(self, _phase: str, _agent_name: str) -> dict | None:
+        return None
+
+
+class _FakeGateDb:
+    def __init__(self, *, evidence: list[SimpleNamespace], traces: list[SimpleNamespace]) -> None:
+        self._responses = [_FakeScalarResult(evidence), _FakeScalarResult(traces)]
+
+    async def execute(self, _query):
+        return self._responses.pop(0)
+
+
+class _FakeScalarResult:
+    def __init__(self, values: list[SimpleNamespace]) -> None:
+        self._values = values
+
+    def scalars(self):
+        return self._values
+
+
+def _all_evidence_tools() -> list[AgentTool]:
+    async def _handler(_args):
+        return {}
+
+    return [
+        AgentTool(
+            name=name,
+            description=name,
+            parameters={"type": "object", "properties": {}},
+            handler=_handler,
+        )
+        for name in (
+            "list_sources",
+            "search_sources",
+            "search_evidence",
+            "find_quotes",
+            "read_evidence",
+            "read_source",
+            "skim_source",
+            "compare_sources",
+        )
+    ]
 
 
 def _source_card(

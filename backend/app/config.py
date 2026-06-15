@@ -51,7 +51,8 @@ class Settings(BaseSettings):
     generation_v2_cleanup_provider_files: bool = False
     generation_v2_allow_runtime_fallback: bool = False
     generation_v2_allow_fallback_audio: bool = False
-    generation_v2_max_tool_rounds: int = 4
+    generation_v2_max_tool_rounds: int = 8
+    generation_v2_triage_max_tool_rounds: int = 12
 
     # LangSmith tracing
     langsmith_tracing: bool = False

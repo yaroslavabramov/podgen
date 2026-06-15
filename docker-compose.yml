@@ -35,7 +35,7 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      test: ["CMD-SHELL", "bash -c ': > /dev/tcp/127.0.0.1/6333'"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -67,6 +67,7 @@ services:
     env_file:
       - .env
     environment:
+      PYTHONPATH: /app
       DATABASE_URL: postgresql+asyncpg://podgen:podgen@postgres:5432/podgen
       DATABASE_URL_SYNC: postgresql://podgen:podgen@postgres:5432/podgen
       REDIS_URL: redis://redis:6379/0
@@ -92,6 +93,7 @@ services:
     env_file:
       - .env
     environment:
+      PYTHONPATH: /app
       DATABASE_URL: postgresql+asyncpg://podgen:podgen@postgres:5432/podgen
       DATABASE_URL_SYNC: postgresql://podgen:podgen@postgres:5432/podgen
       REDIS_URL: redis://redis:6379/0
@@ -109,10 +111,11 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    command: celery -A app.workers.celery_app beat --loglevel=info
+    command: celery -A app.workers.celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule
     env_file:
       - .env
     environment:
+      PYTHONPATH: /app
       REDIS_URL: redis://redis:6379/0
     depends_on:
       redis:

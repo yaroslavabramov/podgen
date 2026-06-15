@@ -59,6 +59,25 @@ async def test_extract_date_parses_fenced_json(monkeypatch: pytest.MonkeyPatch) 
 
 
 @pytest.mark.asyncio
+async def test_extract_date_prompt_requires_explicit_provided_date(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, str] = {}
+
+    async def _fake_call(**kwargs) -> str:
+        captured["system"] = kwargs["system"]
+        captured["prompt"] = kwargs["prompt"]
+        return '{"date": null}'
+
+    monkeypatch.setattr("app.ingestion.canonicalizer.call_haiku_structured", _fake_call)
+    source = _make_web_source(text_preview="Long enough preview text for extraction.")
+
+    await _extract_date(source)
+
+    assert "Extract publication dates only from provided fields" in captured["system"]
+    assert "Use only an explicit date visible in the title, URL path, or text preview above." in captured["prompt"]
+    assert "Do not infer from crawl date, current date, topic recency, or outside knowledge." in captured["prompt"]
+
+
+@pytest.mark.asyncio
 async def test_extract_date_handles_missing_date(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _fake_call(**kwargs) -> str:
         return '{"date": null}'
