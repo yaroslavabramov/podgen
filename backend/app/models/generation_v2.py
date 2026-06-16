@@ -30,6 +30,8 @@ class ProviderCorpusScope(StrEnum):
 class EvidenceRetrievalChannel(StrEnum):
     PROVIDER_FILE_SEARCH = "provider_file_search"
     PROVIDER_VECTOR_SEARCH = "provider_vector_search"
+    MODEL_FILE_READ = "model_file_read"
+    MODEL_FILE_READ_LOCAL_FALLBACK = "model_file_read_local_fallback"
     LOCAL_CHUNK_SEARCH = "local_chunk_search"
     LOCAL_TRANSCRIPT_SEARCH = "local_transcript_search"
     WEB_SNAPSHOT = "web_snapshot"

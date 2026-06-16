@@ -35,6 +35,7 @@ from app.generation_v2.schemas import (
     ShowBibleContext,
     SourceCard,
     SourceMap,
+    SourceTriageCompletion,
     SourceTriageReport,
     QuoteCard,
     CitationLink,
@@ -47,21 +48,42 @@ from app.models.generation_run import GenerationRun
 
 TRIAGE_TOOL_NAMES = {
     "list_sources",
+    "list_source_versions",
     "search_sources",
     "search_evidence",
     "find_quotes",
     "read_evidence",
     "read_source",
+    "read_source_window",
+    "read_source_with_model",
     "skim_source",
+    "inspect_source",
+    "search_within_source",
     "compare_sources",
+    "select_evidence",
+    "upsert_source_card",
+    "create_quote_card",
+    "record_source_relationship",
+    "record_gap",
+    "finalize_source_map",
 }
-RESEARCH_TOOL_NAMES = {"search_sources", "search_evidence", "find_quotes", "read_evidence", "read_source", "skim_source"}
+RESEARCH_TOOL_NAMES = {
+    "read_evidence",
+}
 AUDIT_TOOL_NAMES = {"search_evidence", "read_evidence"}
-TREATMENT_TOOL_NAMES = {"search_evidence", "read_evidence"}
-WRITER_TOOL_NAMES = {"search_evidence", "read_evidence"}
+TREATMENT_TOOL_NAMES = {"read_evidence", "read_source_window", "search_within_source"}
+WRITER_TOOL_NAMES = {"read_evidence", "read_source_window", "search_within_source"}
 CRITIC_TOOL_NAMES = {"search_evidence", "read_evidence"}
-REWRITER_TOOL_NAMES = {"search_evidence", "read_evidence"}
-CITATION_TOOL_NAMES = {"search_evidence", "read_evidence", "find_quotes"}
+REWRITER_TOOL_NAMES = {"read_evidence", "read_source_window", "search_within_source"}
+CITATION_TOOL_NAMES = {
+    "search_evidence",
+    "read_evidence",
+    "find_quotes",
+    "read_source_window",
+    "read_source_with_model",
+    "search_within_source",
+    "select_evidence",
+}
 
 
 def _phase_tools(evidence_tools: list[AgentTool] | None, allowed_names: set[str]) -> list[AgentTool]:
@@ -187,9 +209,22 @@ def _evidence_inventory(
             "locator_type": item.get("locator_type"),
             "evidence_strength": item.get("evidence_strength"),
             "snippet_text": _trim(str(item.get("snippet_text") or ""), 900),
+            "metadata_flags": _evidence_metadata_flags(item.get("metadata") or {}),
         }
         for item in selected[:limit]
     ]
+
+
+def _evidence_metadata_flags(metadata: dict) -> dict:
+    keys = {
+        "usage_status",
+        "supports_query",
+        "support_level",
+        "model_file_read_local_fallback",
+        "selected_role",
+        "selected_purpose",
+    }
+    return {key: metadata[key] for key in keys if key in metadata}
 
 
 def _trim(text: str, limit: int) -> str:
@@ -213,13 +248,13 @@ async def build_source_triage_agent(
     runtime: V2Runtime,
     *,
     source_inventory: SourceMap,
-    prefetch_seed: SourceMap | None = None,
     evidence_tools: list[AgentTool] | None = None,
-) -> SourceMap:
+    vector_store_id: str | None = None,
+    hosted_file_search_handler=None,
+) -> SourceTriageCompletion:
     prompt = SOURCE_TRIAGE_PROMPT.format(
         user_prompt=(run.config or {}).get("user_prompt", ""),
         source_inventory_json=_json(_source_inventory(source_inventory.source_cards, limit=160)),
-        prefetch_seed_json=(prefetch_seed or SourceMap()).model_dump_json(),
     )
     try:
         return await runtime.call_structured(
@@ -227,18 +262,23 @@ async def build_source_triage_agent(
             generation_run_id=run.id,
             phase="v2_source_triage",
             agent_name="source_triage_agent",
-            schema_model=SourceMap,
+            schema_model=SourceTriageCompletion,
             system=V2_SYSTEM_BASE,
             prompt=prompt,
-            vector_store_id=None,
+            vector_store_id=vector_store_id,
             local_tools=_phase_tools(evidence_tools, TRIAGE_TOOL_NAMES),
-            tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
+            tool_policy=ToolPolicy(file_search=bool(vector_store_id), web_search=False, local_tools=True, max_file_search_results=12),
+            hosted_file_search_handler=hosted_file_search_handler,
             max_output_tokens=10000,
             max_tool_rounds=settings.generation_v2_triage_max_tool_rounds,
         )
     except V2RuntimeUnavailable as exc:
         _allow_runtime_fallback(runtime, "v2_source_triage", "source_triage_agent", exc)
-        return source_inventory
+        return SourceTriageCompletion(
+            ready=False,
+            summary="Runtime fallback was used; source triage write actions were not completed by the model.",
+            notes=["Fallback source inventory is not an authoritative SourceMap."],
+        )
 
 
 async def build_research_memo(
@@ -252,6 +292,7 @@ async def build_research_memo(
     evidence_tools: list[AgentTool] | None = None,
     vector_store_id: str | None = None,
     show_bible: ShowBibleContext | None = None,
+    hosted_file_search_handler=None,
 ) -> ResearchMemo:
     source_map = source_map or SourceMap(source_cards=source_cards, quote_cards=quote_cards)
     prompt = RESEARCH_MEMO_PROMPT.format(
@@ -636,6 +677,7 @@ async def extract_and_link_claims(
     critique: EpisodeCritique,
     vector_store_id: str | None = None,
     show_bible: ShowBibleContext | None = None,
+    hosted_file_search_handler=None,
 ) -> ClaimCitationBundle:
     prompt = CLAIM_CITATION_PROMPT.format(
         source_inventory_json=_json(_source_inventory(source_cards, limit=100)),
@@ -661,9 +703,10 @@ async def extract_and_link_claims(
             schema_model=ClaimCitationBundle,
             system=V2_SYSTEM_BASE,
             prompt=prompt,
-            vector_store_id=None,
+            vector_store_id=vector_store_id,
             local_tools=_phase_tools(evidence_tools, CITATION_TOOL_NAMES),
-            tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
+            tool_policy=ToolPolicy(file_search=bool(vector_store_id), web_search=False, local_tools=True, max_file_search_results=10),
+            hosted_file_search_handler=hosted_file_search_handler,
             max_output_tokens=14000,
         )
     except V2RuntimeUnavailable as exc:

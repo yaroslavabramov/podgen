@@ -94,6 +94,12 @@ class SourceMap(BaseModel):
     retrieval_notes: list[str] = Field(default_factory=list)
 
 
+class SourceTriageCompletion(BaseModel):
+    ready: bool
+    summary: str
+    notes: list[str] = Field(default_factory=list)
+
+
 class SourceTriageGate(BaseModel):
     passed: bool
     summary: str
@@ -103,6 +109,9 @@ class SourceTriageGate(BaseModel):
     invalid_source_ids: list[str] = Field(default_factory=list)
     invalid_source_version_ids: list[str] = Field(default_factory=list)
     invalid_evidence_ids: list[str] = Field(default_factory=list)
+    missing_source_card_evidence_source_ids: list[str] = Field(default_factory=list)
+    missing_model_read_source_ids: list[str] = Field(default_factory=list)
+    missing_source_card_write_source_ids: list[str] = Field(default_factory=list)
     ungrounded_relationships: list[str] = Field(default_factory=list)
     missing_function_evidence: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)

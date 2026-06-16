@@ -162,17 +162,6 @@ async def validate_citations(
                     )
                 )
 
-        if not link.locator.strip():
-            invalid_link_count += 1
-            issues.append(
-                _issue(
-                    claim.claim_id,
-                    act_number,
-                    "Citation locator is empty.",
-                    "Provide a page, timestamp, section, or provider-snippet locator from the EvidenceItem.",
-                    severity="high" if required else "medium",
-                )
-            )
         if link.confidence < MIN_CITATION_CONFIDENCE:
             low_confidence_count += 1
             issues.append(
@@ -339,6 +328,17 @@ def _validate_evidence_link(
     issues: list[FactIssue],
 ) -> int:
     invalid = 0
+    if not _evidence_is_selected_or_cited(evidence):
+        invalid += 1
+        issues.append(
+            _issue(
+                claim.claim_id,
+                claim.act_number,
+                "Citation evidence was not explicitly selected before citation.",
+                "Call select_evidence for the EvidenceItem before linking it to a claim.",
+                severity="high",
+            )
+        )
     if str(evidence.get("source_id")) != link.source_id:
         invalid += 1
         issues.append(
@@ -406,17 +406,6 @@ def _validate_evidence_link(
                 severity="high",
             )
         )
-    if not str(evidence.get("locator_text") or link.locator or "").strip():
-        invalid += 1
-        issues.append(
-            _issue(
-                claim.claim_id,
-                claim.act_number,
-                "Linked EvidenceItem has no locator.",
-                "Use evidence with a page, section, timestamp, or provider snippet locator.",
-                severity="high",
-            )
-        )
     return invalid
 
 
@@ -424,6 +413,10 @@ def _weak_evidence_for_required_claim(claim: DraftClaim, evidence: dict[str, Any
     if not _requires_citation(claim):
         return False
     return str(evidence.get("evidence_strength") or "") in {EvidenceStrength.WEAK, EvidenceStrength.SOURCE_LEVEL}
+
+
+def _evidence_is_selected_or_cited(evidence: dict[str, Any]) -> bool:
+    return str((evidence.get("metadata") or {}).get("usage_status") or "") in {"selected", "cited"}
 
 
 def _quote_supported(link: CitationLink, evidence: dict[str, Any], quote_card: QuoteCard | None) -> bool:

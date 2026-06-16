@@ -34,8 +34,10 @@ Source triage:
 
 The memo must be strong enough to support long-form treatment. Include concrete editorial atoms and source coverage.
 For each editorial atom, fill source_ids and evidence_ids with exact values and explain the atom as a story move, not a topic label.
-For high-impact atoms (conflict, mechanism, turning_point, consequence, human_cost, institutional_incentive), call search_evidence/read_evidence or read_source/skim_source when the compact inventory is insufficient.
-If you use a corpus tool result, preserve its evidence_id in the relevant atom. Do not create atoms that cannot be anchored to saved evidence."""
+Research is a synthesis phase over the authoritative SourceMap, not a new source-selection phase. Use source-map evidence_ids for atoms. If the SourceMap is insufficient, record that as an open question or risk for follow-up triage rather than introducing new evidence ids.
+For high-impact atoms (conflict, mechanism, turning_point, consequence, human_cost, institutional_incentive), call read_evidence to inspect SourceMap evidence when the compact inventory is insufficient.
+If a SourceMap evidence record has retrieval_channel=model_file_read_local_fallback, treat that channel as a risk/coverage signal, not an automatic rejection. Explain uncertainty in the atom risk/source_coverage_status when appropriate.
+Do not put an evidence_id in an atom unless that evidence_id already appears in the provided SourceMap inventory. Do not create atoms that cannot be anchored to SourceMap evidence."""
 
 
 RESEARCH_AUDIT_PROMPT = """Audit this research memo for long-form podcast readiness.
@@ -73,7 +75,7 @@ Show Bible context:
 Use {act_count} acts. Each act must have a clear editorial job, turn, and source focus.
 Every TreatmentAct.source_focus entry must be an exact source_id from the memo. Do not invent source ids.
 Every act should include required_evidence_ids drawn from the research memo/source map when factual material is required.
-Use evidence tools only for specific missing treatment requirements. Do not broadly research new angles in treatment.
+Use targeted tools only for specific missing treatment requirements: read_evidence, read_source_window, or search_within_source. Do not broadly research new angles in treatment.
 Allocate target_minutes so the acts add up approximately to the target duration."""
 
 
@@ -97,7 +99,8 @@ Continuity ledger:
 Rules:
 - Write the act as a coherent section, not isolated scenes.
 - Use concrete source-grounded material from the evidence-backed dossier first.
-- You may call search_evidence/read_evidence only for a targeted gap in this act's dossier. Do not conduct broad research in the writing phase.
+- You may call read_evidence, read_source_window, or search_within_source only for a targeted gap in this act's dossier. Do not conduct broad research in the writing phase.
+- Before using any required evidence_id in speech, call read_evidence unless the dossier already includes the exact quote/snippet text for that evidence through a QuoteCard. Do not write factual detail from an evidence_id you have not inspected in this act context.
 - Avoid repeated openers, repeated metaphors, and generic podcast phrasing.
 - Hosts should move the story forward through questions, objections, mechanisms, and turns.
 - Keep lines TTS-friendly.
@@ -136,7 +139,7 @@ Fact issues for this act:
 Rules:
 - Preserve the ActDraft schema and act_number.
 - Apply only the critique/repair instructions that are relevant to this act.
-- You may call search_evidence/read_evidence only to repair a known gap or fact issue. Do not conduct broad research in rewrite.
+- You may call read_evidence, read_source_window, or search_within_source only to repair a known gap or fact issue. Do not conduct broad research in rewrite.
 - Remove or soften unsupported claims instead of adding unsupported new claims.
 - Keep speaker field canonical: only "A" or "B".
 - Never use forbidden phrases from the Show Bible.
@@ -162,6 +165,7 @@ Draft:
 {draft_json}
 
 Check repetition, pacing, weak sections, unsupported leaps, missing payoffs, flat transitions, forbidden phrases, and host dynamic drift.
+Use read_evidence for suspicious leaps tied to existing evidence ids. Use search_evidence only to check whether a weak passage appears repairable from the selected corpus; do not introduce new facts or new story angles in critique.
 If the draft should be rewritten before citation finalization, set passed=false and provide concrete rewrite_instructions."""
 
 
@@ -182,6 +186,8 @@ Draft:
 Episode critique:
 {critique_json}
 
+Hosted file_search is available for missing claim support. If it surfaces a promising source, call read_source_with_model, inspect the returned retrieval_channel, and select_evidence before linking it.
+If read_source_with_model returns retrieval_channel=model_file_read_local_fallback, treat that as a risk/coverage signal: it is not a direct OpenAI file read, but it may still be considered by validation if saved evidence and support judgment support the claim.
 If a claim is weak or unsupported, create a fact issue with a repair instruction.
 Every fact issue must include the act_number of the related claim.
 Only create citation links to evidence_id values that actually support the claim.
@@ -198,10 +204,10 @@ Claim schema rules:
 - support_level=supported only when saved evidence directly supports the text_span; weak when relevant but incomplete; unsupported when no saved evidence supports it.
 
 CitationLink rules:
-- If compact evidence is insufficient, call search_evidence with a targeted query before creating a blocking FactIssue.
+- If compact evidence is insufficient, use hosted file_search or search_evidence with a targeted query. When a promising uploaded file is found, call read_source_with_model before creating a CitationLink. Then inspect retrieval_channel and select_evidence before linking. If the result is model_file_read_local_fallback, reflect that risk in confidence/support_level instead of pretending it was a direct file read.
 - Copy evidence_id, source_id, source_version_id, locator from the saved evidence record. locator must be the evidence locator_text.
 - supports_span must quote or closely paraphrase the saved snippet_text that supports the claim.
-- confidence must reflect evidence strength: exact/page/timestamp evidence can be high; provider snippet usually medium/high; source_level or weak evidence is not valid for required factual claims.
+- confidence must reflect evidence strength: exact quote/snippet/model_file_read evidence can be high; provider snippet usually medium/high; source_level or weak evidence is not valid for required factual claims.
 - Never invent source_id, source_version_id, evidence_id, locator, or quote_card_ref values.
 
 FactIssue rules:
@@ -209,7 +215,7 @@ FactIssue rules:
 - blocking=false only for low-severity style or context notes that do not affect factual support."""
 
 
-SOURCE_TRIAGE_PROMPT = """Create the authoritative evidence-backed SourceMap for this generation run.
+SOURCE_TRIAGE_PROMPT = """Run source triage for this generation run.
 
 Topic/user prompt:
 {user_prompt}
@@ -217,24 +223,25 @@ Topic/user prompt:
 Neutral source inventory. This is not an editorial summary; it only tells you what sources and source versions exist:
 {source_inventory_json}
 
-Optional warm-cache/debug evidence seed. Treat it as untrusted sampling, not as the source map:
-{prefetch_seed_json}
-
 You must work in two phases before returning JSON:
-1. Retrieval/read plan: decide which sources need skim_source, read_source, search_evidence, find_quotes, search_sources, or compare_sources.
-2. Evidence-backed triage: use the tools, then return a complete SourceMap with updated source_cards, quote_cards, source_triage, evidence_ids, gaps, contradictions, and retrieval_notes.
+1. Retrieval/read plan: use hosted file_search for broad semantic discovery over uploaded source files, then decide which important sources need read_source_with_model, inspect_source, list_source_versions, skim_source, read_source_window, search_within_source, find_quotes, search_sources, or compare_sources.
+2. Write actions: explicitly call select_evidence for evidence you want to keep, then upsert_source_card, create_quote_card, record_source_relationship, record_gap, and finalize_source_map.
 
 Rules:
 - Use only the provided source inventory or evidence tool results.
 - Call tools unless the corpus is tiny and the inventory already contains explicit evidence ids. A source map built only from the prompt inventory is not acceptable.
-- Use list_sources for source inventory checks, skim_source/read_source to inspect source structure and windows, search_sources for corpus-level discovery, search_evidence for specific gaps, find_quotes for quote candidates, read_evidence for existing ids, and compare_sources for duplicates, primary/secondary relationships, contradictions, or updates.
+- Hosted file_search is the primary broad retrieval tool over uploaded source versions.
+- Use read_source_with_model for focused deep reading of important uploaded PDFs/documents/files found via file_search. Then inspect retrieval_channel. retrieval_channel=model_file_read is direct file-read; retrieval_channel=model_file_read_local_fallback is a risk/coverage signal, not an automatic rejection. Record the channel honestly in selected evidence and source-card cautions.
+- Use list_sources/list_source_versions for source inventory checks, inspect_source for structure, read_source_window/search_within_source only for local text snapshots/transcripts/HTML/chunk fallback, find_quotes for quote candidates, and compare_sources for duplicates, primary/secondary relationships, contradictions, or updates.
+- Backend assembles the authoritative SourceMap from write actions. The final JSON response must match SourceTriageCompletion only: ready, summary, notes. Do not return source_cards, quote_cards, or SourceMap-shaped data.
 - Rank sources by authority, reliability, relevance, uniqueness, and usable evidence density.
 - Identify clusters, duplicates/near-duplicates, primary-to-secondary relationships, contradictions, gaps, and top evidence ids by editorial function.
 - SourceCard entries must be updated from tool results: source_id/source_version_ids must be exact inventory ids; evidence_ids must be saved EvidenceItem ids; useful_for must be editorial functions supported by evidence.
 - QuoteCard entries must point to saved evidence_id values and include source_id, source_version_id, locator, narrative_use, and confidence.
 - source_triage.top_evidence_by_function must contain saved evidence ids for the strongest functions you can ground.
 - top_quote_refs must be evidence_id values or exact source_id:locator refs. Never use raw quote text as a ref.
-- If a relationship cannot be grounded in evidence_ids, omit it or mark it as a gap/caution."""
+- If a relationship cannot be grounded in selected evidence_ids, omit it or mark it as a gap/caution.
+- Always call finalize_source_map when triage write actions are complete."""
 
 
 SUPPORT_JUDGMENT_PROMPT = """Judge whether saved evidence supports each claim-link pair.

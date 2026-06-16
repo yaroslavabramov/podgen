@@ -45,8 +45,9 @@ from app.generation_v2.schemas import (
 from app.generation_v2.source_corpus import list_evidence_dicts, prepare_v2_corpus
 from app.generation_v2.tools.evidence import (
     EvidenceToolset,
+    build_source_map_from_write_actions,
     build_source_inventory,
-    materialize_source_map,
+    mark_cited_evidence,
     validate_source_map_gate,
 )
 from app.models.generation_run import GenerationRun
@@ -81,17 +82,29 @@ async def execute_generation_v2(
         db,
         corpus.run_view,
     )
-    source_map = await build_source_triage_agent(
+    triage_completion = await build_source_triage_agent(
         db,
         run,
         runtime,
         source_inventory=source_inventory,
         evidence_tools=evidence_tools,
+        vector_store_id=corpus.vector_store_id,
+        hosted_file_search_handler=evidence_toolset.persist_hosted_file_search_calls,
     )
-    source_map = materialize_source_map(
-        source_map,
+    triage_completion_artifact = await save_artifact(
+        db,
+        generation_run_id=run.id,
+        artifact_type=V2ArtifactType.SOURCE_TRIAGE,
+        artifact_key="completion",
+        payload=triage_completion,
+        status=V2ArtifactStatus.PASSED if triage_completion.ready else V2ArtifactStatus.FAILED,
+        prompt_hash=runtime.prompt_hash_for("v2_source_triage", "source_triage_agent"),
+        metadata=runtime.fallback_metadata_for("v2_source_triage", "source_triage_agent"),
+    )
+    source_map = await build_source_map_from_write_actions(
+        db,
+        generation_run_id=run.id,
         inventory=source_inventory,
-        evidence_records=await list_evidence_dicts(db, run.id),
     )
     triage_gate = await validate_source_map_gate(
         db,
@@ -111,6 +124,7 @@ async def execute_generation_v2(
         status=V2ArtifactStatus.PASSED if triage_gate.passed else V2ArtifactStatus.FAILED,
         prompt_hash=runtime.prompt_hash_for("v2_source_triage", "source_triage_agent"),
         metadata=runtime.fallback_metadata_for("v2_source_triage", "source_triage_agent"),
+        input_artifact_ids=[str(triage_completion_artifact.id)],
     )
     evidence_artifact_ids = await _save_evidence_artifacts(
         db,
@@ -148,7 +162,7 @@ async def execute_generation_v2(
         artifact_key="main",
         payload=source_triage,
         status=V2ArtifactStatus.PASSED if triage_gate.passed else V2ArtifactStatus.FAILED,
-        input_artifact_ids=[str(source_map_artifact.id), *source_artifact_ids, *quote_artifact_ids],
+        input_artifact_ids=[str(triage_completion_artifact.id), str(source_map_artifact.id), *source_artifact_ids, *quote_artifact_ids],
         prompt_hash=runtime.prompt_hash_for("v2_source_triage", "source_triage_agent"),
         metadata=runtime.fallback_metadata_for("v2_source_triage", "source_triage_agent"),
     )
@@ -159,11 +173,11 @@ async def execute_generation_v2(
         artifact_key="gate",
         payload=triage_gate,
         status=V2ArtifactStatus.PASSED if triage_gate.passed else V2ArtifactStatus.FAILED,
-        input_artifact_ids=[str(source_map_artifact.id), str(triage_artifact.id)],
+        input_artifact_ids=[str(triage_completion_artifact.id), str(source_map_artifact.id), str(triage_artifact.id)],
     )
-    if not triage_gate.passed:
+    if not triage_completion.ready or not triage_gate.passed:
         await db.commit()
-        raise RuntimeError(f"V2 source triage gate failed: {triage_gate.summary}")
+        raise RuntimeError(f"V2 source triage gate failed: {triage_completion.summary} {triage_gate.summary}")
     await _commit_step(run, db, "corpus_prepare", 12)
 
     await _phase(run, db, "v2_editorial_research", "Building editorial research memo", 14)
@@ -175,6 +189,8 @@ async def execute_generation_v2(
         quote_cards=quote_cards,
         source_map=source_map,
         evidence_tools=evidence_tools,
+        vector_store_id=corpus.vector_store_id,
+        hosted_file_search_handler=evidence_toolset.persist_hosted_file_search_calls,
         show_bible=show_bible,
     )
     source_workspace_artifact_ids = [
@@ -466,6 +482,8 @@ async def execute_generation_v2(
         dossiers=dossiers,
         drafts=drafts,
         critique=critique,
+        vector_store_id=corpus.vector_store_id,
+        hosted_file_search_handler=evidence_toolset.persist_hosted_file_search_calls,
         show_bible=show_bible,
     )
     claim_input_artifact_ids = [
@@ -555,6 +573,8 @@ async def execute_generation_v2(
             dossiers=dossiers,
             drafts=drafts,
             critique=critique,
+            vector_store_id=corpus.vector_store_id,
+            hosted_file_search_handler=evidence_toolset.persist_hosted_file_search_calls,
             show_bible=show_bible,
         )
         claim_input_artifact_ids = [
@@ -582,6 +602,11 @@ async def execute_generation_v2(
     if blocking_issues:
         await db.commit()
         raise RuntimeError(f"V2 fact gate failed with {len(blocking_issues)} blocking issue(s)")
+    await mark_cited_evidence(
+        db,
+        generation_run_id=run.id,
+        evidence_ids=[link.evidence_id for link in bundle.citation_links if link.evidence_id],
+    )
 
     final = transcript_payload(treatment, drafts, bundle, source_cards=source_cards)
     final.quality_metrics.update(validation_quality_metrics(validation_report))

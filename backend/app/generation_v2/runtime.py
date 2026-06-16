@@ -79,6 +79,7 @@ class V2Runtime:
         vector_store_id: str | None = None,
         local_tools: list[AgentTool] | None = None,
         tool_policy: ToolPolicy | None = None,
+        hosted_file_search_handler: Callable[[list[dict[str, Any]], str, str, str], Awaitable[dict[str, Any] | None]] | None = None,
         max_output_tokens: int = 12000,
         max_tool_rounds: int | None = None,
         temperature: float | None = None,
@@ -94,6 +95,7 @@ class V2Runtime:
         schema = _strict_json_schema(schema_model.model_json_schema())
         input_payload: Any = prompt
         previous_response_id: str | None = None
+        announced_hosted_evidence_ids: set[str] = set()
 
         tool_round_limit = max(1, max_tool_rounds or settings.generation_v2_max_tool_rounds)
         for round_idx in range(tool_round_limit):
@@ -151,9 +153,24 @@ class V2Runtime:
                 input_tokens=usage.get("input_tokens") or usage.get("prompt_tokens"),
                 output_tokens=usage.get("output_tokens") or usage.get("completion_tokens"),
             )
+            file_search_calls = _file_search_calls(response)
+            hosted_summary: dict[str, Any] | None = None
+            if file_search_calls and hosted_file_search_handler:
+                hosted_summary = await hosted_file_search_handler(file_search_calls, response.id, phase, agent_name)
+            hosted_followup = _hosted_evidence_followup_input(
+                hosted_summary,
+                announced_ids=announced_hosted_evidence_ids,
+                tools=local_tools or [],
+            )
+            if hosted_followup:
+                announced_hosted_evidence_ids.update(hosted_followup["evidence_ids"])
 
             function_calls = _function_calls(response)
             if not function_calls:
+                if hosted_followup:
+                    previous_response_id = response.id
+                    input_payload = [hosted_followup["message"]]
+                    continue
                 try:
                     return schema_model.model_validate_json(response.output_text or "{}")
                 except ValidationError:
@@ -190,6 +207,8 @@ class V2Runtime:
                     }
                 )
             previous_response_id = response.id
+            if hosted_followup:
+                tool_outputs.append(hosted_followup["message"])
             input_payload = tool_outputs
 
         raise RuntimeError(f"{agent_name} exceeded V2 tool round budget")
@@ -243,6 +262,94 @@ def _function_calls(response: Any) -> list[dict[str, Any]]:
             }
         )
     return calls
+
+
+def _file_search_calls(response: Any) -> list[dict[str, Any]]:
+    calls: list[dict[str, Any]] = []
+    for item in getattr(response, "output", []) or []:
+        if _item_get(item, "type") != "file_search_call":
+            continue
+        raw_results = _item_get(item, "results", []) or []
+        results = []
+        for idx, result in enumerate(raw_results):
+            result_dict = _to_plain_dict(result)
+            result_dict.setdefault("result_index", idx)
+            results.append(result_dict)
+        calls.append(
+            {
+                "call_id": _item_get(item, "id", "") or _item_get(item, "call_id", ""),
+                "queries": _item_get(item, "queries", []) or [],
+                "status": _item_get(item, "status", None),
+                "results": results,
+            }
+        )
+    return calls
+
+
+def _hosted_evidence_followup_input(
+    summary: dict[str, Any] | None,
+    *,
+    announced_ids: set[str],
+    tools: list[AgentTool],
+) -> dict[str, Any] | None:
+    if not summary or not _has_tool(tools, "select_evidence"):
+        return None
+    observed = summary.get("observed_evidence") or []
+    new_items = [
+        {
+            "evidence_id": str(item.get("id") or item.get("evidence_id") or ""),
+            "source_id": item.get("source_id"),
+            "source_version_id": item.get("source_version_id"),
+            "locator_text": item.get("locator_text"),
+            "retrieval_channel": item.get("retrieval_channel"),
+            "evidence_strength": item.get("evidence_strength"),
+            "score": item.get("score"),
+            "snippet_text": str(item.get("snippet_text") or "")[:700],
+        }
+        for item in observed
+        if str(item.get("id") or item.get("evidence_id") or "") and str(item.get("id") or item.get("evidence_id") or "") not in announced_ids
+    ]
+    if not new_items:
+        return None
+    evidence_ids = [item["evidence_id"] for item in new_items]
+    content = (
+        "Hosted file_search results were persisted as observed EvidenceItem records. "
+        "Use these exact evidence_id values with select_evidence and source-map write tools before finalizing. "
+        "For important PDFs/documents or citation-sensitive claims, call read_source_with_model with the source_id/source_version_id and inspect retrieval_channel before selecting/linking. "
+        "If it returns model_file_read_local_fallback, treat that channel as a risk/coverage signal and reflect it in confidence/support rather than pretending it was a direct file read. "
+        "Do not invent evidence ids.\n"
+        + json.dumps({"observed_evidence": new_items}, ensure_ascii=False)
+    )
+    return {
+        "evidence_ids": evidence_ids,
+        "message": {"role": "user", "content": content},
+    }
+
+
+def _has_tool(tools: list[AgentTool], name: str) -> bool:
+    return any(tool.name == name for tool in tools)
+
+
+def _to_plain_dict(item: Any) -> dict[str, Any]:
+    if isinstance(item, dict):
+        return dict(item)
+    if hasattr(item, "model_dump"):
+        return item.model_dump(mode="json")
+    data: dict[str, Any] = {}
+    for key in (
+        "file_id",
+        "filename",
+        "score",
+        "text",
+        "content",
+        "attributes",
+        "source_id",
+        "source_version_id",
+    ):
+        value = getattr(item, key, None)
+        if value is not None:
+            data[key] = value
+    return data
 
 
 def _tool_trace_name(tool: dict[str, Any]) -> str:

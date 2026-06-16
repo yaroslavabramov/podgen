@@ -23,8 +23,9 @@ The target architecture should be:
 ```text
 Project sources
   -> source versions and stable snapshots
-  -> persistent provider corpus index
-  -> agents use one corpus/evidence tool namespace
+  -> original files and useful companions uploaded to the persistent provider corpus index
+  -> agents use hosted file_search for broad discovery
+  -> agents use controlled read/write evidence tools for deep reading and audit
   -> every important editorial/factual output points to saved EvidenceItems
   -> final citations and shownotes are built from EvidenceItems
 ```
@@ -37,15 +38,15 @@ Project sources
 
 2. Raw hosted file search is not enough for final citations.
 
-   A model can use hosted file search directly for broad research and source exploration. For citation and fact verification, use a controlled evidence tool that executes provider search, saves the returned results as EvidenceItems, and returns only evidence ids plus snippets to the model. This prevents the final fact pass from depending on self-reported citations in a structured response.
+   A model can use hosted file search directly for broad research and source exploration. Those results become `observed` evidence when persisted, but important PDFs/documents should be deep-read through a controlled `read_source_with_model` tool that calls OpenAI Responses with `input_file`, saves quote/snippet/support-summary output as an EvidenceItem, and returns the saved `evidence_id` to the agent. The direct `input_file` should use a provider file uploaded for file input, for example OpenAI `purpose="user_data"`, rather than assuming the vector-store `purpose="assistants"` file id is accepted by every input-file endpoint. This prevents the final fact pass from depending on self-reported citations in a structured response.
 
 3. Local chunks are not the source of truth for V2 quality.
 
-   They are useful for fallback, regression evals, cheap local inspection, and cases where local extraction gives better timestamps or page markers. They should not be the mandatory final citation layer.
+   They are useful for fallback, regression evals, cheap local inspection, transcripts, web snapshots, and cases where local extraction gives better timestamps or page markers. They should not be the mandatory final citation layer for PDFs/documents. OpenAI-native file reading is the primary path for complex documents.
 
 4. A claim is not supported because the model said it is supported.
 
-   A claim is supported only if it references a saved evidence record. The evidence can come from provider file search, provider vector-store search, local transcript search, local chunk search, or a manually captured web snapshot.
+   A claim is supported only if it references a saved evidence record. The evidence can come from hosted file search, model file reading, provider vector-store search, local transcript search, local chunk search, or a manually captured web snapshot.
 
 5. The model should not choose between "OpenAI corpus" and "local corpus."
 
@@ -169,12 +170,13 @@ Recommended `EvidenceItem` fields:
 - provider vector store file id
 - response id
 - tool call id
-- retrieval channel: `provider_file_search`, `provider_vector_search`, `local_chunk_search`, `local_transcript_search`, `web_snapshot`
+- retrieval channel: `provider_file_search`, `model_file_read`, `provider_vector_search`, `local_chunk_search`, `local_transcript_search`, `web_snapshot`
 - query or task that produced the result
 - search result index
 - score, if available
 - retrieved snippet text
 - normalized quote text, if selected
+- support summary and uncertainty, when the evidence was produced by model file reading
 - locator text
 - locator type: `page`, `section`, `timestamp`, `provider_snippet`, `source_level`, `unknown`
 - evidence strength: `exact`, `snippet`, `source_level`, `weak`
@@ -191,11 +193,12 @@ Recommended tools:
 
 - `search_evidence(query, filters, purpose)`: searches the provider index first, persists returned results as EvidenceItems, and returns evidence ids plus snippets
 - `read_evidence(evidence_id)`: returns the saved snippet, locator, source metadata, and retrieval channel
+- `read_source_with_model(source_id | source_version_id, focus_question, claim_text, purpose, locator_hint)`: selects the best provider-backed source version, calls OpenAI Responses with `input_file`, asks for strongest support/quote/summary/uncertainty, persists the result as an EvidenceItem with retrieval channel `model_file_read`, and returns the saved evidence id
 - `find_quotes(topic, filters)`: searches for quote-like evidence, persists candidates, and returns evidence ids
 - `search_sources(query, filters)`: returns source-level candidates for triage, with evidence ids where snippets are available
 - `fallback_local_search(query, filters)`: used internally by the corpus API when provider evidence is missing or weak, not exposed as a competing default path
 
-Raw hosted file search can still be exposed to triage and research for broad exploration. Citation/fact verification should use controlled evidence tools, because the verifier must not be able to manufacture evidence ids or cite unsaved provider results.
+Raw hosted file search should be exposed to triage, research, and citation linking for broad discovery. When it finds important source files, agents should call `read_source_with_model` for focused file reading and then `select_evidence` before SourceMap/research/citation use. Citation validation should enforce that linked evidence is already `selected` or `cited`; this is not only a prompt convention. For PDF/document source cards, provider snippets alone are too thin for a strong SourceMap entry: selected model-read evidence should be required when the card is built from hosted/provider search. The support judge remains constrained to saved evidence and must not search or read new files.
 
 ## Locator Policy
 
@@ -209,11 +212,11 @@ The evidence has a quote/snippet plus a precise locator such as page, timestamp,
 
 This can support citation-sensitive factual claims.
 
-### Provider Snippet
+### Model File Read or Provider Snippet
 
-The evidence has a retrieved snippet and source identity, but no precise page/timestamp/section.
+The evidence has a retrieved/model-read snippet, quote, or support summary and source identity, but no precise page/timestamp/section.
 
-This can support many claims, but the shownotes UI should present it honestly as a source snippet rather than pretending to know a page number.
+This can support many claims when the support judge passes, but the shownotes UI should present it honestly as a source snippet or model-read source support rather than pretending to know a page number. Page numbers are optional, not a gate requirement.
 
 ### Source Level
 
