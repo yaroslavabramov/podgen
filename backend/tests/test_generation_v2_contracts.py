@@ -183,7 +183,7 @@ def test_hosted_file_search_followup_exposes_observed_evidence_ids() -> None:
 
 @pytest.mark.asyncio
 async def test_read_source_with_model_creates_evidence_item(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.generation_v2.tools import evidence as evidence_module
+    from app.generation_v2.tools import evidence_retrieval as evidence_module
 
     project_id = uuid.uuid4()
     run_id = uuid.uuid4()
@@ -272,7 +272,7 @@ async def test_read_source_with_model_creates_evidence_item(monkeypatch: pytest.
 
 @pytest.mark.asyncio
 async def test_read_source_with_model_tries_next_provider_candidate(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.generation_v2.tools import evidence as evidence_module
+    from app.generation_v2.tools import evidence_retrieval as evidence_module
 
     project_id = uuid.uuid4()
     run_id = uuid.uuid4()
@@ -393,7 +393,7 @@ async def test_read_source_with_model_tries_next_provider_candidate(monkeypatch:
 async def test_read_source_with_model_local_fallback_uses_readable_version_and_weak_channel(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.generation_v2.tools import evidence as evidence_module
+    from app.generation_v2.tools import evidence_retrieval as evidence_module
 
     project_id = uuid.uuid4()
     run_id = uuid.uuid4()
