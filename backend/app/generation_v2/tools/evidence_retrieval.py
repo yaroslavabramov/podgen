@@ -9,6 +9,8 @@ from sqlalchemy import or_, select
 
 from app.config import settings
 from app.generation_v2.artifacts import save_tool_trace
+from app.generation_v2.debug_dump import dump_v2_debug
+from app.observability import safe_set_run, trace_span
 from app.models.chunk import Chunk
 from app.models.generation_v2 import (
     EvidenceItem,
@@ -527,34 +529,102 @@ class EvidenceRetrievalMixin:
             source_version_id=str(version.id),
             source_kind=str(version.kind),
         )
-        response = await client.responses.create(
-            model=settings.generation_v2_openai_model,
-            instructions=(
-                "You are a careful source reader. Use only the attached input_file. "
-                "Return JSON only. Do not rely on memory or outside knowledge."
-            ),
-            input=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "input_text", "text": prompt},
-                        {"type": "input_file", "file_id": input_file_id},
-                    ],
-                }
-            ],
-            max_output_tokens=3000,
-            text={
-                "format": {
-                    "type": "json_schema",
-                    "name": "ModelFileReadResult",
-                    "schema": _MODEL_FILE_READ_SCHEMA,
-                    "strict": True,
-                }
-            },
+        instructions = (
+            "You are a careful source reader. Use only the attached input_file. "
+            "Return JSON only. Do not rely on memory or outside knowledge."
         )
+        with trace_span(
+            "generation_v2.corpus_evidence.model_file_read",
+            run_type="llm",
+            inputs={
+                "prompt_chars": len(prompt),
+                "source_id": str(version.source_id),
+                "source_version_id": str(version.id),
+                "provider_file_id": provider_file.provider_file_id,
+                "purpose": purpose,
+            },
+            metadata={
+                "provider": "openai",
+                "model": settings.generation_v2_openai_model,
+                "phase": "v2_corpus_evidence",
+                "agent_name": "corpus_evidence_api",
+            },
+            tags=["generation-v2", "openai", "input-file", "model-read"],
+        ) as run_tree:
+            try:
+                response = await client.responses.create(
+                    model=settings.generation_v2_openai_model,
+                    instructions=instructions,
+                    input=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "input_text", "text": prompt},
+                                {"type": "input_file", "file_id": input_file_id},
+                            ],
+                        }
+                    ],
+                    max_output_tokens=3000,
+                    text={
+                        "format": {
+                            "type": "json_schema",
+                            "name": "ModelFileReadResult",
+                            "schema": _MODEL_FILE_READ_SCHEMA,
+                            "strict": True,
+                        }
+                    },
+                )
+            except Exception as exc:
+                dump_v2_debug(
+                    run_id=str(self.run.id),
+                    phase="v2_corpus_evidence",
+                    agent_name="corpus_evidence_api",
+                    dump_type="model-file-read-exception",
+                    payload={
+                        "run_id": str(self.run.id),
+                        "source_id": str(version.source_id),
+                        "source_version_id": str(version.id),
+                        "provider_file_id": provider_file.provider_file_id,
+                        "model_read_file_id": input_file_id,
+                        "instructions": instructions,
+                        "prompt": prompt,
+                        "schema": _MODEL_FILE_READ_SCHEMA,
+                        "error": str(exc),
+                    },
+                )
+                safe_set_run(run_tree, outputs={"status": "exception", "error": str(exc)})
+                raise
         output_text = getattr(response, "output_text", "") or ""
         read_result = _parse_model_file_read_result(output_text)
         read_result["_model_read_file_id"] = input_file_id
+        safe_set_run(
+            run_tree,
+            outputs={
+                "response_id": getattr(response, "id", None),
+                "output_text_chars": len(output_text),
+                "supports_query": read_result.get("supports_query"),
+                "support_level": read_result.get("support_level"),
+            },
+        )
+        dump_v2_debug(
+            run_id=str(self.run.id),
+            phase="v2_corpus_evidence",
+            agent_name="corpus_evidence_api",
+            dump_type="model-file-read-parsed",
+            payload={
+                "run_id": str(self.run.id),
+                "source_id": str(version.source_id),
+                "source_version_id": str(version.id),
+                "provider_file_id": provider_file.provider_file_id,
+                "model_read_file_id": input_file_id,
+                "instructions": instructions,
+                "prompt": prompt,
+                "schema": _MODEL_FILE_READ_SCHEMA,
+                "raw_output": output_text,
+                "parsed": read_result,
+                "response_id": getattr(response, "id", None),
+            },
+        )
         await save_tool_trace(
             self.db,
             generation_run_id=self.run.id,

@@ -14,6 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.generation_v2.artifacts import save_tool_trace
+from app.generation_v2.debug_dump import dump_v2_debug
+from app.observability import safe_set_run, trace_span
 from app.services.llm import _openai_usage, get_openai_client
 from app.pipeline.step_control import assert_step_not_stopped
 
@@ -101,28 +103,81 @@ class V2Runtime:
         for round_idx in range(tool_round_limit):
             await assert_step_not_stopped()
             started = time.perf_counter()
-            response = await client.responses.create(
-                model=self.model,
-                instructions=system,
-                input=input_payload,
-                previous_response_id=previous_response_id or openai.NOT_GIVEN,
-                max_output_tokens=max_output_tokens,
-                temperature=temperature if temperature is not None else openai.NOT_GIVEN,
-                reasoning={"effort": self.reasoning_effort} if self.reasoning_effort else openai.NOT_GIVEN,
-                tools=tools or openai.NOT_GIVEN,
-                parallel_tool_calls=False if local_tools else openai.NOT_GIVEN,
-                include=["file_search_call.results"] if vector_store_id else openai.NOT_GIVEN,
-                text={
-                    "format": {
-                        "type": "json_schema",
-                        "name": schema_model.__name__,
-                        "schema": schema,
-                        "strict": True,
-                    }
+            with trace_span(
+                f"generation_v2.{phase}.{agent_name}.responses_create",
+                run_type="llm",
+                inputs={
+                    "prompt_chars": len(prompt),
+                    "prompt_hash": prompt_hash,
+                    "round": round_idx + 1,
+                    "schema": schema_model.__name__,
                 },
-            )
+                metadata={
+                    "provider": "openai",
+                    "model": self.model,
+                    "phase": phase,
+                    "agent_name": agent_name,
+                    "reasoning_effort": self.reasoning_effort,
+                    "vector_store_id": vector_store_id or "",
+                },
+                tags=["generation-v2", "openai", "responses", f"phase:{phase}", f"agent:{agent_name}"],
+            ) as run_tree:
+                try:
+                    response = await client.responses.create(
+                        model=self.model,
+                        instructions=system,
+                        input=input_payload,
+                        previous_response_id=previous_response_id or openai.NOT_GIVEN,
+                        max_output_tokens=max_output_tokens,
+                        temperature=temperature if temperature is not None else openai.NOT_GIVEN,
+                        reasoning={"effort": self.reasoning_effort} if self.reasoning_effort else openai.NOT_GIVEN,
+                        tools=tools or openai.NOT_GIVEN,
+                        parallel_tool_calls=False if local_tools else openai.NOT_GIVEN,
+                        include=["file_search_call.results"] if vector_store_id else openai.NOT_GIVEN,
+                        text={
+                            "format": {
+                                "type": "json_schema",
+                                "name": schema_model.__name__,
+                                "schema": schema,
+                                "strict": True,
+                            }
+                        },
+                    )
+                except Exception as exc:
+                    dump_v2_debug(
+                        run_id=str(generation_run_id),
+                        phase=phase,
+                        agent_name=agent_name,
+                        dump_type=f"round-{round_idx + 1:02d}-exception",
+                        payload={
+                            "run_id": str(generation_run_id),
+                            "phase": phase,
+                            "agent_name": agent_name,
+                            "round": round_idx + 1,
+                            "prompt_hash": prompt_hash,
+                            "system": system,
+                            "prompt": prompt,
+                            "schema_name": schema_model.__name__,
+                            "schema": schema,
+                            "tools": [_tool_trace_name(tool) for tool in tools],
+                            "tool_policy": _tool_policy_payload(policy),
+                            "input_payload": input_payload,
+                            "error": str(exc),
+                        },
+                    )
+                    safe_set_run(run_tree, outputs={"status": "exception", "error": str(exc)})
+                    raise
             latency_ms = (time.perf_counter() - started) * 1000
             usage = _openai_usage(response)
+            safe_set_run(
+                run_tree,
+                outputs={
+                    "response_id": response.id,
+                    "status": getattr(response, "status", None),
+                    "output_text_chars": len(response.output_text or ""),
+                    **usage,
+                },
+            )
             await save_tool_trace(
                 db,
                 generation_run_id=generation_run_id,
@@ -135,12 +190,7 @@ class V2Runtime:
                     "round": round_idx + 1,
                     "tools": [_tool_trace_name(tool) for tool in tools],
                     "allowed_tool_names": [_tool_trace_name(tool) for tool in tools],
-                    "tool_policy": {
-                        "file_search": policy.file_search,
-                        "web_search": policy.web_search,
-                        "local_tools": policy.local_tools,
-                        "max_file_search_results": policy.max_file_search_results,
-                    },
+                    "tool_policy": _tool_policy_payload(policy),
                 },
                 output_json={
                     "response_id": response.id,
@@ -168,13 +218,95 @@ class V2Runtime:
             function_calls = _function_calls(response)
             if not function_calls:
                 if hosted_followup:
+                    dump_v2_debug(
+                        run_id=str(generation_run_id),
+                        phase=phase,
+                        agent_name=agent_name,
+                        dump_type=f"round-{round_idx + 1:02d}-hosted-followup",
+                        payload=_runtime_debug_payload(
+                            generation_run_id=generation_run_id,
+                            phase=phase,
+                            agent_name=agent_name,
+                            round_idx=round_idx,
+                            prompt_hash=prompt_hash,
+                            system=system,
+                            prompt=prompt,
+                            schema_name=schema_model.__name__,
+                            schema=schema,
+                            tools=tools,
+                            policy=policy,
+                            input_payload=input_payload,
+                            response=response,
+                            usage=usage,
+                            file_search_calls=file_search_calls,
+                            function_calls=function_calls,
+                            hosted_followup=hosted_followup,
+                        ),
+                    )
                     previous_response_id = response.id
                     input_payload = [hosted_followup["message"]]
                     continue
                 try:
-                    return schema_model.model_validate_json(response.output_text or "{}")
-                except ValidationError:
+                    parsed = schema_model.model_validate_json(response.output_text or "{}")
+                    dump_v2_debug(
+                        run_id=str(generation_run_id),
+                        phase=phase,
+                        agent_name=agent_name,
+                        dump_type=f"round-{round_idx + 1:02d}-parsed",
+                        payload={
+                            **_runtime_debug_payload(
+                                generation_run_id=generation_run_id,
+                                phase=phase,
+                                agent_name=agent_name,
+                                round_idx=round_idx,
+                                prompt_hash=prompt_hash,
+                                system=system,
+                                prompt=prompt,
+                                schema_name=schema_model.__name__,
+                                schema=schema,
+                                tools=tools,
+                                policy=policy,
+                                input_payload=input_payload,
+                                response=response,
+                                usage=usage,
+                                file_search_calls=file_search_calls,
+                                function_calls=function_calls,
+                                hosted_followup=hosted_followup,
+                            ),
+                            "parsed": parsed.model_dump(mode="json"),
+                        },
+                    )
+                    return parsed
+                except ValidationError as exc:
                     logger.error("V2 structured response failed validation: %s", response.output_text)
+                    dump_v2_debug(
+                        run_id=str(generation_run_id),
+                        phase=phase,
+                        agent_name=agent_name,
+                        dump_type=f"round-{round_idx + 1:02d}-validation-error",
+                        payload={
+                            **_runtime_debug_payload(
+                                generation_run_id=generation_run_id,
+                                phase=phase,
+                                agent_name=agent_name,
+                                round_idx=round_idx,
+                                prompt_hash=prompt_hash,
+                                system=system,
+                                prompt=prompt,
+                                schema_name=schema_model.__name__,
+                                schema=schema,
+                                tools=tools,
+                                policy=policy,
+                                input_payload=input_payload,
+                                response=response,
+                                usage=usage,
+                                file_search_calls=file_search_calls,
+                                function_calls=function_calls,
+                                hosted_followup=hosted_followup,
+                            ),
+                            "validation_error": str(exc),
+                        },
+                    )
                     raise
 
             local_tool_map = {tool.name: tool for tool in local_tools or []}
@@ -209,6 +341,34 @@ class V2Runtime:
             previous_response_id = response.id
             if hosted_followup:
                 tool_outputs.append(hosted_followup["message"])
+            dump_v2_debug(
+                run_id=str(generation_run_id),
+                phase=phase,
+                agent_name=agent_name,
+                dump_type=f"round-{round_idx + 1:02d}-tool-outputs",
+                payload={
+                    **_runtime_debug_payload(
+                        generation_run_id=generation_run_id,
+                        phase=phase,
+                        agent_name=agent_name,
+                        round_idx=round_idx,
+                        prompt_hash=prompt_hash,
+                        system=system,
+                        prompt=prompt,
+                        schema_name=schema_model.__name__,
+                        schema=schema,
+                        tools=tools,
+                        policy=policy,
+                        input_payload=input_payload,
+                        response=response,
+                        usage=usage,
+                        file_search_calls=file_search_calls,
+                        function_calls=function_calls,
+                        hosted_followup=hosted_followup,
+                    ),
+                    "tool_outputs": tool_outputs,
+                },
+            )
             input_payload = tool_outputs
 
         raise RuntimeError(f"{agent_name} exceeded V2 tool round budget")
@@ -356,6 +516,60 @@ def _tool_trace_name(tool: dict[str, Any]) -> str:
     if tool.get("type") == "function":
         return str(tool.get("name") or "function")
     return str(tool.get("type") or tool.get("name") or "unknown")
+
+
+def _tool_policy_payload(policy: ToolPolicy) -> dict[str, Any]:
+    return {
+        "file_search": policy.file_search,
+        "web_search": policy.web_search,
+        "local_tools": policy.local_tools,
+        "max_file_search_results": policy.max_file_search_results,
+    }
+
+
+def _runtime_debug_payload(
+    *,
+    generation_run_id: Any,
+    phase: str,
+    agent_name: str,
+    round_idx: int,
+    prompt_hash: str,
+    system: str,
+    prompt: str,
+    schema_name: str,
+    schema: dict[str, Any],
+    tools: list[dict[str, Any]],
+    policy: ToolPolicy,
+    input_payload: Any,
+    response: Any,
+    usage: dict[str, Any],
+    file_search_calls: list[dict[str, Any]],
+    function_calls: list[dict[str, Any]],
+    hosted_followup: dict[str, Any] | None,
+) -> dict[str, Any]:
+    return {
+        "run_id": str(generation_run_id),
+        "phase": phase,
+        "agent_name": agent_name,
+        "round": round_idx + 1,
+        "prompt_hash": prompt_hash,
+        "system": system,
+        "prompt": prompt,
+        "schema_name": schema_name,
+        "schema": schema,
+        "tools": [_tool_trace_name(tool) for tool in tools],
+        "tool_policy": _tool_policy_payload(policy),
+        "input_payload": input_payload,
+        "response": {
+            "id": getattr(response, "id", None),
+            "status": getattr(response, "status", None),
+            "output_text": getattr(response, "output_text", "") or "",
+        },
+        "usage": usage,
+        "file_search_calls": file_search_calls,
+        "function_calls": function_calls,
+        "hosted_followup": hosted_followup,
+    }
 
 
 def _item_get(item: Any, key: str, default: Any = None) -> Any:

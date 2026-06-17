@@ -1766,6 +1766,34 @@ async def test_runtime_records_prompt_hash_before_runtime_availability_check(mon
     assert runtime.prompt_hash_for("v2_test_phase", "test_agent") == hashlib.sha256(b"prompt body").hexdigest()
 
 
+def test_v2_debug_dump_writes_local_json(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2.debug_dump import dump_v2_debug
+
+    monkeypatch.setattr(settings, "generation_v2_debug_dump_dir", str(tmp_path))
+    monkeypatch.setattr(settings, "web_extractor_debug_dump_dir", "")
+
+    dump_v2_debug(
+        run_id="run-1",
+        phase="v2_test_phase",
+        agent_name="test_agent",
+        dump_type="round-01-parsed",
+        payload={"prompt": "hello", "parsed": {"ok": True}},
+    )
+
+    files = list((tmp_path / "generation_v2" / "v2_test_phase").glob("*.json"))
+    assert len(files) == 1
+    payload = json.loads(files[0].read_text(encoding="utf-8"))
+    assert payload["prompt"] == "hello"
+    assert payload["parsed"] == {"ok": True}
+
+
+def test_v2_initial_step_control_starts_at_corpus_prepare() -> None:
+    from app.api.generations import _initial_step_control
+
+    assert _initial_step_control("v1")["next_node"] == "setup_show"
+    assert _initial_step_control("v2")["next_node"] == "corpus_prepare"
+
+
 @pytest.mark.asyncio
 async def test_v1_audio_promotion_uses_v1_shownotes(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []

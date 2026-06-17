@@ -79,6 +79,18 @@ def _merge_step_control(config: dict[str, Any] | None, action: str, result: dict
     return merged
 
 
+def _merge_v2_step_control(config: dict[str, Any] | None, action: str, result: dict[str, Any]) -> dict[str, Any]:
+    merged = _merge_step_control(config, action, result)
+    merged.pop("v2_stop_after_step", None)
+    step_control = dict(merged.get("step_control") or {})
+    # V2 does not yet have artifact checkpoint replay for phase reruns.
+    step_control["can_rerun"] = False
+    step_control["available_rerun_nodes"] = []
+    step_control["checkpoint_id"] = None
+    merged["step_control"] = step_control
+    return merged
+
+
 _NODE_PHASES = {
     "setup_show": "phase0_setup",
     "decompose": "phase2_decomposition",
@@ -331,6 +343,20 @@ async def _run_step_async(generation_run_id: str, action: str = "next"):
             )
             return
 
+        if (run.config or {}).get("generation_mode") == "v2":
+            await _run_v2_step_action(
+                db,
+                run,
+                generation_run_id=generation_run_id,
+                action=action,
+                requested_target_node=(
+                    requested_target_node
+                    if isinstance(requested_target_node, str) and requested_target_node
+                    else None
+                ),
+            )
+            return
+
         trace_ctx = {
             "component": "worker.generation.step",
             "generation_run_id": str(run.id),
@@ -458,6 +484,116 @@ async def _run_step_async(generation_run_id: str, action: str = "next"):
 
                         publish_event(generation_run_id, generation_failed(str(e)))
                         raise
+
+
+async def _run_v2_step_action(db, run, *, generation_run_id: str, action: str, requested_target_node: str | None) -> None:
+    from app.generation_v2.orchestrator import V2StepExecutionStopped, execute_generation_v2
+    from app.models.generation_run import GenerationStatus
+    from app.realtime.events import generation_completed, generation_failed, generation_paused
+    from app.realtime.publisher import publish_event
+
+    step_control = _step_control(run.config)
+    target_step = requested_target_node or step_control.get("next_node")
+    if not isinstance(target_step, str) or not target_step:
+        run.status = GenerationStatus.COMPLETED
+        run.completed_at = datetime.utcnow()
+        run.config = _merge_v2_step_control(
+            run.config,
+            action,
+            {
+                "last_node": step_control.get("last_node"),
+                "executed_node": step_control.get("executed_node"),
+                "next_node": None,
+                "completed": True,
+            },
+        )
+        await db.commit()
+        publish_event(generation_run_id, generation_completed(""))
+        return
+
+    trace_ctx = _trace_context(run, component="worker.generation.v2.step")
+    trace_ctx["step_action"] = action
+    trace_ctx["v2_stop_after_step"] = target_step
+    with push_trace_context(trace_ctx):
+        with tracing_scope(metadata=trace_ctx, tags=["worker", "generation", "v2", "step"]):
+            with trace_span(
+                "worker.run_generation_v2_step",
+                run_type="chain",
+                inputs={"generation_run_id": generation_run_id, "action": action, "target_step": target_step},
+                tags=["celery-task", "generation-v2", "step-mode"],
+            ) as task_run:
+                run.status = GenerationStatus.RUNNING
+                run.error_message = None
+                run.completed_at = None
+                if run.started_at is None:
+                    run.started_at = datetime.utcnow()
+                run.config = {**(run.config or {}), "v2_stop_after_step": target_step}
+                await db.commit()
+
+                try:
+                    episode_id = await execute_generation_v2(run, db, generate_audio=True)
+                    run.status = GenerationStatus.COMPLETED
+                    run.completed_at = datetime.utcnow()
+                    run.config = _merge_v2_step_control(
+                        run.config,
+                        action,
+                        {
+                            "last_node": target_step,
+                            "executed_node": target_step,
+                            "next_node": None,
+                            "completed": True,
+                            "episode_id": str(episode_id or ""),
+                        },
+                    )
+                    await db.commit()
+                    publish_event(generation_run_id, generation_completed(str(episode_id or "")))
+                    safe_set_run(task_run, outputs={"status": "completed", "target_step": target_step})
+                except V2StepExecutionStopped as stop_exc:
+                    completed = stop_exc.next_step is None
+                    run.status = GenerationStatus.COMPLETED if completed else GenerationStatus.QUEUED
+                    run.completed_at = datetime.utcnow() if completed else None
+                    run.error_message = None
+                    run.config = _merge_v2_step_control(
+                        run.config,
+                        action,
+                        {
+                            "last_node": stop_exc.executed_step,
+                            "executed_node": stop_exc.executed_step,
+                            "next_node": stop_exc.next_step,
+                            "completed": completed,
+                        },
+                    )
+                    await db.commit()
+                    if completed:
+                        publish_event(generation_run_id, generation_completed(""))
+                    else:
+                        publish_event(generation_run_id, generation_paused(stop_exc.executed_step, stop_exc.next_step))
+                    safe_set_run(
+                        task_run,
+                        outputs={
+                            "status": "completed" if completed else "paused",
+                            "executed_node": stop_exc.executed_step,
+                            "next_node": stop_exc.next_step,
+                        },
+                    )
+                except Exception as exc:
+                    run.status = GenerationStatus.FAILED
+                    run.error_message = str(exc)
+                    run.completed_at = datetime.utcnow()
+                    run.config = _merge_v2_step_control(
+                        run.config,
+                        action,
+                        {
+                            "last_node": step_control.get("last_node"),
+                            "executed_node": None,
+                            "next_node": target_step,
+                            "completed": False,
+                        },
+                    )
+                    await db.commit()
+                    publish_event(generation_run_id, generation_failed(str(exc)))
+                    safe_set_run(task_run, outputs={"status": "failed", "error": str(exc), "target_step": target_step})
+                    raise
 
 
 async def _run_generation_v2_async(generation_run_id: str, *, generate_audio: bool = True):

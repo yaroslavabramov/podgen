@@ -58,6 +58,13 @@ from app.realtime.events import phase_completed, phase_started, progress, step_c
 from app.realtime.publisher import publish_event, update_generation_progress
 
 
+class V2StepExecutionStopped(RuntimeError):
+    def __init__(self, executed_step: str, next_step: str | None):
+        super().__init__(f"V2 stopped after {executed_step}")
+        self.executed_step = executed_step
+        self.next_step = next_step
+
+
 async def execute_generation_v2(
     run: GenerationRun,
     db: AsyncSession,
@@ -178,7 +185,7 @@ async def execute_generation_v2(
     if not triage_completion.ready or not triage_gate.passed:
         await db.commit()
         raise RuntimeError(f"V2 source triage gate failed: {triage_completion.summary} {triage_gate.summary}")
-    await _commit_step(run, db, "corpus_prepare", 12)
+    await _commit_step(run, db, "corpus_prepare", 12, next_step="editorial_research")
 
     await _phase(run, db, "v2_editorial_research", "Building editorial research memo", 14)
     memo = await build_research_memo(
@@ -244,7 +251,7 @@ async def execute_generation_v2(
     if not memo_evidence_gate.passed:
         await db.commit()
         raise RuntimeError(f"V2 research memo evidence gate failed: {memo_evidence_gate.verdict}")
-    await _commit_step(run, db, "editorial_research", 24)
+    await _commit_step(run, db, "editorial_research", 24, next_step="research_audit")
 
     await _phase(run, db, "v2_research_audit", "Auditing research readiness", 26)
     audit = await audit_research_memo(
@@ -270,7 +277,7 @@ async def execute_generation_v2(
     if not audit.passed:
         await db.commit()
         raise RuntimeError(f"V2 research audit failed: {audit.verdict}")
-    await _commit_step(run, db, "research_audit", 32)
+    await _commit_step(run, db, "research_audit", 32, next_step="treatment")
 
     await _phase(run, db, "v2_treatment", "Creating episode treatment", 34)
     treatment = await build_treatment(
@@ -308,7 +315,7 @@ async def execute_generation_v2(
         )
         await db.commit()
         raise RuntimeError(f"V2 treatment gate failed: {treatment_gate.summary}")
-    await _commit_step(run, db, "treatment", 42)
+    await _commit_step(run, db, "treatment", 42, next_step="act_1")
 
     ledger = ContinuityLedger()
     drafts = []
@@ -390,7 +397,8 @@ async def execute_generation_v2(
             input_artifact_ids=[str(draft_artifact.id)],
         )
         ledger_artifact_id = str(ledger_artifact.id)
-        await _commit_step(run, db, f"act_{draft.act_number}", 42 + idx * 28 / total_acts)
+        next_step = f"act_{idx + 1}" if idx < total_acts else "critique"
+        await _commit_step(run, db, f"act_{draft.act_number}", 42 + idx * 28 / total_acts, next_step=next_step)
 
     await _phase(run, db, "v2_critique_rewrite", "Critiquing complete draft", 72)
     critique = await critique_episode(
@@ -468,7 +476,7 @@ async def execute_generation_v2(
         drafts = revised_drafts
         ledger = rewrite_ledger
         draft_artifact_ids_by_act = rewritten_draft_artifact_ids_by_act
-    await _commit_step(run, db, "critique", 78)
+    await _commit_step(run, db, "critique", 78, next_step="fact_citation")
 
     await _phase(run, db, "v2_fact_citation", "Extracting claims and linking citations", 80)
     bundle = await extract_and_link_claims(
@@ -629,7 +637,7 @@ async def execute_generation_v2(
         await db.commit()
         raise RuntimeError("V2 runtime fallback was used; audio generation is disabled for fallback runs")
     segment_ids = await write_v2_script_segments(db, run, drafts=drafts)
-    await _commit_step(run, db, "fact_citation", 88)
+    await _commit_step(run, db, "fact_citation", 88, next_step="audio" if generate_audio else None)
 
     if not generate_audio:
         return None
@@ -648,7 +656,7 @@ async def execute_generation_v2(
         quality_metrics=final.quality_metrics,
         shownotes_json=shownotes,
     )
-    await _commit_step(run, db, "audio", 100)
+    await _commit_step(run, db, "audio", 100, next_step=None)
     return episode_id
 
 
@@ -664,7 +672,7 @@ async def _phase(run: GenerationRun, db: AsyncSession, phase: str, message: str,
     update_generation_progress(str(run.id), phase, phase, float(pct))
 
 
-async def _commit_step(run: GenerationRun, db: AsyncSession, step: str, pct: float) -> None:
+async def _commit_step(run: GenerationRun, db: AsyncSession, step: str, pct: float, *, next_step: str | None) -> None:
     await assert_step_not_stopped()
     run.current_step = step
     run.progress_pct = float(pct)
@@ -672,6 +680,10 @@ async def _commit_step(run: GenerationRun, db: AsyncSession, step: str, pct: flo
     publish_event(str(run.id), step_completed(run.current_phase or "v2", step))
     publish_event(str(run.id), progress(float(pct), step.replace("_", " ")))
     update_generation_progress(str(run.id), run.current_phase or "v2", step, float(pct))
+    config = run.config or {}
+    stop_after_step = str(config.get("v2_stop_after_step") or "") if config.get("execution_mode") == "step" else ""
+    if stop_after_step == step:
+        raise V2StepExecutionStopped(executed_step=step, next_step=next_step)
 
 
 def phase_completed_event(run_id: str, phase: str) -> None:

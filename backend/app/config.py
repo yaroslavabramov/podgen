@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     generation_v2_allow_fallback_audio: bool = False
     generation_v2_max_tool_rounds: int = 8
     generation_v2_triage_max_tool_rounds: int = 12
+    generation_v2_debug_dump_dir: str = ""
 
     # LangSmith tracing
     langsmith_tracing: bool = False

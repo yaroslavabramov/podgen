@@ -446,13 +446,13 @@ export default function GeneratePage() {
           user_prompt: prompt,
           voice_a_id: voiceA || null,
           voice_b_id: voiceB || null,
-          execution_mode: generationMode === "v1" ? executionMode : "full",
+          execution_mode: generationMode === "compare" ? "full" : executionMode,
           generation_mode: generationMode,
         },
       }).json<GenerationRun>();
       setAutoRestoreSuppressed(false);
       startListening(run.id);
-      if (generationMode === "v1" && executionMode === "step") {
+      if (generationMode !== "compare" && executionMode === "step") {
         applyRunData(run);
       } else {
         setActiveExecutionMode("full");
@@ -703,7 +703,7 @@ export default function GeneratePage() {
             </Card>
           )}
 
-          {isStepModeRun && (
+          {isStepModeRun && activeGenerationMode === "v1" && (
             <GenerationArtifactsPanel
               artifacts={artifacts}
               loading={artifactsLoading}
@@ -889,7 +889,7 @@ export default function GeneratePage() {
                   type="button"
                   onClick={() => {
                     setGenerationMode(mode);
-                    if (mode !== "v1") setExecutionMode("full");
+                    if (mode === "compare") setExecutionMode("full");
                   }}
                   className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${
                     generationMode === mode
@@ -923,7 +923,7 @@ export default function GeneratePage() {
                 type="checkbox"
                 checked={executionMode === "step"}
                 onChange={(e) => setExecutionMode(e.target.checked ? "step" : "full")}
-                disabled={generationMode !== "v1"}
+                disabled={generationMode === "compare"}
                 className="mt-1"
               />
               <span className="text-sm text-muted-foreground">

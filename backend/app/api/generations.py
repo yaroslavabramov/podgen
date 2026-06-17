@@ -69,10 +69,10 @@ async def estimate_generation_cost(project_id: uuid.UUID, data: CostEstimateRequ
 async def start_generation(project_id: uuid.UUID, data: GenerationCreate, user: CurrentUser, db: DB):
     project = await _get_user_project(project_id, user.id, db)
     created_run_scoped_bible = False
-    if data.generation_mode in {"v2", "compare"} and data.execution_mode != "full":
+    if data.generation_mode == "compare" and data.execution_mode != "full":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Generation V2 and compare mode currently support full execution only.",
+            detail="Compare mode currently supports full execution only.",
         )
 
     # Resolve ShowBible
@@ -167,7 +167,7 @@ async def start_generation(project_id: uuid.UUID, data: GenerationCreate, user: 
         "generation_mode": data.generation_mode,
     }
     if data.execution_mode == "step":
-        run_config["step_control"] = _initial_step_control()
+        run_config["step_control"] = _initial_step_control(data.generation_mode)
 
     run = GenerationRun(
         project_id=project_id,
@@ -621,6 +621,11 @@ async def _enqueue_step_action(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Step actions are available only for runs started in step mode.",
         )
+    if (run.config or {}).get("generation_mode") == "v2" and action == "rerun":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Generation V2 step rerun is not available yet; start a new V2 debug run or continue with next.",
+        )
     if step_control.get("requested_action"):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -686,12 +691,13 @@ async def _get_user_run(run_id: uuid.UUID, user_id: uuid.UUID, db: DB) -> Genera
     return run
 
 
-def _initial_step_control() -> dict:
+def _initial_step_control(generation_mode: str = "v1") -> dict:
+    first_step = "corpus_prepare" if generation_mode == "v2" else "setup_show"
     return {
         "last_action": None,
         "last_node": None,
         "executed_node": None,
-        "next_node": "setup_show",
+        "next_node": first_step,
         "available_rerun_nodes": [],
         "checkpoint_id": None,
         "is_complete": False,
