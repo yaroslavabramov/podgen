@@ -41,14 +41,20 @@ _HTTP_403_ERROR_RE = re.compile(
     r"(target url returned error\s*403|returned error\s*403|status(?: code)?\s*[:=]?\s*403|error\s*[:=]?\s*403|^403\s+forbidden\b|403:\s*forbidden)",
     re.IGNORECASE,
 )
+_HTTP_ERROR_BANNER_RE = re.compile(
+    r"(target url returned error\s*[45]\d\d|returned error\s*[45]\d\d|warning:\s*target url returned error\s*[45]\d\d)",
+    re.IGNORECASE,
+)
 _HTTP_ERROR_MAX_CHARS = 1200
 
 _BLOCKED_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
+    ("http_error_banner", _HTTP_ERROR_BANNER_RE),
     ("captcha_detected", re.compile(r"\bcaptcha\b", re.IGNORECASE)),
     ("verification_wall", re.compile(r"just a moment|security verification", re.IGNORECASE)),
     ("bot_check", re.compile(r"verify (that )?you are not a bot", re.IGNORECASE)),
     ("access_denied", re.compile(r"access denied|request blocked", re.IGNORECASE)),
     ("javascript_challenge", re.compile(r"enable javascript|cookies to continue", re.IGNORECASE)),
+    ("invalid_url_error_page", re.compile(r"error:\s+this is an invalid url", re.IGNORECASE)),
 ]
 
 

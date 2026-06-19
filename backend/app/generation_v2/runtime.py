@@ -386,6 +386,13 @@ class V2Runtime:
                 {
                     "type": "file_search",
                     "vector_store_ids": [vector_store_id],
+                    "filters": {
+                        "type": "and",
+                        "filters": [
+                            {"type": "eq", "key": "is_active", "value": True},
+                            {"type": "eq", "key": "agent_facing", "value": True},
+                        ],
+                    },
                     "max_num_results": policy.max_file_search_results,
                 }
             )
@@ -460,6 +467,7 @@ def _hosted_evidence_followup_input(
             "evidence_id": str(item.get("id") or item.get("evidence_id") or ""),
             "source_id": item.get("source_id"),
             "source_version_id": item.get("source_version_id"),
+            "representation_kind": item.get("representation_kind"),
             "locator_text": item.get("locator_text"),
             "retrieval_channel": item.get("retrieval_channel"),
             "evidence_strength": item.get("evidence_strength"),

@@ -22,13 +22,17 @@ from app.services.storage import download_text, get_minio_client
 
 def _provider_filters(source_ids: list[str]) -> dict[str, Any]:
     valid = [source_id for source_id in source_ids if _uuid_or_none(source_id)]
+    base_filters = [
+        {"type": "eq", "key": "is_active", "value": True},
+        {"type": "eq", "key": "agent_facing", "value": True},
+    ]
     if not valid:
-        return {"type": "eq", "key": "is_active", "value": True}
+        return {"type": "and", "filters": base_filters}
     source_filters = [{"type": "eq", "key": "source_id", "value": source_id} for source_id in valid]
     return {
         "type": "and",
         "filters": [
-            {"type": "eq", "key": "is_active", "value": True},
+            *base_filters,
             {"type": "or", "filters": source_filters} if len(source_filters) > 1 else source_filters[0],
         ],
     }

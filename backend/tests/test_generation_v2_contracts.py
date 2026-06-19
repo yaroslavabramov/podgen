@@ -70,7 +70,15 @@ from app.generation_v2.schemas import (
     TreatmentAct,
 )
 from app.generation_v2.source_triage import build_source_triage
-from app.generation_v2.source_corpus import _version_has_snapshot, _version_upload_payload
+from app.generation_v2.source_corpus import (
+    _agent_facing_provider_versions,
+    _call_openai_url_file_read,
+    _filename_from_url,
+    _is_pdf_response,
+    _provider_attributes,
+    _version_has_snapshot,
+    _version_upload_payload,
+)
 from app.generation_v2.source_workspace import _quote_cards_from_chunks
 from app.generation_v2.tools.evidence import (
     _CHUNK_BACKED_VERSION_KINDS,
@@ -79,6 +87,7 @@ from app.generation_v2.tools.evidence import (
     validate_source_map_gate,
     EvidenceToolset,
 )
+from app.generation_v2.tools.evidence_utils import _provider_filters
 from app.models.generation_v2 import (
     EvidenceItem,
     ProviderCorpusFile,
@@ -97,6 +106,16 @@ def test_generation_create_defaults_to_v1_full_mode() -> None:
 
     assert payload.generation_mode == "v1"
     assert payload.execution_mode == "full"
+
+
+def test_v2_native_ready_status_survives_deterministic_parser_failure() -> None:
+    from app.workers.ingestion_tasks import _v2_native_source_ready
+
+    assert _v2_native_source_ready({"v2_native_ingest": {"status": "provider_ready"}}) is True
+    assert _v2_native_source_ready({"v2_native_ingest": {"ready_provider_file_count": "2"}}) is True
+    assert _v2_native_source_ready({"v2_native_ingest": {"openai_url_read_status": "readable"}}) is True
+    assert _v2_native_source_ready({"v2_native_ingest": {"status": "source_versions_ready"}}) is False
+    assert _v2_native_source_ready({"v2_native_ingest": {"status": "failed", "ready_provider_file_count": "2"}}) is False
 
 
 def test_strict_json_schema_requires_nested_properties_and_blocks_extra_fields() -> None:
@@ -160,6 +179,7 @@ def test_hosted_file_search_followup_exposes_observed_evidence_ids() -> None:
                     "id": "ev-1",
                     "source_id": "src-1",
                     "source_version_id": "ver-1",
+                    "representation_kind": "page_marked_text",
                     "locator_text": "page 2",
                     "retrieval_channel": "provider_file_search",
                     "evidence_strength": "snippet",
@@ -175,10 +195,41 @@ def test_hosted_file_search_followup_exposes_observed_evidence_ids() -> None:
     assert followup is not None
     assert followup["evidence_ids"] == ["ev-1"]
     assert "ev-1" in followup["message"]["content"]
+    assert "page_marked_text" in followup["message"]["content"]
     assert "select_evidence" in followup["message"]["content"]
     assert "inspect retrieval_channel" in followup["message"]["content"]
     assert "model_file_read_local_fallback" in followup["message"]["content"]
     assert "risk/coverage signal" in followup["message"]["content"]
+
+
+def test_hosted_file_search_tool_filters_to_agent_facing_files() -> None:
+    runtime = V2Runtime()
+
+    tools = runtime._tool_specs(
+        vector_store_id="vs_123",
+        local_tools=[],
+        policy=ToolPolicy(file_search=True, web_search=False, local_tools=False),
+    )
+
+    file_search_tool = tools[0]
+    assert file_search_tool["type"] == "file_search"
+    assert file_search_tool["filters"] == {
+        "type": "and",
+        "filters": [
+            {"type": "eq", "key": "is_active", "value": True},
+            {"type": "eq", "key": "agent_facing", "value": True},
+        ],
+    }
+
+
+def test_provider_search_filters_to_agent_facing_files() -> None:
+    assert _provider_filters([]) == {
+        "type": "and",
+        "filters": [
+            {"type": "eq", "key": "is_active", "value": True},
+            {"type": "eq", "key": "agent_facing", "value": True},
+        ],
+    }
 
 
 @pytest.mark.asyncio
@@ -2321,10 +2372,68 @@ def test_url_and_original_file_versions_are_not_local_snapshots() -> None:
     url_version = SourceVersion(kind=SourceRepresentationKind.ORIGINAL_URL, storage_path="https://example.com", **base)
     file_version = SourceVersion(kind=SourceRepresentationKind.ORIGINAL_FILE, storage_path="sources/project/report.pdf", **base)
     html_version = SourceVersion(kind=SourceRepresentationKind.FETCHED_HTML, storage_path="snapshots/fetched.html", **base)
+    openai_read_version = SourceVersion(kind=SourceRepresentationKind.MODEL_READ_TEXT, storage_path="snapshots/openai_url_read.md", **base)
 
     assert _version_has_snapshot(url_version) is False
     assert _version_has_snapshot(file_version) is False
     assert _version_has_snapshot(html_version) is True
+    assert _version_has_snapshot(openai_read_version) is True
+
+
+def test_agent_facing_provider_versions_exclude_raw_html_when_readable_versions_exist() -> None:
+    source_id = uuid.uuid4()
+    base = {
+        "source_id": source_id,
+        "project_id": uuid.uuid4(),
+        "content_hash": "hash",
+        "metadata_": {"source_type": "web"},
+        "status": "ready",
+        "upload_status": "pending",
+        "is_active": True,
+    }
+    fetched = SourceVersion(
+        id=uuid.uuid4(),
+        kind=SourceRepresentationKind.FETCHED_HTML,
+        storage_path="snapshots/fetched.html",
+        **base,
+    )
+    rendered = SourceVersion(
+        id=uuid.uuid4(),
+        kind=SourceRepresentationKind.RENDERED_SNAPSHOT,
+        storage_path="snapshots/rendered.txt",
+        **base,
+    )
+    extracted = SourceVersion(
+        id=uuid.uuid4(),
+        kind=SourceRepresentationKind.EXTRACTED_TEXT,
+        storage_path="snapshots/extracted.txt",
+        **base,
+    )
+
+    selected = _agent_facing_provider_versions([fetched, rendered, extracted])
+
+    assert {version.kind for version in selected} == {
+        SourceRepresentationKind.RENDERED_SNAPSHOT,
+        SourceRepresentationKind.EXTRACTED_TEXT,
+    }
+    assert _provider_attributes(rendered)["agent_facing"] is True
+
+
+def test_agent_facing_provider_versions_keep_raw_html_as_last_resort() -> None:
+    version = SourceVersion(
+        id=uuid.uuid4(),
+        source_id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        kind=SourceRepresentationKind.FETCHED_HTML,
+        storage_path="snapshots/fetched.html",
+        content_hash="hash",
+        metadata_={"source_type": "web"},
+        status="ready",
+        upload_status="pending",
+        is_active=True,
+    )
+
+    assert _agent_facing_provider_versions([version]) == [version]
 
 
 def test_chunk_backed_version_kinds_exclude_snapshots_and_originals() -> None:
@@ -2360,6 +2469,82 @@ def test_original_file_provider_upload_payload_preserves_native_bytes(monkeypatc
 
     assert filename == "report.pdf"
     assert content == payload
+
+
+def test_original_pdf_provider_upload_payload_normalizes_arxiv_filename(monkeypatch) -> None:
+    payload = b"%PDF-1.7\nbinary-ish bytes"
+
+    def fake_download_file(_client, path):
+        assert path == "sources/project/2511.10715"
+        return payload
+
+    monkeypatch.setattr("app.generation_v2.source_corpus.download_file", fake_download_file)
+    version = SourceVersion(
+        id=uuid.uuid4(),
+        source_id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        kind=SourceRepresentationKind.ORIGINAL_FILE,
+        storage_path="sources/project/2511.10715",
+        content_hash=hashlib.sha256(payload).hexdigest(),
+        metadata_={"original_filename": "2511.10715", "source_type": "pdf"},
+        status="ready",
+        upload_status="pending",
+        is_active=True,
+    )
+
+    filename, content = _version_upload_payload(version)
+
+    assert filename == "2511.10715.pdf"
+    assert content == payload
+
+
+def test_pdf_url_response_is_detected_for_native_openai_ingest() -> None:
+    assert _is_pdf_response("https://example.com/report.pdf", "text/plain", b"not really pdf") is False
+    assert _is_pdf_response("https://example.com/report.pdf", "text/html", b"<html></html>") is False
+    assert _is_pdf_response("https://example.com/report.pdf", "", b"") is True
+    assert _is_pdf_response("https://example.com/download", "application/pdf", b"opaque") is True
+    assert _is_pdf_response("https://example.com/download", "application/octet-stream", b"%PDF-1.7\n") is True
+    assert _is_pdf_response("https://example.com/article", "text/html", b"<html></html>") is False
+
+
+@pytest.mark.asyncio
+async def test_openai_url_read_uses_responses_file_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import source_corpus as source_corpus_module
+
+    fake_client = _FakeModelReadClient(
+        {
+            "read_status": "readable",
+            "title": "Readable article",
+            "canonical_url": "https://example.com/article.html",
+            "content_type": "text/html",
+            "extracted_text_markdown": "# Readable article\n\nBody text.",
+            "summary": "The article is readable.",
+            "failure_reason": "",
+            "confidence": 0.9,
+        }
+    )
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(source_corpus_module, "get_openai_client", lambda: fake_client)
+
+    result = await _call_openai_url_file_read("https://example.com/article.html")
+
+    call = fake_client.responses.calls[0]
+    assert call["input"][0]["content"][1] == {
+        "type": "input_file",
+        "file_url": "https://example.com/article.html",
+    }
+    assert call["text"]["format"]["name"] == "OpenAIUrlReadResult"
+    assert result["read_status"] == "readable"
+    assert result["_response_id"] == "resp_model_read"
+
+
+def test_filename_from_url_keeps_provider_upload_name() -> None:
+    assert _filename_from_url("https://example.com/path/Report%202025.pdf?download=1", default="fallback.pdf") == "Report 2025.pdf"
+    assert _filename_from_url("https://example.com/path/", default="fallback.pdf") == "fallback.pdf"
+    assert (
+        _filename_from_url("https://arxiv.org/pdf/2511.10715", default="fallback.pdf", required_suffix=".pdf")
+        == "2511.10715.pdf"
+    )
 
 
 def test_act_dossier_preserves_required_evidence_ids() -> None:

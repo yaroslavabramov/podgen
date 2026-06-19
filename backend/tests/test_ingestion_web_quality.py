@@ -41,6 +41,20 @@ def test_gate_a_blocks_short_http_403_error_banner() -> None:
     assert "http_403_error" in assessment.reasons
 
 
+def test_gate_a_blocks_jina_http_error_pages() -> None:
+    text = (
+        "Title: Error\n\n"
+        "Warning: Target URL returned error 400: Bad Request\n\n"
+        "ERROR: This is an invalid URL. Please reenter the URL."
+    )
+
+    assessment = assess_web_fetch_health(text, min_chars=50)
+
+    assert assessment.state == "blocked"
+    assert "http_error_banner" in assessment.reasons
+    assert "invalid_url_error_page" in assessment.reasons
+
+
 def test_gate_a_marks_short_text_as_low_signal() -> None:
     assessment = assess_web_fetch_health("Home\nSkip to content\n", min_chars=160)
 

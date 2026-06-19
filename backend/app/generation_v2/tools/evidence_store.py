@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.generation_v2 import EvidenceItem, EvidenceLocatorType, EvidenceStrength
+from app.models.generation_v2 import EvidenceItem, EvidenceLocatorType, EvidenceStrength, SourceVersion
 from app.generation_v2.tools.evidence_types import EVIDENCE_STATUS_CITED, EVIDENCE_STATUS_OBSERVED
 from app.generation_v2.tools.evidence_utils import _dedupe, _uuid_or_none
 
@@ -55,6 +55,10 @@ async def persist_evidence_item(
     snippet = snippet_text.strip()
     snippet_hash = hashlib.sha256(snippet.encode("utf-8")).hexdigest()
     metadata = {"usage_status": EVIDENCE_STATUS_OBSERVED, **(metadata or {})}
+    if "representation_kind" not in metadata:
+        source_version = await db.get(SourceVersion, source_version_id)
+        if source_version is not None:
+            metadata["representation_kind"] = source_version.kind
     existing_result = await db.execute(
         select(EvidenceItem).where(
             EvidenceItem.generation_run_id == generation_run_id,
@@ -110,6 +114,7 @@ def evidence_payload(item: EvidenceItem) -> dict[str, Any]:
         "id": str(item.id),
         "source_id": str(item.source_id),
         "source_version_id": str(item.source_version_id),
+        "representation_kind": (item.metadata_ or {}).get("representation_kind"),
         "provider": item.provider,
         "provider_file_id": item.provider_file_id,
         "provider_vector_store_id": item.provider_vector_store_id,

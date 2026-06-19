@@ -1,7 +1,9 @@
 """Main ingestion router: dispatches extraction by source_type, stores text, chunks, and embeds."""
 
 import logging
+from datetime import datetime
 
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -23,6 +25,75 @@ from app.services.embeddings import index_chunks
 from app.services.storage import get_minio_client, upload_text
 
 logger = logging.getLogger(__name__)
+
+
+class WebQualityIngestionError(ValueError):
+    """Non-retryable web extraction failure that invalidates native snapshots."""
+
+    invalidate_native_ingest = True
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        state: str,
+        reasons: list[str],
+        blocked: bool,
+        extraction_profile: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.state = state
+        self.reasons = reasons
+        self.blocked = blocked
+        self.extraction_profile = extraction_profile
+
+    def metadata_patch(self) -> dict:
+        patch: dict = {
+            "web_quality": {
+                "state": self.state,
+                "reasons": self.reasons,
+                "blocked": self.blocked,
+            }
+        }
+        if self.extraction_profile:
+            patch["web_extraction_profile"] = self.extraction_profile
+        return patch
+
+
+async def _deactivate_native_ingest_for_web_failure(
+    db: AsyncSession,
+    source: Source,
+    reason: str,
+) -> None:
+    """Remove invalid web snapshots from the active V2 corpus surface."""
+    try:
+        from app.generation_v2.source_corpus import mark_provider_files_inactive
+        from app.models.generation_v2 import SourceRepresentationKind, SourceVersion, V2RecordStatus
+
+        await db.execute(
+            update(SourceVersion)
+            .where(
+                SourceVersion.source_id == source.id,
+                SourceVersion.kind != str(SourceRepresentationKind.ORIGINAL_URL),
+            )
+            .values(status=V2RecordStatus.FAILED, is_active=False)
+        )
+        await mark_provider_files_inactive(
+            db,
+            source_id=source.id,
+            cleanup_status="invalid_ingest_output",
+        )
+        source.metadata_ = {
+            **(source.metadata_ or {}),
+            "v2_native_ingest": {
+                "status": "failed",
+                "error": reason,
+                "synced_at": datetime.utcnow().isoformat(),
+            },
+        }
+        await db.flush()
+    except Exception:
+        logger.warning("Failed to deactivate invalid V2 native ingest for source %s", source.id, exc_info=True)
 
 
 async def run_ingestion(source: Source, db: AsyncSession) -> None:
@@ -213,8 +284,23 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
 
                 if source.source_type == SourceType.WEB and blocked_web_source:
                     reasons = ", ".join(web_quality_reasons) if web_quality_reasons else "unknown"
-                    raise ValueError(
-                        f"Web source blocked by anti-bot/security wall (reasons: {reasons})"
+                    message = f"Web source blocked by anti-bot/security wall (reasons: {reasons})"
+                    raise WebQualityIngestionError(
+                        message,
+                        state=web_quality_state or "blocked",
+                        reasons=web_quality_reasons,
+                        blocked=True,
+                        extraction_profile=web_extraction_profile,
+                    )
+                if source.source_type == SourceType.WEB and web_quality_state == "low_signal":
+                    reasons = ", ".join(web_quality_reasons) if web_quality_reasons else "unknown"
+                    message = f"Web source extraction returned low-signal text (reasons: {reasons})"
+                    raise WebQualityIngestionError(
+                        message,
+                        state="low_signal",
+                        reasons=web_quality_reasons,
+                        blocked=False,
+                        extraction_profile=web_extraction_profile,
                     )
 
                 logger.info("Source %s: extracted %d chars, stored at %s", source_id, len(text), object_name)

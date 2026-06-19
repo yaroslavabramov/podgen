@@ -57,9 +57,12 @@ async def upload_source(project_id: uuid.UUID, user: CurrentUser, db: DB, file: 
     await db.flush()
     await db.refresh(source)
 
-    # Trigger async ingestion
-    from app.workers.ingestion_tasks import ingest_source
-    ingest_source.delay(str(source.id))
+    # Native-first V2 corpus preparation starts immediately. The native sync
+    # task enqueues deterministic parsing/chunking after it finishes so both
+    # tasks do not race on the same source row.
+    from app.workers.ingestion_tasks import sync_source_to_v2_corpus
+
+    sync_source_to_v2_corpus.delay(str(source.id))
 
     return SourceResponse.model_validate(source)
 
@@ -79,8 +82,9 @@ async def add_source_url(project_id: uuid.UUID, data: SourceURLCreate, user: Cur
     await db.flush()
     await db.refresh(source)
 
-    from app.workers.ingestion_tasks import ingest_source
-    ingest_source.delay(str(source.id))
+    from app.workers.ingestion_tasks import sync_source_to_v2_corpus
+
+    sync_source_to_v2_corpus.delay(str(source.id))
 
     return SourceResponse.model_validate(source)
 
@@ -492,7 +496,8 @@ async def _finalize_resumable_upload(meta: dict, db: DB) -> Source:
     await db.flush()
     await db.refresh(source)
 
-    from app.workers.ingestion_tasks import ingest_source
-    ingest_source.delay(str(source.id))
+    from app.workers.ingestion_tasks import sync_source_to_v2_corpus
+
+    sync_source_to_v2_corpus.delay(str(source.id))
 
     return source

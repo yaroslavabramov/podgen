@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     generation_v2_openai_model: str = "gpt-5"
     generation_v2_openai_reasoning_effort: str = "medium"
     generation_v2_enable_provider_uploads: bool = True
+    generation_v2_enable_openai_url_read: bool = False
+    generation_v2_enable_openai_url_recovery: bool = False
+    generation_v2_openai_url_read_max_output_tokens: int = 12000
+    generation_v2_openai_url_read_min_chars: int = 160
+    generation_v2_openai_url_read_timeout_seconds: int = 90
+    generation_v2_openai_url_recovery_timeout_seconds: int = 60
     generation_v2_enable_web_search: bool = True
     generation_v2_enable_web_search_research: bool = True
     generation_v2_enable_rendered_snapshots: bool = True
@@ -106,7 +112,7 @@ class Settings(BaseSettings):
     web_dns_resolve_retries: int = 3
     web_dns_resolve_retry_delay_ms: int = 250
     web_extractor_debug_dump_dir: str = ""
-    pdf_marker_timeout_seconds: int = 120
+    pdf_marker_timeout_seconds: int = 300
     content_map_rebuild_debounce_seconds: int = 90
 
     @property

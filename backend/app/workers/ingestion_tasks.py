@@ -457,12 +457,82 @@ async def _ingest_source_async(source_id: str, *, reset_existing: bool = False) 
                         source = refresh_result.scalar_one_or_none()
                         if source is None:
                             raise
+                        if getattr(e, "invalidate_native_ingest", False):
+                            from app.ingestion.router import _deactivate_native_ingest_for_web_failure
+
+                            await _deactivate_native_ingest_for_web_failure(db, source, str(e))
+                            metadata = dict(source.metadata_ or {})
+                            metadata.update(getattr(e, "metadata_patch", lambda: {})())
+                            metadata["error"] = str(e)
+                            metadata["deterministic_ingest_error"] = str(e)
+                            source.metadata_ = metadata
+                            source.ingestion_status = IngestionStatus.FAILED
+                            source.fully_ingested = False
+                            await db.commit()
+                            safe_set_run(
+                                task_run,
+                                outputs={
+                                    "status": "failed_invalid_web_source",
+                                    "fully_ingested": source.fully_ingested,
+                                    "error": str(e),
+                                },
+                            )
+                            return False
+                        metadata = dict(source.metadata_ or {})
+                        if _v2_native_source_ready(metadata):
+                            source.ingestion_status = IngestionStatus.COMPLETED
+                            source.fully_ingested = False
+                            metadata.pop("error", None)
+                            metadata["deterministic_ingest_error"] = str(e)
+                            source.metadata_ = metadata
+                            await db.commit()
+                            content_map_task_id: str | None = None
+                            try:
+                                content_map_task_id = await request_project_content_map_rebuild(
+                                    source.project_id,
+                                    db,
+                                    force_now=False,
+                                )
+                            except Exception:
+                                logger.warning(
+                                    "Failed to enqueue debounced content map rebuild for native-ready source %s",
+                                    source.id,
+                                    exc_info=True,
+                                )
+                            safe_set_run(
+                                task_run,
+                                outputs={
+                                    "status": "completed_v2_native_parser_failed",
+                                    "fully_ingested": source.fully_ingested,
+                                    "content_map_task_id": content_map_task_id or "",
+                                    "deterministic_ingest_error": str(e),
+                                },
+                            )
+                            return True
                         source.ingestion_status = IngestionStatus.FAILED
-                        source.metadata_ = {**(source.metadata_ or {}), "error": str(e)}
+                        source.metadata_ = {**metadata, "error": str(e)}
                         await db.commit()
                         raise
 
     return True
+
+
+def _v2_native_source_ready(metadata: dict | None) -> bool:
+    native = (metadata or {}).get("v2_native_ingest")
+    if not isinstance(native, dict):
+        return False
+    status = native.get("status")
+    if status == "failed":
+        return False
+    try:
+        ready_provider_file_count = int(native.get("ready_provider_file_count") or 0)
+    except (TypeError, ValueError):
+        ready_provider_file_count = 0
+    return bool(
+        status == "provider_ready"
+        or ready_provider_file_count > 0
+        or native.get("openai_url_read_status") in {"readable", "partial"}
+    )
 
 
 async def _reset_source_for_reingestion(source, db) -> None:
@@ -499,23 +569,91 @@ async def _reset_source_for_reingestion(source, db) -> None:
     metadata = dict(metadata)
     metadata.pop("error", None)
     metadata.pop("web_quality", None)
+    metadata.pop("v2_openai_url_read", None)
+    metadata.pop("v2_openai_url_recovery", None)
     source.metadata_ = metadata or None
     await db.flush()
 
 
 async def _sync_v2_corpus_after_ingestion(source, db) -> None:
+    source_id = source.id
     try:
-        from app.generation_v2.source_corpus import sync_project_corpus_index_now
+        from app.generation_v2.source_corpus import sync_source_to_project_corpus_now
 
-        await sync_project_corpus_index_now(db, source.project_id)
+        await sync_source_to_project_corpus_now(db, source)
         await db.commit()
     except Exception:
         await db.rollback()
         logger.warning(
             "Failed to sync V2 project corpus index after ingestion for source %s",
-            source.id,
+            source_id,
             exc_info=True,
         )
+
+
+@celery_app.task(name="app.workers.ingestion_tasks.sync_source_to_v2_corpus")
+def sync_source_to_v2_corpus(source_id: str) -> bool:
+    """Native-first V2 corpus preparation for one source.
+
+    This uploads stable source versions to the project-level OpenAI corpus index
+    without waiting for deterministic parsing/chunking to complete.
+    """
+    import asyncio
+
+    return asyncio.run(_sync_source_to_v2_corpus_async(source_id))
+
+
+async def _sync_source_to_v2_corpus_async(source_id: str) -> bool:
+    from sqlalchemy import select
+    from app.generation_v2.source_corpus import sync_source_to_project_corpus_now
+    from app.models.source import Source
+    from app.workers.worker_db import worker_session_factory
+
+    source_uuid = uuid.UUID(source_id)
+    async with worker_session_factory() as db:
+        result = await db.execute(select(Source).where(Source.id == source_uuid))
+        source = result.scalar_one_or_none()
+        if source is None:
+            return False
+        trace_ctx = {
+            "component": "worker.v2_native_source_sync",
+            "source_id": str(source.id),
+            "project_id": str(source.project_id),
+            "source_type": source.source_type,
+        }
+        with push_trace_context(trace_ctx):
+            with tracing_scope(metadata=trace_ctx, tags=["worker", "v2-native-ingest"]):
+                with trace_span(
+                    "worker.sync_source_to_v2_corpus",
+                    run_type="chain",
+                    inputs={"source_id": source_id},
+                    metadata={"source_type": source.source_type},
+                    tags=["celery-task", "v2-native-ingest"],
+                ) as task_run:
+                    try:
+                        summary = await sync_source_to_project_corpus_now(db, source)
+                        await db.commit()
+                        ingest_source.apply_async(args=[source_id], countdown=1)
+                        safe_set_run(task_run, outputs={"status": "completed", **summary})
+                        return True
+                    except Exception as exc:
+                        await db.rollback()
+                        result = await db.execute(select(Source).where(Source.id == source_uuid))
+                        source = result.scalar_one_or_none()
+                        if source is not None:
+                            source.metadata_ = {
+                                **(source.metadata_ or {}),
+                                "v2_native_ingest": {
+                                    "status": "failed",
+                                    "error": str(exc),
+                                    "synced_at": _utcnow_naive().isoformat(),
+                                },
+                            }
+                            await db.commit()
+                        ingest_source.apply_async(args=[source_id], countdown=1)
+                        logger.warning("Failed V2 native corpus sync for source %s", source_id, exc_info=True)
+                        safe_set_run(task_run, outputs={"status": "failed", "error": str(exc)})
+                        return False
 
 
 async def _mark_source_failed(source_id: str, message: str) -> None:

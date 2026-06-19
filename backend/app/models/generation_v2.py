@@ -20,6 +20,7 @@ class SourceRepresentationKind(StrEnum):
     PROVIDER_VECTOR_STORE = "provider_vector_store"
     TRANSCRIPT = "transcript"
     PAGE_MARKED_TEXT = "page_marked_text"
+    MODEL_READ_TEXT = "model_read_text"
 
 
 class ProviderCorpusScope(StrEnum):

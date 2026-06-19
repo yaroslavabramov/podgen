@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import asyncio
 import io
 import json
 import logging
@@ -9,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 from sqlalchemy import String, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.generation_v2.artifacts import save_tool_trace
 from app.models.generation_run import GenerationRun
+from app.models.project import Project
 from app.models.generation_v2 import (
     ProviderCorpusFile,
     ProviderCorpusIndex,
@@ -27,7 +30,7 @@ from app.models.generation_v2 import (
 )
 from app.models.source import Source
 from app.services.llm import get_openai_client
-from app.services.storage import download_file, download_text, get_minio_client, upload_text
+from app.services.storage import download_file, download_text, get_minio_client, upload_file, upload_text
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +126,7 @@ async def ensure_source_versions(db: AsyncSession, source: Source) -> list[Sourc
                 metadata={"canonical": True, "url": source.original_url},
             )
         )
+        versions.extend(await _ensure_openai_url_read_versions(db, source))
         versions.extend(await _ensure_web_snapshot_versions(db, source))
     if source.raw_text_path:
         text = ""
@@ -163,12 +167,296 @@ async def ensure_source_versions(db: AsyncSession, source: Source) -> list[Sourc
     return versions
 
 
+_OPENAI_URL_READ_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "read_status": {
+            "type": "string",
+            "enum": ["readable", "partial", "blocked", "not_found", "unsupported", "error"],
+        },
+        "title": {"type": "string"},
+        "canonical_url": {"type": "string"},
+        "content_type": {"type": "string"},
+        "extracted_text_markdown": {"type": "string"},
+        "summary": {"type": "string"},
+        "failure_reason": {"type": "string"},
+        "confidence": {"type": "number"},
+    },
+    "required": [
+        "read_status",
+        "title",
+        "canonical_url",
+        "content_type",
+        "extracted_text_markdown",
+        "summary",
+        "failure_reason",
+        "confidence",
+    ],
+}
+
+
+_OPENAI_URL_RECOVERY_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "recovery_status": {
+            "type": "string",
+            "enum": ["same_url_readable", "alternate_found", "paywalled_or_blocked", "gone", "not_found", "unclear"],
+        },
+        "original_url_status": {"type": "string"},
+        "best_alternative_url": {"type": "string"},
+        "alternative_urls": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "url": {"type": "string"},
+                    "title": {"type": "string"},
+                    "reason": {"type": "string"},
+                    "confidence": {"type": "number"},
+                },
+                "required": ["url", "title", "reason", "confidence"],
+            },
+        },
+        "notes": {"type": "string"},
+    },
+    "required": ["recovery_status", "original_url_status", "best_alternative_url", "alternative_urls", "notes"],
+}
+
+
+async def _ensure_openai_url_read_versions(db: AsyncSession, source: Source) -> list[SourceVersion]:
+    versions: list[SourceVersion] = []
+    if not source.original_url or not settings.generation_v2_enable_openai_url_read or not settings.openai_api_key:
+        return versions
+    existing_result = await db.execute(
+        select(SourceVersion).where(
+            SourceVersion.source_id == source.id,
+            SourceVersion.kind == SourceRepresentationKind.MODEL_READ_TEXT,
+            SourceVersion.is_active.is_(True),
+            SourceVersion.status == V2RecordStatus.READY,
+        )
+    )
+    existing_versions = list(existing_result.scalars())
+    if existing_versions:
+        return existing_versions
+
+    metadata = source.metadata_ if isinstance(source.metadata_, dict) else {}
+    prior_read = metadata.get("v2_openai_url_read")
+    if isinstance(prior_read, dict) and prior_read.get("synced_at"):
+        return versions
+
+    read_result: dict[str, Any] | None = None
+    try:
+        read_result = await asyncio.wait_for(
+            _call_openai_url_file_read(source.original_url),
+            timeout=max(1, settings.generation_v2_openai_url_read_timeout_seconds),
+        )
+    except Exception as exc:
+        source.metadata_ = {
+            **(source.metadata_ or {}),
+            "v2_openai_url_read": {
+                "status": "error",
+                "error": str(exc),
+                "synced_at": datetime.utcnow().isoformat(),
+            },
+        }
+
+    if read_result:
+        text = str(read_result.get("extracted_text_markdown") or "").strip()
+        read_status = str(read_result.get("read_status") or "error")
+        source.metadata_ = {
+            **(source.metadata_ or {}),
+            "v2_openai_url_read": {
+                "status": read_status,
+                "title": str(read_result.get("title") or ""),
+                "canonical_url": str(read_result.get("canonical_url") or source.original_url),
+                "content_type": str(read_result.get("content_type") or ""),
+                "summary": str(read_result.get("summary") or ""),
+                "failure_reason": str(read_result.get("failure_reason") or ""),
+                "confidence": float(read_result.get("confidence") or 0),
+                "response_id": str(read_result.get("_response_id") or ""),
+                "synced_at": datetime.utcnow().isoformat(),
+            },
+        }
+        if not source.title and read_result.get("title"):
+            source.title = str(read_result["title"])[:500]
+        if text and not source.text_preview:
+            source.text_preview = text[:500]
+        if len(text) >= settings.generation_v2_openai_url_read_min_chars and read_status in {"readable", "partial"}:
+            document = _format_openai_url_read_document(source.original_url, read_result, text)
+            content_hash = _hash_text(document)
+            object_name = _versioned_object_name(source.id, content_hash, "openai_url_read.md")
+            upload_text(get_minio_client(), document, object_name)
+            versions.append(
+                await _ensure_source_version(
+                    db,
+                    source,
+                    kind=SourceRepresentationKind.MODEL_READ_TEXT,
+                    storage_path=object_name,
+                    content_hash=content_hash,
+                    metadata={
+                        "canonical": False,
+                        "view": "openai_url_read",
+                        "source_type": "web",
+                        "native_upload": True,
+                        "native_openai_url_read": True,
+                        "url": source.original_url,
+                        "canonical_url": str(read_result.get("canonical_url") or source.original_url),
+                        "read_status": read_status,
+                        "response_id": str(read_result.get("_response_id") or ""),
+                        "confidence": float(read_result.get("confidence") or 0),
+                        "note": "Model-extracted URL/file view; use original/snapshot/evidence locators for final citations when available.",
+                    },
+                )
+            )
+
+    should_recover = not read_result or str(read_result.get("read_status") or "") not in {"readable", "partial"}
+    if should_recover and settings.generation_v2_enable_openai_url_recovery:
+        try:
+            recovery = await asyncio.wait_for(
+                _call_openai_url_recovery(source.original_url, source.metadata_ or {}),
+                timeout=max(1, settings.generation_v2_openai_url_recovery_timeout_seconds),
+            )
+            source.metadata_ = {
+                **(source.metadata_ or {}),
+                "v2_openai_url_recovery": {
+                    **recovery,
+                    "response_id": str(recovery.get("_response_id") or ""),
+                    "synced_at": datetime.utcnow().isoformat(),
+                },
+            }
+        except Exception as exc:
+            source.metadata_ = {
+                **(source.metadata_ or {}),
+                "v2_openai_url_recovery": {
+                    "recovery_status": "error",
+                    "error": str(exc),
+                    "synced_at": datetime.utcnow().isoformat(),
+                },
+            }
+    await db.flush()
+    return versions
+
+
+async def _call_openai_url_file_read(url: str) -> dict[str, Any]:
+    client = get_openai_client()
+    prompt = (
+        "Read the attached external URL/file as a source for a podcast research corpus. "
+        "Use only the attached file_url content. Do not rely on memory or external knowledge. "
+        "If the file cannot be read, is blocked, is gone, or is unsupported, return that status and leave "
+        "extracted_text_markdown empty. If readable, extract faithful article/document text in Markdown, "
+        "preserving headings and useful locator cues. Do not invent missing text."
+        f"\n\nURL: {url}"
+    )
+    response = await client.responses.create(
+        model=settings.generation_v2_openai_model,
+        instructions="You are a careful source-ingestion reader. Return JSON only.",
+        input=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": prompt},
+                    {"type": "input_file", "file_url": url},
+                ],
+            }
+        ],
+        max_output_tokens=settings.generation_v2_openai_url_read_max_output_tokens,
+        text={
+            "format": {
+                "type": "json_schema",
+                "name": "OpenAIUrlReadResult",
+                "schema": _OPENAI_URL_READ_SCHEMA,
+                "strict": True,
+            }
+        },
+    )
+    payload = _loads_json_object(getattr(response, "output_text", "") or "")
+    payload["_response_id"] = getattr(response, "id", "")
+    return payload
+
+
+async def _call_openai_url_recovery(url: str, read_metadata: dict[str, Any]) -> dict[str, Any]:
+    client = get_openai_client()
+    prompt = (
+        "The product tried to ingest this URL as source material, but direct URL/file reading did not produce "
+        "usable source text. Use web search only to diagnose whether the URL is blocked/gone/paywalled and to "
+        "find official or high-confidence alternate URLs for the same source. Do not summarize the topic broadly. "
+        "Return only recovery metadata and candidate URLs; do not pretend a candidate is the same source unless the "
+        "title/identifier clearly matches.\n\n"
+        f"URL: {url}\n"
+        f"Prior read metadata: {json.dumps(read_metadata.get('v2_openai_url_read', read_metadata), ensure_ascii=False)[:3000]}"
+    )
+    response = await client.responses.create(
+        model=settings.generation_v2_openai_model,
+        instructions="You are a conservative source recovery agent. Return JSON only.",
+        input=prompt,
+        tools=[{"type": "web_search"}],
+        max_output_tokens=3000,
+        text={
+            "format": {
+                "type": "json_schema",
+                "name": "OpenAIUrlRecoveryResult",
+                "schema": _OPENAI_URL_RECOVERY_SCHEMA,
+                "strict": True,
+            }
+        },
+    )
+    output_text = getattr(response, "output_text", "") or ""
+    if not output_text.strip():
+        return {
+            "recovery_status": "unclear",
+            "original_url_status": "unknown",
+            "best_alternative_url": "",
+            "alternative_urls": [],
+            "notes": "OpenAI web_search recovery returned an empty structured response.",
+            "_response_id": getattr(response, "id", ""),
+        }
+    payload = _loads_json_object(output_text)
+    payload["_response_id"] = getattr(response, "id", "")
+    return payload
+
+
+def _format_openai_url_read_document(url: str, payload: dict[str, Any], text: str) -> str:
+    title = str(payload.get("title") or "Untitled source").strip()
+    canonical_url = str(payload.get("canonical_url") or url).strip()
+    summary = str(payload.get("summary") or "").strip()
+    return (
+        f"# {title}\n\n"
+        f"Source URL: {url}\n"
+        f"Canonical URL: {canonical_url}\n"
+        f"OpenAI URL read status: {payload.get('read_status')}\n"
+        f"Confidence: {payload.get('confidence')}\n\n"
+        f"## OpenAI Read Summary\n\n{summary}\n\n"
+        f"## Extracted Text\n\n{text}\n"
+    )
+
+
+def _loads_json_object(text: str) -> dict[str, Any]:
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start < 0 or end <= start:
+            raise
+        value = json.loads(text[start : end + 1])
+    if not isinstance(value, dict):
+        raise ValueError("OpenAI URL read returned non-object JSON")
+    return value
+
+
 async def ensure_project_provider_index(
     db: AsyncSession,
     project_id: uuid.UUID,
     *,
     run_id: uuid.UUID | None = None,
 ) -> ProviderCorpusIndex | None:
+    # Serialize project-level provider index creation. URL bulk imports enqueue
+    # many per-source native sync tasks at once, but there must be exactly one
+    # OpenAI vector store row per project/provider/scope.
+    await db.execute(select(Project.id).where(Project.id == project_id).with_for_update())
     result = await db.execute(
         select(ProviderCorpusIndex).where(
             ProviderCorpusIndex.project_id == project_id,
@@ -245,13 +533,74 @@ async def sync_provider_corpus_files(
 ) -> list[ProviderCorpusFile]:
     if not provider_index.provider_vector_store_id or not settings.openai_api_key:
         return []
+    agent_facing_versions = _agent_facing_provider_versions(source_versions)
+    agent_facing_version_ids = {version.id for version in agent_facing_versions}
+    await _detach_excluded_provider_files(db, provider_index, source_versions, agent_facing_version_ids)
     synced: list[ProviderCorpusFile] = []
-    for version in source_versions:
+    for version in agent_facing_versions:
         if not _version_uploadable(version):
             continue
         synced.append(await _ensure_provider_file(db, run, provider_index, version))
     await db.flush()
     return synced
+
+
+async def sync_source_to_project_corpus_now(db: AsyncSession, source: Source) -> dict[str, Any]:
+    """Sync one source into the project-level V2/OpenAI corpus.
+
+    This is the native-first source preparation path. It is intentionally scoped
+    to one source so bulk URL imports do not rescan or refetch the whole project
+    after every completed deterministic ingest task.
+    """
+    source_id = source.id
+    project_id = source.project_id
+    provider_index = await ensure_project_provider_index(db, project_id)
+    # Release the project/index creation lock before potentially slow network
+    # work. Source version fetches and OpenAI vector-store indexing may take
+    # minutes; holding the project row lock across that would serialize or
+    # deadlock bulk imports.
+    await db.commit()
+    source_result = await db.execute(select(Source).where(Source.id == source_id))
+    source = source_result.scalar_one()
+    versions = await ensure_source_versions(db, source)
+    active_versions = [version for version in versions if version.is_active and version.status == V2RecordStatus.READY]
+    provider_files = await sync_provider_corpus_files(db, None, provider_index, active_versions) if provider_index else []
+    ready_provider_files = [file for file in provider_files if file.status == V2RecordStatus.READY]
+    summary = {
+        "source_id": str(source.id),
+        "source_version_count": len(active_versions),
+        "provider_index_id": str(provider_index.id) if provider_index else None,
+        "provider_vector_store_id": provider_index.provider_vector_store_id if provider_index else None,
+        "provider_file_count": len(provider_files),
+        "ready_provider_file_count": len(ready_provider_files),
+        "native_uploaded": any(
+            version.kind
+            in {
+                SourceRepresentationKind.ORIGINAL_FILE,
+                SourceRepresentationKind.FETCHED_HTML,
+                SourceRepresentationKind.MODEL_READ_TEXT,
+            }
+            for version in active_versions
+        ),
+        "openai_url_read_status": (source.metadata_ or {}).get("v2_openai_url_read", {}).get("status"),
+        "openai_url_recovery_status": (source.metadata_ or {}).get("v2_openai_url_recovery", {}).get("recovery_status"),
+    }
+    source.metadata_ = {
+        **(source.metadata_ or {}),
+        "v2_native_ingest": {
+            "status": (
+                "provider_ready"
+                if summary["ready_provider_file_count"]
+                else "source_versions_ready"
+                if summary["source_version_count"]
+                else "empty"
+            ),
+            "synced_at": datetime.utcnow().isoformat(),
+            **summary,
+        },
+    }
+    await db.flush()
+    return summary
 
 
 async def sync_project_corpus_index_now(db: AsyncSession, project_id: uuid.UUID) -> None:
@@ -418,9 +767,33 @@ async def _ensure_web_snapshot_versions(db: AsyncSession, source: Source) -> lis
     if not source.original_url:
         return versions
     try:
-        from app.ingestion.web import _safe_fetch
-
-        response = await _safe_fetch(source.original_url)
+        response = await _fetch_url_for_v2_snapshot(source.original_url)
+        content_type = response.headers.get("content-type", "")
+        if _is_pdf_response(source.original_url, content_type, response.content):
+            content_hash = _hash_bytes(response.content)
+            filename = _filename_from_url(str(response.url), default=f"{source.id}.pdf", required_suffix=".pdf")
+            object_name = _versioned_object_name(source.id, content_hash, filename)
+            upload_file(get_minio_client(), response.content, object_name, content_type or "application/pdf")
+            versions.append(
+                await _ensure_source_version(
+                    db,
+                    source,
+                    kind=SourceRepresentationKind.ORIGINAL_FILE,
+                    storage_path=object_name,
+                    content_hash=content_hash,
+                    metadata={
+                        "canonical": True,
+                        "source_type": "pdf",
+                        "original_filename": filename,
+                        "native_upload": True,
+                        "fetched_from_url": True,
+                        "url": str(response.url),
+                        "status_code": response.status_code,
+                        "content_type": content_type,
+                    },
+                )
+            )
+            return versions
         html = response.text
         content_hash = _hash_text(html)
         object_name = _versioned_object_name(source.id, content_hash, "fetched.html")
@@ -434,9 +807,11 @@ async def _ensure_web_snapshot_versions(db: AsyncSession, source: Source) -> lis
                 content_hash=content_hash,
                 metadata={
                     "canonical": True,
+                    "source_type": "web",
+                    "native_upload": True,
                     "url": str(response.url),
                     "status_code": response.status_code,
-                    "content_type": response.headers.get("content-type", ""),
+                    "content_type": content_type,
                 },
             )
         )
@@ -468,6 +843,51 @@ async def _ensure_web_snapshot_versions(db: AsyncSession, source: Source) -> lis
         except Exception as exc:
             logger.info("Rendered source version unavailable for %s: %s", source.id, exc)
     return versions
+
+
+async def _fetch_url_for_v2_snapshot(url: str):
+    from app.ingestion.web import _safe_fetch
+
+    timeout_seconds = max(1, settings.web_fetch_timeout + 5)
+    try:
+        return await asyncio.wait_for(_safe_fetch(url), timeout=timeout_seconds)
+    except Exception as first_exc:
+        browser_headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,application/pdf;q=0.8,*/*;q=0.7",
+            "Accept-Language": settings.web_accept_language,
+        }
+        try:
+            return await asyncio.wait_for(_safe_fetch(url, headers=browser_headers), timeout=timeout_seconds)
+        except Exception:
+            raise first_exc
+
+
+def _is_pdf_response(url: str, content_type: str, content: bytes) -> bool:
+    normalized_type = (content_type or "").lower()
+    path = urlparse(url).path.lower()
+    if "application/pdf" in normalized_type:
+        return True
+    if content[:1024].lstrip().startswith(b"%PDF"):
+        return True
+    if path.endswith(".pdf") and (not normalized_type or "octet-stream" in normalized_type):
+        return True
+    return False
+
+
+def _filename_from_url(url: str, *, default: str, required_suffix: str | None = None) -> str:
+    path_name = Path(unquote(urlparse(url).path)).name
+    filename = path_name or default
+    if "." not in filename:
+        filename = default
+    if required_suffix:
+        normalized_suffix = required_suffix if required_suffix.startswith(".") else f".{required_suffix}"
+        if Path(filename).suffix.lower() != normalized_suffix.lower():
+            filename = f"{filename}{normalized_suffix}"
+    return filename.replace("/", "_")
 
 
 async def _ensure_source_version(
@@ -557,7 +977,7 @@ async def _detach_provider_file_from_active_index(db: AsyncSession, provider_fil
             vector_store_id=provider_index.provider_vector_store_id,
             file_id=provider_file.provider_file_id,
         )
-        provider_file.cleanup_status = "removed_from_active_index_retained_for_historical_evidence"
+        provider_file.cleanup_status = "removed_from_active_index_retained"
         provider_file.attributes = {
             **(provider_file.attributes or {}),
             "is_active": False,
@@ -585,9 +1005,18 @@ async def _ensure_provider_file(
         )
     )
     existing = existing_result.scalar_one_or_none()
-    if existing and existing.status == V2RecordStatus.READY:
-        return existing
     attributes = _provider_attributes(version)
+    if existing and existing.status == V2RecordStatus.READY:
+        if await _sync_provider_file_attributes(provider_index, existing, attributes):
+            existing.attributes = attributes
+            version.provider = "openai"
+            version.provider_file_id = existing.provider_file_id
+            version.provider_vector_store_file_id = existing.provider_vector_store_file_id
+            version.upload_status = V2RecordStatus.READY
+            await db.flush()
+            return existing
+        existing.status = V2RecordStatus.PENDING
+        existing.error_message = "Provider file attributes were stale and could not be updated; re-uploading"
     if existing is None:
         existing = ProviderCorpusFile(
             provider_index_id=provider_index.id,
@@ -642,8 +1071,99 @@ async def _ensure_provider_file(
     return existing
 
 
+async def _sync_provider_file_attributes(
+    provider_index: ProviderCorpusIndex,
+    provider_file: ProviderCorpusFile,
+    attributes: dict[str, str | bool | float],
+) -> bool:
+    if (
+        not settings.openai_api_key
+        or not provider_index.provider_vector_store_id
+        or not provider_file.provider_file_id
+        or provider_file.attributes == attributes
+    ):
+        return True
+    try:
+        client = get_openai_client()
+        await client.vector_stores.files.update(
+            file_id=provider_file.provider_file_id,
+            vector_store_id=provider_index.provider_vector_store_id,
+            attributes=attributes,
+        )
+        return True
+    except Exception as exc:
+        logger.info("Could not update provider corpus file attributes %s: %s", provider_file.id, exc)
+        return False
+
+
 def _version_uploadable(version: SourceVersion) -> bool:
     return bool(version.storage_path and version.kind != SourceRepresentationKind.ORIGINAL_URL and version.status == V2RecordStatus.READY)
+
+
+_AGENT_FACING_REPRESENTATION_KINDS = {
+    SourceRepresentationKind.ORIGINAL_FILE,
+    SourceRepresentationKind.MODEL_READ_TEXT,
+    SourceRepresentationKind.RENDERED_SNAPSHOT,
+    SourceRepresentationKind.EXTRACTED_TEXT,
+    SourceRepresentationKind.PAGE_MARKED_TEXT,
+    SourceRepresentationKind.TRANSCRIPT,
+}
+
+_RAW_FALLBACK_REPRESENTATION_KINDS = {
+    SourceRepresentationKind.FETCHED_HTML,
+}
+
+
+def _agent_facing_provider_versions(source_versions: list[SourceVersion]) -> list[SourceVersion]:
+    """Return the source versions that should be visible to hosted file_search.
+
+    Raw fetched HTML is retained locally for replay/debug, but it is noisy for
+    agents. It only enters the provider index when a source has no readable
+    original/rendered/extracted/page-marked/transcript representation.
+    """
+    ready_versions = [version for version in source_versions if _version_uploadable(version)]
+    readable_source_ids = {
+        version.source_id
+        for version in ready_versions
+        if SourceRepresentationKind(str(version.kind)) in _AGENT_FACING_REPRESENTATION_KINDS
+    }
+    agent_versions: list[SourceVersion] = []
+    for version in ready_versions:
+        kind = SourceRepresentationKind(str(version.kind))
+        if kind in _AGENT_FACING_REPRESENTATION_KINDS:
+            agent_versions.append(version)
+        elif kind in _RAW_FALLBACK_REPRESENTATION_KINDS and version.source_id not in readable_source_ids:
+            agent_versions.append(version)
+    return agent_versions
+
+
+async def _detach_excluded_provider_files(
+    db: AsyncSession,
+    provider_index: ProviderCorpusIndex,
+    source_versions: list[SourceVersion],
+    agent_facing_version_ids: set[uuid.UUID],
+) -> None:
+    candidate_ids = [version.id for version in source_versions if _version_uploadable(version)]
+    if not candidate_ids:
+        return
+    result = await db.execute(
+        select(ProviderCorpusFile).where(
+            ProviderCorpusFile.provider_index_id == provider_index.id,
+            ProviderCorpusFile.source_version_id.in_(candidate_ids),
+            ProviderCorpusFile.status == V2RecordStatus.READY,
+        )
+    )
+    for provider_file in result.scalars():
+        if provider_file.source_version_id in agent_facing_version_ids:
+            continue
+        provider_file.attributes = {
+            **(provider_file.attributes or {}),
+            "is_active": False,
+            "agent_facing": False,
+            "excluded_reason": "raw_representation_has_readable_alternative",
+        }
+        provider_file.cleanup_status = "excluded_from_agent_facing_index"
+        await _detach_provider_file_from_active_index(db, provider_file)
 
 
 def _version_has_snapshot(version: SourceVersion) -> bool:
@@ -654,6 +1174,7 @@ def _version_has_snapshot(version: SourceVersion) -> bool:
         in {
             SourceRepresentationKind.FETCHED_HTML,
             SourceRepresentationKind.RENDERED_SNAPSHOT,
+            SourceRepresentationKind.MODEL_READ_TEXT,
             SourceRepresentationKind.EXTRACTED_TEXT,
             SourceRepresentationKind.PAGE_MARKED_TEXT,
             SourceRepresentationKind.TRANSCRIPT,
@@ -675,7 +1196,7 @@ def _provider_filename(version: SourceVersion, suffix: str | None = None) -> str
     if version.kind == SourceRepresentationKind.ORIGINAL_FILE:
         raw_name = str(metadata.get("original_filename") or f"{version.source_id}-{version.kind}")
         filename = Path(raw_name).name or f"{version.source_id}-{version.kind}"
-        if "." not in filename and metadata.get("source_type") == "pdf":
+        if metadata.get("source_type") == "pdf" and Path(filename).suffix.lower() != ".pdf":
             filename = f"{filename}.pdf"
     else:
         filename = f"{version.source_id}-{version.kind}-{version.id}{suffix or ''}"
@@ -693,6 +1214,7 @@ def _provider_attributes(version: SourceVersion) -> dict[str, str | bool | float
         "content_hash": version.content_hash or "",
         "authority": str(metadata.get("authority") or "unknown"),
         "is_active": bool(version.is_active),
+        "agent_facing": True,
         "scope": "project",
     }
 
