@@ -1,6 +1,6 @@
 from app.generation_v2.prompting.citation import CLAIM_CITATION_PROMPT, SUPPORT_JUDGMENT_PROMPT
 from app.generation_v2.prompting.research import RESEARCH_AUDIT_PROMPT, RESEARCH_MEMO_PROMPT
-from app.generation_v2.prompting.source import SOURCE_ACQUISITION_PROMPT, SOURCE_TRIAGE_PROMPT
+from app.generation_v2.prompting.source import SOURCE_ACQUISITION_PROMPT, SOURCE_TRIAGE_PROMPT, SOURCE_TRIAGE_REPAIR_PROMPT
 from app.generation_v2.prompting.story import (
     ACT_DRAFT_PROMPT,
     ACT_REWRITE_PROMPT,
@@ -39,6 +39,7 @@ __all__ = [
     "SOURCE_ACQUISITION_PROMPT",
     "SOURCE_ACQUISITION_SYSTEM",
     "SOURCE_TRIAGE_PROMPT",
+    "SOURCE_TRIAGE_REPAIR_PROMPT",
     "SOURCE_TRIAGE_SYSTEM",
     "SUPPORT_JUDGE_SYSTEM",
     "SUPPORT_JUDGMENT_PROMPT",

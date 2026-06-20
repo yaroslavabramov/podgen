@@ -289,7 +289,7 @@ class SourceAcquisitionToolset:
             candidate.ingest_status = "rejected"
             self.candidates.append(candidate)
             await self._save_candidate(candidate)
-            return {"accepted": False, "status": candidate.status, "reason": candidate.rejection_reason, "candidate": candidate.model_dump(mode="json")}
+            return _candidate_tool_payload(candidate, accepted=False)
 
         self.ingested_count += 1
         source = Source(
@@ -369,7 +369,9 @@ class SourceAcquisitionToolset:
             "fully_ingested": candidate.fully_ingested,
             "provider_file_count": candidate.provider_file_count,
             "ready_provider_file_count": candidate.ready_provider_file_count,
-            "candidate": candidate.model_dump(mode="json"),
+            "url": candidate.normalized_url or candidate.url,
+            "gap_ids": candidate.gap_ids,
+            "reason": candidate.rejection_reason,
         }
 
     async def reject_source_candidate_tool(self, args: dict[str, Any]) -> dict[str, Any]:
@@ -385,7 +387,7 @@ class SourceAcquisitionToolset:
         )
         self.candidates.append(candidate)
         await self._save_candidate(candidate)
-        return {"accepted": True, "status": "rejected", "candidate": candidate.model_dump(mode="json")}
+        return _candidate_tool_payload(candidate, accepted=True)
 
     async def finalize_source_acquisition_round_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         self.finalized_summary = str(args.get("summary") or "")
@@ -464,6 +466,22 @@ class SourceAcquisitionToolset:
             status=V2ArtifactStatus.FAILED if candidate.status == "failed" else V2ArtifactStatus.PASSED,
         )
         await self.db.flush()
+
+
+def _candidate_tool_payload(candidate: SourceAcquisitionCandidate, *, accepted: bool) -> dict[str, Any]:
+    return {
+        "accepted": accepted,
+        "status": candidate.status,
+        "url": candidate.normalized_url or candidate.url,
+        "gap_ids": candidate.gap_ids,
+        "source_id": candidate.source_id,
+        "source_version_ids": candidate.source_version_ids[:8],
+        "ingest_status": candidate.ingest_status,
+        "fully_ingested": candidate.fully_ingested,
+        "provider_file_count": candidate.provider_file_count,
+        "ready_provider_file_count": candidate.ready_provider_file_count,
+        "reason": candidate.rejection_reason,
+    }
 
 
 async def existing_source_for_url(db: AsyncSession, project_id: uuid.UUID, normalized_url: str) -> Source | None:

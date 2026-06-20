@@ -4,6 +4,7 @@ from collections.abc import Callable, Coroutine
 from typing import Any
 
 import anthropic
+import httpx
 import openai
 
 from app.config import settings
@@ -17,6 +18,14 @@ _OVERLOAD_RETRY_DELAYS = (30, 60)  # seconds between retries on 529
 
 def _request_timeout_seconds() -> int:
     return max(1, int(settings.llm_request_timeout_seconds))
+
+
+def _openai_connect_timeout_seconds() -> int:
+    return max(1, int(settings.openai_connect_timeout_seconds))
+
+
+def _openai_max_retries() -> int:
+    return max(0, int(settings.openai_max_retries))
 
 
 async def _call_with_overload_retry(
@@ -68,7 +77,14 @@ def get_anthropic_client() -> anthropic.AsyncAnthropic:
 def get_openai_client() -> openai.AsyncOpenAI:
     global _openai_client
     if _openai_client is None:
-        client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
+        client = openai.AsyncOpenAI(
+            api_key=settings.openai_api_key,
+            timeout=httpx.Timeout(
+                float(_request_timeout_seconds()),
+                connect=float(_openai_connect_timeout_seconds()),
+            ),
+            max_retries=_openai_max_retries(),
+        )
         _openai_client = wrap_openai_client(client)
     return _openai_client
 
@@ -120,7 +136,58 @@ def _openai_usage(response: Any) -> dict[str, Any]:
         value = getattr(usage, field, None)
         if value is not None:
             out[field] = value
+    for detail_field in ("input_tokens_details", "prompt_tokens_details"):
+        details = _usage_detail(usage, detail_field)
+        cached_tokens = _usage_detail_value(details, "cached_tokens")
+        if cached_tokens is not None:
+            out["cached_input_tokens"] = cached_tokens
+            break
+    output_details = _usage_detail(usage, "output_tokens_details") or _usage_detail(usage, "completion_tokens_details")
+    reasoning_tokens = _usage_detail_value(output_details, "reasoning_tokens")
+    if reasoning_tokens is not None:
+        out["reasoning_output_tokens"] = reasoning_tokens
     return out
+
+
+def _usage_detail(usage: Any, field: str) -> Any:
+    if isinstance(usage, dict):
+        return usage.get(field)
+    if hasattr(usage, "model_dump"):
+        try:
+            return usage.model_dump().get(field)
+        except Exception:
+            pass
+    return getattr(usage, field, None)
+
+
+def _usage_detail_value(details: Any, field: str) -> int | None:
+    if not details:
+        return None
+    value = details.get(field) if isinstance(details, dict) else getattr(details, field, None)
+    return int(value) if value is not None else None
+
+
+def _openai_estimated_cost_usd(model: str, usage: dict[str, Any]) -> float | None:
+    rates = _openai_token_rates(model)
+    if rates is None:
+        return None
+    input_tokens = int(usage.get("input_tokens") or usage.get("prompt_tokens") or 0)
+    output_tokens = int(usage.get("output_tokens") or usage.get("completion_tokens") or 0)
+    cached_tokens = min(input_tokens, int(usage.get("cached_input_tokens") or 0))
+    uncached_tokens = max(0, input_tokens - cached_tokens)
+    cost = (
+        uncached_tokens * rates["input_per_1m"]
+        + cached_tokens * rates["cached_input_per_1m"]
+        + output_tokens * rates["output_per_1m"]
+    ) / 1_000_000
+    return round(cost, 8)
+
+
+def _openai_token_rates(model: str) -> dict[str, float] | None:
+    normalized = (model or "").lower()
+    if normalized == "gpt-5":
+        return {"input_per_1m": 1.25, "cached_input_per_1m": 0.125, "output_per_1m": 10.0}
+    return None
 
 
 async def call_sonnet(system: str, prompt: str, max_tokens: int = 4096, temperature: float = 0.7) -> str:

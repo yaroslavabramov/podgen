@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     llm_request_timeout_seconds: int = 300
+    openai_connect_timeout_seconds: int = 60
+    openai_max_retries: int = 4
     showrunner_generation_provider: str = "anthropic"
     showrunner_openai_model: str = "gpt-5.4"
     showrunner_openai_reasoning_effort: str = "medium"
@@ -51,6 +53,7 @@ class Settings(BaseSettings):
     generation_v2_openai_url_read_min_chars: int = 160
     generation_v2_openai_url_read_timeout_seconds: int = 90
     generation_v2_openai_url_recovery_timeout_seconds: int = 60
+    generation_v2_provider_upload_timeout_seconds: int = 300
     generation_v2_enable_web_search: bool = True
     generation_v2_enable_web_search_research: bool = True
     generation_v2_enable_rendered_snapshots: bool = True
@@ -58,7 +61,7 @@ class Settings(BaseSettings):
     generation_v2_allow_runtime_fallback: bool = False
     generation_v2_allow_fallback_audio: bool = False
     generation_v2_max_tool_rounds: int = 8
-    generation_v2_triage_max_tool_rounds: int = 12
+    generation_v2_triage_max_tool_rounds: int = 96
     generation_v2_debug_dump_dir: str = ""
     generation_v2_enable_source_acquisition: bool = True
     generation_v2_source_acquisition_mode: str = "auto"

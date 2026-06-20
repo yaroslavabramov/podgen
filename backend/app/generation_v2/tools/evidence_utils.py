@@ -25,6 +25,7 @@ def _provider_filters(source_ids: list[str]) -> dict[str, Any]:
     base_filters = [
         {"type": "eq", "key": "is_active", "value": True},
         {"type": "eq", "key": "agent_facing", "value": True},
+        {"type": "eq", "key": "canonical_retrieval_surface", "value": True},
     ]
     if not valid:
         return {"type": "and", "filters": base_filters}

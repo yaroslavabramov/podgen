@@ -185,3 +185,14 @@ class ProjectCorpusIndexResponse(BaseModel):
     active_source_version_count: int
     provider_file_count: int
     ready_provider_file_count: int
+    canonical_provider_file_count: int = 0
+    active_agent_facing_provider_file_count: int = 0
+    noncanonical_provider_file_count: int = 0
+    db_canonical_provider_file_count: int = 0
+    openai_active_agent_facing_file_count: int = 0
+    pending_indexing_provider_file_count: int = 0
+    failed_provider_file_count: int = 0
+    adoptable_orphan_count: int = 0
+    invalid_orphan_count: int = 0
+    last_reconciliation_at: str | None = None
+    sources: list[dict] = Field(default_factory=list)

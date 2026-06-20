@@ -310,9 +310,9 @@ async def get_project_corpus_index(project_id: uuid.UUID, user: CurrentUser, db:
 @router.post("/projects/{project_id}/corpus-index/sync", response_model=ProjectCorpusIndexResponse)
 async def sync_project_corpus_index(project_id: uuid.UUID, user: CurrentUser, db: DB):
     await _verify_project_ownership(project_id, user.id, db)
-    from app.generation_v2.source_corpus import sync_project_corpus_index_now, project_corpus_index_summary
+    from app.generation_v2.source_corpus import reconcile_project_corpus_index_now, project_corpus_index_summary
 
-    await sync_project_corpus_index_now(db, project_id)
+    await reconcile_project_corpus_index_now(db, project_id)
     return await project_corpus_index_summary(db, project_id)
 
 

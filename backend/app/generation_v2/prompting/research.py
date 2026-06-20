@@ -1,4 +1,4 @@
-RESEARCH_MEMO_PROMPT = """Build an editorial research memo from the selected corpus evidence.
+RESEARCH_MEMO_PROMPT = """Build an editorial research memo from the project corpus.
 
 Topic/user prompt:
 {user_prompt}
@@ -12,26 +12,31 @@ Show Bible context:
 Product context:
 The downstream treatment and writers need editorial material, not a list of topics. Strong atoms explain why this story matters and what changes for the listener: conflict, mechanism, history, turning point, consequence, exception, human cost, institutional incentive, and unresolved question.
 
-Compact evidence-backed source inventory. Treat summaries as a triage view, not full source text:
-{source_inventory_json}
+Full neutral source inventory. This is the project corpus available to research; it may include sources that triage did not promote into SourceCards:
+{full_source_inventory_json}
+
+SourceMap seed inventory. Treat these summaries as triage orientation, not full source text and not the final evidence budget:
+{source_map_inventory_json}
 
 Compact quote inventory. quote_refs must be evidence_id values or exact source_id:locator refs from this list; never use raw quote text as a ref:
 {quote_inventory_json}
 
-Source triage:
+Source triage map:
 {triage_inventory_json}
 
 Task:
 - State the thesis and narrative spine in concrete terms.
 - Build editorial atoms that each do a distinct job for the future episode.
-- For each atom, fill source_ids and evidence_ids with exact values and explain the atom as a story move, not a topic label.
+- Search, read, compare, and select corpus evidence as needed before creating atoms.
+- For each atom, fill source_ids and evidence_ids with exact values from selected saved EvidenceItems and explain the atom as a story move, not a topic label.
 - Separate supported material from open questions and risks.
 
 The memo must be strong enough to support long-form treatment.
-Research is a synthesis phase over the authoritative SourceMap, not a new source-selection phase. Use source-map evidence_ids for atoms. If the SourceMap is insufficient, record that as an open question or risk for follow-up triage rather than introducing new evidence ids.
-For high-impact atoms (conflict, mechanism, turning_point, consequence, human_cost, institutional_incentive), call read_evidence to inspect SourceMap evidence when the compact inventory is insufficient.
+Research is an agentic investigation phase over the provided corpus. The SourceMap is a starting map: use it to orient, avoid duplicates, and find seed leads, but do not treat SourceMap evidence_ids as the only allowed support.
+Use search_evidence, find_quotes, search_within_source, compare_sources, read_source_window, and read_source_with_model to create new EvidenceItems when the memo needs stronger support. Call select_evidence for any new EvidenceItem you use in an editorial atom.
+For high-impact atoms (conflict, mechanism, turning_point, consequence, human_cost, institutional_incentive), inspect the supporting evidence with read_evidence or a direct source-read tool before including the atom.
 If a SourceMap evidence record has retrieval_channel=model_file_read_local_fallback, treat that channel as a risk/coverage signal, not an automatic rejection. Explain uncertainty in the atom risk/source_coverage_status when appropriate.
-Do not put an evidence_id in an atom unless that evidence_id already appears in the provided SourceMap inventory. Do not create atoms that cannot be anchored to SourceMap evidence."""
+Use only evidence_id values shown in the SourceMap/quote inventory or returned by the provided tools. If you discover new support with search/read tools, call select_evidence before using that evidence_id in an atom. Never invent ids, and never use source_id or source_version_id as evidence_id."""
 
 
 RESEARCH_AUDIT_PROMPT = """Audit this research memo for long-form podcast readiness.

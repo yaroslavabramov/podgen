@@ -6,6 +6,7 @@ import uuid
 from types import SimpleNamespace
 
 import pytest
+from pydantic import BaseModel
 
 from app.config import settings
 from app.generation_v2.agents.editorial import (
@@ -29,7 +30,12 @@ from app.generation_v2.agents.editorial import (
 )
 from app.generation_v2.citation_validation import validate_citations
 from app.generation_v2.finalize import generate_audio_from_segments
-from app.generation_v2.orchestrator import _validate_research_memo_evidence
+from app.generation_v2.orchestrator import (
+    _research_memo_evidence_ids,
+    _save_evidence_artifact_map,
+    _source_triage_repair_context,
+    _validate_research_memo_evidence,
+)
 from app.generation_v2.prompting import (
     ACT_DRAFT_PROMPT,
     ACT_REWRITER_SYSTEM,
@@ -45,18 +51,22 @@ from app.generation_v2.prompting import (
     SOURCE_ACQUISITION_PROMPT,
     SOURCE_ACQUISITION_SYSTEM,
     SOURCE_TRIAGE_PROMPT,
+    SOURCE_TRIAGE_REPAIR_PROMPT,
     SOURCE_TRIAGE_SYSTEM,
     SUPPORT_JUDGE_SYSTEM,
     TREATMENT_SYSTEM,
 )
 from app.generation_v2.runtime import (
+    AgentCheckpointPolicy,
     AgentTool,
     ToolPolicy,
+    ToolOutputContractViolation,
     V2Runtime,
     V2RuntimeUnavailable,
     _file_search_calls,
     _function_calls,
     _hosted_evidence_followup_input,
+    _model_facing_tool_output,
     _strict_json_schema,
 )
 from app.generation_v2.schemas import (
@@ -94,11 +104,17 @@ from app.generation_v2.source_acquisition import (
 from app.generation_v2.source_corpus import (
     _agent_facing_provider_versions,
     _call_openai_url_file_read,
+    _canonical_provider_version,
+    _ensure_provider_file,
+    _ensure_source_version,
     _filename_from_url,
     _is_pdf_response,
     _provider_attributes,
     _version_has_snapshot,
     _version_upload_payload,
+    prepare_v2_corpus,
+    reconcile_project_corpus_index_now,
+    reconcile_provider_corpus_files,
 )
 from app.generation_v2.source_workspace import _quote_cards_from_chunks
 from app.generation_v2.tools.evidence import (
@@ -109,15 +125,21 @@ from app.generation_v2.tools.evidence import (
     EvidenceToolset,
 )
 from app.generation_v2.tools.evidence_utils import _provider_filters
+from app.services.llm import _openai_estimated_cost_usd, _openai_usage
+from app.ingestion.source_metadata import audited_authority_type, classify_authority_heuristic
 from app.models.generation_v2 import (
+    EvidenceRetrievalChannel,
+    EvidenceStrength,
     EvidenceItem,
     ProviderCorpusFile,
     ProviderCorpusIndex,
+    RunCorpusView,
     SourceRepresentationKind,
     SourceVersion,
     V2RecordStatus,
     V2ToolTrace,
 )
+from app.models.source import AuthorityType, Source, SourceType
 from app.schemas.generation import GenerationCreate
 from app.workers.generation_tasks import _make_compare_child
 
@@ -137,6 +159,40 @@ def test_v2_native_ready_status_survives_deterministic_parser_failure() -> None:
     assert _v2_native_source_ready({"v2_native_ingest": {"openai_url_read_status": "readable"}}) is True
     assert _v2_native_source_ready({"v2_native_ingest": {"status": "source_versions_ready"}}) is False
     assert _v2_native_source_ready({"v2_native_ingest": {"status": "failed", "ready_provider_file_count": "2"}}) is False
+
+
+def test_authority_heuristic_treats_academic_pdf_as_secondary_not_primary() -> None:
+    authority = classify_authority_heuristic(
+        source_type=SourceType.PDF,
+        original_url="https://www.diva-portal.org/smash/get/diva2:1704478/FULLTEXT01.pdf",
+        title="FULLTEXT01",
+        text_preview="One Country, Two Currencies. Research paper on Hong Kong monetary history.",
+    )
+
+    assert authority == AuthorityType.SECONDARY
+
+
+def test_generation_inventory_audits_legacy_primary_academic_sources_to_secondary() -> None:
+    source = SimpleNamespace(
+        source_type=SourceType.PDF,
+        original_url="https://uu.diva-portal.org/smash/get/diva2:1704478/FULLTEXT01.pdf",
+        title="FULLTEXT01",
+        text_preview="Peer-reviewed journal article about Hong Kong monetary history.",
+        authority_type=AuthorityType.PRIMARY,
+    )
+
+    assert audited_authority_type(source) == AuthorityType.SECONDARY
+
+
+def test_authority_heuristic_keeps_official_regulator_page_primary() -> None:
+    authority = classify_authority_heuristic(
+        source_type=SourceType.WEB,
+        original_url="https://www.hkma.gov.hk/eng/key-functions/money/",
+        title="Hong Kong Monetary Authority - How Does the LERS Work?",
+        text_preview="Official HKMA explanation of the Linked Exchange Rate System.",
+    )
+
+    assert authority == AuthorityType.PRIMARY
 
 
 def test_strict_json_schema_requires_nested_properties_and_blocks_extra_fields() -> None:
@@ -239,8 +295,236 @@ def test_hosted_file_search_tool_filters_to_agent_facing_files() -> None:
         "filters": [
             {"type": "eq", "key": "is_active", "value": True},
             {"type": "eq", "key": "agent_facing", "value": True},
+            {"type": "eq", "key": "canonical_retrieval_surface", "value": True},
         ],
     }
+
+
+def test_runtime_model_facing_tool_output_validates_compact_contracts() -> None:
+    output = {
+        "results": [
+            {
+                "evidence_id": "ev-1",
+                "source_id": "src-1",
+                "source_version_id": "ver-1",
+                "retrieval_channel": "provider_vector_search",
+                "evidence_strength": "snippet",
+                "locator": "section 1",
+                "short_snippet": "compact preview",
+                "score": 0.9,
+            }
+        ],
+        "cache_hit": False,
+    }
+
+    model_output = _model_facing_tool_output("search_evidence", output)
+
+    assert model_output == output
+    assert "_model_output_truncated" not in json.dumps(model_output, ensure_ascii=False)
+
+
+def test_runtime_model_facing_tool_output_rejects_unsafe_or_oversized_payloads() -> None:
+    with pytest.raises(ToolOutputContractViolation, match="forbidden model-facing keys"):
+        _model_facing_tool_output("search_evidence", {"provider_file_id": "file_secret", "results": []})
+
+    with pytest.raises(ToolOutputContractViolation, match="exceeded"):
+        _model_facing_tool_output("search_evidence", {"results": [{"short_snippet": "x" * 13000}]})
+
+
+class _RuntimeOk(BaseModel):
+    ok: bool
+
+
+@pytest.mark.asyncio
+async def test_runtime_checkpoint_restarts_chain_after_input_threshold(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import runtime as runtime_module
+
+    class _FakeResponses:
+        def __init__(self) -> None:
+            self.calls: list[dict] = []
+
+        async def create(self, **kwargs):
+            self.calls.append(kwargs)
+            if len(self.calls) == 1:
+                return SimpleNamespace(
+                    id="resp_1",
+                    status="completed",
+                    output_text="",
+                    output=[
+                        {
+                            "type": "function_call",
+                            "name": "lookup",
+                            "call_id": "call_1",
+                            "arguments": "{}",
+                        }
+                    ],
+                    usage=SimpleNamespace(input_tokens=70_000, output_tokens=10, total_tokens=70_010),
+                )
+            return SimpleNamespace(
+                id="resp_2",
+                status="completed",
+                output_text='{"ok":true}',
+                output=[],
+                usage=SimpleNamespace(input_tokens=1200, output_tokens=8, total_tokens=1208),
+            )
+
+    class _FakeClient:
+        def __init__(self) -> None:
+            self.responses = _FakeResponses()
+
+    class _FakeResult:
+        def scalars(self):
+            return []
+
+        def scalar_one_or_none(self):
+            return None
+
+        def all(self):
+            return []
+
+    class _FakeDb:
+        def __init__(self) -> None:
+            self.added: list[object] = []
+
+        async def execute(self, _query):
+            return _FakeResult()
+
+        def add(self, item):
+            self.added.append(item)
+
+        async def flush(self):
+            for item in self.added:
+                if isinstance(item, V2ToolTrace) and item.id is None:
+                    item.id = uuid.uuid4()
+
+    fake_client = _FakeClient()
+    fake_db = _FakeDb()
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(runtime_module, "get_openai_client", lambda: fake_client)
+
+    async def lookup(_args: dict) -> dict:
+        return {"accepted": True, "result": "small result"}
+
+    result = await V2Runtime().call_structured(
+        db=fake_db,  # type: ignore[arg-type]
+        generation_run_id=uuid.uuid4(),
+        phase="v2_source_triage",
+        agent_name="source_triage_agent",
+        schema_model=_RuntimeOk,
+        system="system",
+        prompt="Run triage for a topic with the available source tools.",
+        local_tools=[
+            AgentTool(
+                name="lookup",
+                description="Lookup",
+                parameters={"type": "object", "properties": {}},
+                handler=lookup,
+            )
+        ],
+        tool_policy=ToolPolicy(file_search=False, local_tools=True),
+        checkpoint_policy=AgentCheckpointPolicy(enabled=True, max_chain_input_tokens=60_000, max_chain_rounds=99),
+        max_tool_rounds=3,
+    )
+
+    assert result.ok is True
+    assert len(fake_client.responses.calls) == 2
+    assert fake_client.responses.calls[0]["previous_response_id"] is runtime_module.openai.NOT_GIVEN
+    assert fake_client.responses.calls[1]["previous_response_id"] is runtime_module.openai.NOT_GIVEN
+    assert "Responses chain checkpoint restart" in fake_client.responses.calls[1]["input"][0]["content"]
+    assert not any(item.get("type") == "function_call_output" for item in fake_client.responses.calls[1]["input"])
+    checkpoint_traces = [item for item in fake_db.added if isinstance(item, V2ToolTrace) and item.tool_name == "runtime.checkpoint_restart"]
+    assert checkpoint_traces
+    tool_traces = [item for item in fake_db.added if isinstance(item, V2ToolTrace) and item.tool_name == "lookup"]
+    assert tool_traces[0].output_json["_runtime"]["model_facing_tool_output_chars"] > 0
+    assert tool_traces[0].output_json["_runtime"]["model_facing_schema"] == "unknown_tool_output"
+    assert "model_facing_tool_output_truncated" not in tool_traces[0].output_json["_runtime"]
+
+
+@pytest.mark.asyncio
+async def test_runtime_contract_violation_records_trace_and_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import runtime as runtime_module
+
+    class _FakeResponses:
+        async def create(self, **_kwargs):
+            return SimpleNamespace(
+                id="resp_1",
+                status="completed",
+                output_text="",
+                output=[
+                    {
+                        "type": "function_call",
+                        "name": "lookup",
+                        "call_id": "call_1",
+                        "arguments": "{}",
+                    }
+                ],
+                usage=SimpleNamespace(input_tokens=1000, output_tokens=10, total_tokens=1010),
+            )
+
+    class _FakeClient:
+        def __init__(self) -> None:
+            self.responses = _FakeResponses()
+
+    class _FakeDb:
+        def __init__(self) -> None:
+            self.added: list[object] = []
+
+        def add(self, item):
+            self.added.append(item)
+
+        async def flush(self):
+            return None
+
+    async def lookup(_args: dict) -> dict:
+        return {"results": [{"short_snippet": "x" * 13000}]}
+
+    fake_db = _FakeDb()
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(runtime_module, "get_openai_client", lambda: _FakeClient())
+
+    with pytest.raises(ToolOutputContractViolation, match="exceeded"):
+        await V2Runtime().call_structured(
+            db=fake_db,  # type: ignore[arg-type]
+            generation_run_id=uuid.uuid4(),
+            phase="v2_source_triage",
+            agent_name="source_triage_agent",
+            schema_model=_RuntimeOk,
+            system="system",
+            prompt="prompt",
+            local_tools=[
+                AgentTool(
+                    name="lookup",
+                    description="Lookup",
+                    parameters={"type": "object", "properties": {}},
+                    handler=lookup,
+                )
+            ],
+            tool_policy=ToolPolicy(file_search=False, local_tools=True),
+            checkpoint_policy=AgentCheckpointPolicy(enabled=False),
+            max_tool_rounds=1,
+        )
+
+    trace = next(item for item in fake_db.added if isinstance(item, V2ToolTrace) and item.tool_name == "lookup")
+    assert "contract_violation" in trace.output_json["_runtime"]
+    assert "model_facing_tool_output_truncated" not in trace.output_json["_runtime"]
+
+
+def test_openai_usage_parser_captures_cached_tokens_and_cost() -> None:
+    response = SimpleNamespace(
+        usage=SimpleNamespace(
+            input_tokens=1000,
+            output_tokens=100,
+            total_tokens=1100,
+            input_tokens_details=SimpleNamespace(cached_tokens=400),
+            output_tokens_details=SimpleNamespace(reasoning_tokens=25),
+        )
+    )
+
+    usage = _openai_usage(response)
+
+    assert usage["cached_input_tokens"] == 400
+    assert usage["reasoning_output_tokens"] == 25
+    assert _openai_estimated_cost_usd("gpt-5", usage) == 0.0018
 
 
 def test_provider_search_filters_to_agent_facing_files() -> None:
@@ -249,8 +533,87 @@ def test_provider_search_filters_to_agent_facing_files() -> None:
         "filters": [
             {"type": "eq", "key": "is_active", "value": True},
             {"type": "eq", "key": "agent_facing", "value": True},
+            {"type": "eq", "key": "canonical_retrieval_surface", "value": True},
         ],
     }
+
+
+@pytest.mark.asyncio
+async def test_search_evidence_cache_hit_skips_provider_and_local_search() -> None:
+    from app.generation_v2.tools import evidence_retrieval as evidence_module
+
+    project_id = uuid.uuid4()
+    run_id = uuid.uuid4()
+    source_id = uuid.uuid4()
+    source_version_id = uuid.uuid4()
+    run_view = SimpleNamespace(
+        selected_source_ids=[str(source_id)],
+        selected_source_version_ids=[str(source_version_id)],
+        manifest_hash="manifest-1",
+    )
+    cache_key = evidence_module._search_cache_key(
+        run_view,
+        query="currency board mechanism",
+        source_ids=[str(source_id)],
+        limit=1,
+    )
+    cached = EvidenceItem(
+        id=uuid.uuid4(),
+        generation_run_id=run_id,
+        project_id=project_id,
+        source_id=source_id,
+        source_version_id=source_version_id,
+        provider=None,
+        retrieval_channel="local_chunk_search",
+        query_text="currency board mechanism",
+        purpose="source_map",
+        search_result_index=0,
+        score=0.9,
+        snippet_text="Cached evidence about the currency board mechanism.",
+        normalized_quote_text="cached evidence",
+        locator_text="section 1",
+        locator_type="section",
+        evidence_strength="exact",
+        snippet_hash=hashlib.sha256(b"cached").hexdigest(),
+        metadata_={"usage_status": "observed", "search_cache_key": cache_key},
+    )
+
+    class _FakeDb:
+        def __init__(self) -> None:
+            self.added: list[object] = []
+
+        async def execute(self, _query):
+            return _FakeScalarResult([cached])
+
+        def add(self, item):
+            self.added.append(item)
+
+        async def flush(self):
+            return None
+
+    toolset = EvidenceToolset(
+        db=_FakeDb(),  # type: ignore[arg-type]
+        run=SimpleNamespace(id=run_id, project_id=project_id),
+        run_view=run_view,
+        provider_index=None,
+    )
+
+    async def fail_search(**_kwargs):
+        raise AssertionError("search should use cache")
+
+    toolset._provider_search = fail_search  # type: ignore[method-assign]
+    toolset._local_fallback_search = fail_search  # type: ignore[method-assign]
+
+    result = await toolset.search_evidence(
+        query="currency board mechanism",
+        purpose="source_map",
+        source_ids=[str(source_id)],
+        limit=1,
+    )
+
+    assert result["cache_hit"] is True
+    assert result["results"][0]["evidence_id"] == str(cached.id)
+    assert result["results"][0]["short_snippet"] == "Cached evidence about the currency board mechanism."
 
 
 @pytest.mark.asyncio
@@ -334,12 +697,104 @@ async def test_read_source_with_model_creates_evidence_item(monkeypatch: pytest.
 
     assert result["found"] is True
     assert result["evidence"]["retrieval_channel"] == "model_file_read"
-    assert result["evidence"]["provider_file_id"] == "file_model_read"
-    assert result["evidence"]["metadata"]["vector_store_provider_file_id"] == "file_test"
-    assert result["evidence"]["metadata"]["support_summary"] == "The file supports the requested mechanism."
+    assert "provider_file_id" not in result["evidence"]
+    assert "provider_vector_store_id" not in result["evidence"]
+    assert "vector_store_provider_file_id" not in result["evidence"]["metadata"]
+    assert "model_read_file_id" not in result["evidence"]["metadata"]
+    assert result["evidence"]["metadata"]["support_level"] == "direct"
+    assert "The file supports the requested mechanism." in result["evidence"]["snippet_text"]
+    persisted_evidence = [item for item in fake_db.added if isinstance(item, EvidenceItem)]
+    assert persisted_evidence[0].provider_file_id == "file_model_read"
+    assert persisted_evidence[0].metadata_["vector_store_provider_file_id"] == "file_test"
     assert fake_client.files.calls[0]["purpose"] == "user_data"
     assert fake_client.responses.calls[0]["input"][0]["content"][1] == {"type": "input_file", "file_id": "file_model_read"}
     assert provider_file.attributes["model_read_file_id"] == "file_model_read"
+
+
+@pytest.mark.asyncio
+async def test_read_source_with_model_cache_hit_reuses_existing_evidence(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2.tools import evidence_retrieval as evidence_module
+
+    project_id = uuid.uuid4()
+    run_id = uuid.uuid4()
+    source_id = uuid.uuid4()
+    source_version_id = uuid.uuid4()
+    provider_index_id = uuid.uuid4()
+    provider_index = ProviderCorpusIndex(
+        id=provider_index_id,
+        project_id=project_id,
+        provider="openai",
+        provider_vector_store_id="vs_test",
+        scope="project",
+        status=V2RecordStatus.READY,
+        config={},
+    )
+    version = SourceVersion(
+        id=source_version_id,
+        source_id=source_id,
+        project_id=project_id,
+        kind=SourceRepresentationKind.ORIGINAL_FILE,
+        storage_path="sources/report.pdf",
+        content_hash="hash",
+        status=V2RecordStatus.READY,
+        upload_status=V2RecordStatus.READY,
+        is_active=True,
+        metadata_={},
+    )
+    provider_file = ProviderCorpusFile(
+        id=uuid.uuid4(),
+        provider_index_id=provider_index_id,
+        source_id=source_id,
+        source_version_id=source_version_id,
+        provider="openai",
+        provider_file_id="file_test",
+        provider_vector_store_file_id="vsf_test",
+        attributes={"filename": "report.pdf"},
+        status=V2RecordStatus.READY,
+    )
+    fake_client = _FakeModelReadClient(
+        {
+            "supports_query": True,
+            "support_level": "direct",
+            "quote_text": "The report directly explains the mechanism.",
+            "snippet_text": "The report directly explains the mechanism in context.",
+            "support_summary": "The file supports the requested mechanism.",
+            "uncertainty": "",
+            "locator_text": "section 1",
+            "locator_type": "section",
+            "confidence": 0.91,
+        }
+    )
+    fake_db = _FakeModelReadDb(provider_files=[provider_file], versions={source_version_id: version})
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(evidence_module, "get_openai_client", lambda: fake_client)
+    monkeypatch.setattr(evidence_module, "_model_read_upload_payload", lambda _version: ("report.pdf", b"%PDF fake"))
+    toolset = EvidenceToolset(
+        db=fake_db,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=run_id, project_id=project_id),
+        run_view=SimpleNamespace(
+            selected_source_ids=[str(source_id)],
+            selected_source_version_ids=[str(source_version_id)],
+        ),
+        provider_index=provider_index,
+    )
+    args = {
+        "source_id": str(source_id),
+        "source_version_id": "",
+        "focus_question": "What mechanism does the report support?",
+        "claim_text": "",
+        "purpose": "source_triage",
+        "locator_hint": "",
+    }
+
+    first = await toolset.read_source_with_model_tool(args)
+    second = await toolset.read_source_with_model_tool(args)
+
+    assert first["found"] is True
+    assert second["found"] is True
+    assert second["cache_hit"] is True
+    assert second["evidence"]["evidence_id"] == first["evidence"]["evidence_id"]
+    assert len(fake_client.responses.calls) == 1
 
 
 @pytest.mark.asyncio
@@ -455,7 +910,11 @@ async def test_read_source_with_model_tries_next_provider_candidate(monkeypatch:
 
     assert result["found"] is True
     assert result["evidence"]["source_version_id"] == str(text_version_id)
-    assert result["evidence"]["metadata"]["vector_store_provider_file_id"] == "file_text"
+    assert "provider_file_id" not in result["evidence"]
+    assert "vector_store_provider_file_id" not in result["evidence"].get("metadata", {})
+    persisted_evidence = [item for item in fake_db.added if isinstance(item, EvidenceItem)]
+    assert persisted_evidence[0].source_version_id == text_version_id
+    assert persisted_evidence[0].metadata_["vector_store_provider_file_id"] == "file_text"
     assert len(fake_client.responses.calls) == 2
     assert original_provider_file.attributes["model_read_file_id"] == "file_model_read"
     assert text_provider_file.attributes["model_read_file_id"] == "file_model_read_2"
@@ -645,6 +1104,130 @@ def test_evidence_tool_descriptions_define_usage_and_citation_contracts() -> Non
     assert "Compare selected sources" in descriptions["compare_sources"]
 
 
+def test_list_sources_compact_card_contract_excludes_blob_fields() -> None:
+    from app.generation_v2.tools.evidence_tool_handlers import _compact_source_card
+
+    card = SimpleNamespace(
+        source_id="src-1",
+        source_version_ids=[f"ver-{idx}" for idx in range(20)],
+        title="Currency note issuer history",
+        source_type="pdf",
+        domain="hkma.gov.hk",
+        published_at="2024-01-01",
+        authority="primary",
+        reliability="high",
+        coverage_status="ready",
+        representation_summary="original_file:ready/ready, extracted_text:ready/pending",
+        summary="This is a long neutral preview. " * 80,
+    )
+
+    payload = _compact_source_card(card, canonical_kind="original_file")
+
+    assert set(payload) == {
+        "source_id",
+        "title",
+        "source_type",
+        "domain",
+        "published_at",
+        "authority",
+        "reliability",
+        "coverage_status",
+        "canonical_kind",
+        "version_count",
+        "brief_hint",
+        "needs_model_read",
+    }
+    assert payload["version_count"] == 20
+    assert payload["needs_model_read"] is True
+    assert len(payload["brief_hint"]) <= 180
+    assert "source_version_ids" not in payload
+    assert "summary" not in payload
+    assert "provider_file_id" not in payload
+
+
+def test_evidence_tool_parameters_are_openai_strict_function_compatible() -> None:
+    from app.generation_v2.tools.evidence import EvidenceToolset
+
+    tools = EvidenceToolset(db=None, run=None, run_view=None, provider_index=None).agent_tools()  # type: ignore[arg-type]
+    for tool in tools:
+        schema = _strict_json_schema(tool.parameters)
+        _assert_strict_object_schema(schema, path=tool.name, is_root=True)
+
+
+@pytest.mark.asyncio
+async def test_persist_evidence_item_truncates_long_purpose_for_db_column() -> None:
+    from app.generation_v2.tools.evidence_store import persist_evidence_item
+
+    class FakeDb:
+        def __init__(self) -> None:
+            self.items: list[EvidenceItem] = []
+
+        async def get(self, *_args, **_kwargs):
+            return None
+
+        async def execute(self, _statement):
+            return _FakeCorpusResult([])
+
+        def add(self, item):
+            self.items.append(item)
+
+        async def flush(self):
+            for item in self.items:
+                if getattr(item, "id", None) is None:
+                    item.id = uuid.uuid4()
+
+    long_purpose = (
+        "Legal basis for note issuance and currency system under Basic Law to explain legal framework allowing "
+        "private banknote issue backed by reserves"
+    )
+
+    item = await persist_evidence_item(
+        FakeDb(),  # type: ignore[arg-type]
+        generation_run_id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        source_id=uuid.uuid4(),
+        source_version_id=uuid.uuid4(),
+        retrieval_channel="provider_vector_search",
+        query_text="Basic Law Article 111 issue of currency notes",
+        purpose=long_purpose,
+        snippet_text="The source discusses currency note issuance.",
+        locator_text="provider snippet",
+    )
+
+    assert item.purpose is not None
+    assert len(item.purpose) == 120
+    assert item.metadata_["full_purpose"] == long_purpose
+
+
+def _assert_strict_object_schema(node: dict | list, *, path: str, is_root: bool = False) -> None:
+    if isinstance(node, list):
+        for idx, item in enumerate(node):
+            _assert_strict_object_schema(item, path=f"{path}[{idx}]")
+        return
+    if not isinstance(node, dict):
+        return
+    if node.get("type") == "object" or "properties" in node:
+        properties = node.get("properties")
+        assert isinstance(properties, dict), path
+        assert node.get("additionalProperties") is False, path
+        assert set(node.get("required") or []) == set(properties), path
+        if not is_root:
+            assert properties, f"{path} must not be an open-ended empty object in strict tool schemas"
+        for key, child in properties.items():
+            _assert_strict_object_schema(child, path=f"{path}.{key}")
+    for key in ("items", "anyOf", "oneOf", "allOf", "$defs"):
+        value = node.get(key)
+        if isinstance(value, dict):
+            if key == "$defs":
+                for name, child in value.items():
+                    _assert_strict_object_schema(child, path=f"{path}.$defs.{name}")
+            else:
+                _assert_strict_object_schema(value, path=f"{path}.{key}")
+        elif isinstance(value, list):
+            for idx, child in enumerate(value):
+                _assert_strict_object_schema(child, path=f"{path}.{key}[{idx}]")
+
+
 def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() -> None:
     assert "claim_refs are optional temporary fact-check hints only" in ACT_DRAFT_PROMPT
     assert "not claim ids, citation ids, evidence ids, or source ids" in ACT_DRAFT_PROMPT
@@ -655,8 +1238,15 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert "Backend assembles the authoritative SourceMap from write actions" in SOURCE_TRIAGE_PROMPT
     assert "model_file_read_local_fallback" in RESEARCH_MEMO_PROMPT
     assert "risk/coverage signal" in RESEARCH_MEMO_PROMPT
-    assert "evidence_id in an atom unless that evidence_id already appears" in RESEARCH_MEMO_PROMPT
+    assert "SourceMap is a starting map" in RESEARCH_MEMO_PROMPT
+    assert "Call select_evidence for any new EvidenceItem" in RESEARCH_MEMO_PROMPT
+    assert "Use only evidence_id values shown in the SourceMap/quote inventory or returned by the provided tools" in RESEARCH_MEMO_PROMPT
+    assert "call select_evidence before using that evidence_id in an atom" in RESEARCH_MEMO_PROMPT
+    assert "never use source_id or source_version_id as evidence_id" in RESEARCH_MEMO_PROMPT
     assert "model_file_read_local_fallback" in SOURCE_TRIAGE_PROMPT
+    assert "missing_model_read_source_ids" in SOURCE_TRIAGE_REPAIR_PROMPT
+    assert "retrieval_channel is model_file_read" in SOURCE_TRIAGE_REPAIR_PROMPT
+    assert "Do not restart from scratch" in SOURCE_TRIAGE_REPAIR_PROMPT
     assert "prefetch_seed" not in SOURCE_TRIAGE_PROMPT
     assert "warm-cache" not in SOURCE_TRIAGE_PROMPT
     assert "Use read_evidence for suspicious leaps" in EPISODE_CRITIQUE_PROMPT
@@ -671,6 +1261,31 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert "risk/coverage signal" in CLAIM_CITATION_PROMPT
     assert "blocking=true for missing evidence" in CLAIM_CITATION_PROMPT
     assert "final JSON response must match SourceTriageCompletion" in SOURCE_TRIAGE_PROMPT
+
+
+def test_source_triage_repair_context_scopes_to_gate_failures() -> None:
+    missing_source_id = str(uuid.uuid4())
+    untouched_source_id = str(uuid.uuid4())
+    source_map = SourceMap(
+        source_cards=[
+            _source_card(source_id=missing_source_id, title="Needs direct read"),
+            _source_card(source_id=untouched_source_id, title="Already valid"),
+        ],
+        source_triage=SourceTriageReport(top_evidence_by_function={"mechanism": ["ev-1"]}),
+        retrieval_notes=["Initial pass"],
+    )
+    gate = SourceTriageGate(
+        passed=False,
+        summary="failed",
+        missing_model_read_source_ids=[missing_source_id],
+    )
+
+    context = _source_triage_repair_context(source_map, gate)
+
+    assert context["gate"]["missing_model_read_source_ids"] == [missing_source_id]
+    repair_cards = context["source_map"]["source_cards_needing_repair"]
+    assert [card["source_id"] for card in repair_cards] == [missing_source_id]
+    assert context["source_map"]["top_evidence_by_function"] == {"mechanism": ["ev-1"]}
 
 
 def test_agent_system_prompts_are_role_specific_and_product_aware() -> None:
@@ -697,7 +1312,9 @@ def test_agent_system_prompts_are_role_specific_and_product_aware() -> None:
 
     assert "Use hosted file_search for broad discovery" in SOURCE_TRIAGE_SYSTEM
     assert "Web search is only a discovery mechanism" in SOURCE_ACQUISITION_SYSTEM
-    assert "Use only SourceMap evidence ids for atoms" in RESEARCH_SYSTEM
+    assert "Use the SourceMap as orientation" in RESEARCH_SYSTEM
+    assert "create stronger saved evidence" in RESEARCH_SYSTEM
+    assert "copied from prompt inventories or tool results" in RESEARCH_SYSTEM
     assert "Each act is a listener job" in TREATMENT_SYSTEM
     assert "Before using required evidence, inspect it" in ACT_WRITER_SYSTEM
     assert "Do not search" in SUPPORT_JUDGE_SYSTEM
@@ -732,6 +1349,7 @@ def test_runtime_tool_trace_names_include_function_tool_names() -> None:
 @pytest.mark.asyncio
 async def test_phase_specific_agent_tool_sets_are_not_broad() -> None:
     _CaptureRuntime.calls = {}
+    _CaptureRuntime.kwargs_by_agent = {}
     run = SimpleNamespace(
         id=uuid.uuid4(),
         project_id=uuid.uuid4(),
@@ -849,7 +1467,21 @@ async def test_phase_specific_agent_tool_sets_are_not_broad() -> None:
     )
 
     calls = _CaptureRuntime.calls
-    assert set(calls["research_agent"]) == {"read_evidence"}
+    assert set(calls["research_agent"]) == {
+        "list_sources",
+        "list_source_versions",
+        "search_sources",
+        "search_evidence",
+        "find_quotes",
+        "read_evidence",
+        "read_source_window",
+        "read_source_with_model",
+        "search_within_source",
+        "compare_sources",
+        "select_evidence",
+    }
+    assert "upsert_source_card" not in calls["research_agent"]
+    assert _CaptureRuntime.kwargs_by_agent["research_agent"]["max_tool_rounds"] == 64
     assert set(calls["research_auditor"]) == {"search_evidence", "read_evidence"}
     assert set(calls["story_editor"]) == {"read_evidence", "read_source_window", "search_within_source"}
     assert set(calls["act_writer_1"]) == {"read_evidence", "read_source_window", "search_within_source"}
@@ -864,6 +1496,38 @@ async def test_phase_specific_agent_tool_sets_are_not_broad() -> None:
         "search_within_source",
         "select_evidence",
     }
+
+
+@pytest.mark.asyncio
+async def test_research_memo_receives_full_source_inventory_and_scaled_tool_budget() -> None:
+    _CaptureRuntime.calls = {}
+    _CaptureRuntime.kwargs_by_agent = {}
+    run = SimpleNamespace(
+        id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        config={"user_prompt": "Hong Kong dollar", "duration_target": 2700, "language": "ru"},
+    )
+    source_map_card = _source_card(title="Triaged promoted source")
+    full_cards = [source_map_card] + [
+        _source_card(title=f"Neutral inventory source {idx}")
+        for idx in range(2, 41)
+    ]
+
+    await build_research_memo(
+        None,  # type: ignore[arg-type]
+        run,
+        _CaptureRuntime(_fallback_research_memo(run, [source_map_card], [])),
+        source_cards=[source_map_card],
+        quote_cards=[],
+        source_map=SourceMap(source_cards=[source_map_card]),
+        source_inventory=SourceMap(source_cards=full_cards),
+        evidence_tools=_all_evidence_tools(),
+    )
+
+    kwargs = _CaptureRuntime.kwargs_by_agent["research_agent"]
+    assert kwargs["max_tool_rounds"] == 102
+    assert "Neutral inventory source 40" in kwargs["prompt"]
+    assert "SourceMap seed inventory" in kwargs["prompt"]
 
 
 def test_fallback_editorial_flow_produces_draft_and_claims() -> None:
@@ -1250,6 +1914,7 @@ def test_compact_evidence_inventory_caps_and_preserves_preferred_ids() -> None:
 
 def test_research_memo_evidence_gate_blocks_unanchored_high_impact_atoms() -> None:
     source_id = str(uuid.uuid4())
+    source_version_id = str(uuid.uuid4())
     evidence_id = str(uuid.uuid4())
     memo = ResearchMemo(
         title="Memo",
@@ -1266,15 +1931,145 @@ def test_research_memo_evidence_gate_blocks_unanchored_high_impact_atoms() -> No
             )
         ],
     )
-    source_map = SourceMap(
-        source_cards=[_source_card(source_id=source_id).model_copy(update={"evidence_ids": [evidence_id]})],
-        evidence_ids=[evidence_id],
-    )
 
-    gate = _validate_research_memo_evidence(memo, source_map, 3600)
+    gate = _validate_research_memo_evidence(
+        memo,
+        evidence_records=[
+            _evidence_record(evidence_id=evidence_id, source_id=source_id, source_version_id=source_version_id)
+        ],
+        run_view=SimpleNamespace(
+            selected_source_ids=[source_id],
+            selected_source_version_ids=[source_version_id],
+        ),
+        duration_seconds=3600,
+    )
 
     assert gate.passed is False
     assert "High-impact atom 1" in gate.missing_material[0]
+
+
+def test_research_memo_evidence_gate_accepts_research_created_selected_evidence_outside_source_map() -> None:
+    source_id = str(uuid.uuid4())
+    source_version_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    memo = ResearchMemo(
+        title="Memo",
+        thesis="Thesis",
+        narrative_spine="Spine",
+        editorial_atoms=[
+            EditorialAtom(
+                kind="mechanism",
+                title="Mechanism",
+                explanation="A specific mechanism discovered during research.",
+                source_ids=[source_id],
+                evidence_ids=[evidence_id],
+                story_value="Explains the system.",
+            )
+        ],
+    )
+
+    gate = _validate_research_memo_evidence(
+        memo,
+        evidence_records=[
+            _evidence_record(evidence_id=evidence_id, source_id=source_id, source_version_id=source_version_id)
+        ],
+        run_view=SimpleNamespace(
+            selected_source_ids=[source_id],
+            selected_source_version_ids=[source_version_id],
+        ),
+        duration_seconds=1800,
+    )
+
+    assert gate.passed is True
+
+
+def test_research_memo_evidence_gate_rejects_observed_unselected_atom_evidence() -> None:
+    source_id = str(uuid.uuid4())
+    source_version_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    memo = ResearchMemo(
+        title="Memo",
+        thesis="Thesis",
+        narrative_spine="Spine",
+        editorial_atoms=[
+            EditorialAtom(
+                kind="mechanism",
+                title="Mechanism",
+                explanation="A specific mechanism.",
+                source_ids=[source_id],
+                evidence_ids=[evidence_id],
+                story_value="Explains the system.",
+            )
+        ],
+    )
+
+    gate = _validate_research_memo_evidence(
+        memo,
+        evidence_records=[
+            _evidence_record(
+                evidence_id=evidence_id,
+                source_id=source_id,
+                source_version_id=source_version_id,
+                metadata={"usage_status": "observed"},
+            )
+        ],
+        run_view=SimpleNamespace(
+            selected_source_ids=[source_id],
+            selected_source_version_ids=[source_version_id],
+        ),
+        duration_seconds=1800,
+    )
+
+    assert gate.passed is False
+    assert "not explicitly selected" in " ".join(gate.missing_material)
+
+
+@pytest.mark.asyncio
+async def test_research_memo_evidence_artifacts_are_saved_for_atom_evidence(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import orchestrator as orchestrator_module
+
+    run = SimpleNamespace(id=uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    other_evidence_id = str(uuid.uuid4())
+    memo = ResearchMemo(
+        title="Memo",
+        thesis="Thesis",
+        narrative_spine="Spine",
+        editorial_atoms=[
+            EditorialAtom(
+                kind="mechanism",
+                title="Mechanism",
+                explanation="A mechanism.",
+                evidence_ids=[evidence_id, other_evidence_id, evidence_id],
+                story_value="Explains the system.",
+            )
+        ],
+    )
+    saved: list[dict] = []
+
+    async def fake_list_evidence_dicts(_db, _run_id):
+        return [
+            {"id": evidence_id, "snippet_text": "first"},
+            {"id": other_evidence_id, "snippet_text": "second"},
+        ]
+
+    async def fake_save_artifact(_db, **kwargs):
+        saved.append(kwargs)
+        return SimpleNamespace(id=uuid.uuid4())
+
+    monkeypatch.setattr(orchestrator_module, "list_evidence_dicts", fake_list_evidence_dicts)
+    monkeypatch.setattr(orchestrator_module, "save_artifact", fake_save_artifact)
+
+    artifact_map = await _save_evidence_artifact_map(
+        None,  # type: ignore[arg-type]
+        run,  # type: ignore[arg-type]
+        evidence_ids=_research_memo_evidence_ids(memo),
+        input_artifact_ids=["source-map-artifact"],
+    )
+
+    assert list(artifact_map) == [evidence_id, other_evidence_id]
+    assert [item["artifact_key"] for item in saved] == [evidence_id, other_evidence_id]
+    assert all(item["input_artifact_ids"] == ["source-map-artifact"] for item in saved)
 
 
 @pytest.mark.asyncio
@@ -1549,7 +2344,7 @@ async def test_source_triage_gate_warns_without_model_read_for_pdf_provider_snip
 
     assert gate.passed is True
     assert gate.missing_model_read_source_ids == [str(source_id)]
-    assert "lack direct model_file_read" in " ".join(gate.warnings)
+    assert "model_file_read" in " ".join([gate.summary, *gate.warnings])
 
 
 @pytest.mark.asyncio
@@ -1602,7 +2397,7 @@ async def test_source_triage_gate_warns_without_model_read_for_local_fallback() 
 
     assert gate.passed is True
     assert gate.missing_model_read_source_ids == [str(source_id)]
-    assert "lack direct model_file_read" in " ".join(gate.warnings)
+    assert "model_file_read" in " ".join([gate.summary, *gate.warnings])
 
 
 @pytest.mark.asyncio
@@ -1655,7 +2450,169 @@ async def test_source_triage_gate_warns_without_model_read_for_pdf_local_chunks(
 
     assert gate.passed is True
     assert gate.missing_model_read_source_ids == [str(source_id)]
-    assert "lack direct model_file_read" in " ".join(gate.warnings)
+    assert "model_file_read" in " ".join([gate.summary, *gate.warnings])
+
+
+@pytest.mark.asyncio
+async def test_source_triage_gate_accepts_direct_model_read_for_pdf_source_card() -> None:
+    source_id = uuid.uuid4()
+    source_version_id = uuid.uuid4()
+    evidence_id = uuid.uuid4()
+    source_map = SourceMap(
+        source_cards=[
+            _source_card(source_id=str(source_id), title="Report.pdf").model_copy(
+                update={
+                    "source_type": "pdf",
+                    "source_version_ids": [str(source_version_id)],
+                    "evidence_ids": [str(evidence_id)],
+                }
+            )
+        ],
+        evidence_ids=[str(evidence_id)],
+        source_triage=SourceTriageReport(top_evidence_by_function={"mechanism": [str(evidence_id)]}),
+        retrieval_notes=["finalized"],
+    )
+
+    gate = await validate_source_map_gate(
+        _FakeGateDb(
+            evidence=[
+                SimpleNamespace(
+                    id=evidence_id,
+                    source_id=source_id,
+                    source_version_id=source_version_id,
+                    metadata_={"usage_status": "selected"},
+                    retrieval_channel=EvidenceRetrievalChannel.MODEL_FILE_READ,
+                    evidence_strength=EvidenceStrength.SNIPPET,
+                ),
+            ],
+            traces=[
+                SimpleNamespace(
+                    tool_name="upsert_source_card",
+                    input_json={"source_id": str(source_id)},
+                    output_json={"accepted": True},
+                )
+            ],
+        ),
+        generation_run_id=uuid.uuid4(),
+        source_map=source_map,
+        run_view=SimpleNamespace(
+            selected_source_ids=[str(source_id)],
+            selected_source_version_ids=[str(source_version_id)],
+        ),
+    )
+
+    assert gate.passed is True
+    assert gate.missing_model_read_source_ids == []
+
+
+@pytest.mark.asyncio
+async def test_source_triage_gate_accepts_sparse_function_seed_evidence_as_warning() -> None:
+    source_id = uuid.uuid4()
+    source_version_id = uuid.uuid4()
+    evidence_id = uuid.uuid4()
+    source_map = SourceMap(
+        source_cards=[
+            _source_card(source_id=str(source_id), title="Article").model_copy(
+                update={
+                    "source_type": "web",
+                    "source_version_ids": [str(source_version_id)],
+                    "evidence_ids": [str(evidence_id)],
+                }
+            )
+        ],
+        evidence_ids=[str(evidence_id)],
+        source_triage=SourceTriageReport(top_evidence_by_function={}),
+        retrieval_notes=["finalized"],
+    )
+
+    gate = await validate_source_map_gate(
+        _FakeGateDb(
+            evidence=[
+                SimpleNamespace(
+                    id=evidence_id,
+                    source_id=source_id,
+                    source_version_id=source_version_id,
+                    metadata_={"usage_status": "selected"},
+                    retrieval_channel="provider_file_search",
+                ),
+            ],
+            traces=[
+                SimpleNamespace(
+                    tool_name="upsert_source_card",
+                    input_json={"source_id": str(source_id)},
+                    output_json={"accepted": True},
+                )
+            ],
+        ),
+        generation_run_id=uuid.uuid4(),
+        source_map=source_map,
+        run_view=SimpleNamespace(
+            selected_source_ids=[str(source_id)],
+            selected_source_version_ids=[str(source_version_id)],
+        ),
+    )
+
+    assert gate.passed is True
+    assert gate.missing_function_evidence == ["top_evidence_by_function"]
+    assert "function seed evidence" in " ".join(gate.warnings)
+
+
+@pytest.mark.asyncio
+async def test_source_triage_gate_rejects_unpersisted_gap_notes() -> None:
+    source_id = uuid.uuid4()
+    source_version_id = uuid.uuid4()
+    evidence_id = uuid.uuid4()
+    source_map = SourceMap(
+        source_cards=[
+            _source_card(source_id=str(source_id), title="Article").model_copy(
+                update={
+                    "source_type": "web",
+                    "source_version_ids": [str(source_version_id)],
+                    "evidence_ids": [str(evidence_id)],
+                }
+            )
+        ],
+        evidence_ids=[str(evidence_id)],
+        source_triage=SourceTriageReport(top_evidence_by_function={"context": [str(evidence_id)]}),
+        retrieval_notes=["finalized"],
+    )
+    completion = SourceTriageCompletion(
+        ready=True,
+        summary="done",
+        notes=["Missing primary Basic Law text should be added later."],
+    )
+
+    gate = await validate_source_map_gate(
+        _FakeGateDb(
+            evidence=[
+                SimpleNamespace(
+                    id=evidence_id,
+                    source_id=source_id,
+                    source_version_id=source_version_id,
+                    metadata_={"usage_status": "selected"},
+                    retrieval_channel="provider_file_search",
+                ),
+            ],
+            traces=[
+                SimpleNamespace(
+                    tool_name="upsert_source_card",
+                    input_json={"source_id": str(source_id)},
+                    output_json={"accepted": True},
+                )
+            ],
+        ),
+        generation_run_id=uuid.uuid4(),
+        source_map=source_map,
+        run_view=SimpleNamespace(
+            selected_source_ids=[str(source_id)],
+            selected_source_version_ids=[str(source_version_id)],
+        ),
+        triage_completion=completion,
+    )
+
+    assert gate.passed is False
+    assert gate.unpersisted_completion_gap_notes == completion.notes
+    assert "record_gap" in gate.summary
 
 
 @pytest.mark.asyncio
@@ -1753,6 +2710,7 @@ async def test_source_triage_gate_requires_selected_evidence_on_each_source_card
 @pytest.mark.asyncio
 async def test_source_triage_agent_uses_full_reading_tool_set() -> None:
     _CaptureRuntime.calls = {}
+    _CaptureRuntime.kwargs_by_agent = {}
     run = SimpleNamespace(id=uuid.uuid4(), project_id=uuid.uuid4(), config={"user_prompt": "Topic"})
     completion = SourceTriageCompletion(ready=True, summary="Source triage write actions completed.", notes=["done"])
 
@@ -2439,7 +3397,40 @@ def test_url_and_original_file_versions_are_not_local_snapshots() -> None:
     assert _version_has_snapshot(openai_read_version) is True
 
 
-def test_agent_facing_provider_versions_exclude_raw_html_when_readable_versions_exist() -> None:
+def test_agent_facing_provider_versions_select_one_native_canonical_version() -> None:
+    source_id = uuid.uuid4()
+    base = {
+        "source_id": source_id,
+        "project_id": uuid.uuid4(),
+        "content_hash": "hash",
+        "metadata_": {"source_type": "pdf"},
+        "status": "ready",
+        "upload_status": "pending",
+        "is_active": True,
+    }
+    original = SourceVersion(
+        id=uuid.uuid4(),
+        kind=SourceRepresentationKind.ORIGINAL_FILE,
+        storage_path="sources/report.pdf",
+        **base,
+    )
+    extracted = SourceVersion(
+        id=uuid.uuid4(),
+        kind=SourceRepresentationKind.EXTRACTED_TEXT,
+        storage_path="snapshots/extracted.txt",
+        **base,
+    )
+
+    selected = _agent_facing_provider_versions([original, extracted])
+
+    assert selected == [original]
+    assert _canonical_provider_version([original, extracted]) == original
+    assert _provider_attributes(original)["agent_facing"] is True
+    assert _provider_attributes(original)["canonical_retrieval_surface"] is True
+    assert _provider_attributes(original)["retrieval_surface"] == "canonical"
+
+
+def test_agent_facing_provider_versions_select_extracted_web_text() -> None:
     source_id = uuid.uuid4()
     base = {
         "source_id": source_id,
@@ -2471,14 +3462,39 @@ def test_agent_facing_provider_versions_exclude_raw_html_when_readable_versions_
 
     selected = _agent_facing_provider_versions([fetched, rendered, extracted])
 
-    assert {version.kind for version in selected} == {
-        SourceRepresentationKind.RENDERED_SNAPSHOT,
-        SourceRepresentationKind.EXTRACTED_TEXT,
-    }
-    assert _provider_attributes(rendered)["agent_facing"] is True
+    assert selected == [extracted]
 
 
-def test_agent_facing_provider_versions_keep_raw_html_as_last_resort() -> None:
+def test_agent_facing_provider_versions_select_transcript_for_audio_video() -> None:
+    version = SourceVersion(
+        id=uuid.uuid4(),
+        source_id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        kind=SourceRepresentationKind.TRANSCRIPT,
+        storage_path="snapshots/transcript.txt",
+        content_hash="hash",
+        metadata_={"source_type": "audio"},
+        status="ready",
+        upload_status="pending",
+        is_active=True,
+    )
+    page_marked = SourceVersion(
+        id=uuid.uuid4(),
+        source_id=version.source_id,
+        project_id=version.project_id,
+        kind=SourceRepresentationKind.PAGE_MARKED_TEXT,
+        storage_path="snapshots/page_marked.txt",
+        content_hash="hash-page",
+        metadata_={"source_type": "audio"},
+        status="ready",
+        upload_status="pending",
+        is_active=True,
+    )
+
+    assert _agent_facing_provider_versions([page_marked, version]) == [version]
+
+
+def test_agent_facing_provider_versions_skip_raw_html_without_canonical_version() -> None:
     version = SourceVersion(
         id=uuid.uuid4(),
         source_id=uuid.uuid4(),
@@ -2492,7 +3508,550 @@ def test_agent_facing_provider_versions_keep_raw_html_as_last_resort() -> None:
         is_active=True,
     )
 
-    assert _agent_facing_provider_versions([version]) == [version]
+    assert _agent_facing_provider_versions([version]) == []
+
+
+class _FakeCorpusResult:
+    def __init__(self, items: list):
+        self.items = items
+
+    def scalars(self):
+        return self
+
+    def scalar_one_or_none(self):
+        if not self.items:
+            return None
+        if len(self.items) > 1:
+            raise AssertionError("Expected at most one fake DB result")
+        return self.items[0]
+
+    def __iter__(self):
+        return iter(self.items)
+
+
+class _FakeCorpusDb:
+    def __init__(
+        self,
+        *,
+        sources: list[Source],
+        versions: list[SourceVersion],
+        provider_index: ProviderCorpusIndex | None = None,
+        provider_files: list[ProviderCorpusFile] | None = None,
+    ):
+        self.sources = sources
+        self.versions = versions
+        self.provider_index = provider_index
+        self.provider_files = provider_files or []
+        self.run_views: list[RunCorpusView] = []
+        self.commits = 0
+
+    async def execute(self, statement):
+        entity = statement.column_descriptions[0].get("entity")
+        if entity is Source:
+            return _FakeCorpusResult(self.sources)
+        if entity is SourceVersion:
+            return _FakeCorpusResult(self.versions)
+        if entity is ProviderCorpusIndex:
+            return _FakeCorpusResult([self.provider_index] if self.provider_index else [])
+        if entity is ProviderCorpusFile:
+            return _FakeCorpusResult(self.provider_files)
+        if entity is RunCorpusView:
+            return _FakeCorpusResult(self.run_views)
+        return _FakeCorpusResult([])
+
+    def add(self, item):
+        if isinstance(item, RunCorpusView):
+            self.run_views.append(item)
+        if isinstance(item, ProviderCorpusFile):
+            self.provider_files.append(item)
+
+    async def flush(self):
+        for item in [*self.run_views, *self.provider_files]:
+            if getattr(item, "id", None) is None:
+                item.id = uuid.uuid4()
+        return None
+
+    async def commit(self):
+        self.commits += 1
+
+
+class _SequentialSourceVersionDb:
+    def __init__(self, results: list[list[SourceVersion]]):
+        self.results = list(results)
+        self.added: list[SourceVersion] = []
+        self.flush_count = 0
+        self.commits = 0
+
+    async def execute(self, _statement):
+        if not self.results:
+            return _FakeCorpusResult([])
+        return _FakeCorpusResult(self.results.pop(0))
+
+    def add(self, item):
+        if isinstance(item, SourceVersion):
+            self.added.append(item)
+
+    async def flush(self):
+        self.flush_count += 1
+        for item in self.added:
+            if getattr(item, "id", None) is None:
+                item.id = uuid.uuid4()
+
+    async def commit(self):
+        self.commits += 1
+
+
+def _source(project_id: uuid.UUID, source_type: SourceType = SourceType.WEB) -> Source:
+    return Source(
+        id=uuid.uuid4(),
+        project_id=project_id,
+        source_type=source_type,
+        ingestion_status="completed",
+        is_temporary=False,
+    )
+
+
+def _source_version(
+    source: Source,
+    kind: SourceRepresentationKind,
+    *,
+    version_id: uuid.UUID | None = None,
+    storage_path: str = "sources/test.txt",
+) -> SourceVersion:
+    return SourceVersion(
+        id=version_id or uuid.uuid4(),
+        source_id=source.id,
+        project_id=source.project_id,
+        kind=kind,
+        storage_path=storage_path,
+        content_hash=f"hash-{kind}",
+        metadata_={"source_type": str(source.source_type)},
+        status=V2RecordStatus.READY,
+        upload_status=V2RecordStatus.READY,
+        is_active=True,
+    )
+
+
+class _FakeProviderFiles:
+    def __init__(self) -> None:
+        self.create_calls: list[dict] = []
+        self.created_ids: list[str] = []
+
+    async def create(self, **kwargs):
+        self.create_calls.append(kwargs)
+        file_id = f"file_fake_{len(self.create_calls)}"
+        self.created_ids.append(file_id)
+        return SimpleNamespace(id=file_id)
+
+
+class _FakeVectorStoreFiles:
+    def __init__(self, *, files: dict[str, SimpleNamespace] | None = None, create_failure: Exception | None = None) -> None:
+        self.files = files or {}
+        self.create_failure = create_failure
+        self.create_calls: list[dict] = []
+        self.delete_calls: list[dict] = []
+
+    def list(self, **_kwargs):
+        return list(self.files.values())
+
+    async def retrieve(self, *, file_id: str, vector_store_id: str):
+        item = self.files.get(file_id)
+        if item is None:
+            raise RuntimeError("not found")
+        return item
+
+    async def create(self, **kwargs):
+        self.create_calls.append(kwargs)
+        if self.create_failure is not None:
+            raise self.create_failure
+        item = SimpleNamespace(
+            id=kwargs["file_id"],
+            status="completed",
+            attributes=kwargs.get("attributes") or {},
+            last_error=None,
+        )
+        self.files[item.id] = item
+        return item
+
+    async def delete(self, **kwargs):
+        self.delete_calls.append(kwargs)
+        self.files.pop(kwargs["file_id"], None)
+        return SimpleNamespace(id=kwargs["file_id"], deleted=True)
+
+
+class _FakeProviderVectorStores:
+    def __init__(self, files: _FakeVectorStoreFiles) -> None:
+        self.files = files
+
+
+class _FakeProviderClient:
+    def __init__(self, vector_files: _FakeVectorStoreFiles) -> None:
+        self.files = _FakeProviderFiles()
+        self.vector_stores = _FakeProviderVectorStores(vector_files)
+
+
+@pytest.mark.asyncio
+async def test_prepare_v2_corpus_is_read_only_and_skips_not_ready_sources(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import source_corpus as source_corpus_module
+
+    async def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("prepare_v2_corpus must not mutate corpus state")
+
+    async def noop_save_tool_trace(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(source_corpus_module, "ensure_source_versions", fail_if_called)
+    monkeypatch.setattr(source_corpus_module, "ensure_project_provider_index", fail_if_called)
+    monkeypatch.setattr(source_corpus_module, "sync_provider_corpus_files", fail_if_called)
+    monkeypatch.setattr(source_corpus_module, "_ensure_web_snapshot_versions", fail_if_called)
+    monkeypatch.setattr(source_corpus_module, "save_tool_trace", noop_save_tool_trace)
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "generation_v2_enable_provider_uploads", True)
+
+    project_id = uuid.uuid4()
+    source_ready = _source(project_id)
+    source_skipped = _source(project_id)
+    extracted = _source_version(source_ready, SourceRepresentationKind.EXTRACTED_TEXT, storage_path="sources/ready.txt")
+    rendered = _source_version(source_ready, SourceRepresentationKind.RENDERED_SNAPSHOT, storage_path="sources/rendered.txt")
+    skipped_extracted = _source_version(source_skipped, SourceRepresentationKind.EXTRACTED_TEXT)
+    provider_index = ProviderCorpusIndex(
+        id=uuid.uuid4(),
+        project_id=project_id,
+        provider="openai",
+        provider_vector_store_id="vs_test",
+        scope="project",
+        status=V2RecordStatus.READY,
+        config={},
+    )
+    provider_file = ProviderCorpusFile(
+        id=uuid.uuid4(),
+        provider_index_id=provider_index.id,
+        source_id=source_ready.id,
+        source_version_id=extracted.id,
+        provider="openai",
+        provider_file_id="file_ready",
+        provider_vector_store_file_id="vsf_ready",
+        attributes={"is_active": True, "agent_facing": True, "canonical_retrieval_surface": True},
+        status=V2RecordStatus.READY,
+    )
+    fake_db = _FakeCorpusDb(
+        sources=[source_ready, source_skipped],
+        versions=[extracted, rendered, skipped_extracted],
+        provider_index=provider_index,
+        provider_files=[provider_file],
+    )
+    run = SimpleNamespace(id=uuid.uuid4(), project_id=project_id, config={})
+
+    result = await prepare_v2_corpus(fake_db, run)  # type: ignore[arg-type]
+
+    assert [str(item.id) for item in result.sources] == [str(source_ready.id)]
+    assert set(result.run_view.selected_source_version_ids) == {str(extracted.id), str(rendered.id)}
+    assert result.run_view.active_source_filter["canonical_source_version_ids"] == [str(extracted.id)]
+    assert result.run_view.active_source_filter["fallback_source_version_ids"] == [str(rendered.id)]
+    assert result.run_view.eligible_provider_file_ids == ["file_ready"]
+    assert result.run_view.readiness_summary["skipped_source_count"] == 1
+    assert result.run_view.readiness_summary["skipped_sources"][0]["reason"] == "canonical_provider_file_not_ready"
+
+
+@pytest.mark.asyncio
+async def test_prepare_v2_corpus_fails_when_every_source_is_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import source_corpus as source_corpus_module
+
+    async def noop_save_tool_trace(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(source_corpus_module, "save_tool_trace", noop_save_tool_trace)
+    monkeypatch.setattr(settings, "openai_api_key", "")
+    monkeypatch.setattr(settings, "generation_v2_enable_provider_uploads", True)
+
+    project_id = uuid.uuid4()
+    source = _source(project_id)
+    fetched = _source_version(source, SourceRepresentationKind.FETCHED_HTML, storage_path="sources/fetched.html")
+    fake_db = _FakeCorpusDb(sources=[source], versions=[fetched])
+    run = SimpleNamespace(id=uuid.uuid4(), project_id=project_id, config={})
+
+    with pytest.raises(RuntimeError, match="no usable sources"):
+        await prepare_v2_corpus(fake_db, run)  # type: ignore[arg-type]
+
+    assert fake_db.run_views[0].status == V2RecordStatus.FAILED
+    assert fake_db.run_views[0].readiness_summary["skipped_sources"][0]["reason"] == "no_canonical_source_version"
+
+
+@pytest.mark.asyncio
+async def test_project_corpus_index_sync_is_provider_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import source_corpus as source_corpus_module
+
+    async def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("corpus-index sync must not create source versions or render/fetch sources")
+
+    project_id = uuid.uuid4()
+    source = _source(project_id)
+    version = _source_version(source, SourceRepresentationKind.EXTRACTED_TEXT)
+    provider_index = ProviderCorpusIndex(
+        id=uuid.uuid4(),
+        project_id=project_id,
+        provider="openai",
+        provider_vector_store_id="vs_test",
+        scope="project",
+        status=V2RecordStatus.READY,
+        config={},
+    )
+    fake_db = _FakeCorpusDb(sources=[source], versions=[version], provider_index=provider_index)
+    captured: dict[str, object] = {}
+
+    async def fake_ensure_provider_index(db, requested_project_id, **_kwargs):
+        assert db is fake_db
+        assert requested_project_id == project_id
+        return provider_index
+
+    async def fake_sync_provider_files(db, run, requested_provider_index, versions, *, source_ids=None):
+        assert db is fake_db
+        assert run is None
+        assert requested_provider_index is provider_index
+        captured["versions"] = versions
+        captured["source_ids"] = source_ids
+        return []
+
+    monkeypatch.setattr(source_corpus_module, "ensure_source_versions", fail_if_called)
+    monkeypatch.setattr(source_corpus_module, "_ensure_web_snapshot_versions", fail_if_called)
+    monkeypatch.setattr(source_corpus_module, "ensure_project_provider_index", fake_ensure_provider_index)
+    monkeypatch.setattr(source_corpus_module, "sync_provider_corpus_files", fake_sync_provider_files)
+
+    summary = await reconcile_project_corpus_index_now(fake_db, project_id)  # type: ignore[arg-type]
+
+    assert captured["versions"] == [version]
+    assert captured["source_ids"] == {source.id}
+    assert summary == {"source_count": 1, "source_version_count": 1, "provider_file_count": 0}
+
+
+@pytest.mark.asyncio
+async def test_ensure_source_version_replaces_after_new_row_without_provider_detach(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import source_corpus as source_corpus_module
+
+    async def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("replacement must not detach provider files before replacement provider is ready")
+
+    monkeypatch.setattr(source_corpus_module, "mark_provider_files_inactive", fail_if_called)
+
+    project_id = uuid.uuid4()
+    source = _source(project_id)
+    previous = _source_version(
+        source,
+        SourceRepresentationKind.RENDERED_SNAPSHOT,
+        storage_path="snapshots/old-rendered.txt",
+    )
+    fake_db = _SequentialSourceVersionDb(results=[[], [previous]])
+
+    replacement = await _ensure_source_version(
+        fake_db,  # type: ignore[arg-type]
+        source,
+        kind=SourceRepresentationKind.RENDERED_SNAPSHOT,
+        storage_path="snapshots/new-rendered.txt",
+        content_hash="hash-new-rendered",
+        metadata={"canonical": True},
+    )
+
+    assert replacement in fake_db.added
+    assert replacement.is_active is True
+    assert replacement.supersedes_source_version_id == previous.id
+    assert previous.is_active is False
+    assert fake_db.commits == 0
+
+
+@pytest.mark.asyncio
+async def test_provider_upload_resume_reuses_file_created_before_attach_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import source_corpus as source_corpus_module
+
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "generation_v2_enable_provider_uploads", True)
+    monkeypatch.setattr(source_corpus_module, "download_text", lambda _client, _path: "source text")
+
+    project_id = uuid.uuid4()
+    source = _source(project_id)
+    version = _source_version(source, SourceRepresentationKind.EXTRACTED_TEXT)
+    provider_index = ProviderCorpusIndex(
+        id=uuid.uuid4(),
+        project_id=project_id,
+        provider="openai",
+        provider_vector_store_id="vs_test",
+        scope="project",
+        status=V2RecordStatus.READY,
+        config={},
+    )
+    fake_db = _FakeCorpusDb(sources=[source], versions=[version], provider_index=provider_index)
+    first_vector_files = _FakeVectorStoreFiles(create_failure=RuntimeError("attach unavailable"))
+    first_client = _FakeProviderClient(first_vector_files)
+    monkeypatch.setattr(source_corpus_module, "get_openai_client", lambda: first_client)
+
+    first_result = await _ensure_provider_file(fake_db, None, provider_index, version)  # type: ignore[arg-type]
+
+    assert first_client.files.create_calls
+    assert first_result.provider_file_id == "file_fake_1"
+    assert first_result.status == V2RecordStatus.FAILED
+    assert fake_db.commits >= 2
+
+    completed_vector_file = SimpleNamespace(
+        id="file_fake_1",
+        status="completed",
+        attributes=_provider_attributes(version),
+        last_error=None,
+    )
+    second_vector_files = _FakeVectorStoreFiles(files={"file_fake_1": completed_vector_file})
+    second_client = _FakeProviderClient(second_vector_files)
+    monkeypatch.setattr(source_corpus_module, "get_openai_client", lambda: second_client)
+
+    resumed = await _ensure_provider_file(fake_db, None, provider_index, version)  # type: ignore[arg-type]
+
+    assert second_client.files.create_calls == []
+    assert second_vector_files.create_calls == []
+    assert resumed.provider_file_id == "file_fake_1"
+    assert resumed.status == V2RecordStatus.READY
+    assert version.upload_status == V2RecordStatus.READY
+
+
+@pytest.mark.asyncio
+async def test_reconcile_adopts_completed_openai_file_for_existing_canonical_version(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import source_corpus as source_corpus_module
+
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    project_id = uuid.uuid4()
+    source = _source(project_id)
+    version = _source_version(source, SourceRepresentationKind.EXTRACTED_TEXT)
+    provider_index = ProviderCorpusIndex(
+        id=uuid.uuid4(),
+        project_id=project_id,
+        provider="openai",
+        provider_vector_store_id="vs_test",
+        scope="project",
+        status=V2RecordStatus.READY,
+        config={},
+    )
+    vector_file = SimpleNamespace(
+        id="file_adopt",
+        status="completed",
+        attributes=_provider_attributes(version),
+        last_error=None,
+    )
+    vector_files = _FakeVectorStoreFiles(files={"file_adopt": vector_file})
+    monkeypatch.setattr(source_corpus_module, "get_openai_client", lambda: _FakeProviderClient(vector_files))
+    fake_db = _FakeCorpusDb(sources=[source], versions=[version], provider_index=provider_index)
+
+    summary = await reconcile_provider_corpus_files(
+        fake_db,  # type: ignore[arg-type]
+        provider_index,
+        [version],
+        source_ids={source.id},
+    )
+
+    assert summary["adopted_count"] == 1
+    assert len(fake_db.provider_files) == 1
+    provider_file = fake_db.provider_files[0]
+    assert provider_file.provider_file_id == "file_adopt"
+    assert provider_file.status == V2RecordStatus.READY
+    assert provider_file.attributes["upload_phase"] == "adopted"
+    assert version.provider_file_id == "file_adopt"
+    assert version.upload_status == V2RecordStatus.READY
+
+
+@pytest.mark.asyncio
+async def test_reconcile_retains_db_backed_inactive_provider_file_until_replacement_ready(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import source_corpus as source_corpus_module
+
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    project_id = uuid.uuid4()
+    source = _source(project_id)
+    version = _source_version(source, SourceRepresentationKind.RENDERED_SNAPSHOT)
+    version.is_active = False
+    provider_index = ProviderCorpusIndex(
+        id=uuid.uuid4(),
+        project_id=project_id,
+        provider="openai",
+        provider_vector_store_id="vs_test",
+        scope="project",
+        status=V2RecordStatus.READY,
+        config={},
+    )
+    provider_file = ProviderCorpusFile(
+        id=uuid.uuid4(),
+        provider_index_id=provider_index.id,
+        source_version_id=version.id,
+        source_id=source.id,
+        provider="openai",
+        provider_file_id="file_stale_but_db_backed",
+        provider_vector_store_file_id="file_stale_but_db_backed",
+        status=V2RecordStatus.READY,
+        attributes=_provider_attributes(version),
+    )
+    vector_file = SimpleNamespace(
+        id="file_stale_but_db_backed",
+        status="completed",
+        attributes=_provider_attributes(version),
+        last_error=None,
+    )
+    vector_files = _FakeVectorStoreFiles(files={"file_stale_but_db_backed": vector_file})
+    monkeypatch.setattr(source_corpus_module, "get_openai_client", lambda: _FakeProviderClient(vector_files))
+    fake_db = _FakeCorpusDb(
+        sources=[source],
+        versions=[version],
+        provider_index=provider_index,
+        provider_files=[provider_file],
+    )
+
+    summary = await reconcile_provider_corpus_files(
+        fake_db,  # type: ignore[arg-type]
+        provider_index,
+        [version],
+        source_ids={source.id},
+    )
+
+    assert summary["retained_stale_db_file_count"] == 1
+    assert summary["invalid_orphan_count"] == 0
+    assert summary["detached_count"] == 0
+    assert vector_files.delete_calls == []
+    assert fake_db.provider_files == [provider_file]
+
+
+@pytest.mark.asyncio
+async def test_reconcile_detaches_openai_file_with_missing_source_version(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import source_corpus as source_corpus_module
+
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    project_id = uuid.uuid4()
+    source = _source(project_id)
+    version = _source_version(source, SourceRepresentationKind.EXTRACTED_TEXT)
+    provider_index = ProviderCorpusIndex(
+        id=uuid.uuid4(),
+        project_id=project_id,
+        provider="openai",
+        provider_vector_store_id="vs_test",
+        scope="project",
+        status=V2RecordStatus.READY,
+        config={},
+    )
+    orphan_attributes = {
+        **_provider_attributes(version),
+        "source_version_id": str(uuid.uuid4()),
+    }
+    vector_file = SimpleNamespace(id="file_orphan", status="completed", attributes=orphan_attributes, last_error=None)
+    vector_files = _FakeVectorStoreFiles(files={"file_orphan": vector_file})
+    monkeypatch.setattr(source_corpus_module, "get_openai_client", lambda: _FakeProviderClient(vector_files))
+    fake_db = _FakeCorpusDb(sources=[source], versions=[version], provider_index=provider_index)
+
+    summary = await reconcile_provider_corpus_files(
+        fake_db,  # type: ignore[arg-type]
+        provider_index,
+        [version],
+        source_ids={source.id},
+    )
+
+    assert summary["invalid_orphan_count"] == 1
+    assert summary["detached_count"] == 1
+    assert vector_files.delete_calls[0]["file_id"] == "file_orphan"
+    assert fake_db.provider_files == []
 
 
 def test_chunk_backed_version_kinds_exclude_snapshots_and_originals() -> None:
@@ -2674,12 +4233,14 @@ class _FakeSupportJudgeRuntime:
 class _CaptureRuntime:
     model = "fake-capture"
     calls: dict[str, list[str]] = {}
+    kwargs_by_agent: dict[str, dict] = {}
 
     def __init__(self, response):
         self.response = response
 
     async def call_structured(self, **kwargs):
         self.calls[kwargs["agent_name"]] = [tool.name for tool in kwargs.get("local_tools") or []]
+        self.kwargs_by_agent[kwargs["agent_name"]] = kwargs
         return self.response
 
     def prompt_hash_for(self, _phase: str, _agent_name: str) -> str | None:
@@ -2714,11 +4275,19 @@ class _FakeModelReadDb:
         execute_values: list[list[object]] | None = None,
     ) -> None:
         self._responses = [_FakeScalarResult(values) for values in (execute_values if execute_values is not None else [provider_files, []])]
+        self._provider_files = provider_files
         self._versions = versions
         self.added: list[object] = []
 
     async def execute(self, _query):
-        return self._responses.pop(0)
+        query_text = str(_query).lower()
+        if "evidence_items" in query_text:
+            return _FakeScalarResult([item for item in self.added if isinstance(item, EvidenceItem)])
+        if "provider_corpus_files" in query_text and self._provider_files:
+            return _FakeScalarResult(self._provider_files)
+        if self._responses:
+            return self._responses.pop(0)
+        return _FakeScalarResult([])
 
     async def get(self, model, item_id):
         if model is SourceVersion:

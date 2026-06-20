@@ -9,18 +9,17 @@ class EvidenceToolSpecsMixin:
             AgentTool(
                 name="list_sources",
                 description=(
-                    "List neutral metadata for sources selected in this run: source_id, title/url/domain, type, date, "
-                    "active source_version_ids, provider status, authority/reliability hints, and a short preview. "
+                    "List neutral metadata for sources selected in this run: source_id, title/domain, type, date, "
+                    "authority/reliability hints, canonical kind, coverage status, and a short brief_hint. "
                     "Use this at the start of source triage to plan which sources to skim/read. It does not create evidence."
                 ),
                 parameters={
                     "type": "object",
                     "properties": {
-                        "filters": {"type": "object", "additionalProperties": True},
-                        "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+                        "limit": {"type": "integer", "minimum": 1, "maximum": 12},
                         "cursor": {"type": "string"},
                     },
-                    "required": ["filters", "limit", "cursor"],
+                    "required": ["limit", "cursor"],
                 },
                 handler=self.list_sources_tool,
             ),
@@ -30,7 +29,7 @@ class EvidenceToolSpecsMixin:
                     "Search the selected run corpus for source-backed evidence and persist every returned result as an EvidenceItem. "
                     "Use this when you need support for a specific editorial atom, act gap, quote, or citation-sensitive claim. "
                     "Pass source_ids=[] to search all sources selected for this run; pass source_ids to target known sources. "
-                    "Returned evidence_id values are authoritative and must be copied into atoms, quote refs, citations, and repairs. "
+                    "Returned evidence_id values and short_snippet previews are authoritative for selection; call read_evidence/read_source_with_model for fuller reading. "
                     "For final required factual claims, use evidence_strength exact or snippet; source_level or weak evidence is not sufficient. "
                     "Provider retrieval channels generally mean OpenAI vector/file search found a saved source version; local fallback channels are usable but should be treated with more caution and checked for locator strength."
                 ),
@@ -84,7 +83,7 @@ class EvidenceToolSpecsMixin:
                     "properties": {
                         "source_id": {"type": "string"},
                         "source_version_id": {"type": "string"},
-                        "max_items": {"type": "integer", "minimum": 1, "maximum": 80},
+                        "max_items": {"type": "integer", "minimum": 1, "maximum": 40},
                     },
                     "required": ["source_id", "source_version_id", "max_items"],
                 },
@@ -105,7 +104,7 @@ class EvidenceToolSpecsMixin:
                         "source_id": {"type": "string"},
                         "source_version_id": {"type": "string"},
                         "locator": {"type": "string"},
-                        "max_chars": {"type": "integer", "minimum": 200, "maximum": 6000},
+                        "max_chars": {"type": "integer", "minimum": 200, "maximum": 3000},
                     },
                     "required": ["source_id", "source_version_id", "locator", "max_chars"],
                 },
@@ -125,7 +124,7 @@ class EvidenceToolSpecsMixin:
                         "source_id": {"type": "string"},
                         "source_version_id": {"type": "string"},
                         "locator": {"type": "string"},
-                        "max_chars": {"type": "integer", "minimum": 200, "maximum": 6000},
+                        "max_chars": {"type": "integer", "minimum": 200, "maximum": 3000},
                     },
                     "required": ["source_id", "source_version_id", "locator", "max_chars"],
                 },
@@ -168,7 +167,7 @@ class EvidenceToolSpecsMixin:
                         "source_id": {"type": "string"},
                         "source_version_id": {"type": "string"},
                         "query": {"type": "string"},
-                        "limit": {"type": "integer", "minimum": 1, "maximum": 12},
+                        "limit": {"type": "integer", "minimum": 1, "maximum": 8},
                     },
                     "required": ["source_id", "source_version_id", "query", "limit"],
                 },
@@ -186,7 +185,7 @@ class EvidenceToolSpecsMixin:
                     "properties": {
                         "source_id": {"type": "string"},
                         "source_version_id": {"type": "string"},
-                        "max_windows": {"type": "integer", "minimum": 1, "maximum": 12},
+                        "max_windows": {"type": "integer", "minimum": 1, "maximum": 8},
                     },
                     "required": ["source_id", "source_version_id", "max_windows"],
                 },
@@ -222,7 +221,7 @@ class EvidenceToolSpecsMixin:
                     "type": "object",
                     "properties": {
                         "query": {"type": "string"},
-                        "limit": {"type": "integer", "minimum": 1, "maximum": 30},
+                        "limit": {"type": "integer", "minimum": 1, "maximum": 20},
                     },
                     "required": ["query", "limit"],
                 },
@@ -240,7 +239,7 @@ class EvidenceToolSpecsMixin:
                     "properties": {
                         "source_ids": {"type": "array", "items": {"type": "string"}},
                         "question": {"type": "string"},
-                        "limit_per_source": {"type": "integer", "minimum": 1, "maximum": 6},
+                        "limit_per_source": {"type": "integer", "minimum": 1, "maximum": 3},
                     },
                     "required": ["source_ids", "question", "limit_per_source"],
                 },

@@ -112,6 +112,7 @@ class SourceTriageGate(BaseModel):
     missing_source_card_evidence_source_ids: list[str] = Field(default_factory=list)
     missing_model_read_source_ids: list[str] = Field(default_factory=list)
     missing_source_card_write_source_ids: list[str] = Field(default_factory=list)
+    unpersisted_completion_gap_notes: list[str] = Field(default_factory=list)
     ungrounded_relationships: list[str] = Field(default_factory=list)
     missing_function_evidence: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)

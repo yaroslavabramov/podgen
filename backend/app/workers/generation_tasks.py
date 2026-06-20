@@ -488,7 +488,7 @@ async def _run_step_async(generation_run_id: str, action: str = "next"):
 
 async def _run_v2_step_action(db, run, *, generation_run_id: str, action: str, requested_target_node: str | None) -> None:
     from app.generation_v2.orchestrator import V2StepExecutionStopped, execute_generation_v2
-    from app.models.generation_run import GenerationStatus
+    from app.models.generation_run import GenerationRun, GenerationStatus
     from app.realtime.events import generation_completed, generation_failed, generation_paused
     from app.realtime.publisher import publish_event
 
@@ -577,20 +577,26 @@ async def _run_v2_step_action(db, run, *, generation_run_id: str, action: str, r
                         },
                     )
                 except Exception as exc:
-                    run.status = GenerationStatus.FAILED
-                    run.error_message = str(exc)
-                    run.completed_at = datetime.utcnow()
-                    run.config = _merge_v2_step_control(
-                        run.config,
-                        action,
-                        {
-                            "last_node": step_control.get("last_node"),
-                            "executed_node": None,
-                            "next_node": target_step,
-                            "completed": False,
-                        },
+                    await db.rollback()
+                    result = await db.execute(
+                        select(GenerationRun).where(GenerationRun.id == uuid.UUID(generation_run_id))
                     )
-                    await db.commit()
+                    failed_run = result.scalar_one_or_none()
+                    if failed_run is not None:
+                        failed_run.status = GenerationStatus.FAILED
+                        failed_run.error_message = str(exc)
+                        failed_run.completed_at = datetime.utcnow()
+                        failed_run.config = _merge_v2_step_control(
+                            failed_run.config,
+                            action,
+                            {
+                                "last_node": step_control.get("last_node"),
+                                "executed_node": None,
+                                "next_node": target_step,
+                                "completed": False,
+                            },
+                        )
+                        await db.commit()
                     publish_event(generation_run_id, generation_failed(str(exc)))
                     safe_set_run(task_run, outputs={"status": "failed", "error": str(exc), "target_step": target_step})
                     raise

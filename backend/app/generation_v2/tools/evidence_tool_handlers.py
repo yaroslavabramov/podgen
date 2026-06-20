@@ -16,7 +16,13 @@ from app.models.generation_v2 import (
     SourceVersion,
 )
 from app.generation_v2.tools.evidence_source_map import _relationship_kind, _source_summaries, build_source_inventory
-from app.generation_v2.tools.evidence_store import evidence_payload, persist_evidence_item
+from app.generation_v2.tools.evidence_store import (
+    compact_evidence_payload,
+    evidence_preview_payload,
+    compact_model_read_result,
+    compact_provider_failures,
+    persist_evidence_item,
+)
 from app.generation_v2.tools.evidence_types import (
     EVIDENCE_STATUS_CITED,
     EVIDENCE_STATUS_OBSERVED,
@@ -47,14 +53,15 @@ from app.generation_v2.tools.evidence_utils import (
 
 class EvidenceToolHandlersMixin:
     async def list_sources_tool(self, args: dict[str, Any]) -> dict[str, Any]:
-        limit = max(1, min(int(args.get("limit") or 50), 100))
+        limit = max(1, min(int(args.get("limit") or 12), 12))
         cursor = str(args.get("cursor") or "")
         offset = int(cursor) if cursor.isdigit() else 0
         inventory = await build_source_inventory(self.db, self.run_view)
         selected = inventory.source_cards[offset : offset + limit]
         next_cursor = str(offset + limit) if offset + limit < len(inventory.source_cards) else ""
+        canonical_kinds = await self._canonical_kinds_by_source()
         return {
-            "sources": [card.model_dump(mode="json") for card in selected],
+            "sources": [_compact_source_card(card, canonical_kind=canonical_kinds.get(card.source_id)) for card in selected],
             "next_cursor": next_cursor,
             "total": len(inventory.source_cards),
         }
@@ -70,6 +77,7 @@ class EvidenceToolHandlersMixin:
             )
         )
         versions = sorted(list(result.scalars()), key=lambda version: _readable_version_priority(version.kind))
+        canonical_version_ids = set(_active_filter_list(self.run_view, "canonical_source_version_ids"))
         return {
             "found": bool(versions),
             "source_id": source_id,
@@ -79,12 +87,8 @@ class EvidenceToolHandlersMixin:
                     "kind": version.kind,
                     "status": version.status,
                     "upload_status": version.upload_status,
-                    "provider_file_id": version.provider_file_id,
-                    "provider_vector_store_file_id": version.provider_vector_store_file_id,
-                    "content_hash": version.content_hash,
                     "readable_locally": _version_readable(version),
-                    "storage_path": version.storage_path,
-                    "metadata": version.metadata_,
+                    "canonical": str(version.id) in canonical_version_ids,
                 }
                 for version in versions
             ],
@@ -106,7 +110,7 @@ class EvidenceToolHandlersMixin:
         item = await self.db.get(EvidenceItem, evidence_id)
         if item is None or item.generation_run_id != self.run.id:
             return {"found": False}
-        return {"found": True, "evidence": evidence_payload(item)}
+        return {"found": True, "evidence": compact_evidence_payload(item, max_snippet_chars=2200)}
 
     async def inspect_source_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         version = await self._resolve_source_version(
@@ -115,7 +119,7 @@ class EvidenceToolHandlersMixin:
         )
         if version is None:
             return {"found": False, "error": "No readable source version in this run corpus view."}
-        max_items = max(1, min(int(args.get("max_items") or 40), 80))
+        max_items = max(1, min(int(args.get("max_items") or 24), 40))
         text = _source_version_text(version)
         items = _source_outline(text, max_items=max_items) if text.strip() else []
         if not items:
@@ -124,7 +128,7 @@ class EvidenceToolHandlersMixin:
                 {
                     "locator": " > ".join(chunk.heading_path or []) or f"chunk {chunk.chunk_index}",
                     "locator_type": "section" if chunk.heading_path else "chunk",
-                    "preview": chunk.content[:240],
+                    "preview": chunk.content[:180],
                 }
                 for chunk in chunks
             ]
@@ -134,7 +138,7 @@ class EvidenceToolHandlersMixin:
                 {
                     "locator": item["locator_text"],
                     "locator_type": item["locator_type"],
-                    "preview": item["snippet_text"][:240],
+                    "preview": item["snippet_text"][:180],
                 }
                 for item in windows
             ]
@@ -154,7 +158,7 @@ class EvidenceToolHandlersMixin:
         if version is None:
             return {"found": False, "error": "No readable source version in this run corpus view."}
         locator = str(args.get("locator") or "")
-        max_chars = max(200, min(int(args.get("max_chars") or 2400), 6000))
+        max_chars = max(200, min(int(args.get("max_chars") or 2200), 3000))
         snippet, locator_text, locator_type, channel = await self._read_source_window(version, locator=locator, max_chars=max_chars)
         if not snippet.strip():
             return {"found": False, "error": "Source version has no readable local text window."}
@@ -177,7 +181,7 @@ class EvidenceToolHandlersMixin:
             evidence_strength=EvidenceStrength.EXACT if locator else EvidenceStrength.SNIPPET,
             metadata={"source_read": True, "requested_locator": locator},
         )
-        payload = evidence_payload(evidence)
+        payload = compact_evidence_payload(evidence, max_snippet_chars=max_chars)
         await save_tool_trace(
             self.db,
             generation_run_id=self.run.id,
@@ -190,7 +194,7 @@ class EvidenceToolHandlersMixin:
                 "locator": locator,
                 "max_chars": max_chars,
             },
-            output_json={"evidence_id": payload["id"], "locator_text": payload["locator_text"]},
+            output_json={"evidence_id": payload["evidence_id"], "locator_text": payload["locator_text"]},
         )
         return {"found": True, "evidence": payload}
 
@@ -204,6 +208,46 @@ class EvidenceToolHandlersMixin:
 
         source_id = str(args.get("source_id") or "")
         source_version_id = str(args.get("source_version_id") or "")
+        request_cache_key = self._model_read_request_cache_key(
+            source_id=source_id,
+            source_version_id=source_version_id,
+            focus_question=focus_question,
+            claim_text=claim_text,
+            purpose=purpose,
+            locator_hint=locator_hint,
+        )
+        cached_request_items = await self._cached_evidence_items(cache_field="model_read_request_cache_key", cache_key=request_cache_key, limit=1)
+        if cached_request_items:
+            cached = cached_request_items[0]
+            payload = compact_evidence_payload(cached, max_snippet_chars=1400)
+            await save_tool_trace(
+                self.db,
+                generation_run_id=self.run.id,
+                phase="v2_corpus_evidence",
+                agent_name="corpus_evidence_api",
+                tool_name="read_source_with_model",
+                input_json={
+                    "source_id": source_id,
+                    "source_version_id": source_version_id,
+                    "purpose": purpose,
+                    "focus_question": focus_question,
+                    "claim_text": claim_text,
+                    "locator_hint": locator_hint,
+                    "request_cache_key": request_cache_key,
+                },
+                output_json={"cache_hit": True, "evidence_id": payload["evidence_id"], "support_level": (cached.metadata_ or {}).get("support_level")},
+                provider_call_id=cached.response_id,
+            )
+            response: dict[str, Any] = {
+                "found": True,
+                "cache_hit": True,
+                "evidence": payload,
+            }
+            if cached.retrieval_channel == EvidenceRetrievalChannel.MODEL_FILE_READ_LOCAL_FALLBACK:
+                response["local_fallback"] = True
+            else:
+                response["model_read"] = _cached_model_read_payload(cached)
+            return response
         provider_failures: list[dict[str, Any]] = []
         candidates: list[tuple[ProviderCorpusFile, SourceVersion]] = []
         if settings.openai_api_key:
@@ -213,6 +257,42 @@ class EvidenceToolHandlersMixin:
             )
 
         for provider_file, version in candidates:
+            cache_key = self._model_read_cache_key(
+                source_version_id=str(version.id),
+                focus_question=focus_question,
+                claim_text=claim_text,
+                purpose=purpose,
+                locator_hint=locator_hint,
+                read_surface_id=str(provider_file.provider_file_id or ""),
+            )
+            cached_items = await self._cached_evidence_items(cache_field="model_read_cache_key", cache_key=cache_key, limit=1)
+            if cached_items:
+                cached = cached_items[0]
+                payload = compact_evidence_payload(cached, max_snippet_chars=1400)
+                await save_tool_trace(
+                    self.db,
+                    generation_run_id=self.run.id,
+                    phase="v2_corpus_evidence",
+                    agent_name="corpus_evidence_api",
+                    tool_name="read_source_with_model",
+                    input_json={
+                        "source_id": str(version.source_id),
+                        "source_version_id": str(version.id),
+                        "purpose": purpose,
+                        "focus_question": focus_question,
+                        "claim_text": claim_text,
+                        "locator_hint": locator_hint,
+                        "cache_key": cache_key,
+                    },
+                    output_json={"cache_hit": True, "evidence_id": payload["evidence_id"], "support_level": (cached.metadata_ or {}).get("support_level")},
+                    provider_call_id=cached.response_id,
+                )
+                return {
+                    "found": True,
+                    "cache_hit": True,
+                    "evidence": payload,
+                    "model_read": _cached_model_read_payload(cached),
+                }
             try:
                 read_result, response_id = await self._model_read_provider_file(
                     provider_file=provider_file,
@@ -226,7 +306,6 @@ class EvidenceToolHandlersMixin:
                 failure = {
                     "source_id": str(version.source_id),
                     "source_version_id": str(version.id),
-                    "provider_file_id": provider_file.provider_file_id,
                     "error": str(exc),
                 }
                 provider_failures.append(failure)
@@ -247,7 +326,6 @@ class EvidenceToolHandlersMixin:
                     {
                         "source_id": str(version.source_id),
                         "source_version_id": str(version.id),
-                        "provider_file_id": provider_file.provider_file_id,
                         "error": "Model file read returned no quote, snippet, or support summary",
                     }
                 )
@@ -262,8 +340,10 @@ class EvidenceToolHandlersMixin:
                 claim_text=claim_text,
                 purpose=purpose,
                 locator_hint=locator_hint,
+                cache_key=cache_key,
+                request_cache_key=request_cache_key,
             )
-            payload = evidence_payload(evidence)
+            payload = compact_evidence_payload(evidence, max_snippet_chars=1400)
             await save_tool_trace(
                 self.db,
                 generation_run_id=self.run.id,
@@ -280,11 +360,13 @@ class EvidenceToolHandlersMixin:
                     "locator_hint": locator_hint,
                     "candidate_count": len(candidates),
                     "prior_failure_count": len(provider_failures),
+                    "cache_key": cache_key,
+                    "request_cache_key": request_cache_key,
                 },
-                output_json={"evidence_id": payload["id"], "support_level": read_result.get("support_level")},
+                output_json={"cache_hit": False, "evidence_id": payload["evidence_id"], "support_level": read_result.get("support_level")},
                 provider_call_id=response_id,
             )
-            return {"found": True, "evidence": payload, "model_read": read_result}
+            return {"found": True, "evidence": payload, "model_read": compact_model_read_result(read_result)}
 
         return await self._model_read_local_fallback(
             source_id=source_id,
@@ -293,6 +375,7 @@ class EvidenceToolHandlersMixin:
             claim_text=claim_text,
             purpose=purpose,
             locator_hint=locator_hint,
+            request_cache_key=request_cache_key,
             provider_failures=provider_failures,
             provider_candidate_count=len(candidates),
         )
@@ -308,6 +391,8 @@ class EvidenceToolHandlersMixin:
         claim_text: str,
         purpose: str,
         locator_hint: str,
+        cache_key: str,
+        request_cache_key: str,
     ) -> EvidenceItem:
         snippet_text = _model_file_read_snippet(read_result)
         attributes = provider_file.attributes or {}
@@ -345,6 +430,8 @@ class EvidenceToolHandlersMixin:
                 "model_read_file_id": read_result.get("_model_read_file_id"),
                 "vector_store_provider_file_id": provider_file.provider_file_id,
                 "provider_corpus_file_id": str(provider_file.id),
+                "model_read_cache_key": cache_key,
+                "model_read_request_cache_key": request_cache_key,
             },
         )
 
@@ -357,6 +444,7 @@ class EvidenceToolHandlersMixin:
         claim_text: str,
         purpose: str,
         locator_hint: str,
+        request_cache_key: str,
         provider_failures: list[dict[str, Any]],
         provider_candidate_count: int,
     ) -> dict[str, Any]:
@@ -365,7 +453,45 @@ class EvidenceToolHandlersMixin:
             return {
                 "found": False,
                 "error": "No provider-backed or locally readable source version is available in this run corpus view.",
-                "provider_failures": provider_failures,
+                "provider_failures": compact_provider_failures(provider_failures),
+            }
+        cache_key = self._model_read_cache_key(
+            source_version_id=str(version.id),
+            focus_question=focus_question,
+            claim_text=claim_text,
+            purpose=purpose,
+            locator_hint=locator_hint,
+            read_surface_id="local_fallback",
+        )
+        cached_items = await self._cached_evidence_items(cache_field="model_read_cache_key", cache_key=cache_key, limit=1)
+        if cached_items:
+            cached = cached_items[0]
+            payload = compact_evidence_payload(cached, max_snippet_chars=1400)
+            await save_tool_trace(
+                self.db,
+                generation_run_id=self.run.id,
+                phase="v2_corpus_evidence",
+                agent_name="corpus_evidence_api",
+                tool_name="read_source_with_model",
+                input_json={
+                    "source_id": str(version.source_id),
+                    "source_version_id": str(version.id),
+                    "purpose": purpose,
+                    "focus_question": focus_question,
+                    "claim_text": claim_text,
+                    "locator_hint": locator_hint,
+                    "cache_key": cache_key,
+                    "request_cache_key": request_cache_key,
+                },
+                output_json={"cache_hit": True, "evidence_id": payload["evidence_id"], "local_fallback": True},
+                provider_call_id=cached.response_id,
+            )
+            return {
+                "found": True,
+                "cache_hit": True,
+                "evidence": payload,
+                "local_fallback": True,
+                "provider_failures": compact_provider_failures(provider_failures),
             }
         source_id = source_id or str(version.source_id)
         locator = locator_hint or claim_text or focus_question
@@ -391,7 +517,7 @@ class EvidenceToolHandlersMixin:
             return {
                 "found": False,
                 "error": "Provider model-read failed or was unavailable, and local fallback returned no readable window.",
-                "provider_failures": provider_failures,
+                "provider_failures": compact_provider_failures(provider_failures),
             }
         evidence = await persist_evidence_item(
             self.db,
@@ -420,9 +546,11 @@ class EvidenceToolHandlersMixin:
                 "locator_hint": locator_hint,
                 "provider_candidate_count": provider_candidate_count,
                 "provider_failures": provider_failures,
+                "model_read_cache_key": cache_key,
+                "model_read_request_cache_key": request_cache_key,
             },
         )
-        payload = evidence_payload(evidence)
+        payload = compact_evidence_payload(evidence, max_snippet_chars=1400)
         await save_tool_trace(
             self.db,
             generation_run_id=self.run.id,
@@ -437,15 +565,23 @@ class EvidenceToolHandlersMixin:
                 "claim_text": claim_text,
                 "locator_hint": locator_hint,
                 "provider_candidate_count": provider_candidate_count,
+                "cache_key": cache_key,
+                "request_cache_key": request_cache_key,
             },
             output_json={
-                "evidence_id": payload["id"],
+                "cache_hit": False,
+                "evidence_id": payload["evidence_id"],
                 "local_fallback": True,
                 "local_read_channel": channel,
                 "provider_failures": provider_failures,
             },
         )
-        return {"found": True, "evidence": payload, "local_fallback": True, "provider_failures": provider_failures}
+        return {
+            "found": True,
+            "evidence": payload,
+            "local_fallback": True,
+            "provider_failures": compact_provider_failures(provider_failures),
+        }
 
     async def search_within_source_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         version = await self._resolve_source_version(
@@ -455,7 +591,7 @@ class EvidenceToolHandlersMixin:
         if version is None:
             return {"results": [], "error": "No readable source version in this run corpus view."}
         query = str(args.get("query") or "")
-        limit = max(1, min(int(args.get("limit") or 6), 12))
+        limit = max(1, min(int(args.get("limit") or 6), 8))
         text = _source_version_text(version)
         if text.strip():
             windows = _search_text_windows(text, query=query, max_windows=limit, max_chars=1800)
@@ -480,7 +616,7 @@ class EvidenceToolHandlersMixin:
                     evidence_strength=EvidenceStrength.EXACT if window["locator_type"] in {EvidenceLocatorType.PAGE, EvidenceLocatorType.TIMESTAMP, EvidenceLocatorType.SECTION} else EvidenceStrength.SNIPPET,
                     metadata={"source_internal_search": True},
                 )
-                results.append(evidence_payload(evidence))
+                results.append(evidence_preview_payload(evidence, max_short_snippet_chars=700))
             await save_tool_trace(
                 self.db,
                 generation_run_id=self.run.id,
@@ -488,7 +624,7 @@ class EvidenceToolHandlersMixin:
                 agent_name="corpus_evidence_api",
                 tool_name="search_within_source",
                 input_json={"source_id": str(version.source_id), "source_version_id": str(version.id), "query": query, "limit": limit},
-                output_json={"evidence_ids": [item["id"] for item in results], "result_count": len(results)},
+                output_json={"evidence_ids": [item["evidence_id"] for item in results], "result_count": len(results)},
             )
             return {"results": results}
         return await self.search_evidence(query=query, purpose="source_internal_search", source_ids=[str(version.source_id)], limit=limit)
@@ -500,7 +636,7 @@ class EvidenceToolHandlersMixin:
         )
         if version is None:
             return {"found": False, "error": "No readable source version in this run corpus view."}
-        max_windows = max(1, min(int(args.get("max_windows") or 6), 12))
+        max_windows = max(1, min(int(args.get("max_windows") or 6), 8))
         windows = await self._source_windows(version, max_windows=max_windows)
         results = []
         for idx, window in enumerate(windows):
@@ -523,7 +659,10 @@ class EvidenceToolHandlersMixin:
                 evidence_strength=EvidenceStrength.SNIPPET,
                 metadata={"source_skim": True},
             )
-            results.append({**window, "evidence": evidence_payload(evidence)})
+            window_payload = {key: value for key, value in window.items() if key != "snippet_text"}
+            window_payload["preview_text"] = str(window.get("snippet_text") or "")[:240]
+            window_payload["evidence"] = evidence_preview_payload(evidence, max_short_snippet_chars=700)
+            results.append(window_payload)
         await save_tool_trace(
             self.db,
             generation_run_id=self.run.id,
@@ -531,7 +670,7 @@ class EvidenceToolHandlersMixin:
             agent_name="corpus_evidence_api",
             tool_name="skim_source",
             input_json={"source_id": str(version.source_id), "source_version_id": str(version.id), "max_windows": max_windows},
-            output_json={"evidence_ids": [item["evidence"]["id"] for item in results], "window_count": len(results)},
+            output_json={"evidence_ids": [item["evidence"]["evidence_id"] for item in results], "window_count": len(results)},
         )
         return {
             "found": bool(results),
@@ -548,20 +687,21 @@ class EvidenceToolHandlersMixin:
             source_ids=[str(item) for item in args.get("source_ids") or [] if item],
             limit=int(args.get("limit") or 8),
         )
-        result["results"] = [item for item in result["results"] if len(str(item.get("snippet_text") or "")) >= 40]
+        result["results"] = [item for item in result["results"] if len(str(item.get("short_snippet") or "")) >= 40]
         return result
 
     async def search_sources_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         query = str(args.get("query") or "")
-        limit = int(args.get("limit") or 20)
+        limit = max(1, min(int(args.get("limit") or 20), 20))
         evidence = await self.search_evidence(query=query, purpose="source_map", source_ids=[], limit=limit)
         sources = await _source_summaries(self.db, self.run_view, evidence["results"])
         return {"sources": sources, "evidence": evidence["results"]}
 
     async def compare_sources_tool(self, args: dict[str, Any]) -> dict[str, Any]:
-        source_ids = [str(item) for item in args.get("source_ids") or [] if item]
+        requested_source_ids = [str(item) for item in args.get("source_ids") or [] if item]
+        source_ids = requested_source_ids[:8]
         question = str(args.get("question") or "")
-        limit_per_source = max(1, min(int(args.get("limit_per_source") or 3), 6))
+        limit_per_source = max(1, min(int(args.get("limit_per_source") or 2), 3))
         comparisons = []
         for source_id in source_ids:
             result = await self.search_evidence(
@@ -580,14 +720,20 @@ class EvidenceToolHandlersMixin:
             input_json={"source_ids": source_ids, "question": question, "limit_per_source": limit_per_source},
             output_json={
                 "evidence_ids": [
-                    item["id"]
+                    item["evidence_id"]
                     for comparison in comparisons
                     for item in comparison["evidence"]
-                    if item.get("id")
+                    if item.get("evidence_id")
                 ]
             },
         )
-        return {"question": question, "comparisons": comparisons}
+        return {
+            "question": question[:300],
+            "comparisons": comparisons,
+            "requested_source_count": len(requested_source_ids),
+            "compared_source_count": len(source_ids),
+            "omitted_source_count": max(0, len(requested_source_ids) - len(source_ids)),
+        }
 
     async def select_evidence_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         evidence_id = str(args.get("evidence_id") or "")
@@ -614,11 +760,14 @@ class EvidenceToolHandlersMixin:
             "accepted": True,
             "evidence_id": evidence_id,
             "usage_status": EVIDENCE_STATUS_SELECTED,
-            "evidence": evidence_payload(item),
+            "source_id": str(item.source_id),
+            "source_version_id": str(item.source_version_id),
+            "retrieval_channel": item.retrieval_channel,
+            "evidence_strength": item.evidence_strength,
         }
 
     async def write_action_tool(self, args: dict[str, Any]) -> dict[str, Any]:
-        return {"accepted": True, "action": args}
+        return {"accepted": True}
 
     async def upsert_source_card_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         source_id = str(args.get("source_id") or "")
@@ -630,7 +779,7 @@ class EvidenceToolHandlersMixin:
             return {"accepted": False, "error": "evidence_ids must be selected and belong to source_id", "invalid_evidence_ids": invalid}
         if not evidence_ids:
             return {"accepted": False, "error": "upsert_source_card requires at least one selected evidence_id"}
-        return {"accepted": True, "action": args}
+        return {"accepted": True, "source_id": source_id, "evidence_count": len(evidence_ids)}
 
     async def create_quote_card_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         source_id = str(args.get("source_id") or "")
@@ -655,7 +804,7 @@ class EvidenceToolHandlersMixin:
             }
         if not _quote_text_matches_evidence(quote, evidence.snippet_text):
             return {"accepted": False, "error": "quote text is not found in selected evidence snippet/window"}
-        return {"accepted": True, "action": args}
+        return {"accepted": True, "source_id": source_id or str(evidence.source_id), "evidence_id": evidence_id}
 
     async def record_source_relationship_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         source_id = str(args.get("source_id") or "")
@@ -669,7 +818,7 @@ class EvidenceToolHandlersMixin:
             return {"accepted": False, "error": "relationship evidence_ids must be selected", "invalid_evidence_ids": invalid}
         if relationship in {"primary_to_secondary", "duplicate", "near_duplicate", "contradicts", "updates"} and not evidence_ids:
             return {"accepted": False, "error": f"{relationship} relationship requires selected evidence_ids"}
-        return {"accepted": True, "action": args}
+        return {"accepted": True, "relationship": relationship, "evidence_count": len(evidence_ids)}
 
     async def record_gap_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         source_ids = [str(item) for item in args.get("source_ids") or [] if item]
@@ -682,7 +831,7 @@ class EvidenceToolHandlersMixin:
             return {"accepted": False, "error": "gap evidence_ids must be selected", "invalid_evidence_ids": invalid}
         if not str(args.get("description") or "").strip():
             return {"accepted": False, "error": "description is required"}
-        return {"accepted": True, "action": args}
+        return {"accepted": True, "source_count": len(source_ids), "evidence_count": len(evidence_ids)}
 
     async def finalize_source_map_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         if not bool(args.get("ready")):
@@ -692,7 +841,7 @@ class EvidenceToolHandlersMixin:
         selected = await self._selected_evidence_ids()
         if not selected:
             return {"accepted": False, "error": "cannot finalize source map without selected evidence"}
-        return {"accepted": True, "action": args, "selected_evidence_count": len(selected)}
+        return {"accepted": True, "selected_evidence_count": len(selected)}
 
     async def persist_hosted_file_search_calls(
         self,
@@ -712,7 +861,7 @@ class EvidenceToolHandlersMixin:
                     result_index=int(result.get("result_index") or 0),
                 )
                 if evidence:
-                    observed.append(evidence_payload(evidence))
+                    observed.append(evidence_preview_payload(evidence, max_short_snippet_chars=700))
         await save_tool_trace(
             self.db,
             generation_run_id=self.run.id,
@@ -721,16 +870,23 @@ class EvidenceToolHandlersMixin:
             tool_name="openai.file_search.observed",
             input_json={"response_id": response_id, "call_count": len(calls)},
             output_json={
-                "observed_evidence_ids": [item["id"] for item in observed],
+                "observed_evidence_ids": [item["evidence_id"] for item in observed],
                 "observed_count": len(observed),
             },
             provider_call_id=response_id,
         )
         return {
-            "observed_evidence_ids": [item["id"] for item in observed],
+            "observed_evidence_ids": [item["evidence_id"] for item in observed],
             "observed_evidence": observed,
             "observed_count": len(observed),
         }
+
+    async def _canonical_kinds_by_source(self) -> dict[str, str]:
+        canonical_ids = [uuid.UUID(item) for item in _active_filter_list(self.run_view, "canonical_source_version_ids") if _uuid_or_none(item)]
+        if not canonical_ids:
+            return {}
+        result = await self.db.execute(select(SourceVersion).where(SourceVersion.id.in_(canonical_ids)))
+        return {str(version.source_id): str(version.kind) for version in result.scalars()}
 
     async def _persist_hosted_file_search_result(
         self,
@@ -756,6 +912,11 @@ class EvidenceToolHandlersMixin:
         if provider_file is None:
             return None
         if not self._in_run_corpus_view(provider_file.source_id, provider_file.source_version_id):
+            return None
+        eligible_provider_file_ids = {
+            str(item) for item in getattr(self.run_view, "eligible_provider_file_ids", []) if item
+        }
+        if provider_file.provider_file_id not in eligible_provider_file_ids:
             return None
         snippet = _hosted_result_text(result)
         if not snippet.strip():
@@ -862,5 +1023,64 @@ class EvidenceToolHandlersMixin:
             if source_id and str(item.source_id) != source_id:
                 invalid.append(evidence_id)
         return invalid
+
+
+def _compact_source_card(card: Any, *, canonical_kind: str | None = None) -> dict[str, Any]:
+    canonical_kind = canonical_kind or _first_representation_kind(card)
+    return {
+        "source_id": card.source_id,
+        "title": str(card.title or "")[:240],
+        "source_type": card.source_type,
+        "domain": card.domain,
+        "published_at": card.published_at,
+        "authority": card.authority,
+        "reliability": card.reliability,
+        "coverage_status": card.coverage_status,
+        "canonical_kind": canonical_kind,
+        "version_count": len(card.source_version_ids or []),
+        "brief_hint": _brief_hint(card),
+        "needs_model_read": _needs_model_read(card, canonical_kind),
+    }
+
+
+def _active_filter_list(run_view: Any, key: str) -> list[str]:
+    active_filter = getattr(run_view, "active_source_filter", None) or {}
+    values = active_filter.get(key) or []
+    return [str(item) for item in values if item]
+
+
+def _first_representation_kind(card: Any) -> str:
+    summary = str(getattr(card, "representation_summary", "") or "")
+    first = summary.split(",", 1)[0].strip()
+    if ":" in first:
+        return first.split(":", 1)[0].strip()
+    return first or "unknown"
+
+
+def _brief_hint(card: Any) -> str:
+    text = " ".join(str(getattr(card, "summary", "") or "").split())
+    return text[:180].rstrip()
+
+
+def _needs_model_read(card: Any, canonical_kind: str | None) -> bool:
+    source_type = str(getattr(card, "source_type", "") or "").lower()
+    kind = str(canonical_kind or "").lower()
+    return kind == "original_file" or source_type in {"file", "pdf", "document", "upload"}
+
+
+def _cached_model_read_payload(evidence: EvidenceItem) -> dict[str, Any]:
+    metadata = evidence.metadata_ or {}
+    payload = compact_model_read_result(
+        {
+            "supports_query": metadata.get("supports_query"),
+            "support_level": metadata.get("support_level"),
+            "locator_text": evidence.locator_text,
+            "locator_type": evidence.locator_type,
+            "confidence": evidence.score,
+        }
+    )
+    payload["cache_hit"] = True
+    return payload
+
 
 __all__ = ["EvidenceToolHandlersMixin"]

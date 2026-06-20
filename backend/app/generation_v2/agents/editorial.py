@@ -21,6 +21,7 @@ from app.generation_v2.prompting import (
     SOURCE_ACQUISITION_PROMPT,
     SOURCE_ACQUISITION_SYSTEM,
     SOURCE_TRIAGE_PROMPT,
+    SOURCE_TRIAGE_REPAIR_PROMPT,
     SOURCE_TRIAGE_SYSTEM,
     SUPPORT_JUDGMENT_PROMPT,
     SUPPORT_JUDGE_SYSTEM,
@@ -80,7 +81,17 @@ TRIAGE_TOOL_NAMES = {
     "finalize_source_map",
 }
 RESEARCH_TOOL_NAMES = {
+    "list_sources",
+    "list_source_versions",
+    "search_sources",
+    "search_evidence",
+    "find_quotes",
     "read_evidence",
+    "read_source_window",
+    "read_source_with_model",
+    "search_within_source",
+    "compare_sources",
+    "select_evidence",
 }
 AUDIT_TOOL_NAMES = {"search_evidence", "read_evidence"}
 TREATMENT_TOOL_NAMES = {"read_evidence", "read_source_window", "search_within_source"}
@@ -268,11 +279,22 @@ async def build_source_triage_agent(
     evidence_tools: list[AgentTool] | None = None,
     vector_store_id: str | None = None,
     hosted_file_search_handler=None,
+    repair_context: dict | None = None,
 ) -> SourceTriageCompletion:
-    prompt = SOURCE_TRIAGE_PROMPT.format(
-        user_prompt=(run.config or {}).get("user_prompt", ""),
-        source_inventory_json=_json(_source_inventory(source_inventory.source_cards, limit=160)),
-    )
+    user_prompt = (run.config or {}).get("user_prompt", "")
+    source_inventory_json = _json(_source_inventory(source_inventory.source_cards, limit=160))
+    if repair_context:
+        prompt = SOURCE_TRIAGE_REPAIR_PROMPT.format(
+            user_prompt=user_prompt,
+            source_inventory_json=source_inventory_json,
+            source_map_json=_json(repair_context.get("source_map") or {}),
+            gate_json=_json(repair_context.get("gate") or {}),
+        )
+    else:
+        prompt = SOURCE_TRIAGE_PROMPT.format(
+            user_prompt=user_prompt,
+            source_inventory_json=source_inventory_json,
+        )
     try:
         return await runtime.call_structured(
             db=db,
@@ -350,21 +372,26 @@ async def build_research_memo(
     source_cards: list[SourceCard],
     quote_cards: list[QuoteCard],
     source_map: SourceMap | None = None,
+    source_inventory: SourceMap | None = None,
     evidence_tools: list[AgentTool] | None = None,
     vector_store_id: str | None = None,
     show_bible: ShowBibleContext | None = None,
     hosted_file_search_handler=None,
 ) -> ResearchMemo:
     source_map = source_map or SourceMap(source_cards=source_cards, quote_cards=quote_cards)
+    full_source_inventory = source_inventory or source_map
+    duration_minutes = int((run.config or {}).get("duration_target", 1800)) // 60
     prompt = RESEARCH_MEMO_PROMPT.format(
         user_prompt=(run.config or {}).get("user_prompt", ""),
-        duration_minutes=int((run.config or {}).get("duration_target", 1800)) // 60,
+        duration_minutes=duration_minutes,
         language=(run.config or {}).get("language", "en"),
         show_bible_json=(show_bible or ShowBibleContext()).model_dump_json(),
-        source_inventory_json=_json(_source_inventory(source_cards)),
+        full_source_inventory_json=_json(_source_inventory(full_source_inventory.source_cards, limit=160)),
+        source_map_inventory_json=_json(_source_inventory(source_cards, limit=80)),
         quote_inventory_json=_json(_quote_inventory(quote_cards, limit=60)),
         triage_inventory_json=_json(_triage_inventory(source_map.source_triage)),
     )
+    max_tool_rounds = min(120, max(64, len(full_source_inventory.source_cards) * 2 + duration_minutes // 2))
     try:
         return await runtime.call_structured(
             db=db,
@@ -382,6 +409,7 @@ async def build_research_memo(
                 local_tools=True,
             ),
             max_output_tokens=16000,
+            max_tool_rounds=max_tool_rounds,
         )
     except V2RuntimeUnavailable as exc:
         _allow_runtime_fallback(runtime, "v2_editorial_research", "research_agent", exc)
@@ -443,11 +471,13 @@ async def build_treatment(
     *,
     research_memo: ResearchMemo,
     source_map: SourceMap | None = None,
+    source_inventory: SourceMap | None = None,
     evidence_tools: list[AgentTool] | None = None,
     vector_store_id: str | None = None,
     show_bible: ShowBibleContext | None = None,
 ) -> Treatment:
     source_map = source_map or SourceMap()
+    full_source_inventory = source_inventory or source_map
     act_count = _act_count(int((run.config or {}).get("duration_target", 1800)))
     prompt = TREATMENT_PROMPT.format(
         user_prompt=(run.config or {}).get("user_prompt", ""),
@@ -458,6 +488,7 @@ async def build_treatment(
         research_memo_json=research_memo.model_dump_json(),
         source_map_json=_json(
             {
+                "full_sources": _source_inventory(full_source_inventory.source_cards, limit=160),
                 "sources": _source_inventory(source_map.source_cards, limit=80),
                 "quotes": _quote_inventory(source_map.quote_cards, limit=60),
                 "triage": _triage_inventory(source_map.source_triage),

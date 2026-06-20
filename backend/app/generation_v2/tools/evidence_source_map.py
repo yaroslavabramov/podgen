@@ -11,10 +11,12 @@ from app.generation_v2.schemas import (
     SourceCard,
     SourceMap,
     SourceRelationship,
+    SourceTriageCompletion,
     SourceTriageGate,
     SourceTriageItem,
     SourceTriageReport,
 )
+from app.ingestion.source_metadata import audited_authority_type
 from app.models.generation_v2 import (
     EvidenceItem,
     EvidenceRetrievalChannel,
@@ -86,7 +88,7 @@ async def build_source_inventory(db: AsyncSession, run_view: RunCorpusView) -> S
                 length_hint=_source_length_hint(source, versions),
                 provider_status=_provider_status(provider_statuses),
                 reliability=source.domain_reliability or "unknown",
-                authority=source.authority_type or "unknown",
+                authority=audited_authority_type(source),
                 summary=preview,
                 useful_for=[],
                 gaps_or_cautions=_inventory_cautions(source, versions, provider_statuses),
@@ -263,6 +265,7 @@ async def validate_source_map_gate(
     generation_run_id: uuid.UUID,
     source_map: SourceMap,
     run_view: RunCorpusView,
+    triage_completion: SourceTriageCompletion | None = None,
 ) -> SourceTriageGate:
     selected_source_ids = {str(item) for item in run_view.selected_source_ids}
     selected_version_ids = {str(item) for item in run_view.selected_source_version_ids}
@@ -334,9 +337,10 @@ async def validate_source_map_gate(
     )
     missing_model_read_source_ids = _missing_model_read_sources(source_map, evidence_by_id, selected_evidence_ids)
     if missing_model_read_source_ids:
-        warnings.append(
-            "Some PDF/document source cards lack direct model_file_read evidence; treat retrieval channel as coverage risk."
-        )
+        warnings.append("Some PDF/document source cards lack direct model_file_read evidence.")
+    if missing_function_evidence:
+        warnings.append("Some triage function seed evidence is missing or incomplete.")
+    unpersisted_completion_gap_notes = _unpersisted_completion_gap_notes(triage_completion, source_map)
     missing_source_card_write_source_ids = _missing_source_card_write_sources(source_map, triage_traces)
     passed = not (
         (requires_tool_call and tool_call_count == 0)
@@ -347,8 +351,8 @@ async def validate_source_map_gate(
         or invalid_evidence_ids
         or missing_source_card_evidence_source_ids
         or missing_source_card_write_source_ids
+        or unpersisted_completion_gap_notes
         or ungrounded_relationships
-        or missing_function_evidence
     )
     summary = "Source triage gate passed." if passed else "Source triage gate failed."
     if requires_tool_call and tool_call_count == 0:
@@ -360,9 +364,11 @@ async def validate_source_map_gate(
     if missing_source_card_evidence_source_ids:
         summary += " Every SourceCard must contain at least one selected evidence id."
     if missing_model_read_source_ids:
-        summary += " Warning: some PDF/document source cards lack direct model_file_read evidence."
+        summary += " Some PDF/document SourceCards lack selected direct model_file_read evidence; treating as a coverage warning."
     if missing_source_card_write_source_ids:
         summary += " Source cards must come from accepted upsert_source_card write actions."
+    if unpersisted_completion_gap_notes:
+        summary += " Triage completion mentions gaps/cautions that were not persisted with record_gap."
     return SourceTriageGate(
         passed=passed,
         summary=summary,
@@ -375,6 +381,7 @@ async def validate_source_map_gate(
         missing_source_card_evidence_source_ids=missing_source_card_evidence_source_ids,
         missing_model_read_source_ids=missing_model_read_source_ids,
         missing_source_card_write_source_ids=missing_source_card_write_source_ids,
+        unpersisted_completion_gap_notes=unpersisted_completion_gap_notes,
         ungrounded_relationships=ungrounded_relationships,
         missing_function_evidence=missing_function_evidence,
         warnings=warnings,
@@ -393,7 +400,11 @@ async def _source_summaries(db: AsyncSession, run_view: RunCorpusView, evidence:
             "source_type": source.source_type,
             "authority": source.authority_type,
             "reliability": source.domain_reliability,
-            "evidence_ids": [item["id"] for item in evidence_by_source.get(str(source.id), [])[:6]],
+            "evidence_ids": [
+                str(item.get("evidence_id") or item.get("id") or "")
+                for item in evidence_by_source.get(str(source.id), [])[:6]
+                if item.get("evidence_id") or item.get("id")
+            ],
         }
         for source in sources_result.scalars()
     ]
@@ -524,6 +535,55 @@ def _missing_source_card_write_sources(source_map: SourceMap, traces: list[V2Too
         if getattr(trace, "tool_name", "") == "upsert_source_card" and _trace_accepted(trace)
     }
     return sorted(card.source_id for card in source_map.source_cards if card.source_id not in upserted)
+
+
+_GAP_NOTE_MARKERS = (
+    "gap",
+    "gaps",
+    "lacuna",
+    "missing",
+    "not captured",
+    "not observed",
+    "lack",
+    "lacks",
+    "needs primary",
+    "requires primary",
+    "requires additional",
+    "should add",
+    "needs direct",
+    "лакун",
+    "пробел",
+    "не хватает",
+    "нет ",
+    "не найден",
+    "не захвачен",
+    "не подтянут",
+    "требует",
+    "требуется",
+    "желательно добавить",
+    "нужно добавить",
+)
+
+
+def _unpersisted_completion_gap_notes(
+    triage_completion: SourceTriageCompletion | None,
+    source_map: SourceMap,
+) -> list[str]:
+    if triage_completion is None:
+        return []
+    notes = [str(note).strip() for note in triage_completion.notes if str(note).strip()]
+    gap_like_notes = [note for note in notes if _looks_like_gap_note(note)]
+    if not gap_like_notes:
+        return []
+    persisted_gaps = [str(gap).strip() for gap in [*source_map.gaps, *source_map.source_triage.gaps] if str(gap).strip()]
+    if persisted_gaps:
+        return []
+    return gap_like_notes
+
+
+def _looks_like_gap_note(note: str) -> bool:
+    lowered = note.lower()
+    return any(marker in lowered for marker in _GAP_NOTE_MARKERS)
 
 
 def _source_card_needs_model_read(card: SourceCard) -> bool:

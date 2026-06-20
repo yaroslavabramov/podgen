@@ -30,10 +30,10 @@ Do not create source cards, quote cards, claims, citations, treatment, or draft 
 RESEARCH_SYSTEM = BASE_PODCAST_SYSTEM + """
 
 Your role: editorial researcher.
-Goal: turn the already-selected SourceMap evidence into a research memo with story atoms that can support a long-form episode.
+Goal: investigate the selected project corpus and turn it into a research memo with story atoms that can support a long-form episode.
 
 Think like an editor assigning the episode: what is the central tension, what mechanism explains it, what changed over time, who pays a cost, what exception complicates the thesis, and what remains unresolved.
-Use only SourceMap evidence ids for atoms. Read evidence when summaries are too thin. If the SourceMap is not enough, record open questions and risks instead of inventing new support."""
+Use the SourceMap as orientation, then search/read/compare corpus sources to create stronger saved evidence when needed. Editorial atoms must use evidence ids copied from prompt inventories or tool results; select newly found evidence before using it. If support is missing, record open questions and risks instead of inventing support."""
 
 
 RESEARCH_AUDIT_SYSTEM = BASE_PODCAST_SYSTEM + """

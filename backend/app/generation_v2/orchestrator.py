@@ -42,6 +42,7 @@ from app.generation_v2.schemas import (
     ShowBibleContext,
     SourceCard,
     SourceMap,
+    SourceTriageCompletion,
     SupportJudgmentBundle,
     Treatment,
 )
@@ -60,6 +61,7 @@ from app.generation_v2.tools.evidence import (
     mark_cited_evidence,
     validate_source_map_gate,
 )
+from app.generation_v2.tools.evidence_types import EVIDENCE_STATUS_CITED, EVIDENCE_STATUS_SELECTED
 from app.models.generation_run import GenerationRun
 from app.models.generation_v2 import RunCorpusView, V2ArtifactStatus, V2ArtifactType
 from app.models.show_bible import ShowBible
@@ -141,6 +143,7 @@ async def execute_generation_v2(
     quote_artifact_ids = triage_state.quote_artifact_ids
     source_map_artifact_id = triage_state.source_map_artifact_id
     source_workspace_artifact_ids = triage_state.source_workspace_artifact_ids
+    run_source_cards = _merge_source_cards(triage_state.source_inventory.source_cards, source_cards)
     await _commit_step(run, db, "corpus_prepare", 12, next_step="editorial_research")
 
     while True:
@@ -152,10 +155,17 @@ async def execute_generation_v2(
             source_cards=source_cards,
             quote_cards=quote_cards,
             source_map=source_map,
+            source_inventory=triage_state.source_inventory,
             evidence_tools=evidence_tools,
             vector_store_id=corpus.vector_store_id,
             hosted_file_search_handler=evidence_toolset.persist_hosted_file_search_calls,
             show_bible=show_bible,
+        )
+        memo_evidence_artifact_ids_by_evidence_id = await _save_evidence_artifact_map(
+            db,
+            run,
+            evidence_ids=_research_memo_evidence_ids(memo),
+            input_artifact_ids=source_workspace_artifact_ids,
         )
         memo_artifact = await save_artifact(
             db,
@@ -166,12 +176,17 @@ async def execute_generation_v2(
             provider="openai" if corpus.vector_store_id else None,
             model=runtime.model,
             status=V2ArtifactStatus.PASSED,
-            input_artifact_ids=source_workspace_artifact_ids,
+            input_artifact_ids=[*source_workspace_artifact_ids, *memo_evidence_artifact_ids_by_evidence_id.values()],
             prompt_hash=runtime.prompt_hash_for("v2_editorial_research", "research_agent"),
             metadata=runtime.fallback_metadata_for("v2_editorial_research", "research_agent"),
         )
         atom_artifact_ids: list[str] = []
         for idx, atom in enumerate(memo.editorial_atoms):
+            atom_evidence_artifact_ids = [
+                memo_evidence_artifact_ids_by_evidence_id[evidence_id]
+                for evidence_id in atom.evidence_ids
+                if evidence_id in memo_evidence_artifact_ids_by_evidence_id
+            ]
             artifact = await save_artifact(
                 db,
                 generation_run_id=run.id,
@@ -179,14 +194,15 @@ async def execute_generation_v2(
                 artifact_key=f"{idx + 1}:{atom.kind}",
                 payload=atom,
                 status=V2ArtifactStatus.PASSED,
-                input_artifact_ids=[str(memo_artifact.id)],
+                input_artifact_ids=[str(memo_artifact.id), *atom_evidence_artifact_ids],
                 parent_artifact_ids=[str(memo_artifact.id)],
             )
             atom_artifact_ids.append(str(artifact.id))
         memo_evidence_gate = _validate_research_memo_evidence(
             memo,
-            source_map,
-            int((run.config or {}).get("duration_target", 1800)),
+            evidence_records=await list_evidence_dicts(db, run.id),
+            run_view=corpus.run_view,
+            duration_seconds=int((run.config or {}).get("duration_target", 1800)),
         )
         memo_gate_artifact = await save_artifact(
             db,
@@ -214,6 +230,7 @@ async def execute_generation_v2(
                 quote_artifact_ids = triage_state.quote_artifact_ids
                 source_map_artifact_id = triage_state.source_map_artifact_id
                 source_workspace_artifact_ids = triage_state.source_workspace_artifact_ids
+                run_source_cards = _merge_source_cards(triage_state.source_inventory.source_cards, source_cards)
                 continue
             await db.commit()
             raise RuntimeError(f"V2 research memo evidence gate failed: {memo_evidence_gate.verdict}")
@@ -257,6 +274,7 @@ async def execute_generation_v2(
                 quote_artifact_ids = triage_state.quote_artifact_ids
                 source_map_artifact_id = triage_state.source_map_artifact_id
                 source_workspace_artifact_ids = triage_state.source_workspace_artifact_ids
+                run_source_cards = _merge_source_cards(triage_state.source_inventory.source_cards, source_cards)
                 continue
             await db.commit()
             raise RuntimeError(f"V2 research audit failed: {audit.verdict}")
@@ -269,10 +287,11 @@ async def execute_generation_v2(
             runtime,
             research_memo=memo,
             source_map=source_map,
+            source_inventory=triage_state.source_inventory,
             evidence_tools=evidence_tools,
             show_bible=show_bible,
         )
-        treatment_gate = _validate_treatment(treatment, source_cards, int((run.config or {}).get("duration_target", 1800)))
+        treatment_gate = _validate_treatment(treatment, run_source_cards, int((run.config or {}).get("duration_target", 1800)))
         treatment_artifact = await save_artifact(
             db,
             generation_run_id=run.id,
@@ -312,6 +331,7 @@ async def execute_generation_v2(
                 quote_artifact_ids = triage_state.quote_artifact_ids
                 source_map_artifact_id = triage_state.source_map_artifact_id
                 source_workspace_artifact_ids = triage_state.source_workspace_artifact_ids
+                run_source_cards = _merge_source_cards(triage_state.source_inventory.source_cards, source_cards)
                 continue
             await db.commit()
             raise RuntimeError(f"V2 treatment gate failed: {treatment_gate.summary}")
@@ -329,13 +349,13 @@ async def execute_generation_v2(
         await _phase(run, db, "v2_act_drafting", f"Writing act {treatment_act.act_number}", 42 + (idx - 1) * 28 / total_acts)
         dossier = build_act_dossier(
             treatment_act=treatment_act,
-            source_cards=source_cards,
+            source_cards=run_source_cards,
             quote_cards=quote_cards,
             ledger=ledger,
             show_bible=show_bible,
             source_triage=source_triage,
         )
-        dossier_gate = _validate_dossier(dossier, source_cards)
+        dossier_gate = _validate_dossier(dossier, run_source_cards)
         dossiers.append(dossier)
         dossier_input_artifact_ids = [
             str(treatment_artifact.id),
@@ -407,7 +427,7 @@ async def execute_generation_v2(
         run,
         runtime,
         treatment=treatment,
-        source_cards=source_cards,
+        source_cards=run_source_cards,
         quote_cards=quote_cards,
         drafts=drafts,
         evidence_tools=evidence_tools,
@@ -484,7 +504,7 @@ async def execute_generation_v2(
         db,
         run,
         runtime,
-        source_cards=source_cards,
+        source_cards=run_source_cards,
         quote_cards=quote_cards,
         evidence_records=await list_evidence_dicts(db, run.id),
         evidence_tools=evidence_tools,
@@ -506,7 +526,7 @@ async def execute_generation_v2(
         run,
         runtime,
         bundle,
-        source_cards=source_cards,
+        source_cards=run_source_cards,
         quote_cards=quote_cards,
         run_view=corpus.run_view,
         evidence_tools=evidence_tools,
@@ -575,7 +595,7 @@ async def execute_generation_v2(
             db,
             run,
             runtime,
-            source_cards=source_cards,
+            source_cards=run_source_cards,
             quote_cards=quote_cards,
             evidence_records=await list_evidence_dicts(db, run.id),
             evidence_tools=evidence_tools,
@@ -597,7 +617,7 @@ async def execute_generation_v2(
             run,
             runtime,
             bundle,
-            source_cards=source_cards,
+            source_cards=run_source_cards,
             quote_cards=quote_cards,
             run_view=corpus.run_view,
             evidence_tools=evidence_tools,
@@ -617,7 +637,7 @@ async def execute_generation_v2(
         evidence_ids=[link.evidence_id for link in bundle.citation_links if link.evidence_id],
     )
 
-    final = transcript_payload(treatment, drafts, bundle, source_cards=source_cards)
+    final = transcript_payload(treatment, drafts, bundle, source_cards=run_source_cards)
     final.quality_metrics.update(validation_quality_metrics(validation_report))
     final.quality_metrics["runtime_fallback_used"] = runtime.fallback_used
     await save_artifact(
@@ -648,7 +668,7 @@ async def execute_generation_v2(
     shownotes = build_v2_shownotes(
         final=final,
         bundle=bundle,
-        source_cards=source_cards,
+        source_cards=run_source_cards,
         evidence_records=await list_evidence_dicts(db, run.id),
     )
     episode_id = await generate_audio_from_segments(
@@ -701,7 +721,40 @@ async def _prepare_and_triage(run: GenerationRun, db: AsyncSession, runtime: V2R
         generation_run_id=run.id,
         source_map=source_map,
         run_view=corpus.run_view,
+        triage_completion=triage_completion,
     )
+    if not triage_gate.passed:
+        repair_completion = await build_source_triage_agent(
+            db,
+            run,
+            runtime,
+            source_inventory=source_inventory,
+            evidence_tools=evidence_tools,
+            vector_store_id=corpus.vector_store_id,
+            hosted_file_search_handler=evidence_toolset.persist_hosted_file_search_calls,
+            repair_context=_source_triage_repair_context(source_map, triage_gate),
+        )
+        source_map = await build_source_map_from_write_actions(
+            db,
+            generation_run_id=run.id,
+            inventory=source_inventory,
+        )
+        triage_gate = await validate_source_map_gate(
+            db,
+            generation_run_id=run.id,
+            source_map=source_map,
+            run_view=corpus.run_view,
+            triage_completion=repair_completion,
+        )
+        triage_completion = SourceTriageCompletion(
+            ready=repair_completion.ready,
+            summary=f"{triage_completion.summary}\nRepair pass: {repair_completion.summary}",
+            notes=[
+                *triage_completion.notes,
+                "Source triage repair pass executed after gate failure.",
+                *repair_completion.notes,
+            ],
+        )
     source_cards = source_map.source_cards
     quote_cards = source_map.quote_cards
     source_map_artifact = await save_artifact(
@@ -784,6 +837,44 @@ async def _prepare_and_triage(run: GenerationRun, db: AsyncSession, runtime: V2R
         triage_artifact_id=str(triage_artifact.id),
         triage_gate_artifact_id=str(triage_gate_artifact.id),
     )
+
+
+def _source_triage_repair_context(source_map: SourceMap, triage_gate) -> dict:
+    gate_payload = triage_gate.model_dump(mode="json") if hasattr(triage_gate, "model_dump") else {}
+    repair_source_ids = {
+        *gate_payload.get("missing_source_card_evidence_source_ids", []),
+        *gate_payload.get("missing_model_read_source_ids", []),
+        *gate_payload.get("missing_source_card_write_source_ids", []),
+        *gate_payload.get("invalid_source_ids", []),
+    }
+    if not repair_source_ids:
+        repair_source_ids = {card.source_id for card in source_map.source_cards[:12]}
+    repair_cards = [
+        card.model_dump(mode="json")
+        for card in source_map.source_cards
+        if card.source_id in repair_source_ids
+    ]
+    repair_quotes = [
+        quote.model_dump(mode="json")
+        for quote in source_map.quote_cards
+        if quote.source_id in repair_source_ids
+    ][:12]
+    return {
+        "gate": gate_payload,
+        "source_map": {
+            "source_cards_needing_repair": repair_cards,
+            "quote_cards_touching_repair_sources": repair_quotes,
+            "gaps": source_map.gaps,
+            "contradictions": source_map.contradictions,
+            "retrieval_notes": source_map.retrieval_notes,
+            "top_evidence_by_function": source_map.source_triage.top_evidence_by_function,
+            "source_relationships": [
+                relation.model_dump(mode="json")
+                for relation in source_map.source_triage.source_relationships
+                if relation.source_id in repair_source_ids or relation.related_source_id in repair_source_ids
+            ],
+        },
+    }
 
 
 async def _run_source_acquisition_until_triage_ready(
@@ -1092,11 +1183,30 @@ async def _save_evidence_artifacts(
     evidence_ids: list[str],
     input_artifact_ids: list[str],
 ) -> list[str]:
+    return list(
+        (
+            await _save_evidence_artifact_map(
+                db,
+                run,
+                evidence_ids=evidence_ids,
+                input_artifact_ids=input_artifact_ids,
+            )
+        ).values()
+    )
+
+
+async def _save_evidence_artifact_map(
+    db: AsyncSession,
+    run: GenerationRun,
+    *,
+    evidence_ids: list[str],
+    input_artifact_ids: list[str],
+) -> dict[str, str]:
     if not evidence_ids:
-        return []
+        return {}
     evidence_by_id = {item["id"]: item for item in await list_evidence_dicts(db, run.id)}
-    artifact_ids: list[str] = []
-    for evidence_id in evidence_ids:
+    artifact_ids_by_evidence_id: dict[str, str] = {}
+    for evidence_id in _dedupe_strings(evidence_ids):
         payload = evidence_by_id.get(evidence_id)
         if not payload:
             continue
@@ -1109,8 +1219,43 @@ async def _save_evidence_artifacts(
             status=V2ArtifactStatus.PASSED,
             input_artifact_ids=input_artifact_ids,
         )
-        artifact_ids.append(str(artifact.id))
-    return artifact_ids
+        artifact_ids_by_evidence_id[evidence_id] = str(artifact.id)
+    return artifact_ids_by_evidence_id
+
+
+def _research_memo_evidence_ids(memo: ResearchMemo) -> list[str]:
+    return _dedupe_strings(
+        evidence_id
+        for atom in memo.editorial_atoms
+        for evidence_id in atom.evidence_ids
+        if evidence_id
+    )
+
+
+def _dedupe_strings(values) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        text = str(value)
+        if text and text not in seen:
+            result.append(text)
+            seen.add(text)
+    return result
+
+
+def _merge_source_cards(base_cards: list[SourceCard], override_cards: list[SourceCard]) -> list[SourceCard]:
+    overrides_by_source_id = {card.source_id: card for card in override_cards}
+    merged: list[SourceCard] = []
+    seen: set[str] = set()
+    for card in base_cards:
+        merged_card = overrides_by_source_id.get(card.source_id, card)
+        merged.append(merged_card)
+        seen.add(merged_card.source_id)
+    for card in override_cards:
+        if card.source_id not in seen:
+            merged.append(card)
+            seen.add(card.source_id)
+    return merged
 
 
 async def _load_show_bible_context(db: AsyncSession, run: GenerationRun) -> ShowBibleContext:
@@ -1152,18 +1297,42 @@ def _validate_treatment(treatment: Treatment, source_cards: list[SourceCard], du
     )
 
 
-def _validate_research_memo_evidence(memo: ResearchMemo, source_map, duration_seconds: int) -> ResearchAudit:
-    valid_source_ids = {card.source_id for card in source_map.source_cards}
-    valid_evidence_ids = set(source_map.evidence_ids)
+def _validate_research_memo_evidence(
+    memo: ResearchMemo,
+    *,
+    evidence_records: list[dict],
+    run_view: RunCorpusView,
+    duration_seconds: int,
+) -> ResearchAudit:
+    valid_source_ids = {str(source_id) for source_id in run_view.selected_source_ids}
+    valid_version_ids = {str(version_id) for version_id in run_view.selected_source_version_ids}
+    evidence_by_id = {str(item.get("id")): item for item in evidence_records if item.get("id")}
+    valid_evidence_ids = {
+        evidence_id
+        for evidence_id, item in evidence_by_id.items()
+        if (item.get("metadata") or {}).get("usage_status") in {EVIDENCE_STATUS_SELECTED, EVIDENCE_STATUS_CITED}
+        and str(item.get("source_id")) in valid_source_ids
+        and str(item.get("source_version_id")) in valid_version_ids
+    }
     high_impact = {"conflict", "mechanism", "turning_point", "consequence", "human_cost", "institutional_incentive"}
     issues: list[str] = []
     for idx, atom in enumerate(memo.editorial_atoms, start=1):
         invalid_sources = [source_id for source_id in atom.source_ids if source_id not in valid_source_ids]
-        invalid_evidence = [evidence_id for evidence_id in atom.evidence_ids if evidence_id not in valid_evidence_ids]
         if invalid_sources:
             issues.append(f"Atom {idx} references unknown source ids: {', '.join(invalid_sources)}.")
-        if invalid_evidence:
-            issues.append(f"Atom {idx} references unknown evidence ids: {', '.join(invalid_evidence)}.")
+        for evidence_id in atom.evidence_ids:
+            evidence = evidence_by_id.get(evidence_id)
+            if evidence is None:
+                issues.append(f"Atom {idx} references unknown evidence id: {evidence_id}.")
+                continue
+            if evidence_id not in valid_evidence_ids:
+                metadata = evidence.get("metadata") or {}
+                if metadata.get("usage_status") not in {EVIDENCE_STATUS_SELECTED, EVIDENCE_STATUS_CITED}:
+                    issues.append(f"Atom {idx} references evidence id that was not explicitly selected: {evidence_id}.")
+                elif str(evidence.get("source_id")) not in valid_source_ids or str(evidence.get("source_version_id")) not in valid_version_ids:
+                    issues.append(f"Atom {idx} references evidence id outside the run corpus view: {evidence_id}.")
+                else:
+                    issues.append(f"Atom {idx} references invalid evidence id: {evidence_id}.")
         if atom.kind in high_impact and not atom.evidence_ids:
             issues.append(f"High-impact atom {idx} ({atom.kind}) has no evidence ids.")
         if atom.source_coverage_status == "weak" and atom.kind in high_impact:

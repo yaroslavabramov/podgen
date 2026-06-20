@@ -68,6 +68,14 @@ _LOW_RELIABILITY_PATTERNS: list[str] = [
 _PRIMARY_AUTHORITY_PATTERNS: list[str] = [
     r"\.gov$",
     r"\.gov\.\w{2}$",
+    r"w3\.org$",
+    r"ietf\.org$",
+    r"iso\.org$",
+    r"docs\.\w+\.com$",
+    r"developer\.\w+\.com$",
+]
+
+_SECONDARY_AUTHORITY_PATTERNS: list[str] = [
     r"\.edu$",
     r"doi\.org$",
     r"arxiv\.org$",
@@ -80,14 +88,7 @@ _PRIMARY_AUTHORITY_PATTERNS: list[str] = [
     r"acm\.org$",
     r"jstor\.org$",
     r"plos\.org$",
-    r"w3\.org$",
-    r"ietf\.org$",
-    r"iso\.org$",
-    r"docs\.\w+\.com$",
-    r"developer\.\w+\.com$",
-]
-
-_SECONDARY_AUTHORITY_PATTERNS: list[str] = [
+    r"diva-portal\.org$",
     r"nytimes\.com$",
     r"washingtonpost\.com$",
     r"bbc\.(com|co\.uk)$",
@@ -113,8 +114,6 @@ _PRIMARY_HINTS = (
     "policy statement",
     "official statistics",
     "annual report",
-    "research paper",
-    "working paper",
     "statistical bulletin",
     "official release",
 )
@@ -127,6 +126,10 @@ _SECONDARY_HINTS = (
     "why ",
     "what it means",
     "guide",
+    "research paper",
+    "working paper",
+    "journal article",
+    "peer-reviewed",
 )
 _TERTIARY_HINTS = (
     "wikipedia",
@@ -142,8 +145,8 @@ Return JSON:
 }
 
 Definitions:
-- primary: original law, regulator statement, original data owner, original paper/spec/official documentation
-- secondary: news, analysis, explainer, commentary, article about the topic
+- primary: original law, regulator/government statement, official data owner, official source-owner record, technical spec, or official documentation
+- secondary: news, academic paper, working paper, analysis, explainer, commentary, article about the topic
 - tertiary: encyclopedia, aggregator, reference compilation, summary of summaries
 - unknown: cannot tell reliably from metadata/preview
 
@@ -219,6 +222,25 @@ def classify_authority_heuristic(
         return AuthorityType.PRIMARY
 
     return AuthorityType.UNKNOWN
+
+
+def audited_authority_type(source: Source) -> str:
+    """Conservative authority label for generation-time source ranking.
+
+    Older ingests may have broad primary labels from academic-domain or
+    "research paper" heuristics. Generation should not treat those as primary
+    evidence about external events unless the source owner is official/original.
+    """
+    authority = str(source.authority_type or AuthorityType.UNKNOWN)
+    audited = classify_authority_heuristic(
+        source_type=source.source_type,
+        original_url=source.original_url,
+        title=source.title,
+        text_preview=source.text_preview,
+    )
+    if audited != AuthorityType.UNKNOWN:
+        return str(audited)
+    return authority
 
 
 async def classify_source_authority(source: Source) -> AuthorityType:

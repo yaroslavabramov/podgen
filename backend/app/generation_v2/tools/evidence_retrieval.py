@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import io
+import json
 import re
 import uuid
 from typing import Any
@@ -21,8 +23,7 @@ from app.models.generation_v2 import (
     SourceVersion,
     V2RecordStatus,
 )
-from app.services.llm import get_openai_client
-from app.generation_v2.tools.evidence_store import evidence_payload, persist_evidence_item
+from app.generation_v2.tools.evidence_store import evidence_preview_payload, persist_evidence_item
 from app.generation_v2.tools.evidence_types import _CHUNK_BACKED_VERSION_KINDS
 from app.generation_v2.tools.evidence_utils import (
     _MODEL_FILE_READ_SCHEMA,
@@ -45,6 +46,7 @@ from app.generation_v2.tools.evidence_utils import (
     _version_can_back_local_window,
     _window_for_locator,
 )
+from app.services.llm import _openai_estimated_cost_usd, _openai_usage, get_openai_client
 
 
 class EvidenceRetrievalMixin:
@@ -57,21 +59,112 @@ class EvidenceRetrievalMixin:
         limit: int,
     ) -> dict[str, Any]:
         limit = max(1, min(limit, 20))
+        cache_key = _search_cache_key(self.run_view, query=query, source_ids=source_ids, limit=limit)
+        cached_items = await self._cached_evidence_items(cache_field="search_cache_key", cache_key=cache_key, limit=limit)
+        if len(cached_items) >= limit:
+            payloads = [evidence_preview_payload(item, max_short_snippet_chars=700) for item in cached_items[:limit]]
+            await save_tool_trace(
+                self.db,
+                generation_run_id=self.run.id,
+                phase="v2_corpus_evidence",
+                agent_name="corpus_evidence_api",
+                tool_name="search_evidence",
+                input_json={"query": query, "purpose": purpose, "source_ids": source_ids, "limit": limit, "cache_key": cache_key},
+                output_json={
+                    "cache_hit": True,
+                    "evidence_ids": [item["evidence_id"] for item in payloads],
+                    "result_count": len(payloads),
+                },
+            )
+            return {"results": payloads, "cache_hit": True}
         provider_items = await self._provider_search(query=query, purpose=purpose, source_ids=source_ids, limit=limit)
         items = provider_items
         if len(items) < limit:
             items.extend(await self._local_fallback_search(query=query, purpose=purpose, source_ids=source_ids, limit=limit - len(items)))
-        payloads = [evidence_payload(item) for item in items[:limit]]
+        await self._tag_evidence_cache(
+            items[:limit],
+            {
+                "search_cache_key": cache_key,
+                "search_cache_query": _cache_text(query),
+                "search_cache_source_ids": sorted(str(item) for item in (source_ids or self.run_view.selected_source_ids)),
+                "search_cache_limit": limit,
+                "search_cache_corpus_hash": _run_corpus_snapshot_hash(self.run_view),
+            },
+        )
+        payloads = [evidence_preview_payload(item, max_short_snippet_chars=700) for item in items[:limit]]
         await save_tool_trace(
             self.db,
             generation_run_id=self.run.id,
             phase="v2_corpus_evidence",
             agent_name="corpus_evidence_api",
             tool_name="search_evidence",
-            input_json={"query": query, "purpose": purpose, "source_ids": source_ids, "limit": limit},
-            output_json={"evidence_ids": [item["id"] for item in payloads], "result_count": len(payloads)},
+            input_json={"query": query, "purpose": purpose, "source_ids": source_ids, "limit": limit, "cache_key": cache_key},
+            output_json={"cache_hit": False, "evidence_ids": [item["evidence_id"] for item in payloads], "result_count": len(payloads)},
         )
-        return {"results": payloads}
+        return {"results": payloads, "cache_hit": False}
+
+    async def _cached_evidence_items(self, *, cache_field: str, cache_key: str, limit: int) -> list[EvidenceItem]:
+        if not cache_key:
+            return []
+        try:
+            result = await self.db.execute(
+                select(EvidenceItem)
+                .where(
+                    EvidenceItem.generation_run_id == self.run.id,
+                    EvidenceItem.metadata_[cache_field].as_string() == cache_key,
+                )
+                .order_by(EvidenceItem.search_result_index.asc(), EvidenceItem.created_at.asc())
+                .limit(max(1, limit))
+            )
+        except Exception:
+            return []
+        return list(result.scalars())
+
+    async def _tag_evidence_cache(self, items: list[EvidenceItem], metadata: dict[str, Any]) -> None:
+        if not items:
+            return
+        for item in items:
+            item.metadata_ = {**(item.metadata_ or {}), **metadata}
+        await self.db.flush()
+
+    def _model_read_cache_key(
+        self,
+        *,
+        source_version_id: str,
+        focus_question: str,
+        claim_text: str,
+        purpose: str,
+        locator_hint: str,
+        read_surface_id: str,
+    ) -> str:
+        return _model_read_cache_key(
+            source_version_id=source_version_id,
+            focus_question=focus_question,
+            claim_text=claim_text,
+            purpose=purpose,
+            locator_hint=locator_hint,
+            read_surface_id=read_surface_id,
+        )
+
+    def _model_read_request_cache_key(
+        self,
+        *,
+        source_id: str,
+        source_version_id: str,
+        focus_question: str,
+        claim_text: str,
+        purpose: str,
+        locator_hint: str,
+    ) -> str:
+        return _model_read_request_cache_key(
+            run_view=self.run_view,
+            source_id=source_id,
+            source_version_id=source_version_id,
+            focus_question=focus_question,
+            claim_text=claim_text,
+            purpose=purpose,
+            locator_hint=locator_hint,
+        )
 
     async def _provider_search(
         self,
@@ -597,6 +690,8 @@ class EvidenceRetrievalMixin:
         output_text = getattr(response, "output_text", "") or ""
         read_result = _parse_model_file_read_result(output_text)
         read_result["_model_read_file_id"] = input_file_id
+        usage = _openai_usage(response)
+        estimated_cost_usd = _openai_estimated_cost_usd(settings.generation_v2_openai_model, usage)
         safe_set_run(
             run_tree,
             outputs={
@@ -604,6 +699,8 @@ class EvidenceRetrievalMixin:
                 "output_text_chars": len(output_text),
                 "supports_query": read_result.get("supports_query"),
                 "support_level": read_result.get("support_level"),
+                "estimated_cost_usd": estimated_cost_usd,
+                **usage,
             },
         )
         dump_v2_debug(
@@ -623,6 +720,8 @@ class EvidenceRetrievalMixin:
                 "raw_output": output_text,
                 "parsed": read_result,
                 "response_id": getattr(response, "id", None),
+                "usage": usage,
+                "estimated_cost_usd": estimated_cost_usd,
             },
         )
         await save_tool_trace(
@@ -647,8 +746,13 @@ class EvidenceRetrievalMixin:
                 "supports_query": read_result.get("supports_query"),
                 "support_level": read_result.get("support_level"),
                 "confidence": read_result.get("confidence"),
+                "estimated_cost_usd": estimated_cost_usd,
+                **usage,
             },
             provider_call_id=getattr(response, "id", None),
+            input_tokens=usage.get("input_tokens") or usage.get("prompt_tokens"),
+            output_tokens=usage.get("output_tokens") or usage.get("completion_tokens"),
+            cost_usd=estimated_cost_usd,
         )
         return read_result, getattr(response, "id", None)
 
@@ -682,6 +786,84 @@ class EvidenceRetrievalMixin:
             provider_call_id=model_read_file_id,
         )
         return model_read_file_id
+
+
+def _search_cache_key(run_view: Any, *, query: str, source_ids: list[str], limit: int) -> str:
+    payload = {
+        "type": "search_evidence",
+        "query": _cache_text(query),
+        "source_ids": sorted(str(item) for item in (source_ids or getattr(run_view, "selected_source_ids", []) or [])),
+        "limit": int(limit),
+        "corpus_hash": _run_corpus_snapshot_hash(run_view),
+    }
+    return _cache_key(payload)
+
+
+def _model_read_cache_key(
+    *,
+    source_version_id: str,
+    focus_question: str,
+    claim_text: str,
+    purpose: str,
+    locator_hint: str,
+    read_surface_id: str,
+) -> str:
+    payload = {
+        "type": "read_source_with_model",
+        "source_version_id": str(source_version_id),
+        "focus_question": _cache_text(focus_question),
+        "claim_text": _cache_text(claim_text),
+        "purpose": _cache_text(purpose),
+        "locator_hint": _cache_text(locator_hint),
+        "read_surface_id": str(read_surface_id or ""),
+    }
+    return _cache_key(payload)
+
+
+def _model_read_request_cache_key(
+    *,
+    run_view: Any,
+    source_id: str,
+    source_version_id: str,
+    focus_question: str,
+    claim_text: str,
+    purpose: str,
+    locator_hint: str,
+) -> str:
+    payload = {
+        "type": "read_source_with_model_request",
+        "source_id": str(source_id or ""),
+        "source_version_id": str(source_version_id or ""),
+        "focus_question": _cache_text(focus_question),
+        "claim_text": _cache_text(claim_text),
+        "purpose": _cache_text(purpose),
+        "locator_hint": _cache_text(locator_hint),
+        "corpus_hash": _run_corpus_snapshot_hash(run_view),
+    }
+    return _cache_key(payload)
+
+
+def _run_corpus_snapshot_hash(run_view: Any) -> str:
+    manifest_hash = str(getattr(run_view, "manifest_hash", "") or "")
+    if manifest_hash:
+        return manifest_hash
+    payload = {
+        "source_ids": sorted(str(item) for item in (getattr(run_view, "selected_source_ids", []) or [])),
+        "source_version_ids": sorted(str(item) for item in (getattr(run_view, "selected_source_version_ids", []) or [])),
+    }
+    return _cache_key(payload)
+
+
+def _cache_text(value: str | None) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip().lower())
+
+
+def _cache_key(payload: dict[str, Any]) -> str:
+    return hashlib.sha256(json_dumps(payload).encode("utf-8")).hexdigest()
+
+
+def json_dumps(payload: dict[str, Any]) -> str:
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
 __all__ = ["EvidenceRetrievalMixin"]

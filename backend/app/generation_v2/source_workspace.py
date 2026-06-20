@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import asyncio
 import io
 import json
 import logging
@@ -462,23 +463,75 @@ async def _upload_provider_file(
     content: bytes,
     vector_store_id: str,
 ) -> None:
-    client = get_openai_client()
-    file_obj = await client.files.create(file=(filename, io.BytesIO(content)), purpose="assistants")
-    vector_file = await client.vector_stores.files.create_and_poll(
-        vector_store_id=vector_store_id,
-        file_id=file_obj.id,
-        attributes={"source_id": str(source.id), "representation_id": str(rep.id), "kind": rep.kind},
+    existing_result = await db.execute(
+        select(SourceRepresentation).where(
+            SourceRepresentation.source_id == source.id,
+            SourceRepresentation.kind == SourceRepresentationKind.PROVIDER_FILE,
+            SourceRepresentation.provider == "openai",
+            SourceRepresentation.provider_vector_store_id == vector_store_id,
+        )
     )
-    provider_rep = await _save_representation(
+    provider_rep = next(
+        (
+            item
+            for item in existing_result.scalars()
+            if str((item.metadata_ or {}).get("source_representation_id") or "") == str(rep.id)
+        ),
+        None,
+    )
+    if provider_rep is None:
+        provider_rep = await _save_representation(
+            db,
+            source=source,
+            kind=SourceRepresentationKind.PROVIDER_FILE,
+            provider="openai",
+            provider_vector_store_id=vector_store_id,
+            status=V2RecordStatus.PENDING,
+            content=content,
+            metadata={
+                "source_representation_id": str(rep.id),
+                "filename": filename,
+                "upload_phase": "db_prepared",
+            },
+        )
+        await _commit_if_supported(db)
+    client = get_openai_client()
+    if not provider_rep.provider_file_id:
+        file_obj = await asyncio.wait_for(
+            client.files.create(file=(filename, io.BytesIO(content)), purpose="assistants"),
+            timeout=max(30, int(settings.generation_v2_provider_upload_timeout_seconds)),
+        )
+        provider_rep.provider_file_id = file_obj.id
+        provider_rep.status = V2RecordStatus.PENDING
+        provider_rep.metadata_ = {
+            **(provider_rep.metadata_ or {}),
+            "upload_phase": "file_uploaded",
+        }
+        await db.flush()
+        await _commit_if_supported(db)
+    vector_file = await _workspace_retrieve_vector_store_file(client, vector_store_id, provider_rep.provider_file_id)
+    if vector_file is None:
+        vector_file = await asyncio.wait_for(
+            client.vector_stores.files.create(
+                vector_store_id=vector_store_id,
+                file_id=provider_rep.provider_file_id,
+                attributes={"source_id": str(source.id), "representation_id": str(rep.id), "kind": rep.kind},
+            ),
+            timeout=_workspace_provider_operation_timeout_seconds(),
+        )
+    provider_rep.metadata_ = {
+        **(provider_rep.metadata_ or {}),
+        "upload_phase": "attached",
+        "provider_vector_store_file_id": getattr(vector_file, "id", None),
+        "last_provider_status": getattr(vector_file, "status", None),
+    }
+    await db.flush()
+    await _commit_if_supported(db)
+    await _poll_workspace_provider_file(
         db,
-        source=source,
-        kind=SourceRepresentationKind.PROVIDER_FILE,
-        provider="openai",
-        provider_file_id=file_obj.id,
-        provider_vector_store_id=vector_store_id,
-        status=V2RecordStatus.READY,
-        content=content,
-        metadata={"source_representation_id": str(rep.id), "filename": filename},
+        client,
+        provider_rep,
+        vector_store_id,
     )
     await save_tool_trace(
         db,
@@ -488,13 +541,87 @@ async def _upload_provider_file(
         tool_name="openai.files.create+vector_store_file",
         input_json={"source_id": str(source.id), "representation_id": str(rep.id), "filename": filename},
         output_json={
-            "provider_file_id": file_obj.id,
-            "provider_vector_store_file_id": getattr(vector_file, "id", None),
-            "provider_vector_store_file_status": getattr(vector_file, "status", None),
+            "provider_file_id": provider_rep.provider_file_id,
+            "provider_vector_store_file_id": (provider_rep.metadata_ or {}).get("provider_vector_store_file_id"),
+            "provider_vector_store_file_status": (provider_rep.metadata_ or {}).get("last_provider_status"),
             "provider_representation_id": str(provider_rep.id),
         },
-        provider_call_id=file_obj.id,
+        provider_call_id=provider_rep.provider_file_id,
     )
+
+
+async def _poll_workspace_provider_file(
+    db: AsyncSession,
+    client: Any,
+    provider_rep: SourceRepresentation,
+    vector_store_id: str,
+) -> None:
+    deadline = asyncio.get_running_loop().time() + max(30, int(settings.generation_v2_provider_upload_timeout_seconds))
+    while True:
+        vector_file = await _workspace_retrieve_vector_store_file(client, vector_store_id, provider_rep.provider_file_id)
+        if vector_file is None:
+            provider_rep.status = V2RecordStatus.PENDING
+            provider_rep.metadata_ = {
+                **(provider_rep.metadata_ or {}),
+                "upload_phase": "indexing",
+                "last_provider_status": "retrieve_unavailable",
+            }
+            await db.flush()
+            await _commit_if_supported(db)
+            return
+        status = str(getattr(vector_file, "status", "") or "")
+        provider_rep.metadata_ = {
+            **(provider_rep.metadata_ or {}),
+            "provider_vector_store_file_id": getattr(vector_file, "id", None),
+            "last_provider_status": status,
+        }
+        if status == "completed":
+            provider_rep.status = V2RecordStatus.READY
+            provider_rep.error_message = None
+            provider_rep.metadata_ = {**(provider_rep.metadata_ or {}), "upload_phase": "ready"}
+            await db.flush()
+            await _commit_if_supported(db)
+            return
+        if status in {"failed", "cancelled"}:
+            provider_rep.status = V2RecordStatus.FAILED
+            provider_rep.error_message = f"OpenAI vector store file status: {status}"
+            provider_rep.metadata_ = {**(provider_rep.metadata_ or {}), "upload_phase": "failed"}
+            await db.flush()
+            await _commit_if_supported(db)
+            return
+        if asyncio.get_running_loop().time() >= deadline:
+            provider_rep.status = V2RecordStatus.PENDING
+            provider_rep.metadata_ = {**(provider_rep.metadata_ or {}), "upload_phase": "indexing"}
+            await db.flush()
+            await _commit_if_supported(db)
+            return
+        provider_rep.status = V2RecordStatus.PENDING
+        provider_rep.metadata_ = {**(provider_rep.metadata_ or {}), "upload_phase": "indexing"}
+        await db.flush()
+        await _commit_if_supported(db)
+        await asyncio.sleep(1)
+
+
+async def _workspace_retrieve_vector_store_file(client: Any, vector_store_id: str, provider_file_id: str | None) -> Any | None:
+    if not provider_file_id:
+        return None
+    try:
+        return await asyncio.wait_for(
+            client.vector_stores.files.retrieve(file_id=provider_file_id, vector_store_id=vector_store_id),
+            timeout=_workspace_provider_operation_timeout_seconds(),
+        )
+    except Exception:
+        return None
+
+
+def _workspace_provider_operation_timeout_seconds() -> int:
+    return max(10, min(60, int(settings.generation_v2_provider_upload_timeout_seconds)))
+
+
+async def _commit_if_supported(db: AsyncSession) -> None:
+    commit = getattr(db, "commit", None)
+    if commit is not None:
+        await commit()
 
 
 async def _save_representation(

@@ -20,7 +20,7 @@ The treatment is the contract for writing. It decides what each act earns, which
 
 Use {act_count} acts. Each act must have a clear editorial job, turn, and source focus.
 Every TreatmentAct.source_focus entry must be an exact source_id from the memo. Do not invent source ids.
-Every act should include required_evidence_ids drawn from the research memo/source map when factual material is required.
+Every act should include required_evidence_ids drawn primarily from research memo atom evidence_ids when factual material is required; SourceMap evidence is only a fallback seed.
 Use targeted tools only for specific missing treatment requirements: read_evidence, read_source_window, or search_within_source. Do not broadly research new angles in treatment.
 Allocate target_minutes from editorial difficulty and listener work, not equal blocks.
 Avoid generic act labels. The title/story_role/opening_question/main_turn/ending_turn should make clear what changes in that act."""

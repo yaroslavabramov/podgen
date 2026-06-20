@@ -32,7 +32,7 @@ async def search_corpus(db: AsyncSession, project_id: uuid.UUID, query: str, lim
                 "source_title": source.title or source.original_url or "Untitled",
                 "chunk_id": str(chunk.id),
                 "heading_path": chunk.heading_path or [],
-                "content": chunk.content[:1400],
+                "content": chunk.content[:900],
                 "score": _chunk_score(chunk, source, tokens),
             }
         )
@@ -51,19 +51,14 @@ async def fetch_source_view(db: AsyncSession, source_id: uuid.UUID, kind: str | 
     text = ""
     if rep.storage_path and rep.kind not in {"original_url", "original_file", "provider_file"}:
         try:
-            text = download_text(get_minio_client(), rep.storage_path)[:6000]
+            text = download_text(get_minio_client(), rep.storage_path)[:2200]
         except Exception as exc:
             text = f"[Could not read representation text: {exc}]"
     return {
         "found": True,
         "representation_id": str(rep.id),
         "kind": rep.kind,
-        "storage_path": rep.storage_path,
-        "provider": rep.provider,
-        "provider_file_id": rep.provider_file_id,
-        "provider_vector_store_id": rep.provider_vector_store_id,
         "status": rep.status,
-        "metadata": rep.metadata_,
         "text": text,
     }
 
