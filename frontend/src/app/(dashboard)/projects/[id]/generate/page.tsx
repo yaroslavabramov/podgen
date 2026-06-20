@@ -448,6 +448,7 @@ export default function GeneratePage() {
           voice_b_id: voiceB || null,
           execution_mode: generationMode === "compare" ? "full" : executionMode,
           generation_mode: generationMode,
+          source_acquisition_mode: generationMode === "v1" ? "off" : "auto",
         },
       }).json<GenerationRun>();
       setAutoRestoreSuppressed(false);

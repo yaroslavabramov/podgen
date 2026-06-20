@@ -218,6 +218,9 @@ export default function ProjectDetailPage() {
                       <p className="text-sm text-muted-foreground">{source.source_type.toUpperCase()}</p>
                     </div>
                     <div className="flex items-center gap-2">
+                      {source.metadata?.auto_acquired_by_v2 === true && (
+                        <Badge variant="outline">V2 auto</Badge>
+                      )}
                       <Badge
                         variant={
                           source.ingestion_status === "completed" ? "success" :

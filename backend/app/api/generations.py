@@ -165,6 +165,7 @@ async def start_generation(project_id: uuid.UUID, data: GenerationCreate, user: 
         "voice_b_id": data.voice_b_id,
         "execution_mode": data.execution_mode,
         "generation_mode": data.generation_mode,
+        "source_acquisition_mode": data.source_acquisition_mode,
     }
     if data.execution_mode == "step":
         run_config["step_control"] = _initial_step_control(data.generation_mode)

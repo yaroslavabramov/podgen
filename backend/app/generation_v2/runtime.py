@@ -169,12 +169,16 @@ class V2Runtime:
                     raise
             latency_ms = (time.perf_counter() - started) * 1000
             usage = _openai_usage(response)
+            file_search_calls = _file_search_calls(response)
+            web_search_calls = _web_search_calls(response)
             safe_set_run(
                 run_tree,
                 outputs={
                     "response_id": response.id,
                     "status": getattr(response, "status", None),
                     "output_text_chars": len(response.output_text or ""),
+                    "file_search_call_count": len(file_search_calls),
+                    "web_search_call_count": len(web_search_calls),
                     **usage,
                 },
             )
@@ -196,6 +200,10 @@ class V2Runtime:
                     "response_id": response.id,
                     "status": getattr(response, "status", None),
                     "output_text_chars": len(response.output_text or ""),
+                    "file_search_call_count": len(file_search_calls),
+                    "web_search_call_count": len(web_search_calls),
+                    "file_search_calls": _compact_hosted_calls(file_search_calls),
+                    "web_search_calls": _compact_hosted_calls(web_search_calls),
                     **usage,
                 },
                 provider_call_id=response.id,
@@ -203,7 +211,6 @@ class V2Runtime:
                 input_tokens=usage.get("input_tokens") or usage.get("prompt_tokens"),
                 output_tokens=usage.get("output_tokens") or usage.get("completion_tokens"),
             )
-            file_search_calls = _file_search_calls(response)
             hosted_summary: dict[str, Any] | None = None
             if file_search_calls and hosted_file_search_handler:
                 hosted_summary = await hosted_file_search_handler(file_search_calls, response.id, phase, agent_name)
@@ -239,6 +246,7 @@ class V2Runtime:
                             response=response,
                             usage=usage,
                             file_search_calls=file_search_calls,
+                            web_search_calls=web_search_calls,
                             function_calls=function_calls,
                             hosted_followup=hosted_followup,
                         ),
@@ -270,6 +278,7 @@ class V2Runtime:
                                 response=response,
                                 usage=usage,
                                 file_search_calls=file_search_calls,
+                                web_search_calls=web_search_calls,
                                 function_calls=function_calls,
                                 hosted_followup=hosted_followup,
                             ),
@@ -301,6 +310,7 @@ class V2Runtime:
                                 response=response,
                                 usage=usage,
                                 file_search_calls=file_search_calls,
+                                web_search_calls=web_search_calls,
                                 function_calls=function_calls,
                                 hosted_followup=hosted_followup,
                             ),
@@ -363,6 +373,7 @@ class V2Runtime:
                         response=response,
                         usage=usage,
                         file_search_calls=file_search_calls,
+                        web_search_calls=web_search_calls,
                         function_calls=function_calls,
                         hosted_followup=hosted_followup,
                     ),
@@ -451,6 +462,37 @@ def _file_search_calls(response: Any) -> list[dict[str, Any]]:
             }
         )
     return calls
+
+
+def _web_search_calls(response: Any) -> list[dict[str, Any]]:
+    calls: list[dict[str, Any]] = []
+    for item in getattr(response, "output", []) or []:
+        if _item_get(item, "type") != "web_search_call":
+            continue
+        payload = _to_plain_dict(item)
+        calls.append(
+            {
+                "call_id": _item_get(item, "id", "") or _item_get(item, "call_id", ""),
+                "status": _item_get(item, "status", None),
+                "action": payload.get("action"),
+                "queries": payload.get("queries") or payload.get("query") or [],
+            }
+        )
+    return calls
+
+
+def _compact_hosted_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    compact = []
+    for call in calls[:12]:
+        compact.append(
+            {
+                "call_id": call.get("call_id"),
+                "status": call.get("status"),
+                "queries": call.get("queries"),
+                "result_count": len(call.get("results") or []),
+            }
+        )
+    return compact
 
 
 def _hosted_evidence_followup_input(
@@ -552,6 +594,7 @@ def _runtime_debug_payload(
     response: Any,
     usage: dict[str, Any],
     file_search_calls: list[dict[str, Any]],
+    web_search_calls: list[dict[str, Any]],
     function_calls: list[dict[str, Any]],
     hosted_followup: dict[str, Any] | None,
 ) -> dict[str, Any]:
@@ -575,6 +618,7 @@ def _runtime_debug_payload(
         },
         "usage": usage,
         "file_search_calls": file_search_calls,
+        "web_search_calls": web_search_calls,
         "function_calls": function_calls,
         "hosted_followup": hosted_followup,
     }

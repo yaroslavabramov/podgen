@@ -41,14 +41,15 @@ export function GenerationProgress() {
     { id: "phase7_audio", label: t("phaseAudio"), icon: "7" },
   ];
   const v2Phases = [
-    { id: "v2_source_workspace", label: "Source Workspace", icon: "1" },
-    { id: "v2_editorial_research", label: "Editorial Research", icon: "2" },
-    { id: "v2_research_audit", label: "Research Audit", icon: "3" },
-    { id: "v2_treatment", label: "Treatment", icon: "4" },
-    { id: "v2_act_drafting", label: "Act Drafts", icon: "5" },
-    { id: "v2_critique_rewrite", label: "Critique", icon: "6" },
-    { id: "v2_fact_citation", label: "Citations", icon: "7" },
-    { id: "v2_audio", label: t("phaseAudio"), icon: "8" },
+    { id: "v2_corpus_prepare", label: "Corpus", icon: "1" },
+    { id: "v2_source_acquisition", label: "Acquisition", icon: "2" },
+    { id: "v2_editorial_research", label: "Editorial Research", icon: "3" },
+    { id: "v2_research_audit", label: "Research Audit", icon: "4" },
+    { id: "v2_treatment", label: "Treatment", icon: "5" },
+    { id: "v2_act_drafting", label: "Act Drafts", icon: "6" },
+    { id: "v2_critique_rewrite", label: "Critique", icon: "7" },
+    { id: "v2_fact_citation", label: "Citations", icon: "8" },
+    { id: "v2_audio", label: t("phaseAudio"), icon: "9" },
   ];
   const phases = currentPhase.startsWith("v2_") ? v2Phases : v1Phases;
 

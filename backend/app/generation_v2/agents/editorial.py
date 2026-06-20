@@ -12,6 +12,7 @@ from app.generation_v2.prompts import (
     EPISODE_CRITIQUE_PROMPT,
     RESEARCH_AUDIT_PROMPT,
     RESEARCH_MEMO_PROMPT,
+    SOURCE_ACQUISITION_PROMPT,
     SOURCE_TRIAGE_PROMPT,
     SUPPORT_JUDGMENT_PROMPT,
     TREATMENT_PROMPT,
@@ -30,10 +31,12 @@ from app.generation_v2.schemas import (
     EpisodeCritique,
     FactIssue,
     FinalTranscript,
+    CorpusGapReport,
     ResearchAudit,
     ResearchMemo,
     ShowBibleContext,
     SourceCard,
+    SourceAcquisitionCompletion,
     SourceMap,
     SourceTriageCompletion,
     SourceTriageReport,
@@ -83,6 +86,11 @@ CITATION_TOOL_NAMES = {
     "read_source_with_model",
     "search_within_source",
     "select_evidence",
+}
+ACQUISITION_TOOL_NAMES = {
+    "ingest_source_candidate",
+    "reject_source_candidate",
+    "finalize_source_acquisition_round",
 }
 
 
@@ -278,6 +286,50 @@ async def build_source_triage_agent(
             ready=False,
             summary="Runtime fallback was used; source triage write actions were not completed by the model.",
             notes=["Fallback source inventory is not an authoritative SourceMap."],
+        )
+
+
+async def build_source_acquisition_agent(
+    db: AsyncSession,
+    run: GenerationRun,
+    runtime: V2Runtime,
+    *,
+    gap_report: CorpusGapReport,
+    source_inventory: SourceMap | None,
+    acquisition_tools: list[AgentTool] | None = None,
+    round_number: int,
+) -> SourceAcquisitionCompletion:
+    prompt = SOURCE_ACQUISITION_PROMPT.format(
+        user_prompt=(run.config or {}).get("user_prompt", ""),
+        duration_minutes=int((run.config or {}).get("duration_target", 1800)) // 60,
+        language=(run.config or {}).get("language", "en"),
+        gap_report_json=gap_report.model_dump_json(),
+        source_inventory_json=_json(_source_inventory((source_inventory or SourceMap()).source_cards, limit=120)),
+        candidate_budget=settings.generation_v2_source_acquisition_candidates_per_round,
+        ingest_budget=settings.generation_v2_source_acquisition_max_ingest_per_round,
+    )
+    try:
+        return await runtime.call_structured(
+            db=db,
+            generation_run_id=run.id,
+            phase="v2_source_acquisition",
+            agent_name=f"source_acquisition_round_{round_number}",
+            schema_model=SourceAcquisitionCompletion,
+            system=V2_SYSTEM_BASE,
+            prompt=prompt,
+            vector_store_id=None,
+            local_tools=_phase_tools(acquisition_tools, ACQUISITION_TOOL_NAMES),
+            tool_policy=ToolPolicy(file_search=False, web_search=True, local_tools=True),
+            max_output_tokens=8000,
+            max_tool_rounds=settings.generation_v2_source_acquisition_candidates_per_round + 2,
+        )
+    except V2RuntimeUnavailable as exc:
+        _allow_runtime_fallback(runtime, "v2_source_acquisition", f"source_acquisition_round_{round_number}", exc)
+        return SourceAcquisitionCompletion(
+            ready=False,
+            summary="Runtime fallback was used; source acquisition did not run.",
+            searched_gap_ids=[gap.gap_id for gap in gap_report.gaps],
+            notes=["Source acquisition requires OpenAI web_search and is disabled in runtime fallback."],
         )
 
 

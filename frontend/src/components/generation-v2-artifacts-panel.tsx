@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-type V2Tab = "research" | "evidence" | "treatment" | "draft" | "critique" | "claims" | "final" | "traces" | "compare";
+type V2Tab = "research" | "acquisition" | "evidence" | "treatment" | "draft" | "critique" | "claims" | "final" | "traces" | "compare";
 
 interface GenerationV2ArtifactsPanelProps {
   artifacts: V2Artifacts | null;
@@ -25,6 +25,7 @@ interface GenerationV2ArtifactsPanelProps {
 
 const tabTypes: Record<V2Tab, string[]> = {
   research: ["source_map", "source_card", "quote_card", "source_triage", "editorial_atom", "research_memo", "research_audit"],
+  acquisition: ["corpus_gap_report", "source_acquisition_candidate", "source_acquisition_round", "source_acquisition_report"],
   evidence: ["evidence_item"],
   treatment: ["treatment", "act_dossier"],
   draft: ["act_draft", "continuity_ledger"],
@@ -87,7 +88,7 @@ export function GenerationV2ArtifactsPanel({
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap gap-2">
-          {(["research", "evidence", "treatment", "draft", "critique", "claims", "final", "traces"] as V2Tab[]).map((value) => (
+          {(["research", "acquisition", "evidence", "treatment", "draft", "critique", "claims", "final", "traces"] as V2Tab[]).map((value) => (
             <Button
               key={value}
               type="button"
@@ -152,6 +153,7 @@ function collectItems(groups: Record<string, V2ArtifactItem[]>, types: string[])
 function label(tab: V2Tab): string {
   const labels: Record<V2Tab, string> = {
     research: "Research",
+    acquisition: "Acquisition",
     evidence: "Evidence",
     treatment: "Treatment",
     draft: "Act Drafts",

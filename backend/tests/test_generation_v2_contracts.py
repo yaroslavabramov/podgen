@@ -17,6 +17,7 @@ from app.generation_v2.agents.editorial import (
     audit_research_memo,
     build_act_dossier,
     build_research_memo,
+    build_source_acquisition_agent,
     build_source_triage_agent,
     build_treatment,
     critique_episode,
@@ -35,6 +36,7 @@ from app.generation_v2.prompts import (
     CLAIM_CITATION_PROMPT,
     EPISODE_CRITIQUE_PROMPT,
     RESEARCH_MEMO_PROMPT,
+    SOURCE_ACQUISITION_PROMPT,
     SOURCE_TRIAGE_PROMPT,
 )
 from app.generation_v2.runtime import (
@@ -60,8 +62,11 @@ from app.generation_v2.schemas import (
     QuoteCard,
     ResearchAudit,
     ResearchMemo,
+    CorpusGapReport,
+    SourceAcquisitionCandidate,
     SourceCard,
     SourceMap,
+    SourceTriageGate,
     SourceTriageCompletion,
     SourceTriageReport,
     SupportJudgment,
@@ -70,6 +75,12 @@ from app.generation_v2.schemas import (
     TreatmentAct,
 )
 from app.generation_v2.source_triage import build_source_triage
+from app.generation_v2.source_acquisition import (
+    SourceAcquisitionToolset,
+    build_corpus_gap_report,
+    normalize_candidate_url,
+    validate_candidate_static,
+)
 from app.generation_v2.source_corpus import (
     _agent_facing_provider_versions,
     _call_openai_url_file_read,
@@ -2839,3 +2850,186 @@ def _claim(
         risk_level="medium",
         support_level=support_level,  # type: ignore[arg-type]
     )
+
+
+def test_source_acquisition_prompt_keeps_web_search_as_discovery_only() -> None:
+    assert "web_search for discovery only" in SOURCE_ACQUISITION_PROMPT
+    assert "Call ingest_source_candidate" in SOURCE_ACQUISITION_PROMPT
+    assert "Final support must come later from ingested project sources" in SOURCE_ACQUISITION_PROMPT
+    assert "Return only SourceAcquisitionCompletion JSON" in SOURCE_ACQUISITION_PROMPT
+
+
+def test_source_acquisition_toolset_exposes_only_acquisition_write_tools() -> None:
+    run = SimpleNamespace(id=uuid.uuid4(), project_id=uuid.uuid4())
+    gap_report = CorpusGapReport(
+        run_id=str(run.id),
+        project_id=str(run.project_id),
+        trigger_phase="source_triage",
+        target_duration_seconds=3600,
+        summary="Need sources",
+        gaps=[
+            {
+                "gap_id": "gap-1",
+                "kind": "missing_function",
+                "description": "Need mechanism coverage",
+                "required_editorial_functions": ["mechanism"],
+            }
+        ],
+    )
+    toolset = SourceAcquisitionToolset(db=SimpleNamespace(), run=run, gap_report=gap_report, round_number=1)  # type: ignore[arg-type]
+
+    names = {tool.name for tool in toolset.agent_tools()}
+
+    assert names == {"ingest_source_candidate", "reject_source_candidate", "finalize_source_acquisition_round"}
+    assert all("evidence" not in name for name in names)
+    assert all("source_map" not in name for name in names)
+
+
+@pytest.mark.asyncio
+async def test_source_acquisition_agent_uses_web_search_and_acquisition_tools_only() -> None:
+    captured = {}
+
+    class Runtime:
+        async def call_structured(self, **kwargs):
+            captured.update(kwargs)
+            return kwargs["schema_model"](
+                ready=True,
+                summary="done",
+                searched_gap_ids=["gap-1"],
+                accepted_urls=[],
+                rejected_urls=[],
+                notes=[],
+            )
+
+    run = SimpleNamespace(
+        id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        config={"user_prompt": "topic", "duration_target": 3600, "language": "en"},
+    )
+    gap_report = CorpusGapReport(
+        run_id=str(run.id),
+        project_id=str(run.project_id),
+        trigger_phase="source_triage",
+        target_duration_seconds=3600,
+        summary="Need sources",
+        gaps=[
+            {
+                "gap_id": "gap-1",
+                "kind": "missing_function",
+                "description": "Need mechanism coverage",
+            }
+        ],
+    )
+    async def _handler(_args):
+        return {}
+
+    tools = [
+        AgentTool(name="ingest_source_candidate", description="", parameters={"type": "object", "properties": {}}, handler=_handler),
+        AgentTool(name="reject_source_candidate", description="", parameters={"type": "object", "properties": {}}, handler=_handler),
+        AgentTool(name="finalize_source_acquisition_round", description="", parameters={"type": "object", "properties": {}}, handler=_handler),
+        AgentTool(name="search_evidence", description="", parameters={"type": "object", "properties": {}}, handler=_handler),
+    ]
+
+    await build_source_acquisition_agent(
+        SimpleNamespace(),  # type: ignore[arg-type]
+        run,  # type: ignore[arg-type]
+        Runtime(),  # type: ignore[arg-type]
+        gap_report=gap_report,
+        source_inventory=SourceMap(),
+        acquisition_tools=tools,
+        round_number=1,
+    )
+
+    assert captured["phase"] == "v2_source_acquisition"
+    assert captured["tool_policy"].web_search is True
+    assert captured["tool_policy"].file_search is False
+    assert {tool.name for tool in captured["local_tools"]} == {
+        "ingest_source_candidate",
+        "reject_source_candidate",
+        "finalize_source_acquisition_round",
+    }
+
+
+def test_corpus_gap_report_collects_triage_gate_failures() -> None:
+    run = SimpleNamespace(id=uuid.uuid4(), project_id=uuid.uuid4(), config={"duration_target": 5400})
+    source_map = SourceMap(
+        source_cards=[_source_card(source_id="src-1")],
+        evidence_ids=["ev-1"],
+        gaps=["Missing human cost reporting."],
+    )
+    gate = SourceTriageGate(
+        passed=False,
+        summary="failed",
+        missing_function_evidence=["mechanism"],
+        missing_source_card_evidence_source_ids=["src-2"],
+    )
+
+    report = build_corpus_gap_report(
+        run,  # type: ignore[arg-type]
+        trigger_phase="source_triage",
+        round_number=1,
+        source_map=source_map,
+        triage_ready=False,
+        triage_completion_summary="not enough coverage",
+        triage_gate=gate,
+    )
+
+    assert report.should_acquire is True
+    assert report.source_count == 1
+    assert report.evidence_count == 1
+    assert any(gap.kind == "triage_not_ready" for gap in report.gaps)
+    assert any(gap.kind == "missing_function" and "mechanism" in gap.required_editorial_functions for gap in report.gaps)
+    assert any(gap.kind == "source_map_gap" for gap in report.gaps)
+
+
+def test_source_acquisition_candidate_validation_rejects_bad_urls_and_unknown_gaps(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "generation_v2_source_acquisition_min_confidence", 0.55)
+    report = CorpusGapReport(
+        run_id=str(uuid.uuid4()),
+        project_id=str(uuid.uuid4()),
+        trigger_phase="source_triage",
+        target_duration_seconds=3600,
+        summary="Need sources",
+        gaps=[
+            {
+                "gap_id": "gap-1",
+                "kind": "missing_function",
+                "description": "Need mechanism coverage",
+            }
+        ],
+    )
+
+    search_candidate = SourceAcquisitionCandidate(
+        url="https://www.google.com/search?q=topic",
+        normalized_url=normalize_candidate_url("https://www.google.com/search?q=topic"),
+        gap_ids=["gap-1"],
+        rationale="Search page",
+        confidence=0.9,
+    )
+    unknown_gap_candidate = SourceAcquisitionCandidate(
+        url="https://example.com/report",
+        normalized_url=normalize_candidate_url("https://example.com/report"),
+        gap_ids=["missing-gap"],
+        rationale="Looks useful",
+        confidence=0.9,
+    )
+    low_confidence_candidate = SourceAcquisitionCandidate(
+        url="https://example.com/report",
+        normalized_url=normalize_candidate_url("https://example.com/report"),
+        gap_ids=["gap-1"],
+        rationale="Weak",
+        confidence=0.2,
+    )
+    good_candidate = SourceAcquisitionCandidate(
+        url="https://example.com/report?utm_source=x&b=1",
+        normalized_url=normalize_candidate_url("https://example.com/report?utm_source=x&b=1"),
+        gap_ids=["gap-1"],
+        rationale="Primary-looking report",
+        confidence=0.8,
+    )
+
+    assert "Search result pages" in (validate_candidate_static(search_candidate, report) or "")
+    assert "known gap_ids" in (validate_candidate_static(unknown_gap_candidate, report) or "")
+    assert "below" in (validate_candidate_static(low_confidence_candidate, report) or "")
+    assert validate_candidate_static(good_candidate, report) is None
+    assert good_candidate.normalized_url == "https://example.com/report?b=1"

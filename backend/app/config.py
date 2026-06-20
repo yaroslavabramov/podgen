@@ -60,6 +60,15 @@ class Settings(BaseSettings):
     generation_v2_max_tool_rounds: int = 8
     generation_v2_triage_max_tool_rounds: int = 12
     generation_v2_debug_dump_dir: str = ""
+    generation_v2_enable_source_acquisition: bool = True
+    generation_v2_source_acquisition_mode: str = "auto"
+    generation_v2_source_acquisition_max_rounds: int = 3
+    generation_v2_source_acquisition_candidates_per_round: int = 20
+    generation_v2_source_acquisition_max_ingest_per_round: int = 10
+    generation_v2_source_acquisition_parallelism: int = 3
+    generation_v2_source_acquisition_source_timeout_seconds: int = 420
+    generation_v2_source_acquisition_min_confidence: float = 0.55
+    generation_v2_source_acquisition_domain_cap: int = 3
 
     # LangSmith tracing
     langsmith_tracing: bool = False

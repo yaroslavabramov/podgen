@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 
+from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +11,7 @@ from app.generation_v2.agents.editorial import (
     audit_research_memo,
     build_act_dossier,
     build_research_memo,
+    build_source_acquisition_agent,
     build_source_triage_agent,
     build_treatment,
     critique_episode,
@@ -39,10 +41,18 @@ from app.generation_v2.schemas import (
     ResearchMemo,
     ShowBibleContext,
     SourceCard,
+    SourceMap,
     SupportJudgmentBundle,
     Treatment,
 )
-from app.generation_v2.source_corpus import list_evidence_dicts, prepare_v2_corpus
+from app.generation_v2.source_acquisition import (
+    SourceAcquisitionToolset,
+    acquisition_enabled,
+    build_corpus_gap_report,
+    remaining_acquisition_rounds,
+    source_acquisition_report_from_rounds,
+)
+from app.generation_v2.source_corpus import CorpusPreparationResult, list_evidence_dicts, prepare_v2_corpus
 from app.generation_v2.tools.evidence import (
     EvidenceToolset,
     build_source_map_from_write_actions,
@@ -56,6 +66,36 @@ from app.models.show_bible import ShowBible
 from app.pipeline.step_control import assert_step_not_stopped
 from app.realtime.events import phase_completed, phase_started, progress, step_completed, step_started
 from app.realtime.publisher import publish_event, update_generation_progress
+
+
+@dataclass
+class _TriageState:
+    corpus: CorpusPreparationResult
+    evidence_toolset: EvidenceToolset
+    evidence_tools: list
+    source_inventory: SourceMap
+    triage_completion: object
+    source_map: SourceMap
+    triage_gate: object
+    source_cards: list[SourceCard]
+    quote_cards: list[QuoteCard]
+    source_map_artifact_id: str
+    evidence_artifact_ids: list[str]
+    source_artifact_ids: list[str]
+    quote_artifact_ids: list[str]
+    triage_artifact_id: str
+    triage_gate_artifact_id: str
+
+    @property
+    def source_workspace_artifact_ids(self) -> list[str]:
+        return [
+            self.source_map_artifact_id,
+            *self.evidence_artifact_ids,
+            *self.source_artifact_ids,
+            *self.quote_artifact_ids,
+            self.triage_artifact_id,
+            self.triage_gate_artifact_id,
+        ]
 
 
 class V2StepExecutionStopped(RuntimeError):
@@ -73,249 +113,210 @@ async def execute_generation_v2(
 ) -> str | None:
     runtime = V2Runtime()
     show_bible = await _load_show_bible_context(db, run)
-    source_artifact_ids: list[str] = []
-    quote_artifact_ids: list[str] = []
+    acquisition_rounds_used = 0
 
-    await _phase(run, db, "v2_corpus_prepare", "Preparing evidence corpus", 4)
-    corpus = await prepare_v2_corpus(db, run)
-    evidence_toolset = EvidenceToolset(
-        db=db,
-        run=run,
-        run_view=corpus.run_view,
-        provider_index=corpus.provider_index,
-    )
-    evidence_tools = evidence_toolset.agent_tools()
-    source_inventory = await build_source_inventory(
-        db,
-        corpus.run_view,
-    )
-    triage_completion = await build_source_triage_agent(
-        db,
-        run,
-        runtime,
-        source_inventory=source_inventory,
-        evidence_tools=evidence_tools,
-        vector_store_id=corpus.vector_store_id,
-        hosted_file_search_handler=evidence_toolset.persist_hosted_file_search_calls,
-    )
-    triage_completion_artifact = await save_artifact(
-        db,
-        generation_run_id=run.id,
-        artifact_type=V2ArtifactType.SOURCE_TRIAGE,
-        artifact_key="completion",
-        payload=triage_completion,
-        status=V2ArtifactStatus.PASSED if triage_completion.ready else V2ArtifactStatus.FAILED,
-        prompt_hash=runtime.prompt_hash_for("v2_source_triage", "source_triage_agent"),
-        metadata=runtime.fallback_metadata_for("v2_source_triage", "source_triage_agent"),
-    )
-    source_map = await build_source_map_from_write_actions(
-        db,
-        generation_run_id=run.id,
-        inventory=source_inventory,
-    )
-    triage_gate = await validate_source_map_gate(
-        db,
-        generation_run_id=run.id,
-        source_map=source_map,
-        run_view=corpus.run_view,
-    )
-    source_cards = source_map.source_cards
-    quote_cards = source_map.quote_cards
-    source_map_artifact = await save_artifact(
-        db,
-        generation_run_id=run.id,
-        artifact_type=V2ArtifactType.SOURCE_MAP,
-        artifact_key="main",
-        payload=source_map,
-        provider="openai" if corpus.vector_store_id else None,
-        status=V2ArtifactStatus.PASSED if triage_gate.passed else V2ArtifactStatus.FAILED,
-        prompt_hash=runtime.prompt_hash_for("v2_source_triage", "source_triage_agent"),
-        metadata=runtime.fallback_metadata_for("v2_source_triage", "source_triage_agent"),
-        input_artifact_ids=[str(triage_completion_artifact.id)],
-    )
-    evidence_artifact_ids = await _save_evidence_artifacts(
-        db,
-        run,
-        evidence_ids=source_map.evidence_ids,
-        input_artifact_ids=[str(source_map_artifact.id)],
-    )
-    for card in source_cards:
-        artifact = await save_artifact(
+    triage_state = await _prepare_and_triage(run, db, runtime)
+    if not triage_state.triage_completion.ready or not triage_state.triage_gate.passed:
+        triage_state, acquisition_rounds_used = await _run_source_acquisition_until_triage_ready(
+            run,
             db,
-            generation_run_id=run.id,
-            artifact_type=V2ArtifactType.SOURCE_CARD,
-            artifact_key=card.source_id,
-            payload=card,
-            status=V2ArtifactStatus.PASSED,
-            input_artifact_ids=[str(source_map_artifact.id), *evidence_artifact_ids],
+            runtime,
+            triage_state=triage_state,
+            trigger_phase="source_triage",
+            acquisition_rounds_used=acquisition_rounds_used,
         )
-        source_artifact_ids.append(str(artifact.id))
-    for idx, quote in enumerate(quote_cards):
-        artifact = await save_artifact(
-            db,
-            generation_run_id=run.id,
-            artifact_type=V2ArtifactType.QUOTE_CARD,
-            artifact_key=f"{quote.source_id}:{idx}",
-            payload=quote,
-            status=V2ArtifactStatus.PASSED,
-            input_artifact_ids=[str(source_map_artifact.id), *evidence_artifact_ids],
-        )
-        quote_artifact_ids.append(str(artifact.id))
-    source_triage = source_map.source_triage
-    triage_artifact = await save_artifact(
-        db,
-        generation_run_id=run.id,
-        artifact_type=V2ArtifactType.SOURCE_TRIAGE,
-        artifact_key="main",
-        payload=source_triage,
-        status=V2ArtifactStatus.PASSED if triage_gate.passed else V2ArtifactStatus.FAILED,
-        input_artifact_ids=[str(triage_completion_artifact.id), str(source_map_artifact.id), *source_artifact_ids, *quote_artifact_ids],
-        prompt_hash=runtime.prompt_hash_for("v2_source_triage", "source_triage_agent"),
-        metadata=runtime.fallback_metadata_for("v2_source_triage", "source_triage_agent"),
-    )
-    triage_gate_artifact = await save_artifact(
-        db,
-        generation_run_id=run.id,
-        artifact_type=V2ArtifactType.SOURCE_TRIAGE,
-        artifact_key="gate",
-        payload=triage_gate,
-        status=V2ArtifactStatus.PASSED if triage_gate.passed else V2ArtifactStatus.FAILED,
-        input_artifact_ids=[str(triage_completion_artifact.id), str(source_map_artifact.id), str(triage_artifact.id)],
-    )
-    if not triage_completion.ready or not triage_gate.passed:
+    if not triage_state.triage_completion.ready or not triage_state.triage_gate.passed:
         await db.commit()
-        raise RuntimeError(f"V2 source triage gate failed: {triage_completion.summary} {triage_gate.summary}")
+        raise RuntimeError(
+            f"V2 source triage gate failed: {triage_state.triage_completion.summary} {triage_state.triage_gate.summary}"
+        )
+    corpus = triage_state.corpus
+    evidence_toolset = triage_state.evidence_toolset
+    evidence_tools = triage_state.evidence_tools
+    source_map = triage_state.source_map
+    source_cards = triage_state.source_cards
+    quote_cards = triage_state.quote_cards
+    source_triage = source_map.source_triage
+    source_artifact_ids = triage_state.source_artifact_ids
+    quote_artifact_ids = triage_state.quote_artifact_ids
+    source_map_artifact_id = triage_state.source_map_artifact_id
+    source_workspace_artifact_ids = triage_state.source_workspace_artifact_ids
     await _commit_step(run, db, "corpus_prepare", 12, next_step="editorial_research")
 
-    await _phase(run, db, "v2_editorial_research", "Building editorial research memo", 14)
-    memo = await build_research_memo(
-        db,
-        run,
-        runtime,
-        source_cards=source_cards,
-        quote_cards=quote_cards,
-        source_map=source_map,
-        evidence_tools=evidence_tools,
-        vector_store_id=corpus.vector_store_id,
-        hosted_file_search_handler=evidence_toolset.persist_hosted_file_search_calls,
-        show_bible=show_bible,
-    )
-    source_workspace_artifact_ids = [
-        str(source_map_artifact.id),
-        *evidence_artifact_ids,
-        *source_artifact_ids,
-        *quote_artifact_ids,
-        str(triage_artifact.id),
-        str(triage_gate_artifact.id),
-    ]
-    memo_artifact = await save_artifact(
-        db,
-        generation_run_id=run.id,
-        artifact_type=V2ArtifactType.RESEARCH_MEMO,
-        artifact_key="main",
-        payload=memo,
-        provider="openai" if corpus.vector_store_id else None,
-        model=runtime.model,
-        status=V2ArtifactStatus.PASSED,
-        input_artifact_ids=source_workspace_artifact_ids,
-        prompt_hash=runtime.prompt_hash_for("v2_editorial_research", "research_agent"),
-        metadata=runtime.fallback_metadata_for("v2_editorial_research", "research_agent"),
-    )
-    atom_artifact_ids: list[str] = []
-    for idx, atom in enumerate(memo.editorial_atoms):
-        artifact = await save_artifact(
+    while True:
+        await _phase(run, db, "v2_editorial_research", "Building editorial research memo", 14)
+        memo = await build_research_memo(
+            db,
+            run,
+            runtime,
+            source_cards=source_cards,
+            quote_cards=quote_cards,
+            source_map=source_map,
+            evidence_tools=evidence_tools,
+            vector_store_id=corpus.vector_store_id,
+            hosted_file_search_handler=evidence_toolset.persist_hosted_file_search_calls,
+            show_bible=show_bible,
+        )
+        memo_artifact = await save_artifact(
             db,
             generation_run_id=run.id,
-            artifact_type=V2ArtifactType.EDITORIAL_ATOM,
-            artifact_key=f"{idx + 1}:{atom.kind}",
-            payload=atom,
+            artifact_type=V2ArtifactType.RESEARCH_MEMO,
+            artifact_key="main",
+            payload=memo,
+            provider="openai" if corpus.vector_store_id else None,
+            model=runtime.model,
             status=V2ArtifactStatus.PASSED,
-            input_artifact_ids=[str(memo_artifact.id)],
-            parent_artifact_ids=[str(memo_artifact.id)],
+            input_artifact_ids=source_workspace_artifact_ids,
+            prompt_hash=runtime.prompt_hash_for("v2_editorial_research", "research_agent"),
+            metadata=runtime.fallback_metadata_for("v2_editorial_research", "research_agent"),
         )
-        atom_artifact_ids.append(str(artifact.id))
-    memo_evidence_gate = _validate_research_memo_evidence(
-        memo,
-        source_map,
-        int((run.config or {}).get("duration_target", 1800)),
-    )
-    memo_gate_artifact = await save_artifact(
-        db,
-        generation_run_id=run.id,
-        artifact_type=V2ArtifactType.RESEARCH_AUDIT,
-        artifact_key="memo_evidence_gate",
-        payload=memo_evidence_gate,
-        status=V2ArtifactStatus.PASSED if memo_evidence_gate.passed else V2ArtifactStatus.FAILED,
-        input_artifact_ids=[str(memo_artifact.id), *atom_artifact_ids, str(source_map_artifact.id)],
-    )
-    if not memo_evidence_gate.passed:
-        await db.commit()
-        raise RuntimeError(f"V2 research memo evidence gate failed: {memo_evidence_gate.verdict}")
-    await _commit_step(run, db, "editorial_research", 24, next_step="research_audit")
-
-    await _phase(run, db, "v2_research_audit", "Auditing research readiness", 26)
-    audit = await audit_research_memo(
-        db,
-        run,
-        runtime,
-        research_memo=memo,
-        source_map=source_map,
-        evidence_tools=evidence_tools,
-        show_bible=show_bible,
-    )
-    audit_artifact = await save_artifact(
-        db,
-        generation_run_id=run.id,
-        artifact_type=V2ArtifactType.RESEARCH_AUDIT,
-        artifact_key="main",
-        payload=audit,
-        status=V2ArtifactStatus.PASSED if audit.passed else V2ArtifactStatus.FAILED,
-        input_artifact_ids=[str(memo_artifact.id), *atom_artifact_ids, str(memo_gate_artifact.id)],
-        prompt_hash=runtime.prompt_hash_for("v2_research_audit", "research_auditor"),
-        metadata=runtime.fallback_metadata_for("v2_research_audit", "research_auditor"),
-    )
-    if not audit.passed:
-        await db.commit()
-        raise RuntimeError(f"V2 research audit failed: {audit.verdict}")
-    await _commit_step(run, db, "research_audit", 32, next_step="treatment")
-
-    await _phase(run, db, "v2_treatment", "Creating episode treatment", 34)
-    treatment = await build_treatment(
-        db,
-        run,
-        runtime,
-        research_memo=memo,
-        source_map=source_map,
-        evidence_tools=evidence_tools,
-        show_bible=show_bible,
-    )
-    treatment_gate = _validate_treatment(treatment, source_cards, int((run.config or {}).get("duration_target", 1800)))
-    treatment_artifact = await save_artifact(
-        db,
-        generation_run_id=run.id,
-        artifact_type=V2ArtifactType.TREATMENT,
-        artifact_key="main",
-        payload=treatment,
-        provider="openai" if corpus.vector_store_id else None,
-        model=runtime.model,
-        status=V2ArtifactStatus.PASSED if treatment_gate.passed else V2ArtifactStatus.FAILED,
-        input_artifact_ids=[str(memo_artifact.id), str(audit_artifact.id), *atom_artifact_ids],
-        prompt_hash=runtime.prompt_hash_for("v2_treatment", "story_editor"),
-        metadata=runtime.fallback_metadata_for("v2_treatment", "story_editor"),
-    )
-    if not treatment_gate.passed:
-        await save_artifact(
+        atom_artifact_ids: list[str] = []
+        for idx, atom in enumerate(memo.editorial_atoms):
+            artifact = await save_artifact(
+                db,
+                generation_run_id=run.id,
+                artifact_type=V2ArtifactType.EDITORIAL_ATOM,
+                artifact_key=f"{idx + 1}:{atom.kind}",
+                payload=atom,
+                status=V2ArtifactStatus.PASSED,
+                input_artifact_ids=[str(memo_artifact.id)],
+                parent_artifact_ids=[str(memo_artifact.id)],
+            )
+            atom_artifact_ids.append(str(artifact.id))
+        memo_evidence_gate = _validate_research_memo_evidence(
+            memo,
+            source_map,
+            int((run.config or {}).get("duration_target", 1800)),
+        )
+        memo_gate_artifact = await save_artifact(
             db,
             generation_run_id=run.id,
             artifact_type=V2ArtifactType.RESEARCH_AUDIT,
-            artifact_key="treatment_gate",
-            payload=treatment_gate,
-            status=V2ArtifactStatus.FAILED,
-            input_artifact_ids=[str(treatment_artifact.id), str(source_map_artifact.id), *source_artifact_ids],
+            artifact_key="memo_evidence_gate",
+            payload=memo_evidence_gate,
+            status=V2ArtifactStatus.PASSED if memo_evidence_gate.passed else V2ArtifactStatus.FAILED,
+            input_artifact_ids=[str(memo_artifact.id), *atom_artifact_ids, source_map_artifact_id],
         )
-        await db.commit()
-        raise RuntimeError(f"V2 treatment gate failed: {treatment_gate.summary}")
-    await _commit_step(run, db, "treatment", 42, next_step="act_1")
+        if not memo_evidence_gate.passed:
+            previous_round = acquisition_rounds_used
+            triage_state, acquisition_rounds_used = await _run_source_acquisition_until_triage_ready(
+                run,
+                db,
+                runtime,
+                triage_state=triage_state,
+                trigger_phase="memo_evidence",
+                acquisition_rounds_used=acquisition_rounds_used,
+                research_audit=memo_evidence_gate,
+            )
+            if acquisition_rounds_used > previous_round and triage_state.triage_completion.ready and triage_state.triage_gate.passed:
+                corpus, evidence_toolset, evidence_tools, source_map, source_cards, quote_cards, source_triage = _triage_runtime_values(triage_state)
+                source_artifact_ids = triage_state.source_artifact_ids
+                quote_artifact_ids = triage_state.quote_artifact_ids
+                source_map_artifact_id = triage_state.source_map_artifact_id
+                source_workspace_artifact_ids = triage_state.source_workspace_artifact_ids
+                continue
+            await db.commit()
+            raise RuntimeError(f"V2 research memo evidence gate failed: {memo_evidence_gate.verdict}")
+        await _commit_step(run, db, "editorial_research", 24, next_step="research_audit")
+
+        await _phase(run, db, "v2_research_audit", "Auditing research readiness", 26)
+        audit = await audit_research_memo(
+            db,
+            run,
+            runtime,
+            research_memo=memo,
+            source_map=source_map,
+            evidence_tools=evidence_tools,
+            show_bible=show_bible,
+        )
+        audit_artifact = await save_artifact(
+            db,
+            generation_run_id=run.id,
+            artifact_type=V2ArtifactType.RESEARCH_AUDIT,
+            artifact_key="main",
+            payload=audit,
+            status=V2ArtifactStatus.PASSED if audit.passed else V2ArtifactStatus.FAILED,
+            input_artifact_ids=[str(memo_artifact.id), *atom_artifact_ids, str(memo_gate_artifact.id)],
+            prompt_hash=runtime.prompt_hash_for("v2_research_audit", "research_auditor"),
+            metadata=runtime.fallback_metadata_for("v2_research_audit", "research_auditor"),
+        )
+        if not audit.passed:
+            previous_round = acquisition_rounds_used
+            triage_state, acquisition_rounds_used = await _run_source_acquisition_until_triage_ready(
+                run,
+                db,
+                runtime,
+                triage_state=triage_state,
+                trigger_phase="research_audit",
+                acquisition_rounds_used=acquisition_rounds_used,
+                research_audit=audit,
+            )
+            if acquisition_rounds_used > previous_round and triage_state.triage_completion.ready and triage_state.triage_gate.passed:
+                corpus, evidence_toolset, evidence_tools, source_map, source_cards, quote_cards, source_triage = _triage_runtime_values(triage_state)
+                source_artifact_ids = triage_state.source_artifact_ids
+                quote_artifact_ids = triage_state.quote_artifact_ids
+                source_map_artifact_id = triage_state.source_map_artifact_id
+                source_workspace_artifact_ids = triage_state.source_workspace_artifact_ids
+                continue
+            await db.commit()
+            raise RuntimeError(f"V2 research audit failed: {audit.verdict}")
+        await _commit_step(run, db, "research_audit", 32, next_step="treatment")
+
+        await _phase(run, db, "v2_treatment", "Creating episode treatment", 34)
+        treatment = await build_treatment(
+            db,
+            run,
+            runtime,
+            research_memo=memo,
+            source_map=source_map,
+            evidence_tools=evidence_tools,
+            show_bible=show_bible,
+        )
+        treatment_gate = _validate_treatment(treatment, source_cards, int((run.config or {}).get("duration_target", 1800)))
+        treatment_artifact = await save_artifact(
+            db,
+            generation_run_id=run.id,
+            artifact_type=V2ArtifactType.TREATMENT,
+            artifact_key="main",
+            payload=treatment,
+            provider="openai" if corpus.vector_store_id else None,
+            model=runtime.model,
+            status=V2ArtifactStatus.PASSED if treatment_gate.passed else V2ArtifactStatus.FAILED,
+            input_artifact_ids=[str(memo_artifact.id), str(audit_artifact.id), *atom_artifact_ids],
+            prompt_hash=runtime.prompt_hash_for("v2_treatment", "story_editor"),
+            metadata=runtime.fallback_metadata_for("v2_treatment", "story_editor"),
+        )
+        if not treatment_gate.passed:
+            await save_artifact(
+                db,
+                generation_run_id=run.id,
+                artifact_type=V2ArtifactType.RESEARCH_AUDIT,
+                artifact_key="treatment_gate",
+                payload=treatment_gate,
+                status=V2ArtifactStatus.FAILED,
+                input_artifact_ids=[str(treatment_artifact.id), source_map_artifact_id, *source_artifact_ids],
+            )
+            previous_round = acquisition_rounds_used
+            triage_state, acquisition_rounds_used = await _run_source_acquisition_until_triage_ready(
+                run,
+                db,
+                runtime,
+                triage_state=triage_state,
+                trigger_phase="treatment",
+                acquisition_rounds_used=acquisition_rounds_used,
+                treatment_gate=treatment_gate,
+            )
+            if acquisition_rounds_used > previous_round and triage_state.triage_completion.ready and triage_state.triage_gate.passed:
+                corpus, evidence_toolset, evidence_tools, source_map, source_cards, quote_cards, source_triage = _triage_runtime_values(triage_state)
+                source_artifact_ids = triage_state.source_artifact_ids
+                quote_artifact_ids = triage_state.quote_artifact_ids
+                source_map_artifact_id = triage_state.source_map_artifact_id
+                source_workspace_artifact_ids = triage_state.source_workspace_artifact_ids
+                continue
+            await db.commit()
+            raise RuntimeError(f"V2 treatment gate failed: {treatment_gate.summary}")
+        await _commit_step(run, db, "treatment", 42, next_step="act_1")
+        break
 
     ledger = ContinuityLedger()
     drafts = []
@@ -338,7 +339,7 @@ async def execute_generation_v2(
         dossiers.append(dossier)
         dossier_input_artifact_ids = [
             str(treatment_artifact.id),
-            str(triage_artifact.id),
+            triage_state.triage_artifact_id,
             *source_artifact_ids,
             *quote_artifact_ids,
             *([ledger_artifact_id] if ledger_artifact_id else []),
@@ -658,6 +659,239 @@ async def execute_generation_v2(
     )
     await _commit_step(run, db, "audio", 100, next_step=None)
     return episode_id
+
+
+async def _prepare_and_triage(run: GenerationRun, db: AsyncSession, runtime: V2Runtime) -> _TriageState:
+    await _phase(run, db, "v2_corpus_prepare", "Preparing evidence corpus", 4)
+    corpus = await prepare_v2_corpus(db, run)
+    evidence_toolset = EvidenceToolset(
+        db=db,
+        run=run,
+        run_view=corpus.run_view,
+        provider_index=corpus.provider_index,
+    )
+    evidence_tools = evidence_toolset.agent_tools()
+    source_inventory = await build_source_inventory(db, corpus.run_view)
+    triage_completion = await build_source_triage_agent(
+        db,
+        run,
+        runtime,
+        source_inventory=source_inventory,
+        evidence_tools=evidence_tools,
+        vector_store_id=corpus.vector_store_id,
+        hosted_file_search_handler=evidence_toolset.persist_hosted_file_search_calls,
+    )
+    triage_completion_artifact = await save_artifact(
+        db,
+        generation_run_id=run.id,
+        artifact_type=V2ArtifactType.SOURCE_TRIAGE,
+        artifact_key="completion",
+        payload=triage_completion,
+        status=V2ArtifactStatus.PASSED if triage_completion.ready else V2ArtifactStatus.FAILED,
+        prompt_hash=runtime.prompt_hash_for("v2_source_triage", "source_triage_agent"),
+        metadata=runtime.fallback_metadata_for("v2_source_triage", "source_triage_agent"),
+    )
+    source_map = await build_source_map_from_write_actions(
+        db,
+        generation_run_id=run.id,
+        inventory=source_inventory,
+    )
+    triage_gate = await validate_source_map_gate(
+        db,
+        generation_run_id=run.id,
+        source_map=source_map,
+        run_view=corpus.run_view,
+    )
+    source_cards = source_map.source_cards
+    quote_cards = source_map.quote_cards
+    source_map_artifact = await save_artifact(
+        db,
+        generation_run_id=run.id,
+        artifact_type=V2ArtifactType.SOURCE_MAP,
+        artifact_key="main",
+        payload=source_map,
+        provider="openai" if corpus.vector_store_id else None,
+        status=V2ArtifactStatus.PASSED if triage_gate.passed else V2ArtifactStatus.FAILED,
+        prompt_hash=runtime.prompt_hash_for("v2_source_triage", "source_triage_agent"),
+        metadata=runtime.fallback_metadata_for("v2_source_triage", "source_triage_agent"),
+        input_artifact_ids=[str(triage_completion_artifact.id)],
+    )
+    evidence_artifact_ids = await _save_evidence_artifacts(
+        db,
+        run,
+        evidence_ids=source_map.evidence_ids,
+        input_artifact_ids=[str(source_map_artifact.id)],
+    )
+    source_artifact_ids: list[str] = []
+    quote_artifact_ids: list[str] = []
+    for card in source_cards:
+        artifact = await save_artifact(
+            db,
+            generation_run_id=run.id,
+            artifact_type=V2ArtifactType.SOURCE_CARD,
+            artifact_key=card.source_id,
+            payload=card,
+            status=V2ArtifactStatus.PASSED,
+            input_artifact_ids=[str(source_map_artifact.id), *evidence_artifact_ids],
+        )
+        source_artifact_ids.append(str(artifact.id))
+    for idx, quote in enumerate(quote_cards):
+        artifact = await save_artifact(
+            db,
+            generation_run_id=run.id,
+            artifact_type=V2ArtifactType.QUOTE_CARD,
+            artifact_key=f"{quote.source_id}:{idx}",
+            payload=quote,
+            status=V2ArtifactStatus.PASSED,
+            input_artifact_ids=[str(source_map_artifact.id), *evidence_artifact_ids],
+        )
+        quote_artifact_ids.append(str(artifact.id))
+    source_triage = source_map.source_triage
+    triage_artifact = await save_artifact(
+        db,
+        generation_run_id=run.id,
+        artifact_type=V2ArtifactType.SOURCE_TRIAGE,
+        artifact_key="main",
+        payload=source_triage,
+        status=V2ArtifactStatus.PASSED if triage_gate.passed else V2ArtifactStatus.FAILED,
+        input_artifact_ids=[str(triage_completion_artifact.id), str(source_map_artifact.id), *source_artifact_ids, *quote_artifact_ids],
+        prompt_hash=runtime.prompt_hash_for("v2_source_triage", "source_triage_agent"),
+        metadata=runtime.fallback_metadata_for("v2_source_triage", "source_triage_agent"),
+    )
+    triage_gate_artifact = await save_artifact(
+        db,
+        generation_run_id=run.id,
+        artifact_type=V2ArtifactType.SOURCE_TRIAGE,
+        artifact_key="gate",
+        payload=triage_gate,
+        status=V2ArtifactStatus.PASSED if triage_gate.passed else V2ArtifactStatus.FAILED,
+        input_artifact_ids=[str(triage_completion_artifact.id), str(source_map_artifact.id), str(triage_artifact.id)],
+    )
+    return _TriageState(
+        corpus=corpus,
+        evidence_toolset=evidence_toolset,
+        evidence_tools=evidence_tools,
+        source_inventory=source_inventory,
+        triage_completion=triage_completion,
+        source_map=source_map,
+        triage_gate=triage_gate,
+        source_cards=source_cards,
+        quote_cards=quote_cards,
+        source_map_artifact_id=str(source_map_artifact.id),
+        evidence_artifact_ids=evidence_artifact_ids,
+        source_artifact_ids=source_artifact_ids,
+        quote_artifact_ids=quote_artifact_ids,
+        triage_artifact_id=str(triage_artifact.id),
+        triage_gate_artifact_id=str(triage_gate_artifact.id),
+    )
+
+
+async def _run_source_acquisition_until_triage_ready(
+    run: GenerationRun,
+    db: AsyncSession,
+    runtime: V2Runtime,
+    *,
+    triage_state: _TriageState,
+    trigger_phase: str,
+    acquisition_rounds_used: int,
+    research_audit: ResearchAudit | None = None,
+    treatment_gate: EpisodeCritique | None = None,
+) -> tuple[_TriageState, int]:
+    if not acquisition_enabled(run):
+        return triage_state, acquisition_rounds_used
+    rounds = []
+    while remaining_acquisition_rounds(acquisition_rounds_used) > 0:
+        round_number = acquisition_rounds_used + 1
+        gap_report = build_corpus_gap_report(
+            run,
+            trigger_phase=trigger_phase,
+            round_number=round_number,
+            source_map=triage_state.source_map,
+            triage_completion_summary=triage_state.triage_completion.summary,
+            triage_ready=triage_state.triage_completion.ready,
+            triage_gate=triage_state.triage_gate,
+            research_audit=research_audit,
+            treatment_gate=treatment_gate,
+        )
+        gap_artifact = await save_artifact(
+            db,
+            generation_run_id=run.id,
+            artifact_type=V2ArtifactType.CORPUS_GAP_REPORT,
+            artifact_key=f"{trigger_phase}:round-{round_number}",
+            payload=gap_report,
+            status=V2ArtifactStatus.PASSED,
+            input_artifact_ids=triage_state.source_workspace_artifact_ids,
+        )
+        await _phase(run, db, "v2_source_acquisition", f"Acquiring sources for {trigger_phase} gaps", 10)
+        toolset = SourceAcquisitionToolset(
+            db=db,
+            run=run,
+            gap_report=gap_report,
+            round_number=round_number,
+        )
+        completion = await build_source_acquisition_agent(
+            db,
+            run,
+            runtime,
+            gap_report=gap_report,
+            source_inventory=triage_state.source_inventory,
+            acquisition_tools=toolset.agent_tools(),
+            round_number=round_number,
+        )
+        round_payload = toolset.round_artifact_payload(
+            trigger_phase=trigger_phase,
+            gap_report_id=str(gap_artifact.id),
+        )
+        if completion.summary:
+            round_payload.summary = completion.summary
+        round_artifact = await save_artifact(
+            db,
+            generation_run_id=run.id,
+            artifact_type=V2ArtifactType.SOURCE_ACQUISITION_ROUND,
+            artifact_key=f"{trigger_phase}:round-{round_number}",
+            payload=round_payload,
+            status=V2ArtifactStatus.PASSED if round_payload.accepted_count else V2ArtifactStatus.FAILED,
+            input_artifact_ids=[str(gap_artifact.id)],
+            prompt_hash=runtime.prompt_hash_for("v2_source_acquisition", f"source_acquisition_round_{round_number}"),
+            metadata=runtime.fallback_metadata_for("v2_source_acquisition", f"source_acquisition_round_{round_number}"),
+        )
+        rounds.append(round_payload)
+        acquisition_rounds_used = round_number
+        report = source_acquisition_report_from_rounds(
+            enabled=True,
+            exhausted=remaining_acquisition_rounds(acquisition_rounds_used) == 0,
+            rounds=rounds,
+        )
+        await save_artifact(
+            db,
+            generation_run_id=run.id,
+            artifact_type=V2ArtifactType.SOURCE_ACQUISITION_REPORT,
+            artifact_key=trigger_phase,
+            payload=report,
+            status=V2ArtifactStatus.PASSED if report.total_accepted else V2ArtifactStatus.FAILED,
+            input_artifact_ids=[str(gap_artifact.id), str(round_artifact.id)],
+        )
+        await db.commit()
+        if round_payload.accepted_count <= 0:
+            break
+        triage_state = await _prepare_and_triage(run, db, runtime)
+        if triage_state.triage_completion.ready and triage_state.triage_gate.passed:
+            break
+    return triage_state, acquisition_rounds_used
+
+
+def _triage_runtime_values(
+    triage_state: _TriageState,
+) -> tuple[CorpusPreparationResult, EvidenceToolset, list, SourceMap, list[SourceCard], list[QuoteCard], object]:
+    return (
+        triage_state.corpus,
+        triage_state.evidence_toolset,
+        triage_state.evidence_tools,
+        triage_state.source_map,
+        triage_state.source_cards,
+        triage_state.quote_cards,
+        triage_state.source_map.source_triage,
+    )
 
 
 async def _phase(run: GenerationRun, db: AsyncSession, phase: str, message: str, pct: float) -> None:

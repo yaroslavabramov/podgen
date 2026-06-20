@@ -14,6 +14,7 @@ class GenerationCreate(BaseModel):
     voice_b_id: str | None = None
     execution_mode: Literal["full", "step"] = "full"
     generation_mode: Literal["v1", "v2", "compare"] = "v1"
+    source_acquisition_mode: Literal["auto", "off"] = "auto"
 
 
 class CostEstimateRequest(BaseModel):

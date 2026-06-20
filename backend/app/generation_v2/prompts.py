@@ -244,6 +244,43 @@ Rules:
 - Always call finalize_source_map when triage write actions are complete."""
 
 
+SOURCE_ACQUISITION_PROMPT = """Acquire additional sources for V2 corpus coverage.
+
+Topic/user prompt:
+{user_prompt}
+
+Target duration: {duration_minutes} minutes
+Language: {language}
+
+Current corpus gap report:
+{gap_report_json}
+
+Current source inventory summary:
+{source_inventory_json}
+
+Round limits:
+- Candidate budget this round: {candidate_budget}
+- Ingest budget this round: {ingest_budget}
+
+You have OpenAI web_search for discovery only. Web search content is not final evidence.
+Final support must come later from ingested project sources through source versions, OpenAI file_search, selected EvidenceItem records, citation validation, and support judgment.
+
+Allowed actions:
+1. Use web_search to discover authoritative, relevant candidate URLs for the listed gap_ids.
+2. Call ingest_source_candidate for URLs you want added to the project corpus. You must include gap_ids, expected editorial function, rationale, confidence, and source_type_hint.
+3. Call reject_source_candidate for candidates you considered but rejected.
+4. Call finalize_source_acquisition_round when the round is complete.
+
+Vetting rules:
+- Prefer primary/official documents, credible reporting, academic/technical papers, regulator/institution pages, original transcripts, data pages, and deeply reported source material.
+- Reject search-result pages, generic SEO summaries, thin aggregators, social posts, unsupported file types, and candidates that do not map to a known gap_id.
+- Do not add many same-domain pages unless they are official/primary and each covers a distinct gap.
+- Do not rely on web_search snippets as support. Use snippets only to decide whether a URL should be ingested.
+- If no trustworthy candidate exists for a gap, reject or leave it unresolved explicitly.
+
+Return only SourceAcquisitionCompletion JSON. The backend records accepted/rejected candidates and will rebuild corpus prepare + source triage after ingestion."""
+
+
 SUPPORT_JUDGMENT_PROMPT = """Judge whether saved evidence supports each claim-link pair.
 
 You are not allowed to introduce new evidence or rely on memory. Use only the claim, citation link, and evidence record supplied here.

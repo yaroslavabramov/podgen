@@ -36,6 +36,7 @@ export interface Source {
   title: string | null;
   ingestion_status: string;
   is_temporary: boolean;
+  metadata?: Record<string, unknown> | null;
   created_at: string;
 }
 
