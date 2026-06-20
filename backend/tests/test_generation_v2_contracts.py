@@ -30,14 +30,24 @@ from app.generation_v2.agents.editorial import (
 from app.generation_v2.citation_validation import validate_citations
 from app.generation_v2.finalize import generate_audio_from_segments
 from app.generation_v2.orchestrator import _validate_research_memo_evidence
-from app.generation_v2.prompts import (
+from app.generation_v2.prompting import (
     ACT_DRAFT_PROMPT,
+    ACT_REWRITER_SYSTEM,
     ACT_REWRITE_PROMPT,
+    ACT_WRITER_SYSTEM,
     CLAIM_CITATION_PROMPT,
+    CITATION_LINKER_SYSTEM,
     EPISODE_CRITIQUE_PROMPT,
+    EPISODE_CRITIC_SYSTEM,
+    RESEARCH_AUDIT_SYSTEM,
     RESEARCH_MEMO_PROMPT,
+    RESEARCH_SYSTEM,
     SOURCE_ACQUISITION_PROMPT,
+    SOURCE_ACQUISITION_SYSTEM,
     SOURCE_TRIAGE_PROMPT,
+    SOURCE_TRIAGE_SYSTEM,
+    SUPPORT_JUDGE_SYSTEM,
+    TREATMENT_SYSTEM,
 )
 from app.generation_v2.runtime import (
     AgentTool,
@@ -661,6 +671,44 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert "risk/coverage signal" in CLAIM_CITATION_PROMPT
     assert "blocking=true for missing evidence" in CLAIM_CITATION_PROMPT
     assert "final JSON response must match SourceTriageCompletion" in SOURCE_TRIAGE_PROMPT
+
+
+def test_agent_system_prompts_are_role_specific_and_product_aware() -> None:
+    systems = {
+        "source_triage": SOURCE_TRIAGE_SYSTEM,
+        "source_acquisition": SOURCE_ACQUISITION_SYSTEM,
+        "research": RESEARCH_SYSTEM,
+        "research_audit": RESEARCH_AUDIT_SYSTEM,
+        "treatment": TREATMENT_SYSTEM,
+        "act_writer": ACT_WRITER_SYSTEM,
+        "episode_critic": EPISODE_CRITIC_SYSTEM,
+        "act_rewriter": ACT_REWRITER_SYSTEM,
+        "citation_linker": CITATION_LINKER_SYSTEM,
+        "support_judge": SUPPORT_JUDGE_SYSTEM,
+    }
+
+    assert len(set(systems.values())) == len(systems)
+    for name, system in systems.items():
+        assert "Your role:" in system, name
+        assert "long-form podcast production system" in system, name
+        assert "Never invent ids" in system, name
+        assert "Generation V2" not in system, name
+        assert "Podgen Generation" not in system, name
+
+    assert "Use hosted file_search for broad discovery" in SOURCE_TRIAGE_SYSTEM
+    assert "Web search is only a discovery mechanism" in SOURCE_ACQUISITION_SYSTEM
+    assert "Use only SourceMap evidence ids for atoms" in RESEARCH_SYSTEM
+    assert "Each act is a listener job" in TREATMENT_SYSTEM
+    assert "Before using required evidence, inspect it" in ACT_WRITER_SYSTEM
+    assert "Do not search" in SUPPORT_JUDGE_SYSTEM
+
+
+def test_legacy_prompts_module_reexports_prompting_constants() -> None:
+    from app.generation_v2 import prompts as legacy_prompts
+
+    assert legacy_prompts.ACT_DRAFT_PROMPT == ACT_DRAFT_PROMPT
+    assert legacy_prompts.SOURCE_TRIAGE_SYSTEM == SOURCE_TRIAGE_SYSTEM
+    assert legacy_prompts.CLAIM_CITATION_PROMPT == CLAIM_CITATION_PROMPT
 
 
 def test_runtime_tool_trace_names_include_function_tool_names() -> None:

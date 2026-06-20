@@ -104,7 +104,7 @@ def _model_file_read_prompt(
     source_kind: str,
 ) -> str:
     return (
-        "Read the attached file as source evidence for Podgen Generation V2.\n"
+        "Read the attached file as source evidence for a long-form podcast episode.\n"
         f"source_id: {source_id}\n"
         f"source_version_id: {source_version_id}\n"
         f"source_kind: {source_kind}\n"
