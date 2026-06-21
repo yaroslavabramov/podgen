@@ -9,7 +9,7 @@ class EvidenceToolSpecsMixin:
             AgentTool(
                 name="list_sources",
                 description=(
-                    "List neutral metadata for sources selected in this run: source_id, title/domain, type, date, "
+                    "List neutral metadata for sources selected in this run: source_ref, title/domain, type, date, "
                     "authority/reliability hints, canonical kind, coverage status, and a short brief_hint. "
                     "Use this at the start of source triage to plan which sources to skim/read. It does not create evidence."
                 ),
@@ -26,22 +26,21 @@ class EvidenceToolSpecsMixin:
             AgentTool(
                 name="search_evidence",
                 description=(
-                    "Search the selected run corpus for source-backed evidence and persist every returned result as an EvidenceItem. "
-                    "Use this when you need support for a specific editorial atom, act gap, quote, or citation-sensitive claim. "
-                    "Pass source_ids=[] to search all sources selected for this run; pass source_ids to target known sources. "
-                    "Returned evidence_id values and short_snippet previews are authoritative for selection; call read_evidence/read_source_with_model for fuller reading. "
-                    "For final required factual claims, use evidence_strength exact or snippet; source_level or weak evidence is not sufficient. "
-                    "Provider retrieval channels generally mean OpenAI vector/file search found a saved source version; local fallback channels are usable but should be treated with more caution and checked for locator strength."
+                    "Search the selected run corpus and persist returned matches as observed EvidenceItems. "
+                    "This is a discovery preview tool: use it to find leads for a specific question, quote, source-map relation, or citation-sensitive claim. "
+                    "Use scope=all_sources for broad discovery, or scope=selected_sources with source_refs from list_sources to target known sources. "
+                    "The returned short_snippet is a preview; call read_evidence, read_source_with_model, or a focused source-read tool before grounding important claims."
                 ),
                 parameters={
                     "type": "object",
                     "properties": {
-                        "query": {"type": "string"},
+                        "query": {"type": "string", "minLength": 3},
                         "purpose": {"type": "string"},
-                        "source_ids": {"type": "array", "items": {"type": "string"}},
-                        "limit": {"type": "integer", "minimum": 1, "maximum": 20},
+                        "scope": {"type": "string", "enum": ["all_sources", "selected_sources"]},
+                        "source_refs": {"type": "array", "items": {"type": "string"}},
+                        "limit": {"type": "integer", "minimum": 1, "maximum": 8},
                     },
-                    "required": ["query", "purpose", "source_ids", "limit"],
+                    "required": ["query", "purpose", "scope", "source_refs", "limit"],
                 },
                 handler=self.search_evidence_tool,
             ),
@@ -53,8 +52,8 @@ class EvidenceToolSpecsMixin:
                 ),
                 parameters={
                     "type": "object",
-                    "properties": {"source_id": {"type": "string"}},
-                    "required": ["source_id"],
+                    "properties": {"source_ref": {"type": "string"}},
+                    "required": ["source_ref"],
                 },
                 handler=self.list_source_versions_tool,
             ),
@@ -62,7 +61,7 @@ class EvidenceToolSpecsMixin:
                 name="read_evidence",
                 description=(
                     "Read one already-saved EvidenceItem by evidence_id. Use this to inspect selected evidence before writing, rewriting, or linking a claim. "
-                    "Copy source_id, source_version_id, locator_text, snippet_text, retrieval_channel, evidence_strength, and evidence_id exactly from this result when citing it. "
+                    "The result is a readable detail payload with source_ref/title, locator, snippet, and model-read support notes when available. "
                     "Do not use read_evidence to discover new material; call search_evidence first if no evidence_id is known."
                 ),
                 parameters={
@@ -81,11 +80,11 @@ class EvidenceToolSpecsMixin:
                 parameters={
                     "type": "object",
                     "properties": {
-                        "source_id": {"type": "string"},
-                        "source_version_id": {"type": "string"},
+                        "source_ref": {"type": "string"},
+                        "version_ref": {"type": "string"},
                         "max_items": {"type": "integer", "minimum": 1, "maximum": 40},
                     },
-                    "required": ["source_id", "source_version_id", "max_items"],
+                    "required": ["source_ref", "version_ref", "max_items"],
                 },
                 handler=self.inspect_source_tool,
             ),
@@ -93,20 +92,20 @@ class EvidenceToolSpecsMixin:
                 name="read_source",
                 description=(
                     "Read a concrete window from a selected source/source version and persist that window as an EvidenceItem. "
-                    "Use source_id when you want the best readable version, or source_version_id when you need a specific version. "
-                    "Strict schema requires both source_id and source_version_id; put an empty string in the one you are not using. "
+                    "Use source_ref when you want the best readable version, or version_ref from list_source_versions when you need a specific version. "
+                    "Strict schema requires both source_ref and version_ref; put an empty string in version_ref to use the best readable version. "
                     "locator may be a heading/page/timestamp/search phrase; leave empty to read the beginning. "
-                    "Returned evidence_id, source_id, source_version_id, locator_text, snippet_text, retrieval_channel, and evidence_strength are the values to copy into SourceMap, QuoteCard, atoms, or citations."
+                    "Use the returned evidence_id in source-map write actions after you verify the readable detail."
                 ),
                 parameters={
                     "type": "object",
                     "properties": {
-                        "source_id": {"type": "string"},
-                        "source_version_id": {"type": "string"},
+                        "source_ref": {"type": "string"},
+                        "version_ref": {"type": "string"},
                         "locator": {"type": "string"},
                         "max_chars": {"type": "integer", "minimum": 200, "maximum": 3000},
                     },
-                    "required": ["source_id", "source_version_id", "locator", "max_chars"],
+                    "required": ["source_ref", "version_ref", "locator", "max_chars"],
                 },
                 handler=self.read_source_tool,
             ),
@@ -121,12 +120,12 @@ class EvidenceToolSpecsMixin:
                 parameters={
                     "type": "object",
                     "properties": {
-                        "source_id": {"type": "string"},
-                        "source_version_id": {"type": "string"},
+                        "source_ref": {"type": "string"},
+                        "version_ref": {"type": "string"},
                         "locator": {"type": "string"},
                         "max_chars": {"type": "integer", "minimum": 200, "maximum": 3000},
                     },
-                    "required": ["source_id", "source_version_id", "locator", "max_chars"],
+                    "required": ["source_ref", "version_ref", "locator", "max_chars"],
                 },
                 handler=self.read_source_tool,
             ),
@@ -135,23 +134,23 @@ class EvidenceToolSpecsMixin:
                 description=(
                     "Deep-read an uploaded source file with OpenAI input_file and persist the model-read result as an EvidenceItem. "
                     "Use this after hosted file_search identifies an important PDF/document/source, or when citation support requires reading the actual file rather than local parser chunks. "
-                    "Provide source_id or source_version_id, a focused question/claim, and optional locator_hint. "
-                    "Strict schema requires source_id, source_version_id, focus_question, claim_text, purpose, and locator_hint; put an empty string in unused optional fields or in the unused id field. "
+                    "Provide source_ref or version_ref, a focused question/claim, and optional locator_hint. "
+                    "Strict schema requires source_ref, version_ref, focus_question, claim_text, purpose, and locator_hint; put an empty string in version_ref to use the best available provider-backed version. "
                     "The backend selects the best provider-backed source version, asks the model for strongest support, quote/snippet, support_summary, uncertainty, and optional locator, then returns an evidence_id. "
-                    "If provider input_file reading is unavailable, the tool may return retrieval_channel=model_file_read_local_fallback; treat that channel as a risk/coverage signal and reflect it in confidence/support instead of pretending it was a direct file read. "
+                    "If direct file reading is unavailable, the tool returns a human-readable coverage_warning. "
                     "Call select_evidence if the result should enter SourceMap/research/citations. Page numbers are useful when reported, but not required."
                 ),
                 parameters={
                     "type": "object",
                     "properties": {
-                        "source_id": {"type": "string"},
-                        "source_version_id": {"type": "string"},
+                        "source_ref": {"type": "string"},
+                        "version_ref": {"type": "string"},
                         "focus_question": {"type": "string"},
                         "claim_text": {"type": "string"},
                         "purpose": {"type": "string"},
                         "locator_hint": {"type": "string"},
                     },
-                    "required": ["source_id", "source_version_id", "focus_question", "claim_text", "purpose", "locator_hint"],
+                    "required": ["source_ref", "version_ref", "focus_question", "claim_text", "purpose", "locator_hint"],
                 },
                 handler=self.read_source_with_model_tool,
             ),
@@ -164,12 +163,12 @@ class EvidenceToolSpecsMixin:
                 parameters={
                     "type": "object",
                     "properties": {
-                        "source_id": {"type": "string"},
-                        "source_version_id": {"type": "string"},
+                        "source_ref": {"type": "string"},
+                        "version_ref": {"type": "string"},
                         "query": {"type": "string"},
                         "limit": {"type": "integer", "minimum": 1, "maximum": 8},
                     },
-                    "required": ["source_id", "source_version_id", "query", "limit"],
+                    "required": ["source_ref", "version_ref", "query", "limit"],
                 },
                 handler=self.search_within_source_tool,
             ),
@@ -183,11 +182,11 @@ class EvidenceToolSpecsMixin:
                 parameters={
                     "type": "object",
                     "properties": {
-                        "source_id": {"type": "string"},
-                        "source_version_id": {"type": "string"},
+                        "source_ref": {"type": "string"},
+                        "version_ref": {"type": "string"},
                         "max_windows": {"type": "integer", "minimum": 1, "maximum": 8},
                     },
-                    "required": ["source_id", "source_version_id", "max_windows"],
+                    "required": ["source_ref", "version_ref", "max_windows"],
                 },
                 handler=self.skim_source_tool,
             ),
@@ -197,16 +196,16 @@ class EvidenceToolSpecsMixin:
                     "Find quote-like snippets about a specific topic and persist them as EvidenceItems. "
                     "Use during source triage, research, and citation linking when a direct quote or quote-like support is needed. "
                     "This is not a generic source search tool; for general evidence use search_evidence. "
-                    "Quote refs should be evidence_id values or source_id:locator refs from returned evidence, never raw quote text."
+                    "Quote refs should be evidence_id values or source_ref:locator refs from returned evidence, never raw quote text."
                 ),
                 parameters={
                     "type": "object",
                     "properties": {
                         "topic": {"type": "string"},
-                        "source_ids": {"type": "array", "items": {"type": "string"}},
-                        "limit": {"type": "integer", "minimum": 1, "maximum": 20},
+                        "source_refs": {"type": "array", "items": {"type": "string"}},
+                        "limit": {"type": "integer", "minimum": 1, "maximum": 8},
                     },
-                    "required": ["topic", "source_ids", "limit"],
+                    "required": ["topic", "source_refs", "limit"],
                 },
                 handler=self.find_quotes_tool,
             ),
@@ -221,7 +220,7 @@ class EvidenceToolSpecsMixin:
                     "type": "object",
                     "properties": {
                         "query": {"type": "string"},
-                        "limit": {"type": "integer", "minimum": 1, "maximum": 20},
+                        "limit": {"type": "integer", "minimum": 1, "maximum": 8},
                     },
                     "required": ["query", "limit"],
                 },
@@ -230,18 +229,23 @@ class EvidenceToolSpecsMixin:
             AgentTool(
                 name="compare_sources",
                 description=(
-                    "Compare selected sources for a specific question during triage: duplicate/near-duplicate, primary vs secondary, updates, contradictions, or coverage gaps. "
-                    "Internally retrieves and persists evidence per source, then returns evidence_id-backed comparison inputs. "
-                    "Use it only in source triage/research, not drafting or final citation linking."
+                    "Compare 2-5 selected sources for one source-map question: duplication, interpretive relationship, update chain, contradiction, coverage overlap, or quality gap. "
+                    "Internally retrieves and persists compact evidence previews per source, then returns evidence_id-backed comparison inputs. "
+                    "Use this when a cluster or relationship needs multiple sources read together; write the resulting cluster/relationship/gap afterward."
                 ),
                 parameters={
                     "type": "object",
                     "properties": {
-                        "source_ids": {"type": "array", "items": {"type": "string"}},
+                        "source_refs": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "minItems": 2,
+                            "maxItems": 5,
+                        },
                         "question": {"type": "string"},
                         "limit_per_source": {"type": "integer", "minimum": 1, "maximum": 3},
                     },
-                    "required": ["source_ids", "question", "limit_per_source"],
+                    "required": ["source_refs", "question", "limit_per_source"],
                 },
                 handler=self.compare_sources_tool,
             ),
@@ -266,32 +270,32 @@ class EvidenceToolSpecsMixin:
             AgentTool(
                 name="upsert_source_card",
                 description=(
-                    "Write action: create/update a SourceCard from selected evidence. evidence_ids must already be selected with select_evidence."
+                    "Triage write action: create/update a SourceCard from evidence returned by read/search tools. "
+                    "The backend automatically marks included evidence_ids as selected for SourceMap lineage."
                 ),
                 parameters={
                     "type": "object",
                     "properties": {
-                        "source_id": {"type": "string"},
+                        "source_ref": {"type": "string"},
                         "summary": {"type": "string"},
                         "useful_for": {"type": "array", "items": {"type": "string"}},
                         "evidence_ids": {"type": "array", "items": {"type": "string"}},
                         "gaps_or_cautions": {"type": "array", "items": {"type": "string"}},
                     },
-                    "required": ["source_id", "summary", "useful_for", "evidence_ids", "gaps_or_cautions"],
+                    "required": ["source_ref", "summary", "useful_for", "evidence_ids", "gaps_or_cautions"],
                 },
                 handler=self.upsert_source_card_tool,
             ),
             AgentTool(
                 name="create_quote_card",
                 description=(
-                    "Write action: create a QuoteCard from selected evidence. quote text must come from the selected EvidenceItem snippet/window."
+                    "Triage write action: create an optional QuoteCard from an evidence_id returned by read/search tools. "
+                    "Use only for an obvious quote seed; quote text must come from the evidence snippet/window."
                 ),
                 parameters={
                     "type": "object",
                     "properties": {
                         "evidence_id": {"type": "string"},
-                        "source_id": {"type": "string"},
-                        "source_version_id": {"type": "string"},
                         "quote": {"type": "string"},
                         "locator": {"type": "string"},
                         "narrative_use": {"type": "string"},
@@ -300,8 +304,6 @@ class EvidenceToolSpecsMixin:
                     },
                     "required": [
                         "evidence_id",
-                        "source_id",
-                        "source_version_id",
                         "quote",
                         "locator",
                         "narrative_use",
@@ -314,35 +316,66 @@ class EvidenceToolSpecsMixin:
             AgentTool(
                 name="record_source_relationship",
                 description=(
-                    "Write action: record duplicate, near_duplicate, primary_to_secondary, contradicts, updates, or background_for relationships using selected evidence ids."
+                    "Triage write action: record duplicate, near_duplicate, primary_to_secondary, contradicts, updates, or background_for relationships. "
+                    "Use evidence_ids returned by read/search tools; backend marks them selected."
                 ),
                 parameters={
                     "type": "object",
                     "properties": {
-                        "source_id": {"type": "string"},
-                        "related_source_id": {"type": "string"},
+                        "source_ref": {"type": "string"},
+                        "related_source_ref": {"type": "string"},
                         "relationship": {"type": "string"},
                         "evidence_ids": {"type": "array", "items": {"type": "string"}},
                         "rationale": {"type": "string"},
                     },
-                    "required": ["source_id", "related_source_id", "relationship", "evidence_ids", "rationale"],
+                    "required": ["source_ref", "related_source_ref", "relationship", "evidence_ids", "rationale"],
                 },
                 handler=self.record_source_relationship_tool,
             ),
             AgentTool(
+                name="record_source_cluster",
+                description=(
+                    "Triage write action: group related sources into a compact source cluster by origin, evidentiary role, topic coverage, duplication/mirroring, update relationship, or quality level. "
+                    "Use this to map corpus structure for later research, not to make final episode claims."
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "label": {"type": "string"},
+                        "source_refs": {"type": "array", "items": {"type": "string"}},
+                        "primary_source_refs": {"type": "array", "items": {"type": "string"}},
+                        "secondary_source_refs": {"type": "array", "items": {"type": "string"}},
+                        "duplicate_source_refs": {"type": "array", "items": {"type": "string"}},
+                        "evidence_ids": {"type": "array", "items": {"type": "string"}},
+                        "rationale": {"type": "string"},
+                    },
+                    "required": [
+                        "label",
+                        "source_refs",
+                        "primary_source_refs",
+                        "secondary_source_refs",
+                        "duplicate_source_refs",
+                        "evidence_ids",
+                        "rationale",
+                    ],
+                },
+                handler=self.record_source_cluster_tool,
+            ),
+            AgentTool(
                 name="record_gap",
                 description=(
-                    "Write action: record a gap, contradiction, or caution discovered during triage/research, with selected evidence ids where applicable."
+                    "Triage write action: record a gap, contradiction, caution, missing coverage area, or source-quality warning. "
+                    "Use evidence_ids when a read/search result grounds the gap; backend marks them selected."
                 ),
                 parameters={
                     "type": "object",
                     "properties": {
                         "kind": {"type": "string"},
                         "description": {"type": "string"},
-                        "source_ids": {"type": "array", "items": {"type": "string"}},
+                        "source_refs": {"type": "array", "items": {"type": "string"}},
                         "evidence_ids": {"type": "array", "items": {"type": "string"}},
                     },
-                    "required": ["kind", "description", "source_ids", "evidence_ids"],
+                    "required": ["kind", "description", "source_refs", "evidence_ids"],
                 },
                 handler=self.record_gap_tool,
             ),

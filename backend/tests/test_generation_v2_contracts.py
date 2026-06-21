@@ -15,6 +15,10 @@ from app.generation_v2.agents.editorial import (
     _fallback_claims,
     _fallback_research_memo,
     _fallback_treatment,
+    _quote_inventory,
+    _source_inventory,
+    _source_ref_context,
+    _triage_inventory,
     audit_research_memo,
     build_act_dossier,
     build_research_memo,
@@ -85,9 +89,12 @@ from app.generation_v2.schemas import (
     CorpusGapReport,
     SourceAcquisitionCandidate,
     SourceCard,
+    SourceCluster,
     SourceMap,
+    SourceRelationship,
     SourceTriageGate,
     SourceTriageCompletion,
+    SourceTriageItem,
     SourceTriageReport,
     SupportJudgment,
     SupportJudgmentBundle,
@@ -254,12 +261,10 @@ def test_hosted_file_search_followup_exposes_observed_evidence_ids() -> None:
             "observed_evidence": [
                 {
                     "id": "ev-1",
-                    "source_id": "src-1",
-                    "source_version_id": "ver-1",
-                    "representation_kind": "page_marked_text",
+                    "source_ref": "S01",
+                    "source_title": "Currency note issuer history",
+                    "source_domain": "hkma.gov.hk",
                     "locator_text": "page 2",
-                    "retrieval_channel": "provider_file_search",
-                    "evidence_strength": "snippet",
                     "score": 0.8,
                     "snippet_text": "A hosted result snippet.",
                 }
@@ -272,11 +277,12 @@ def test_hosted_file_search_followup_exposes_observed_evidence_ids() -> None:
     assert followup is not None
     assert followup["evidence_ids"] == ["ev-1"]
     assert "ev-1" in followup["message"]["content"]
-    assert "page_marked_text" in followup["message"]["content"]
+    assert "S01" in followup["message"]["content"]
+    assert "Currency note issuer history" in followup["message"]["content"]
     assert "select_evidence" in followup["message"]["content"]
-    assert "inspect retrieval_channel" in followup["message"]["content"]
-    assert "model_file_read_local_fallback" in followup["message"]["content"]
-    assert "risk/coverage signal" in followup["message"]["content"]
+    assert "discovery previews" in followup["message"]["content"]
+    assert "retrieval_channel" not in followup["message"]["content"]
+    assert "source_version_id" not in followup["message"]["content"]
 
 
 def test_hosted_file_search_tool_filters_to_agent_facing_files() -> None:
@@ -303,15 +309,14 @@ def test_hosted_file_search_tool_filters_to_agent_facing_files() -> None:
 def test_runtime_model_facing_tool_output_validates_compact_contracts() -> None:
     output = {
         "results": [
-            {
-                "evidence_id": "ev-1",
-                "source_id": "src-1",
-                "source_version_id": "ver-1",
-                "retrieval_channel": "provider_vector_search",
-                "evidence_strength": "snippet",
-                "locator": "section 1",
-                "short_snippet": "compact preview",
-                "score": 0.9,
+                {
+                    "evidence_id": "ev-1",
+                    "source_ref": "S01",
+                    "source_title": "Currency note issuer history",
+                    "source_domain": "hkma.gov.hk",
+                    "locator": "section 1",
+                    "short_snippet": "compact preview",
+                    "score": 0.9,
             }
         ],
         "cache_hit": False,
@@ -321,6 +326,12 @@ def test_runtime_model_facing_tool_output_validates_compact_contracts() -> None:
 
     assert model_output == output
     assert "_model_output_truncated" not in json.dumps(model_output, ensure_ascii=False)
+
+    with pytest.raises(ToolOutputContractViolation, match="forbidden model-facing keys"):
+        _model_facing_tool_output(
+            "search_evidence",
+            {"results": [{"evidence_id": "ev-1", "source_id": "src-1", "source_version_id": "ver-1"}]},
+        )
 
 
 def test_runtime_model_facing_tool_output_rejects_unsafe_or_oversized_payloads() -> None:
@@ -431,6 +442,7 @@ async def test_runtime_checkpoint_restarts_chain_after_input_threshold(monkeypat
     assert fake_client.responses.calls[0]["previous_response_id"] is runtime_module.openai.NOT_GIVEN
     assert fake_client.responses.calls[1]["previous_response_id"] is runtime_module.openai.NOT_GIVEN
     assert "Responses chain checkpoint restart" in fake_client.responses.calls[1]["input"][0]["content"]
+    assert "Source triage workflow" in fake_client.responses.calls[1]["input"][0]["content"]
     assert not any(item.get("type") == "function_call_output" for item in fake_client.responses.calls[1]["input"])
     checkpoint_traces = [item for item in fake_db.added if isinstance(item, V2ToolTrace) and item.tool_name == "runtime.checkpoint_restart"]
     assert checkpoint_traces
@@ -696,12 +708,14 @@ async def test_read_source_with_model_creates_evidence_item(monkeypatch: pytest.
     )
 
     assert result["found"] is True
-    assert result["evidence"]["retrieval_channel"] == "model_file_read"
+    assert result["evidence"]["source_ref"] == "S01"
+    assert result["evidence"]["support_assessment"] == "direct"
     assert "provider_file_id" not in result["evidence"]
     assert "provider_vector_store_id" not in result["evidence"]
-    assert "vector_store_provider_file_id" not in result["evidence"]["metadata"]
-    assert "model_read_file_id" not in result["evidence"]["metadata"]
-    assert result["evidence"]["metadata"]["support_level"] == "direct"
+    assert "metadata" not in result["evidence"]
+    assert "retrieval_channel" not in result["evidence"]
+    assert "evidence_strength" not in result["evidence"]
+    assert "source_version_id" not in result["evidence"]
     assert "The file supports the requested mechanism." in result["evidence"]["snippet_text"]
     persisted_evidence = [item for item in fake_db.added if isinstance(item, EvidenceItem)]
     assert persisted_evidence[0].provider_file_id == "file_model_read"
@@ -909,9 +923,11 @@ async def test_read_source_with_model_tries_next_provider_candidate(monkeypatch:
     )
 
     assert result["found"] is True
-    assert result["evidence"]["source_version_id"] == str(text_version_id)
+    assert result["evidence"]["source_ref"] == "S01"
+    assert result["evidence"]["support_assessment"] == "supported"
+    assert "source_version_id" not in result["evidence"]
     assert "provider_file_id" not in result["evidence"]
-    assert "vector_store_provider_file_id" not in result["evidence"].get("metadata", {})
+    assert "metadata" not in result["evidence"]
     persisted_evidence = [item for item in fake_db.added if isinstance(item, EvidenceItem)]
     assert persisted_evidence[0].source_version_id == text_version_id
     assert persisted_evidence[0].metadata_["vector_store_provider_file_id"] == "file_text"
@@ -988,12 +1004,13 @@ async def test_read_source_with_model_local_fallback_uses_readable_version_and_w
     )
 
     assert result["found"] is True
-    assert result["local_fallback"] is True
-    assert result["evidence"]["source_version_id"] == str(text_version_id)
-    assert result["evidence"]["retrieval_channel"] == "model_file_read_local_fallback"
-    assert result["evidence"]["evidence_strength"] == "weak"
-    assert result["evidence"]["metadata"]["model_file_read"] is False
-    assert result["evidence"]["metadata"]["model_file_read_local_fallback"] is True
+    assert "coverage_warning" in result
+    assert "local fallback" in result["coverage_warning"]
+    assert result["evidence"]["source_ref"] == "S01"
+    assert "source_version_id" not in result["evidence"]
+    assert "retrieval_channel" not in result["evidence"]
+    assert "evidence_strength" not in result["evidence"]
+    assert "metadata" not in result["evidence"]
 
 
 @pytest.mark.asyncio
@@ -1087,21 +1104,25 @@ def test_evidence_tool_descriptions_define_usage_and_citation_contracts() -> Non
     descriptions = {tool.name: tool.description for tool in tools}
 
     assert "neutral metadata" in descriptions["list_sources"]
-    assert "source_ids=[]" in descriptions["search_evidence"]
+    assert "scope=all_sources" in descriptions["search_evidence"]
+    assert "source_refs" in descriptions["search_evidence"]
     assert "persist" in descriptions["search_evidence"].lower()
-    assert "source_level or weak evidence is not sufficient" in descriptions["search_evidence"]
-    assert "Copy source_id, source_version_id, locator_text, snippet_text" in descriptions["read_evidence"]
+    assert "discovery preview" in descriptions["search_evidence"]
+    assert "source_ref/title" in descriptions["read_evidence"]
     assert "persist that window as an EvidenceItem" in descriptions["read_source"]
-    assert "empty string in the one you are not using" in descriptions["read_source"]
+    assert "empty string in version_ref" in descriptions["read_source"]
+    assert "Use the returned evidence_id in source-map write actions" in descriptions["read_source"]
     assert "input_file" in descriptions["read_source_with_model"]
-    assert "empty string in unused optional fields" in descriptions["read_source_with_model"]
-    assert "model_file_read_local_fallback" in descriptions["read_source_with_model"]
-    assert "risk/coverage signal" in descriptions["read_source_with_model"]
+    assert "empty string in version_ref" in descriptions["read_source_with_model"]
+    assert "coverage_warning" in descriptions["read_source_with_model"]
     assert "Page numbers are useful when reported, but not required" in descriptions["read_source_with_model"]
     assert "persist representative windows as EvidenceItems" in descriptions["skim_source"]
     assert "not a generic source search tool" in descriptions["find_quotes"]
     assert "corpus/source triage only" in descriptions["search_sources"]
-    assert "Compare selected sources" in descriptions["compare_sources"]
+    assert "Compare 2-5 selected sources" in descriptions["compare_sources"]
+    assert "write the resulting cluster/relationship/gap afterward" in descriptions["compare_sources"]
+    assert "regulator" not in descriptions["record_source_cluster"]
+    assert "legal texts" not in descriptions["record_source_cluster"]
 
 
 def test_list_sources_compact_card_contract_excludes_blob_fields() -> None:
@@ -1121,10 +1142,10 @@ def test_list_sources_compact_card_contract_excludes_blob_fields() -> None:
         summary="This is a long neutral preview. " * 80,
     )
 
-    payload = _compact_source_card(card, canonical_kind="original_file")
+    payload = _compact_source_card(card, canonical_kind="original_file", source_ref="S01")
 
     assert set(payload) == {
-        "source_id",
+        "source_ref",
         "title",
         "source_type",
         "domain",
@@ -1137,12 +1158,105 @@ def test_list_sources_compact_card_contract_excludes_blob_fields() -> None:
         "brief_hint",
         "needs_model_read",
     }
+    assert payload["source_ref"] == "S01"
     assert payload["version_count"] == 20
     assert payload["needs_model_read"] is True
     assert len(payload["brief_hint"]) <= 180
     assert "source_version_ids" not in payload
+    assert "source_id" not in payload
     assert "summary" not in payload
     assert "provider_file_id" not in payload
+
+
+def test_prompt_inventory_uses_refs_not_backend_ids() -> None:
+    source_id = str(uuid.uuid4())
+    source_version_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    card = SourceCard(
+        source_id=source_id,
+        source_version_ids=[source_version_id],
+        evidence_ids=[evidence_id],
+        title="HKMA note issue history",
+        source_type="web",
+        domain="hkma.gov.hk",
+        published_at="2019-08-26T00:00:00",
+        length_hint="preview_chars=404",
+        reliability="high",
+        authority="primary",
+        summary="Primary explanation of Hong Kong note-issuing banks and certificates of indebtedness.",
+        useful_for=["mechanism"],
+        representation_summary="extracted_text:ready/ready",
+        ready_representation_count=1,
+        coverage_status="ready",
+    )
+    quote = QuoteCard(
+        source_id=source_id,
+        source_version_id=source_version_id,
+        evidence_id=evidence_id,
+        quote="Commercial banks issue most Hong Kong currency notes.",
+        locator="section 1",
+        narrative_use="mechanism",
+    )
+    triage = SourceTriageReport(
+        ranked_sources=[
+            SourceTriageItem(
+                source_id=source_id,
+                source_version_ids=[source_version_id],
+                evidence_ids=[evidence_id],
+                rank=1,
+                score=0.95,
+                authority="primary",
+                reliability="high",
+                useful_for=["mechanism"],
+            )
+        ],
+        top_sources_by_function={"mechanism": [source_id]},
+        source_clusters=[
+            SourceCluster(
+                cluster_id="official",
+                label="Official mechanism sources",
+                source_ids=[source_id],
+                primary_source_ids=[source_id],
+                evidence_ids=[evidence_id],
+            )
+        ],
+        source_relationships=[
+            SourceRelationship(
+                source_id=source_id,
+                related_source_id=source_id,
+                relationship="background_for",
+                evidence_ids=[evidence_id],
+                rationale="Official source grounds the mechanism.",
+            )
+        ],
+    )
+    evidence = _evidence_record(
+        evidence_id=evidence_id,
+        source_id=source_id,
+        source_version_id=source_version_id,
+        metadata={"usage_status": "selected", "support_level": "direct"},
+    )
+    ref_context = _source_ref_context([card])
+
+    payload = {
+        "sources": _source_inventory([card], ref_context=ref_context),
+        "quotes": _quote_inventory([quote], ref_context=ref_context),
+        "triage": _triage_inventory(triage, ref_context=ref_context),
+        "evidence": _evidence_inventory([evidence], source_cards=[card], ref_context=ref_context),
+    }
+    text = json.dumps(payload)
+
+    assert source_id not in text
+    assert source_version_id not in text
+    assert "source_id" not in text
+    assert "source_version_id" not in text
+    assert "source_version_ids" not in text
+    assert "retrieval_channel" not in text
+    assert "evidence_strength" not in text
+    assert "usage_status" not in text
+    assert "provider_file_id" not in text
+    assert '"source_ref": "S01"' in text
+    assert evidence_id in text
 
 
 def test_evidence_tool_parameters_are_openai_strict_function_compatible() -> None:
@@ -1233,19 +1347,40 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert "not claim ids, citation ids, evidence ids, or source ids" in ACT_DRAFT_PROMPT
     assert "Before using any required evidence_id in speech, call read_evidence" in ACT_DRAFT_PROMPT
     assert "read_evidence, read_source_window, or search_within_source only to repair a known gap" in ACT_REWRITE_PROMPT
-    assert "quote_refs must be evidence_id values or exact source_id:locator refs" in SOURCE_TRIAGE_PROMPT
-    assert "Retrieval/read plan" in SOURCE_TRIAGE_PROMPT
-    assert "Backend assembles the authoritative SourceMap from write actions" in SOURCE_TRIAGE_PROMPT
-    assert "model_file_read_local_fallback" in RESEARCH_MEMO_PROMPT
-    assert "risk/coverage signal" in RESEARCH_MEMO_PROMPT
+    assert "Build a working map of the corpus" in SOURCE_TRIAGE_PROMPT
+    assert "A good source map answers these questions" in SOURCE_TRIAGE_PROMPT
+    assert "corpus cartography" in SOURCE_TRIAGE_PROMPT
+    assert "Work in source-set iterations" in SOURCE_TRIAGE_PROMPT
+    assert "Pick one small source set" in SOURCE_TRIAGE_PROMPT
+    assert "read at least two relevant sources before writing the relationship or cluster" in SOURCE_TRIAGE_PROMPT
+    assert "It is not acceptable to read many sources without writing the corresponding map entries" in SOURCE_TRIAGE_PROMPT
+    assert "Tool guide:" in SOURCE_TRIAGE_PROMPT
+    assert "compare_sources" in SOURCE_TRIAGE_PROMPT
+    assert "record_source_cluster" in SOURCE_TRIAGE_PROMPT
+    assert "select_evidence" not in SOURCE_TRIAGE_PROMPT
+    assert "source version IDs" not in SOURCE_TRIAGE_PROMPT
+    assert "Do not spend the whole budget" not in SOURCE_TRIAGE_PROMPT
+    for case_specific_term in (
+        "official/regulator",
+        "bank/source-owner",
+        "regulator",
+        "issuer",
+        "legal text",
+        "legal texts",
+        "law",
+    ):
+        assert case_specific_term not in SOURCE_TRIAGE_PROMPT
+    assert "coverage_warning" in RESEARCH_MEMO_PROMPT
+    assert "source-coverage risk" in RESEARCH_MEMO_PROMPT
     assert "SourceMap is a starting map" in RESEARCH_MEMO_PROMPT
     assert "Call select_evidence for any new EvidenceItem" in RESEARCH_MEMO_PROMPT
-    assert "Use only evidence_id values shown in the SourceMap/quote inventory or returned by the provided tools" in RESEARCH_MEMO_PROMPT
+    assert "Use evidence_id values shown in the SourceMap/quote inventory or returned by the provided tools" in RESEARCH_MEMO_PROMPT
     assert "call select_evidence before using that evidence_id in an atom" in RESEARCH_MEMO_PROMPT
-    assert "never use source_id or source_version_id as evidence_id" in RESEARCH_MEMO_PROMPT
-    assert "model_file_read_local_fallback" in SOURCE_TRIAGE_PROMPT
-    assert "missing_model_read_source_ids" in SOURCE_TRIAGE_REPAIR_PROMPT
-    assert "retrieval_channel is model_file_read" in SOURCE_TRIAGE_REPAIR_PROMPT
+    assert "Use source_ref only for choosing or relating sources" in RESEARCH_MEMO_PROMPT
+    assert "coverage_warning" in SOURCE_TRIAGE_PROMPT
+    assert "under-grounded or missing direct-read coverage" in SOURCE_TRIAGE_REPAIR_PROMPT
+    assert "missing_model_read_source_ids" not in SOURCE_TRIAGE_REPAIR_PROMPT
+    assert "select_evidence" not in SOURCE_TRIAGE_REPAIR_PROMPT
     assert "Do not restart from scratch" in SOURCE_TRIAGE_REPAIR_PROMPT
     assert "prefetch_seed" not in SOURCE_TRIAGE_PROMPT
     assert "warm-cache" not in SOURCE_TRIAGE_PROMPT
@@ -1257,10 +1392,9 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert "support_level=supported only when saved evidence directly supports" in CLAIM_CITATION_PROMPT
     assert "read_source_with_model before creating a CitationLink" in CLAIM_CITATION_PROMPT
     assert "select_evidence before linking" in CLAIM_CITATION_PROMPT
-    assert "model_file_read_local_fallback" in CLAIM_CITATION_PROMPT
-    assert "risk/coverage signal" in CLAIM_CITATION_PROMPT
+    assert "coverage_warning" in CLAIM_CITATION_PROMPT
     assert "blocking=true for missing evidence" in CLAIM_CITATION_PROMPT
-    assert "final JSON response must match SourceTriageCompletion" in SOURCE_TRIAGE_PROMPT
+    assert "answer with ready, summary, and notes" in SOURCE_TRIAGE_PROMPT
 
 
 def test_source_triage_repair_context_scopes_to_gate_failures() -> None:
@@ -1306,7 +1440,7 @@ def test_agent_system_prompts_are_role_specific_and_product_aware() -> None:
     for name, system in systems.items():
         assert "Your role:" in system, name
         assert "long-form podcast production system" in system, name
-        assert "Never invent ids" in system, name
+        assert "source_ref/version_ref" in system, name
         assert "Generation V2" not in system, name
         assert "Podgen Generation" not in system, name
 
@@ -1884,9 +2018,11 @@ def test_compact_evidence_inventory_caps_and_preserves_preferred_ids() -> None:
         },
     )
 
+    source_card = _source_card(source_id=source_id)
+    ref_context = _source_ref_context([source_card])
     inventory = _evidence_inventory(
         [*extra_records, preferred_record],
-        source_cards=[_source_card(source_id=source_id)],
+        source_cards=[source_card],
         quote_cards=[
             QuoteCard(
                 source_id=source_id,
@@ -1898,18 +2034,22 @@ def test_compact_evidence_inventory_caps_and_preserves_preferred_ids() -> None:
             )
         ],
         limit=5,
+        ref_context=ref_context,
     )
 
     assert len(inventory) == 5
-    assert inventory[0]["id"] == preferred_id
+    assert inventory[0]["evidence_id"] == preferred_id
+    assert inventory[0]["source_ref"] == "S01"
     assert len(inventory[0]["snippet_text"]) <= 900
     assert inventory[0]["metadata_flags"] == {
-        "usage_status": "selected",
         "support_level": "weak",
         "supports_query": True,
-        "model_file_read_local_fallback": True,
         "selected_role": "mechanism",
     }
+    assert "source_id" not in inventory[0]
+    assert "source_version_id" not in inventory[0]
+    assert "retrieval_channel" not in inventory[0]
+    assert "evidence_strength" not in inventory[0]
 
 
 def test_research_memo_evidence_gate_blocks_unanchored_high_impact_atoms() -> None:
@@ -2087,21 +2227,12 @@ async def test_source_map_is_built_from_write_actions_and_selected_evidence_only
     )
     traces = [
         SimpleNamespace(
-            tool_name="select_evidence",
-            input_json={
-                "evidence_id": str(selected_evidence_id),
-                "purpose": "source_map",
-                "role": "mechanism",
-                "rationale": "Strong mechanism support.",
-            },
-        ),
-        SimpleNamespace(
             tool_name="upsert_source_card",
             input_json={
                 "source_id": str(source_id),
                 "summary": "Selected mechanism source.",
                 "useful_for": ["mechanism"],
-                "evidence_ids": [str(selected_evidence_id), str(observed_only_id)],
+                "evidence_ids": [str(selected_evidence_id)],
                 "gaps_or_cautions": [],
             },
         ),
@@ -2118,6 +2249,18 @@ async def test_source_map_is_built_from_write_actions_and_selected_evidence_only
                 "confidence_reason": "Exact selected evidence.",
             },
         ),
+        SimpleNamespace(
+            tool_name="record_source_cluster",
+            input_json={
+                "label": "Official mechanism sources",
+                "source_refs": [str(source_id), str(source_id)],
+                "primary_source_refs": [str(source_id)],
+                "secondary_source_refs": [],
+                "duplicate_source_refs": [],
+                "evidence_ids": [str(selected_evidence_id)],
+                "rationale": "Official source grounds the mechanism.",
+            },
+        ),
         SimpleNamespace(tool_name="finalize_source_map", input_json={"ready": True, "summary": "done"}),
     ]
     evidence = [
@@ -2125,7 +2268,7 @@ async def test_source_map_is_built_from_write_actions_and_selected_evidence_only
             id=selected_evidence_id,
             source_id=source_id,
             source_version_id=source_version_id,
-            metadata_={"usage_status": "selected", "selected_role": "mechanism"},
+            metadata_={"usage_status": "observed", "selected_role": "mechanism"},
             snippet_text="The mechanism is explained.",
             locator_text="page 12",
             retrieval_channel="provider_file_search",
@@ -2152,6 +2295,8 @@ async def test_source_map_is_built_from_write_actions_and_selected_evidence_only
     assert source_map.evidence_ids == [str(selected_evidence_id)]
     assert source_map.source_cards[0].evidence_ids == [str(selected_evidence_id)]
     assert source_map.quote_cards[0].evidence_id == str(selected_evidence_id)
+    assert source_map.source_triage.source_clusters[0].label == "Official mechanism sources"
+    assert source_map.source_triage.source_clusters[0].evidence_ids == [str(selected_evidence_id)]
     assert str(observed_only_id) not in source_map.evidence_ids
 
 
@@ -2708,7 +2853,7 @@ async def test_source_triage_gate_requires_selected_evidence_on_each_source_card
 
 
 @pytest.mark.asyncio
-async def test_source_triage_agent_uses_full_reading_tool_set() -> None:
+async def test_source_triage_agent_uses_map_oriented_tool_set() -> None:
     _CaptureRuntime.calls = {}
     _CaptureRuntime.kwargs_by_agent = {}
     run = SimpleNamespace(id=uuid.uuid4(), project_id=uuid.uuid4(), config={"user_prompt": "Topic"})
@@ -2726,25 +2871,19 @@ async def test_source_triage_agent_uses_full_reading_tool_set() -> None:
     assert result.summary == "Source triage write actions completed."
     assert set(_CaptureRuntime.calls["source_triage_agent"]) == {
         "list_sources",
-        "list_source_versions",
-        "search_sources",
         "search_evidence",
-        "find_quotes",
         "read_evidence",
         "read_source",
-        "read_source_window",
-        "read_source_with_model",
         "skim_source",
         "inspect_source",
-        "search_within_source",
         "compare_sources",
-        "select_evidence",
         "upsert_source_card",
-        "create_quote_card",
         "record_source_relationship",
+        "record_source_cluster",
         "record_gap",
         "finalize_source_map",
     }
+    assert _CaptureRuntime.kwargs_by_agent["source_triage_agent"]["tool_policy"].file_search is False
 
 
 @pytest.mark.asyncio
@@ -4387,6 +4526,7 @@ def _all_evidence_tools() -> list[AgentTool]:
             "upsert_source_card",
             "create_quote_card",
             "record_source_relationship",
+            "record_source_cluster",
             "record_gap",
             "finalize_source_map",
         )

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.generation_v2.schemas import (
     QuoteCard,
     SourceCard,
+    SourceCluster,
     SourceMap,
     SourceRelationship,
     SourceTriageCompletion,
@@ -34,6 +35,7 @@ from app.generation_v2.tools.evidence_types import (
     _TRIAGE_READING_TOOL_NAMES,
     _WRITE_TOOL_NAMES,
 )
+from app.generation_v2.tools.evidence_refs import build_source_ref_context, resolve_source_ref, source_ref_for_id
 from app.generation_v2.tools.evidence_utils import (
     _confidence,
     _dedupe,
@@ -127,6 +129,7 @@ async def build_source_map_from_write_actions(
     evidence_result = await db.execute(select(EvidenceItem).where(EvidenceItem.generation_run_id == generation_run_id))
     evidence_by_id = {str(item.id): item for item in evidence_result.scalars()}
     inventory_by_source = {card.source_id: card for card in inventory.source_cards}
+    source_ref_context = build_source_ref_context(inventory)
     selected_evidence_ids = _selected_evidence_ids_from_actions(traces, evidence_by_id)
     selected_evidence_by_id = {
         evidence_id: evidence_by_id[evidence_id]
@@ -136,6 +139,7 @@ async def build_source_map_from_write_actions(
 
     source_cards_by_id: dict[str, SourceCard] = {}
     quote_cards: list[QuoteCard] = []
+    clusters: list[SourceCluster] = []
     relationships: list[SourceRelationship] = []
     gaps: list[str] = []
     contradictions: list[str] = []
@@ -145,7 +149,7 @@ async def build_source_map_from_write_actions(
     for trace in traces:
         action = trace.input_json or {}
         if trace.tool_name == "upsert_source_card":
-            source_id = str(action.get("source_id") or "")
+            source_id = _action_source_id(action, source_ref_context, "source_ref", "source_id")
             base = inventory_by_source.get(source_id)
             if base is None:
                 continue
@@ -177,12 +181,47 @@ async def build_source_map_from_write_actions(
                 )
             )
         elif trace.tool_name == "record_source_relationship":
+            source_id = _action_source_id(action, source_ref_context, "source_ref", "source_id")
+            related_source_id = _action_source_id(action, source_ref_context, "related_source_ref", "related_source_id")
             relationships.append(
                 SourceRelationship(
-                    source_id=str(action.get("source_id") or ""),
-                    related_source_id=str(action.get("related_source_id") or ""),
+                    source_id=source_id,
+                    related_source_id=related_source_id,
                     relationship=_relationship_kind(str(action.get("relationship") or "")),
                     evidence_ids=[str(eid) for eid in action.get("evidence_ids") or [] if str(eid) in selected_evidence_by_id],
+                    rationale=str(action.get("rationale") or ""),
+                )
+            )
+        elif trace.tool_name == "record_source_cluster":
+            cluster_source_ids = [
+                _action_source_id({"source_ref": ref}, source_ref_context, "source_ref", "source_id")
+                for ref in action.get("source_refs") or action.get("source_ids") or []
+            ]
+            primary_source_ids = [
+                _action_source_id({"source_ref": ref}, source_ref_context, "source_ref", "source_id")
+                for ref in action.get("primary_source_refs") or []
+            ]
+            secondary_source_ids = [
+                _action_source_id({"source_ref": ref}, source_ref_context, "source_ref", "source_id")
+                for ref in action.get("secondary_source_refs") or []
+            ]
+            duplicate_source_ids = [
+                _action_source_id({"source_ref": ref}, source_ref_context, "source_ref", "source_id")
+                for ref in action.get("duplicate_source_refs") or []
+            ]
+            clusters.append(
+                SourceCluster(
+                    cluster_id=_cluster_id(str(action.get("label") or ""), len(clusters) + 1),
+                    label=str(action.get("label") or "Source cluster"),
+                    source_ids=_dedupe([source_id for source_id in cluster_source_ids if source_id in inventory_by_source]),
+                    primary_source_ids=_dedupe([source_id for source_id in primary_source_ids if source_id in inventory_by_source]),
+                    secondary_source_ids=_dedupe([source_id for source_id in secondary_source_ids if source_id in inventory_by_source]),
+                    duplicate_source_ids=_dedupe([source_id for source_id in duplicate_source_ids if source_id in inventory_by_source]),
+                    evidence_ids=[
+                        str(eid)
+                        for eid in action.get("evidence_ids") or []
+                        if str(eid) in selected_evidence_by_id
+                    ],
                     rationale=str(action.get("rationale") or ""),
                 )
             )
@@ -250,6 +289,7 @@ async def build_source_map_from_write_actions(
             top_evidence_by_function={key: _dedupe(value)[:12] for key, value in top_evidence_by_function.items()},
             gaps=gaps,
             contradictions=contradictions,
+            source_clusters=clusters,
             source_relationships=relationships,
         ),
         evidence_ids=list(selected_evidence_by_id.keys()),
@@ -341,7 +381,15 @@ async def validate_source_map_gate(
     if missing_function_evidence:
         warnings.append("Some triage function seed evidence is missing or incomplete.")
     unpersisted_completion_gap_notes = _unpersisted_completion_gap_notes(triage_completion, source_map)
-    missing_source_card_write_source_ids = _missing_source_card_write_sources(source_map, triage_traces)
+    try:
+        write_source_ref_context = build_source_ref_context(await build_source_inventory(db, run_view))
+    except Exception:
+        write_source_ref_context = build_source_ref_context(source_map)
+    missing_source_card_write_source_ids = _missing_source_card_write_sources(
+        source_map,
+        triage_traces,
+        write_source_ref_context,
+    )
     passed = not (
         (requires_tool_call and tool_call_count == 0)
         or "Triage did not call finalize_source_map." in source_map.gaps
@@ -388,26 +436,52 @@ async def validate_source_map_gate(
     )
 
 
-async def _source_summaries(db: AsyncSession, run_view: RunCorpusView, evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    sources_result = await db.execute(select(Source).where(Source.id.in_([uuid.UUID(source_id) for source_id in run_view.selected_source_ids])))
+async def _source_summaries(
+    db: AsyncSession,
+    run_view: RunCorpusView,
+    evidence: list[dict[str, Any]],
+    *,
+    limit: int = 8,
+) -> list[dict[str, Any]]:
+    inventory = await build_source_inventory(db, run_view)
+    source_ref_context = build_source_ref_context(inventory)
     evidence_by_source: dict[str, list[dict[str, Any]]] = {}
+    ordered_source_ids: list[str] = []
     for item in evidence:
-        evidence_by_source.setdefault(str(item.get("source_id")), []).append(item)
+        source_ref = str(item.get("source_ref") or "")
+        source_id = resolve_source_ref(source_ref, source_ref_context) if source_ref else str(item.get("source_id") or "")
+        if not _uuid_or_none(source_id):
+            continue
+        evidence_by_source.setdefault(str(source_id), []).append(item)
+        if source_id not in ordered_source_ids:
+            ordered_source_ids.append(source_id)
+    ordered_source_ids = ordered_source_ids[: max(1, min(int(limit or 8), 8))]
+    if not ordered_source_ids:
+        return []
+    sources_result = await db.execute(select(Source).where(Source.id.in_([uuid.UUID(source_id) for source_id in ordered_source_ids])))
+    sources_by_id = {str(source.id): source for source in sources_result.scalars()}
     return [
         {
-            "source_id": str(source.id),
+            "source_ref": source_ref_for_id(str(source.id), source_ref_context),
             "title": source.title or source.original_url or source.file_path or "Untitled source",
             "source_type": source.source_type,
             "authority": source.authority_type,
             "reliability": source.domain_reliability,
+            "matched_evidence_count": len(evidence_by_source.get(str(source.id), [])),
             "evidence_ids": [
                 str(item.get("evidence_id") or item.get("id") or "")
                 for item in evidence_by_source.get(str(source.id), [])[:6]
                 if item.get("evidence_id") or item.get("id")
             ],
         }
-        for source in sources_result.scalars()
+        for source_id in ordered_source_ids
+        if (source := sources_by_id.get(source_id)) is not None
     ]
+
+
+def _action_source_id(action: dict[str, Any], context: Any, ref_key: str, id_key: str) -> str:
+    value = str(action.get(ref_key) or action.get(id_key) or "")
+    return resolve_source_ref(value, context) or ""
 
 
 def _source_map_evidence_ids(source_map: SourceMap) -> list[str]:
@@ -433,11 +507,23 @@ def _selected_evidence_ids_from_actions(traces: list[V2ToolTrace], evidence_by_i
         if (evidence.metadata_ or {}).get("usage_status") in {EVIDENCE_STATUS_SELECTED, EVIDENCE_STATUS_CITED}
     ]
     for trace in traces:
-        if trace.tool_name != "select_evidence":
+        action = trace.input_json or {}
+        if trace.tool_name == "select_evidence":
+            evidence_id = str(action.get("evidence_id") or "")
+            if evidence_id:
+                selected.append(evidence_id)
             continue
-        evidence_id = str((trace.input_json or {}).get("evidence_id") or "")
-        if evidence_id:
-            selected.append(evidence_id)
+        if trace.tool_name in {
+            "upsert_source_card",
+            "create_quote_card",
+            "record_source_relationship",
+            "record_source_cluster",
+            "record_gap",
+        }:
+            selected.extend(str(eid) for eid in action.get("evidence_ids") or [] if str(eid) in evidence_by_id)
+            evidence_id = str(action.get("evidence_id") or "")
+            if evidence_id in evidence_by_id:
+                selected.append(evidence_id)
     return _dedupe(selected)
 
 
@@ -528,9 +614,13 @@ def _missing_model_read_sources(
     return sorted(_dedupe(missing))
 
 
-def _missing_source_card_write_sources(source_map: SourceMap, traces: list[V2ToolTrace]) -> list[str]:
+def _missing_source_card_write_sources(
+    source_map: SourceMap,
+    traces: list[V2ToolTrace],
+    source_ref_context: Any,
+) -> list[str]:
     upserted = {
-        str((getattr(trace, "input_json", None) or {}).get("source_id") or "")
+        _action_source_id(getattr(trace, "input_json", None) or {}, source_ref_context, "source_ref", "source_id")
         for trace in traces
         if getattr(trace, "tool_name", "") == "upsert_source_card" and _trace_accepted(trace)
     }
@@ -597,6 +687,11 @@ def _source_card_needs_model_read(card: SourceCard) -> bool:
 def _relationship_kind(value: str) -> str:
     allowed = {"primary_to_secondary", "duplicate", "near_duplicate", "contradicts", "updates", "background_for"}
     return value if value in allowed else "background_for"
+
+
+def _cluster_id(label: str, index: int) -> str:
+    slug = "".join(ch.lower() if ch.isalnum() else "_" for ch in label.strip())[:40].strip("_")
+    return slug or f"cluster_{index}"
 
 
 __all__ = [name for name in globals() if not name.startswith('__')]

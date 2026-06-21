@@ -16,11 +16,18 @@ from app.models.generation_v2 import (
     SourceVersion,
 )
 from app.generation_v2.tools.evidence_source_map import _relationship_kind, _source_summaries, build_source_inventory
+from app.generation_v2.tools.evidence_refs import (
+    SourceRefContext,
+    build_source_ref_context,
+    build_source_ref_context_from_ids,
+    resolve_source_ref,
+    source_domain_for_id,
+    source_ref_for_id,
+    source_title_for_id,
+    version_ref_for_index,
+)
 from app.generation_v2.tools.evidence_store import (
-    compact_evidence_payload,
-    evidence_preview_payload,
     compact_model_read_result,
-    compact_provider_failures,
     persist_evidence_item,
 )
 from app.generation_v2.tools.evidence_types import (
@@ -52,24 +59,170 @@ from app.generation_v2.tools.evidence_utils import (
 
 
 class EvidenceToolHandlersMixin:
+    async def _source_ref_context(self) -> SourceRefContext:
+        cached = getattr(self, "_source_ref_context_cache", None)
+        if cached is not None:
+            return cached
+        inventory = await build_source_inventory(self.db, self.run_view)
+        context = build_source_ref_context(inventory)
+        if not context.ref_by_source_id and getattr(self.run_view, "selected_source_ids", None):
+            context = build_source_ref_context_from_ids([str(item) for item in self.run_view.selected_source_ids])
+        setattr(self, "_source_ref_context_cache", context)
+        return context
+
+    async def _source_id_from_ref_or_id(self, value: str) -> str | None:
+        context = await self._source_ref_context()
+        return resolve_source_ref(value, context)
+
+    async def _source_ids_from_refs_or_ids(self, values: list[str]) -> tuple[list[str], list[str]]:
+        context = await self._source_ref_context()
+        resolved: list[str] = []
+        invalid: list[str] = []
+        for value in values:
+            source_id = resolve_source_ref(str(value), context)
+            if source_id:
+                resolved.append(source_id)
+            else:
+                invalid.append(str(value))
+        return _dedupe(resolved), invalid
+
+    async def _source_ref_for_id(self, source_id: uuid.UUID | str) -> str:
+        context = await self._source_ref_context()
+        return source_ref_for_id(str(source_id), context)
+
+    async def _version_ref_for_version(self, version: SourceVersion) -> str:
+        source_ref = await self._source_ref_for_id(version.source_id)
+        versions = await self._versions_for_source(str(version.source_id))
+        canonical_version_ids = set(_active_filter_list(self.run_view, "canonical_source_version_ids"))
+        for idx, candidate in enumerate(versions, start=1):
+            if str(candidate.id) == str(version.id):
+                return version_ref_for_index(
+                    source_ref,
+                    index=idx,
+                    canonical=str(candidate.id) in canonical_version_ids,
+                )
+        return f"{source_ref}:v?"
+
+    async def _source_version_id_from_ref(self, version_ref: str) -> str | None:
+        text = str(version_ref or "").strip()
+        if not text:
+            return None
+        if _uuid_or_none(text) and self._source_version_in_run_view(text):
+            return text
+        if ":" not in text:
+            return None
+        source_ref, version_part = text.split(":", 1)
+        source_id = await self._source_id_from_ref_or_id(source_ref)
+        if not source_id:
+            return None
+        versions = await self._versions_for_source(source_id)
+        canonical_version_ids = set(_active_filter_list(self.run_view, "canonical_source_version_ids"))
+        if version_part == "canonical":
+            for version in versions:
+                if str(version.id) in canonical_version_ids:
+                    return str(version.id)
+            return None
+        if version_part.startswith("v") and version_part[1:].isdigit():
+            idx = int(version_part[1:])
+            if 1 <= idx <= len(versions):
+                return str(versions[idx - 1].id)
+        return None
+
+    async def _versions_for_source(self, source_id: str) -> list[SourceVersion]:
+        result = await self.db.execute(
+            select(SourceVersion).where(
+                SourceVersion.source_id == uuid.UUID(source_id),
+                SourceVersion.id.in_(_uuid_list([str(item) for item in self.run_view.selected_source_version_ids])),
+            )
+        )
+        return sorted(list(result.scalars()), key=lambda version: _readable_version_priority(version.kind))
+
+    async def _evidence_preview_payload(self, item: EvidenceItem, *, max_short_snippet_chars: int = 420) -> dict[str, Any]:
+        context = await self._source_ref_context()
+        snippet = " ".join(str(item.snippet_text or "").split())
+        if len(snippet) > max_short_snippet_chars:
+            snippet = snippet[:max_short_snippet_chars].rstrip()
+        payload: dict[str, Any] = {
+            "evidence_id": str(item.id),
+            "source_ref": source_ref_for_id(str(item.source_id), context),
+            "source_title": source_title_for_id(str(item.source_id), context)[:220],
+            "source_domain": source_domain_for_id(str(item.source_id), context),
+            "locator": item.locator_text,
+            "short_snippet": snippet,
+            "score": item.score,
+        }
+        return {key: value for key, value in payload.items() if value not in (None, "", [])}
+
+    async def _evidence_preview_payloads(self, items: list[EvidenceItem], *, max_short_snippet_chars: int = 420) -> list[dict[str, Any]]:
+        return [await self._evidence_preview_payload(item, max_short_snippet_chars=max_short_snippet_chars) for item in items]
+
+    async def _evidence_detail_payload(self, item: EvidenceItem, *, max_snippet_chars: int = 2400) -> dict[str, Any]:
+        context = await self._source_ref_context()
+        snippet = str(item.snippet_text or "")
+        if len(snippet) > max_snippet_chars:
+            return {
+                "evidence_id": str(item.id),
+                "source_ref": source_ref_for_id(str(item.source_id), context),
+                "source_title": source_title_for_id(str(item.source_id), context)[:220],
+                "source_domain": source_domain_for_id(str(item.source_id), context),
+                "locator_text": item.locator_text,
+                "locator_type": item.locator_type,
+                "error": "evidence_too_large_use_source_window",
+                "snippet_chars": len(snippet),
+            }
+        metadata = item.metadata_ or {}
+        payload: dict[str, Any] = {
+            "evidence_id": str(item.id),
+            "source_ref": source_ref_for_id(str(item.source_id), context),
+            "source_title": source_title_for_id(str(item.source_id), context)[:220],
+            "source_domain": source_domain_for_id(str(item.source_id), context),
+            "locator_text": item.locator_text,
+            "locator_type": item.locator_type,
+            "snippet_text": snippet,
+            "query_text": item.query_text,
+            "purpose": item.purpose,
+        }
+        if metadata.get("model_file_read"):
+            payload.update(
+                {
+                    "support_assessment": metadata.get("support_level"),
+                    "support_summary": metadata.get("support_summary"),
+                    "uncertainty": metadata.get("uncertainty"),
+                    "quote_text": metadata.get("quote_text"),
+                }
+            )
+        warning = _coverage_warning(item)
+        if warning:
+            payload["coverage_warning"] = warning
+        return {key: value for key, value in payload.items() if value not in (None, "", [])}
+
     async def list_sources_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         limit = max(1, min(int(args.get("limit") or 12), 12))
         cursor = str(args.get("cursor") or "")
         offset = int(cursor) if cursor.isdigit() else 0
-        inventory = await build_source_inventory(self.db, self.run_view)
+        context = await self._source_ref_context()
+        inventory = context.inventory
         selected = inventory.source_cards[offset : offset + limit]
         next_cursor = str(offset + limit) if offset + limit < len(inventory.source_cards) else ""
         canonical_kinds = await self._canonical_kinds_by_source()
         return {
-            "sources": [_compact_source_card(card, canonical_kind=canonical_kinds.get(card.source_id)) for card in selected],
+            "sources": [
+                _compact_source_card(
+                    card,
+                    canonical_kind=canonical_kinds.get(card.source_id),
+                    source_ref=source_ref_for_id(card.source_id, context),
+                )
+                for card in selected
+            ],
             "next_cursor": next_cursor,
             "total": len(inventory.source_cards),
         }
 
     async def list_source_versions_tool(self, args: dict[str, Any]) -> dict[str, Any]:
-        source_id = str(args.get("source_id") or "")
-        if not _uuid_or_none(source_id) or source_id not in {str(item) for item in self.run_view.selected_source_ids}:
-            return {"found": False, "error": "source_id is not in this run corpus view"}
+        source_ref = str(args.get("source_ref") or args.get("source_id") or "")
+        source_id = await self._source_id_from_ref_or_id(source_ref)
+        if not source_id or not self._source_in_run_view(source_id):
+            return {"found": False, "error": "source_ref is not in this run corpus view"}
         result = await self.db.execute(
             select(SourceVersion).where(
                 SourceVersion.source_id == uuid.UUID(source_id),
@@ -78,28 +231,54 @@ class EvidenceToolHandlersMixin:
         )
         versions = sorted(list(result.scalars()), key=lambda version: _readable_version_priority(version.kind))
         canonical_version_ids = set(_active_filter_list(self.run_view, "canonical_source_version_ids"))
+        resolved_ref = await self._source_ref_for_id(source_id)
         return {
             "found": bool(versions),
-            "source_id": source_id,
+            "source_ref": resolved_ref,
             "versions": [
                 {
-                    "source_version_id": str(version.id),
+                    "version_ref": version_ref_for_index(
+                        resolved_ref,
+                        index=idx,
+                        canonical=str(version.id) in canonical_version_ids,
+                    ),
                     "kind": version.kind,
                     "status": version.status,
                     "upload_status": version.upload_status,
                     "readable_locally": _version_readable(version),
                     "canonical": str(version.id) in canonical_version_ids,
                 }
-                for version in versions
+                for idx, version in enumerate(versions, start=1)
             ],
         }
 
     async def search_evidence_tool(self, args: dict[str, Any]) -> dict[str, Any]:
+        query = str(args.get("query") or "").strip()
+        if len(query) < 3:
+            return {"accepted": False, "error": "query must contain at least 3 non-whitespace characters", "results": []}
+        scope = str(args.get("scope") or "").strip() or ("selected_sources" if args.get("source_refs") else "all_sources")
+        if scope not in {"all_sources", "selected_sources"}:
+            return {"accepted": False, "error": "scope must be all_sources or selected_sources", "results": []}
+        source_refs = [str(item) for item in args.get("source_refs") or [] if item]
+        legacy_source_ids = [str(item) for item in args.get("source_ids") or [] if item]
+        source_ids: list[str] = []
+        if legacy_source_ids:
+            source_ids, invalid = await self._source_ids_from_refs_or_ids(legacy_source_ids)
+            if invalid:
+                return {"accepted": False, "error": "source_refs include values outside this run corpus view", "invalid_source_refs": invalid, "results": []}
+        elif scope == "selected_sources":
+            if not source_refs:
+                return {"accepted": False, "error": "source_refs is required when scope=selected_sources", "results": []}
+            source_ids, invalid = await self._source_ids_from_refs_or_ids(source_refs)
+            if invalid:
+                return {"accepted": False, "error": "source_refs include values outside this run corpus view", "invalid_source_refs": invalid, "results": []}
+        limit = max(1, min(int(args.get("limit") or 5), 8))
         return await self.search_evidence(
-            query=str(args.get("query") or ""),
+            query=query,
             purpose=str(args.get("purpose") or "general"),
-            source_ids=[str(item) for item in args.get("source_ids") or [] if item],
-            limit=int(args.get("limit") or 8),
+            source_ids=source_ids,
+            limit=limit,
+            scope=scope,
         )
 
     async def read_evidence_tool(self, args: dict[str, Any]) -> dict[str, Any]:
@@ -110,12 +289,17 @@ class EvidenceToolHandlersMixin:
         item = await self.db.get(EvidenceItem, evidence_id)
         if item is None or item.generation_run_id != self.run.id:
             return {"found": False}
-        return {"found": True, "evidence": compact_evidence_payload(item, max_snippet_chars=2200)}
+        payload = await self._evidence_detail_payload(item, max_snippet_chars=2400)
+        if payload.get("error"):
+            return {"found": False, **payload}
+        return {"found": True, "evidence": payload}
 
     async def inspect_source_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         version = await self._resolve_source_version(
             source_id=str(args.get("source_id") or ""),
             source_version_id=str(args.get("source_version_id") or ""),
+            source_ref=str(args.get("source_ref") or ""),
+            version_ref=str(args.get("version_ref") or ""),
         )
         if version is None:
             return {"found": False, "error": "No readable source version in this run corpus view."}
@@ -144,8 +328,8 @@ class EvidenceToolHandlersMixin:
             ]
         return {
             "found": bool(items),
-            "source_id": str(version.source_id),
-            "source_version_id": str(version.id),
+            "source_ref": await self._source_ref_for_id(version.source_id),
+            "version_ref": await self._version_ref_for_version(version),
             "kind": version.kind,
             "items": items,
         }
@@ -154,6 +338,8 @@ class EvidenceToolHandlersMixin:
         version = await self._resolve_source_version(
             source_id=str(args.get("source_id") or ""),
             source_version_id=str(args.get("source_version_id") or ""),
+            source_ref=str(args.get("source_ref") or ""),
+            version_ref=str(args.get("version_ref") or ""),
         )
         if version is None:
             return {"found": False, "error": "No readable source version in this run corpus view."}
@@ -181,7 +367,7 @@ class EvidenceToolHandlersMixin:
             evidence_strength=EvidenceStrength.EXACT if locator else EvidenceStrength.SNIPPET,
             metadata={"source_read": True, "requested_locator": locator},
         )
-        payload = compact_evidence_payload(evidence, max_snippet_chars=max_chars)
+        payload = await self._evidence_detail_payload(evidence, max_snippet_chars=max_chars)
         await save_tool_trace(
             self.db,
             generation_run_id=self.run.id,
@@ -208,6 +394,12 @@ class EvidenceToolHandlersMixin:
 
         source_id = str(args.get("source_id") or "")
         source_version_id = str(args.get("source_version_id") or "")
+        source_ref = str(args.get("source_ref") or "")
+        version_ref = str(args.get("version_ref") or "")
+        if source_ref and not source_id:
+            source_id = await self._source_id_from_ref_or_id(source_ref) or ""
+        if version_ref and not source_version_id:
+            source_version_id = await self._source_version_id_from_ref(version_ref) or ""
         request_cache_key = self._model_read_request_cache_key(
             source_id=source_id,
             source_version_id=source_version_id,
@@ -219,7 +411,7 @@ class EvidenceToolHandlersMixin:
         cached_request_items = await self._cached_evidence_items(cache_field="model_read_request_cache_key", cache_key=request_cache_key, limit=1)
         if cached_request_items:
             cached = cached_request_items[0]
-            payload = compact_evidence_payload(cached, max_snippet_chars=1400)
+            payload = await self._evidence_detail_payload(cached, max_snippet_chars=2400)
             await save_tool_trace(
                 self.db,
                 generation_run_id=self.run.id,
@@ -244,7 +436,7 @@ class EvidenceToolHandlersMixin:
                 "evidence": payload,
             }
             if cached.retrieval_channel == EvidenceRetrievalChannel.MODEL_FILE_READ_LOCAL_FALLBACK:
-                response["local_fallback"] = True
+                response["coverage_warning"] = _coverage_warning(cached)
             else:
                 response["model_read"] = _cached_model_read_payload(cached)
             return response
@@ -268,7 +460,7 @@ class EvidenceToolHandlersMixin:
             cached_items = await self._cached_evidence_items(cache_field="model_read_cache_key", cache_key=cache_key, limit=1)
             if cached_items:
                 cached = cached_items[0]
-                payload = compact_evidence_payload(cached, max_snippet_chars=1400)
+                payload = await self._evidence_detail_payload(cached, max_snippet_chars=2400)
                 await save_tool_trace(
                     self.db,
                     generation_run_id=self.run.id,
@@ -343,7 +535,7 @@ class EvidenceToolHandlersMixin:
                 cache_key=cache_key,
                 request_cache_key=request_cache_key,
             )
-            payload = compact_evidence_payload(evidence, max_snippet_chars=1400)
+            payload = await self._evidence_detail_payload(evidence, max_snippet_chars=2400)
             await save_tool_trace(
                 self.db,
                 generation_run_id=self.run.id,
@@ -366,7 +558,7 @@ class EvidenceToolHandlersMixin:
                 output_json={"cache_hit": False, "evidence_id": payload["evidence_id"], "support_level": read_result.get("support_level")},
                 provider_call_id=response_id,
             )
-            return {"found": True, "evidence": payload, "model_read": compact_model_read_result(read_result)}
+            return {"found": True, "evidence": payload, "model_read": _model_read_agent_payload(read_result)}
 
         return await self._model_read_local_fallback(
             source_id=source_id,
@@ -453,7 +645,7 @@ class EvidenceToolHandlersMixin:
             return {
                 "found": False,
                 "error": "No provider-backed or locally readable source version is available in this run corpus view.",
-                "provider_failures": compact_provider_failures(provider_failures),
+                "provider_failure_count": len(provider_failures),
             }
         cache_key = self._model_read_cache_key(
             source_version_id=str(version.id),
@@ -466,7 +658,7 @@ class EvidenceToolHandlersMixin:
         cached_items = await self._cached_evidence_items(cache_field="model_read_cache_key", cache_key=cache_key, limit=1)
         if cached_items:
             cached = cached_items[0]
-            payload = compact_evidence_payload(cached, max_snippet_chars=1400)
+            payload = await self._evidence_detail_payload(cached, max_snippet_chars=2400)
             await save_tool_trace(
                 self.db,
                 generation_run_id=self.run.id,
@@ -490,8 +682,8 @@ class EvidenceToolHandlersMixin:
                 "found": True,
                 "cache_hit": True,
                 "evidence": payload,
-                "local_fallback": True,
-                "provider_failures": compact_provider_failures(provider_failures),
+                "coverage_warning": _coverage_warning(cached),
+                "provider_failure_count": len(provider_failures),
             }
         source_id = source_id or str(version.source_id)
         locator = locator_hint or claim_text or focus_question
@@ -517,7 +709,7 @@ class EvidenceToolHandlersMixin:
             return {
                 "found": False,
                 "error": "Provider model-read failed or was unavailable, and local fallback returned no readable window.",
-                "provider_failures": compact_provider_failures(provider_failures),
+                "provider_failure_count": len(provider_failures),
             }
         evidence = await persist_evidence_item(
             self.db,
@@ -550,7 +742,7 @@ class EvidenceToolHandlersMixin:
                 "model_read_request_cache_key": request_cache_key,
             },
         )
-        payload = compact_evidence_payload(evidence, max_snippet_chars=1400)
+        payload = await self._evidence_detail_payload(evidence, max_snippet_chars=2400)
         await save_tool_trace(
             self.db,
             generation_run_id=self.run.id,
@@ -579,14 +771,16 @@ class EvidenceToolHandlersMixin:
         return {
             "found": True,
             "evidence": payload,
-            "local_fallback": True,
-            "provider_failures": compact_provider_failures(provider_failures),
+            "coverage_warning": _coverage_warning(evidence),
+            "provider_failure_count": len(provider_failures),
         }
 
     async def search_within_source_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         version = await self._resolve_source_version(
             source_id=str(args.get("source_id") or ""),
             source_version_id=str(args.get("source_version_id") or ""),
+            source_ref=str(args.get("source_ref") or ""),
+            version_ref=str(args.get("version_ref") or ""),
         )
         if version is None:
             return {"results": [], "error": "No readable source version in this run corpus view."}
@@ -616,7 +810,7 @@ class EvidenceToolHandlersMixin:
                     evidence_strength=EvidenceStrength.EXACT if window["locator_type"] in {EvidenceLocatorType.PAGE, EvidenceLocatorType.TIMESTAMP, EvidenceLocatorType.SECTION} else EvidenceStrength.SNIPPET,
                     metadata={"source_internal_search": True},
                 )
-                results.append(evidence_preview_payload(evidence, max_short_snippet_chars=700))
+                results.append(await self._evidence_preview_payload(evidence, max_short_snippet_chars=420))
             await save_tool_trace(
                 self.db,
                 generation_run_id=self.run.id,
@@ -633,6 +827,8 @@ class EvidenceToolHandlersMixin:
         version = await self._resolve_source_version(
             source_id=str(args.get("source_id") or ""),
             source_version_id=str(args.get("source_version_id") or ""),
+            source_ref=str(args.get("source_ref") or ""),
+            version_ref=str(args.get("version_ref") or ""),
         )
         if version is None:
             return {"found": False, "error": "No readable source version in this run corpus view."}
@@ -661,7 +857,7 @@ class EvidenceToolHandlersMixin:
             )
             window_payload = {key: value for key, value in window.items() if key != "snippet_text"}
             window_payload["preview_text"] = str(window.get("snippet_text") or "")[:240]
-            window_payload["evidence"] = evidence_preview_payload(evidence, max_short_snippet_chars=700)
+            window_payload["evidence"] = await self._evidence_preview_payload(evidence, max_short_snippet_chars=420)
             results.append(window_payload)
         await save_tool_trace(
             self.db,
@@ -674,32 +870,49 @@ class EvidenceToolHandlersMixin:
         )
         return {
             "found": bool(results),
-            "source_id": str(version.source_id),
-            "source_version_id": str(version.id),
+            "source_ref": await self._source_ref_for_id(version.source_id),
+            "version_ref": await self._version_ref_for_version(version),
             "outline": [item["locator_text"] for item in results],
             "windows": results,
         }
 
     async def find_quotes_tool(self, args: dict[str, Any]) -> dict[str, Any]:
+        source_refs = [str(item) for item in args.get("source_refs") or [] if item]
+        source_ids, invalid = await self._source_ids_from_refs_or_ids(source_refs)
+        if invalid:
+            return {"accepted": False, "error": "source_refs include values outside this run corpus view", "invalid_source_refs": invalid, "results": []}
         result = await self.search_evidence(
             query=str(args.get("topic") or ""),
             purpose="quote_discovery",
-            source_ids=[str(item) for item in args.get("source_ids") or [] if item],
-            limit=int(args.get("limit") or 8),
+            source_ids=source_ids or [str(item) for item in args.get("source_ids") or [] if item],
+            limit=int(args.get("limit") or 5),
+            scope="selected_sources" if source_ids else "all_sources",
         )
         result["results"] = [item for item in result["results"] if len(str(item.get("short_snippet") or "")) >= 40]
         return result
 
     async def search_sources_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         query = str(args.get("query") or "")
-        limit = max(1, min(int(args.get("limit") or 20), 20))
-        evidence = await self.search_evidence(query=query, purpose="source_map", source_ids=[], limit=limit)
-        sources = await _source_summaries(self.db, self.run_view, evidence["results"])
-        return {"sources": sources, "evidence": evidence["results"]}
+        limit = max(1, min(int(args.get("limit") or 8), 8))
+        evidence = await self.search_evidence(query=query, purpose="source_map", source_ids=[], limit=limit, scope="all_sources")
+        sources = await _source_summaries(self.db, self.run_view, evidence["results"], limit=limit)
+        return {
+            "accepted": True,
+            "query": query[:300],
+            "returned_source_count": len(sources),
+            "returned_evidence_count": len(evidence["results"]),
+            "sources": sources,
+            "evidence": evidence["results"][:limit],
+        }
 
     async def compare_sources_tool(self, args: dict[str, Any]) -> dict[str, Any]:
-        requested_source_ids = [str(item) for item in args.get("source_ids") or [] if item]
-        source_ids = requested_source_ids[:8]
+        requested_refs = [str(item) for item in args.get("source_refs") or args.get("source_ids") or [] if item]
+        requested_source_ids, invalid = await self._source_ids_from_refs_or_ids(requested_refs)
+        if invalid:
+            return {"accepted": False, "error": "source_refs include values outside this run corpus view", "invalid_source_refs": invalid, "comparisons": []}
+        if len(requested_source_ids) < 2:
+            return {"accepted": False, "error": "compare_sources requires at least two source_refs", "comparisons": []}
+        source_ids = requested_source_ids[:5]
         question = str(args.get("question") or "")
         limit_per_source = max(1, min(int(args.get("limit_per_source") or 2), 3))
         comparisons = []
@@ -709,8 +922,9 @@ class EvidenceToolHandlersMixin:
                 purpose="source_compare",
                 source_ids=[source_id],
                 limit=limit_per_source,
+                scope="selected_sources",
             )
-            comparisons.append({"source_id": source_id, "evidence": result.get("results", [])})
+            comparisons.append({"source_ref": await self._source_ref_for_id(source_id), "evidence": result.get("results", [])})
         await save_tool_trace(
             self.db,
             generation_run_id=self.run.id,
@@ -756,30 +970,42 @@ class EvidenceToolHandlersMixin:
                 "selected_rationale": str(args.get("rationale") or ""),
             },
         )
+        try:
+            selected_count = len(await self._selected_evidence_ids())
+        except Exception:
+            selected_count = 1
         return {
             "accepted": True,
             "evidence_id": evidence_id,
-            "usage_status": EVIDENCE_STATUS_SELECTED,
-            "source_id": str(item.source_id),
-            "source_version_id": str(item.source_version_id),
-            "retrieval_channel": item.retrieval_channel,
-            "evidence_strength": item.evidence_strength,
+            "status": "selected",
+            "selected_count": selected_count,
         }
 
     async def write_action_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         return {"accepted": True}
 
     async def upsert_source_card_tool(self, args: dict[str, Any]) -> dict[str, Any]:
-        source_id = str(args.get("source_id") or "")
+        source_ref = str(args.get("source_ref") or args.get("source_id") or "")
+        source_id = await self._source_id_from_ref_or_id(source_ref) or ""
         if not self._source_in_run_view(source_id):
-            return {"accepted": False, "error": "source_id is not in this run corpus view"}
+            return {"accepted": False, "error": "source_ref is not in this run corpus view"}
         evidence_ids = [str(item) for item in args.get("evidence_ids") or [] if item]
-        invalid = await self._invalid_selected_evidence_ids(evidence_ids, source_id=source_id)
+        invalid = await self._select_evidence_ids_for_write(
+            evidence_ids,
+            source_id=source_id,
+            purpose="source_card",
+            role="triage_source_card",
+            rationale="Used by upsert_source_card.",
+        )
         if invalid:
-            return {"accepted": False, "error": "evidence_ids must be selected and belong to source_id", "invalid_evidence_ids": invalid}
+            return {
+                "accepted": False,
+                "error": "evidence_ids must be observed evidence from source_ref in this run",
+                "invalid_evidence_ids": invalid,
+            }
         if not evidence_ids:
-            return {"accepted": False, "error": "upsert_source_card requires at least one selected evidence_id"}
-        return {"accepted": True, "source_id": source_id, "evidence_count": len(evidence_ids)}
+            return {"accepted": False, "error": "upsert_source_card requires at least one evidence_id from read/search tools"}
+        return {"accepted": True, "source_ref": await self._source_ref_for_id(source_id), "evidence_count": len(evidence_ids)}
 
     async def create_quote_card_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         source_id = str(args.get("source_id") or "")
@@ -791,44 +1017,105 @@ class EvidenceToolHandlersMixin:
             return {"accepted": False, "error": "quote is required"}
         if not locator:
             return {"accepted": False, "error": "locator is required"}
-        evidence = await self._selected_evidence(evidence_id)
+        evidence = await self._evidence_in_run(evidence_id)
         if evidence is None:
-            return {"accepted": False, "error": "evidence_id must exist and be selected before creating a quote card"}
+            return {"accepted": False, "error": "evidence_id must exist in this run before creating a quote card"}
         if source_id and str(evidence.source_id) != source_id:
-            return {"accepted": False, "error": "source_id does not match selected evidence", "evidence_source_id": str(evidence.source_id)}
+            return {"accepted": False, "error": "provided source does not match selected evidence"}
         if source_version_id and str(evidence.source_version_id) != source_version_id:
-            return {
-                "accepted": False,
-                "error": "source_version_id does not match selected evidence",
-                "evidence_source_version_id": str(evidence.source_version_id),
-            }
+            return {"accepted": False, "error": "provided source version does not match selected evidence"}
         if not _quote_text_matches_evidence(quote, evidence.snippet_text):
             return {"accepted": False, "error": "quote text is not found in selected evidence snippet/window"}
-        return {"accepted": True, "source_id": source_id or str(evidence.source_id), "evidence_id": evidence_id}
+        invalid = await self._select_evidence_ids_for_write(
+            [evidence_id],
+            purpose="quote_card",
+            role="triage_quote_seed",
+            rationale="Used by create_quote_card.",
+        )
+        if invalid:
+            return {"accepted": False, "error": "quote evidence could not be selected", "invalid_evidence_ids": invalid}
+        return {"accepted": True, "source_ref": await self._source_ref_for_id(evidence.source_id), "evidence_id": evidence_id}
 
     async def record_source_relationship_tool(self, args: dict[str, Any]) -> dict[str, Any]:
-        source_id = str(args.get("source_id") or "")
-        related_source_id = str(args.get("related_source_id") or "")
+        source_id = await self._source_id_from_ref_or_id(str(args.get("source_ref") or args.get("source_id") or "")) or ""
+        related_source_id = await self._source_id_from_ref_or_id(str(args.get("related_source_ref") or args.get("related_source_id") or "")) or ""
         if not self._source_in_run_view(source_id) or not self._source_in_run_view(related_source_id):
-            return {"accepted": False, "error": "source_id and related_source_id must be in this run corpus view"}
+            return {"accepted": False, "error": "source_ref and related_source_ref must be in this run corpus view"}
         relationship = _relationship_kind(str(args.get("relationship") or ""))
         evidence_ids = [str(item) for item in args.get("evidence_ids") or [] if item]
-        invalid = await self._invalid_selected_evidence_ids(evidence_ids)
+        invalid = await self._select_evidence_ids_for_write(
+            evidence_ids,
+            purpose="source_relationship",
+            role=f"triage_relationship:{relationship}",
+            rationale="Used by record_source_relationship.",
+        )
         if invalid:
-            return {"accepted": False, "error": "relationship evidence_ids must be selected", "invalid_evidence_ids": invalid}
+            return {
+                "accepted": False,
+                "error": "relationship evidence_ids must be observed evidence from this run",
+                "invalid_evidence_ids": invalid,
+            }
         if relationship in {"primary_to_secondary", "duplicate", "near_duplicate", "contradicts", "updates"} and not evidence_ids:
-            return {"accepted": False, "error": f"{relationship} relationship requires selected evidence_ids"}
+            return {"accepted": False, "error": f"{relationship} relationship requires evidence_ids from read/search tools"}
         return {"accepted": True, "relationship": relationship, "evidence_count": len(evidence_ids)}
 
-    async def record_gap_tool(self, args: dict[str, Any]) -> dict[str, Any]:
-        source_ids = [str(item) for item in args.get("source_ids") or [] if item]
-        invalid_sources = [source_id for source_id in source_ids if not self._source_in_run_view(source_id)]
-        if invalid_sources:
-            return {"accepted": False, "error": "source_ids must be in this run corpus view", "invalid_source_ids": invalid_sources}
+    async def record_source_cluster_tool(self, args: dict[str, Any]) -> dict[str, Any]:
+        source_refs = [str(item) for item in args.get("source_refs") or args.get("source_ids") or [] if item]
+        primary_refs = [str(item) for item in args.get("primary_source_refs") or [] if item]
+        secondary_refs = [str(item) for item in args.get("secondary_source_refs") or [] if item]
+        duplicate_refs = [str(item) for item in args.get("duplicate_source_refs") or [] if item]
+        source_ids, invalid_sources = await self._source_ids_from_refs_or_ids(source_refs)
+        primary_ids, invalid_primary = await self._source_ids_from_refs_or_ids(primary_refs)
+        secondary_ids, invalid_secondary = await self._source_ids_from_refs_or_ids(secondary_refs)
+        duplicate_ids, invalid_duplicate = await self._source_ids_from_refs_or_ids(duplicate_refs)
+        invalid_refs = [*invalid_sources, *invalid_primary, *invalid_secondary, *invalid_duplicate]
+        if invalid_refs:
+            return {"accepted": False, "error": "cluster source_refs must be in this run corpus view", "invalid_source_refs": invalid_refs}
+        label = str(args.get("label") or "").strip()
+        rationale = str(args.get("rationale") or "").strip()
+        if not label:
+            return {"accepted": False, "error": "label is required"}
+        if len(source_ids) < 2:
+            return {"accepted": False, "error": "record_source_cluster requires at least two source_refs"}
         evidence_ids = [str(item) for item in args.get("evidence_ids") or [] if item]
-        invalid = await self._invalid_selected_evidence_ids(evidence_ids)
+        invalid = await self._select_evidence_ids_for_write(
+            evidence_ids,
+            purpose="source_cluster",
+            role="triage_source_cluster",
+            rationale="Used by record_source_cluster.",
+        )
         if invalid:
-            return {"accepted": False, "error": "gap evidence_ids must be selected", "invalid_evidence_ids": invalid}
+            return {
+                "accepted": False,
+                "error": "cluster evidence_ids must be observed evidence from this run",
+                "invalid_evidence_ids": invalid,
+            }
+        if (primary_ids or secondary_ids or duplicate_ids) and not evidence_ids:
+            return {"accepted": False, "error": "primary/secondary/duplicate cluster claims require evidence_ids"}
+        return {
+            "accepted": True,
+            "source_count": len(source_ids),
+            "primary_source_count": len(primary_ids),
+            "secondary_source_count": len(secondary_ids),
+            "duplicate_source_count": len(duplicate_ids),
+            "evidence_count": len(evidence_ids),
+            "has_rationale": bool(rationale),
+        }
+
+    async def record_gap_tool(self, args: dict[str, Any]) -> dict[str, Any]:
+        source_refs = [str(item) for item in args.get("source_refs") or args.get("source_ids") or [] if item]
+        source_ids, invalid_sources = await self._source_ids_from_refs_or_ids(source_refs)
+        if invalid_sources:
+            return {"accepted": False, "error": "source_refs must be in this run corpus view", "invalid_source_refs": invalid_sources}
+        evidence_ids = [str(item) for item in args.get("evidence_ids") or [] if item]
+        invalid = await self._select_evidence_ids_for_write(
+            evidence_ids,
+            purpose="gap",
+            role=f"triage_gap:{str(args.get('kind') or 'gap')}",
+            rationale="Used by record_gap.",
+        )
+        if invalid:
+            return {"accepted": False, "error": "gap evidence_ids must be observed evidence from this run", "invalid_evidence_ids": invalid}
         if not str(args.get("description") or "").strip():
             return {"accepted": False, "error": "description is required"}
         return {"accepted": True, "source_count": len(source_ids), "evidence_count": len(evidence_ids)}
@@ -861,7 +1148,7 @@ class EvidenceToolHandlersMixin:
                     result_index=int(result.get("result_index") or 0),
                 )
                 if evidence:
-                    observed.append(evidence_preview_payload(evidence, max_short_snippet_chars=700))
+                    observed.append(await self._evidence_preview_payload(evidence, max_short_snippet_chars=420))
         await save_tool_trace(
             self.db,
             generation_run_id=self.run.id,
@@ -1024,11 +1311,43 @@ class EvidenceToolHandlersMixin:
                 invalid.append(evidence_id)
         return invalid
 
+    async def _select_evidence_ids_for_write(
+        self,
+        evidence_ids: list[str],
+        *,
+        source_id: str | None = None,
+        purpose: str,
+        role: str,
+        rationale: str,
+    ) -> list[str]:
+        invalid: list[str] = []
+        for evidence_id in _dedupe(evidence_ids):
+            item = await self._evidence_in_run(evidence_id)
+            if item is None:
+                invalid.append(evidence_id)
+                continue
+            if source_id and str(item.source_id) != str(source_id):
+                invalid.append(evidence_id)
+                continue
+            if _unsupported_model_read_selected_as_support(item, purpose=purpose, role=role):
+                invalid.append(evidence_id)
+                continue
+            await self._mark_evidence_status(
+                evidence_id,
+                EVIDENCE_STATUS_SELECTED,
+                {
+                    "selected_purpose": purpose,
+                    "selected_role": role,
+                    "selected_rationale": rationale,
+                },
+            )
+        return invalid
 
-def _compact_source_card(card: Any, *, canonical_kind: str | None = None) -> dict[str, Any]:
+
+def _compact_source_card(card: Any, *, canonical_kind: str | None = None, source_ref: str) -> dict[str, Any]:
     canonical_kind = canonical_kind or _first_representation_kind(card)
     return {
-        "source_id": card.source_id,
+        "source_ref": source_ref,
         "title": str(card.title or "")[:240],
         "source_type": card.source_type,
         "domain": card.domain,
@@ -1070,7 +1389,7 @@ def _needs_model_read(card: Any, canonical_kind: str | None) -> bool:
 
 def _cached_model_read_payload(evidence: EvidenceItem) -> dict[str, Any]:
     metadata = evidence.metadata_ or {}
-    payload = compact_model_read_result(
+    payload = _model_read_agent_payload(
         {
             "supports_query": metadata.get("supports_query"),
             "support_level": metadata.get("support_level"),
@@ -1081,6 +1400,26 @@ def _cached_model_read_payload(evidence: EvidenceItem) -> dict[str, Any]:
     )
     payload["cache_hit"] = True
     return payload
+
+
+def _model_read_agent_payload(read_result: dict[str, Any]) -> dict[str, Any]:
+    compact = compact_model_read_result(read_result)
+    if "support_level" in compact:
+        compact["support_assessment"] = compact.pop("support_level")
+    if "supports_query" in compact:
+        compact["supports_query"] = compact["supports_query"]
+    return compact
+
+
+def _coverage_warning(item: EvidenceItem) -> str:
+    metadata = item.metadata_ or {}
+    if metadata.get("model_file_read_local_fallback"):
+        return "Direct uploaded-file read was unavailable; this is a local fallback window and should be treated cautiously unless confirmed elsewhere."
+    if metadata.get("source_version_fallback") or item.locator_type == EvidenceLocatorType.SOURCE_LEVEL:
+        return "This is a broad source-level snapshot, not a precise cited passage; read a concrete source window before using it for an important claim."
+    if metadata.get("fallback"):
+        return "This came from local text/chunk fallback; use it as a lead and confirm important claims with a focused read."
+    return ""
 
 
 __all__ = ["EvidenceToolHandlersMixin"]

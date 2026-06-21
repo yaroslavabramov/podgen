@@ -23,7 +23,7 @@ from app.models.generation_v2 import (
     SourceVersion,
     V2RecordStatus,
 )
-from app.generation_v2.tools.evidence_store import evidence_preview_payload, persist_evidence_item
+from app.generation_v2.tools.evidence_store import persist_evidence_item
 from app.generation_v2.tools.evidence_types import _CHUNK_BACKED_VERSION_KINDS
 from app.generation_v2.tools.evidence_utils import (
     _MODEL_FILE_READ_SCHEMA,
@@ -57,12 +57,16 @@ class EvidenceRetrievalMixin:
         purpose: str,
         source_ids: list[str],
         limit: int,
+        scope: str = "all_sources",
     ) -> dict[str, Any]:
-        limit = max(1, min(limit, 20))
+        query = str(query or "").strip()
+        if len(query) < 3:
+            return {"accepted": False, "error": "query must contain at least 3 non-whitespace characters", "results": []}
+        limit = max(1, min(limit, 8))
         cache_key = _search_cache_key(self.run_view, query=query, source_ids=source_ids, limit=limit)
         cached_items = await self._cached_evidence_items(cache_field="search_cache_key", cache_key=cache_key, limit=limit)
         if len(cached_items) >= limit:
-            payloads = [evidence_preview_payload(item, max_short_snippet_chars=700) for item in cached_items[:limit]]
+            payloads = await self._evidence_preview_payloads(cached_items[:limit], max_short_snippet_chars=420)
             await save_tool_trace(
                 self.db,
                 generation_run_id=self.run.id,
@@ -76,7 +80,14 @@ class EvidenceRetrievalMixin:
                     "result_count": len(payloads),
                 },
             )
-            return {"results": payloads, "cache_hit": True}
+            return {
+                "accepted": True,
+                "query": query,
+                "scope": scope,
+                "returned_count": len(payloads),
+                "cache_hit": True,
+                "results": payloads,
+            }
         provider_items = await self._provider_search(query=query, purpose=purpose, source_ids=source_ids, limit=limit)
         items = provider_items
         if len(items) < limit:
@@ -91,7 +102,7 @@ class EvidenceRetrievalMixin:
                 "search_cache_corpus_hash": _run_corpus_snapshot_hash(self.run_view),
             },
         )
-        payloads = [evidence_preview_payload(item, max_short_snippet_chars=700) for item in items[:limit]]
+        payloads = await self._evidence_preview_payloads(items[:limit], max_short_snippet_chars=420)
         await save_tool_trace(
             self.db,
             generation_run_id=self.run.id,
@@ -101,7 +112,14 @@ class EvidenceRetrievalMixin:
             input_json={"query": query, "purpose": purpose, "source_ids": source_ids, "limit": limit, "cache_key": cache_key},
             output_json={"cache_hit": False, "evidence_ids": [item["evidence_id"] for item in payloads], "result_count": len(payloads)},
         )
-        return {"results": payloads, "cache_hit": False}
+        return {
+            "accepted": True,
+            "query": query,
+            "scope": scope,
+            "returned_count": len(payloads),
+            "cache_hit": False,
+            "results": payloads,
+        }
 
     async def _cached_evidence_items(self, *, cache_field: str, cache_key: str, limit: int) -> list[EvidenceItem]:
         if not cache_key:
@@ -403,9 +421,20 @@ class EvidenceRetrievalMixin:
                 selected[source_id] = version
         return selected
 
-    async def _resolve_source_version(self, *, source_id: str, source_version_id: str) -> SourceVersion | None:
+    async def _resolve_source_version(
+        self,
+        *,
+        source_id: str,
+        source_version_id: str,
+        source_ref: str = "",
+        version_ref: str = "",
+    ) -> SourceVersion | None:
         selected_version_ids = set(str(item) for item in self.run_view.selected_source_version_ids)
         selected_source_ids = set(str(item) for item in self.run_view.selected_source_ids)
+        if version_ref and not source_version_id:
+            source_version_id = await self._source_version_id_from_ref(version_ref) or ""
+        if source_ref and not source_id:
+            source_id = await self._source_id_from_ref_or_id(source_ref) or ""
         if source_version_id and _uuid_or_none(source_version_id):
             version = await self.db.get(SourceVersion, uuid.UUID(source_version_id))
             if version and str(version.id) in selected_version_ids and str(version.source_id) in selected_source_ids:

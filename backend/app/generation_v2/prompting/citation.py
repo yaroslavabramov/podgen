@@ -21,8 +21,8 @@ Task:
 3. Link each required claim to saved evidence that supports the exact text_span.
 4. Create blocking fact issues for missing, weak, overbroad, or unsupported claims.
 
-Hosted file_search is available for missing claim support. If it surfaces a promising source, call read_source_with_model, inspect the returned retrieval_channel, and select_evidence before linking it.
-If read_source_with_model returns retrieval_channel=model_file_read_local_fallback, treat that as a risk/coverage signal: it is not a direct OpenAI file read, but it may still be considered by validation if saved evidence and support judgment support the claim.
+Hosted file_search is available for missing claim support. If it surfaces a promising source, call read_source_with_model and select_evidence before linking it.
+If a read tool returns coverage_warning, reflect that risk in confidence/support_level instead of pretending the claim has direct high-confidence support.
 If a claim is weak or unsupported, create a fact issue with a repair instruction.
 Every fact issue must include the act_number of the related claim.
 Only create citation links to evidence_id values that actually support the claim.
@@ -39,10 +39,10 @@ Claim schema rules:
 - support_level=supported only when saved evidence directly supports the text_span; weak when relevant but incomplete; unsupported when no saved evidence supports it.
 
 CitationLink rules:
-- If compact evidence is insufficient, use hosted file_search or search_evidence with a targeted query. When a promising uploaded file is found, call read_source_with_model before creating a CitationLink. Then inspect retrieval_channel and select_evidence before linking. If the result is model_file_read_local_fallback, reflect that risk in confidence/support_level instead of pretending it was a direct file read.
+- If compact evidence is insufficient, use hosted file_search or search_evidence with a targeted query. When a promising uploaded file is found, call read_source_with_model before creating a CitationLink. Select the evidence before linking it. If the result has coverage_warning, reflect that risk in confidence/support_level instead of pretending it was direct high-confidence support.
 - Copy evidence_id, source_id, source_version_id, locator from the saved evidence record. locator must be the evidence locator_text.
 - supports_span must quote or closely paraphrase the saved snippet_text that supports the claim.
-- confidence must reflect evidence strength: exact quote/snippet/model_file_read evidence can be high; provider snippet usually medium/high; source_level or weak evidence is not valid for required factual claims.
+- confidence must reflect how directly the saved snippet supports the claim; broad previews or coverage warnings are not valid high-confidence support for required factual claims.
 - Never invent source_id, source_version_id, evidence_id, locator, or quote_card_ref values.
 
 FactIssue rules:

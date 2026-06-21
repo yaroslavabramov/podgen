@@ -279,29 +279,36 @@ async def _sweep_dirty_content_maps_async() -> None:
     debounce_seconds = max(0, int(settings.content_map_rebuild_debounce_seconds))
     due_cutoff = now - timedelta(seconds=debounce_seconds)
 
+    async with worker_session_factory() as db:
+        result = await db.execute(
+            select(Project.id, Project.content_map_last_requested_at)
+            .where(
+                Project.content_map_dirty.is_(True),
+                Project.content_map_last_requested_at.is_not(None),
+                Project.content_map_last_requested_at <= due_cutoff,
+                or_(
+                    Project.content_map_last_built_at.is_(None),
+                    Project.content_map_last_built_at < Project.content_map_last_requested_at,
+                ),
+            )
+            .order_by(Project.content_map_last_requested_at.asc())
+            .limit(100)
+        )
+        due_projects = result.all()
+
+    if not due_projects:
+        return
+
     with trace_span(
         "worker.sweep_dirty_content_maps",
         run_type="chain",
-        inputs={"due_cutoff": due_cutoff.isoformat(), "debounce_seconds": debounce_seconds},
+        inputs={
+            "due_cutoff": due_cutoff.isoformat(),
+            "debounce_seconds": debounce_seconds,
+            "due_projects": len(due_projects),
+        },
         tags=["celery-task"],
     ) as sweep_run:
-        async with worker_session_factory() as db:
-            result = await db.execute(
-                select(Project.id, Project.content_map_last_requested_at)
-                .where(
-                    Project.content_map_dirty.is_(True),
-                    Project.content_map_last_requested_at.is_not(None),
-                    Project.content_map_last_requested_at <= due_cutoff,
-                    or_(
-                        Project.content_map_last_built_at.is_(None),
-                        Project.content_map_last_built_at < Project.content_map_last_requested_at,
-                    ),
-                )
-                .order_by(Project.content_map_last_requested_at.asc())
-                .limit(100)
-            )
-            due_projects = result.all()
-
         scheduled = 0
         failed = 0
         for project_id, requested_at in due_projects:

@@ -30,7 +30,7 @@ celery_app.conf.update(
         },
         "sweep-dirty-content-maps": {
             "task": "app.workers.ingestion_tasks.sweep_dirty_content_maps",
-            "schedule": crontab(minute="*"),  # Every minute
+            "schedule": crontab(minute="*/5"),  # Backstop for missed debounce rebuilds
         },
     },
 )

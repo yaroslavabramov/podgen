@@ -1,4 +1,5 @@
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -16,6 +17,9 @@ class _FakeResult:
         self._value = value
 
     def scalar_one_or_none(self):
+        return self._value
+
+    def all(self):
         return self._value
 
 
@@ -107,6 +111,63 @@ async def test_request_project_content_map_rebuild_force_now_uses_zero_countdown
     assert task_id == "task-999"
     assert captured["kwargs"]["countdown"] == 0
     assert captured["kwargs"]["kwargs"]["force_now"] is True
+
+
+@pytest.mark.asyncio
+async def test_sweep_dirty_content_maps_skips_trace_when_nothing_due(monkeypatch: pytest.MonkeyPatch):
+    db = _FakeDB([])
+    monkeypatch.setattr(tasks.settings, "content_map_rebuild_debounce_seconds", 90)
+    monkeypatch.setattr("app.workers.worker_db.worker_session_factory", lambda: _SessionContext(db))
+
+    def _unexpected_trace_span(*args, **kwargs):
+        raise AssertionError("empty content-map sweep should not create a LangSmith trace")
+
+    monkeypatch.setattr(tasks, "trace_span", _unexpected_trace_span)
+    monkeypatch.setattr(tasks.rebuild_content_map_for_project, "apply_async", lambda *args, **kwargs: None)
+
+    await tasks._sweep_dirty_content_maps_async()
+
+
+@pytest.mark.asyncio
+async def test_sweep_dirty_content_maps_traces_only_due_work(monkeypatch: pytest.MonkeyPatch):
+    project_id = uuid.uuid4()
+    requested_at = _utcnow_naive() - timedelta(seconds=180)
+    db = _FakeDB([(project_id, requested_at)])
+    monkeypatch.setattr(tasks.settings, "content_map_rebuild_debounce_seconds", 90)
+    monkeypatch.setattr("app.workers.worker_db.worker_session_factory", lambda: _SessionContext(db))
+
+    trace_calls = []
+    safe_outputs = []
+    scheduled = []
+
+    @contextmanager
+    def _fake_trace_span(*args, **kwargs):
+        trace_calls.append((args, kwargs))
+        yield "trace-run"
+
+    def _fake_safe_set_run(run_tree, *, outputs=None, metadata=None):
+        safe_outputs.append((run_tree, outputs, metadata))
+
+    def _fake_apply_async(*args, **kwargs):
+        scheduled.append((args, kwargs))
+        return SimpleNamespace(id="scheduled")
+
+    monkeypatch.setattr(tasks, "trace_span", _fake_trace_span)
+    monkeypatch.setattr(tasks, "safe_set_run", _fake_safe_set_run)
+    monkeypatch.setattr(tasks.rebuild_content_map_for_project, "apply_async", _fake_apply_async)
+
+    await tasks._sweep_dirty_content_maps_async()
+
+    assert len(trace_calls) == 1
+    assert trace_calls[0][0][0] == "worker.sweep_dirty_content_maps"
+    assert trace_calls[0][1]["inputs"]["due_projects"] == 1
+    assert len(scheduled) == 1
+    assert scheduled[0][1]["args"] == [str(project_id)]
+    assert safe_outputs == [(
+        "trace-run",
+        {"due_projects": 1, "scheduled": 1, "enqueue_failed": 0},
+        None,
+    )]
 
 
 @pytest.mark.asyncio

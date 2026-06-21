@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import logging
 import time
@@ -56,7 +57,7 @@ class AgentCheckpointPolicy:
     enabled: bool = False
     max_chain_rounds: int = 8
     max_chain_input_tokens: int = 60_000
-    max_chain_model_tool_output_chars: int = 20_000
+    max_chain_model_tool_output_chars: int = 80_000
 
 
 _MODEL_TOOL_OUTPUT_MAX_CHARS = 12000
@@ -66,6 +67,12 @@ _CHECKPOINT_LIST_MAX_ITEMS = 24
 _MODEL_TOOL_MAX_DEPTH = 5
 _MODEL_HIDDEN_TOOL_KEYS = {
     "provider",
+    "source_id",
+    "source_version_id",
+    "representation_kind",
+    "retrieval_channel",
+    "evidence_strength",
+    "usage_status",
     "provider_file_id",
     "provider_vector_store_id",
     "provider_vector_store_file_id",
@@ -222,6 +229,33 @@ class V2Runtime:
             estimated_cost_usd = _openai_estimated_cost_usd(self.model, usage)
             file_search_calls = _file_search_calls(response)
             web_search_calls = _web_search_calls(response)
+            function_calls = _function_calls(response)
+            dump_v2_debug(
+                run_id=str(generation_run_id),
+                phase=phase,
+                agent_name=agent_name,
+                dump_type=f"round-{round_idx + 1:02d}-response",
+                payload=_runtime_debug_payload(
+                    generation_run_id=generation_run_id,
+                    phase=phase,
+                    agent_name=agent_name,
+                    round_idx=round_idx,
+                    prompt_hash=prompt_hash,
+                    system=system,
+                    prompt=prompt,
+                    schema_name=schema_model.__name__,
+                    schema=schema,
+                    tools=tools,
+                    policy=policy,
+                    input_payload=input_payload,
+                    response=response,
+                    usage=usage,
+                    file_search_calls=file_search_calls,
+                    web_search_calls=web_search_calls,
+                    function_calls=function_calls,
+                    hosted_followup=None,
+                ),
+            )
             safe_set_run(
                 run_tree,
                 outputs={
@@ -272,9 +306,11 @@ class V2Runtime:
                 output_tokens=usage.get("output_tokens") or usage.get("completion_tokens"),
                 cost_usd=estimated_cost_usd,
             )
+            await _commit_runtime_side_effects(db)
             hosted_summary: dict[str, Any] | None = None
             if file_search_calls and hosted_file_search_handler:
                 hosted_summary = await hosted_file_search_handler(file_search_calls, response.id, phase, agent_name)
+                await _commit_runtime_side_effects(db)
             hosted_followup = _hosted_evidence_followup_input(
                 hosted_summary,
                 announced_ids=announced_hosted_evidence_ids,
@@ -283,7 +319,6 @@ class V2Runtime:
             if hosted_followup:
                 announced_hosted_evidence_ids.update(hosted_followup["evidence_ids"])
 
-            function_calls = _function_calls(response)
             if not function_calls:
                 if hosted_followup:
                     hosted_chars = len(json.dumps(hosted_followup["message"], ensure_ascii=False))
@@ -413,7 +448,27 @@ class V2Runtime:
             local_tool_map = {tool.name: tool for tool in local_tools or []}
             tool_outputs = []
             checkpoint_tool_results: list[dict[str, Any]] = []
-            for call in function_calls:
+            for call_index, call in enumerate(function_calls, start=1):
+                debug_base = {
+                    "run_id": str(generation_run_id),
+                    "phase": phase,
+                    "agent_name": agent_name,
+                    "round": round_idx + 1,
+                    "chain_id": chain_id,
+                    "checkpoint_index": checkpoint_index,
+                    "chain_round": chain_round,
+                    "tool_index": call_index,
+                    "tool_name": call["name"],
+                    "call_id": call["call_id"],
+                    "arguments": call["arguments"],
+                }
+                dump_v2_debug(
+                    run_id=str(generation_run_id),
+                    phase=phase,
+                    agent_name=agent_name,
+                    dump_type=f"round-{round_idx + 1:02d}-tool-{call_index:02d}-{_safe_tool_dump_name(call['name'])}-call",
+                    payload=debug_base,
+                )
                 tool = local_tool_map.get(call["name"])
                 if tool is None:
                     output = {"error": f"Unknown local tool: {call['name']}"}
@@ -423,11 +478,36 @@ class V2Runtime:
                     except Exception as exc:
                         logger.warning("V2 local tool failed: %s", call["name"], exc_info=True)
                         output = {"error": str(exc)}
+                raw_output_chars = len(json.dumps(output, ensure_ascii=False, default=str))
+                dump_v2_debug(
+                    run_id=str(generation_run_id),
+                    phase=phase,
+                    agent_name=agent_name,
+                    dump_type=f"round-{round_idx + 1:02d}-tool-{call_index:02d}-{_safe_tool_dump_name(call['name'])}-raw-output",
+                    payload={
+                        **debug_base,
+                        "raw_output_chars": raw_output_chars,
+                        "raw_output": output,
+                    },
+                )
                 try:
                     model_output = _model_facing_tool_output(call["name"], output)
                     output_stats = _model_output_stats(call["name"], model_output)
                 except ToolOutputContractViolation as exc:
                     output_stats = _model_output_stats(call["name"], output, contract_violation=str(exc))
+                    dump_v2_debug(
+                        run_id=str(generation_run_id),
+                        phase=phase,
+                        agent_name=agent_name,
+                        dump_type=f"round-{round_idx + 1:02d}-tool-{call_index:02d}-{_safe_tool_dump_name(call['name'])}-contract-violation",
+                        payload={
+                            **debug_base,
+                            "contract_violation": str(exc),
+                            "model_output_stats": output_stats,
+                            "raw_output_chars": raw_output_chars,
+                            "raw_output": output,
+                        },
+                    )
                     await save_tool_trace(
                         db,
                         generation_run_id=generation_run_id,
@@ -444,6 +524,7 @@ class V2Runtime:
                         ),
                         provider_call_id=call["call_id"],
                     )
+                    await _commit_runtime_side_effects(db)
                     raise
                 chain_model_tool_output_chars += output_stats["chars"]
                 await save_tool_trace(
@@ -456,6 +537,7 @@ class V2Runtime:
                     output_json=_trace_output_with_runtime(output, output_stats, chain_id=chain_id, checkpoint_index=checkpoint_index, chain_round=chain_round),
                     provider_call_id=call["call_id"],
                 )
+                await _commit_runtime_side_effects(db)
                 tool_outputs.append(
                     {
                         "type": "function_call_output",
@@ -654,7 +736,18 @@ async def _checkpoint_restart(
             "message_chars": len(message["content"]),
         },
     )
+    await _commit_runtime_side_effects(db)
     return next_checkpoint_index, next_chain_id, [message]
+
+
+async def _commit_runtime_side_effects(db: AsyncSession) -> None:
+    """Persist tool traces and tool-created evidence/actions before the next model call."""
+    commit = getattr(db, "commit", None)
+    if not callable(commit):
+        return
+    result = commit()
+    if inspect.isawaitable(result):
+        await result
 
 
 def _checkpoint_restart_message(
@@ -667,6 +760,19 @@ def _checkpoint_restart_message(
     state: dict[str, Any],
     last_tool_results: list[dict[str, Any]],
 ) -> dict[str, str]:
+    instructions = (
+        "Continue the same agent task from this compact checkpoint. "
+        "Do not restart from scratch. Treat DB state and write actions as authoritative. "
+        "Use compact_state_from_db.corpus.source_inventory as the source list you already saw. "
+        "Do not repeat list_sources pages already shown in source_inventory_progress; continue from next_cursor only when all_sources_listed is false. "
+        "Proceed to source-map write actions when enough evidence/source coverage exists."
+    )
+    if state.get("phase") == "v2_source_triage":
+        instructions += (
+            " Source triage workflow: work in small source sets. "
+            "If compact_state_from_db.source_triage_progress.read_without_map_write_refs is non-empty, prefer writing the appropriate upsert_source_card, record_source_cluster, record_source_relationship, or record_gap entries before reading more. "
+            "For a cluster or relationship, read/compare the relevant 2-5 sources, then write that map entry immediately."
+        )
     payload = {
         "checkpoint_reason": reason,
         "previous_chain_id": previous_chain_id,
@@ -675,17 +781,12 @@ def _checkpoint_restart_message(
         "task_brief": _checkpoint_task_brief(prompt),
         "compact_state_from_db": state,
         "last_tool_results": last_tool_results[:_CHECKPOINT_LAST_TOOL_RESULT_LIMIT],
-        "instructions": (
-            "Continue the same agent task from this compact checkpoint. "
-            "Do not restart from scratch. Treat DB state and write actions as authoritative. "
-            "Do not repeat list_sources pages already shown in source_inventory_progress; continue from next_cursor when needed. "
-            "Proceed to selection and write actions when enough evidence/source coverage exists."
-        ),
+        "instructions": instructions,
     }
     compact, _ = _compact_checkpoint_value(
         payload,
         max_string_chars=1800,
-        max_list_items=30,
+        max_list_items=90,
         max_depth=6,
     )
     return {
@@ -728,18 +829,37 @@ async def _build_agent_checkpoint_state(
         state["evidence_error"] = str(exc)
 
     run_view: RunCorpusView | None = None
+    source_ref_by_id: dict[str, str] = {}
     try:
         run_view_result = await db.execute(
             select(RunCorpusView).where(RunCorpusView.generation_run_id == generation_run_id)
         )
         run_view = run_view_result.scalar_one_or_none()
         if run_view:
+            try:
+                from app.generation_v2.tools.evidence_source_map import build_source_inventory
+                from app.generation_v2.tools.evidence_refs import build_source_ref_context
+
+                inventory = await build_source_inventory(db, run_view)
+                source_ref_by_id = build_source_ref_context(inventory).ref_by_source_id
+            except Exception:
+                inventory = None
+                source_ref_by_id = {}
             state["corpus"] = {
                 "selected_source_count": len(run_view.selected_source_ids or []),
                 "selected_source_version_count": len(run_view.selected_source_version_ids or []),
                 "manifest_hash": run_view.manifest_hash,
-                "selected_source_ids": [str(item) for item in (run_view.selected_source_ids or [])[:_CHECKPOINT_STATE_ID_LIMIT]],
+                "selected_source_refs": [
+                    source_ref_by_id.get(str(item), str(item))
+                    for item in (run_view.selected_source_ids or [])[:_CHECKPOINT_STATE_ID_LIMIT]
+                ],
             }
+            if inventory is not None:
+                state["corpus"]["source_inventory"] = _checkpoint_source_inventory(
+                    inventory,
+                    source_ref_by_id=source_ref_by_id,
+                    limit=80,
+                )
     except Exception as exc:
         state["corpus_error"] = str(exc)
 
@@ -769,7 +889,7 @@ async def _build_agent_checkpoint_state(
             .order_by(V2ToolTrace.created_at.asc())
         )
         seen_cursors: list[str] = []
-        seen_source_ids: list[str] = []
+        seen_source_refs: list[str] = []
         total_source_count = None
         next_cursor = ""
         for trace in list_result.scalars():
@@ -782,17 +902,17 @@ async def _build_agent_checkpoint_state(
                 total_source_count = int(output_json.get("total") or 0)
             next_cursor = str(output_json.get("next_cursor") or "")
             for source in output_json.get("sources") or []:
-                source_id = str(source.get("source_id") or "")
-                if source_id and source_id not in seen_source_ids:
-                    seen_source_ids.append(source_id)
-        if seen_cursors or seen_source_ids:
+                source_ref = str(source.get("source_ref") or "")
+                if source_ref and source_ref not in seen_source_refs:
+                    seen_source_refs.append(source_ref)
+        if seen_cursors or seen_source_refs:
             state["source_inventory_progress"] = {
-                "listed_source_count": len(seen_source_ids),
+                "listed_source_count": len(seen_source_refs),
                 "total_source_count": total_source_count,
                 "seen_cursors": seen_cursors[:_CHECKPOINT_STATE_ID_LIMIT],
                 "next_cursor": next_cursor,
-                "all_sources_listed": bool(total_source_count is not None and len(seen_source_ids) >= total_source_count),
-                "listed_source_ids": seen_source_ids[:_CHECKPOINT_STATE_ID_LIMIT],
+                "all_sources_listed": bool(total_source_count is not None and len(seen_source_refs) >= total_source_count),
+                "listed_source_refs": seen_source_refs[:_CHECKPOINT_STATE_ID_LIMIT],
             }
     except Exception as exc:
         state["source_inventory_progress_error"] = str(exc)
@@ -807,18 +927,86 @@ async def _build_agent_checkpoint_state(
                 generation_run_id=generation_run_id,
                 inventory=inventory,
             )
-            mapped_source_ids = [card.source_id for card in source_map.source_cards]
+            mapped_source_refs = [source_ref_by_id.get(card.source_id, card.source_id) for card in source_map.source_cards]
+            cluster_source_refs: list[str] = []
+            for cluster in source_map.source_triage.source_clusters:
+                for source_id in [
+                    *cluster.source_ids,
+                    *cluster.primary_source_ids,
+                    *cluster.secondary_source_ids,
+                    *cluster.duplicate_source_ids,
+                ]:
+                    source_ref = source_ref_by_id.get(str(source_id), str(source_id))
+                    if source_ref not in cluster_source_refs:
+                        cluster_source_refs.append(source_ref)
+            relationship_source_refs: list[str] = []
+            for relationship in source_map.source_triage.source_relationships:
+                for source_id in (relationship.source_id, relationship.related_source_id):
+                    source_ref = source_ref_by_id.get(str(source_id), str(source_id))
+                    if source_ref not in relationship_source_refs:
+                        relationship_source_refs.append(source_ref)
+            mapped_ref_set = set(mapped_source_refs) | set(cluster_source_refs) | set(relationship_source_refs)
             selected_source_ids = [str(item) for item in run_view.selected_source_ids or []]
             state["source_map"] = {
                 "source_card_count": len(source_map.source_cards),
                 "quote_card_count": len(source_map.quote_cards),
+                "cluster_count": len(source_map.source_triage.source_clusters),
                 "relationship_count": len(source_map.source_triage.source_relationships),
                 "gap_count": len(source_map.gaps),
-                "mapped_source_ids": mapped_source_ids[:_CHECKPOINT_STATE_ID_LIMIT],
-                "remaining_source_ids": [
-                    source_id for source_id in selected_source_ids if source_id not in set(mapped_source_ids)
+                "mapped_source_refs": mapped_source_refs[:_CHECKPOINT_STATE_ID_LIMIT],
+                "cluster_source_refs": cluster_source_refs[:_CHECKPOINT_STATE_ID_LIMIT],
+                "relationship_source_refs": relationship_source_refs[:_CHECKPOINT_STATE_ID_LIMIT],
+                "remaining_source_refs": [
+                    source_ref_by_id.get(source_id, source_id)
+                    for source_id in selected_source_ids
+                    if source_ref_by_id.get(source_id, source_id) not in mapped_ref_set
                 ][: _CHECKPOINT_STATE_ID_LIMIT],
                 "retrieval_notes": source_map.retrieval_notes[:6],
+            }
+            read_result = await db.execute(
+                select(V2ToolTrace)
+                .where(
+                    V2ToolTrace.generation_run_id == generation_run_id,
+                    V2ToolTrace.phase == phase,
+                    V2ToolTrace.agent_name == agent_name,
+                    V2ToolTrace.tool_name.in_(("skim_source", "read_source", "inspect_source", "compare_sources", "search_evidence", "read_evidence")),
+                )
+                .order_by(V2ToolTrace.created_at.asc())
+            )
+            read_counts: dict[str, int] = {}
+            for trace in read_result.scalars():
+                input_json = trace.input_json or {}
+                output_json = trace.output_json or {}
+                refs: list[str] = []
+                for key in ("source_ref", "related_source_ref"):
+                    value = input_json.get(key) or output_json.get(key)
+                    if isinstance(value, str) and value:
+                        refs.append(value)
+                for key in ("source_refs", "related_source_refs"):
+                    values = input_json.get(key) or output_json.get(key) or []
+                    if isinstance(values, list):
+                        refs.extend(str(value) for value in values if value)
+                if trace.tool_name == "compare_sources":
+                    for comparison in output_json.get("comparisons") or []:
+                        value = comparison.get("source_ref") if isinstance(comparison, dict) else None
+                        if isinstance(value, str) and value:
+                            refs.append(value)
+                for ref in refs:
+                    read_counts[ref] = read_counts.get(ref, 0) + 1
+            read_source_refs = sorted(read_counts)
+            state["source_triage_progress"] = {
+                "read_source_ref_count": len(read_source_refs),
+                "read_source_refs": read_source_refs[:_CHECKPOINT_STATE_ID_LIMIT],
+                "repeated_read_source_refs": [
+                    {"source_ref": ref, "read_count": count}
+                    for ref, count in sorted(read_counts.items(), key=lambda item: item[1], reverse=True)
+                    if count > 1
+                ][:12],
+                "mapped_or_clustered_source_refs": sorted(mapped_ref_set)[:_CHECKPOINT_STATE_ID_LIMIT],
+                "read_without_map_write_refs": [
+                    ref for ref in read_source_refs if ref not in mapped_ref_set
+                ][: _CHECKPOINT_STATE_ID_LIMIT],
+                "workflow_hint": "After reading a small source set, write cards/clusters/relationships/gaps before reading another set.",
             }
         except Exception as exc:
             state["source_map_error"] = str(exc)
@@ -838,6 +1026,37 @@ def _model_output_stats(
         "contract_version": _MODEL_FACING_CONTRACT_VERSION,
         "contract_violation": contract_violation,
     }
+
+
+def _checkpoint_source_inventory(
+    inventory: Any,
+    *,
+    source_ref_by_id: dict[str, str],
+    limit: int,
+) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for card in list(getattr(inventory, "source_cards", []) or [])[:limit]:
+        source_id = str(getattr(card, "source_id", "") or "")
+        items.append(
+            {
+                "source_ref": source_ref_by_id.get(source_id, "S??"),
+                "title": _checkpoint_trim(getattr(card, "title", ""), 140),
+                "source_type": getattr(card, "source_type", None),
+                "domain": getattr(card, "domain", None),
+                "authority": getattr(card, "authority", None),
+                "reliability": getattr(card, "reliability", None),
+                "coverage_status": getattr(card, "coverage_status", None),
+                "brief_hint": _checkpoint_trim(getattr(card, "summary", ""), 160),
+            }
+        )
+    return items
+
+
+def _checkpoint_trim(value: Any, max_chars: int) -> str:
+    text = " ".join(str(value or "").split())
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars].rstrip() + "..."
 
 
 def _trace_output_with_runtime(
@@ -957,14 +1176,12 @@ def _hosted_evidence_followup_input(
     new_items = [
         {
             "evidence_id": str(item.get("id") or item.get("evidence_id") or ""),
-            "source_id": item.get("source_id"),
-            "source_version_id": item.get("source_version_id"),
-            "representation_kind": item.get("representation_kind"),
+            "source_ref": item.get("source_ref"),
+            "source_title": item.get("source_title"),
+            "source_domain": item.get("source_domain"),
             "locator": item.get("locator") or item.get("locator_text"),
-            "retrieval_channel": item.get("retrieval_channel"),
-            "evidence_strength": item.get("evidence_strength"),
             "score": item.get("score"),
-            "short_snippet": item.get("short_snippet") or str(item.get("snippet_text") or "")[:700],
+            "short_snippet": item.get("short_snippet") or str(item.get("snippet_text") or "")[:420],
         }
         for item in observed
         if str(item.get("id") or item.get("evidence_id") or "") and str(item.get("id") or item.get("evidence_id") or "") not in announced_ids
@@ -974,10 +1191,9 @@ def _hosted_evidence_followup_input(
     evidence_ids = [item["evidence_id"] for item in new_items]
     content = (
         "Hosted file_search results were persisted as observed EvidenceItem records. "
-        "Use these exact evidence_id values with select_evidence and source-map write tools before finalizing. "
-        "For important PDFs/documents or citation-sensitive claims, call read_source_with_model with the source_id/source_version_id and inspect retrieval_channel before selecting/linking. "
-        "If it returns model_file_read_local_fallback, treat that channel as a risk/coverage signal and reflect it in confidence/support rather than pretending it was a direct file read. "
-        "Do not invent evidence ids.\n"
+        "Treat these as discovery previews. Use evidence_id with select_evidence only after reading enough detail for the source-card, quote, relationship, or claim. "
+        "For important PDFs/documents or citation-sensitive claims, call read_source_with_model with the source_ref/version_ref from list_sources/list_source_versions before relying on the preview. "
+        "Use source_ref only to choose or relate sources; evidence_id is the handle for evidence selection.\n"
         + json.dumps({"observed_evidence": new_items}, ensure_ascii=False)
     )
     return {
@@ -1026,6 +1242,7 @@ def _tool_model_facing_schema(tool_name: str) -> str:
         "upsert_source_card": "write_ack",
         "create_quote_card": "write_ack",
         "record_source_relationship": "write_ack",
+        "record_source_cluster": "write_ack",
         "record_gap": "write_ack",
         "finalize_source_map": "write_ack",
     }.get(tool_name, "unknown_tool_output")
@@ -1119,8 +1336,8 @@ def _compact_checkpoint_value(
 def _collect_tool_ids(value: Any) -> dict[str, list[str]]:
     collected: dict[str, list[str]] = {
         "evidence_ids": [],
-        "source_ids": [],
-        "source_version_ids": [],
+        "source_refs": [],
+        "version_refs": [],
     }
 
     def visit(node: Any) -> None:
@@ -1129,11 +1346,11 @@ def _collect_tool_ids(value: Any) -> dict[str, list[str]]:
                 text = str(item)
                 if key in {"evidence_id", "id"} and "evidence_ids" in collected and len(text) < 80:
                     _append_unique(collected["evidence_ids"], text)
-                elif key == "source_id" and len(text) < 80:
-                    _append_unique(collected["source_ids"], text)
-                elif key == "source_version_id" and len(text) < 80:
-                    _append_unique(collected["source_version_ids"], text)
-                elif key in {"evidence_ids", "source_ids", "source_version_ids"} and isinstance(item, list):
+                elif key == "source_ref" and len(text) < 80:
+                    _append_unique(collected["source_refs"], text)
+                elif key == "version_ref" and len(text) < 80:
+                    _append_unique(collected["version_refs"], text)
+                elif key in {"evidence_ids", "source_refs", "version_refs"} and isinstance(item, list):
                     target = collected.get(key)
                     if target is not None:
                         for value_item in item[:20]:
@@ -1179,6 +1396,11 @@ def _tool_trace_name(tool: dict[str, Any]) -> str:
     if tool.get("type") == "function":
         return str(tool.get("name") or "function")
     return str(tool.get("type") or tool.get("name") or "unknown")
+
+
+def _safe_tool_dump_name(name: str) -> str:
+    safe = "".join(ch if ch.isalnum() or ch in {"_", "-"} else "-" for ch in str(name or "tool"))
+    return safe[:80] or "tool"
 
 
 def _tool_policy_payload(policy: ToolPolicy) -> dict[str, Any]:

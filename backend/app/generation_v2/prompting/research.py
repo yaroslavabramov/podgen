@@ -18,7 +18,7 @@ Full neutral source inventory. This is the project corpus available to research;
 SourceMap seed inventory. Treat these summaries as triage orientation, not full source text and not the final evidence budget:
 {source_map_inventory_json}
 
-Compact quote inventory. quote_refs must be evidence_id values or exact source_id:locator refs from this list; never use raw quote text as a ref:
+Compact quote inventory. quote_refs must be evidence_id values or exact source_ref:locator refs from this list; never use raw quote text as a ref:
 {quote_inventory_json}
 
 Source triage map:
@@ -35,8 +35,8 @@ The memo must be strong enough to support long-form treatment.
 Research is an agentic investigation phase over the provided corpus. The SourceMap is a starting map: use it to orient, avoid duplicates, and find seed leads, but do not treat SourceMap evidence_ids as the only allowed support.
 Use search_evidence, find_quotes, search_within_source, compare_sources, read_source_window, and read_source_with_model to create new EvidenceItems when the memo needs stronger support. Call select_evidence for any new EvidenceItem you use in an editorial atom.
 For high-impact atoms (conflict, mechanism, turning_point, consequence, human_cost, institutional_incentive), inspect the supporting evidence with read_evidence or a direct source-read tool before including the atom.
-If a SourceMap evidence record has retrieval_channel=model_file_read_local_fallback, treat that channel as a risk/coverage signal, not an automatic rejection. Explain uncertainty in the atom risk/source_coverage_status when appropriate.
-Use only evidence_id values shown in the SourceMap/quote inventory or returned by the provided tools. If you discover new support with search/read tools, call select_evidence before using that evidence_id in an atom. Never invent ids, and never use source_id or source_version_id as evidence_id."""
+If a read tool returns coverage_warning, treat that warning as a source-coverage risk, not an automatic rejection. Explain uncertainty in the atom risk/source_coverage_status when appropriate.
+Use evidence_id values shown in the SourceMap/quote inventory or returned by the provided tools. If you discover new support with search/read tools, call select_evidence before using that evidence_id in an atom. Use source_ref only for choosing or relating sources; evidence_id is the handle for support."""
 
 
 RESEARCH_AUDIT_PROMPT = """Audit this research memo for long-form podcast readiness.
