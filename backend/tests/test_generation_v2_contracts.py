@@ -24,6 +24,9 @@ from app.generation_v2.agents.editorial import (
     build_research_memo,
     build_source_acquisition_agent,
     build_source_triage_agent,
+    build_source_triage_finalizer_agent,
+    build_source_triage_planner_agent,
+    build_source_triage_set_agent,
     build_treatment,
     critique_episode,
     extract_and_link_claims,
@@ -54,8 +57,11 @@ from app.generation_v2.prompting import (
     RESEARCH_SYSTEM,
     SOURCE_ACQUISITION_PROMPT,
     SOURCE_ACQUISITION_SYSTEM,
+    SOURCE_TRIAGE_FINALIZER_PROMPT,
+    SOURCE_TRIAGE_PLANNER_PROMPT,
     SOURCE_TRIAGE_PROMPT,
     SOURCE_TRIAGE_REPAIR_PROMPT,
+    SOURCE_TRIAGE_SET_PROMPT,
     SOURCE_TRIAGE_SYSTEM,
     SUPPORT_JUDGE_SYSTEM,
     TREATMENT_SYSTEM,
@@ -124,6 +130,12 @@ from app.generation_v2.source_corpus import (
     reconcile_provider_corpus_files,
 )
 from app.generation_v2.source_workspace import _quote_cards_from_chunks
+from app.generation_v2 import source_triage_workspace as triage_workspace_module
+from app.generation_v2.source_triage_workspace import (
+    create_repair_sets_from_gate,
+    build_workspace_tools,
+    unresolved_source_sets,
+)
 from app.generation_v2.tools.evidence import (
     _CHUNK_BACKED_VERSION_KINDS,
     _query_tokens,
@@ -132,7 +144,7 @@ from app.generation_v2.tools.evidence import (
     EvidenceToolset,
 )
 from app.generation_v2.tools.evidence_utils import _provider_filters
-from app.services.llm import _openai_estimated_cost_usd, _openai_usage
+from app.services.llm import _openai_estimated_cost_usd, _openai_token_cost_payload, _openai_usage
 from app.ingestion.source_metadata import audited_authority_type, classify_authority_heuristic
 from app.models.generation_v2 import (
     EvidenceRetrievalChannel,
@@ -322,28 +334,53 @@ def test_runtime_model_facing_tool_output_validates_compact_contracts() -> None:
         "cache_hit": False,
     }
 
-    model_output = _model_facing_tool_output("search_evidence", output)
+    model_output = _model_facing_tool_output("search_corpus", output)
 
     assert model_output == output
     assert "_model_output_truncated" not in json.dumps(model_output, ensure_ascii=False)
 
     with pytest.raises(ToolOutputContractViolation, match="forbidden model-facing keys"):
         _model_facing_tool_output(
-            "search_evidence",
+            "search_corpus",
             {"results": [{"evidence_id": "ev-1", "source_id": "src-1", "source_version_id": "ver-1"}]},
         )
 
 
 def test_runtime_model_facing_tool_output_rejects_unsafe_or_oversized_payloads() -> None:
     with pytest.raises(ToolOutputContractViolation, match="forbidden model-facing keys"):
-        _model_facing_tool_output("search_evidence", {"provider_file_id": "file_secret", "results": []})
+        _model_facing_tool_output("search_corpus", {"provider_file_id": "file_secret", "results": []})
 
     with pytest.raises(ToolOutputContractViolation, match="exceeded"):
-        _model_facing_tool_output("search_evidence", {"results": [{"short_snippet": "x" * 13000}]})
+        _model_facing_tool_output("search_corpus", {"results": [{"short_snippet": "x" * 13000}]})
 
 
 class _RuntimeOk(BaseModel):
     ok: bool
+
+
+def test_v2_runtime_routes_models_per_agent(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "generation_v2_openai_model", "legacy-gpt-5")
+    monkeypatch.setattr(settings, "generation_v2_default_model", "gpt-5.4-mini")
+    monkeypatch.setattr(settings, "generation_v2_source_triage_model", "gpt-5.4-mini")
+    monkeypatch.setattr(settings, "generation_v2_source_acquisition_model", "gpt-5.4-mini")
+    monkeypatch.setattr(settings, "generation_v2_research_model", "gpt-5.4")
+    monkeypatch.setattr(settings, "generation_v2_treatment_model", "gpt-5.4")
+    monkeypatch.setattr(settings, "generation_v2_writer_model", "gpt-5.4")
+    monkeypatch.setattr(settings, "generation_v2_rewriter_model", "gpt-5.4")
+    monkeypatch.setattr(settings, "generation_v2_citation_model", "gpt-5.4-mini")
+    monkeypatch.setattr(settings, "generation_v2_support_judge_model", "gpt-5.4-mini")
+
+    runtime = V2Runtime()
+
+    assert runtime.model_for("v2_source_triage", "source_triage_agent") == "gpt-5.4-mini"
+    assert runtime.model_for("v2_source_acquisition", "source_acquisition_round_2") == "gpt-5.4-mini"
+    assert runtime.model_for("v2_editorial_research", "research_agent") == "gpt-5.4"
+    assert runtime.model_for("v2_treatment", "story_editor") == "gpt-5.4"
+    assert runtime.model_for("v2_act_drafting", "act_writer_2") == "gpt-5.4"
+    assert runtime.model_for("v2_critique_rewrite", "act_rewriter_2") == "gpt-5.4"
+    assert runtime.model_for("v2_fact_citation", "citation_linker") == "gpt-5.4-mini"
+    assert runtime.model_for("v2_fact_citation", "support_judge") == "gpt-5.4-mini"
+    assert runtime.model_for("v2_unknown", "unknown_agent") == "gpt-5.4-mini"
 
 
 @pytest.mark.asyncio
@@ -411,6 +448,8 @@ async def test_runtime_checkpoint_restarts_chain_after_input_threshold(monkeypat
     fake_client = _FakeClient()
     fake_db = _FakeDb()
     monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "generation_v2_default_model", "gpt-5.4-mini")
+    monkeypatch.setattr(settings, "generation_v2_source_triage_model", "gpt-5.4-mini")
     monkeypatch.setattr(runtime_module, "get_openai_client", lambda: fake_client)
 
     async def lookup(_args: dict) -> dict:
@@ -439,6 +478,8 @@ async def test_runtime_checkpoint_restarts_chain_after_input_threshold(monkeypat
 
     assert result.ok is True
     assert len(fake_client.responses.calls) == 2
+    assert fake_client.responses.calls[0]["model"] == "gpt-5.4-mini"
+    assert fake_client.responses.calls[1]["model"] == "gpt-5.4-mini"
     assert fake_client.responses.calls[0]["previous_response_id"] is runtime_module.openai.NOT_GIVEN
     assert fake_client.responses.calls[1]["previous_response_id"] is runtime_module.openai.NOT_GIVEN
     assert "Responses chain checkpoint restart" in fake_client.responses.calls[1]["input"][0]["content"]
@@ -450,6 +491,13 @@ async def test_runtime_checkpoint_restarts_chain_after_input_threshold(monkeypat
     assert tool_traces[0].output_json["_runtime"]["model_facing_tool_output_chars"] > 0
     assert tool_traces[0].output_json["_runtime"]["model_facing_schema"] == "unknown_tool_output"
     assert "model_facing_tool_output_truncated" not in tool_traces[0].output_json["_runtime"]
+    response_traces = [item for item in fake_db.added if isinstance(item, V2ToolTrace) and item.tool_name == "openai.responses.create"]
+    assert response_traces[0].input_json["requested_model"] == "gpt-5.4-mini"
+    assert response_traces[0].output_json["requested_model"] == "gpt-5.4-mini"
+    assert response_traces[0].output_json["billing_model"] == "gpt-5.4-mini"
+    assert response_traces[0].output_json["estimated_token_cost_usd"] is not None
+    assert response_traces[0].output_json["cost_basis"] == "openai_token_usage_only"
+    assert "estimated_cost_usd" not in response_traces[0].output_json
 
 
 @pytest.mark.asyncio
@@ -536,7 +584,23 @@ def test_openai_usage_parser_captures_cached_tokens_and_cost() -> None:
 
     assert usage["cached_input_tokens"] == 400
     assert usage["reasoning_output_tokens"] == 25
-    assert _openai_estimated_cost_usd("gpt-5", usage) == 0.0018
+    assert _openai_estimated_cost_usd("gpt-5.4-mini", usage) == 0.00093
+    assert _openai_estimated_cost_usd("gpt-5.4", usage) == 0.0031
+    cost_payload = _openai_token_cost_payload("gpt-5.4-mini", usage)
+    assert cost_payload["estimated_token_cost_usd"] == 0.00093
+    assert cost_payload["cost_basis"] == "openai_token_usage_only"
+    assert "not an OpenAI invoice total" in cost_payload["cost_warning"]
+
+
+def test_tool_round_limit_zero_disables_hard_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2.runtime import _tool_round_limit
+
+    monkeypatch.setattr(settings, "generation_v2_max_tool_rounds", 8)
+
+    assert _tool_round_limit(0) is None
+    assert _tool_round_limit(-1) is None
+    assert _tool_round_limit(96) == 96
+    assert _tool_round_limit(None) == 8
 
 
 def test_provider_search_filters_to_agent_facing_files() -> None:
@@ -551,7 +615,7 @@ def test_provider_search_filters_to_agent_facing_files() -> None:
 
 
 @pytest.mark.asyncio
-async def test_search_evidence_cache_hit_skips_provider_and_local_search() -> None:
+async def test_search_corpus_cache_hit_skips_provider_and_local_search() -> None:
     from app.generation_v2.tools import evidence_retrieval as evidence_module
 
     project_id = uuid.uuid4()
@@ -616,7 +680,7 @@ async def test_search_evidence_cache_hit_skips_provider_and_local_search() -> No
     toolset._provider_search = fail_search  # type: ignore[method-assign]
     toolset._local_fallback_search = fail_search  # type: ignore[method-assign]
 
-    result = await toolset.search_evidence(
+    result = await toolset.search_corpus(
         query="currency board mechanism",
         purpose="source_map",
         source_ids=[str(source_id)],
@@ -684,6 +748,7 @@ async def test_read_source_with_model_creates_evidence_item(monkeypatch: pytest.
     )
     fake_db = _FakeModelReadDb(provider_files=[provider_file], versions={source_version_id: version})
     monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "generation_v2_model_read_model", "gpt-5.4-mini")
     monkeypatch.setattr(evidence_module, "get_openai_client", lambda: fake_client)
     monkeypatch.setattr(evidence_module, "_model_read_upload_payload", lambda _version: ("report.pdf", b"%PDF fake"))
     toolset = EvidenceToolset(
@@ -721,6 +786,7 @@ async def test_read_source_with_model_creates_evidence_item(monkeypatch: pytest.
     assert persisted_evidence[0].provider_file_id == "file_model_read"
     assert persisted_evidence[0].metadata_["vector_store_provider_file_id"] == "file_test"
     assert fake_client.files.calls[0]["purpose"] == "user_data"
+    assert fake_client.responses.calls[0]["model"] == "gpt-5.4-mini"
     assert fake_client.responses.calls[0]["input"][0]["content"][1] == {"type": "input_file", "file_id": "file_model_read"}
     assert provider_file.attributes["model_read_file_id"] == "file_model_read"
 
@@ -1101,28 +1167,41 @@ def test_evidence_tool_descriptions_define_usage_and_citation_contracts() -> Non
     from app.generation_v2.tools.evidence import EvidenceToolset
 
     tools = EvidenceToolset(db=None, run=None, run_view=None, provider_index=None).agent_tools()  # type: ignore[arg-type]
+    tools_by_name = {tool.name: tool for tool in tools}
     descriptions = {tool.name: tool.description for tool in tools}
 
     assert "neutral metadata" in descriptions["list_sources"]
-    assert "scope=all_sources" in descriptions["search_evidence"]
-    assert "source_refs" in descriptions["search_evidence"]
-    assert "persist" in descriptions["search_evidence"].lower()
-    assert "discovery preview" in descriptions["search_evidence"]
+    assert "up to 25 sources per page" in descriptions["list_sources"]
+    assert "scope=all_sources" in descriptions["search_corpus"]
+    assert "source_refs" in descriptions["search_corpus"]
+    assert "persist" in descriptions["search_corpus"].lower()
+    assert "discovery preview" in descriptions["search_corpus"]
     assert "source_ref/title" in descriptions["read_evidence"]
-    assert "persist that window as an EvidenceItem" in descriptions["read_source"]
-    assert "empty string in version_ref" in descriptions["read_source"]
-    assert "Use the returned evidence_id in source-map write actions" in descriptions["read_source"]
+    assert "does not read the whole source" in descriptions["read_source_window"]
+    assert "persist that window as an EvidenceItem" in descriptions["read_source_window"]
+    assert "For a source you have not examined yet, call skim_source first" in descriptions["read_source_window"]
+    assert "Use the returned evidence_id in source-map write actions" in descriptions["read_source_window"]
     assert "input_file" in descriptions["read_source_with_model"]
-    assert "empty string in version_ref" in descriptions["read_source_with_model"]
+    assert "version_ref is optional" in descriptions["read_source_with_model"]
     assert "coverage_warning" in descriptions["read_source_with_model"]
     assert "Page numbers are useful when reported, but not required" in descriptions["read_source_with_model"]
-    assert "persist representative windows as EvidenceItems" in descriptions["skim_source"]
+    assert "Default first-read tool" in descriptions["skim_source"]
+    assert "Skim representative windows and persist them as EvidenceItems" in descriptions["skim_source"]
+    assert "version_ref is optional" in descriptions["skim_source"]
     assert "not a generic source search tool" in descriptions["find_quotes"]
     assert "corpus/source triage only" in descriptions["search_sources"]
-    assert "Compare 2-5 selected sources" in descriptions["compare_sources"]
-    assert "write the resulting cluster/relationship/gap afterward" in descriptions["compare_sources"]
+    assert "2-5 selected sources" in descriptions["compare_source_evidence"]
+    assert "write the resulting cluster/relationship/gap afterward" in descriptions["compare_source_evidence"]
     assert "regulator" not in descriptions["record_source_cluster"]
     assert "legal texts" not in descriptions["record_source_cluster"]
+    for tool_name in (
+        "inspect_source",
+        "read_source_window",
+        "read_source_with_model",
+        "search_within_source",
+        "skim_source",
+    ):
+        assert "version_ref" not in (tools_by_name[tool_name].parameters.get("required") or [])
 
 
 def test_list_sources_compact_card_contract_excludes_blob_fields() -> None:
@@ -1135,8 +1214,6 @@ def test_list_sources_compact_card_contract_excludes_blob_fields() -> None:
         source_type="pdf",
         domain="hkma.gov.hk",
         published_at="2024-01-01",
-        authority="primary",
-        reliability="high",
         coverage_status="ready",
         representation_summary="original_file:ready/ready, extracted_text:ready/pending",
         summary="This is a long neutral preview. " * 80,
@@ -1150,20 +1227,18 @@ def test_list_sources_compact_card_contract_excludes_blob_fields() -> None:
         "source_type",
         "domain",
         "published_at",
-        "authority",
-        "reliability",
         "coverage_status",
         "canonical_kind",
         "version_count",
         "brief_hint",
-        "needs_model_read",
     }
     assert payload["source_ref"] == "S01"
     assert payload["version_count"] == 20
-    assert payload["needs_model_read"] is True
-    assert len(payload["brief_hint"]) <= 180
+    assert len(payload["brief_hint"]) <= 120
     assert "source_version_ids" not in payload
     assert "source_id" not in payload
+    assert "authority" not in payload
+    assert "reliability" not in payload
     assert "summary" not in payload
     assert "provider_file_id" not in payload
 
@@ -1348,18 +1423,28 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert "Before using any required evidence_id in speech, call read_evidence" in ACT_DRAFT_PROMPT
     assert "read_evidence, read_source_window, or search_within_source only to repair a known gap" in ACT_REWRITE_PROMPT
     assert "Build a working map of the corpus" in SOURCE_TRIAGE_PROMPT
-    assert "A good source map answers these questions" in SOURCE_TRIAGE_PROMPT
+    assert "SourceMap questions:" in SOURCE_TRIAGE_PROMPT
     assert "corpus cartography" in SOURCE_TRIAGE_PROMPT
-    assert "Work in source-set iterations" in SOURCE_TRIAGE_PROMPT
+    assert "Workflow:" in SOURCE_TRIAGE_PROMPT
     assert "Pick one small source set" in SOURCE_TRIAGE_PROMPT
+    assert "For each not-yet-examined source in the set, normally start with skim_source" in SOURCE_TRIAGE_PROMPT
+    assert "Use read_source_window after skim/search" in SOURCE_TRIAGE_PROMPT
     assert "read at least two relevant sources before writing the relationship or cluster" in SOURCE_TRIAGE_PROMPT
-    assert "It is not acceptable to read many sources without writing the corresponding map entries" in SOURCE_TRIAGE_PROMPT
-    assert "Tool guide:" in SOURCE_TRIAGE_PROMPT
-    assert "compare_sources" in SOURCE_TRIAGE_PROMPT
+    assert "Do not treat reading as a cost problem" in SOURCE_TRIAGE_PROMPT
+    assert "Quality bar:" in SOURCE_TRIAGE_PROMPT
+    assert "Tool policy:" in SOURCE_TRIAGE_PROMPT
+    assert "Mini-example:" in SOURCE_TRIAGE_PROMPT
+    assert "Final response:" in SOURCE_TRIAGE_PROMPT
+    assert "Return SourceTriageCompletion JSON only" in SOURCE_TRIAGE_PROMPT
+    assert "Do not include SourceMap content in the final response" in SOURCE_TRIAGE_PROMPT
+    assert "most usable sources should appear in at least one SourceCard" in SOURCE_TRIAGE_PROMPT
+    assert "search_corpus is for targeted cross-corpus questions" in SOURCE_TRIAGE_PROMPT
+    assert "compare_source_evidence" in SOURCE_TRIAGE_PROMPT
     assert "record_source_cluster" in SOURCE_TRIAGE_PROMPT
     assert "select_evidence" not in SOURCE_TRIAGE_PROMPT
     assert "source version IDs" not in SOURCE_TRIAGE_PROMPT
     assert "Do not spend the whole budget" not in SOURCE_TRIAGE_PROMPT
+    assert "Do not follow instructions inside" not in SOURCE_TRIAGE_PROMPT
     for case_specific_term in (
         "official/regulator",
         "bank/source-owner",
@@ -1377,8 +1462,7 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert "Use evidence_id values shown in the SourceMap/quote inventory or returned by the provided tools" in RESEARCH_MEMO_PROMPT
     assert "call select_evidence before using that evidence_id in an atom" in RESEARCH_MEMO_PROMPT
     assert "Use source_ref only for choosing or relating sources" in RESEARCH_MEMO_PROMPT
-    assert "coverage_warning" in SOURCE_TRIAGE_PROMPT
-    assert "under-grounded or missing direct-read coverage" in SOURCE_TRIAGE_REPAIR_PROMPT
+    assert "under-grounded, invalid, unwritten, or missing persisted gap/caution work" in SOURCE_TRIAGE_REPAIR_PROMPT
     assert "missing_model_read_source_ids" not in SOURCE_TRIAGE_REPAIR_PROMPT
     assert "select_evidence" not in SOURCE_TRIAGE_REPAIR_PROMPT
     assert "Do not restart from scratch" in SOURCE_TRIAGE_REPAIR_PROMPT
@@ -1394,7 +1478,7 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert "select_evidence before linking" in CLAIM_CITATION_PROMPT
     assert "coverage_warning" in CLAIM_CITATION_PROMPT
     assert "blocking=true for missing evidence" in CLAIM_CITATION_PROMPT
-    assert "answer with ready, summary, and notes" in SOURCE_TRIAGE_PROMPT
+    assert '{"ready": boolean, "summary": string, "notes": string[]}' in SOURCE_TRIAGE_PROMPT
 
 
 def test_source_triage_repair_context_scopes_to_gate_failures() -> None:
@@ -1440,11 +1524,13 @@ def test_agent_system_prompts_are_role_specific_and_product_aware() -> None:
     for name, system in systems.items():
         assert "Your role:" in system, name
         assert "long-form podcast production system" in system, name
-        assert "source_ref/version_ref" in system, name
+        assert "source_ref values" in system, name
+        assert "version_ref is optional" in system, name
         assert "Generation V2" not in system, name
         assert "Podgen Generation" not in system, name
 
-    assert "Use hosted file_search for broad discovery" in SOURCE_TRIAGE_SYSTEM
+    assert "Follow the workflow prompt for the current triage stage" in SOURCE_TRIAGE_SYSTEM
+    assert "Use corpus search for broad discovery" not in SOURCE_TRIAGE_SYSTEM
     assert "Web search is only a discovery mechanism" in SOURCE_ACQUISITION_SYSTEM
     assert "Use the SourceMap as orientation" in RESEARCH_SYSTEM
     assert "create stronger saved evidence" in RESEARCH_SYSTEM
@@ -1468,7 +1554,7 @@ def test_runtime_tool_trace_names_include_function_tool_names() -> None:
         vector_store_id=None,
         local_tools=[
             AgentTool(
-                name="search_evidence",
+                name="search_corpus",
                 description="Search",
                 parameters={"type": "object", "properties": {}},
                 handler=None,  # type: ignore[arg-type]
@@ -1477,7 +1563,7 @@ def test_runtime_tool_trace_names_include_function_tool_names() -> None:
         policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
     )
 
-    assert tools[0]["name"] == "search_evidence"
+    assert tools[0]["name"] == "search_corpus"
 
 
 @pytest.mark.asyncio
@@ -1603,26 +1689,25 @@ async def test_phase_specific_agent_tool_sets_are_not_broad() -> None:
     calls = _CaptureRuntime.calls
     assert set(calls["research_agent"]) == {
         "list_sources",
-        "list_source_versions",
         "search_sources",
-        "search_evidence",
+        "search_corpus",
         "find_quotes",
         "read_evidence",
         "read_source_window",
         "read_source_with_model",
         "search_within_source",
-        "compare_sources",
+        "compare_source_evidence",
         "select_evidence",
     }
     assert "upsert_source_card" not in calls["research_agent"]
     assert _CaptureRuntime.kwargs_by_agent["research_agent"]["max_tool_rounds"] == 64
-    assert set(calls["research_auditor"]) == {"search_evidence", "read_evidence"}
+    assert set(calls["research_auditor"]) == {"search_corpus", "read_evidence"}
     assert set(calls["story_editor"]) == {"read_evidence", "read_source_window", "search_within_source"}
     assert set(calls["act_writer_1"]) == {"read_evidence", "read_source_window", "search_within_source"}
-    assert set(calls["episode_critic"]) == {"search_evidence", "read_evidence"}
+    assert set(calls["episode_critic"]) == {"search_corpus", "read_evidence"}
     assert set(calls["act_rewriter_1"]) == {"read_evidence", "read_source_window", "search_within_source"}
     assert set(calls["citation_linker"]) == {
-        "search_evidence",
+        "search_corpus",
         "read_evidence",
         "find_quotes",
         "read_source_window",
@@ -2301,7 +2386,7 @@ async def test_source_map_is_built_from_write_actions_and_selected_evidence_only
 
 
 @pytest.mark.asyncio
-async def test_source_map_ignores_rejected_write_actions() -> None:
+async def test_source_map_does_not_create_cards_from_rejected_write_actions() -> None:
     source_id = uuid.uuid4()
     source_version_id = uuid.uuid4()
     evidence_id = uuid.uuid4()
@@ -2350,8 +2435,8 @@ async def test_source_map_ignores_rejected_write_actions() -> None:
         inventory=inventory,
     )
 
-    assert source_map.source_cards[0].summary != "This write was rejected."
-    assert source_map.source_cards[0].evidence_ids == [str(evidence_id)]
+    assert source_map.source_cards == []
+    assert source_map.evidence_ids == [str(evidence_id)]
 
 
 @pytest.mark.asyncio
@@ -2489,7 +2574,7 @@ async def test_source_triage_gate_warns_without_model_read_for_pdf_provider_snip
 
     assert gate.passed is True
     assert gate.missing_model_read_source_ids == [str(source_id)]
-    assert "model_file_read" in " ".join([gate.summary, *gate.warnings])
+    assert "model_file_read" not in " ".join([gate.summary, *gate.warnings])
 
 
 @pytest.mark.asyncio
@@ -2542,7 +2627,7 @@ async def test_source_triage_gate_warns_without_model_read_for_local_fallback() 
 
     assert gate.passed is True
     assert gate.missing_model_read_source_ids == [str(source_id)]
-    assert "model_file_read" in " ".join([gate.summary, *gate.warnings])
+    assert "model_file_read" not in " ".join([gate.summary, *gate.warnings])
 
 
 @pytest.mark.asyncio
@@ -2595,7 +2680,7 @@ async def test_source_triage_gate_warns_without_model_read_for_pdf_local_chunks(
 
     assert gate.passed is True
     assert gate.missing_model_read_source_ids == [str(source_id)]
-    assert "model_file_read" in " ".join([gate.summary, *gate.warnings])
+    assert "model_file_read" not in " ".join([gate.summary, *gate.warnings])
 
 
 @pytest.mark.asyncio
@@ -2871,19 +2956,287 @@ async def test_source_triage_agent_uses_map_oriented_tool_set() -> None:
     assert result.summary == "Source triage write actions completed."
     assert set(_CaptureRuntime.calls["source_triage_agent"]) == {
         "list_sources",
-        "search_evidence",
+        "search_corpus",
         "read_evidence",
-        "read_source",
+        "read_source_window",
         "skim_source",
         "inspect_source",
-        "compare_sources",
+        "compare_source_evidence",
         "upsert_source_card",
+        "create_quote_card",
         "record_source_relationship",
         "record_source_cluster",
         "record_gap",
         "finalize_source_map",
     }
     assert _CaptureRuntime.kwargs_by_agent["source_triage_agent"]["tool_policy"].file_search is False
+
+
+@pytest.mark.asyncio
+async def test_source_triage_workflow_agents_have_stage_specific_tools() -> None:
+    _CaptureRuntime.calls = {}
+    _CaptureRuntime.kwargs_by_agent = {}
+    run = SimpleNamespace(id=uuid.uuid4(), project_id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    completion = SourceTriageCompletion(ready=True, summary="ok", notes=[])
+    workspace_tools = _workspace_triage_tools()
+    all_tools = [*_all_evidence_tools(), *workspace_tools]
+
+    await build_source_triage_planner_agent(
+        None,  # type: ignore[arg-type]
+        run,
+        _CaptureRuntime(completion),
+        workspace_summary={"status": "orientation", "source_count": 3},
+        workspace_tools=all_tools,
+    )
+    await build_source_triage_set_agent(
+        None,  # type: ignore[arg-type]
+        run,
+        _CaptureRuntime(completion),
+        source_set_payload={"set": {"set_id": "set_1", "source_refs": ["S01", "S02"]}, "capsules": []},
+        set_tools=all_tools,
+    )
+    await build_source_triage_finalizer_agent(
+        None,  # type: ignore[arg-type]
+        run,
+        _CaptureRuntime(completion),
+        workspace_summary={"status": "mapped"},
+        source_map=SourceMap(),
+        finalizer_tools=all_tools,
+    )
+
+    assert set(_CaptureRuntime.calls["source_triage_planner_agent"]) == {
+        "list_source_capsules",
+        "upsert_triage_source_set",
+        "finalize_triage_workspace_plan",
+    }
+    set_agent_name = next(name for name in _CaptureRuntime.calls if name.startswith("source_triage_set_agent_"))
+    assert set(_CaptureRuntime.calls[set_agent_name]) == {
+        "search_corpus",
+        "read_evidence",
+        "read_source_window",
+        "skim_source",
+        "inspect_source",
+        "compare_source_evidence",
+        "upsert_source_card",
+        "create_quote_card",
+        "record_source_relationship",
+        "record_source_cluster",
+        "record_gap",
+        "record_triage_observation",
+        "finish_triage_source_set",
+    }
+    assert "list_sources" not in _CaptureRuntime.calls[set_agent_name]
+    assert "select_evidence" not in _CaptureRuntime.calls[set_agent_name]
+    assert set(_CaptureRuntime.calls["source_triage_finalizer_agent"]) == {
+        "record_gap",
+        "finalize_source_map",
+        "finish_triage_source_set",
+    }
+
+
+@pytest.mark.asyncio
+async def test_scoped_triage_set_rejects_global_search_without_provider_call() -> None:
+    toolset = EvidenceToolset(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),
+        run_view=None,  # type: ignore[arg-type]
+        provider_index=None,
+        triage_allowed_source_refs={"S01", "S02"},
+    )
+
+    result = await toolset.search_corpus_tool(
+        {
+            "query": "mechanism",
+            "purpose": "test",
+            "scope": "all_sources",
+            "source_refs": [],
+            "limit": 5,
+        }
+    )
+
+    assert result["accepted"] is False
+    assert result["error"] == "all_sources_search_not_allowed_in_current_triage_set"
+    assert result["results"] == []
+
+
+def test_source_triage_workflow_prompts_describe_stage_contracts() -> None:
+    assert "list_source_capsules" in SOURCE_TRIAGE_PLANNER_PROMPT
+    assert "search/read/skim tools create or return evidence_id handles" in SOURCE_TRIAGE_SET_PROMPT
+    assert "Assembled SourceMap from persisted write actions" in SOURCE_TRIAGE_FINALIZER_PROMPT
+    assert "list_sources" not in SOURCE_TRIAGE_PLANNER_PROMPT
+    assert "select_evidence" not in SOURCE_TRIAGE_SET_PROMPT
+
+
+def test_source_triage_unresolved_sets_are_blockers() -> None:
+    workspace = {
+        "source_sets": [
+            {"set_id": "done", "status": "mapped", "source_refs": ["S01"]},
+            {"set_id": "unfinished", "status": "needs_repair", "source_refs": ["S02"]},
+            {"set_id": "not_started", "status": "planned", "source_refs": ["S03"]},
+        ]
+    }
+
+    assert [item["set_id"] for item in unresolved_source_sets(workspace)] == ["unfinished", "not_started"]
+
+
+def test_create_repair_sets_from_gate_targets_invalid_evidence_and_ungrounded_items() -> None:
+    source_id_1 = str(uuid.uuid4())
+    source_id_2 = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    inventory = SourceMap(
+        source_cards=[
+            _source_card(source_id=source_id_1, title="A"),
+            _source_card(source_id=source_id_2, title="B"),
+        ]
+    )
+    source_map = SourceMap(
+        source_cards=[
+            _source_card(source_id=source_id_1, title="A").model_copy(update={"evidence_ids": [evidence_id]}),
+            _source_card(source_id=source_id_2, title="B"),
+        ],
+        source_triage=SourceTriageReport(
+            source_relationships=[
+                SourceRelationship(
+                    source_id=source_id_1,
+                    related_source_id=source_id_2,
+                    relationship="duplicate",
+                    evidence_ids=[],
+                )
+            ]
+        ),
+    )
+    gate = SourceTriageGate(
+        passed=False,
+        summary="Source triage gate failed.",
+        invalid_evidence_ids=[evidence_id],
+        ungrounded_relationships=[f"{source_id_1}:duplicate:{source_id_2}"],
+    )
+
+    workspace = create_repair_sets_from_gate(
+        {"source_order": ["S01", "S02"], "source_sets": []},
+        gate=gate,
+        inventory=inventory,
+        source_map=source_map,
+    )
+
+    repair_set = workspace["source_sets"][0]
+    assert repair_set["repair"] is True
+    assert set(repair_set["source_refs"]) == {"S01", "S02"}
+    assert any("invalid evidence" in question for question in repair_set["questions"])
+    assert any("ungrounded" in question for question in repair_set["questions"])
+
+
+@pytest.mark.asyncio
+async def test_record_triage_observation_rejects_evidence_outside_current_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    run = SimpleNamespace(id=uuid.uuid4())
+    workspace = {
+        "source_order": ["S01", "S02"],
+        "current_set": {"set_id": "set_1", "source_refs": ["S01"]},
+        "source_sets": [
+            {
+                "set_id": "set_1",
+                "source_refs": ["S01"],
+                "status": "in_progress",
+                "observations": [],
+                "evidence_ids": [],
+            }
+        ],
+    }
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, *, generation_run_id, workspace: dict, status=None):
+        return SimpleNamespace(id=uuid.uuid4(), payload=workspace)
+
+    class _FakeEvidenceToolset:
+        async def _evidence_in_run(self, _evidence_id: str):
+            return SimpleNamespace(source_id="source-outside-set")
+
+        async def _source_ref_for_id(self, _source_id: str):
+            return "S02"
+
+    monkeypatch.setattr(triage_workspace_module, "load_source_triage_workspace", _load)
+    monkeypatch.setattr(triage_workspace_module, "save_source_triage_workspace", _save)
+    tools = build_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(),
+        evidence_toolset=_FakeEvidenceToolset(),
+        mode="set",
+        current_set_id="set_1",
+    )
+    record_observation = next(tool for tool in tools if tool.name == "record_triage_observation")
+
+    result = await record_observation.handler(
+        {
+            "set_id": "set_1",
+            "source_refs": ["S01"],
+            "evidence_ids": [str(uuid.uuid4())],
+            "note": "Observation",
+            "pending_questions": [],
+        }
+    )
+
+    assert result["accepted"] is False
+    assert result["error"] == "observation evidence_ids must be observed evidence from the current source set"
+
+
+@pytest.mark.asyncio
+async def test_list_source_capsules_paginates_under_model_contract(monkeypatch: pytest.MonkeyPatch) -> None:
+    source_cards = [_source_card(source_id=str(uuid.uuid4()), title=f"Source {idx:02d}") for idx in range(36)]
+    inventory = SourceMap(source_cards=source_cards)
+    workspace = {
+        "source_order": [f"S{idx:02d}" for idx in range(1, 37)],
+        "source_capsules": {},
+        "source_sets": [],
+    }
+    run = SimpleNamespace(id=uuid.uuid4())
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, *, generation_run_id, workspace: dict, status=None):
+        return SimpleNamespace(id=uuid.uuid4(), payload=workspace)
+
+    class _FakeDb:
+        async def flush(self):
+            return None
+
+    class _FakeEvidenceToolset:
+        db = _FakeDb()
+
+        async def _resolve_source_version(self, **_kwargs):
+            return SimpleNamespace(id=uuid.uuid4(), content_hash="hash", updated_at=None, metadata_={})
+
+        async def _source_windows(self, _version, max_windows: int = 3):
+            text = " ".join(["representative source text"] * 80)
+            return [
+                {"locator_text": f"Section {idx}", "locator_type": "section", "snippet_text": text}
+                for idx in range(max_windows)
+            ]
+
+    monkeypatch.setattr(triage_workspace_module, "load_source_triage_workspace", _load)
+    monkeypatch.setattr(triage_workspace_module, "save_source_triage_workspace", _save)
+    tools = build_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=inventory,
+        evidence_toolset=_FakeEvidenceToolset(),
+        mode="planner",
+    )
+    list_capsules = next(tool for tool in tools if tool.name == "list_source_capsules")
+
+    result = await list_capsules.handler({"limit": 12, "cursor": ""})
+
+    assert result["accepted"] is True
+    assert result["source_count"] == 36
+    assert 1 <= result["returned_count"] <= 12
+    assert result["next_cursor"]
+    _model_facing_tool_output("list_source_capsules", result)
+    assert "_model_output_truncated" not in json.dumps(result)
 
 
 @pytest.mark.asyncio
@@ -3484,7 +3837,7 @@ async def test_support_judge_cannot_call_evidence_tools() -> None:
     )
     runtime = _FakeSupportJudgeRuntime(evidence_id=evidence_id)
     dummy_tool = AgentTool(
-        name="search_evidence",
+        name="search_corpus",
         description="Should not be exposed to support judge",
         parameters={"type": "object", "properties": {}},
         handler=None,  # type: ignore[arg-type]
@@ -4281,11 +4634,13 @@ async def test_openai_url_read_uses_responses_file_url(monkeypatch: pytest.Monke
         }
     )
     monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "generation_v2_corpus_prepare_model", "gpt-5.4-mini")
     monkeypatch.setattr(source_corpus_module, "get_openai_client", lambda: fake_client)
 
     result = await _call_openai_url_file_read("https://example.com/article.html")
 
     call = fake_client.responses.calls[0]
+    assert call["model"] == "gpt-5.4-mini"
     assert call["input"][0]["content"][1] == {
         "type": "input_file",
         "file_url": "https://example.com/article.html",
@@ -4293,6 +4648,7 @@ async def test_openai_url_read_uses_responses_file_url(monkeypatch: pytest.Monke
     assert call["text"]["format"]["name"] == "OpenAIUrlReadResult"
     assert result["read_status"] == "readable"
     assert result["_response_id"] == "resp_model_read"
+    assert result["_requested_model"] == "gpt-5.4-mini"
 
 
 def test_filename_from_url_keeps_provider_upload_name() -> None:
@@ -4510,18 +4866,16 @@ def _all_evidence_tools() -> list[AgentTool]:
         )
         for name in (
             "list_sources",
-            "list_source_versions",
             "search_sources",
-            "search_evidence",
+            "search_corpus",
             "find_quotes",
             "read_evidence",
-            "read_source",
             "read_source_window",
             "read_source_with_model",
             "skim_source",
             "inspect_source",
             "search_within_source",
-            "compare_sources",
+            "compare_source_evidence",
             "select_evidence",
             "upsert_source_card",
             "create_quote_card",
@@ -4529,6 +4883,27 @@ def _all_evidence_tools() -> list[AgentTool]:
             "record_source_cluster",
             "record_gap",
             "finalize_source_map",
+        )
+    ]
+
+
+def _workspace_triage_tools() -> list[AgentTool]:
+    async def _handler(_args):
+        return {}
+
+    return [
+        AgentTool(
+            name=name,
+            description=name,
+            parameters={"type": "object", "properties": {}},
+            handler=_handler,
+        )
+        for name in (
+            "list_source_capsules",
+            "upsert_triage_source_set",
+            "finalize_triage_workspace_plan",
+            "record_triage_observation",
+            "finish_triage_source_set",
         )
     ]
 
@@ -4684,7 +5059,7 @@ async def test_source_acquisition_agent_uses_web_search_and_acquisition_tools_on
         AgentTool(name="ingest_source_candidate", description="", parameters={"type": "object", "properties": {}}, handler=_handler),
         AgentTool(name="reject_source_candidate", description="", parameters={"type": "object", "properties": {}}, handler=_handler),
         AgentTool(name="finalize_source_acquisition_round", description="", parameters={"type": "object", "properties": {}}, handler=_handler),
-        AgentTool(name="search_evidence", description="", parameters={"type": "object", "properties": {}}, handler=_handler),
+        AgentTool(name="search_corpus", description="", parameters={"type": "object", "properties": {}}, handler=_handler),
     ]
 
     await build_source_acquisition_agent(

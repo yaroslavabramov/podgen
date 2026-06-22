@@ -39,7 +39,7 @@ Claim schema rules:
 - support_level=supported only when saved evidence directly supports the text_span; weak when relevant but incomplete; unsupported when no saved evidence supports it.
 
 CitationLink rules:
-- If compact evidence is insufficient, use hosted file_search or search_evidence with a targeted query. When a promising uploaded file is found, call read_source_with_model before creating a CitationLink. Select the evidence before linking it. If the result has coverage_warning, reflect that risk in confidence/support_level instead of pretending it was direct high-confidence support.
+- If compact evidence is insufficient, use hosted file_search or search_corpus with a targeted query. When a promising uploaded file is found, call read_source_with_model before creating a CitationLink. Select the evidence before linking it. If the result has coverage_warning, reflect that risk in confidence/support_level instead of pretending it was direct high-confidence support.
 - Copy evidence_id, source_id, source_version_id, locator from the saved evidence record. locator must be the evidence locator_text.
 - supports_span must quote or closely paraphrase the saved snippet_text that supports the claim.
 - confidence must reflect how directly the saved snippet supports the claim; broad previews or coverage warnings are not valid high-confidence support for required factual claims.

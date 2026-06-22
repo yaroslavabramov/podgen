@@ -20,8 +20,11 @@ from app.generation_v2.prompting import (
     RESEARCH_SYSTEM,
     SOURCE_ACQUISITION_PROMPT,
     SOURCE_ACQUISITION_SYSTEM,
+    SOURCE_TRIAGE_FINALIZER_PROMPT,
+    SOURCE_TRIAGE_PLANNER_PROMPT,
     SOURCE_TRIAGE_PROMPT,
     SOURCE_TRIAGE_REPAIR_PROMPT,
+    SOURCE_TRIAGE_SET_PROMPT,
     SOURCE_TRIAGE_SYSTEM,
     SUPPORT_JUDGMENT_PROMPT,
     SUPPORT_JUDGE_SYSTEM,
@@ -66,38 +69,63 @@ from app.models.generation_run import GenerationRun
 
 TRIAGE_TOOL_NAMES = {
     "list_sources",
-    "search_evidence",
+    "search_corpus",
     "read_evidence",
-    "read_source",
+    "read_source_window",
     "skim_source",
     "inspect_source",
-    "compare_sources",
+    "compare_source_evidence",
     "upsert_source_card",
+    "create_quote_card",
     "record_source_relationship",
     "record_source_cluster",
     "record_gap",
     "finalize_source_map",
 }
+TRIAGE_PLANNER_TOOL_NAMES = {
+    "list_source_capsules",
+    "upsert_triage_source_set",
+    "finalize_triage_workspace_plan",
+}
+TRIAGE_SET_TOOL_NAMES = {
+    "search_corpus",
+    "read_evidence",
+    "read_source_window",
+    "skim_source",
+    "inspect_source",
+    "compare_source_evidence",
+    "upsert_source_card",
+    "create_quote_card",
+    "record_source_relationship",
+    "record_source_cluster",
+    "record_gap",
+    "record_triage_observation",
+    "finish_triage_source_set",
+}
+TRIAGE_FINALIZER_TOOL_NAMES = {
+    "record_gap",
+    "finalize_source_map",
+    "finish_triage_source_set",
+}
 RESEARCH_TOOL_NAMES = {
     "list_sources",
-    "list_source_versions",
     "search_sources",
-    "search_evidence",
+    "search_corpus",
     "find_quotes",
     "read_evidence",
     "read_source_window",
     "read_source_with_model",
     "search_within_source",
-    "compare_sources",
+    "compare_source_evidence",
     "select_evidence",
 }
-AUDIT_TOOL_NAMES = {"search_evidence", "read_evidence"}
+AUDIT_TOOL_NAMES = {"search_corpus", "read_evidence"}
 TREATMENT_TOOL_NAMES = {"read_evidence", "read_source_window", "search_within_source"}
 WRITER_TOOL_NAMES = {"read_evidence", "read_source_window", "search_within_source"}
-CRITIC_TOOL_NAMES = {"search_evidence", "read_evidence"}
+CRITIC_TOOL_NAMES = {"search_corpus", "read_evidence"}
 REWRITER_TOOL_NAMES = {"read_evidence", "read_source_window", "search_within_source"}
 CITATION_TOOL_NAMES = {
-    "search_evidence",
+    "search_corpus",
     "read_evidence",
     "find_quotes",
     "read_source_window",
@@ -135,8 +163,6 @@ def _source_inventory(
             "domain": card.domain,
             "published_at": card.published_at,
             "length_hint": card.length_hint,
-            "authority": card.authority,
-            "reliability": card.reliability,
             "coverage_status": card.coverage_status,
             "version_count": len(card.source_version_ids or card.representation_ids or []),
             "ready_version_count": card.ready_representation_count,
@@ -149,6 +175,24 @@ def _source_inventory(
         }
         for card in source_cards[:limit]
     ]
+
+
+def _count_by(source_cards: list[SourceCard], attr: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for card in source_cards:
+        value = str(getattr(card, attr, None) or "unknown").lower()
+        counts[value] = counts.get(value, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _source_inventory_summary(source_cards: list[SourceCard]) -> dict:
+    return {
+        "total_sources": len(source_cards),
+        "list_sources_page_size": 25,
+        "source_type_counts": _count_by(source_cards, "source_type"),
+        "coverage_status_counts": _count_by(source_cards, "coverage_status"),
+        "instruction": "Call list_sources with limit=25 and cursor='' to see source_ref handles and compact source metadata. Continue from next_cursor until it is empty.",
+    }
 
 
 def _quote_inventory(
@@ -191,8 +235,6 @@ def _triage_inventory(
                 "source_ref": source_ref_for_id(item.source_id, ref_context) if ref_context else "S??",
                 "rank": item.rank,
                 "score": item.score,
-                "authority": item.authority,
-                "reliability": item.reliability,
                 "useful_for": item.useful_for[:8],
                 "evidence_ids": item.evidence_ids[:8],
                 "top_quote_refs": item.top_quote_refs[:8],
@@ -317,6 +359,123 @@ def _quote_matches_requirements(quote: QuoteCard, refs: set[str]) -> bool:
     )
 
 
+async def build_source_triage_planner_agent(
+    db: AsyncSession,
+    run: GenerationRun,
+    runtime: V2Runtime,
+    *,
+    workspace_summary: dict,
+    workspace_tools: list[AgentTool] | None = None,
+) -> SourceTriageCompletion:
+    prompt = SOURCE_TRIAGE_PLANNER_PROMPT.format(
+        user_prompt=(run.config or {}).get("user_prompt", ""),
+        workspace_json=_json(workspace_summary),
+    )
+    agent_name = "source_triage_planner_agent"
+    try:
+        return await runtime.call_structured(
+            db=db,
+            generation_run_id=run.id,
+            phase="v2_source_triage",
+            agent_name=agent_name,
+            schema_model=SourceTriageCompletion,
+            system=SOURCE_TRIAGE_SYSTEM,
+            prompt=prompt,
+            vector_store_id=None,
+            local_tools=_phase_tools(workspace_tools, TRIAGE_PLANNER_TOOL_NAMES),
+            tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
+            max_output_tokens=6000,
+            max_tool_rounds=settings.generation_v2_triage_max_tool_rounds or 80,
+        )
+    except V2RuntimeUnavailable as exc:
+        _allow_runtime_fallback(runtime, "v2_source_triage", agent_name, exc)
+        return SourceTriageCompletion(
+            ready=False,
+            summary="Runtime fallback was used; source triage planning did not run.",
+            notes=[],
+        )
+
+
+async def build_source_triage_set_agent(
+    db: AsyncSession,
+    run: GenerationRun,
+    runtime: V2Runtime,
+    *,
+    source_set_payload: dict,
+    set_tools: list[AgentTool] | None = None,
+    vector_store_id: str | None = None,
+    hosted_file_search_handler=None,
+) -> SourceTriageCompletion:
+    prompt = SOURCE_TRIAGE_SET_PROMPT.format(
+        user_prompt=(run.config or {}).get("user_prompt", ""),
+        source_set_json=_json(source_set_payload),
+    )
+    set_id = ((source_set_payload or {}).get("set") or {}).get("set_id") or "unknown"
+    agent_name = f"source_triage_set_agent_{str(set_id)[:48]}"
+    try:
+        return await runtime.call_structured(
+            db=db,
+            generation_run_id=run.id,
+            phase="v2_source_triage",
+            agent_name=agent_name,
+            schema_model=SourceTriageCompletion,
+            system=SOURCE_TRIAGE_SYSTEM,
+            prompt=prompt,
+            vector_store_id=vector_store_id,
+            local_tools=_phase_tools(set_tools, TRIAGE_SET_TOOL_NAMES),
+            tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
+            hosted_file_search_handler=hosted_file_search_handler,
+            max_output_tokens=8000,
+            max_tool_rounds=settings.generation_v2_triage_max_tool_rounds or 120,
+        )
+    except V2RuntimeUnavailable as exc:
+        _allow_runtime_fallback(runtime, "v2_source_triage", agent_name, exc)
+        return SourceTriageCompletion(
+            ready=False,
+            summary=f"Runtime fallback was used; source set {set_id} was not mapped.",
+            notes=[],
+        )
+
+
+async def build_source_triage_finalizer_agent(
+    db: AsyncSession,
+    run: GenerationRun,
+    runtime: V2Runtime,
+    *,
+    workspace_summary: dict,
+    source_map: SourceMap,
+    finalizer_tools: list[AgentTool] | None = None,
+) -> SourceTriageCompletion:
+    prompt = SOURCE_TRIAGE_FINALIZER_PROMPT.format(
+        user_prompt=(run.config or {}).get("user_prompt", ""),
+        workspace_json=_json(workspace_summary),
+        source_map_json=_json(source_map.model_dump(mode="json")),
+    )
+    agent_name = "source_triage_finalizer_agent"
+    try:
+        return await runtime.call_structured(
+            db=db,
+            generation_run_id=run.id,
+            phase="v2_source_triage",
+            agent_name=agent_name,
+            schema_model=SourceTriageCompletion,
+            system=SOURCE_TRIAGE_SYSTEM,
+            prompt=prompt,
+            vector_store_id=None,
+            local_tools=_phase_tools(finalizer_tools, TRIAGE_FINALIZER_TOOL_NAMES),
+            tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
+            max_output_tokens=6000,
+            max_tool_rounds=24,
+        )
+    except V2RuntimeUnavailable as exc:
+        _allow_runtime_fallback(runtime, "v2_source_triage", agent_name, exc)
+        return SourceTriageCompletion(
+            ready=False,
+            summary="Runtime fallback was used; source triage finalizer did not run.",
+            notes=[],
+        )
+
+
 async def build_source_triage_agent(
     db: AsyncSession,
     run: GenerationRun,
@@ -329,10 +488,7 @@ async def build_source_triage_agent(
     repair_context: dict | None = None,
 ) -> SourceTriageCompletion:
     user_prompt = (run.config or {}).get("user_prompt", "")
-    source_ref_context = _source_ref_context(source_inventory.source_cards)
-    source_inventory_json = _json(
-        _source_inventory(source_inventory.source_cards, limit=160, ref_context=source_ref_context)
-    )
+    source_inventory_json = _json(_source_inventory_summary(source_inventory.source_cards))
     if repair_context:
         prompt = SOURCE_TRIAGE_REPAIR_PROMPT.format(
             user_prompt=user_prompt,

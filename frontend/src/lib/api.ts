@@ -159,6 +159,8 @@ export interface V2ToolTrace {
   input_tokens: number | null;
   output_tokens: number | null;
   cost_usd: number | null;
+  cost_basis: string | null;
+  cost_warning: string | null;
   created_at: string | null;
 }
 

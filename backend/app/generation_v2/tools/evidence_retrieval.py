@@ -46,11 +46,17 @@ from app.generation_v2.tools.evidence_utils import (
     _version_can_back_local_window,
     _window_for_locator,
 )
-from app.services.llm import _openai_estimated_cost_usd, _openai_usage, get_openai_client
+from app.services.llm import (
+    _generation_v2_model_read_model,
+    _openai_response_model,
+    _openai_token_cost_payload,
+    _openai_usage,
+    get_openai_client,
+)
 
 
 class EvidenceRetrievalMixin:
-    async def search_evidence(
+    async def search_corpus(
         self,
         *,
         query: str,
@@ -72,7 +78,7 @@ class EvidenceRetrievalMixin:
                 generation_run_id=self.run.id,
                 phase="v2_corpus_evidence",
                 agent_name="corpus_evidence_api",
-                tool_name="search_evidence",
+                tool_name="search_corpus",
                 input_json={"query": query, "purpose": purpose, "source_ids": source_ids, "limit": limit, "cache_key": cache_key},
                 output_json={
                     "cache_hit": True,
@@ -108,7 +114,7 @@ class EvidenceRetrievalMixin:
             generation_run_id=self.run.id,
             phase="v2_corpus_evidence",
             agent_name="corpus_evidence_api",
-            tool_name="search_evidence",
+            tool_name="search_corpus",
             input_json={"query": query, "purpose": purpose, "source_ids": source_ids, "limit": limit, "cache_key": cache_key},
             output_json={"cache_hit": False, "evidence_ids": [item["evidence_id"] for item in payloads], "result_count": len(payloads)},
         )
@@ -435,8 +441,15 @@ class EvidenceRetrievalMixin:
             source_version_id = await self._source_version_id_from_ref(version_ref) or ""
         if source_ref and not source_id:
             source_id = await self._source_id_from_ref_or_id(source_ref) or ""
+        scope_error = await self._triage_scope_error_for_source_ids([source_id] if source_id else [])
+        if scope_error:
+            return None
         if source_version_id and _uuid_or_none(source_version_id):
             version = await self.db.get(SourceVersion, uuid.UUID(source_version_id))
+            if version is not None:
+                scope_error = await self._triage_scope_error_for_source_ids([str(version.source_id)])
+                if scope_error:
+                    return None
             if version and str(version.id) in selected_version_ids and str(version.source_id) in selected_source_ids:
                 return version
             return None
@@ -610,6 +623,7 @@ class EvidenceRetrievalMixin:
         locator_hint: str,
         error: str,
     ) -> None:
+        requested_model = _generation_v2_model_read_model()
         await save_tool_trace(
             self.db,
             generation_run_id=self.run.id,
@@ -624,8 +638,9 @@ class EvidenceRetrievalMixin:
                 "focus_question": focus_question,
                 "claim_text": claim_text,
                 "locator_hint": locator_hint,
+                "requested_model": requested_model,
             },
-            output_json={"error": error},
+            output_json={"error": error, "requested_model": requested_model},
         )
 
     async def _model_read_provider_file(
@@ -641,6 +656,7 @@ class EvidenceRetrievalMixin:
         if not provider_file.provider_file_id:
             raise RuntimeError("Provider file id is missing")
         client = get_openai_client()
+        requested_model = _generation_v2_model_read_model()
         input_file_id = await self._ensure_model_read_file_id(provider_file, version)
         prompt = _model_file_read_prompt(
             focus_question=focus_question,
@@ -667,7 +683,7 @@ class EvidenceRetrievalMixin:
             },
             metadata={
                 "provider": "openai",
-                "model": settings.generation_v2_openai_model,
+                "model": requested_model,
                 "phase": "v2_corpus_evidence",
                 "agent_name": "corpus_evidence_api",
             },
@@ -675,7 +691,7 @@ class EvidenceRetrievalMixin:
         ) as run_tree:
             try:
                 response = await client.responses.create(
-                    model=settings.generation_v2_openai_model,
+                    model=requested_model,
                     instructions=instructions,
                     input=[
                         {
@@ -711,6 +727,7 @@ class EvidenceRetrievalMixin:
                         "instructions": instructions,
                         "prompt": prompt,
                         "schema": _MODEL_FILE_READ_SCHEMA,
+                        "requested_model": requested_model,
                         "error": str(exc),
                     },
                 )
@@ -720,15 +737,20 @@ class EvidenceRetrievalMixin:
         read_result = _parse_model_file_read_result(output_text)
         read_result["_model_read_file_id"] = input_file_id
         usage = _openai_usage(response)
-        estimated_cost_usd = _openai_estimated_cost_usd(settings.generation_v2_openai_model, usage)
+        response_model = _openai_response_model(response)
+        billing_model = response_model or requested_model
+        token_cost_payload = _openai_token_cost_payload(billing_model, usage)
+        estimated_token_cost_usd = token_cost_payload["estimated_token_cost_usd"]
         safe_set_run(
             run_tree,
             outputs={
                 "response_id": getattr(response, "id", None),
+                "requested_model": requested_model,
+                "response_model": response_model,
                 "output_text_chars": len(output_text),
                 "supports_query": read_result.get("supports_query"),
                 "support_level": read_result.get("support_level"),
-                "estimated_cost_usd": estimated_cost_usd,
+                **token_cost_payload,
                 **usage,
             },
         )
@@ -749,8 +771,11 @@ class EvidenceRetrievalMixin:
                 "raw_output": output_text,
                 "parsed": read_result,
                 "response_id": getattr(response, "id", None),
+                "requested_model": requested_model,
+                "response_model": response_model,
+                "billing_model": billing_model,
                 "usage": usage,
-                "estimated_cost_usd": estimated_cost_usd,
+                **token_cost_payload,
             },
         )
         await save_tool_trace(
@@ -769,19 +794,23 @@ class EvidenceRetrievalMixin:
                 "focus_question": focus_question,
                 "claim_text": claim_text,
                 "locator_hint": locator_hint,
+                "requested_model": requested_model,
             },
             output_json={
                 "response_id": getattr(response, "id", None),
+                "requested_model": requested_model,
+                "response_model": response_model,
+                "billing_model": billing_model,
                 "supports_query": read_result.get("supports_query"),
                 "support_level": read_result.get("support_level"),
                 "confidence": read_result.get("confidence"),
-                "estimated_cost_usd": estimated_cost_usd,
+                **token_cost_payload,
                 **usage,
             },
             provider_call_id=getattr(response, "id", None),
             input_tokens=usage.get("input_tokens") or usage.get("prompt_tokens"),
             output_tokens=usage.get("output_tokens") or usage.get("completion_tokens"),
-            cost_usd=estimated_cost_usd,
+            cost_usd=estimated_token_cost_usd,
         )
         return read_result, getattr(response, "id", None)
 
@@ -819,7 +848,7 @@ class EvidenceRetrievalMixin:
 
 def _search_cache_key(run_view: Any, *, query: str, source_ids: list[str], limit: int) -> str:
     payload = {
-        "type": "search_evidence",
+        "type": "search_corpus",
         "query": _cache_text(query),
         "source_ids": sorted(str(item) for item in (source_ids or getattr(run_view, "selected_source_ids", []) or [])),
         "limit": int(limit),

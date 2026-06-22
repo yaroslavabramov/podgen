@@ -116,5 +116,5 @@ Draft:
 
 Read as a complete episode, not as independent acts.
 Check repetition, pacing, weak sections, unsupported leaps, missing payoffs, flat transitions, forbidden phrases, and host dynamic drift.
-Use read_evidence for suspicious leaps tied to existing evidence ids. Use search_evidence only to check whether a weak passage appears repairable from the selected corpus; do not introduce new facts or new story angles in critique.
+Use read_evidence for suspicious leaps tied to existing evidence ids. Use search_corpus only to check whether a weak passage appears repairable from the selected corpus; do not introduce new facts or new story angles in critique.
 If the draft should be rewritten before citation finalization, set passed=false and provide concrete rewrite_instructions."""

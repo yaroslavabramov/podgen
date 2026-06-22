@@ -239,10 +239,9 @@ async def build_source_map_from_write_actions(
 
     for evidence_id, evidence in selected_evidence_by_id.items():
         source_id = str(evidence.source_id)
-        base = inventory_by_source.get(source_id)
-        if base is None:
+        card = source_cards_by_id.get(source_id)
+        if card is None:
             continue
-        card = source_cards_by_id.get(source_id) or base.model_copy(deep=True)
         if evidence_id not in card.evidence_ids:
             card.evidence_ids.append(evidence_id)
         if not card.useful_for:
@@ -356,8 +355,6 @@ async def validate_source_map_gate(
     if not source_map.source_triage.top_evidence_by_function:
         missing_function_evidence.append("top_evidence_by_function")
     warnings = []
-    if not source_map.quote_cards:
-        warnings.append("Triage produced no quote cards.")
     if not source_map.retrieval_notes:
         warnings.append("Triage produced no retrieval notes.")
     requires_tool_call = len(selected_source_ids) > 1
@@ -376,8 +373,6 @@ async def validate_source_map_gate(
         invalid_evidence_ids=set(invalid_evidence_ids),
     )
     missing_model_read_source_ids = _missing_model_read_sources(source_map, evidence_by_id, selected_evidence_ids)
-    if missing_model_read_source_ids:
-        warnings.append("Some PDF/document source cards lack direct model_file_read evidence.")
     if missing_function_evidence:
         warnings.append("Some triage function seed evidence is missing or incomplete.")
     unpersisted_completion_gap_notes = _unpersisted_completion_gap_notes(triage_completion, source_map)
@@ -411,8 +406,6 @@ async def validate_source_map_gate(
         summary += " No valid persisted evidence ids were referenced."
     if missing_source_card_evidence_source_ids:
         summary += " Every SourceCard must contain at least one selected evidence id."
-    if missing_model_read_source_ids:
-        summary += " Some PDF/document SourceCards lack selected direct model_file_read evidence; treating as a coverage warning."
     if missing_source_card_write_source_ids:
         summary += " Source cards must come from accepted upsert_source_card write actions."
     if unpersisted_completion_gap_notes:
@@ -465,8 +458,6 @@ async def _source_summaries(
             "source_ref": source_ref_for_id(str(source.id), source_ref_context),
             "title": source.title or source.original_url or source.file_path or "Untitled source",
             "source_type": source.source_type,
-            "authority": source.authority_type,
-            "reliability": source.domain_reliability,
             "matched_evidence_count": len(evidence_by_source.get(str(source.id), [])),
             "evidence_ids": [
                 str(item.get("evidence_id") or item.get("id") or "")
@@ -584,7 +575,7 @@ def _missing_model_read_sources(
 ) -> list[str]:
     missing: list[str] = []
     for card in source_map.source_cards:
-        if not _source_card_needs_model_read(card):
+        if not _source_card_requires_direct_read_diagnostic(card):
             continue
         source_top_evidence_ids = {
             evidence_id
@@ -676,7 +667,7 @@ def _looks_like_gap_note(note: str) -> bool:
     return any(marker in lowered for marker in _GAP_NOTE_MARKERS)
 
 
-def _source_card_needs_model_read(card: SourceCard) -> bool:
+def _source_card_requires_direct_read_diagnostic(card: SourceCard) -> bool:
     source_type = str(card.source_type or "").lower()
     if source_type == "pdf":
         return True

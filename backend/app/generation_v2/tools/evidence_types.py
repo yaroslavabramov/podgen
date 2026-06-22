@@ -9,12 +9,14 @@ _CHUNK_BACKED_VERSION_KINDS = (
 )
 _TRIAGE_READING_TOOL_NAMES = {
     "list_sources",
-    "search_evidence",
+    "search_corpus",
     "read_evidence",
-    "read_source",
+    "read_source_window",
     "skim_source",
     "inspect_source",
+    "compare_source_evidence",
     "upsert_source_card",
+    "create_quote_card",
     "record_source_relationship",
     "record_source_cluster",
     "record_gap",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import itertools
 import inspect
 import json
 import logging
@@ -20,7 +21,14 @@ from app.generation_v2.artifacts import save_tool_trace
 from app.generation_v2.debug_dump import dump_v2_debug
 from app.models.generation_v2 import EvidenceItem, RunCorpusView, V2ToolTrace
 from app.observability import safe_set_run, trace_span
-from app.services.llm import _openai_estimated_cost_usd, _openai_usage, get_openai_client
+from app.services.llm import (
+    _generation_v2_default_model,
+    _generation_v2_model_for_agent,
+    _openai_response_model,
+    _openai_token_cost_payload,
+    _openai_usage,
+    get_openai_client,
+)
 from app.pipeline.step_control import assert_step_not_stopped
 
 logger = logging.getLogger(__name__)
@@ -60,6 +68,16 @@ class AgentCheckpointPolicy:
     max_chain_model_tool_output_chars: int = 80_000
 
 
+def _tool_round_limit(max_tool_rounds: int | None) -> int | None:
+    configured = max_tool_rounds if max_tool_rounds is not None else settings.generation_v2_max_tool_rounds
+    if configured is None:
+        return None
+    configured_int = int(configured)
+    if configured_int <= 0:
+        return None
+    return max(1, configured_int)
+
+
 _MODEL_TOOL_OUTPUT_MAX_CHARS = 12000
 _MODEL_FACING_CONTRACT_VERSION = "v2.tool-output-contract.1"
 _CHECKPOINT_STRING_MAX_CHARS = 2200
@@ -95,10 +113,14 @@ class V2Runtime:
     """OpenAI-first structured runtime with hosted and local tools."""
 
     def __init__(self) -> None:
-        self.model = settings.generation_v2_openai_model
+        self.default_model = _generation_v2_default_model()
+        self.model = self.default_model
         self.reasoning_effort = settings.generation_v2_openai_reasoning_effort
         self._prompt_hashes: dict[tuple[str, str], str] = {}
         self._fallback_agents: set[tuple[str, str]] = set()
+
+    def model_for(self, phase: str, agent_name: str) -> str:
+        return _generation_v2_model_for_agent(phase, agent_name, default_model=self.default_model)
 
     def prompt_hash_for(self, phase: str, agent_name: str) -> str | None:
         return self._prompt_hashes.get((phase, agent_name))
@@ -138,6 +160,7 @@ class V2Runtime:
         self._prompt_hashes[(phase, agent_name)] = prompt_hash
         if not settings.openai_api_key:
             raise V2RuntimeUnavailable("OPENAI_API_KEY is not configured")
+        requested_model = self.model_for(phase, agent_name)
 
         client = get_openai_client()
         policy = tool_policy or ToolPolicy(web_search=settings.generation_v2_enable_web_search)
@@ -152,8 +175,10 @@ class V2Runtime:
         chain_model_tool_output_chars = 0
         chain_id = _chain_id(phase, agent_name, prompt_hash, checkpoint_index)
 
-        tool_round_limit = max(1, max_tool_rounds or settings.generation_v2_max_tool_rounds)
-        for round_idx in range(tool_round_limit):
+        tool_round_limit = _tool_round_limit(max_tool_rounds)
+        for round_idx in itertools.count():
+            if tool_round_limit is not None and round_idx >= tool_round_limit:
+                break
             await assert_step_not_stopped()
             chain_round += 1
             started = time.perf_counter()
@@ -168,7 +193,7 @@ class V2Runtime:
                 },
                 metadata={
                     "provider": "openai",
-                    "model": self.model,
+                    "model": requested_model,
                     "phase": phase,
                     "agent_name": agent_name,
                     "reasoning_effort": self.reasoning_effort,
@@ -178,7 +203,7 @@ class V2Runtime:
             ) as run_tree:
                 try:
                     response = await client.responses.create(
-                        model=self.model,
+                        model=requested_model,
                         instructions=system,
                         input=input_payload,
                         previous_response_id=previous_response_id or openai.NOT_GIVEN,
@@ -219,6 +244,7 @@ class V2Runtime:
                             "chain_id": chain_id,
                             "checkpoint_index": checkpoint_index,
                             "chain_round": chain_round,
+                            "requested_model": requested_model,
                             "error": str(exc),
                         },
                     )
@@ -226,7 +252,10 @@ class V2Runtime:
                     raise
             latency_ms = (time.perf_counter() - started) * 1000
             usage = _openai_usage(response)
-            estimated_cost_usd = _openai_estimated_cost_usd(self.model, usage)
+            response_model = _openai_response_model(response)
+            billing_model = response_model or requested_model
+            token_cost_payload = _openai_token_cost_payload(billing_model, usage)
+            estimated_token_cost_usd = token_cost_payload["estimated_token_cost_usd"]
             file_search_calls = _file_search_calls(response)
             web_search_calls = _web_search_calls(response)
             function_calls = _function_calls(response)
@@ -264,7 +293,9 @@ class V2Runtime:
                     "output_text_chars": len(response.output_text or ""),
                     "file_search_call_count": len(file_search_calls),
                     "web_search_call_count": len(web_search_calls),
-                    "estimated_cost_usd": estimated_cost_usd,
+                    **token_cost_payload,
+                    "requested_model": requested_model,
+                    "response_model": response_model,
                     **usage,
                 },
             )
@@ -285,9 +316,13 @@ class V2Runtime:
                     "checkpoint_index": checkpoint_index,
                     "chain_round": chain_round,
                     "has_previous_response_id": bool(previous_response_id),
+                    "requested_model": requested_model,
                 },
                 output_json={
                     "response_id": response.id,
+                    "requested_model": requested_model,
+                    "response_model": response_model,
+                    "billing_model": billing_model,
                     "status": getattr(response, "status", None),
                     "output_text_chars": len(response.output_text or ""),
                     "file_search_call_count": len(file_search_calls),
@@ -297,14 +332,14 @@ class V2Runtime:
                     "chain_id": chain_id,
                     "checkpoint_index": checkpoint_index,
                     "chain_round": chain_round,
-                    "estimated_cost_usd": estimated_cost_usd,
+                    **token_cost_payload,
                     **usage,
                 },
                 provider_call_id=response.id,
                 latency_ms=latency_ms,
                 input_tokens=usage.get("input_tokens") or usage.get("prompt_tokens"),
                 output_tokens=usage.get("output_tokens") or usage.get("completion_tokens"),
-                cost_usd=estimated_cost_usd,
+                cost_usd=estimated_token_cost_usd,
             )
             await _commit_runtime_side_effects(db)
             hosted_summary: dict[str, Any] | None = None
@@ -969,7 +1004,16 @@ async def _build_agent_checkpoint_state(
                     V2ToolTrace.generation_run_id == generation_run_id,
                     V2ToolTrace.phase == phase,
                     V2ToolTrace.agent_name == agent_name,
-                    V2ToolTrace.tool_name.in_(("skim_source", "read_source", "inspect_source", "compare_sources", "search_evidence", "read_evidence")),
+                    V2ToolTrace.tool_name.in_(
+                        (
+                            "skim_source",
+                            "read_source_window",
+                            "inspect_source",
+                            "compare_source_evidence",
+                            "search_corpus",
+                            "read_evidence",
+                        )
+                    ),
                 )
                 .order_by(V2ToolTrace.created_at.asc())
             )
@@ -986,7 +1030,7 @@ async def _build_agent_checkpoint_state(
                     values = input_json.get(key) or output_json.get(key) or []
                     if isinstance(values, list):
                         refs.extend(str(value) for value in values if value)
-                if trace.tool_name == "compare_sources":
+                if trace.tool_name == "compare_source_evidence":
                     for comparison in output_json.get("comparisons") or []:
                         value = comparison.get("source_ref") if isinstance(comparison, dict) else None
                         if isinstance(value, str) and value:
@@ -1043,8 +1087,6 @@ def _checkpoint_source_inventory(
                 "title": _checkpoint_trim(getattr(card, "title", ""), 140),
                 "source_type": getattr(card, "source_type", None),
                 "domain": getattr(card, "domain", None),
-                "authority": getattr(card, "authority", None),
-                "reliability": getattr(card, "reliability", None),
                 "coverage_status": getattr(card, "coverage_status", None),
                 "brief_hint": _checkpoint_trim(getattr(card, "summary", ""), 160),
             }
@@ -1192,7 +1234,7 @@ def _hosted_evidence_followup_input(
     content = (
         "Hosted file_search results were persisted as observed EvidenceItem records. "
         "Treat these as discovery previews. Use evidence_id with select_evidence only after reading enough detail for the source-card, quote, relationship, or claim. "
-        "For important PDFs/documents or citation-sensitive claims, call read_source_with_model with the source_ref/version_ref from list_sources/list_source_versions before relying on the preview. "
+        "For important PDFs/documents or citation-sensitive claims, call read_source_with_model with the source_ref and an empty version_ref before relying on the preview. "
         "Use source_ref only to choose or relate sources; evidence_id is the handle for evidence selection.\n"
         + json.dumps({"observed_evidence": new_items}, ensure_ascii=False)
     )
@@ -1226,18 +1268,16 @@ def _model_facing_tool_output(tool_name: str, output: dict[str, Any]) -> dict[st
 def _tool_model_facing_schema(tool_name: str) -> str:
     return {
         "list_sources": "source_inventory_page",
-        "list_source_versions": "source_versions",
-        "search_evidence": "evidence_preview_results",
+        "search_corpus": "evidence_preview_results",
         "search_sources": "source_search_summary",
         "find_quotes": "evidence_preview_results",
         "read_evidence": "evidence_read",
-        "read_source": "evidence_read",
         "read_source_window": "evidence_read",
         "read_source_with_model": "model_read_evidence_read",
         "skim_source": "source_skim_windows",
         "inspect_source": "source_outline",
         "search_within_source": "evidence_preview_results",
-        "compare_sources": "source_comparison_evidence",
+        "compare_source_evidence": "source_comparison_evidence",
         "select_evidence": "write_ack",
         "upsert_source_card": "write_ack",
         "create_quote_card": "write_ack",
@@ -1448,6 +1488,7 @@ def _runtime_debug_payload(
         "input_payload": input_payload,
         "response": {
             "id": getattr(response, "id", None),
+            "model": _openai_response_model(response),
             "status": getattr(response, "status", None),
             "output_text": getattr(response, "output_text", "") or "",
         },

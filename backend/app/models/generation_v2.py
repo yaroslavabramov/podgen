@@ -72,6 +72,7 @@ class V2ArtifactType(StrEnum):
     QUOTE_CARD = "quote_card"
     SOURCE_MAP = "source_map"
     SOURCE_TRIAGE = "source_triage"
+    SOURCE_TRIAGE_WORKSPACE = "source_triage_workspace"
     CORPUS_GAP_REPORT = "corpus_gap_report"
     SOURCE_ACQUISITION_CANDIDATE = "source_acquisition_candidate"
     SOURCE_ACQUISITION_ROUND = "source_acquisition_round"

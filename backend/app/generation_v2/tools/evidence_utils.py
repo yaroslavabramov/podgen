@@ -575,10 +575,6 @@ def _neutral_preview(source: Source, versions: list[SourceVersion]) -> str:
 
 def _inventory_cautions(source: Source, versions: list[SourceVersion], provider_statuses: list[str]) -> list[str]:
     cautions: list[str] = []
-    if source.domain_reliability in {"low", "unknown"}:
-        cautions.append(f"Reliability hint is {source.domain_reliability}.")
-    if source.authority_type == "unknown":
-        cautions.append("Authority type is unknown.")
     if source.source_type == "web" and not source.published_at:
         cautions.append("Publication date is missing.")
     if not any(_version_readable(version) for version in versions):

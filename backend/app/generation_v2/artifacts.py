@@ -170,6 +170,8 @@ async def list_tool_traces(db: AsyncSession, generation_run_id: uuid.UUID) -> li
                 "input_tokens": trace.input_tokens,
                 "output_tokens": trace.output_tokens,
                 "cost_usd": trace.cost_usd,
+                "cost_basis": (trace.output_json or {}).get("cost_basis"),
+                "cost_warning": (trace.output_json or {}).get("cost_warning"),
                 "created_at": trace.created_at.isoformat() if isinstance(trace.created_at, datetime) else None,
             }
         )

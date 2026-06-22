@@ -17,6 +17,8 @@ class EvidenceToolset(EvidenceToolSpecsMixin, EvidenceToolHandlersMixin, Evidenc
     run: GenerationRun
     run_view: RunCorpusView
     provider_index: ProviderCorpusIndex | None
+    triage_allowed_source_refs: set[str] | None = None
+    triage_current_set_id: str | None = None
 
 
 __all__ = ["EvidenceToolset"]

@@ -29,7 +29,7 @@ from app.models.generation_v2 import (
     V2RecordStatus,
 )
 from app.models.source import Source
-from app.services.llm import get_openai_client
+from app.services.llm import _generation_v2_corpus_prepare_model, _openai_response_model, get_openai_client
 from app.services.storage import download_file, download_text, get_minio_client, upload_file, upload_text
 
 logger = logging.getLogger(__name__)
@@ -495,6 +495,7 @@ async def _ensure_openai_url_read_versions(db: AsyncSession, source: Source) -> 
 
 async def _call_openai_url_file_read(url: str) -> dict[str, Any]:
     client = get_openai_client()
+    requested_model = _generation_v2_corpus_prepare_model()
     prompt = (
         "Read the attached external URL/file as a source for a podcast research corpus. "
         "Use only the attached file_url content. Do not rely on memory or external knowledge. "
@@ -504,7 +505,7 @@ async def _call_openai_url_file_read(url: str) -> dict[str, Any]:
         f"\n\nURL: {url}"
     )
     response = await client.responses.create(
-        model=settings.generation_v2_openai_model,
+        model=requested_model,
         instructions="You are a careful source-ingestion reader. Return JSON only.",
         input=[
             {
@@ -527,11 +528,14 @@ async def _call_openai_url_file_read(url: str) -> dict[str, Any]:
     )
     payload = _loads_json_object(getattr(response, "output_text", "") or "")
     payload["_response_id"] = getattr(response, "id", "")
+    payload["_requested_model"] = requested_model
+    payload["_response_model"] = _openai_response_model(response)
     return payload
 
 
 async def _call_openai_url_recovery(url: str, read_metadata: dict[str, Any]) -> dict[str, Any]:
     client = get_openai_client()
+    requested_model = _generation_v2_corpus_prepare_model()
     prompt = (
         "The product tried to ingest this URL as source material, but direct URL/file reading did not produce "
         "usable source text. Use web search only to diagnose whether the URL is blocked/gone/paywalled and to "
@@ -542,7 +546,7 @@ async def _call_openai_url_recovery(url: str, read_metadata: dict[str, Any]) -> 
         f"Prior read metadata: {json.dumps(read_metadata.get('v2_openai_url_read', read_metadata), ensure_ascii=False)[:3000]}"
     )
     response = await client.responses.create(
-        model=settings.generation_v2_openai_model,
+        model=requested_model,
         instructions="You are a conservative source recovery agent. Return JSON only.",
         input=prompt,
         tools=[{"type": "web_search"}],
@@ -565,9 +569,13 @@ async def _call_openai_url_recovery(url: str, read_metadata: dict[str, Any]) -> 
             "alternative_urls": [],
             "notes": "OpenAI web_search recovery returned an empty structured response.",
             "_response_id": getattr(response, "id", ""),
+            "_requested_model": requested_model,
+            "_response_model": _openai_response_model(response),
         }
     payload = _loads_json_object(output_text)
     payload["_response_id"] = getattr(response, "id", "")
+    payload["_requested_model"] = requested_model
+    payload["_response_model"] = _openai_response_model(response)
     return payload
 
 

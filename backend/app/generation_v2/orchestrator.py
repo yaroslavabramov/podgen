@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 
 from dataclasses import dataclass
+from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,7 +13,9 @@ from app.generation_v2.agents.editorial import (
     build_act_dossier,
     build_research_memo,
     build_source_acquisition_agent,
-    build_source_triage_agent,
+    build_source_triage_finalizer_agent,
+    build_source_triage_planner_agent,
+    build_source_triage_set_agent,
     build_treatment,
     critique_episode,
     rewrite_act_draft,
@@ -21,7 +24,7 @@ from app.generation_v2.agents.editorial import (
     update_continuity_ledger,
     write_act_draft,
 )
-from app.generation_v2.artifacts import save_artifact
+from app.generation_v2.artifacts import save_artifact, save_tool_trace
 from app.generation_v2.citation_validation import (
     merge_validation_issues,
     validate_citations,
@@ -54,6 +57,19 @@ from app.generation_v2.source_acquisition import (
     source_acquisition_report_from_rounds,
 )
 from app.generation_v2.source_corpus import CorpusPreparationResult, list_evidence_dicts, prepare_v2_corpus
+from app.generation_v2.source_triage_workspace import (
+    build_workspace_tools,
+    create_repair_sets_from_gate,
+    ensure_source_triage_workspace,
+    load_source_triage_workspace,
+    save_source_triage_workspace,
+    source_set_prompt_payload,
+    start_triage_source_set,
+    unprocessed_source_sets,
+    unresolved_source_set_summary,
+    unresolved_source_sets,
+    workspace_summary_for_prompt,
+)
 from app.generation_v2.tools.evidence import (
     EvidenceToolset,
     build_source_map_from_write_actions,
@@ -85,6 +101,7 @@ class _TriageState:
     evidence_artifact_ids: list[str]
     source_artifact_ids: list[str]
     quote_artifact_ids: list[str]
+    workspace_artifact_id: str | None
     triage_artifact_id: str
     triage_gate_artifact_id: str
 
@@ -95,6 +112,7 @@ class _TriageState:
             *self.evidence_artifact_ids,
             *self.source_artifact_ids,
             *self.quote_artifact_ids,
+            *([self.workspace_artifact_id] if self.workspace_artifact_id else []),
             self.triage_artifact_id,
             self.triage_gate_artifact_id,
         ]
@@ -174,7 +192,7 @@ async def execute_generation_v2(
             artifact_key="main",
             payload=memo,
             provider="openai" if corpus.vector_store_id else None,
-            model=runtime.model,
+            model=runtime.model_for("v2_editorial_research", "research_agent"),
             status=V2ArtifactStatus.PASSED,
             input_artifact_ids=[*source_workspace_artifact_ids, *memo_evidence_artifact_ids_by_evidence_id.values()],
             prompt_hash=runtime.prompt_hash_for("v2_editorial_research", "research_agent"),
@@ -252,6 +270,8 @@ async def execute_generation_v2(
             artifact_type=V2ArtifactType.RESEARCH_AUDIT,
             artifact_key="main",
             payload=audit,
+            provider="openai" if corpus.vector_store_id else None,
+            model=runtime.model_for("v2_research_audit", "research_auditor"),
             status=V2ArtifactStatus.PASSED if audit.passed else V2ArtifactStatus.FAILED,
             input_artifact_ids=[str(memo_artifact.id), *atom_artifact_ids, str(memo_gate_artifact.id)],
             prompt_hash=runtime.prompt_hash_for("v2_research_audit", "research_auditor"),
@@ -299,7 +319,7 @@ async def execute_generation_v2(
             artifact_key="main",
             payload=treatment,
             provider="openai" if corpus.vector_store_id else None,
-            model=runtime.model,
+            model=runtime.model_for("v2_treatment", "story_editor"),
             status=V2ArtifactStatus.PASSED if treatment_gate.passed else V2ArtifactStatus.FAILED,
             input_artifact_ids=[str(memo_artifact.id), str(audit_artifact.id), *atom_artifact_ids],
             prompt_hash=runtime.prompt_hash_for("v2_treatment", "story_editor"),
@@ -400,7 +420,7 @@ async def execute_generation_v2(
             artifact_key=f"act-{draft.act_number}",
             payload=draft,
             provider="openai" if corpus.vector_store_id else None,
-            model=runtime.model,
+            model=runtime.model_for("v2_act_drafting", f"act_writer_{treatment_act.act_number}"),
             status=V2ArtifactStatus.PASSED,
             input_artifact_ids=draft_input_artifact_ids,
             prompt_hash=runtime.prompt_hash_for("v2_act_drafting", f"act_writer_{treatment_act.act_number}"),
@@ -446,6 +466,8 @@ async def execute_generation_v2(
         artifact_type=V2ArtifactType.EPISODE_CRITIQUE,
         artifact_key="main",
         payload=critique,
+        provider="openai" if corpus.vector_store_id else None,
+        model=runtime.model_for("v2_critique_rewrite", "episode_critic"),
         status=V2ArtifactStatus.PASSED if critique.passed else V2ArtifactStatus.FAILED,
         input_artifact_ids=critique_input_artifact_ids,
         prompt_hash=runtime.prompt_hash_for("v2_critique_rewrite", "episode_critic"),
@@ -484,7 +506,7 @@ async def execute_generation_v2(
                 artifact_key=f"act-{revised.act_number}",
                 payload=revised,
                 provider="openai" if corpus.vector_store_id else None,
-                model=runtime.model,
+                model=runtime.model_for("v2_critique_rewrite", f"act_rewriter_{treatment_act.act_number}"),
                 status=V2ArtifactStatus.PASSED,
                 input_artifact_ids=rewrite_input_artifact_ids,
                 prompt_hash=runtime.prompt_hash_for("v2_critique_rewrite", f"act_rewriter_{treatment_act.act_number}"),
@@ -571,7 +593,7 @@ async def execute_generation_v2(
                     artifact_key=f"act-{repaired.act_number}",
                     payload=repaired,
                     provider="openai" if corpus.vector_store_id else None,
-                    model=runtime.model,
+                    model=runtime.model_for("v2_critique_rewrite", f"act_rewriter_{treatment_act.act_number}"),
                     status=V2ArtifactStatus.PASSED,
                     input_artifact_ids=repair_input_artifact_ids,
                     prompt_hash=runtime.prompt_hash_for("v2_critique_rewrite", f"act_rewriter_{treatment_act.act_number}"),
@@ -692,29 +714,103 @@ async def _prepare_and_triage(run: GenerationRun, db: AsyncSession, runtime: V2R
     )
     evidence_tools = evidence_toolset.agent_tools()
     source_inventory = await build_source_inventory(db, corpus.run_view)
-    triage_completion = await build_source_triage_agent(
+    workspace = await ensure_source_triage_workspace(
+        db,
+        run=run,
+        run_view=corpus.run_view,
+        inventory=source_inventory,
+    )
+    planner_tools = build_workspace_tools(
+        db=db,
+        run=run,
+        workspace=workspace,
+        inventory=source_inventory,
+        evidence_toolset=evidence_toolset,
+        mode="planner",
+    )
+    planner_completion = await build_source_triage_planner_agent(
         db,
         run,
         runtime,
-        source_inventory=source_inventory,
-        evidence_tools=evidence_tools,
-        vector_store_id=corpus.vector_store_id,
-        hosted_file_search_handler=evidence_toolset.persist_hosted_file_search_calls,
+        workspace_summary=workspace_summary_for_prompt(workspace),
+        workspace_tools=planner_tools,
     )
+    workspace = await load_source_triage_workspace(db, run.id) or workspace
+    set_completions: list[SourceTriageCompletion] = []
+    if workspace.get("status") == "planned":
+        for source_set in unprocessed_source_sets(workspace):
+            await assert_step_not_stopped()
+            completion = await _run_source_triage_set(
+                run=run,
+                db=db,
+                runtime=runtime,
+                corpus=corpus,
+                source_inventory=source_inventory,
+                workspace=workspace,
+                source_set=source_set,
+            )
+            set_completions.append(completion)
+            workspace = await load_source_triage_workspace(db, run.id) or workspace
+    else:
+        await save_tool_trace(
+            db,
+            generation_run_id=run.id,
+            phase="v2_source_triage",
+            agent_name="source_triage_planner_agent",
+            tool_name="triage_workspace_plan_not_finalized",
+            input_json={"workspace_status": workspace.get("status")},
+            output_json={
+                "accepted": False,
+                "planner_ready": planner_completion.ready,
+                "summary": planner_completion.summary,
+            },
+        )
+    workspace = await _materialize_workspace_deferrals_as_gap_traces(db=db, run=run, workspace=workspace)
+    source_map = await build_source_map_from_write_actions(
+        db,
+        generation_run_id=run.id,
+        inventory=source_inventory,
+    )
+    finalizer_tools = [
+        *evidence_toolset.agent_tools(),
+        *build_workspace_tools(
+            db=db,
+            run=run,
+            workspace=workspace,
+            inventory=source_inventory,
+            evidence_toolset=evidence_toolset,
+            mode="finalizer",
+        ),
+    ]
+    unresolved_sets = unresolved_source_sets(workspace)
+    if unresolved_sets:
+        finalizer_completion = await _source_triage_unresolved_completion(db=db, run=run, workspace=workspace)
+    else:
+        finalizer_completion = await build_source_triage_finalizer_agent(
+            db,
+            run,
+            runtime,
+            workspace_summary=workspace_summary_for_prompt(workspace),
+            source_map=source_map,
+            finalizer_tools=finalizer_tools,
+        )
+    source_map = await build_source_map_from_write_actions(
+        db,
+        generation_run_id=run.id,
+        inventory=source_inventory,
+    )
+    triage_completion = _combined_triage_completion(planner_completion, set_completions, finalizer_completion)
     triage_completion_artifact = await save_artifact(
         db,
         generation_run_id=run.id,
         artifact_type=V2ArtifactType.SOURCE_TRIAGE,
         artifact_key="completion",
         payload=triage_completion,
+        provider="openai" if corpus.vector_store_id else None,
+        model=runtime.model_for("v2_source_triage", "source_triage_finalizer_agent"),
         status=V2ArtifactStatus.PASSED if triage_completion.ready else V2ArtifactStatus.FAILED,
-        prompt_hash=runtime.prompt_hash_for("v2_source_triage", "source_triage_agent"),
-        metadata=runtime.fallback_metadata_for("v2_source_triage", "source_triage_agent"),
-    )
-    source_map = await build_source_map_from_write_actions(
-        db,
-        generation_run_id=run.id,
-        inventory=source_inventory,
+        prompt_hash=runtime.prompt_hash_for("v2_source_triage", "source_triage_finalizer_agent"),
+        metadata=runtime.fallback_metadata_for("v2_source_triage", "source_triage_finalizer_agent"),
     )
     triage_gate = await validate_source_map_gate(
         db,
@@ -724,16 +820,65 @@ async def _prepare_and_triage(run: GenerationRun, db: AsyncSession, runtime: V2R
         triage_completion=triage_completion,
     )
     if not triage_gate.passed:
-        repair_completion = await build_source_triage_agent(
+        await save_artifact(
             db,
-            run,
-            runtime,
-            source_inventory=source_inventory,
-            evidence_tools=evidence_tools,
-            vector_store_id=corpus.vector_store_id,
-            hosted_file_search_handler=evidence_toolset.persist_hosted_file_search_calls,
-            repair_context=_source_triage_repair_context(source_map, triage_gate),
+            generation_run_id=run.id,
+            artifact_type=V2ArtifactType.SOURCE_TRIAGE,
+            artifact_key="gate_pre_repair",
+            payload=triage_gate,
+            status=V2ArtifactStatus.FAILED,
+            input_artifact_ids=[str(triage_completion_artifact.id)],
         )
+        await save_tool_trace(
+            db,
+            generation_run_id=run.id,
+            phase="v2_source_triage",
+            agent_name="source_triage_gate",
+            tool_name="triage_targeted_repair_started",
+            input_json={
+                "gate": triage_gate.model_dump(mode="json"),
+                "source_card_count": len(source_map.source_cards),
+                "quote_card_count": len(source_map.quote_cards),
+                "cluster_count": len(source_map.source_triage.source_clusters),
+                "relationship_count": len(source_map.source_triage.source_relationships),
+            },
+            output_json={"targeted_repair": True},
+        )
+        workspace = await load_source_triage_workspace(db, run.id) or workspace
+        workspace = create_repair_sets_from_gate(workspace, gate=triage_gate, inventory=source_inventory, source_map=source_map)
+        await save_source_triage_workspace(db, generation_run_id=run.id, workspace=workspace)
+        repair_completions: list[SourceTriageCompletion] = []
+        for repair_set in [item for item in unprocessed_source_sets(workspace) if item.get("repair")][:4]:
+            await assert_step_not_stopped()
+            repair_completion = await _run_source_triage_set(
+                run=run,
+                db=db,
+                runtime=runtime,
+                corpus=corpus,
+                source_inventory=source_inventory,
+                workspace=workspace,
+                source_set=repair_set,
+            )
+            repair_completions.append(repair_completion)
+            workspace = await load_source_triage_workspace(db, run.id) or workspace
+        workspace = await _materialize_workspace_deferrals_as_gap_traces(db=db, run=run, workspace=workspace)
+        source_map = await build_source_map_from_write_actions(
+            db,
+            generation_run_id=run.id,
+            inventory=source_inventory,
+        )
+        unresolved_sets = unresolved_source_sets(workspace)
+        if unresolved_sets:
+            finalizer_completion = await _source_triage_unresolved_completion(db=db, run=run, workspace=workspace)
+        else:
+            finalizer_completion = await build_source_triage_finalizer_agent(
+                db,
+                run,
+                runtime,
+                workspace_summary=workspace_summary_for_prompt(workspace),
+                source_map=source_map,
+                finalizer_tools=finalizer_tools,
+            )
         source_map = await build_source_map_from_write_actions(
             db,
             generation_run_id=run.id,
@@ -744,17 +889,25 @@ async def _prepare_and_triage(run: GenerationRun, db: AsyncSession, runtime: V2R
             generation_run_id=run.id,
             source_map=source_map,
             run_view=corpus.run_view,
-            triage_completion=repair_completion,
+            triage_completion=finalizer_completion,
         )
         triage_completion = SourceTriageCompletion(
-            ready=repair_completion.ready,
-            summary=f"{triage_completion.summary}\nRepair pass: {repair_completion.summary}",
+            ready=finalizer_completion.ready,
+            summary=f"{triage_completion.summary}\nTargeted repair pass: {finalizer_completion.summary}",
             notes=[
                 *triage_completion.notes,
-                "Source triage repair pass executed after gate failure.",
-                *repair_completion.notes,
+                "Targeted source triage repair sets executed after gate failure.",
+                *[completion.summary for completion in repair_completions if completion.summary],
+                *finalizer_completion.notes,
             ],
         )
+    workspace = await load_source_triage_workspace(db, run.id) or workspace
+    workspace_artifact = await save_source_triage_workspace(
+        db,
+        generation_run_id=run.id,
+        workspace={**workspace, "status": "finalized" if triage_gate.passed else "failed_gate"},
+        status=V2ArtifactStatus.PASSED if triage_gate.passed else V2ArtifactStatus.FAILED,
+    )
     source_cards = source_map.source_cards
     quote_cards = source_map.quote_cards
     source_map_artifact = await save_artifact(
@@ -764,9 +917,10 @@ async def _prepare_and_triage(run: GenerationRun, db: AsyncSession, runtime: V2R
         artifact_key="main",
         payload=source_map,
         provider="openai" if corpus.vector_store_id else None,
+        model=runtime.model_for("v2_source_triage", "source_triage_finalizer_agent"),
         status=V2ArtifactStatus.PASSED if triage_gate.passed else V2ArtifactStatus.FAILED,
-        prompt_hash=runtime.prompt_hash_for("v2_source_triage", "source_triage_agent"),
-        metadata=runtime.fallback_metadata_for("v2_source_triage", "source_triage_agent"),
+        prompt_hash=runtime.prompt_hash_for("v2_source_triage", "source_triage_finalizer_agent"),
+        metadata=runtime.fallback_metadata_for("v2_source_triage", "source_triage_finalizer_agent"),
         input_artifact_ids=[str(triage_completion_artifact.id)],
     )
     evidence_artifact_ids = await _save_evidence_artifacts(
@@ -806,10 +960,12 @@ async def _prepare_and_triage(run: GenerationRun, db: AsyncSession, runtime: V2R
         artifact_type=V2ArtifactType.SOURCE_TRIAGE,
         artifact_key="main",
         payload=source_triage,
+        provider="openai" if corpus.vector_store_id else None,
+        model=runtime.model_for("v2_source_triage", "source_triage_finalizer_agent"),
         status=V2ArtifactStatus.PASSED if triage_gate.passed else V2ArtifactStatus.FAILED,
         input_artifact_ids=[str(triage_completion_artifact.id), str(source_map_artifact.id), *source_artifact_ids, *quote_artifact_ids],
-        prompt_hash=runtime.prompt_hash_for("v2_source_triage", "source_triage_agent"),
-        metadata=runtime.fallback_metadata_for("v2_source_triage", "source_triage_agent"),
+        prompt_hash=runtime.prompt_hash_for("v2_source_triage", "source_triage_finalizer_agent"),
+        metadata=runtime.fallback_metadata_for("v2_source_triage", "source_triage_finalizer_agent"),
     )
     triage_gate_artifact = await save_artifact(
         db,
@@ -834,8 +990,203 @@ async def _prepare_and_triage(run: GenerationRun, db: AsyncSession, runtime: V2R
         evidence_artifact_ids=evidence_artifact_ids,
         source_artifact_ids=source_artifact_ids,
         quote_artifact_ids=quote_artifact_ids,
+        workspace_artifact_id=str(workspace_artifact.id),
         triage_artifact_id=str(triage_artifact.id),
         triage_gate_artifact_id=str(triage_gate_artifact.id),
+    )
+
+
+async def _source_triage_unresolved_completion(
+    *,
+    db: AsyncSession,
+    run: GenerationRun,
+    workspace: dict[str, Any],
+) -> SourceTriageCompletion:
+    unresolved = unresolved_source_set_summary(workspace)
+    await save_tool_trace(
+        db,
+        generation_run_id=run.id,
+        phase="v2_source_triage",
+        agent_name="source_triage_workflow",
+        tool_name="source_sets_unresolved",
+        input_json={"unresolved_source_sets": unresolved},
+        output_json={"accepted": False, "unresolved_set_count": len(unresolved_source_sets(workspace))},
+    )
+    return SourceTriageCompletion(
+        ready=False,
+        summary="Source triage workflow has unresolved source sets; finalization is blocked.",
+        notes=[f"{item['set_id']}:{item['status']}:{','.join(item.get('source_refs') or [])}" for item in unresolved],
+    )
+
+
+async def _materialize_workspace_deferrals_as_gap_traces(
+    *,
+    db: AsyncSession,
+    run: GenerationRun,
+    workspace: dict[str, Any],
+) -> dict[str, Any]:
+    materialized = {str(item) for item in workspace.get("materialized_deferred_source_refs") or []}
+    deferred = [
+        dict(item)
+        for item in workspace.get("deferred_sources") or []
+        if item.get("source_ref") and str(item.get("source_ref")) not in materialized
+    ]
+    if not deferred:
+        return workspace
+    for item in deferred:
+        source_ref = str(item.get("source_ref"))
+        reason = str(item.get("reason") or "Deferred by source triage workflow.")
+        await save_tool_trace(
+            db,
+            generation_run_id=run.id,
+            phase="v2_source_triage",
+            agent_name="source_triage_workspace",
+            tool_name="record_gap",
+            input_json={
+                "kind": "coverage",
+                "description": f"Source {source_ref} deferred during source triage: {reason}",
+                "source_refs": [source_ref],
+                "evidence_ids": [],
+            },
+            output_json={"accepted": True, "materialized_workspace_deferral": True},
+        )
+        materialized.add(source_ref)
+    workspace["materialized_deferred_source_refs"] = sorted(materialized)
+    return await _save_and_reload_workspace(db=db, run=run, workspace=workspace)
+
+
+async def _save_and_reload_workspace(
+    *,
+    db: AsyncSession,
+    run: GenerationRun,
+    workspace: dict[str, Any],
+) -> dict[str, Any]:
+    await save_source_triage_workspace(db, generation_run_id=run.id, workspace=workspace)
+    return await load_source_triage_workspace(db, run.id) or workspace
+
+
+async def _run_source_triage_set(
+    *,
+    run: GenerationRun,
+    db: AsyncSession,
+    runtime: V2Runtime,
+    corpus: CorpusPreparationResult,
+    source_inventory: SourceMap,
+    workspace: dict[str, Any],
+    source_set: dict[str, Any],
+) -> SourceTriageCompletion:
+    set_id = str(source_set.get("set_id") or "")
+    if not set_id:
+        return SourceTriageCompletion(ready=False, summary="Source triage set is missing set_id.", notes=[])
+    workspace = await start_triage_source_set(
+        db,
+        run=run,
+        workspace=workspace,
+        set_id=set_id,
+        inventory=source_inventory,
+        evidence_toolset=EvidenceToolset(
+            db=db,
+            run=run,
+            run_view=corpus.run_view,
+            provider_index=corpus.provider_index,
+        ),
+    )
+    current_set = next((item for item in workspace.get("source_sets") or [] if item.get("set_id") == set_id), source_set)
+    allowed_refs = {str(ref) for ref in current_set.get("source_refs") or [] if str(ref).strip()}
+    scoped_toolset = EvidenceToolset(
+        db=db,
+        run=run,
+        run_view=corpus.run_view,
+        provider_index=corpus.provider_index,
+        triage_allowed_source_refs=allowed_refs,
+        triage_current_set_id=set_id,
+    )
+    set_tools = [
+        *scoped_toolset.agent_tools(),
+        *build_workspace_tools(
+            db=db,
+            run=run,
+            workspace=workspace,
+            inventory=source_inventory,
+            evidence_toolset=scoped_toolset,
+            mode="set",
+            current_set_id=set_id,
+        ),
+    ]
+    completion = await build_source_triage_set_agent(
+        db,
+        run,
+        runtime,
+        source_set_payload=source_set_prompt_payload(workspace, set_id),
+        set_tools=set_tools,
+        vector_store_id=corpus.vector_store_id,
+        hosted_file_search_handler=scoped_toolset.persist_hosted_file_search_calls,
+    )
+    latest = await load_source_triage_workspace(db, run.id) or workspace
+    finished_set = next((item for item in latest.get("source_sets") or [] if item.get("set_id") == set_id), None)
+    if finished_set is None or finished_set.get("status") == "in_progress":
+        await _mark_source_triage_set_unfinished(
+            db=db,
+            run=run,
+            workspace=latest,
+            set_id=set_id,
+            reason="Set agent returned before calling finish_triage_source_set.",
+        )
+        return SourceTriageCompletion(
+            ready=False,
+            summary=f"Source triage set {set_id} was not finished by the agent.",
+            notes=[completion.summary] if completion.summary else [],
+        )
+    return completion
+
+
+async def _mark_source_triage_set_unfinished(
+    *,
+    db: AsyncSession,
+    run: GenerationRun,
+    workspace: dict[str, Any],
+    set_id: str,
+    reason: str,
+) -> None:
+    updated_sets: list[dict[str, Any]] = []
+    for item in workspace.get("source_sets") or []:
+        source_set = dict(item)
+        if source_set.get("set_id") == set_id:
+            source_set["status"] = "needs_repair"
+            source_set["repair"] = True
+            source_set["deferred_reason"] = reason
+            source_set["findings_summary"] = source_set.get("findings_summary") or reason
+        updated_sets.append(source_set)
+    workspace["source_sets"] = updated_sets
+    workspace["current_set"] = None
+    await save_source_triage_workspace(db, generation_run_id=run.id, workspace=workspace)
+    await save_tool_trace(
+        db,
+        generation_run_id=run.id,
+        phase="v2_source_triage",
+        agent_name="source_triage_set_workflow",
+        tool_name="source_set_unfinished",
+        input_json={"set_id": set_id},
+        output_json={"accepted": False, "error": reason},
+    )
+
+
+def _combined_triage_completion(
+    planner_completion: SourceTriageCompletion,
+    set_completions: list[SourceTriageCompletion],
+    finalizer_completion: SourceTriageCompletion,
+) -> SourceTriageCompletion:
+    notes: list[str] = []
+    if planner_completion.summary:
+        notes.append(f"Planner: {planner_completion.summary}")
+    for idx, completion in enumerate(set_completions, start=1):
+        if completion.summary:
+            notes.append(f"Set {idx}: {completion.summary}")
+    notes.extend(finalizer_completion.notes)
+    return SourceTriageCompletion(
+        ready=finalizer_completion.ready,
+        summary=finalizer_completion.summary,
+        notes=notes[:60],
     )
 
 
@@ -935,16 +1286,20 @@ async def _run_source_acquisition_until_triage_ready(
         )
         if completion.summary:
             round_payload.summary = completion.summary
+        acquisition_agent_name = f"source_acquisition_round_{round_number}"
+        acquisition_model = runtime.model_for("v2_source_acquisition", acquisition_agent_name)
         round_artifact = await save_artifact(
             db,
             generation_run_id=run.id,
             artifact_type=V2ArtifactType.SOURCE_ACQUISITION_ROUND,
             artifact_key=f"{trigger_phase}:round-{round_number}",
             payload=round_payload,
+            provider="openai",
+            model=acquisition_model,
             status=V2ArtifactStatus.PASSED if round_payload.accepted_count else V2ArtifactStatus.FAILED,
             input_artifact_ids=[str(gap_artifact.id)],
-            prompt_hash=runtime.prompt_hash_for("v2_source_acquisition", f"source_acquisition_round_{round_number}"),
-            metadata=runtime.fallback_metadata_for("v2_source_acquisition", f"source_acquisition_round_{round_number}"),
+            prompt_hash=runtime.prompt_hash_for("v2_source_acquisition", acquisition_agent_name),
+            metadata=runtime.fallback_metadata_for("v2_source_acquisition", acquisition_agent_name),
         )
         rounds.append(round_payload)
         acquisition_rounds_used = round_number
@@ -959,6 +1314,8 @@ async def _run_source_acquisition_until_triage_ready(
             artifact_type=V2ArtifactType.SOURCE_ACQUISITION_REPORT,
             artifact_key=trigger_phase,
             payload=report,
+            provider="openai",
+            model=acquisition_model,
             status=V2ArtifactStatus.PASSED if report.total_accepted else V2ArtifactStatus.FAILED,
             input_artifact_ids=[str(gap_artifact.id), str(round_artifact.id)],
         )
@@ -1022,6 +1379,7 @@ async def _save_claim_bundle(
     *,
     input_artifact_ids: list[str],
     prompt_hash: str | None,
+    model: str | None = None,
     metadata: dict | None = None,
 ) -> list[str]:
     artifact_ids: list[str] = []
@@ -1035,6 +1393,7 @@ async def _save_claim_bundle(
             payload=claim,
             status=V2ArtifactStatus.PASSED if claim.support_level != "unsupported" else V2ArtifactStatus.FAILED,
             input_artifact_ids=input_artifact_ids,
+            model=model,
             prompt_hash=prompt_hash,
             metadata=metadata,
         )
@@ -1054,6 +1413,7 @@ async def _save_claim_bundle(
             payload=link,
             status=V2ArtifactStatus.PASSED,
             input_artifact_ids=link_inputs,
+            model=model,
             prompt_hash=prompt_hash,
             metadata=metadata,
         )
@@ -1071,6 +1431,7 @@ async def _save_claim_bundle(
             payload=issue,
             status=V2ArtifactStatus.FAILED,
             input_artifact_ids=issue_inputs,
+            model=model,
             prompt_hash=prompt_hash,
             metadata=metadata,
         )
@@ -1115,6 +1476,7 @@ async def _validate_and_save_claim_bundle(
         support_bundle,
         input_artifact_ids=[*input_artifact_ids, *evidence_artifact_ids],
         prompt_hash=runtime.prompt_hash_for("v2_fact_citation", "support_judge"),
+        model=runtime.model_for("v2_fact_citation", "support_judge"),
         metadata=runtime.fallback_metadata_for("v2_fact_citation", "support_judge"),
     )
     validation_report = await validate_citations(
@@ -1133,6 +1495,7 @@ async def _validate_and_save_claim_bundle(
         bundle,
         input_artifact_ids=[*input_artifact_ids, *evidence_artifact_ids, *support_artifact_ids],
         prompt_hash=prompt_hash,
+        model=runtime.model_for("v2_fact_citation", "citation_linker"),
         metadata=metadata,
     )
     bundle_artifact_ids = [*evidence_artifact_ids, *support_artifact_ids, *bundle_artifact_ids]
@@ -1144,6 +1507,7 @@ async def _validate_and_save_claim_bundle(
         payload=validation_report,
         status=V2ArtifactStatus.PASSED if validation_report.passed else V2ArtifactStatus.FAILED,
         input_artifact_ids=[*input_artifact_ids, *bundle_artifact_ids],
+        model=runtime.model_for("v2_fact_citation", "citation_linker"),
         prompt_hash=prompt_hash,
         metadata=metadata,
     )
@@ -1157,6 +1521,7 @@ async def _save_support_judgments(
     *,
     input_artifact_ids: list[str],
     prompt_hash: str | None,
+    model: str | None = None,
     metadata: dict | None = None,
 ) -> list[str]:
     artifact_ids: list[str] = []
@@ -1169,6 +1534,7 @@ async def _save_support_judgments(
             payload=judgment,
             status=V2ArtifactStatus.PASSED if judgment.supported and not judgment.blocking else V2ArtifactStatus.FAILED,
             input_artifact_ids=input_artifact_ids,
+            model=model,
             prompt_hash=prompt_hash,
             metadata=metadata,
         )

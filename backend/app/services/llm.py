@@ -99,6 +99,87 @@ EMBEDDING_DIMENSIONS = 3072
 DEFAULT_STRUCTURED_MAX_TOKENS = 16384
 
 
+OPENAI_TOKEN_COST_BASIS = "openai_token_usage_only"
+OPENAI_TOKEN_COST_WARNING = (
+    "Token-cost estimate only; this is not an OpenAI invoice total and can exclude hosted-tool, "
+    "file/vector storage or search, retry, tax, credit, and adjustment charges."
+)
+
+
+def _configured_model(value: str | None) -> str | None:
+    model = str(value or "").strip()
+    return model or None
+
+
+def _generation_v2_default_model() -> str:
+    return (
+        _configured_model(settings.generation_v2_default_model)
+        or _configured_model(settings.generation_v2_openai_model)
+        or "gpt-5.4-mini"
+    )
+
+
+def _generation_v2_model_for_agent(phase: str, agent_name: str, *, default_model: str | None = None) -> str:
+    fallback = default_model or _generation_v2_default_model()
+    by_agent = {
+        "source_triage_agent": settings.generation_v2_source_triage_model,
+        "source_acquisition_agent": settings.generation_v2_source_acquisition_model,
+        "research_agent": settings.generation_v2_research_model,
+        "research_auditor": settings.generation_v2_research_audit_model,
+        "story_editor": settings.generation_v2_treatment_model,
+        "episode_critic": settings.generation_v2_critic_model,
+        "citation_linker": settings.generation_v2_citation_model,
+        "support_judge": settings.generation_v2_support_judge_model,
+    }
+    if agent_name.startswith("source_acquisition_round_"):
+        return _configured_model(settings.generation_v2_source_acquisition_model) or fallback
+    if agent_name.startswith("act_writer_"):
+        return _configured_model(settings.generation_v2_writer_model) or fallback
+    if agent_name.startswith("act_rewriter_"):
+        return _configured_model(settings.generation_v2_rewriter_model) or fallback
+    phase_fallback = {
+        "v2_source_triage": settings.generation_v2_source_triage_model,
+        "v2_source_acquisition": settings.generation_v2_source_acquisition_model,
+        "v2_editorial_research": settings.generation_v2_research_model,
+        "v2_research_audit": settings.generation_v2_research_audit_model,
+        "v2_treatment": settings.generation_v2_treatment_model,
+        "v2_act_drafting": settings.generation_v2_writer_model,
+        "v2_critique": settings.generation_v2_critic_model,
+        "v2_critique_rewrite": settings.generation_v2_rewriter_model,
+        "v2_fact_citation": settings.generation_v2_citation_model,
+        "v2_support_judgment": settings.generation_v2_support_judge_model,
+        "v2_corpus_prepare": settings.generation_v2_corpus_prepare_model,
+    }
+    return (
+        _configured_model(by_agent.get(agent_name))
+        or _configured_model(phase_fallback.get(phase))
+        or _generation_v2_default_model()
+        or fallback
+    )
+
+
+def _generation_v2_model_read_model() -> str:
+    return _configured_model(settings.generation_v2_model_read_model) or _generation_v2_default_model()
+
+
+def _generation_v2_corpus_prepare_model() -> str:
+    return _configured_model(settings.generation_v2_corpus_prepare_model) or _generation_v2_default_model()
+
+
+def _openai_response_model(response: Any) -> str | None:
+    model = getattr(response, "model", None)
+    if model:
+        return str(model)
+    if hasattr(response, "model_dump"):
+        try:
+            payload = response.model_dump()
+            if payload.get("model"):
+                return str(payload["model"])
+        except Exception:
+            return None
+    return None
+
+
 def _llm_trace_inputs(system: str, prompt: str, max_tokens: int, temperature: float | None) -> dict[str, Any]:
     return {
         "system_chars": len(system),
@@ -167,7 +248,7 @@ def _usage_detail_value(details: Any, field: str) -> int | None:
     return int(value) if value is not None else None
 
 
-def _openai_estimated_cost_usd(model: str, usage: dict[str, Any]) -> float | None:
+def _openai_estimated_token_cost_usd(model: str, usage: dict[str, Any]) -> float | None:
     rates = _openai_token_rates(model)
     if rates is None:
         return None
@@ -183,8 +264,27 @@ def _openai_estimated_cost_usd(model: str, usage: dict[str, Any]) -> float | Non
     return round(cost, 8)
 
 
+def _openai_estimated_cost_usd(model: str, usage: dict[str, Any]) -> float | None:
+    return _openai_estimated_token_cost_usd(model, usage)
+
+
+def _openai_token_cost_payload(model: str, usage: dict[str, Any]) -> dict[str, Any]:
+    token_cost = _openai_estimated_token_cost_usd(model, usage)
+    return {
+        "estimated_token_cost_usd": token_cost,
+        "cost_basis": OPENAI_TOKEN_COST_BASIS,
+        "cost_warning": OPENAI_TOKEN_COST_WARNING,
+    }
+
+
 def _openai_token_rates(model: str) -> dict[str, float] | None:
     normalized = (model or "").lower()
+    if normalized.startswith("gpt-5.5"):
+        return {"input_per_1m": 5.00, "cached_input_per_1m": 0.50, "output_per_1m": 30.00}
+    if normalized.startswith("gpt-5.4-mini"):
+        return {"input_per_1m": 0.75, "cached_input_per_1m": 0.075, "output_per_1m": 4.50}
+    if normalized.startswith("gpt-5.4"):
+        return {"input_per_1m": 2.50, "cached_input_per_1m": 0.25, "output_per_1m": 15.00}
     if normalized == "gpt-5":
         return {"input_per_1m": 1.25, "cached_input_per_1m": 0.125, "output_per_1m": 10.0}
     return None

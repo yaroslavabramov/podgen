@@ -136,6 +136,8 @@ class V2ToolTraceItem(BaseModel):
     input_tokens: int | None = None
     output_tokens: int | None = None
     cost_usd: float | None = None
+    cost_basis: str | None = None
+    cost_warning: str | None = None
     created_at: str | None = None
 
 

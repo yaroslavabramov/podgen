@@ -10,13 +10,14 @@ class EvidenceToolSpecsMixin:
                 name="list_sources",
                 description=(
                     "List neutral metadata for sources selected in this run: source_ref, title/domain, type, date, "
-                    "authority/reliability hints, canonical kind, coverage status, and a short brief_hint. "
-                    "Use this at the start of source triage to plan which sources to skim/read. It does not create evidence."
+                    "canonical kind, coverage status, and a short brief_hint. "
+                    "Use this at the start of source triage to plan which sources to skim/read. It does not create evidence. "
+                    "Request up to 25 sources per page; large corpora should be paged deliberately rather than loaded from the prompt."
                 ),
                 parameters={
                     "type": "object",
                     "properties": {
-                        "limit": {"type": "integer", "minimum": 1, "maximum": 12},
+                        "limit": {"type": "integer", "minimum": 1, "maximum": 25},
                         "cursor": {"type": "string"},
                     },
                     "required": ["limit", "cursor"],
@@ -24,12 +25,13 @@ class EvidenceToolSpecsMixin:
                 handler=self.list_sources_tool,
             ),
             AgentTool(
-                name="search_evidence",
+                name="search_corpus",
                 description=(
-                    "Search the selected run corpus and persist returned matches as observed EvidenceItems. "
-                    "This is a discovery preview tool: use it to find leads for a specific question, quote, source-map relation, or citation-sensitive claim. "
+                    "Search the selected run corpus and persist returned passage matches as observed EvidenceItems. "
+                    "This is a discovery preview tool, not a final evidence reader: use it to find leads for a specific source-map question, quote, relation, or citation-sensitive claim. "
+                    "It is not a substitute for skimming a source when you need to understand that source's overall role. "
                     "Use scope=all_sources for broad discovery, or scope=selected_sources with source_refs from list_sources to target known sources. "
-                    "The returned short_snippet is a preview; call read_evidence, read_source_with_model, or a focused source-read tool before grounding important claims."
+                    "The returned short_snippet is a preview with an evidence_id handle; call read_evidence or read_source_window when the preview is not enough before writing a map entry."
                 ),
                 parameters={
                     "type": "object",
@@ -42,27 +44,14 @@ class EvidenceToolSpecsMixin:
                     },
                     "required": ["query", "purpose", "scope", "source_refs", "limit"],
                 },
-                handler=self.search_evidence_tool,
-            ),
-            AgentTool(
-                name="list_source_versions",
-                description=(
-                    "List available source versions/representations for one source: original files, page-marked text, rendered/article text, transcript, provider file status, and local readability. "
-                    "Use this before inspect_source or read_source_window when you need the best representation for exact reading."
-                ),
-                parameters={
-                    "type": "object",
-                    "properties": {"source_ref": {"type": "string"}},
-                    "required": ["source_ref"],
-                },
-                handler=self.list_source_versions_tool,
+                handler=self.search_corpus_tool,
             ),
             AgentTool(
                 name="read_evidence",
                 description=(
                     "Read one already-saved EvidenceItem by evidence_id. Use this to inspect selected evidence before writing, rewriting, or linking a claim. "
                     "The result is a readable detail payload with source_ref/title, locator, snippet, and model-read support notes when available. "
-                    "Do not use read_evidence to discover new material; call search_evidence first if no evidence_id is known."
+                    "Do not use read_evidence to discover new material; call search_corpus first if no evidence_id is known."
                 ),
                 parameters={
                     "type": "object",
@@ -74,8 +63,9 @@ class EvidenceToolSpecsMixin:
             AgentTool(
                 name="inspect_source",
                 description=(
-                    "Inspect a source/source version structure: headings, chunk labels, page/window hints, timestamp/section-like locators, and available representations. "
-                    "This is for orientation before exact reads; it does not select evidence for the SourceMap."
+                    "Inspect one source's readable structure: headings, chunk labels, page/window hints, and timestamp/section-like locators. "
+                    "Pass source_ref; version_ref is optional and should usually be omitted so the backend chooses the best readable surface. "
+                    "Use this when you need locators before exact reads; it does not create evidence."
                 ),
                 parameters={
                     "type": "object",
@@ -84,17 +74,18 @@ class EvidenceToolSpecsMixin:
                         "version_ref": {"type": "string"},
                         "max_items": {"type": "integer", "minimum": 1, "maximum": 40},
                     },
-                    "required": ["source_ref", "version_ref", "max_items"],
+                    "required": ["source_ref", "max_items"],
                 },
                 handler=self.inspect_source_tool,
             ),
             AgentTool(
-                name="read_source",
+                name="read_source_window",
                 description=(
-                    "Read a concrete window from a selected source/source version and persist that window as an EvidenceItem. "
-                    "Use source_ref when you want the best readable version, or version_ref from list_source_versions when you need a specific version. "
-                    "Strict schema requires both source_ref and version_ref; put an empty string in version_ref to use the best readable version. "
-                    "locator may be a heading/page/timestamp/search phrase; leave empty to read the beginning. "
+                    "Read one concrete local text window from a selected source and persist that window as an EvidenceItem. "
+                    "This does not read the whole source; it opens an exact page, page range, heading, timestamp, section, beginning, or around-phrase window when local text/chunks are available. "
+                    "For a source you have not examined yet, call skim_source first; use read_source_window as a follow-up for exact support, quote seeds, or relationship evidence. "
+                    "Pass source_ref; version_ref is optional and should usually be omitted so the backend chooses the best readable surface. "
+                    "For PDF/document sources this uses extracted/page-marked text, which is acceptable for source triage; later research should deep-read important PDF claims when needed. "
                     "Use the returned evidence_id in source-map write actions after you verify the readable detail."
                 ),
                 parameters={
@@ -105,40 +96,19 @@ class EvidenceToolSpecsMixin:
                         "locator": {"type": "string"},
                         "max_chars": {"type": "integer", "minimum": 200, "maximum": 3000},
                     },
-                    "required": ["source_ref", "version_ref", "locator", "max_chars"],
+                    "required": ["source_ref", "locator", "max_chars"],
                 },
-                handler=self.read_source_tool,
-            ),
-            AgentTool(
-                name="read_source_window",
-                description=(
-                    "Fallback/debug reader for local text snapshots, HTML, transcripts, and chunk windows. "
-                    "Open an exact page, page range, heading, timestamp, section, beginning, or around-phrase window when local text is available. "
-                    "For complex PDFs/documents, prefer read_source_with_model because it lets OpenAI read the uploaded file directly. "
-                    "The returned window is persisted as observed EvidenceItem; call select_evidence if you want it in the SourceMap."
-                ),
-                parameters={
-                    "type": "object",
-                    "properties": {
-                        "source_ref": {"type": "string"},
-                        "version_ref": {"type": "string"},
-                        "locator": {"type": "string"},
-                        "max_chars": {"type": "integer", "minimum": 200, "maximum": 3000},
-                    },
-                    "required": ["source_ref", "version_ref", "locator", "max_chars"],
-                },
-                handler=self.read_source_tool,
+                handler=self.read_source_window_tool,
             ),
             AgentTool(
                 name="read_source_with_model",
                 description=(
                     "Deep-read an uploaded source file with OpenAI input_file and persist the model-read result as an EvidenceItem. "
                     "Use this after hosted file_search identifies an important PDF/document/source, or when citation support requires reading the actual file rather than local parser chunks. "
-                    "Provide source_ref or version_ref, a focused question/claim, and optional locator_hint. "
-                    "Strict schema requires source_ref, version_ref, focus_question, claim_text, purpose, and locator_hint; put an empty string in version_ref to use the best available provider-backed version. "
+                    "Provide source_ref, a focused question/claim, and optional locator_hint; version_ref is optional and should usually be omitted so the backend chooses the best provider-backed source version. "
                     "The backend selects the best provider-backed source version, asks the model for strongest support, quote/snippet, support_summary, uncertainty, and optional locator, then returns an evidence_id. "
                     "If direct file reading is unavailable, the tool returns a human-readable coverage_warning. "
-                    "Call select_evidence if the result should enter SourceMap/research/citations. Page numbers are useful when reported, but not required."
+                    "Call select_evidence if the result should enter research atoms or citations. Page numbers are useful when reported, but not required."
                 ),
                 parameters={
                     "type": "object",
@@ -150,7 +120,7 @@ class EvidenceToolSpecsMixin:
                         "purpose": {"type": "string"},
                         "locator_hint": {"type": "string"},
                     },
-                    "required": ["source_ref", "version_ref", "focus_question", "claim_text", "purpose", "locator_hint"],
+                    "required": ["source_ref", "focus_question", "claim_text", "purpose", "locator_hint"],
                 },
                 handler=self.read_source_with_model_tool,
             ),
@@ -158,7 +128,8 @@ class EvidenceToolSpecsMixin:
                 name="search_within_source",
                 description=(
                     "Search for a phrase/topic inside exactly one selected source, persist matching windows as observed EvidenceItems, and return evidence ids. "
-                    "Use this for targeted follow-up after file_search finds a promising source."
+                    "Use this for targeted follow-up after skim_source, inspect_source, or corpus search finds a promising source. "
+                    "Pass source_ref; version_ref is optional and should usually be omitted so the backend chooses the best readable surface."
                 ),
                 parameters={
                     "type": "object",
@@ -168,16 +139,17 @@ class EvidenceToolSpecsMixin:
                         "query": {"type": "string"},
                         "limit": {"type": "integer", "minimum": 1, "maximum": 8},
                     },
-                    "required": ["source_ref", "version_ref", "query", "limit"],
+                    "required": ["source_ref", "query", "limit"],
                 },
                 handler=self.search_within_source_tool,
             ),
             AgentTool(
                 name="skim_source",
                 description=(
-                    "Skim one selected source/source version and persist representative windows as EvidenceItems. "
-                    "Use this before judging a source's role, structure, likely authority, duplicate status, or editorial usefulness. "
-                    "The result includes outline/section labels and evidence_id-backed windows; copy those evidence ids into the SourceMap when used."
+                    "Default first-read tool for one selected source. Skim representative windows and persist them as EvidenceItems. "
+                    "Use this before judging a source's role, scope, structure, duplicate status, or editorial usefulness. "
+                    "Pass source_ref; version_ref is optional and should usually be omitted so the backend chooses the best readable surface. "
+                    "For normal triage, request 3-5 windows, then use read_source_window only for exact follow-up."
                 ),
                 parameters={
                     "type": "object",
@@ -186,7 +158,7 @@ class EvidenceToolSpecsMixin:
                         "version_ref": {"type": "string"},
                         "max_windows": {"type": "integer", "minimum": 1, "maximum": 8},
                     },
-                    "required": ["source_ref", "version_ref", "max_windows"],
+                    "required": ["source_ref", "max_windows"],
                 },
                 handler=self.skim_source_tool,
             ),
@@ -195,7 +167,7 @@ class EvidenceToolSpecsMixin:
                 description=(
                     "Find quote-like snippets about a specific topic and persist them as EvidenceItems. "
                     "Use during source triage, research, and citation linking when a direct quote or quote-like support is needed. "
-                    "This is not a generic source search tool; for general evidence use search_evidence. "
+                    "This is not a generic source search tool; for general evidence use search_corpus. "
                     "Quote refs should be evidence_id values or source_ref:locator refs from returned evidence, never raw quote text."
                 ),
                 parameters={
@@ -227,10 +199,10 @@ class EvidenceToolSpecsMixin:
                 handler=self.search_sources_tool,
             ),
             AgentTool(
-                name="compare_sources",
+                name="compare_source_evidence",
                 description=(
-                    "Compare 2-5 selected sources for one source-map question: duplication, interpretive relationship, update chain, contradiction, coverage overlap, or quality gap. "
-                    "Internally retrieves and persists compact evidence previews per source, then returns evidence_id-backed comparison inputs. "
+                    "Retrieve comparable evidence previews from 2-5 selected sources for one source-map question: duplication, interpretive relationship, update chain, contradiction, coverage overlap, or quality gap. "
+                    "The tool searches each source with the same question and returns evidence_id-backed inputs grouped by source_ref. "
                     "Use this when a cluster or relationship needs multiple sources read together; write the resulting cluster/relationship/gap afterward."
                 ),
                 parameters={
@@ -247,7 +219,7 @@ class EvidenceToolSpecsMixin:
                     },
                     "required": ["source_refs", "question", "limit_per_source"],
                 },
-                handler=self.compare_sources_tool,
+                handler=self.compare_source_evidence_tool,
             ),
             AgentTool(
                 name="select_evidence",
