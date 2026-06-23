@@ -53,7 +53,9 @@ from app.generation_v2.prompting import (
     EPISODE_CRITIQUE_PROMPT,
     EPISODE_CRITIC_SYSTEM,
     RESEARCH_AUDIT_SYSTEM,
-    RESEARCH_MEMO_PROMPT,
+    RESEARCH_FINALIZER_PROMPT,
+    RESEARCH_JOB_PROMPT,
+    RESEARCH_PLANNER_PROMPT,
     RESEARCH_SYSTEM,
     SOURCE_ACQUISITION_PROMPT,
     SOURCE_ACQUISITION_SYSTEM,
@@ -78,6 +80,13 @@ from app.generation_v2.runtime import (
     _hosted_evidence_followup_input,
     _model_facing_tool_output,
     _strict_json_schema,
+)
+from app.generation_v2.research_workspace import (
+    build_research_workspace_tools,
+    research_finalizer_payload_for_prompt,
+    research_job_prompt_payload,
+    research_memo_from_workspace,
+    source_map_research_summary,
 )
 from app.generation_v2.schemas import (
     ActDraft,
@@ -374,7 +383,9 @@ def test_v2_runtime_routes_models_per_agent(monkeypatch: pytest.MonkeyPatch) -> 
 
     assert runtime.model_for("v2_source_triage", "source_triage_agent") == "gpt-5.4-mini"
     assert runtime.model_for("v2_source_acquisition", "source_acquisition_round_2") == "gpt-5.4-mini"
-    assert runtime.model_for("v2_editorial_research", "research_agent") == "gpt-5.4"
+    assert runtime.model_for("v2_editorial_research", "research_planner_agent") == "gpt-5.4"
+    assert runtime.model_for("v2_editorial_research", "research_job_agent_mechanism") == "gpt-5.4"
+    assert runtime.model_for("v2_editorial_research", "research_finalizer_agent") == "gpt-5.4"
     assert runtime.model_for("v2_treatment", "story_editor") == "gpt-5.4"
     assert runtime.model_for("v2_act_drafting", "act_writer_2") == "gpt-5.4"
     assert runtime.model_for("v2_critique_rewrite", "act_rewriter_2") == "gpt-5.4"
@@ -1176,11 +1187,12 @@ def test_evidence_tool_descriptions_define_usage_and_citation_contracts() -> Non
     assert "source_refs" in descriptions["search_corpus"]
     assert "persist" in descriptions["search_corpus"].lower()
     assert "discovery preview" in descriptions["search_corpus"]
+    assert "source-map" not in descriptions["search_corpus"]
     assert "source_ref/title" in descriptions["read_evidence"]
     assert "does not read the whole source" in descriptions["read_source_window"]
     assert "persist that window as an EvidenceItem" in descriptions["read_source_window"]
-    assert "For a source you have not examined yet, call skim_source first" in descriptions["read_source_window"]
-    assert "Use the returned evidence_id in source-map write actions" in descriptions["read_source_window"]
+    assert "If skim_source is available and the source is unfamiliar, skim first" in descriptions["read_source_window"]
+    assert "Use the returned evidence_id in durable write actions" in descriptions["read_source_window"]
     assert "input_file" in descriptions["read_source_with_model"]
     assert "version_ref is optional" in descriptions["read_source_with_model"]
     assert "coverage_warning" in descriptions["read_source_with_model"]
@@ -1189,6 +1201,7 @@ def test_evidence_tool_descriptions_define_usage_and_citation_contracts() -> Non
     assert "Skim representative windows and persist them as EvidenceItems" in descriptions["skim_source"]
     assert "version_ref is optional" in descriptions["skim_source"]
     assert "not a generic source search tool" in descriptions["find_quotes"]
+    assert "research atom" in descriptions["find_quotes"]
     assert "corpus/source triage only" in descriptions["search_sources"]
     assert "2-5 selected sources" in descriptions["compare_source_evidence"]
     assert "write the resulting cluster/relationship/gap afterward" in descriptions["compare_source_evidence"]
@@ -1455,13 +1468,27 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
         "law",
     ):
         assert case_specific_term not in SOURCE_TRIAGE_PROMPT
-    assert "coverage_warning" in RESEARCH_MEMO_PROMPT
-    assert "source-coverage risk" in RESEARCH_MEMO_PROMPT
-    assert "SourceMap is a starting map" in RESEARCH_MEMO_PROMPT
-    assert "Call select_evidence for any new EvidenceItem" in RESEARCH_MEMO_PROMPT
-    assert "Use evidence_id values shown in the SourceMap/quote inventory or returned by the provided tools" in RESEARCH_MEMO_PROMPT
-    assert "call select_evidence before using that evidence_id in an atom" in RESEARCH_MEMO_PROMPT
-    assert "Use source_ref only for choosing or relating sources" in RESEARCH_MEMO_PROMPT
+    assert "upsert_research_job" in RESEARCH_PLANNER_PROMPT
+    assert "A good job has:" in RESEARCH_PLANNER_PROMPT
+    assert "Mini-examples:" in RESEARCH_PLANNER_PROMPT
+    assert "upsert_editorial_atom" in RESEARCH_JOB_PROMPT
+    assert "What success looks like:" in RESEARCH_JOB_PROMPT
+    assert "skim_source or inspect_source" in RESEARCH_JOB_PROMPT
+    assert "scope=all_sources" in RESEARCH_JOB_PROMPT
+    assert "record_research_observation or upsert_editorial_atom" in RESEARCH_JOB_PROMPT
+    assert "tool validates the refs" in RESEARCH_JOB_PROMPT
+    assert "finalize_research_memo" in RESEARCH_FINALIZER_PROMPT
+    assert "treatment-ready" in RESEARCH_FINALIZER_PROMPT
+    assert "atom_drafts" in RESEARCH_FINALIZER_PROMPT
+    assert "Read/search/compare only enough" not in RESEARCH_JOB_PROMPT
+    assert "select_evidence" not in RESEARCH_PLANNER_PROMPT
+    assert "select_evidence" not in RESEARCH_JOB_PROMPT
+    assert "select_evidence" not in RESEARCH_FINALIZER_PROMPT
+    assert "needs_repair" not in RESEARCH_JOB_PROMPT
+    assert "source_ids" not in RESEARCH_JOB_PROMPT
+    assert "source ids" not in RESEARCH_JOB_PROMPT.lower()
+    assert "source_ids" not in RESEARCH_FINALIZER_PROMPT
+    assert "source ids" not in RESEARCH_FINALIZER_PROMPT.lower()
     assert "under-grounded, invalid, unwritten, or missing persisted gap/caution work" in SOURCE_TRIAGE_REPAIR_PROMPT
     assert "missing_model_read_source_ids" not in SOURCE_TRIAGE_REPAIR_PROMPT
     assert "select_evidence" not in SOURCE_TRIAGE_REPAIR_PROMPT
@@ -1534,7 +1561,7 @@ def test_agent_system_prompts_are_role_specific_and_product_aware() -> None:
     assert "Web search is only a discovery mechanism" in SOURCE_ACQUISITION_SYSTEM
     assert "Use the SourceMap as orientation" in RESEARCH_SYSTEM
     assert "create stronger saved evidence" in RESEARCH_SYSTEM
-    assert "copied from prompt inventories or tool results" in RESEARCH_SYSTEM
+    assert "Persist working conclusions as research observations or editorial atom drafts" in RESEARCH_SYSTEM
     assert "Each act is a listener job" in TREATMENT_SYSTEM
     assert "Before using required evidence, inspect it" in ACT_WRITER_SYSTEM
     assert "Do not search" in SUPPORT_JUDGE_SYSTEM
@@ -1687,20 +1714,33 @@ async def test_phase_specific_agent_tool_sets_are_not_broad() -> None:
     )
 
     calls = _CaptureRuntime.calls
-    assert set(calls["research_agent"]) == {
-        "list_sources",
-        "search_sources",
+    assert set(calls["research_planner_agent"]) == {
+        "upsert_research_job",
+        "finalize_research_plan",
+    }
+    research_job_agent = next(name for name in calls if name.startswith("research_job_agent_"))
+    assert set(calls[research_job_agent]) == {
         "search_corpus",
         "find_quotes",
         "read_evidence",
         "read_source_window",
         "read_source_with_model",
         "search_within_source",
-        "compare_source_evidence",
-        "select_evidence",
+        "skim_source",
+        "inspect_source",
+        "compare_evidence_for_question",
+        "record_research_observation",
+        "upsert_editorial_atom",
+        "finish_research_job",
     }
-    assert "upsert_source_card" not in calls["research_agent"]
-    assert _CaptureRuntime.kwargs_by_agent["research_agent"]["max_tool_rounds"] == 64
+    assert set(calls["research_finalizer_agent"]) == {
+        "record_research_risk",
+        "finalize_research_memo",
+    }
+    assert "select_evidence" not in calls[research_job_agent]
+    assert "list_sources" not in calls[research_job_agent]
+    assert "search_sources" not in calls[research_job_agent]
+    assert _CaptureRuntime.kwargs_by_agent[research_job_agent]["max_tool_rounds"] == 80
     assert set(calls["research_auditor"]) == {"search_corpus", "read_evidence"}
     assert set(calls["story_editor"]) == {"read_evidence", "read_source_window", "search_within_source"}
     assert set(calls["act_writer_1"]) == {"read_evidence", "read_source_window", "search_within_source"}
@@ -1718,7 +1758,7 @@ async def test_phase_specific_agent_tool_sets_are_not_broad() -> None:
 
 
 @pytest.mark.asyncio
-async def test_research_memo_receives_full_source_inventory_and_scaled_tool_budget() -> None:
+async def test_research_workflow_uses_sourcemap_summary_not_full_inventory_prompt() -> None:
     _CaptureRuntime.calls = {}
     _CaptureRuntime.kwargs_by_agent = {}
     run = SimpleNamespace(
@@ -1743,10 +1783,132 @@ async def test_research_memo_receives_full_source_inventory_and_scaled_tool_budg
         evidence_tools=_all_evidence_tools(),
     )
 
-    kwargs = _CaptureRuntime.kwargs_by_agent["research_agent"]
-    assert kwargs["max_tool_rounds"] == 102
-    assert "Neutral inventory source 40" in kwargs["prompt"]
-    assert "SourceMap seed inventory" in kwargs["prompt"]
+    kwargs = _CaptureRuntime.kwargs_by_agent["research_planner_agent"]
+    assert kwargs["max_tool_rounds"] == 40
+    assert "Neutral inventory source 40" not in kwargs["prompt"]
+    assert "SourceMap summary from triage" in kwargs["prompt"]
+    assert "Triaged promoted source" in kwargs["prompt"]
+
+
+def test_research_sourcemap_summary_controls_evidence_visibility_by_stage() -> None:
+    first_source_id = str(uuid.uuid4())
+    second_source_id = str(uuid.uuid4())
+    mapped_card = _source_card(source_id=first_source_id, title="Mapped source").model_copy(
+        update={"evidence_ids": ["ev-card"]}
+    )
+    inventory = SourceMap(
+        source_cards=[
+            mapped_card,
+            _source_card(source_id=second_source_id, title="Related source"),
+        ]
+    )
+    source_map = SourceMap(
+        source_cards=[mapped_card],
+        quote_cards=[
+            QuoteCard(
+                source_id=first_source_id,
+                evidence_id="ev-quote",
+                quote="A useful quoted sentence.",
+                locator="p. 1",
+                narrative_use="mechanism",
+            )
+        ],
+        source_triage=SourceTriageReport(
+            source_clusters=[
+                SourceCluster(
+                    cluster_id="cluster-1",
+                    label="Mechanism cluster",
+                    source_ids=[first_source_id, second_source_id],
+                    evidence_ids=["ev-cluster"],
+                )
+            ],
+            source_relationships=[
+                SourceRelationship(
+                    source_id=first_source_id,
+                    related_source_id=second_source_id,
+                    relationship="background_for",
+                    evidence_ids=["ev-relationship"],
+                    rationale="The first source frames the second.",
+                )
+            ],
+        ),
+    )
+
+    planner_summary = source_map_research_summary(source_map, inventory, include_evidence_ids=False)
+    job_summary = source_map_research_summary(source_map, inventory, include_evidence_ids=True)
+
+    assert planner_summary["includes_evidence_ids"] is False
+    assert "evidence_ids" not in planner_summary["source_cards"][0]
+    assert "evidence_id" not in planner_summary["quote_cards"][0]
+    assert "evidence_ids" not in planner_summary["clusters"][0]
+    assert "evidence_ids" not in planner_summary["relationships"][0]
+    assert job_summary["includes_evidence_ids"] is True
+    assert job_summary["source_cards"][0]["evidence_ids"] == ["ev-card"]
+    assert job_summary["quote_cards"][0]["evidence_id"] == "ev-quote"
+    assert job_summary["clusters"][0]["evidence_ids"] == ["ev-cluster"]
+    assert job_summary["relationships"][0]["evidence_ids"] == ["ev-relationship"]
+
+
+def test_research_finalizer_prompt_payload_contains_persisted_work_not_counts_only() -> None:
+    workspace = {
+        "source_order": ["S01"],
+        "selected_evidence_ids": ["ev-1"],
+        "investigation_jobs": [
+            {
+                "job_id": "job-mechanism",
+                "label": "Mechanism",
+                "story_job": "mechanism",
+                "purpose": "Explain the operating model.",
+                "source_refs": ["S01"],
+                "questions": ["How does the mechanism work?"],
+                "status": "finished",
+                "observations": [
+                    {
+                        "source_refs": ["S01"],
+                        "evidence_ids": ["ev-1"],
+                        "note": "S01 gives the concrete exchange process.",
+                        "pending_questions": ["Find the consequence."],
+                    }
+                ],
+                "atom_ids": ["atom-1"],
+                "evidence_ids": ["ev-1"],
+            }
+        ],
+        "atom_drafts": [
+            {
+                "atom_id": "atom-1",
+                "job_id": "job-mechanism",
+                "kind": "mechanism",
+                "title": "Mechanism atom",
+                "claim": "The system turns obligations into issuance capacity.",
+                "explanation": "The source explains the concrete operating process.",
+                "story_value": "Lets treatment explain the machine before the stakes.",
+                "source_refs": ["S01"],
+                "evidence_ids": ["ev-1"],
+                "confidence": 0.8,
+                "risk": "medium",
+                "source_coverage_status": "supported",
+            }
+        ],
+        "open_questions": ["Consequence still needs detail."],
+        "risk_register": [
+            {
+                "risk": "One source covers the mechanism but not the consequence.",
+                "severity": "medium",
+                "source_refs": ["S01"],
+                "evidence_ids": ["ev-1"],
+            }
+        ],
+    }
+
+    payload = research_finalizer_payload_for_prompt(workspace)
+
+    assert payload["selected_evidence_count"] == 1
+    assert payload["jobs"][0]["job_id"] == "job-mechanism"
+    assert payload["observations"][0]["note"] == "S01 gives the concrete exchange process."
+    assert payload["atom_drafts"][0]["evidence_ids"] == ["ev-1"]
+    assert payload["risk_register"][0]["source_refs"] == ["S01"]
+    assert "Use atom_drafts as the memo backbone" in payload["assembly_instruction"]
 
 
 def test_fallback_editorial_flow_produces_draft_and_claims() -> None:
@@ -2247,6 +2409,104 @@ def test_research_memo_evidence_gate_rejects_observed_unselected_atom_evidence()
 
     assert gate.passed is False
     assert "not explicitly selected" in " ".join(gate.missing_material)
+
+
+def test_research_memo_gate_requires_major_cluster_coverage() -> None:
+    source_id = str(uuid.uuid4())
+    uncovered_source_id = str(uuid.uuid4())
+    source_version_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    memo = ResearchMemo(
+        title="Memo",
+        thesis="Thesis",
+        narrative_spine="Spine",
+        editorial_atoms=[
+            EditorialAtom(
+                kind="mechanism",
+                title="Mechanism",
+                explanation="A specific mechanism.",
+                source_ids=[source_id],
+                evidence_ids=[evidence_id],
+                story_value="Explains the system.",
+            )
+        ],
+    )
+    source_map = SourceMap(
+        source_triage=SourceTriageReport(
+            source_clusters=[
+                SourceCluster(
+                    cluster_id="main-cluster",
+                    label="Main explanatory cluster",
+                    source_ids=[uncovered_source_id, str(uuid.uuid4())],
+                    rationale="A major group of sources for the episode logic.",
+                )
+            ]
+        )
+    )
+
+    gate = _validate_research_memo_evidence(
+        memo,
+        evidence_records=[
+            _evidence_record(evidence_id=evidence_id, source_id=source_id, source_version_id=source_version_id)
+        ],
+        run_view=SimpleNamespace(
+            selected_source_ids=[source_id],
+            selected_source_version_ids=[source_version_id],
+        ),
+        duration_seconds=1800,
+        source_map=source_map,
+    )
+
+    assert gate.passed is False
+    assert "Main explanatory cluster" in " ".join(gate.missing_material)
+
+
+def test_research_memo_gate_skips_low_priority_duplicate_cluster_coverage() -> None:
+    source_id = str(uuid.uuid4())
+    source_version_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    memo = ResearchMemo(
+        title="Memo",
+        thesis="Thesis",
+        narrative_spine="Spine",
+        editorial_atoms=[
+            EditorialAtom(
+                kind="mechanism",
+                title="Mechanism",
+                explanation="A specific mechanism.",
+                source_ids=[source_id],
+                evidence_ids=[evidence_id],
+                story_value="Explains the system.",
+            )
+        ],
+    )
+    source_map = SourceMap(
+        source_triage=SourceTriageReport(
+            source_clusters=[
+                SourceCluster(
+                    cluster_id="dup-cluster",
+                    label="Duplicate mirrors",
+                    source_ids=[str(uuid.uuid4()), str(uuid.uuid4())],
+                    rationale="Near-duplicate reposts of the same material.",
+                )
+            ]
+        )
+    )
+
+    gate = _validate_research_memo_evidence(
+        memo,
+        evidence_records=[
+            _evidence_record(evidence_id=evidence_id, source_id=source_id, source_version_id=source_version_id)
+        ],
+        run_view=SimpleNamespace(
+            selected_source_ids=[source_id],
+            selected_source_version_ids=[source_version_id],
+        ),
+        duration_seconds=1800,
+        source_map=source_map,
+    )
+
+    assert gate.passed is True
 
 
 @pytest.mark.asyncio
@@ -3059,12 +3319,320 @@ async def test_scoped_triage_set_rejects_global_search_without_provider_call() -
     assert result["results"] == []
 
 
+@pytest.mark.asyncio
+async def test_scoped_research_job_rejects_empty_find_quotes_scope() -> None:
+    toolset = EvidenceToolset(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),
+        run_view=None,  # type: ignore[arg-type]
+        provider_index=None,
+        research_allowed_source_refs={"S01", "S02"},
+    )
+
+    result = await toolset.find_quotes_tool({"topic": "mechanism", "source_refs": [], "limit": 3})
+
+    assert result["accepted"] is False
+    assert result["error"] == "source_refs_required_in_current_scope"
+    assert result["results"] == []
+
+
 def test_source_triage_workflow_prompts_describe_stage_contracts() -> None:
     assert "list_source_capsules" in SOURCE_TRIAGE_PLANNER_PROMPT
     assert "search/read/skim tools create or return evidence_id handles" in SOURCE_TRIAGE_SET_PROMPT
     assert "Assembled SourceMap from persisted write actions" in SOURCE_TRIAGE_FINALIZER_PROMPT
     assert "list_sources" not in SOURCE_TRIAGE_PLANNER_PROMPT
     assert "select_evidence" not in SOURCE_TRIAGE_SET_PROMPT
+
+
+@pytest.mark.asyncio
+async def test_research_workspace_upsert_atom_resolves_refs_and_auto_selects(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import research_workspace as research_workspace_module
+
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    run = SimpleNamespace(id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    workspace = {
+        "source_order": ["S01"],
+        "investigation_jobs": [
+            {
+                "job_id": "job_1",
+                "source_refs": ["S01"],
+                "allow_broad_search": False,
+                "status": "in_progress",
+                "observations": [],
+                "atom_ids": [],
+                "evidence_ids": [],
+            }
+        ],
+        "current_job": {"job_id": "job_1", "source_refs": ["S01"]},
+        "atom_drafts": [],
+        "selected_evidence_ids": [],
+        "covered_source_refs": [],
+    }
+    inventory = SourceMap(source_cards=[_source_card(source_id=source_id)])
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, *, generation_run_id, workspace: dict, status=None):
+        return SimpleNamespace(id=uuid.uuid4(), payload=workspace)
+
+    class _FakeEvidenceToolset:
+        async def _evidence_in_run(self, item_id: str):
+            if item_id == evidence_id:
+                return SimpleNamespace(id=uuid.UUID(evidence_id), source_id=uuid.UUID(source_id))
+            return None
+
+        async def _source_ref_for_id(self, item_source_id):
+            return "S01" if str(item_source_id) == source_id else "S??"
+
+        async def _source_ids_from_refs_or_ids(self, refs):
+            return ([source_id] if refs == ["S01"] else [], [] if refs == ["S01"] else refs)
+
+        async def _mark_evidence_status(self, item_id, status, metadata):
+            self.selected = (item_id, status, metadata)
+
+    fake_toolset = _FakeEvidenceToolset()
+    monkeypatch.setattr(research_workspace_module, "load_research_workspace", _load)
+    monkeypatch.setattr(research_workspace_module, "save_research_workspace", _save)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=inventory,
+        evidence_toolset=fake_toolset,
+        mode="job",
+        current_job_id="job_1",
+    )
+    upsert_atom = next(tool for tool in tools if tool.name == "upsert_editorial_atom")
+
+    result = await upsert_atom.handler(
+        {
+            "job_id": "job_1",
+            "kind": "mechanism",
+            "title": "Mechanism",
+            "claim": "The mechanism works through a concrete institutional process.",
+            "explanation": "The mechanism works through a concrete institutional process.",
+            "source_refs": ["S01"],
+            "evidence_ids": [evidence_id],
+            "quote_refs": [],
+            "story_value": "Explains the system.",
+            "anchor_refs": [],
+            "confidence": 0.8,
+            "risk": "low",
+            "source_coverage_status": "ready",
+        }
+    )
+
+    assert result["accepted"] is True
+    assert workspace["atom_drafts"][0]["source_ids"] == [source_id]
+    assert workspace["atom_drafts"][0]["evidence_ids"] == [evidence_id]
+    assert fake_toolset.selected[0] == evidence_id
+    assert fake_toolset.selected[1] == "selected"
+    assert fake_toolset.selected[2]["selected_role"] == "research_atom"
+
+
+@pytest.mark.asyncio
+async def test_research_workspace_broad_job_still_rejects_refs_outside_workspace(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import research_workspace as research_workspace_module
+
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    run = SimpleNamespace(id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    workspace = {
+        "source_order": ["S01"],
+        "investigation_jobs": [
+            {
+                "job_id": "job_1",
+                "source_refs": [],
+                "allow_broad_search": True,
+                "status": "in_progress",
+                "observations": [],
+                "atom_ids": [],
+                "evidence_ids": [],
+            }
+        ],
+        "current_job": {"job_id": "job_1", "source_refs": []},
+        "atom_drafts": [],
+    }
+    inventory = SourceMap(source_cards=[_source_card(source_id=source_id)])
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, *, generation_run_id, workspace: dict, status=None):
+        return SimpleNamespace(id=uuid.uuid4(), payload=workspace)
+
+    class _FakeEvidenceToolset:
+        async def _evidence_in_run(self, _item_id: str):
+            return SimpleNamespace(id=uuid.UUID(evidence_id), source_id=uuid.UUID(source_id))
+
+        async def _source_ref_for_id(self, _item_source_id):
+            return "S01"
+
+        async def _source_ids_from_refs_or_ids(self, refs):
+            return ([source_id], []) if refs == ["S01"] else ([], refs)
+
+        async def _mark_evidence_status(self, _item_id, _status, _metadata):
+            raise AssertionError("invalid workspace refs should be rejected before evidence selection")
+
+    monkeypatch.setattr(research_workspace_module, "load_research_workspace", _load)
+    monkeypatch.setattr(research_workspace_module, "save_research_workspace", _save)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=inventory,
+        evidence_toolset=_FakeEvidenceToolset(),
+        mode="job",
+        current_job_id="job_1",
+    )
+    upsert_atom = next(tool for tool in tools if tool.name == "upsert_editorial_atom")
+
+    result = await upsert_atom.handler(
+        {
+            "job_id": "job_1",
+            "kind": "mechanism",
+            "title": "Mechanism",
+            "claim": "Claim",
+            "explanation": "Explanation",
+            "source_refs": ["S99"],
+            "evidence_ids": [evidence_id],
+            "quote_refs": [],
+            "story_value": "Explains the system.",
+            "anchor_refs": [],
+            "confidence": 0.8,
+            "risk": "low",
+            "source_coverage_status": "ready",
+        }
+    )
+
+    assert result["accepted"] is False
+    assert result["error"] == "atom source_refs must exist in the research workspace"
+    assert result["invalid_source_refs"] == ["S99"]
+    assert workspace["atom_drafts"] == []
+
+
+def test_research_workspace_signature_changes_when_sourcemap_content_changes() -> None:
+    from app.generation_v2 import research_workspace as research_workspace_module
+
+    source_id = str(uuid.uuid4())
+    inventory = SourceMap(source_cards=[_source_card(source_id=source_id, title="Inventory")])
+    source_map_a = SourceMap(
+        source_cards=[_source_card(source_id=source_id, title="Source A")],
+        source_triage=SourceTriageReport(
+            source_clusters=[
+                SourceCluster(
+                    cluster_id="cluster",
+                    label="Mechanism sources",
+                    source_ids=[source_id],
+                    rationale="First rationale.",
+                )
+            ]
+        ),
+    )
+    source_map_b = SourceMap(
+        source_cards=[_source_card(source_id=source_id, title="Source A")],
+        source_triage=SourceTriageReport(
+            source_clusters=[
+                SourceCluster(
+                    cluster_id="cluster",
+                    label="Mechanism sources",
+                    source_ids=[source_id],
+                    rationale="Changed rationale with the same counts.",
+                )
+            ]
+        ),
+    )
+
+    signature_a = research_workspace_module._source_map_signature(source_map_a, inventory)
+    signature_b = research_workspace_module._source_map_signature(source_map_b, inventory)
+
+    assert signature_a["schema_version"] == "research_source_map_signature.v2"
+    assert signature_a["source_map_hash"] != signature_b["source_map_hash"]
+
+
+def test_research_job_prompt_payload_filters_sourcemap_to_current_job_refs() -> None:
+    workspace = {
+        "source_order": ["S01", "S02"],
+        "investigation_jobs": [
+            {
+                "job_id": "job_1",
+                "source_refs": ["S01"],
+                "allow_broad_search": False,
+                "status": "in_progress",
+            }
+        ],
+        "atom_drafts": [],
+    }
+    summary = {
+        "source_card_count": 2,
+        "quote_card_count": 2,
+        "gap_count": 0,
+        "source_cards": [
+            {"source_ref": "S01", "title": "Included", "summary": "Relevant"},
+            {"source_ref": "S02", "title": "Excluded", "summary": "Other"},
+        ],
+        "quote_cards": [
+            {"source_ref": "S01", "evidence_id": "ev1"},
+            {"source_ref": "S02", "evidence_id": "ev2"},
+        ],
+        "clusters": [
+            {"cluster_id": "c1", "label": "Included cluster", "source_refs": ["S01"]},
+            {"cluster_id": "c2", "label": "Excluded cluster", "source_refs": ["S02"]},
+        ],
+        "relationships": [
+            {"source_ref": "S01", "related_source_ref": "S02", "relationship": "contrast"},
+            {"source_ref": "S02", "related_source_ref": "S03", "relationship": "duplicate"},
+        ],
+        "gaps": ["gap"],
+    }
+
+    payload = research_job_prompt_payload(workspace, "job_1", source_map_summary=summary)
+    filtered = payload["source_map_summary"]
+
+    assert [item["title"] for item in filtered["source_cards"]] == ["Included"]
+    assert [item["evidence_id"] for item in filtered["quote_cards"]] == ["ev1"]
+    assert [item["cluster_id"] for item in filtered["clusters"]] == ["c1"]
+    assert [item["relationship"] for item in filtered["relationships"]] == ["contrast"]
+    assert filtered["source_card_count"] == 2
+    assert filtered["includes_evidence_ids"] is False
+    assert filtered["filtered_for_source_refs"] == ["S01"]
+
+
+def test_research_memo_from_workspace_assembles_downstream_source_ids() -> None:
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    run = SimpleNamespace(config={"user_prompt": "Topic"})
+    workspace = {
+        "memo_fields": {
+            "title": "Memo",
+            "thesis": "A concrete thesis.",
+            "narrative_spine": "Mechanism to consequence.",
+        },
+        "atom_drafts": [
+            {
+                "atom_id": "atom_1",
+                "kind": "mechanism",
+                "title": "Mechanism",
+                "explanation": "A concrete mechanism.",
+                "source_refs": ["S01"],
+                "source_ids": [source_id],
+                "evidence_ids": [evidence_id],
+                "story_value": "Explains the system.",
+                "confidence": 0.8,
+                "risk": "low",
+                "source_coverage_status": "ready",
+            }
+        ],
+    }
+
+    memo = research_memo_from_workspace(run, workspace)  # type: ignore[arg-type]
+
+    assert memo.title == "Memo"
+    assert memo.editorial_atoms[0].source_ids == [source_id]
+    assert memo.editorial_atoms[0].evidence_ids == [evidence_id]
+    assert memo.editorial_atoms[0].anchor_refs == [evidence_id]
 
 
 def test_source_triage_unresolved_sets_are_blockers() -> None:
@@ -3285,7 +3853,7 @@ async def test_v2_agent_falls_back_only_when_explicitly_enabled(monkeypatch: pyt
     )
 
     assert memo.risk_register == ["Fallback memo used because provider runtime was unavailable."]
-    assert runtime.fallback == ("v2_editorial_research", "research_agent")
+    assert runtime.fallback == ("v2_editorial_research", "research_planner_agent")
 
 
 @pytest.mark.asyncio
@@ -4876,6 +5444,7 @@ def _all_evidence_tools() -> list[AgentTool]:
             "inspect_source",
             "search_within_source",
             "compare_source_evidence",
+            "compare_evidence_for_question",
             "select_evidence",
             "upsert_source_card",
             "create_quote_card",

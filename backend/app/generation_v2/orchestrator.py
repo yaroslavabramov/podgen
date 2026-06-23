@@ -31,12 +31,14 @@ from app.generation_v2.citation_validation import (
     validation_quality_metrics,
 )
 from app.generation_v2.finalize import build_v2_shownotes, generate_audio_from_segments, transcript_payload, write_v2_script_segments
+from app.generation_v2.research_workspace import load_research_workspace_artifact
 from app.generation_v2.runtime import V2Runtime
 from app.generation_v2.schemas import (
     ActDossier,
     CitationValidationReport,
     ClaimCitationBundle,
     ContinuityLedger,
+    EditorialAtom,
     EpisodeCritique,
     FactIssue,
     QuoteCard,
@@ -175,15 +177,18 @@ async def execute_generation_v2(
             source_map=source_map,
             source_inventory=triage_state.source_inventory,
             evidence_tools=evidence_tools,
+            evidence_toolset=evidence_toolset,
             vector_store_id=corpus.vector_store_id,
             hosted_file_search_handler=evidence_toolset.persist_hosted_file_search_calls,
             show_bible=show_bible,
         )
+        research_workspace_artifact = await load_research_workspace_artifact(db, run.id)
+        research_workspace_artifact_ids = [str(research_workspace_artifact.id)] if research_workspace_artifact else []
         memo_evidence_artifact_ids_by_evidence_id = await _save_evidence_artifact_map(
             db,
             run,
             evidence_ids=_research_memo_evidence_ids(memo),
-            input_artifact_ids=source_workspace_artifact_ids,
+            input_artifact_ids=[*source_workspace_artifact_ids, *research_workspace_artifact_ids],
         )
         memo_artifact = await save_artifact(
             db,
@@ -192,11 +197,15 @@ async def execute_generation_v2(
             artifact_key="main",
             payload=memo,
             provider="openai" if corpus.vector_store_id else None,
-            model=runtime.model_for("v2_editorial_research", "research_agent"),
+            model=runtime.model_for("v2_editorial_research", "research_finalizer_agent"),
             status=V2ArtifactStatus.PASSED,
-            input_artifact_ids=[*source_workspace_artifact_ids, *memo_evidence_artifact_ids_by_evidence_id.values()],
-            prompt_hash=runtime.prompt_hash_for("v2_editorial_research", "research_agent"),
-            metadata=runtime.fallback_metadata_for("v2_editorial_research", "research_agent"),
+            input_artifact_ids=[
+                *source_workspace_artifact_ids,
+                *research_workspace_artifact_ids,
+                *memo_evidence_artifact_ids_by_evidence_id.values(),
+            ],
+            prompt_hash=runtime.prompt_hash_for("v2_editorial_research", "research_finalizer_agent"),
+            metadata=runtime.fallback_metadata_for("v2_editorial_research", "research_finalizer_agent"),
         )
         atom_artifact_ids: list[str] = []
         for idx, atom in enumerate(memo.editorial_atoms):
@@ -221,6 +230,7 @@ async def execute_generation_v2(
             evidence_records=await list_evidence_dicts(db, run.id),
             run_view=corpus.run_view,
             duration_seconds=int((run.config or {}).get("duration_target", 1800)),
+            source_map=source_map,
         )
         memo_gate_artifact = await save_artifact(
             db,
@@ -1669,6 +1679,7 @@ def _validate_research_memo_evidence(
     evidence_records: list[dict],
     run_view: RunCorpusView,
     duration_seconds: int,
+    source_map: SourceMap | None = None,
 ) -> ResearchAudit:
     valid_source_ids = {str(source_id) for source_id in run_view.selected_source_ids}
     valid_version_ids = {str(version_id) for version_id in run_view.selected_source_version_ids}
@@ -1711,6 +1722,22 @@ def _validate_research_memo_evidence(
         ]
         if len(grounded_high_impact) < 4:
             issues.append("Long-form V2 memo requires at least four grounded high-impact editorial atoms.")
+    if duration_seconds >= 2700:
+        coverage = _research_story_coverage(memo, valid_evidence_ids)
+        required = {
+            "mechanism": "45+ minute memo requires a grounded mechanism atom.",
+            "history_origin": "45+ minute memo requires grounded origin/history material.",
+            "turning_point": "45+ minute memo requires a grounded turning-point atom.",
+            "consequence_tradeoff": "45+ minute memo requires grounded consequence/tradeoff material.",
+            "incentive_conflict": "45+ minute memo requires grounded incentive or conflict material.",
+            "unanswered_risk": "45+ minute memo requires an unanswered question or explicit risk.",
+        }
+        for key, message in required.items():
+            if not coverage.get(key):
+                issues.append(message)
+    if source_map is not None:
+        cluster_issues = _research_source_map_cluster_coverage_issues(memo, source_map)
+        issues.extend(cluster_issues)
     score = 1.0 if not issues else max(0.0, 1.0 - len(issues) * 0.15)
     return ResearchAudit(
         passed=not issues,
@@ -1718,6 +1745,84 @@ def _validate_research_memo_evidence(
         verdict="Research memo evidence gate passed." if not issues else "Research memo evidence gate failed.",
         missing_material=issues,
         required_followups=issues,
+    )
+
+
+def _research_story_coverage(memo: ResearchMemo, valid_evidence_ids: set[str]) -> dict[str, bool]:
+    def grounded(atom: EditorialAtom) -> bool:
+        return bool(atom.evidence_ids) and all(evidence_id in valid_evidence_ids for evidence_id in atom.evidence_ids)
+
+    coverage = {
+        "mechanism": False,
+        "history_origin": False,
+        "turning_point": False,
+        "consequence_tradeoff": False,
+        "incentive_conflict": False,
+        "unanswered_risk": bool(memo.open_questions or memo.risk_register),
+    }
+    for atom in memo.editorial_atoms:
+        text = f"{atom.title} {atom.explanation} {atom.story_value}".lower()
+        if atom.kind == "mechanism" and grounded(atom):
+            coverage["mechanism"] = True
+        if (atom.kind == "history" or "origin" in text or "history" in text) and grounded(atom):
+            coverage["history_origin"] = True
+        if atom.kind == "turning_point" and grounded(atom):
+            coverage["turning_point"] = True
+        if (atom.kind == "consequence" or "tradeoff" in text or "trade-off" in text) and grounded(atom):
+            coverage["consequence_tradeoff"] = True
+        if atom.kind in {"institutional_incentive", "conflict"} and grounded(atom):
+            coverage["incentive_conflict"] = True
+        if atom.kind == "unanswered_question":
+            coverage["unanswered_risk"] = True
+    return coverage
+
+
+def _research_source_map_cluster_coverage_issues(memo: ResearchMemo, source_map: SourceMap) -> list[str]:
+    issues: list[str] = []
+    if not source_map.source_triage.source_clusters:
+        return issues
+    risk_text = " ".join([*memo.open_questions, *memo.risk_register]).lower()
+    atom_source_sets = [set(str(source_id) for source_id in atom.source_ids) for atom in memo.editorial_atoms]
+    for cluster in source_map.source_triage.source_clusters:
+        if not _research_cluster_is_major(cluster):
+            continue
+        cluster_sources = set(str(source_id) for source_id in cluster.source_ids)
+        if not cluster_sources:
+            continue
+        if any(cluster_sources & source_ids for source_ids in atom_source_sets):
+            continue
+        label = str(cluster.label or cluster.cluster_id or "source cluster")
+        cluster_id = str(cluster.cluster_id or "")
+        if (label and label.lower() in risk_text) or (cluster_id and cluster_id.lower() in risk_text):
+            continue
+        issues.append(f"SourceMap cluster not covered by any research atom or explicit risk: {label}.")
+    return issues
+
+
+def _research_cluster_is_major(cluster: Any) -> bool:
+    text = f"{getattr(cluster, 'cluster_id', '')} {getattr(cluster, 'label', '')} {getattr(cluster, 'rationale', '')}".lower()
+    low_priority_terms = {
+        "duplicate",
+        "near-duplicate",
+        "near duplicate",
+        "mirror",
+        "reprint",
+        "noise",
+        "noisy",
+        "weak",
+        "low-priority",
+        "low priority",
+        "deferred",
+        "background",
+        "supplemental",
+    }
+    if any(term in text for term in low_priority_terms):
+        return False
+    source_count = len(getattr(cluster, "source_ids", None) or [])
+    return bool(
+        source_count >= 2
+        or getattr(cluster, "primary_source_ids", None)
+        or getattr(cluster, "evidence_ids", None)
     )
 
 

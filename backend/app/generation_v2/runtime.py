@@ -694,7 +694,7 @@ class V2Runtime:
 
 
 def _default_checkpoint_policy(agent_name: str) -> AgentCheckpointPolicy:
-    if agent_name in {"source_triage_agent", "research_agent"}:
+    if agent_name == "source_triage_agent":
         return AgentCheckpointPolicy(enabled=True)
     return AgentCheckpointPolicy(enabled=False)
 
@@ -1054,6 +1054,15 @@ async def _build_agent_checkpoint_state(
             }
         except Exception as exc:
             state["source_map_error"] = str(exc)
+    if phase == "v2_editorial_research":
+        try:
+            from app.generation_v2.research_workspace import load_research_workspace, research_workspace_summary_for_prompt
+
+            workspace = await load_research_workspace(db, generation_run_id)
+            if workspace:
+                state["research_workspace"] = research_workspace_summary_for_prompt(workspace, max_jobs=40, max_atoms=40)
+        except Exception as exc:
+            state["research_workspace_error"] = str(exc)
     return state
 
 
@@ -1278,7 +1287,15 @@ def _tool_model_facing_schema(tool_name: str) -> str:
         "inspect_source": "source_outline",
         "search_within_source": "evidence_preview_results",
         "compare_source_evidence": "source_comparison_evidence",
+        "compare_evidence_for_question": "research_comparison_evidence",
         "select_evidence": "write_ack",
+        "upsert_research_job": "write_ack",
+        "finalize_research_plan": "write_ack",
+        "record_research_observation": "write_ack",
+        "upsert_editorial_atom": "write_ack",
+        "finish_research_job": "write_ack",
+        "record_research_risk": "write_ack",
+        "finalize_research_memo": "write_ack",
         "upsert_source_card": "write_ack",
         "create_quote_card": "write_ack",
         "record_source_relationship": "write_ack",

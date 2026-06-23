@@ -100,6 +100,12 @@ class SourceTriageCompletion(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class ResearchWorkflowCompletion(BaseModel):
+    ready: bool
+    summary: str
+    notes: list[str] = Field(default_factory=list)
+
+
 class SourceTriageGate(BaseModel):
     passed: bool
     summary: str

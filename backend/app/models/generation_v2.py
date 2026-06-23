@@ -77,6 +77,7 @@ class V2ArtifactType(StrEnum):
     SOURCE_ACQUISITION_CANDIDATE = "source_acquisition_candidate"
     SOURCE_ACQUISITION_ROUND = "source_acquisition_round"
     SOURCE_ACQUISITION_REPORT = "source_acquisition_report"
+    RESEARCH_WORKSPACE = "research_workspace"
     EDITORIAL_ATOM = "editorial_atom"
     RESEARCH_MEMO = "research_memo"
     RESEARCH_AUDIT = "research_audit"

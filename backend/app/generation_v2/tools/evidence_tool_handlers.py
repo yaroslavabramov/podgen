@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.generation_v2.artifacts import save_tool_trace
+from app.generation_v2.research_workspace import research_workflow_guard_error
 from app.generation_v2.source_triage_workspace import mark_workspace_write_action, triage_workflow_guard_error
 from app.models.generation_v2 import (
     EvidenceItem,
@@ -87,23 +88,28 @@ class EvidenceToolHandlersMixin:
         return _dedupe(resolved), invalid
 
     async def _triage_allowed_source_ids(self) -> set[str] | None:
-        allowed_refs = getattr(self, "triage_allowed_source_refs", None)
+        allowed_refs = getattr(self, "triage_allowed_source_refs", None) or getattr(self, "research_allowed_source_refs", None)
         if not allowed_refs:
             return None
         source_ids, _ = await self._source_ids_from_refs_or_ids(sorted(str(item) for item in allowed_refs))
         return set(source_ids)
 
     async def _triage_scope_error_for_refs(self, refs: list[str]) -> dict[str, Any] | None:
-        allowed_refs = getattr(self, "triage_allowed_source_refs", None)
+        allowed_refs = getattr(self, "triage_allowed_source_refs", None) or getattr(self, "research_allowed_source_refs", None)
         if not allowed_refs:
             return None
         invalid = [str(ref) for ref in refs if str(ref) not in allowed_refs]
         if not invalid:
             return None
+        is_research = bool(getattr(self, "research_allowed_source_refs", None))
         return {
             "accepted": False,
-            "error": "source_refs_outside_current_triage_set",
-            "message": "This source-set agent can only use source_refs from its current source set.",
+            "error": "source_refs_outside_current_research_job" if is_research else "source_refs_outside_current_triage_set",
+            "message": (
+                "This research job can only use source_refs from its current investigation job."
+                if is_research
+                else "This source-set agent can only use source_refs from its current source set."
+            ),
             "invalid_source_refs": invalid,
             "allowed_source_refs": sorted(allowed_refs),
         }
@@ -115,14 +121,25 @@ class EvidenceToolHandlersMixin:
         invalid = [str(source_id) for source_id in source_ids if str(source_id) not in allowed_ids]
         if not invalid:
             return None
+        is_research = bool(getattr(self, "research_allowed_source_refs", None))
         return {
             "accepted": False,
-            "error": "sources_outside_current_triage_set",
-            "message": "This source-set agent can only use sources from its current source set.",
+            "error": "sources_outside_current_research_job" if is_research else "sources_outside_current_triage_set",
+            "message": (
+                "This research job can only use sources from its current investigation job."
+                if is_research
+                else "This source-set agent can only use sources from its current source set."
+            ),
             "invalid_source_ids": invalid,
         }
 
     async def _triage_read_guard_error(self) -> dict[str, Any] | None:
+        if getattr(self, "research_current_job_id", None):
+            return await research_workflow_guard_error(
+                self.db,
+                generation_run_id=self.run.id,
+                current_job_id=getattr(self, "research_current_job_id", None),
+            )
         return await triage_workflow_guard_error(
             self.db,
             generation_run_id=self.run.id,
@@ -278,6 +295,14 @@ class EvidenceToolHandlersMixin:
                 "error": "all_sources_search_not_allowed_in_current_triage_set",
                 "message": "Search only within source_refs from the current source set.",
                 "allowed_source_refs": sorted(getattr(self, "triage_allowed_source_refs", set()) or []),
+                "results": [],
+            }
+        if getattr(self, "research_allowed_source_refs", None) and scope == "all_sources":
+            return {
+                "accepted": False,
+                "error": "all_sources_search_not_allowed_in_current_research_job",
+                "message": "Search only within source_refs from the current investigation job.",
+                "allowed_source_refs": sorted(getattr(self, "research_allowed_source_refs", set()) or []),
                 "results": [],
             }
         scope_error = await self._triage_scope_error_for_refs(source_refs)
@@ -910,7 +935,20 @@ class EvidenceToolHandlersMixin:
         }
 
     async def find_quotes_tool(self, args: dict[str, Any]) -> dict[str, Any]:
+        guard_error = await self._triage_read_guard_error()
+        if guard_error:
+            return {**guard_error, "results": []}
         source_refs = [str(item) for item in args.get("source_refs") or [] if item]
+        if (getattr(self, "triage_allowed_source_refs", None) or getattr(self, "research_allowed_source_refs", None)) and not source_refs:
+            return {
+                "accepted": False,
+                "error": "source_refs_required_in_current_scope",
+                "message": "This scoped agent must pass source_refs from the current source set or investigation job.",
+                "results": [],
+            }
+        scope_error = await self._triage_scope_error_for_refs(source_refs)
+        if scope_error:
+            return {**scope_error, "results": []}
         source_ids, invalid = await self._source_ids_from_refs_or_ids(source_refs)
         if invalid:
             return {"accepted": False, "error": "source_refs include values outside this run corpus view", "invalid_source_refs": invalid, "results": []}
@@ -989,6 +1027,14 @@ class EvidenceToolHandlersMixin:
             "omitted_source_count": max(0, len(requested_source_ids) - len(source_ids)),
             "expected_next_action": "record_triage_observation or write a source cluster/relationship/gap for this source set before starting another comparison.",
         }
+
+    async def compare_evidence_for_question_tool(self, args: dict[str, Any]) -> dict[str, Any]:
+        result = await self.compare_source_evidence_tool(args)
+        if result.get("accepted"):
+            result["expected_next_action"] = (
+                "record_research_observation or upsert_editorial_atom for this investigation job before starting another comparison."
+            )
+        return result
 
     async def select_evidence_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         evidence_id = str(args.get("evidence_id") or "")

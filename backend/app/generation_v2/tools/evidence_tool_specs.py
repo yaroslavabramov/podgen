@@ -28,10 +28,10 @@ class EvidenceToolSpecsMixin:
                 name="search_corpus",
                 description=(
                     "Search the selected run corpus and persist returned passage matches as observed EvidenceItems. "
-                    "This is a discovery preview tool, not a final evidence reader: use it to find leads for a specific source-map question, quote, relation, or citation-sensitive claim. "
+                    "This is a discovery preview tool, not a final evidence reader: use it to find leads for a specific investigation question, source comparison, quote, relation, or citation-sensitive claim. "
                     "It is not a substitute for skimming a source when you need to understand that source's overall role. "
-                    "Use scope=all_sources for broad discovery, or scope=selected_sources with source_refs from list_sources to target known sources. "
-                    "The returned short_snippet is a preview with an evidence_id handle; call read_evidence or read_source_window when the preview is not enough before writing a map entry."
+                    "Use scope=all_sources for broad discovery, or scope=selected_sources with source_refs from the current prompt or prior tool results to target known sources. "
+                    "The returned short_snippet is a preview with an evidence_id handle; call read_evidence, skim_source, inspect_source, or read_source_window when the preview is not enough before writing a durable conclusion."
                 ),
                 parameters={
                     "type": "object",
@@ -64,7 +64,7 @@ class EvidenceToolSpecsMixin:
                 name="inspect_source",
                 description=(
                     "Inspect one source's readable structure: headings, chunk labels, page/window hints, and timestamp/section-like locators. "
-                    "Pass source_ref; version_ref is optional and should usually be omitted so the backend chooses the best readable surface. "
+                    "Pass source_ref; version_ref is optional and should usually be omitted so the tool chooses the best readable surface. "
                     "Use this when you need locators before exact reads; it does not create evidence."
                 ),
                 parameters={
@@ -83,10 +83,10 @@ class EvidenceToolSpecsMixin:
                 description=(
                     "Read one concrete local text window from a selected source and persist that window as an EvidenceItem. "
                     "This does not read the whole source; it opens an exact page, page range, heading, timestamp, section, beginning, or around-phrase window when local text/chunks are available. "
-                    "For a source you have not examined yet, call skim_source first; use read_source_window as a follow-up for exact support, quote seeds, or relationship evidence. "
-                    "Pass source_ref; version_ref is optional and should usually be omitted so the backend chooses the best readable surface. "
-                    "For PDF/document sources this uses extracted/page-marked text, which is acceptable for source triage; later research should deep-read important PDF claims when needed. "
-                    "Use the returned evidence_id in source-map write actions after you verify the readable detail."
+                    "If skim_source is available and the source is unfamiliar, skim first; use read_source_window as a follow-up for exact support, quote seeds, relationship evidence, or an editorial atom. "
+                    "Pass source_ref; version_ref is optional and should usually be omitted so the tool chooses the best readable surface. "
+                    "For PDF/document sources this uses extracted/page-marked text; use read_source_with_model when an important claim needs direct file-level support. "
+                    "Use the returned evidence_id in durable write actions after you verify the readable detail."
                 ),
                 parameters={
                     "type": "object",
@@ -104,11 +104,12 @@ class EvidenceToolSpecsMixin:
                 name="read_source_with_model",
                 description=(
                     "Deep-read an uploaded source file with OpenAI input_file and persist the model-read result as an EvidenceItem. "
-                    "Use this after hosted file_search identifies an important PDF/document/source, or when citation support requires reading the actual file rather than local parser chunks. "
-                    "Provide source_ref, a focused question/claim, and optional locator_hint; version_ref is optional and should usually be omitted so the backend chooses the best provider-backed source version. "
-                    "The backend selects the best provider-backed source version, asks the model for strongest support, quote/snippet, support_summary, uncertainty, and optional locator, then returns an evidence_id. "
+                    "Use this when an important PDF/document/source claim requires reading the actual file rather than relying on local parser chunks or search previews. "
+                    "Provide source_ref, a focused question/claim, and optional locator_hint; version_ref is optional and should usually be omitted so the tool chooses the best provider-backed readable file. "
+                    "The tool asks the model for strongest support, quote/snippet, support_summary, uncertainty, and optional locator, then returns an evidence_id. "
                     "If direct file reading is unavailable, the tool returns a human-readable coverage_warning. "
-                    "Call select_evidence if the result should enter research atoms or citations. Page numbers are useful when reported, but not required."
+                    "Research atoms select included evidence automatically through upsert_editorial_atom. Citation linking may still select evidence explicitly. "
+                    "Page numbers are useful when reported, but not required."
                 ),
                 parameters={
                     "type": "object",
@@ -129,7 +130,7 @@ class EvidenceToolSpecsMixin:
                 description=(
                     "Search for a phrase/topic inside exactly one selected source, persist matching windows as observed EvidenceItems, and return evidence ids. "
                     "Use this for targeted follow-up after skim_source, inspect_source, or corpus search finds a promising source. "
-                    "Pass source_ref; version_ref is optional and should usually be omitted so the backend chooses the best readable surface."
+                    "Pass source_ref; version_ref is optional and should usually be omitted so the tool chooses the best readable surface."
                 ),
                 parameters={
                     "type": "object",
@@ -147,9 +148,9 @@ class EvidenceToolSpecsMixin:
                 name="skim_source",
                 description=(
                     "Default first-read tool for one selected source. Skim representative windows and persist them as EvidenceItems. "
-                    "Use this before judging a source's role, scope, structure, duplicate status, or editorial usefulness. "
-                    "Pass source_ref; version_ref is optional and should usually be omitted so the backend chooses the best readable surface. "
-                    "For normal triage, request 3-5 windows, then use read_source_window only for exact follow-up."
+                    "Use this before judging a source's role, scope, structure, duplicate status, editorial usefulness, or whether it can support a research atom. "
+                    "Pass source_ref; version_ref is optional and should usually be omitted so the tool chooses the best readable surface. "
+                    "For normal triage or research orientation, request 3-5 windows, then use read_source_window or read_source_with_model for exact follow-up."
                 ),
                 parameters={
                     "type": "object",
@@ -166,7 +167,7 @@ class EvidenceToolSpecsMixin:
                 name="find_quotes",
                 description=(
                     "Find quote-like snippets about a specific topic and persist them as EvidenceItems. "
-                    "Use during source triage, research, and citation linking when a direct quote or quote-like support is needed. "
+                    "Use when a direct quote or quote-like support is needed for a durable entry, research atom, or citation link. "
                     "This is not a generic source search tool; for general evidence use search_corpus. "
                     "Quote refs should be evidence_id values or source_ref:locator refs from returned evidence, never raw quote text."
                 ),
@@ -222,6 +223,28 @@ class EvidenceToolSpecsMixin:
                 handler=self.compare_source_evidence_tool,
             ),
             AgentTool(
+                name="compare_evidence_for_question",
+                description=(
+                    "Retrieve comparable evidence previews from 2-5 selected sources for one research question inside the current investigation job. "
+                    "Use this when an editorial atom needs several sources read together. After comparing, persist a research observation or an editorial atom draft."
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "source_refs": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "minItems": 2,
+                            "maxItems": 5,
+                        },
+                        "question": {"type": "string"},
+                        "limit_per_source": {"type": "integer", "minimum": 1, "maximum": 3},
+                    },
+                    "required": ["source_refs", "question", "limit_per_source"],
+                },
+                handler=self.compare_evidence_for_question_tool,
+            ),
+            AgentTool(
                 name="select_evidence",
                 description=(
                     "Write action: explicitly select an observed EvidenceItem as working support for the SourceMap, research, quote, relationship, gap, or citation. "
@@ -243,7 +266,7 @@ class EvidenceToolSpecsMixin:
                 name="upsert_source_card",
                 description=(
                     "Triage write action: create/update a SourceCard from evidence returned by read/search tools. "
-                    "The backend automatically marks included evidence_ids as selected for SourceMap lineage."
+                    "Included evidence_ids are marked as selected for SourceMap lineage."
                 ),
                 parameters={
                     "type": "object",
@@ -289,7 +312,7 @@ class EvidenceToolSpecsMixin:
                 name="record_source_relationship",
                 description=(
                     "Triage write action: record duplicate, near_duplicate, primary_to_secondary, contradicts, updates, or background_for relationships. "
-                    "Use evidence_ids returned by read/search tools; backend marks them selected."
+                    "Use evidence_ids returned by read/search tools; included evidence_ids are marked as selected."
                 ),
                 parameters={
                     "type": "object",
@@ -337,7 +360,7 @@ class EvidenceToolSpecsMixin:
                 name="record_gap",
                 description=(
                     "Triage write action: record a gap, contradiction, caution, missing coverage area, or source-quality warning. "
-                    "Use evidence_ids when a read/search result grounds the gap; backend marks them selected."
+                    "Use evidence_ids when a read/search result grounds the gap; included evidence_ids are marked as selected."
                 ),
                 parameters={
                     "type": "object",
@@ -354,7 +377,7 @@ class EvidenceToolSpecsMixin:
             AgentTool(
                 name="finalize_source_map",
                 description=(
-                    "Write action: signal that triage write actions are complete and SourceMap should be assembled by the backend from selected evidence and write actions."
+                    "Write action: signal that triage write actions are complete and SourceMap should be assembled from selected evidence and write actions."
                 ),
                 parameters={
                     "type": "object",

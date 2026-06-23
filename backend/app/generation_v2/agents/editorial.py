@@ -16,7 +16,9 @@ from app.generation_v2.prompting import (
     EPISODE_CRITIC_SYSTEM,
     RESEARCH_AUDIT_PROMPT,
     RESEARCH_AUDIT_SYSTEM,
-    RESEARCH_MEMO_PROMPT,
+    RESEARCH_FINALIZER_PROMPT,
+    RESEARCH_JOB_PROMPT,
+    RESEARCH_PLANNER_PROMPT,
     RESEARCH_SYSTEM,
     SOURCE_ACQUISITION_PROMPT,
     SOURCE_ACQUISITION_SYSTEM,
@@ -32,6 +34,18 @@ from app.generation_v2.prompting import (
     TREATMENT_SYSTEM,
 )
 from app.generation_v2.runtime import AgentTool, ToolPolicy, V2Runtime, V2RuntimeUnavailable
+from app.generation_v2.research_workspace import (
+    build_research_workspace_tools,
+    ensure_research_workspace,
+    load_research_workspace,
+    research_finalizer_payload_for_prompt,
+    research_job_prompt_payload,
+    research_memo_from_workspace,
+    research_workspace_summary_for_prompt,
+    source_map_research_summary,
+    start_research_job,
+    unprocessed_research_jobs,
+)
 from app.generation_v2.source_triage import quote_ref, select_sources_for_act
 from app.generation_v2.tools.evidence_refs import (
     SourceRefContext,
@@ -52,6 +66,7 @@ from app.generation_v2.schemas import (
     CorpusGapReport,
     ResearchAudit,
     ResearchMemo,
+    ResearchWorkflowCompletion,
     ShowBibleContext,
     SourceCard,
     SourceAcquisitionCompletion,
@@ -65,6 +80,7 @@ from app.generation_v2.schemas import (
     TreatmentAct,
 )
 from app.models.generation_run import GenerationRun
+from app.generation_v2.tools.evidence_toolset import EvidenceToolset
 
 
 TRIAGE_TOOL_NAMES = {
@@ -107,18 +123,22 @@ TRIAGE_FINALIZER_TOOL_NAMES = {
     "finalize_source_map",
     "finish_triage_source_set",
 }
-RESEARCH_TOOL_NAMES = {
-    "list_sources",
-    "search_sources",
+RESEARCH_PLANNER_TOOL_NAMES = {"upsert_research_job", "finalize_research_plan"}
+RESEARCH_JOB_TOOL_NAMES = {
     "search_corpus",
     "find_quotes",
     "read_evidence",
     "read_source_window",
     "read_source_with_model",
     "search_within_source",
-    "compare_source_evidence",
-    "select_evidence",
+    "skim_source",
+    "inspect_source",
+    "compare_evidence_for_question",
+    "record_research_observation",
+    "upsert_editorial_atom",
+    "finish_research_job",
 }
+RESEARCH_FINALIZER_TOOL_NAMES = {"record_research_risk", "finalize_research_memo"}
 AUDIT_TOOL_NAMES = {"search_corpus", "read_evidence"}
 TREATMENT_TOOL_NAMES = {"read_evidence", "read_source_window", "search_within_source"}
 WRITER_TOOL_NAMES = {"read_evidence", "read_source_window", "search_within_source"}
@@ -587,49 +607,302 @@ async def build_research_memo(
     source_map: SourceMap | None = None,
     source_inventory: SourceMap | None = None,
     evidence_tools: list[AgentTool] | None = None,
+    evidence_toolset: EvidenceToolset | None = None,
     vector_store_id: str | None = None,
     show_bible: ShowBibleContext | None = None,
     hosted_file_search_handler=None,
 ) -> ResearchMemo:
     source_map = source_map or SourceMap(source_cards=source_cards, quote_cards=quote_cards)
     full_source_inventory = source_inventory or source_map
-    source_ref_context = _source_ref_context(full_source_inventory.source_cards)
     duration_minutes = int((run.config or {}).get("duration_target", 1800)) // 60
-    prompt = RESEARCH_MEMO_PROMPT.format(
+    if db is None:
+        return await _build_research_memo_ephemeral(
+            run,
+            runtime,
+            source_map=source_map,
+            source_inventory=full_source_inventory,
+            evidence_tools=evidence_tools,
+            show_bible=show_bible,
+        )
+    workspace = await ensure_research_workspace(
+        db,
+        run=run,
+        source_map=source_map,
+        source_inventory=full_source_inventory,
+    )
+    planner_source_map_summary = source_map_research_summary(source_map, full_source_inventory, include_evidence_ids=False)
+    job_source_map_summary = source_map_research_summary(source_map, full_source_inventory, include_evidence_ids=True)
+    planner_tools = build_research_workspace_tools(
+        db=db,
+        run=run,
+        workspace=workspace,
+        source_inventory=full_source_inventory,
+        evidence_toolset=evidence_toolset,
+        mode="planner",
+    )
+    try:
+        await build_research_planner_agent(
+            db=db,
+            run=run,
+            runtime=runtime,
+            workspace_summary=research_workspace_summary_for_prompt(workspace),
+            source_map_summary=planner_source_map_summary,
+            workspace_tools=planner_tools,
+            show_bible=show_bible,
+        )
+        workspace = await load_research_workspace(db, run.id) or workspace
+        if not (workspace.get("investigation_jobs") or []):
+            raise RuntimeError("Research planner did not create investigation jobs.")
+        for job in list(unprocessed_research_jobs(workspace)):
+            job_id = str(job.get("job_id") or "")
+            if not job_id:
+                continue
+            workspace = await start_research_job(db, run=run, workspace=workspace, job_id=job_id)
+            current_job = next((item for item in workspace.get("investigation_jobs") or [] if item.get("job_id") == job_id), job)
+            scoped_toolset: EvidenceToolset | None = None
+            if evidence_toolset is not None:
+                allowed_refs = None if current_job.get("allow_broad_search") else {str(ref) for ref in current_job.get("source_refs") or []}
+                scoped_toolset = EvidenceToolset(
+                    db=db,
+                    run=run,
+                    run_view=evidence_toolset.run_view,
+                    provider_index=evidence_toolset.provider_index,
+                    research_allowed_source_refs=allowed_refs,
+                    research_current_job_id=job_id,
+                )
+            job_workspace_tools = build_research_workspace_tools(
+                db=db,
+                run=run,
+                workspace=workspace,
+                source_inventory=full_source_inventory,
+                evidence_toolset=scoped_toolset or evidence_toolset,
+                mode="job",
+                current_job_id=job_id,
+            )
+            job_tools = [
+                *((scoped_toolset.agent_tools() if scoped_toolset is not None else evidence_tools) or []),
+                *job_workspace_tools,
+            ]
+            await build_research_job_agent(
+                db=db,
+                run=run,
+                runtime=runtime,
+                job_payload=research_job_prompt_payload(
+                    workspace,
+                    job_id,
+                    source_map_summary=job_source_map_summary,
+                ),
+                job_tools=job_tools,
+                hosted_file_search_handler=hosted_file_search_handler,
+            )
+            workspace = await load_research_workspace(db, run.id) or workspace
+            refreshed_job = next((item for item in workspace.get("investigation_jobs") or [] if item.get("job_id") == job_id), {})
+            if refreshed_job.get("status") in {"planned", "in_progress"}:
+                raise RuntimeError(f"Research job did not finish durably: {job_id}")
+        finalizer_tools = build_research_workspace_tools(
+            db=db,
+            run=run,
+            workspace=workspace,
+            source_inventory=full_source_inventory,
+            evidence_toolset=evidence_toolset,
+            mode="finalizer",
+        )
+        await build_research_finalizer_agent(
+            db=db,
+            run=run,
+            runtime=runtime,
+            workspace_summary=research_finalizer_payload_for_prompt(workspace),
+            finalizer_tools=finalizer_tools,
+            show_bible=show_bible,
+        )
+        workspace = await load_research_workspace(db, run.id) or workspace
+        if not workspace.get("memo_fields"):
+            raise RuntimeError("Research finalizer did not finalize memo fields.")
+        return research_memo_from_workspace(run, workspace)
+    except V2RuntimeUnavailable as exc:
+        _allow_runtime_fallback(runtime, "v2_editorial_research", "research_planner_agent", exc)
+        return _fallback_research_memo(run, source_cards, quote_cards)
+
+
+async def build_research_planner_agent(
+    db: AsyncSession,
+    run: GenerationRun,
+    runtime: V2Runtime,
+    *,
+    workspace_summary: dict,
+    source_map_summary: dict,
+    workspace_tools: list[AgentTool] | None = None,
+    show_bible: ShowBibleContext | None = None,
+) -> ResearchWorkflowCompletion:
+    prompt = RESEARCH_PLANNER_PROMPT.format(
         user_prompt=(run.config or {}).get("user_prompt", ""),
-        duration_minutes=duration_minutes,
+        duration_minutes=int((run.config or {}).get("duration_target", 1800)) // 60,
         language=(run.config or {}).get("language", "en"),
         show_bible_json=(show_bible or ShowBibleContext()).model_dump_json(),
-        full_source_inventory_json=_json(
-            _source_inventory(full_source_inventory.source_cards, limit=160, ref_context=source_ref_context)
-        ),
-        source_map_inventory_json=_json(_source_inventory(source_cards, limit=80, ref_context=source_ref_context)),
-        quote_inventory_json=_json(_quote_inventory(quote_cards, limit=60, ref_context=source_ref_context)),
-        triage_inventory_json=_json(_triage_inventory(source_map.source_triage, ref_context=source_ref_context)),
+        source_map_summary_json=_json(source_map_summary),
+        workspace_json=_json(workspace_summary),
     )
-    max_tool_rounds = min(120, max(64, len(full_source_inventory.source_cards) * 2 + duration_minutes // 2))
+    return await runtime.call_structured(
+        db=db,
+        generation_run_id=run.id,
+        phase="v2_editorial_research",
+        agent_name="research_planner_agent",
+        schema_model=ResearchWorkflowCompletion,
+        system=RESEARCH_SYSTEM,
+        prompt=prompt,
+        vector_store_id=None,
+        local_tools=_phase_tools(workspace_tools, RESEARCH_PLANNER_TOOL_NAMES),
+        tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
+        max_output_tokens=6000,
+        max_tool_rounds=40,
+    )
+
+
+async def build_research_job_agent(
+    db: AsyncSession,
+    run: GenerationRun,
+    runtime: V2Runtime,
+    *,
+    job_payload: dict,
+    job_tools: list[AgentTool] | None = None,
+    hosted_file_search_handler=None,
+) -> ResearchWorkflowCompletion:
+    job_id = ((job_payload or {}).get("job") or {}).get("job_id") or "unknown"
+    prompt = RESEARCH_JOB_PROMPT.format(
+        user_prompt=(run.config or {}).get("user_prompt", ""),
+        duration_minutes=int((run.config or {}).get("duration_target", 1800)) // 60,
+        language=(run.config or {}).get("language", "en"),
+        job_payload_json=_json(job_payload),
+    )
+    return await runtime.call_structured(
+        db=db,
+        generation_run_id=run.id,
+        phase="v2_editorial_research",
+        agent_name=f"research_job_agent_{str(job_id)[:48]}",
+        schema_model=ResearchWorkflowCompletion,
+        system=RESEARCH_SYSTEM,
+        prompt=prompt,
+        vector_store_id=None,
+        local_tools=_phase_tools(job_tools, RESEARCH_JOB_TOOL_NAMES),
+        tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
+        hosted_file_search_handler=hosted_file_search_handler,
+        max_output_tokens=9000,
+        max_tool_rounds=80,
+    )
+
+
+async def build_research_finalizer_agent(
+    db: AsyncSession,
+    run: GenerationRun,
+    runtime: V2Runtime,
+    *,
+    workspace_summary: dict,
+    finalizer_tools: list[AgentTool] | None = None,
+    show_bible: ShowBibleContext | None = None,
+) -> ResearchWorkflowCompletion:
+    prompt = RESEARCH_FINALIZER_PROMPT.format(
+        user_prompt=(run.config or {}).get("user_prompt", ""),
+        duration_minutes=int((run.config or {}).get("duration_target", 1800)) // 60,
+        language=(run.config or {}).get("language", "en"),
+        show_bible_json=(show_bible or ShowBibleContext()).model_dump_json(),
+        workspace_json=_json(workspace_summary),
+    )
+    return await runtime.call_structured(
+        db=db,
+        generation_run_id=run.id,
+        phase="v2_editorial_research",
+        agent_name="research_finalizer_agent",
+        schema_model=ResearchWorkflowCompletion,
+        system=RESEARCH_SYSTEM,
+        prompt=prompt,
+        vector_store_id=None,
+        local_tools=_phase_tools(finalizer_tools, RESEARCH_FINALIZER_TOOL_NAMES),
+        tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
+        max_output_tokens=6000,
+        max_tool_rounds=24,
+    )
+
+
+async def _build_research_memo_ephemeral(
+    run: GenerationRun,
+    runtime: V2Runtime,
+    *,
+    source_map: SourceMap,
+    source_inventory: SourceMap,
+    evidence_tools: list[AgentTool] | None,
+    show_bible: ShowBibleContext | None,
+) -> ResearchMemo:
+    completion = ResearchWorkflowCompletion(ready=True, summary="ephemeral", notes=[])
+    noop_workspace_tools = _noop_research_workspace_tools()
+    planner_source_map_summary = source_map_research_summary(source_map, source_inventory, include_evidence_ids=False)
+    job_source_map_summary = source_map_research_summary(source_map, source_inventory, include_evidence_ids=True)
+    workspace = {
+        "status": "planned",
+        "source_order": [f"S{idx:02d}" for idx, _ in enumerate(source_inventory.source_cards, start=1)],
+        "investigation_jobs": [
+            {
+                "job_id": "ephemeral_job",
+                "label": "Ephemeral research capture test job",
+                "story_job": "general",
+                "source_refs": [f"S{idx:02d}" for idx, _ in enumerate(source_inventory.source_cards[:3], start=1)],
+                "questions": ["Inspect the corpus for editorial atoms."],
+                "status": "planned",
+            }
+        ],
+        "atom_drafts": [],
+    }
     try:
-        return await runtime.call_structured(
-            db=db,
-            generation_run_id=run.id,
-            phase="v2_editorial_research",
-            agent_name="research_agent",
-            schema_model=ResearchMemo,
-            system=RESEARCH_SYSTEM,
-            prompt=prompt,
-            vector_store_id=None,
-            local_tools=_phase_tools(evidence_tools, RESEARCH_TOOL_NAMES),
-            tool_policy=ToolPolicy(
-                file_search=False,
-                web_search=False,
-                local_tools=True,
-            ),
-            max_output_tokens=16000,
-            max_tool_rounds=max_tool_rounds,
+        planner = await build_research_planner_agent(
+            db=None,  # type: ignore[arg-type]
+            run=run,
+            runtime=runtime,
+            workspace_summary=research_workspace_summary_for_prompt(workspace),
+            source_map_summary=planner_source_map_summary,
+            workspace_tools=noop_workspace_tools,
+            show_bible=show_bible,
         )
+        await build_research_job_agent(
+            db=None,  # type: ignore[arg-type]
+            run=run,
+            runtime=runtime,
+            job_payload=research_job_prompt_payload(workspace, "ephemeral_job", source_map_summary=job_source_map_summary),
+            job_tools=[*(evidence_tools or []), *noop_workspace_tools],
+        )
+        await build_research_finalizer_agent(
+            db=None,  # type: ignore[arg-type]
+            run=run,
+            runtime=runtime,
+            workspace_summary=research_finalizer_payload_for_prompt(workspace),
+            finalizer_tools=noop_workspace_tools,
+            show_bible=show_bible,
+        )
+        if isinstance(planner, ResearchMemo):
+            return planner
+        response = getattr(runtime, "response", None)
+        if isinstance(response, ResearchMemo):
+            return response
+        return _fallback_research_memo(run, source_map.source_cards, source_map.quote_cards)
     except V2RuntimeUnavailable as exc:
-        _allow_runtime_fallback(runtime, "v2_editorial_research", "research_agent", exc)
-        return _fallback_research_memo(run, source_cards, quote_cards)
+        _allow_runtime_fallback(runtime, "v2_editorial_research", "research_planner_agent", exc)
+        return _fallback_research_memo(run, source_map.source_cards, source_map.quote_cards)
+
+
+def _noop_research_workspace_tools() -> list[AgentTool]:
+    async def _handler(_args):
+        return {"accepted": True}
+
+    return [
+        AgentTool(name=name, description=name, parameters={"type": "object", "properties": {}}, handler=_handler)
+        for name in [
+            "upsert_research_job",
+            "finalize_research_plan",
+            "record_research_observation",
+            "upsert_editorial_atom",
+            "finish_research_job",
+            "record_research_risk",
+            "finalize_research_memo",
+        ]
+    ]
 
 
 async def audit_research_memo(
