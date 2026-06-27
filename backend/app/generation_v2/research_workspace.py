@@ -263,6 +263,12 @@ def build_research_workspace_tools(
         if not source_ids:
             return {"accepted": False, "error": "source_refs could not be resolved"}
         kind = _atom_kind(str(args.get("kind") or ""))
+        if kind is None:
+            return {
+                "accepted": False,
+                "error": "atom kind must be one of the supported research finding kinds",
+                "allowed_kinds": sorted(ALLOWED_RESEARCH_ATOM_KINDS),
+            }
         title = str(args.get("title") or "").strip()
         claim = str(args.get("claim") or "").strip()
         story_value = str(args.get("story_value") or "").strip()
@@ -368,13 +374,13 @@ def build_research_workspace_tools(
             return {"accepted": False, "error": "Cannot finalize research memo without atom drafts"}
         title = str(args.get("title") or "").strip()
         thesis = str(args.get("thesis") or "").strip()
-        narrative_spine = str(args.get("narrative_spine") or "").strip()
-        if not title or not thesis or not narrative_spine:
-            return {"accepted": False, "error": "title, thesis, and narrative_spine are required"}
+        research_synthesis = str(args.get("research_synthesis") or "").strip()
+        if not title or not thesis or not research_synthesis:
+            return {"accepted": False, "error": "title, thesis, and research_synthesis are required"}
         current["memo_fields"] = {
             "title": title[:240],
             "thesis": thesis[:1800],
-            "narrative_spine": narrative_spine[:1800],
+            "research_synthesis": research_synthesis[:1800],
             "source_coverage": [str(item)[:400] for item in args.get("source_coverage") or [] if str(item).strip()][:40],
             "open_questions": [str(item)[:400] for item in args.get("open_questions") or [] if str(item).strip()][:40],
             "risk_register": [str(item)[:500] for item in args.get("risk_register") or [] if str(item).strip()][:40],
@@ -531,7 +537,7 @@ def build_research_workspace_tools(
                         "properties": {
                             "title": {"type": "string"},
                             "thesis": {"type": "string"},
-                            "narrative_spine": {"type": "string"},
+                            "research_synthesis": {"type": "string"},
                             "source_coverage": {"type": "array", "items": {"type": "string"}},
                             "open_questions": {"type": "array", "items": {"type": "string"}},
                             "risk_register": {"type": "array", "items": {"type": "string"}},
@@ -539,7 +545,7 @@ def build_research_workspace_tools(
                         "required": [
                             "title",
                             "thesis",
-                            "narrative_spine",
+                            "research_synthesis",
                             "source_coverage",
                             "open_questions",
                             "risk_register",
@@ -745,7 +751,7 @@ def research_memo_from_workspace(run: GenerationRun, workspace: dict[str, Any]) 
         anchor_refs = _dedupe([*(draft.get("anchor_refs") or []), *evidence_ids])
         atoms.append(
             EditorialAtom(
-                kind=_atom_kind(str(draft.get("kind") or "")),  # type: ignore[arg-type]
+                kind=_coerce_atom_kind(str(draft.get("kind") or "")),  # type: ignore[arg-type]
                 title=str(draft.get("title") or "Editorial atom")[:220],
                 explanation=str(draft.get("explanation") or draft.get("claim") or "")[:1800],
                 source_ids=_dedupe([str(item) for item in draft.get("source_ids") or [] if str(item).strip()]),
@@ -779,7 +785,11 @@ def research_memo_from_workspace(run: GenerationRun, workspace: dict[str, Any]) 
     return ResearchMemo(
         title=title,
         thesis=fields.get("thesis") or f"The episode should investigate {title} through source-grounded mechanisms, stakes, and turns.",
-        narrative_spine=fields.get("narrative_spine") or "Move from core mechanism to origins, turning points, consequences, incentives, and unresolved risks.",
+        research_synthesis=(
+            fields.get("research_synthesis")
+            or fields.get("narrative_spine")
+            or "The memo identifies source-grounded findings, mechanisms, chronology, disputes, consequences, and unresolved research risks."
+        ),
         editorial_atoms=atoms,
         source_coverage=(fields.get("source_coverage") or processed_summaries)[:40],
         open_questions=_dedupe([*(workspace.get("open_questions") or []), *(fields.get("open_questions") or [])])[:40],
@@ -1071,20 +1081,26 @@ def _dedupe(values: list[str]) -> list[str]:
     return result
 
 
-def _atom_kind(value: str) -> str:
-    allowed = {
-        "conflict",
-        "mechanism",
-        "history",
-        "turning_point",
-        "consequence",
-        "exception",
-        "human_cost",
-        "institutional_incentive",
-        "unanswered_question",
-    }
+ALLOWED_RESEARCH_ATOM_KINDS = {
+    "conflict",
+    "mechanism",
+    "history",
+    "turning_point",
+    "consequence",
+    "exception",
+    "human_cost",
+    "institutional_incentive",
+    "unanswered_question",
+}
+
+
+def _atom_kind(value: str) -> str | None:
     text = str(value or "").strip()
-    return text if text in allowed else "unanswered_question"
+    return text if text in ALLOWED_RESEARCH_ATOM_KINDS else None
+
+
+def _coerce_atom_kind(value: str) -> str:
+    return _atom_kind(value) or "unanswered_question"
 
 
 def _coverage_status(value: str) -> str:

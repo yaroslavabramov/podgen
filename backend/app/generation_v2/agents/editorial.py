@@ -1444,7 +1444,7 @@ def _fallback_research_memo(run: GenerationRun, source_cards: list[SourceCard], 
     return ResearchMemo(
         title=title,
         thesis=f"The episode should investigate {title} through concrete source-backed turns.",
-        narrative_spine="Move from the surface question to mechanisms, stakes, conflict, and consequences.",
+        research_synthesis="Fallback synthesis from available source cards; use only as a low-confidence research map until a full research workflow runs.",
         editorial_atoms=atoms,
         source_coverage=[card.title for card in source_cards],
         open_questions=[] if source_cards else ["Add sources before expecting high-quality generation."],

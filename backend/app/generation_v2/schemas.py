@@ -241,7 +241,7 @@ class EditorialAtom(BaseModel):
 class ResearchMemo(BaseModel):
     title: str
     thesis: str
-    narrative_spine: str
+    research_synthesis: str
     editorial_atoms: list[EditorialAtom]
     source_coverage: list[str] = Field(default_factory=list)
     open_questions: list[str] = Field(default_factory=list)

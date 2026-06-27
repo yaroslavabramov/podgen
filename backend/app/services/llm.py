@@ -124,6 +124,8 @@ def _generation_v2_model_for_agent(phase: str, agent_name: str, *, default_model
     by_agent = {
         "source_triage_agent": settings.generation_v2_source_triage_model,
         "source_acquisition_agent": settings.generation_v2_source_acquisition_model,
+        "research_planner_agent": settings.generation_v2_research_planner_model,
+        "research_finalizer_agent": settings.generation_v2_research_finalizer_model,
         "research_auditor": settings.generation_v2_research_audit_model,
         "story_editor": settings.generation_v2_treatment_model,
         "episode_critic": settings.generation_v2_critic_model,
@@ -132,6 +134,12 @@ def _generation_v2_model_for_agent(phase: str, agent_name: str, *, default_model
     }
     if agent_name.startswith("source_acquisition_round_"):
         return _configured_model(settings.generation_v2_source_acquisition_model) or fallback
+    if agent_name.startswith("research_job_agent_"):
+        return (
+            _configured_model(settings.generation_v2_research_job_model)
+            or _configured_model(settings.generation_v2_research_model)
+            or fallback
+        )
     if agent_name.startswith("act_writer_"):
         return _configured_model(settings.generation_v2_writer_model) or fallback
     if agent_name.startswith("act_rewriter_"):

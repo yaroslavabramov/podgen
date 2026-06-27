@@ -16,9 +16,9 @@ Research workspace:
 {workspace_json}
 
 Task:
-Create durable investigation jobs that will turn the SourceMap into editorial atoms for treatment. You are not writing the memo yet; you are assigning focused research work that later job agents can actually execute.
+Create durable investigation jobs that will turn the SourceMap into source-grounded research findings. You are not writing the memo or planning the episode structure yet; you are assigning focused research work that later job agents can actually execute.
 
-Treatment-ready research must cover:
+Long-form research should cover:
 - central mechanism: how the key system/process works;
 - origin/history: how the situation came to exist;
 - turning points: changes, crises, reforms, or reversals;
@@ -30,7 +30,7 @@ Use upsert_research_job for each investigation job, then finalize_research_plan.
 Planning is an editorial decision: use SourceMap clusters, relationships, quote cards, gaps, and source cards to choose job scopes. Do not read or search here; this agent only writes the plan.
 
 A good job has:
-- one clear story_job label, such as mechanism, history_origin, turning_point, conflict_incentive, consequence_tradeoff, exception_or_risk, or synthesis_gap;
+- one clear research_job label, such as mechanism, history_origin, turning_point, conflict_incentive, consequence_tradeoff, exception_or_risk, or synthesis_gap;
 - source_refs from SourceMap clusters/source cards when known;
 - concrete questions that can be answered by reading/searching those sources;
 - required_atom_kinds that the job is expected to produce;
@@ -42,7 +42,7 @@ For 45+ minute episodes, normally create multiple jobs covering mechanism, origi
 Mini-examples:
 - Good job: label="Mechanism", story_job="mechanism", source_refs=["S03","S07"], questions=["What process does each source say makes the system work?", "Where do the sources agree or differ?"], required_atom_kinds=["mechanism"].
 - Bad job: label="Research topic", story_job="general", source_refs=[], questions=["Find interesting facts"], allow_broad_search=true.
-- Good broad job: label="Missing consequences", story_job="consequence_tradeoff", source_refs=[], questions=["Search for concrete costs, tradeoffs, or downstream effects not covered by the mapped sources"], required_atom_kinds=["consequence","unanswered_question"], allow_broad_search=true.
+- Good broad job: label="Missing consequences", story_job="consequence_tradeoff", source_refs=[], questions=["Search for concrete costs, tradeoffs, or downstream effects not covered by the mapped sources"], required_atom_kinds=["consequence"], allow_broad_search=true.
 
 Return only ResearchWorkflowCompletion JSON after the tools have persisted the plan."""
 
@@ -64,7 +64,7 @@ Investigate this job's question(s) and persist useful findings.
 What success looks like:
 - You understand the relevant source(s) enough to decide whether the job's likely atom is supported, contradicted, partial, or unsupported.
 - You save durable research_observation notes for intermediate findings.
-- You save editorial atoms only when they are story moves grounded by evidence_ids.
+- You save editorial atoms only when they are grounded research findings useful for later editorial planning.
 - If the job stays weak, you preserve the reason as an observation and finish it as deferred.
 
 How to work:
@@ -78,7 +78,8 @@ How to work:
 8. If a job cannot produce a strong atom, record the reason as an observation and finish it as deferred with a concrete reason.
 9. Finish the job with finish_research_job.
 
-A strong editorial atom is not a topic. It states a usable story move: a mechanism, cause, turn, conflict, incentive, consequence, exception, or unresolved question that changes what the listener understands.
+A strong editorial atom is not a topic and not an act outline. It states a source-grounded finding: a mechanism, cause, turning point, conflict, incentive, consequence, exception, or genuinely unresolved question.
+Use kind="unanswered_question" only for findings that remain unresolved or weak after reading. Do not use it for supported claims that merely require caution; put the caution in risk or source_coverage_status instead.
 
 Mini-examples:
 - Bad atom: title="Background", claim="Several sources discuss this topic.", story_value="Useful context."
@@ -104,10 +105,10 @@ Durable research workspace:
 
 Task:
 Review the persisted investigation jobs, observations, atom_drafts, open questions, and risks.
-Use record_research_risk for any important contradiction, missing coverage, weak support, or uncertainty that should survive into treatment.
-Then call finalize_research_memo with title, thesis, narrative_spine, source_coverage, open_questions, and risk_register.
+Use record_research_risk for any important contradiction, missing coverage, weak support, or uncertainty that should survive into later planning.
+Then call finalize_research_memo with title, thesis, research_synthesis, source_coverage, open_questions, and risk_register.
 
-The final memo must be treatment-ready: the thesis and narrative_spine should explain how the saved atoms can become acts, not merely list source topics. Source coverage should say what is well supported, partial, deferred, or risky.
+The final memo is a research synthesis, not an episode treatment. Do not write acts, act numbers, scene order, host moves, or episode outline. The thesis should answer what the research currently supports. research_synthesis should summarize the confirmed mechanisms, timeline, disputes, consequences, weak claims, and open questions. Source coverage should say what is well supported, partial, deferred, or risky.
 
 The final ResearchMemo is assembled from persisted atom_drafts. Do not restate all atoms in the final JSON response; the final JSON response is only ResearchWorkflowCompletion.
 
@@ -125,6 +126,6 @@ Research memo:
 Source map:
 {source_map_json}
 
-Judge the memo as if approving or blocking treatment work.
+Judge whether this research memo is specific, grounded, and broad enough for a later treatment agent to plan the episode.
 Passing requires specificity, evidence_id coverage, and usable mechanism/history/turn/conflict/consequence material.
-For long-form targets, fail unless the memo has enough distinct source-grounded atoms for multiple acts."""
+For long-form targets, fail unless the memo has enough distinct source-grounded findings for treatment planning. Do not require the research memo itself to contain act structure."""

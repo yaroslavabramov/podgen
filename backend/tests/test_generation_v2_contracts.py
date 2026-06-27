@@ -227,7 +227,8 @@ def test_strict_json_schema_requires_nested_properties_and_blocks_extra_fields()
     schema = _strict_json_schema(ResearchMemo.model_json_schema())
 
     assert schema["additionalProperties"] is False
-    assert set(schema["required"]) >= {"title", "thesis", "narrative_spine", "editorial_atoms"}
+    assert set(schema["required"]) >= {"title", "thesis", "research_synthesis", "editorial_atoms"}
+    assert "narrative_spine" not in schema.get("properties", {})
     atom_schema = schema["$defs"]["EditorialAtom"]
     assert atom_schema["additionalProperties"] is False
     assert set(atom_schema["required"]) >= {"kind", "title", "explanation", "story_value"}
@@ -372,7 +373,10 @@ def test_v2_runtime_routes_models_per_agent(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr(settings, "generation_v2_default_model", "gpt-5.4-mini")
     monkeypatch.setattr(settings, "generation_v2_source_triage_model", "gpt-5.4-mini")
     monkeypatch.setattr(settings, "generation_v2_source_acquisition_model", "gpt-5.4-mini")
-    monkeypatch.setattr(settings, "generation_v2_research_model", "gpt-5.4")
+    monkeypatch.setattr(settings, "generation_v2_research_model", "gpt-5.4-mini")
+    monkeypatch.setattr(settings, "generation_v2_research_planner_model", "gpt-5.4-mini")
+    monkeypatch.setattr(settings, "generation_v2_research_job_model", "gpt-5.4-mini")
+    monkeypatch.setattr(settings, "generation_v2_research_finalizer_model", "gpt-5.4-mini")
     monkeypatch.setattr(settings, "generation_v2_treatment_model", "gpt-5.4")
     monkeypatch.setattr(settings, "generation_v2_writer_model", "gpt-5.4")
     monkeypatch.setattr(settings, "generation_v2_rewriter_model", "gpt-5.4")
@@ -383,9 +387,9 @@ def test_v2_runtime_routes_models_per_agent(monkeypatch: pytest.MonkeyPatch) -> 
 
     assert runtime.model_for("v2_source_triage", "source_triage_agent") == "gpt-5.4-mini"
     assert runtime.model_for("v2_source_acquisition", "source_acquisition_round_2") == "gpt-5.4-mini"
-    assert runtime.model_for("v2_editorial_research", "research_planner_agent") == "gpt-5.4"
-    assert runtime.model_for("v2_editorial_research", "research_job_agent_mechanism") == "gpt-5.4"
-    assert runtime.model_for("v2_editorial_research", "research_finalizer_agent") == "gpt-5.4"
+    assert runtime.model_for("v2_editorial_research", "research_planner_agent") == "gpt-5.4-mini"
+    assert runtime.model_for("v2_editorial_research", "research_job_agent_mechanism") == "gpt-5.4-mini"
+    assert runtime.model_for("v2_editorial_research", "research_finalizer_agent") == "gpt-5.4-mini"
     assert runtime.model_for("v2_treatment", "story_editor") == "gpt-5.4"
     assert runtime.model_for("v2_act_drafting", "act_writer_2") == "gpt-5.4"
     assert runtime.model_for("v2_critique_rewrite", "act_rewriter_2") == "gpt-5.4"
@@ -1478,7 +1482,11 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert "record_research_observation or upsert_editorial_atom" in RESEARCH_JOB_PROMPT
     assert "tool validates the refs" in RESEARCH_JOB_PROMPT
     assert "finalize_research_memo" in RESEARCH_FINALIZER_PROMPT
-    assert "treatment-ready" in RESEARCH_FINALIZER_PROMPT
+    assert "research_synthesis" in RESEARCH_FINALIZER_PROMPT
+    assert "research synthesis, not an episode treatment" in RESEARCH_FINALIZER_PROMPT
+    assert "narrative_spine" not in RESEARCH_FINALIZER_PROMPT
+    assert "treatment-ready" not in RESEARCH_FINALIZER_PROMPT
+    assert "can become acts" not in RESEARCH_FINALIZER_PROMPT
     assert "atom_drafts" in RESEARCH_FINALIZER_PROMPT
     assert "Read/search/compare only enough" not in RESEARCH_JOB_PROMPT
     assert "select_evidence" not in RESEARCH_PLANNER_PROMPT
@@ -2306,7 +2314,7 @@ def test_research_memo_evidence_gate_blocks_unanchored_high_impact_atoms() -> No
     memo = ResearchMemo(
         title="Memo",
         thesis="Thesis",
-        narrative_spine="Spine",
+        research_synthesis="Synthesis",
         editorial_atoms=[
             EditorialAtom(
                 kind="mechanism",
@@ -2342,7 +2350,7 @@ def test_research_memo_evidence_gate_accepts_research_created_selected_evidence_
     memo = ResearchMemo(
         title="Memo",
         thesis="Thesis",
-        narrative_spine="Spine",
+        research_synthesis="Synthesis",
         editorial_atoms=[
             EditorialAtom(
                 kind="mechanism",
@@ -2377,7 +2385,7 @@ def test_research_memo_evidence_gate_rejects_observed_unselected_atom_evidence()
     memo = ResearchMemo(
         title="Memo",
         thesis="Thesis",
-        narrative_spine="Spine",
+        research_synthesis="Synthesis",
         editorial_atoms=[
             EditorialAtom(
                 kind="mechanism",
@@ -2419,7 +2427,7 @@ def test_research_memo_gate_requires_major_cluster_coverage() -> None:
     memo = ResearchMemo(
         title="Memo",
         thesis="Thesis",
-        narrative_spine="Spine",
+        research_synthesis="Synthesis",
         editorial_atoms=[
             EditorialAtom(
                 kind="mechanism",
@@ -2468,7 +2476,7 @@ def test_research_memo_gate_skips_low_priority_duplicate_cluster_coverage() -> N
     memo = ResearchMemo(
         title="Memo",
         thesis="Thesis",
-        narrative_spine="Spine",
+        research_synthesis="Synthesis",
         editorial_atoms=[
             EditorialAtom(
                 kind="mechanism",
@@ -2519,7 +2527,7 @@ async def test_research_memo_evidence_artifacts_are_saved_for_atom_evidence(monk
     memo = ResearchMemo(
         title="Memo",
         thesis="Thesis",
-        narrative_spine="Spine",
+        research_synthesis="Synthesis",
         editorial_atoms=[
             EditorialAtom(
                 kind="mechanism",
@@ -3433,6 +3441,89 @@ async def test_research_workspace_upsert_atom_resolves_refs_and_auto_selects(mon
 
 
 @pytest.mark.asyncio
+async def test_research_workspace_rejects_unknown_atom_kind(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import research_workspace as research_workspace_module
+
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    run = SimpleNamespace(id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    workspace = {
+        "source_order": ["S01"],
+        "investigation_jobs": [
+            {
+                "job_id": "job_1",
+                "source_refs": ["S01"],
+                "allow_broad_search": False,
+                "status": "in_progress",
+                "observations": [],
+                "atom_ids": [],
+                "evidence_ids": [],
+            }
+        ],
+        "current_job": {"job_id": "job_1", "source_refs": ["S01"]},
+        "atom_drafts": [],
+    }
+    inventory = SourceMap(source_cards=[_source_card(source_id=source_id)])
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, *, generation_run_id, workspace: dict, status=None):
+        return SimpleNamespace(id=uuid.uuid4(), payload=workspace)
+
+    class _FakeEvidenceToolset:
+        async def _evidence_in_run(self, item_id: str):
+            if item_id == evidence_id:
+                return SimpleNamespace(id=uuid.UUID(evidence_id), source_id=uuid.UUID(source_id))
+            return None
+
+        async def _source_ref_for_id(self, _item_source_id):
+            return "S01"
+
+        async def _source_ids_from_refs_or_ids(self, refs):
+            return ([source_id], []) if refs == ["S01"] else ([], refs)
+
+        async def _mark_evidence_status(self, _item_id, _status, _metadata):
+            raise AssertionError("invalid atom kind should be rejected before evidence selection")
+
+    monkeypatch.setattr(research_workspace_module, "load_research_workspace", _load)
+    monkeypatch.setattr(research_workspace_module, "save_research_workspace", _save)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=inventory,
+        evidence_toolset=_FakeEvidenceToolset(),
+        mode="job",
+        current_job_id="job_1",
+    )
+    upsert_atom = next(tool for tool in tools if tool.name == "upsert_editorial_atom")
+
+    result = await upsert_atom.handler(
+        {
+            "job_id": "job_1",
+            "kind": "claim",
+            "title": "Claim",
+            "claim": "A supported claim.",
+            "explanation": "A supported claim.",
+            "source_refs": ["S01"],
+            "evidence_ids": [evidence_id],
+            "quote_refs": [],
+            "story_value": "Useful research finding.",
+            "anchor_refs": [],
+            "confidence": 0.8,
+            "risk": "low",
+            "source_coverage_status": "ready",
+        }
+    )
+
+    assert result["accepted"] is False
+    assert result["error"] == "atom kind must be one of the supported research finding kinds"
+    assert "unanswered_question" in result["allowed_kinds"]
+    assert workspace["atom_drafts"] == []
+
+
+@pytest.mark.asyncio
 async def test_research_workspace_broad_job_still_rejects_refs_outside_workspace(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.generation_v2 import research_workspace as research_workspace_module
 
@@ -3511,6 +3602,28 @@ async def test_research_workspace_broad_job_still_rejects_refs_outside_workspace
     assert result["error"] == "atom source_refs must exist in the research workspace"
     assert result["invalid_source_refs"] == ["S99"]
     assert workspace["atom_drafts"] == []
+
+
+def test_research_finalizer_tool_schema_uses_research_synthesis() -> None:
+    run = SimpleNamespace(id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    workspace = {"source_order": [], "atom_drafts": [{"atom_id": "atom_1"}]}
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=SourceMap(),
+        evidence_toolset=None,
+        mode="finalizer",
+    )
+
+    finalize = next(tool for tool in tools if tool.name == "finalize_research_memo")
+    properties = finalize.parameters["properties"]
+    required = set(finalize.parameters["required"])
+
+    assert "research_synthesis" in properties
+    assert "research_synthesis" in required
+    assert "narrative_spine" not in properties
+    assert "narrative_spine" not in required
 
 
 def test_research_workspace_signature_changes_when_sourcemap_content_changes() -> None:
@@ -3608,7 +3721,7 @@ def test_research_memo_from_workspace_assembles_downstream_source_ids() -> None:
         "memo_fields": {
             "title": "Memo",
             "thesis": "A concrete thesis.",
-            "narrative_spine": "Mechanism to consequence.",
+            "research_synthesis": "Mechanism and consequence findings.",
         },
         "atom_drafts": [
             {
@@ -3630,6 +3743,7 @@ def test_research_memo_from_workspace_assembles_downstream_source_ids() -> None:
     memo = research_memo_from_workspace(run, workspace)  # type: ignore[arg-type]
 
     assert memo.title == "Memo"
+    assert memo.research_synthesis == "Mechanism and consequence findings."
     assert memo.editorial_atoms[0].source_ids == [source_id]
     assert memo.editorial_atoms[0].evidence_ids == [evidence_id]
     assert memo.editorial_atoms[0].anchor_refs == [evidence_id]
