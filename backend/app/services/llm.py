@@ -277,10 +277,36 @@ def _openai_estimated_cost_usd(model: str, usage: dict[str, Any]) -> float | Non
 
 def _openai_token_cost_payload(model: str, usage: dict[str, Any]) -> dict[str, Any]:
     token_cost = _openai_estimated_token_cost_usd(model, usage)
+    input_tokens = int(usage.get("input_tokens") or usage.get("prompt_tokens") or 0)
+    cached_tokens = min(input_tokens, int(usage.get("cached_input_tokens") or 0))
     return {
         "estimated_token_cost_usd": token_cost,
+        "uncached_input_tokens": max(0, input_tokens - cached_tokens),
         "cost_basis": OPENAI_TOKEN_COST_BASIS,
         "cost_warning": OPENAI_TOKEN_COST_WARNING,
+    }
+
+
+def _openai_trace_usage_payload(
+    *,
+    requested_model: str,
+    response_model: str | None,
+    billing_model: str,
+    usage: dict[str, Any],
+    token_cost_payload: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "requested_model": requested_model,
+        "response_model": response_model,
+        "billing_model": billing_model,
+        "input_tokens": usage.get("input_tokens") or usage.get("prompt_tokens") or 0,
+        "cached_input_tokens": usage.get("cached_input_tokens") or 0,
+        "uncached_input_tokens": token_cost_payload.get("uncached_input_tokens") or 0,
+        "output_tokens": usage.get("output_tokens") or usage.get("completion_tokens") or 0,
+        "reasoning_output_tokens": usage.get("reasoning_output_tokens") or 0,
+        "estimated_token_cost_usd": token_cost_payload.get("estimated_token_cost_usd"),
+        "cost_basis": token_cost_payload.get("cost_basis"),
+        "cost_warning": token_cost_payload.get("cost_warning"),
     }
 
 

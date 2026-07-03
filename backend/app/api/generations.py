@@ -19,6 +19,7 @@ from app.schemas.generation import (
     GenerationArtifactsResponse,
     GenerationRunResponse,
     V2ArtifactsResponse,
+    V2CostReportResponse,
     V2EvidenceResponse,
     V2ToolTracesResponse,
     ProjectCorpusIndexResponse,
@@ -267,6 +268,15 @@ async def get_generation_v2_tool_traces(run_id: uuid.UUID, user: CurrentUser, db
     from app.generation_v2.artifacts import list_tool_traces
 
     return V2ToolTracesResponse(run_id=run.id, traces=await list_tool_traces(db, run.id))
+
+
+@router.get("/generations/{run_id}/cost-report", response_model=V2CostReportResponse)
+async def get_generation_v2_cost_report(run_id: uuid.UUID, user: CurrentUser, db: DB):
+    run = await _get_user_run(run_id, user.id, db)
+    from app.generation_v2.artifacts import summarize_tool_trace_costs
+
+    report = await summarize_tool_trace_costs(db, run.id)
+    return V2CostReportResponse(run_id=run.id, **report)
 
 
 @router.get("/generations/{run_id}/evidence", response_model=V2EvidenceResponse)

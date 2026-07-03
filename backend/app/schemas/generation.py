@@ -146,6 +146,14 @@ class V2ToolTracesResponse(BaseModel):
     traces: list[V2ToolTraceItem]
 
 
+class V2CostReportResponse(BaseModel):
+    run_id: uuid.UUID
+    cost_basis: str
+    cost_warning: str
+    totals: dict
+    groups: list[dict]
+
+
 class V2EvidenceItem(BaseModel):
     id: str
     generation_run_id: str

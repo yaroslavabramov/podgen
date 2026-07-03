@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import uuid
 from datetime import datetime
 from typing import Any
@@ -10,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.generation_v2.artifacts import save_artifact
+from app.generation_v2.research_kinds import ALLOWED_RESEARCH_ATOM_KINDS, ATOM_KIND_GUIDANCE
 from app.generation_v2.runtime import AgentTool
 from app.generation_v2.schemas import EditorialAtom, ResearchMemo, SourceMap
 from app.generation_v2.tools.evidence_refs import build_source_ref_context, source_ref_for_id
@@ -19,24 +21,54 @@ from app.models.generation_v2 import V2Artifact, V2ArtifactStatus, V2ArtifactTyp
 
 
 WORKSPACE_ARTIFACT_KEY = "main"
-WORKSPACE_SCHEMA_VERSION = "research_workspace.v1"
+WORKSPACE_SCHEMA_VERSION = "research_workspace.v2"
 RESEARCH_READ_TOOLS = {
     "search_corpus",
     "find_quotes",
     "read_evidence",
+    "inspect_source",
     "read_source_window",
     "read_source_with_model",
     "search_within_source",
+    "skim_source",
     "compare_evidence_for_question",
 }
 RESEARCH_SEMANTIC_COMMIT_TOOLS = {
+    "merge_editorial_atoms",
     "record_research_observation",
     "upsert_editorial_atom",
     "finish_research_job",
     "record_research_risk",
+    "record_research_gap",
     "finalize_research_memo",
 }
-RESEARCH_READS_PER_COMMIT = 12
+RESEARCH_READS_PER_COMMIT_WARNING = 6
+RESEARCH_READS_PER_COMMIT_ADVISORY = 8
+RESEARCH_GAP_CATEGORIES = {
+    "missing_source",
+    "weak_corroboration",
+    "contradiction",
+    "legal_detail",
+    "chronology_detail",
+    "optional_context",
+}
+RESEARCH_GAP_SEVERITIES = {"blocking", "non_blocking", "optional"}
+RESEARCH_GAP_STATUSES = {"open", "resolved", "deferred"}
+SOURCE_QUALITY_PATTERNS = (
+    "source quality",
+    "source-quality",
+    "источник-качество",
+    "weak support",
+    "needs corroboration",
+    "need corroboration",
+    "missing corroboration",
+    "secondary confirmation",
+    "redundant secondary",
+    "source coverage",
+    "weakly sourced",
+    "нужно добрать источник",
+    "требует добора",
+)
 
 
 async def load_research_workspace(db: AsyncSession, generation_run_id: uuid.UUID) -> dict[str, Any] | None:
@@ -115,6 +147,7 @@ async def ensure_research_workspace(
         "selected_evidence_ids": [],
         "atom_drafts": [],
         "open_questions": [],
+        "research_gaps": [],
         "risk_register": [],
         "memo_fields": {},
         "created_at": _now(),
@@ -122,6 +155,80 @@ async def ensure_research_workspace(
     }
     await save_research_workspace(db, generation_run_id=run.id, workspace=workspace)
     return workspace
+
+
+async def enqueue_research_repair_jobs(
+    db: AsyncSession,
+    *,
+    run: GenerationRun,
+    max_jobs: int = 4,
+) -> list[str]:
+    current = await load_research_workspace(db, run.id)
+    if not current:
+        return []
+    current = _normalize_workspace(current)
+    existing_job_ids = {str(item.get("job_id") or "") for item in current.get("investigation_jobs") or []}
+    blocking_gaps = [
+        gap
+        for gap in _dedupe_gaps(current.get("research_gaps") or [])
+        if gap.get("severity") == "blocking" and gap.get("status") in {"open", "deferred"}
+    ]
+    repair_jobs: list[dict[str, Any]] = []
+    for gap in blocking_gaps[:max_jobs]:
+        question = str(gap.get("question") or "").strip()
+        if not question:
+            continue
+        gap_id = str(gap.get("gap_id") or _stable_id("", question, len(repair_jobs) + 1))
+        job_id = _stable_id(f"research_repair_{gap_id}", question, len(existing_job_ids) + len(repair_jobs) + 1)
+        if job_id in existing_job_ids:
+            continue
+        source_refs = _dedupe([str(item) for item in gap.get("source_refs") or [] if str(item).strip()])
+        allow_broad_search = bool(gap.get("category") == "missing_source" or not source_refs)
+        repair_jobs.append(
+            {
+                "job_id": job_id,
+                "label": f"Repair: {question[:120]}",
+                "story_job": "research_repair",
+                "purpose": (
+                    "Resolve this blocking research gap from the previous memo gate. "
+                    "If resolved, persist the source-grounded finding as an atom or observation, then call "
+                    "record_research_gap with the same gap_id, status='resolved', resolving evidence_ids, "
+                    "and a resolution_note. If it cannot be resolved, update the same gap as open/deferred "
+                    "with a concrete reason."
+                ),
+                "source_refs": source_refs,
+                "questions": [question],
+                "required_atom_kinds": _repair_atom_kinds_for_gap(gap),
+                "priority": "repair",
+                "allow_broad_search": allow_broad_search,
+                "status": "planned",
+                "observations": [],
+                "atom_ids": [],
+                "evidence_ids": [],
+                "summary": "",
+                "deferred_reason": "",
+                "repair_for_gap_id": gap_id,
+                "repair_gap": {
+                    "gap_id": gap_id,
+                    "question": question[:600],
+                    "category": str(gap.get("category") or ""),
+                    "severity": str(gap.get("severity") or "blocking"),
+                    "source_refs": source_refs,
+                    "evidence_ids": _dedupe([str(item) for item in gap.get("evidence_ids") or [] if str(item).strip()]),
+                    "status": str(gap.get("status") or "open"),
+                },
+                "updated_at": _now(),
+            }
+        )
+    if not repair_jobs:
+        return []
+    current["investigation_jobs"] = [*(current.get("investigation_jobs") or []), *repair_jobs]
+    current["status"] = "repair_planned"
+    current["current_job"] = None
+    current["memo_fields"] = {}
+    current["research_repair_cycle"] = int(current.get("research_repair_cycle") or 0) + 1
+    await save_research_workspace(db, generation_run_id=run.id, workspace=current)
+    return [str(job["job_id"]) for job in repair_jobs]
 
 
 def build_research_workspace_tools(
@@ -153,6 +260,18 @@ def build_research_workspace_tools(
         questions = [str(item)[:360] for item in args.get("questions") or [] if str(item).strip()][:10]
         if not questions:
             return {"accepted": False, "error": "at least one investigation question is required"}
+        invalid_required_kinds = [
+            str(item)
+            for item in args.get("required_atom_kinds") or []
+            if str(item).strip() and str(item).strip() not in ALLOWED_RESEARCH_ATOM_KINDS
+        ]
+        if invalid_required_kinds:
+            return {
+                "accepted": False,
+                "error": "required_atom_kinds must use supported research atom kinds",
+                "invalid_required_atom_kinds": invalid_required_kinds,
+                "allowed_kinds": sorted(ALLOWED_RESEARCH_ATOM_KINDS),
+            }
         job_id = _stable_id(str(args.get("job_id") or ""), label, len(current.get("investigation_jobs") or []) + 1)
         job = {
             "job_id": job_id,
@@ -161,7 +280,11 @@ def build_research_workspace_tools(
             "purpose": purpose[:900],
             "source_refs": source_refs,
             "questions": questions,
-            "required_atom_kinds": [str(item)[:80] for item in args.get("required_atom_kinds") or [] if str(item).strip()][:8],
+            "required_atom_kinds": [
+                str(item)
+                for item in args.get("required_atom_kinds") or []
+                if str(item).strip() in ALLOWED_RESEARCH_ATOM_KINDS
+            ][:8],
             "priority": str(args.get("priority") or "normal")[:50] or "normal",
             "allow_broad_search": allow_broad_search,
             "status": "planned",
@@ -187,9 +310,6 @@ def build_research_workspace_tools(
             return {"accepted": False, "error": "Cannot finalize research plan without investigation jobs"}
         current["status"] = "planned"
         current["plan_summary"] = str(args.get("summary") or "")[:1800]
-        current["open_questions"] = _dedupe(
-            [*(current.get("open_questions") or []), *[str(item)[:360] for item in args.get("open_questions") or [] if str(item).strip()]]
-        )
         await save_research_workspace(db, generation_run_id=run.id, workspace=current)
         return {"accepted": True, "status": "planned", "job_count": len(jobs)}
 
@@ -229,6 +349,7 @@ def build_research_workspace_tools(
         job["updated_at"] = _now()
         _replace_workspace_job(current, job)
         _mark_research_progress(current, source_refs=source_refs, evidence_ids=evidence_ids)
+        _reset_research_read_advisory(current)
         await save_research_workspace(db, generation_run_id=run.id, workspace=current)
         return {"accepted": True, "job_id": job_id, "observation_count": len(job.get("observations") or []), "evidence_count": len(evidence_ids)}
 
@@ -268,12 +389,18 @@ def build_research_workspace_tools(
                 "accepted": False,
                 "error": "atom kind must be one of the supported research finding kinds",
                 "allowed_kinds": sorted(ALLOWED_RESEARCH_ATOM_KINDS),
+                "kind_guidance": ATOM_KIND_GUIDANCE,
             }
         title = str(args.get("title") or "").strip()
         claim = str(args.get("claim") or "").strip()
         story_value = str(args.get("story_value") or "").strip()
         if not title or not claim or not story_value:
             return {"accepted": False, "error": "title, claim, and story_value are required"}
+        if _looks_like_source_quality_note(title, claim, story_value, str(args.get("explanation") or "")):
+            return {
+                "accepted": False,
+                "error": "source-quality notes are not editorial atoms; use record_research_risk or record_research_gap",
+            }
         for evidence_id in evidence_ids:
             await evidence_toolset._mark_evidence_status(
                 evidence_id,
@@ -311,6 +438,7 @@ def build_research_workspace_tools(
         job["updated_at"] = _now()
         _replace_workspace_job(current, job)
         _mark_research_progress(current, source_refs=source_refs, evidence_ids=evidence_ids)
+        _reset_research_read_advisory(current)
         await save_research_workspace(db, generation_run_id=run.id, workspace=current)
         return {"accepted": True, "atom_id": atom_id, "job_id": job_id, "evidence_count": len(evidence_ids), "atom_count": len(current["atom_drafts"])}
 
@@ -339,11 +467,14 @@ def build_research_workspace_tools(
         processed.append({"job_id": job_id, "status": status, "summary": job["summary"], "updated_at": _now()})
         current["processed_jobs"] = processed
         current["current_job"] = None
+        _reset_research_read_advisory(current)
         await save_research_workspace(db, generation_run_id=run.id, workspace=current)
         return {"accepted": True, "job_id": job_id, "status": status, "processed_job_count": len(processed)}
 
     async def record_research_risk_tool(args: dict[str, Any]) -> dict[str, Any]:
         current = await load_research_workspace(db, run.id) or workspace
+        job_id = str(args.get("job_id") or current_job_id or (current.get("current_job") or {}).get("job_id") or "")
+        job = _workspace_job(current, job_id) if job_id else None
         risk = str(args.get("risk") or "").strip()
         if not risk:
             return {"accepted": False, "error": "risk is required"}
@@ -351,10 +482,23 @@ def build_research_workspace_tools(
         invalid_refs = [ref for ref in source_refs if ref not in set(current.get("source_order") or [])]
         if invalid_refs:
             return {"accepted": False, "error": "risk source_refs must exist in workspace", "invalid_source_refs": invalid_refs}
+        if job is not None:
+            invalid_refs = _refs_outside_job(job, source_refs)
+            if invalid_refs:
+                return {"accepted": False, "error": "risk source_refs must belong to the current research job", "invalid_source_refs": invalid_refs}
         evidence_ids = _dedupe([str(item) for item in args.get("evidence_ids") or [] if str(item).strip()])
-        invalid_evidence = await _invalid_workspace_evidence_ids(evidence_toolset, evidence_ids)
+        invalid_evidence = (
+            await _invalid_job_evidence_ids(evidence_toolset, job, evidence_ids, source_refs=source_refs)
+            if job is not None
+            else await _invalid_workspace_evidence_ids(evidence_toolset, evidence_ids)
+        )
         if invalid_evidence:
-            return {"accepted": False, "error": "risk evidence_ids must exist in this run", "invalid_evidence_ids": invalid_evidence}
+            error = (
+                "risk evidence_ids must belong to selected source_refs and current job scope"
+                if job is not None
+                else "risk evidence_ids must exist in this run"
+            )
+            return {"accepted": False, "error": error, "invalid_evidence_ids": invalid_evidence}
         current.setdefault("risk_register", []).append(
             {
                 "risk": risk[:1200],
@@ -365,13 +509,165 @@ def build_research_workspace_tools(
             }
         )
         _mark_research_progress(current, source_refs=source_refs, evidence_ids=evidence_ids)
+        _reset_research_read_advisory(current)
         await save_research_workspace(db, generation_run_id=run.id, workspace=current)
         return {"accepted": True, "risk_count": len(current.get("risk_register") or [])}
 
+    async def record_research_gap_tool(args: dict[str, Any]) -> dict[str, Any]:
+        current = await load_research_workspace(db, run.id) or workspace
+        job_id = str(args.get("job_id") or current_job_id or (current.get("current_job") or {}).get("job_id") or "")
+        job = _workspace_job(current, job_id) if job_id else None
+        question = str(args.get("question") or "").strip()
+        if not question:
+            return {"accepted": False, "error": "gap question is required"}
+        category = str(args.get("category") or "").strip()
+        if category not in RESEARCH_GAP_CATEGORIES:
+            return {"accepted": False, "error": "gap category is invalid", "allowed_categories": sorted(RESEARCH_GAP_CATEGORIES)}
+        severity = str(args.get("severity") or "").strip()
+        if severity not in RESEARCH_GAP_SEVERITIES:
+            return {"accepted": False, "error": "gap severity is invalid", "allowed_severities": sorted(RESEARCH_GAP_SEVERITIES)}
+        status = str(args.get("status") or "open").strip() or "open"
+        if status not in RESEARCH_GAP_STATUSES:
+            return {"accepted": False, "error": "gap status is invalid", "allowed_statuses": sorted(RESEARCH_GAP_STATUSES)}
+        source_refs = _dedupe([str(item) for item in args.get("source_refs") or [] if str(item).strip()])
+        invalid_refs = _invalid_workspace_refs(current, source_refs)
+        if invalid_refs:
+            return {"accepted": False, "error": "gap source_refs must exist in workspace", "invalid_source_refs": invalid_refs}
+        if job is not None:
+            invalid_refs = _refs_outside_job(job, source_refs)
+            if invalid_refs:
+                return {"accepted": False, "error": "gap source_refs must belong to the current research job", "invalid_source_refs": invalid_refs}
+        evidence_ids = _dedupe([str(item) for item in args.get("evidence_ids") or [] if str(item).strip()])
+        invalid_evidence = (
+            await _invalid_job_evidence_ids(evidence_toolset, job, evidence_ids, source_refs=source_refs)
+            if job is not None
+            else await _invalid_workspace_evidence_ids(evidence_toolset, evidence_ids)
+        )
+        if invalid_evidence:
+            error = (
+                "gap evidence_ids must belong to selected source_refs and current job scope"
+                if job is not None
+                else "gap evidence_ids must exist in this run"
+            )
+            return {"accepted": False, "error": error, "invalid_evidence_ids": invalid_evidence}
+        resolution_note = str(args.get("resolution_note") or "").strip()
+        if status == "resolved" and not resolution_note:
+            return {"accepted": False, "error": "resolved research gaps require resolution_note"}
+        if severity == "blocking" and status == "resolved" and not evidence_ids:
+            return {"accepted": False, "error": "blocking research gaps cannot be resolved without evidence_ids"}
+        if status == "resolved" and evidence_toolset is not None:
+            for evidence_id in evidence_ids:
+                await evidence_toolset._mark_evidence_status(
+                    evidence_id,
+                    EVIDENCE_STATUS_SELECTED,
+                    {
+                        "selected_purpose": "research_gap_resolution",
+                        "selected_role": "research_gap_resolution",
+                        "selected_rationale": resolution_note[:240],
+                    },
+                )
+        normalized_key = _gap_key(category, question)
+        gap_id = _stable_id(str(args.get("gap_id") or ""), question, len(current.get("research_gaps") or []) + 1)
+        gap = {
+            "gap_id": gap_id,
+            "question": question[:600],
+            "category": category,
+            "severity": severity,
+            "source_refs": source_refs,
+            "evidence_ids": evidence_ids,
+            "status": status,
+            "resolution_note": resolution_note[:900],
+            "normalized_key": normalized_key,
+            "created_at": _now(),
+            "updated_at": _now(),
+        }
+        existing = next((item for item in current.get("research_gaps") or [] if item.get("normalized_key") == normalized_key), None)
+        gap = _merge_research_gap(existing, gap) if isinstance(existing, dict) else gap
+        gaps = [item for item in current.get("research_gaps") or [] if item.get("normalized_key") != normalized_key]
+        gaps.append(gap)
+        current["research_gaps"] = gaps
+        _mark_research_progress(current, source_refs=source_refs, evidence_ids=evidence_ids)
+        _reset_research_read_advisory(current)
+        await save_research_workspace(db, generation_run_id=run.id, workspace=current)
+        return {
+            "accepted": True,
+            "gap_id": gap.get("gap_id") or gap_id,
+            "gap_count": len(gaps),
+            "status": gap.get("status"),
+            "evidence_count": len(gap.get("evidence_ids") or []),
+        }
+
+    async def merge_editorial_atoms_tool(args: dict[str, Any]) -> dict[str, Any]:
+        current = await load_research_workspace(db, run.id) or workspace
+        primary_atom_id = str(args.get("primary_atom_id") or "").strip()
+        duplicate_atom_ids = _dedupe([str(item) for item in args.get("duplicate_atom_ids") or [] if str(item).strip()])
+        if not primary_atom_id:
+            return {"accepted": False, "error": "primary_atom_id is required"}
+        if not duplicate_atom_ids:
+            return {"accepted": False, "error": "duplicate_atom_ids is required"}
+        if primary_atom_id in duplicate_atom_ids:
+            return {"accepted": False, "error": "primary_atom_id cannot also be a duplicate_atom_id"}
+
+        drafts = [dict(item) for item in current.get("atom_drafts") or [] if isinstance(item, dict)]
+        by_id = {str(item.get("atom_id") or ""): item for item in drafts if str(item.get("atom_id") or "").strip()}
+        primary = by_id.get(primary_atom_id)
+        if primary is None:
+            return {"accepted": False, "error": "primary_atom_id not found", "missing_atom_ids": [primary_atom_id]}
+        missing = [atom_id for atom_id in duplicate_atom_ids if atom_id not in by_id]
+        if missing:
+            return {"accepted": False, "error": "duplicate_atom_id not found", "missing_atom_ids": missing}
+        inactive = [
+            atom_id
+            for atom_id in [primary_atom_id, *duplicate_atom_ids]
+            if str(by_id[atom_id].get("merged_into") or "").strip() or str(by_id[atom_id].get("status") or "") == "merged"
+        ]
+        if inactive:
+            return {"accepted": False, "error": "cannot merge atom drafts that are already merged", "inactive_atom_ids": inactive}
+        primary_kind = str(primary.get("kind") or "")
+        cross_kind = [atom_id for atom_id in duplicate_atom_ids if str(by_id[atom_id].get("kind") or "") != primary_kind]
+        if cross_kind:
+            return {
+                "accepted": False,
+                "error": "merge_editorial_atoms only merges atom drafts with the same kind",
+                "primary_kind": primary_kind,
+                "cross_kind_atom_ids": cross_kind,
+            }
+
+        merged = _merge_atom_drafts_explicit(primary, [by_id[atom_id] for atom_id in duplicate_atom_ids], args)
+        merged_at = _now()
+        updated_drafts: list[dict[str, Any]] = []
+        for draft in drafts:
+            atom_id = str(draft.get("atom_id") or "")
+            if atom_id == primary_atom_id:
+                updated_drafts.append(merged)
+            elif atom_id in duplicate_atom_ids:
+                retired = dict(draft)
+                retired["merged_into"] = primary_atom_id
+                retired["merged_at"] = merged_at
+                retired["status"] = "merged"
+                updated_drafts.append(retired)
+            else:
+                updated_drafts.append(draft)
+        current["atom_drafts"] = updated_drafts
+        _reset_research_read_advisory(current)
+        await save_research_workspace(db, generation_run_id=run.id, workspace=current)
+        return {
+            "accepted": True,
+            "primary_atom_id": primary_atom_id,
+            "merged_duplicate_count": len(duplicate_atom_ids),
+            "evidence_count": len(merged.get("evidence_ids") or []),
+            "source_ref_count": len(merged.get("source_refs") or []),
+        }
+
     async def finalize_research_memo_tool(args: dict[str, Any]) -> dict[str, Any]:
         current = await load_research_workspace(db, run.id) or workspace
-        if not current.get("atom_drafts"):
-            return {"accepted": False, "error": "Cannot finalize research memo without atom drafts"}
+        active_content_drafts = [
+            draft
+            for draft in _active_atom_drafts(current.get("atom_drafts") or [])
+            if not _draft_is_source_quality_note(draft)
+        ]
+        if not active_content_drafts:
+            return {"accepted": False, "error": "Cannot finalize research memo without active content atom drafts"}
         title = str(args.get("title") or "").strip()
         thesis = str(args.get("thesis") or "").strip()
         research_synthesis = str(args.get("research_synthesis") or "").strip()
@@ -382,12 +678,12 @@ def build_research_workspace_tools(
             "thesis": thesis[:1800],
             "research_synthesis": research_synthesis[:1800],
             "source_coverage": [str(item)[:400] for item in args.get("source_coverage") or [] if str(item).strip()][:40],
-            "open_questions": [str(item)[:400] for item in args.get("open_questions") or [] if str(item).strip()][:40],
             "risk_register": [str(item)[:500] for item in args.get("risk_register") or [] if str(item).strip()][:40],
         }
         current["status"] = "finalized"
+        _reset_research_read_advisory(current)
         await save_research_workspace(db, generation_run_id=run.id, workspace=current, status=V2ArtifactStatus.PASSED)
-        return {"accepted": True, "status": "finalized", "atom_count": len(current.get("atom_drafts") or [])}
+        return {"accepted": True, "status": "finalized", "atom_count": len(_active_atom_drafts(current.get("atom_drafts") or []))}
 
     if mode == "planner":
         tools.extend(
@@ -404,7 +700,7 @@ def build_research_workspace_tools(
                             "purpose": {"type": "string"},
                             "source_refs": {"type": "array", "items": {"type": "string"}},
                             "questions": {"type": "array", "items": {"type": "string"}},
-                            "required_atom_kinds": {"type": "array", "items": {"type": "string"}},
+                            "required_atom_kinds": {"type": "array", "items": {"type": "string", "enum": sorted(ALLOWED_RESEARCH_ATOM_KINDS)}},
                             "priority": {"type": "string"},
                             "allow_broad_search": {"type": "boolean"},
                         },
@@ -428,9 +724,8 @@ def build_research_workspace_tools(
                         "type": "object",
                         "properties": {
                             "summary": {"type": "string"},
-                            "open_questions": {"type": "array", "items": {"type": "string"}},
                         },
-                        "required": ["summary", "open_questions"],
+                        "required": ["summary"],
                     },
                     handler=finalize_research_plan_tool,
                 ),
@@ -463,7 +758,7 @@ def build_research_workspace_tools(
                         "properties": {
                             "job_id": {"type": "string"},
                             "atom_id": {"type": "string"},
-                            "kind": {"type": "string"},
+                            "kind": {"type": "string", "enum": sorted(ALLOWED_RESEARCH_ATOM_KINDS)},
                             "title": {"type": "string"},
                             "claim": {"type": "string"},
                             "explanation": {"type": "string"},
@@ -509,11 +804,75 @@ def build_research_workspace_tools(
                     },
                     handler=finish_research_job_tool,
                 ),
+                AgentTool(
+                    name="record_research_risk",
+                    description="Persist a non-blocking source-quality, corroboration, contradiction, or uncertainty risk. Use this instead of an editorial atom for source-quality warnings.",
+                    parameters={
+                        "type": "object",
+                        "properties": {
+                            "risk": {"type": "string"},
+                            "severity": {"type": "string"},
+                            "source_refs": {"type": "array", "items": {"type": "string"}},
+                            "evidence_ids": {"type": "array", "items": {"type": "string"}},
+                        },
+                        "required": ["risk", "severity", "source_refs", "evidence_ids"],
+                    },
+                    handler=record_research_risk_tool,
+                ),
+                AgentTool(
+                    name="record_research_gap",
+                    description="Persist a structured research gap. Use severity=blocking only when treatment should not proceed without repair.",
+                    parameters={
+                        "type": "object",
+                        "properties": {
+                            "gap_id": {"type": "string"},
+                            "question": {"type": "string"},
+                            "category": {"type": "string", "enum": sorted(RESEARCH_GAP_CATEGORIES)},
+                            "severity": {"type": "string", "enum": sorted(RESEARCH_GAP_SEVERITIES)},
+                            "source_refs": {"type": "array", "items": {"type": "string"}},
+                            "evidence_ids": {"type": "array", "items": {"type": "string"}},
+                            "status": {"type": "string", "enum": sorted(RESEARCH_GAP_STATUSES)},
+                            "resolution_note": {"type": "string"},
+                        },
+                        "required": [
+                            "question",
+                            "category",
+                            "severity",
+                            "source_refs",
+                            "evidence_ids",
+                            "status",
+                            "resolution_note",
+                        ],
+                    },
+                    handler=record_research_gap_tool,
+                ),
             ]
         )
     if mode == "finalizer":
         tools.extend(
             [
+                AgentTool(
+                    name="merge_editorial_atoms",
+                    description=(
+                        "Mandatory finalizer duplicate-audit tool. Merge same-kind atom drafts that repeat "
+                        "the same research finding before final memo assembly."
+                    ),
+                    parameters={
+                        "type": "object",
+                        "properties": {
+                            "primary_atom_id": {"type": "string"},
+                            "duplicate_atom_ids": {"type": "array", "items": {"type": "string"}},
+                            "title": {"type": "string"},
+                            "claim": {"type": "string"},
+                            "explanation": {"type": "string"},
+                            "story_value": {"type": "string"},
+                            "risk": {"type": "string"},
+                            "source_coverage_status": {"type": "string", "enum": ["ready", "partial", "weak"]},
+                        },
+                        "required": ["primary_atom_id", "duplicate_atom_ids"],
+                    },
+                    handler=merge_editorial_atoms_tool,
+                ),
                 AgentTool(
                     name="record_research_risk",
                     description="Persist a source-coverage, contradiction, or uncertainty risk that should survive memo finalization.",
@@ -530,8 +889,38 @@ def build_research_workspace_tools(
                     handler=record_research_risk_tool,
                 ),
                 AgentTool(
+                    name="record_research_gap",
+                    description="Persist or update a structured research gap before memo finalization. Blocking open/deferred gaps will block the research gate.",
+                    parameters={
+                        "type": "object",
+                        "properties": {
+                            "gap_id": {"type": "string"},
+                            "question": {"type": "string"},
+                            "category": {"type": "string", "enum": sorted(RESEARCH_GAP_CATEGORIES)},
+                            "severity": {"type": "string", "enum": sorted(RESEARCH_GAP_SEVERITIES)},
+                            "source_refs": {"type": "array", "items": {"type": "string"}},
+                            "evidence_ids": {"type": "array", "items": {"type": "string"}},
+                            "status": {"type": "string", "enum": sorted(RESEARCH_GAP_STATUSES)},
+                            "resolution_note": {"type": "string"},
+                        },
+                        "required": [
+                            "question",
+                            "category",
+                            "severity",
+                            "source_refs",
+                            "evidence_ids",
+                            "status",
+                            "resolution_note",
+                        ],
+                    },
+                    handler=record_research_gap_tool,
+                ),
+                AgentTool(
                     name="finalize_research_memo",
-                    description="Persist final memo fields. The backend assembles ResearchMemo atoms from durable atom drafts.",
+                    description=(
+                        "Persist final memo fields. The backend assembles ResearchMemo atoms and structured risks "
+                        "from durable workspace drafts; risk_register is optional extra cautions only."
+                    ),
                     parameters={
                         "type": "object",
                         "properties": {
@@ -539,7 +928,6 @@ def build_research_workspace_tools(
                             "thesis": {"type": "string"},
                             "research_synthesis": {"type": "string"},
                             "source_coverage": {"type": "array", "items": {"type": "string"}},
-                            "open_questions": {"type": "array", "items": {"type": "string"}},
                             "risk_register": {"type": "array", "items": {"type": "string"}},
                         },
                         "required": [
@@ -547,8 +935,6 @@ def build_research_workspace_tools(
                             "thesis",
                             "research_synthesis",
                             "source_coverage",
-                            "open_questions",
-                            "risk_register",
                         ],
                     },
                     handler=finalize_research_memo_tool,
@@ -574,11 +960,27 @@ async def start_research_job(
     job["updated_at"] = _now()
     _replace_workspace_job(current, job)
     current["current_job"] = {"job_id": job_id, "started_at": job["started_at"], "source_refs": job.get("source_refs") or []}
+    _reset_research_read_advisory(current)
     await save_research_workspace(db, generation_run_id=run.id, workspace=current)
     return current
 
 
 async def research_workflow_guard_error(
+    db: AsyncSession,
+    *,
+    generation_run_id: uuid.UUID,
+    current_job_id: str | None,
+) -> dict[str, Any] | None:
+    """Update advisory read counters for research jobs without blocking reads."""
+    await research_workflow_commit_advisory(
+        db,
+        generation_run_id=generation_run_id,
+        current_job_id=current_job_id,
+    )
+    return None
+
+
+async def research_workflow_commit_advisory(
     db: AsyncSession,
     *,
     generation_run_id: uuid.UUID,
@@ -614,16 +1016,26 @@ async def research_workflow_guard_error(
         )
     )
     read_count = len(list(read_result.scalars()))
-    if read_count < RESEARCH_READS_PER_COMMIT:
-        return None
-    return {
-        "accepted": False,
-        "error": "research_job_requires_state_commit",
-        "message": "Persist a research observation, atom draft, risk, or finish the job before more reading/searching.",
-        "job_id": current_job_id,
-        "read_calls_since_commit": read_count,
-        "expected_next_actions": ["record_research_observation", "upsert_editorial_atom", "finish_research_job"],
+    advisory = {
+        "reads_since_commit": read_count,
+        "warning_threshold": RESEARCH_READS_PER_COMMIT_WARNING,
+        "advisory_threshold": RESEARCH_READS_PER_COMMIT_ADVISORY,
+        "commit_recommended": read_count >= RESEARCH_READS_PER_COMMIT_WARNING,
+        "suggested_next_actions": [
+            "record_research_observation",
+            "upsert_editorial_atom",
+            "record_research_risk",
+            "record_research_gap",
+        ],
     }
+    if workspace is not None and (
+        workspace.get("reads_since_commit") != read_count
+        or workspace.get("commit_recommended") != advisory["commit_recommended"]
+    ):
+        workspace["reads_since_commit"] = read_count
+        workspace["commit_recommended"] = advisory["commit_recommended"]
+        await save_research_workspace(db, generation_run_id=generation_run_id, workspace=workspace)
+    return advisory if advisory["commit_recommended"] else None
 
 
 def research_workspace_summary_for_prompt(workspace: dict[str, Any], *, max_jobs: int = 30, max_atoms: int = 30) -> dict[str, Any]:
@@ -636,7 +1048,7 @@ def research_workspace_summary_for_prompt(workspace: dict[str, Any], *, max_jobs
         "processed_jobs": workspace.get("processed_jobs") or [],
         "covered_source_refs": workspace.get("covered_source_refs") or [],
         "selected_evidence_count": len(workspace.get("selected_evidence_ids") or []),
-        "open_questions": [str(item)[:360] for item in (workspace.get("open_questions") or [])[:80]],
+        "research_gaps": _dedupe_gaps(workspace.get("research_gaps") or [])[:80],
         "risk_count": len(workspace.get("risk_register") or []),
         "jobs": [
             {
@@ -648,7 +1060,7 @@ def research_workspace_summary_for_prompt(workspace: dict[str, Any], *, max_jobs
                 "priority": item.get("priority"),
                 "question_count": len(item.get("questions") or []),
                 "observation_count": len(item.get("observations") or []),
-                "atom_count": len(item.get("atom_ids") or []),
+                "atom_count": _active_job_atom_count(workspace, item),
                 "summary": item.get("summary"),
                 "deferred_reason": item.get("deferred_reason"),
             }
@@ -669,8 +1081,18 @@ def research_workspace_summary_for_prompt(workspace: dict[str, Any], *, max_jobs
                 "risk": item.get("risk"),
                 "source_coverage_status": item.get("source_coverage_status"),
             }
-            for item in (workspace.get("atom_drafts") or [])[:max_atoms]
+            for item in _active_atom_drafts(workspace.get("atom_drafts") or [])[:max_atoms]
         ],
+        "commit_advisory": {
+            "reads_since_commit": workspace.get("reads_since_commit") or 0,
+            "warning_threshold": RESEARCH_READS_PER_COMMIT_WARNING,
+            "advisory_threshold": RESEARCH_READS_PER_COMMIT_ADVISORY,
+            "commit_recommended": bool(workspace.get("commit_recommended")),
+            "next_action_hint": (
+                "If reads_since_commit is near the warning threshold, persist progress with "
+                "record_research_observation, upsert_editorial_atom, record_research_risk, or record_research_gap."
+            ),
+        },
     }
 
 
@@ -698,7 +1120,7 @@ def research_finalizer_payload_for_prompt(workspace: dict[str, Any], *, max_jobs
         "jobs": base.get("jobs") or [],
         "atom_drafts": base.get("atom_drafts") or [],
         "observations": observations[:max_observations],
-        "open_questions": [str(item)[:360] for item in (workspace.get("open_questions") or [])[:80]],
+        "research_gaps": _dedupe_gaps(workspace.get("research_gaps") or [])[:80],
         "risk_register": [
             {
                 "risk": str(item.get("risk") if isinstance(item, dict) else item)[:500],
@@ -709,8 +1131,11 @@ def research_finalizer_payload_for_prompt(workspace: dict[str, Any], *, max_jobs
             for item in (workspace.get("risk_register") or [])[:40]
         ],
         "assembly_instruction": (
-            "Use atom_drafts as the memo backbone. Use observations to explain coverage, open questions, "
-            "and risks. Do not invent atoms that were not persisted as atom_drafts."
+            "Use atom_drafts as the memo backbone, but treat them as raw outputs from independent jobs that "
+            "may overlap. Audit same-kind atom_drafts for repeated findings before finalization and use "
+            "merge_editorial_atoms for duplicates. Use observations and research_gaps to explain coverage "
+            "and risks. Do not invent atoms that were not persisted as atom_drafts. Blocking open/deferred "
+            "gaps become final open_questions; non-blocking/optional gaps become risk/source-coverage notes."
         ),
     }
 
@@ -722,6 +1147,12 @@ def research_job_prompt_payload(workspace: dict[str, Any], job_id: str, *, sourc
         "job": job,
         "workspace_progress": research_workspace_summary_for_prompt(workspace, max_jobs=40, max_atoms=40),
         "source_map_summary": _source_map_summary_for_job(source_map_summary, job),
+        "commit_advisory": {
+            "reads_since_commit": workspace.get("reads_since_commit") or 0,
+            "warning_threshold": RESEARCH_READS_PER_COMMIT_WARNING,
+            "advisory_threshold": RESEARCH_READS_PER_COMMIT_ADVISORY,
+            "commit_recommended": bool(workspace.get("commit_recommended")),
+        },
     }
 
 
@@ -746,9 +1177,13 @@ def research_memo_from_workspace(run: GenerationRun, workspace: dict[str, Any]) 
     fields = dict(workspace.get("memo_fields") or {})
     title = fields.get("title") or str((run.config or {}).get("user_prompt") or "Podcast episode")[:120]
     atoms: list[EditorialAtom] = []
-    for draft in workspace.get("atom_drafts") or []:
+    source_quality_risks: list[str] = []
+    for draft in _active_atom_drafts(workspace.get("atom_drafts") or []):
         evidence_ids = _dedupe([str(item) for item in draft.get("evidence_ids") or [] if str(item).strip()])
         anchor_refs = _dedupe([*(draft.get("anchor_refs") or []), *evidence_ids])
+        if _draft_is_source_quality_note(draft):
+            source_quality_risks.append(_source_quality_risk_from_draft(draft))
+            continue
         atoms.append(
             EditorialAtom(
                 kind=_coerce_atom_kind(str(draft.get("kind") or "")),  # type: ignore[arg-type]
@@ -765,23 +1200,31 @@ def research_memo_from_workspace(run: GenerationRun, workspace: dict[str, Any]) 
             )
         )
     if not atoms:
-        atoms = [
-            EditorialAtom(
-                kind="unanswered_question",
-                title="Research did not produce atom drafts",
-                explanation="No durable editorial atom drafts were saved in the research workspace.",
-                story_value="Blocks confident treatment generation.",
-                confidence=0.0,
-                risk="high",
-                source_coverage_status="weak",
-            )
-        ]
+        raise RuntimeError("Research workspace has no active content atom drafts.")
     processed_summaries = [str(item.get("summary")) for item in workspace.get("processed_jobs") or [] if item.get("summary")]
     risks = [
         str(item.get("risk") if isinstance(item, dict) else item)
         for item in workspace.get("risk_register") or []
         if str(item.get("risk") if isinstance(item, dict) else item).strip()
     ]
+    gaps = _dedupe_gaps(workspace.get("research_gaps") or [])
+    blocking_open_questions = [
+        str(item.get("question") or "")[:400]
+        for item in gaps
+        if item.get("severity") == "blocking" and item.get("status") in {"open", "deferred"} and str(item.get("question") or "").strip()
+    ]
+    nonblocking_gap_risks = [
+        _risk_from_gap(item)
+        for item in gaps
+        if item.get("severity") in {"non_blocking", "optional"} and item.get("status") in {"open", "deferred"}
+    ]
+    structured_risks = [*risks, *nonblocking_gap_risks, *source_quality_risks]
+    memo_field_risks = [str(item) for item in fields.get("risk_register") or [] if str(item).strip()]
+    # Finalizer free-form risks are a compatibility fallback. In the normal workflow,
+    # durable record_research_risk/record_research_gap entries are the source of truth.
+    if structured_risks:
+        memo_field_risks = []
+
     return ResearchMemo(
         title=title,
         thesis=fields.get("thesis") or f"The episode should investigate {title} through source-grounded mechanisms, stakes, and turns.",
@@ -792,8 +1235,8 @@ def research_memo_from_workspace(run: GenerationRun, workspace: dict[str, Any]) 
         ),
         editorial_atoms=atoms,
         source_coverage=(fields.get("source_coverage") or processed_summaries)[:40],
-        open_questions=_dedupe([*(workspace.get("open_questions") or []), *(fields.get("open_questions") or [])])[:40],
-        risk_register=_dedupe([*risks, *(fields.get("risk_register") or [])])[:40],
+        open_questions=_dedupe_normalized(blocking_open_questions)[:40],
+        risk_register=_dedupe_normalized([*structured_risks, *memo_field_risks])[:40],
     )
 
 
@@ -944,6 +1387,7 @@ def _normalize_workspace(workspace: dict[str, Any]) -> dict[str, Any]:
     workspace.setdefault("selected_evidence_ids", [])
     workspace.setdefault("atom_drafts", [])
     workspace.setdefault("open_questions", [])
+    workspace.setdefault("research_gaps", [])
     workspace.setdefault("risk_register", [])
     workspace.setdefault("memo_fields", {})
     return workspace
@@ -1023,6 +1467,11 @@ def _mark_research_progress(workspace: dict[str, Any], *, source_refs: list[str]
     workspace["selected_evidence_ids"] = _dedupe([*(workspace.get("selected_evidence_ids") or []), *evidence_ids])
 
 
+def _reset_research_read_advisory(workspace: dict[str, Any]) -> None:
+    workspace["reads_since_commit"] = 0
+    workspace["commit_recommended"] = False
+
+
 def _source_order(inventory: SourceMap) -> list[str]:
     context = build_source_ref_context(inventory)
     return [source_ref_for_id(card.source_id, context) for card in inventory.source_cards]
@@ -1081,17 +1530,180 @@ def _dedupe(values: list[str]) -> list[str]:
     return result
 
 
-ALLOWED_RESEARCH_ATOM_KINDS = {
-    "conflict",
-    "mechanism",
-    "history",
-    "turning_point",
-    "consequence",
-    "exception",
-    "human_cost",
-    "institutional_incentive",
-    "unanswered_question",
-}
+def _dedupe_normalized(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        text = str(value or "").strip()
+        key = _normalized_question_key(text)
+        if text and key not in seen:
+            seen.add(key)
+            result.append(text)
+    return result
+
+
+def _dedupe_gaps(values: list[Any]) -> list[dict[str, Any]]:
+    order: list[str] = []
+    merged_by_key: dict[str, dict[str, Any]] = {}
+    for raw in values:
+        if not isinstance(raw, dict):
+            continue
+        question = str(raw.get("question") or "").strip()
+        category = str(raw.get("category") or "").strip()
+        if not question or category not in RESEARCH_GAP_CATEGORIES:
+            continue
+        gap = dict(raw)
+        gap["category"] = category
+        gap["severity"] = str(gap.get("severity") or "non_blocking") if str(gap.get("severity") or "") in RESEARCH_GAP_SEVERITIES else "non_blocking"
+        gap["status"] = str(gap.get("status") or "open") if str(gap.get("status") or "") in RESEARCH_GAP_STATUSES else "open"
+        gap["normalized_key"] = str(gap.get("normalized_key") or _gap_key(category, question))
+        key = gap["normalized_key"]
+        if key not in merged_by_key:
+            order.append(key)
+            merged_by_key[key] = gap
+            continue
+        merged_by_key[key] = _merge_research_gap(merged_by_key[key], gap)
+    return [merged_by_key[key] for key in order]
+
+
+def _active_atom_drafts(values: list[Any]) -> list[dict[str, Any]]:
+    return [
+        dict(item)
+        for item in values
+        if isinstance(item, dict) and not str(item.get("merged_into") or "").strip() and str(item.get("status") or "") != "merged"
+    ]
+
+
+def _active_job_atom_count(workspace: dict[str, Any], job: dict[str, Any]) -> int:
+    job_atom_ids = {str(item) for item in job.get("atom_ids") or [] if str(item).strip()}
+    if not job_atom_ids:
+        return 0
+    return len(
+        [
+            draft
+            for draft in _active_atom_drafts(workspace.get("atom_drafts") or [])
+            if str(draft.get("atom_id") or "") in job_atom_ids
+        ]
+    )
+
+
+def _merge_atom_drafts_explicit(primary: dict[str, Any], duplicates: list[dict[str, Any]], overrides: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(primary)
+    all_drafts = [primary, *duplicates]
+    for key in ("source_refs", "source_ids", "quote_refs", "anchor_refs", "evidence_ids"):
+        merged[key] = _dedupe([str(value) for draft in all_drafts for value in (draft.get(key) or []) if str(value).strip()])
+    for key, limit in (("title", 220), ("claim", 1400), ("explanation", 1800), ("story_value", 900), ("risk", 40)):
+        value = str(overrides.get(key) or "").strip()
+        if value:
+            merged[key] = value[:limit]
+    if str(overrides.get("source_coverage_status") or "").strip():
+        merged["source_coverage_status"] = _coverage_status(str(overrides.get("source_coverage_status") or ""))
+    try:
+        merged["confidence"] = max(float(draft.get("confidence") or 0.0) for draft in all_drafts)
+    except (TypeError, ValueError):
+        pass
+    merged["updated_at"] = _now()
+    merged["merged_atom_ids"] = _dedupe(
+        [
+            str(draft.get("atom_id") or "")
+            for draft in all_drafts
+            if str(draft.get("atom_id") or "").strip()
+        ]
+        + [
+            str(atom_id)
+            for draft in all_drafts
+            for atom_id in (draft.get("merged_atom_ids") or [])
+            if str(atom_id).strip()
+        ]
+    )
+    return merged
+
+
+def _merge_research_gap(existing: dict[str, Any] | None, incoming: dict[str, Any]) -> dict[str, Any]:
+    if not existing:
+        return incoming
+    merged = dict(existing)
+    incoming_status = str(incoming.get("status") or "open")
+    incoming_resolution = str(incoming.get("resolution_note") or "").strip()
+    severity_rank = {"optional": 0, "non_blocking": 1, "blocking": 2}
+    existing_severity = str(existing.get("severity") or "non_blocking")
+    incoming_severity = str(incoming.get("severity") or "non_blocking")
+    strongest_severity = existing_severity if severity_rank.get(existing_severity, 1) > severity_rank.get(incoming_severity, 1) else incoming_severity
+    existing_question = str(existing.get("question") or "").strip()
+    if incoming_status == "resolved" and incoming_resolution:
+        merged.update(incoming)
+        merged["gap_id"] = existing.get("gap_id") or incoming.get("gap_id")
+        merged["created_at"] = existing.get("created_at") or incoming.get("created_at")
+        merged["severity"] = strongest_severity
+        if existing_question:
+            merged["question"] = existing_question
+        return merged
+
+    merged.update(incoming)
+    merged["gap_id"] = existing.get("gap_id") or incoming.get("gap_id")
+    merged["created_at"] = existing.get("created_at") or incoming.get("created_at")
+    merged["severity"] = strongest_severity
+    if existing_question:
+        merged["question"] = existing_question
+    if existing.get("status") == "resolved" and incoming_status != "resolved":
+        merged["status"] = "resolved"
+        merged["resolution_note"] = existing.get("resolution_note") or incoming.get("resolution_note") or ""
+    return merged
+
+
+def _gap_key(category: str, question: str) -> str:
+    return f"{category}:{_normalized_question_key(question)}"
+
+
+def _normalized_question_key(value: str) -> str:
+    text = str(value or "").strip().lower()
+    text = text.replace("–", "-").replace("—", "-")
+    text = re.sub(r"\b(19|20)(\d{2})\s*-\s*(\d{2})\b", r"\1\2-\1\3", text)
+    text = re.sub(r"\s+", " ", text)
+    return text
+
+
+def _looks_like_source_quality_note(*parts: str) -> bool:
+    text = " ".join(str(part or "").lower() for part in parts)
+    return any(pattern in text for pattern in SOURCE_QUALITY_PATTERNS)
+
+
+def _draft_is_source_quality_note(draft: dict[str, Any]) -> bool:
+    return _looks_like_source_quality_note(
+        str(draft.get("title") or ""),
+        str(draft.get("claim") or ""),
+        str(draft.get("explanation") or ""),
+        str(draft.get("story_value") or ""),
+        str(draft.get("risk") or ""),
+    )
+
+
+def _source_quality_risk_from_draft(draft: dict[str, Any]) -> str:
+    title = str(draft.get("title") or "Source-quality note").strip()
+    risk = str(draft.get("risk") or "").strip()
+    return f"Source-quality note excluded from editorial atoms: {title}. {risk}".strip()
+
+
+def _risk_from_gap(gap: dict[str, Any]) -> str:
+    severity = str(gap.get("severity") or "non_blocking")
+    category = str(gap.get("category") or "optional_context")
+    question = str(gap.get("question") or "").strip()
+    note = str(gap.get("resolution_note") or "").strip()
+    suffix = f" {note}" if note else ""
+    return f"{severity} research gap ({category}): {question}.{suffix}".strip()
+
+
+def _repair_atom_kinds_for_gap(gap: dict[str, Any]) -> list[str]:
+    category = str(gap.get("category") or "")
+    if category == "legal_detail":
+        return ["mechanism"]
+    if category == "chronology_detail":
+        return ["history", "turning_point"]
+    if category == "contradiction":
+        return ["conflict"]
+    if category == "weak_corroboration":
+        return ["consequence", "conflict"]
+    return ["unanswered_question"]
 
 
 def _atom_kind(value: str) -> str | None:
@@ -1134,6 +1746,7 @@ __all__ = [
     "RESEARCH_READ_TOOLS",
     "RESEARCH_SEMANTIC_COMMIT_TOOLS",
     "build_research_workspace_tools",
+    "enqueue_research_repair_jobs",
     "ensure_research_workspace",
     "load_research_workspace",
     "load_research_workspace_artifact",
@@ -1141,6 +1754,7 @@ __all__ = [
     "research_job_prompt_payload",
     "research_memo_from_workspace",
     "research_workspace_summary_for_prompt",
+    "research_workflow_commit_advisory",
     "research_workflow_guard_error",
     "save_research_workspace",
     "source_map_research_summary",

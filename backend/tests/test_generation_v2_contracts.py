@@ -10,6 +10,8 @@ from pydantic import BaseModel
 
 from app.config import settings
 from app.generation_v2.agents.editorial import (
+    RESEARCH_FINALIZER_TOOL_NAMES,
+    RESEARCH_JOB_TOOL_NAMES,
     _evidence_inventory,
     _fallback_act_draft,
     _fallback_claims,
@@ -81,11 +83,15 @@ from app.generation_v2.runtime import (
     _model_facing_tool_output,
     _strict_json_schema,
 )
+from app.generation_v2.research_kinds import ATOM_KIND_GUIDANCE, ATOM_KIND_PROMPT_BLOCK
 from app.generation_v2.research_workspace import (
     build_research_workspace_tools,
+    enqueue_research_repair_jobs,
     research_finalizer_payload_for_prompt,
     research_job_prompt_payload,
     research_memo_from_workspace,
+    research_workspace_summary_for_prompt,
+    research_workflow_guard_error,
     source_map_research_summary,
 )
 from app.generation_v2.schemas import (
@@ -154,6 +160,7 @@ from app.generation_v2.tools.evidence import (
 )
 from app.generation_v2.tools.evidence_utils import _provider_filters
 from app.services.llm import _openai_estimated_cost_usd, _openai_token_cost_payload, _openai_usage
+from app.generation_v2.artifacts import summarize_tool_trace_costs
 from app.ingestion.source_metadata import audited_authority_type, classify_authority_heuristic
 from app.models.generation_v2 import (
     EvidenceRetrievalChannel,
@@ -605,6 +612,97 @@ def test_openai_usage_parser_captures_cached_tokens_and_cost() -> None:
     assert cost_payload["estimated_token_cost_usd"] == 0.00093
     assert cost_payload["cost_basis"] == "openai_token_usage_only"
     assert "not an OpenAI invoice total" in cost_payload["cost_warning"]
+    assert cost_payload["uncached_input_tokens"] == 600
+
+
+@pytest.mark.asyncio
+async def test_cost_report_aggregates_model_usage_from_traces() -> None:
+    run_id = uuid.uuid4()
+
+    class _Result:
+        def __init__(self, traces):
+            self._traces = traces
+
+        def scalars(self):
+            return self._traces
+
+    class _Db:
+        async def execute(self, _query):
+            return _Result(
+                [
+                    V2ToolTrace(
+                        generation_run_id=run_id,
+                        phase="v2_editorial_research",
+                        agent_name="research_job_agent",
+                        tool_name="openai.responses.create",
+                        input_json={"requested_model": "gpt-5.4-mini"},
+                        output_json={
+                            "requested_model": "gpt-5.4-mini",
+                            "response_model": "gpt-5.4-mini-2026-03-17",
+                            "billing_model": "gpt-5.4-mini-2026-03-17",
+                            "usage": {
+                                "input_tokens": 1000,
+                                "cached_input_tokens": 700,
+                                "uncached_input_tokens": 300,
+                                "output_tokens": 100,
+                                "reasoning_output_tokens": 20,
+                            },
+                            "estimated_token_cost_usd": 0.001,
+                            "cost_warning": "Token-cost estimate only.",
+                        },
+                        input_tokens=1000,
+                        output_tokens=100,
+                        cost_usd=0.001,
+                    ),
+                    V2ToolTrace(
+                        generation_run_id=run_id,
+                        phase="v2_corpus_evidence",
+                        agent_name="corpus_evidence_api",
+                        tool_name="openai.responses.create.input_file",
+                        input_json={"requested_model": "gpt-5.4-mini"},
+                        output_json={
+                            "requested_model": "gpt-5.4-mini",
+                            "response_model": "gpt-5.4-mini-2026-03-17",
+                            "billing_model": "gpt-5.4-mini-2026-03-17",
+                            "input_tokens": 500,
+                            "cached_input_tokens": 100,
+                            "uncached_input_tokens": 400,
+                            "output_tokens": 50,
+                            "estimated_token_cost_usd": 0.002,
+                        },
+                        input_tokens=500,
+                        output_tokens=50,
+                        cost_usd=0.002,
+                    ),
+                    V2ToolTrace(
+                        generation_run_id=run_id,
+                        phase="v2_editorial_research",
+                        agent_name="research_job_agent",
+                        tool_name="upsert_editorial_atom",
+                        input_json={},
+                        output_json={"accepted": True},
+                    ),
+                    V2ToolTrace(
+                        generation_run_id=run_id,
+                        phase="v2_corpus_evidence",
+                        agent_name="corpus_evidence_api",
+                        tool_name="openai.responses.create.input_file",
+                        input_json={"requested_model": "gpt-5.4-mini"},
+                        output_json={"requested_model": "gpt-5.4-mini", "error": "provider timeout before usage"},
+                    ),
+                ]
+            )
+
+    report = await summarize_tool_trace_costs(_Db(), run_id)  # type: ignore[arg-type]
+
+    assert report["totals"]["call_count"] == 2
+    assert report["totals"]["input_tokens"] == 1500
+    assert report["totals"]["cached_input_tokens"] == 800
+    assert report["totals"]["uncached_input_tokens"] == 700
+    assert report["totals"]["output_tokens"] == 150
+    assert report["totals"]["reasoning_output_tokens"] == 20
+    assert report["totals"]["estimated_token_cost_usd"] == 0.003
+    assert {row["tool_name"] for row in report["groups"]} == {"openai.responses.create", "openai.responses.create.input_file"}
 
 
 def test_tool_round_limit_zero_disables_hard_cap(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1473,15 +1571,37 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     ):
         assert case_specific_term not in SOURCE_TRIAGE_PROMPT
     assert "upsert_research_job" in RESEARCH_PLANNER_PROMPT
+    assert RESEARCH_PLANNER_PROMPT.count("Atom kinds:") == 1
+    assert RESEARCH_JOB_PROMPT.count("Atom kinds:") == 1
+    assert ATOM_KIND_PROMPT_BLOCK in RESEARCH_PLANNER_PROMPT
+    assert ATOM_KIND_PROMPT_BLOCK in RESEARCH_JOB_PROMPT
+    assert 'Use kind="history" for' not in RESEARCH_JOB_PROMPT
+    assert 'Use kind="mechanism" for' not in RESEARCH_JOB_PROMPT
+    assert "legal or institutional plumbing" not in RESEARCH_PLANNER_PROMPT
+    assert "legal or institutional plumbing" not in RESEARCH_JOB_PROMPT
+    assert "legal or institutional plumbing" not in ATOM_KIND_GUIDANCE
     assert "A good job has:" in RESEARCH_PLANNER_PROMPT
     assert "Mini-examples:" in RESEARCH_PLANNER_PROMPT
+    assert 'priority="high", allow_broad_search=false' in RESEARCH_PLANNER_PROMPT
+    assert 'priority="normal", allow_broad_search=true' in RESEARCH_PLANNER_PROMPT
     assert "upsert_editorial_atom" in RESEARCH_JOB_PROMPT
     assert "What success looks like:" in RESEARCH_JOB_PROMPT
     assert "skim_source or inspect_source" in RESEARCH_JOB_PROMPT
     assert "scope=all_sources" in RESEARCH_JOB_PROMPT
     assert "record_research_observation or upsert_editorial_atom" in RESEARCH_JOB_PROMPT
     assert "tool validates the refs" in RESEARCH_JOB_PROMPT
+    assert 'source_refs=["S01"], evidence_ids=[], status="open", resolution_note=""' in RESEARCH_JOB_PROMPT
+    assert "source-owner" not in RESEARCH_JOB_PROMPT
+    assert "repair_for_gap_id or repair_gap" in RESEARCH_JOB_PROMPT
+    assert "same gap_id" in RESEARCH_JOB_PROMPT
+    assert 'status="resolved"' in RESEARCH_JOB_PROMPT
+    assert "evidence_ids from the resolving read" in RESEARCH_JOB_PROMPT
     assert "finalize_research_memo" in RESEARCH_FINALIZER_PROMPT
+    assert "merge_editorial_atoms" in RESEARCH_FINALIZER_PROMPT
+    assert "Duplicate audit comes first" in RESEARCH_FINALIZER_PROMPT
+    assert "atom_drafts are raw outputs from separate jobs" in RESEARCH_FINALIZER_PROMPT
+    assert "Same finding means" in RESEARCH_FINALIZER_PROMPT
+    assert "Do not call finalize_research_memo until this duplicate audit is complete" in RESEARCH_FINALIZER_PROMPT
     assert "research_synthesis" in RESEARCH_FINALIZER_PROMPT
     assert "research synthesis, not an episode treatment" in RESEARCH_FINALIZER_PROMPT
     assert "narrative_spine" not in RESEARCH_FINALIZER_PROMPT
@@ -1738,11 +1858,14 @@ async def test_phase_specific_agent_tool_sets_are_not_broad() -> None:
         "inspect_source",
         "compare_evidence_for_question",
         "record_research_observation",
+        "record_research_risk",
+        "record_research_gap",
         "upsert_editorial_atom",
         "finish_research_job",
     }
     assert set(calls["research_finalizer_agent"]) == {
         "record_research_risk",
+        "record_research_gap",
         "finalize_research_memo",
     }
     assert "select_evidence" not in calls[research_job_agent]
@@ -1917,6 +2040,8 @@ def test_research_finalizer_prompt_payload_contains_persisted_work_not_counts_on
     assert payload["atom_drafts"][0]["evidence_ids"] == ["ev-1"]
     assert payload["risk_register"][0]["source_refs"] == ["S01"]
     assert "Use atom_drafts as the memo backbone" in payload["assembly_instruction"]
+    assert "raw outputs from independent jobs" in payload["assembly_instruction"]
+    assert "merge_editorial_atoms for duplicates" in payload["assembly_instruction"]
 
 
 def test_fallback_editorial_flow_produces_draft_and_claims() -> None:
@@ -3344,6 +3469,170 @@ async def test_scoped_research_job_rejects_empty_find_quotes_scope() -> None:
     assert result["results"] == []
 
 
+@pytest.mark.asyncio
+async def test_research_model_read_does_not_return_read_advisory_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    toolset = EvidenceToolset(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),
+        run_view=None,  # type: ignore[arg-type]
+        provider_index=None,
+        research_current_job_id="job_1",
+    )
+
+    async def _guard():
+        return None
+
+    async def _source_id_from_ref_or_id(_value: str):
+        return None
+
+    monkeypatch.setattr(toolset, "_triage_read_guard_error", _guard)
+    monkeypatch.setattr(toolset, "_source_id_from_ref_or_id", _source_id_from_ref_or_id)
+
+    result = await toolset.read_source_with_model_tool({"source_ref": "S99", "focus_question": "What happened?"})
+
+    assert result["accepted"] is False
+    assert result["error"] == "source_ref is outside this run corpus view"
+
+
+@pytest.mark.asyncio
+async def test_research_model_read_rejects_source_outside_current_job(monkeypatch: pytest.MonkeyPatch) -> None:
+    allowed_source_id = str(uuid.uuid4())
+    outside_source_id = str(uuid.uuid4())
+    toolset = EvidenceToolset(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),
+        run_view=None,  # type: ignore[arg-type]
+        provider_index=None,
+        research_allowed_source_refs={"S01"},
+        research_current_job_id="job_1",
+    )
+
+    async def _guard():
+        return None
+
+    async def _source_id_from_ref_or_id(value: str):
+        return {"S01": allowed_source_id, "S02": outside_source_id}.get(value)
+
+    async def _scope_error(source_ids: list[str]):
+        invalid = [source_id for source_id in source_ids if source_id != allowed_source_id]
+        if invalid:
+            return {"accepted": False, "error": "sources_outside_current_research_job", "invalid_source_ids": invalid}
+        return None
+
+    async def _unexpected_cache(*_args, **_kwargs):
+        raise AssertionError("model-read cache/provider path should not run for out-of-scope source")
+
+    monkeypatch.setattr(toolset, "_triage_read_guard_error", _guard)
+    monkeypatch.setattr(toolset, "_source_id_from_ref_or_id", _source_id_from_ref_or_id)
+    monkeypatch.setattr(toolset, "_triage_scope_error_for_source_ids", _scope_error)
+    monkeypatch.setattr(toolset, "_cached_evidence_items", _unexpected_cache)
+
+    result = await toolset.read_source_with_model_tool({"source_ref": "S02", "focus_question": "What happened?"})
+
+    assert result["accepted"] is False
+    assert result["error"] == "sources_outside_current_research_job"
+    assert result["found"] is False
+
+
+@pytest.mark.asyncio
+async def test_research_model_read_rejects_unknown_source_ref_before_provider_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    toolset = EvidenceToolset(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),
+        run_view=None,  # type: ignore[arg-type]
+        provider_index=None,
+        research_allowed_source_refs={"S01"},
+        research_current_job_id="job_1",
+    )
+
+    async def _guard():
+        return None
+
+    async def _source_id_from_ref_or_id(_value: str):
+        return None
+
+    async def _unexpected_cache(*_args, **_kwargs):
+        raise AssertionError("model-read cache/provider path should not run for invalid source_ref")
+
+    monkeypatch.setattr(toolset, "_triage_read_guard_error", _guard)
+    monkeypatch.setattr(toolset, "_source_id_from_ref_or_id", _source_id_from_ref_or_id)
+    monkeypatch.setattr(toolset, "_cached_evidence_items", _unexpected_cache)
+
+    result = await toolset.read_source_with_model_tool({"source_ref": "S99", "focus_question": "What happened?"})
+
+    assert result["accepted"] is False
+    assert result["found"] is False
+    assert result["error"] == "source_ref is outside this run corpus view"
+    assert result["invalid_source_ref"] == "S99"
+
+
+@pytest.mark.asyncio
+async def test_research_read_window_rejects_source_outside_current_job_before_resolver(monkeypatch: pytest.MonkeyPatch) -> None:
+    allowed_source_id = str(uuid.uuid4())
+    outside_source_id = str(uuid.uuid4())
+    toolset = EvidenceToolset(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),
+        run_view=None,  # type: ignore[arg-type]
+        provider_index=None,
+        research_allowed_source_refs={"S01"},
+        research_current_job_id="job_1",
+    )
+
+    async def _guard():
+        return None
+
+    async def _source_id_from_ref_or_id(value: str):
+        return {"S01": allowed_source_id, "S02": outside_source_id}.get(value)
+
+    async def _scope_error(source_ids: list[str]):
+        invalid = [source_id for source_id in source_ids if source_id != allowed_source_id]
+        if invalid:
+            return {"accepted": False, "error": "sources_outside_current_research_job", "invalid_source_ids": invalid}
+        return None
+
+    async def _unexpected_resolve(**_kwargs):
+        raise AssertionError("source resolver should not run for out-of-scope source_ref")
+
+    monkeypatch.setattr(toolset, "_triage_read_guard_error", _guard)
+    monkeypatch.setattr(toolset, "_source_id_from_ref_or_id", _source_id_from_ref_or_id)
+    monkeypatch.setattr(toolset, "_triage_scope_error_for_source_ids", _scope_error)
+    monkeypatch.setattr(toolset, "_resolve_source_version", _unexpected_resolve)
+
+    result = await toolset.read_source_window_tool({"source_ref": "S02", "locator": ""})
+
+    assert result["accepted"] is False
+    assert result["found"] is False
+    assert result["error"] == "sources_outside_current_research_job"
+    assert result["invalid_source_ids"] == [outside_source_id]
+
+
+@pytest.mark.asyncio
+async def test_search_within_source_does_not_return_read_advisory_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    toolset = EvidenceToolset(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),
+        run_view=None,  # type: ignore[arg-type]
+        provider_index=None,
+        research_current_job_id="job_1",
+    )
+
+    async def _guard():
+        return None
+
+    async def _ref_error(**_kwargs):
+        return {"accepted": False, "error": "source_ref is outside this run corpus view"}
+
+    monkeypatch.setattr(toolset, "_triage_read_guard_error", _guard)
+    monkeypatch.setattr(toolset, "_invalid_source_or_version_ref_error", _ref_error)
+
+    result = await toolset.search_within_source_tool({"source_ref": "S01", "query": "mechanism"})
+
+    assert result["accepted"] is False
+    assert result["error"] == "source_ref is outside this run corpus view"
+    assert result["results"] == []
+
+
 def test_source_triage_workflow_prompts_describe_stage_contracts() -> None:
     assert "list_source_capsules" in SOURCE_TRIAGE_PLANNER_PROMPT
     assert "search/read/skim tools create or return evidence_id handles" in SOURCE_TRIAGE_SET_PROMPT
@@ -3617,13 +3906,1208 @@ def test_research_finalizer_tool_schema_uses_research_synthesis() -> None:
     )
 
     finalize = next(tool for tool in tools if tool.name == "finalize_research_memo")
+    merge = next(tool for tool in tools if tool.name == "merge_editorial_atoms")
     properties = finalize.parameters["properties"]
     required = set(finalize.parameters["required"])
 
     assert "research_synthesis" in properties
     assert "research_synthesis" in required
+    assert "open_questions" not in properties
+    assert "open_questions" not in required
     assert "narrative_spine" not in properties
     assert "narrative_spine" not in required
+    assert "risk_register" in properties
+    assert "risk_register" not in required
+    assert set(merge.parameters["required"]) == {"primary_atom_id", "duplicate_atom_ids"}
+    assert "Mandatory finalizer duplicate-audit tool" in merge.description
+    assert "same research finding" in merge.description
+
+
+def test_research_workspace_tool_schemas_expose_atom_kind_enum() -> None:
+    run = SimpleNamespace(id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    workspace = {"source_order": ["S01"], "atom_drafts": []}
+    planner_tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=SourceMap(),
+        evidence_toolset=None,
+        mode="planner",
+    )
+    job_tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=SourceMap(),
+        evidence_toolset=None,
+        mode="job",
+        current_job_id="job_1",
+    )
+
+    upsert_job = next(tool for tool in planner_tools if tool.name == "upsert_research_job")
+    upsert_atom = next(tool for tool in job_tools if tool.name == "upsert_editorial_atom")
+
+    job_kind_enum = upsert_job.parameters["properties"]["required_atom_kinds"]["items"]["enum"]
+    atom_kind_enum = upsert_atom.parameters["properties"]["kind"]["enum"]
+    assert atom_kind_enum == job_kind_enum
+    assert "mechanism" in atom_kind_enum
+    assert "tradeoff" not in atom_kind_enum
+    assert "legal_anchor" not in atom_kind_enum
+
+
+@pytest.mark.asyncio
+async def test_research_planner_rejects_invalid_required_atom_kinds(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import research_workspace as research_workspace_module
+
+    run = SimpleNamespace(id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    workspace = {"source_order": ["S01"], "investigation_jobs": []}
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(research_workspace_module, "load_research_workspace", _load)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=SourceMap(),
+        evidence_toolset=None,
+        mode="planner",
+    )
+    upsert = next(tool for tool in tools if tool.name == "upsert_research_job")
+
+    result = await upsert.handler(
+        {
+            "label": "Tradeoff",
+            "story_job": "tradeoff",
+            "purpose": "Investigate tradeoffs.",
+            "source_refs": ["S01"],
+            "questions": ["What tradeoffs are supported?"],
+            "required_atom_kinds": ["tradeoff"],
+            "priority": "normal",
+            "allow_broad_search": False,
+        }
+    )
+
+    assert result["accepted"] is False
+    assert result["error"] == "required_atom_kinds must use supported research atom kinds"
+    assert result["invalid_required_atom_kinds"] == ["tradeoff"]
+
+
+@pytest.mark.asyncio
+async def test_research_finalizer_rejects_without_active_content_atom_drafts(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import research_workspace as research_workspace_module
+
+    run = SimpleNamespace(id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    workspace = {
+        "source_order": ["S01"],
+        "investigation_jobs": [
+            {
+                "job_id": "job_1",
+                "label": "Exception",
+                "story_job": "exception",
+                "source_refs": ["S01"],
+                "questions": ["What is the exception?"],
+                "status": "mapped",
+                "priority": "normal",
+                "observations": [],
+                "atom_ids": ["hk10_a", "hk10_b"],
+                "summary": "Mapped exception.",
+            }
+        ],
+        "atom_drafts": [
+            {"atom_id": "merged_atom", "kind": "mechanism", "status": "merged", "merged_into": "atom_1"},
+            {
+                "atom_id": "source_quality",
+                "kind": "unanswered_question",
+                "title": "Source quality warning",
+                "claim": "This source needs corroboration.",
+                "story_value": "Be cautious.",
+                "source_refs": ["S01"],
+                "evidence_ids": ["ev_1"],
+            },
+        ],
+    }
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(research_workspace_module, "load_research_workspace", _load)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=SourceMap(),
+        evidence_toolset=None,
+        mode="finalizer",
+    )
+    finalize = next(tool for tool in tools if tool.name == "finalize_research_memo")
+
+    result = await finalize.handler(
+        {
+            "title": "Memo",
+            "thesis": "Thesis",
+            "research_synthesis": "Synthesis",
+            "source_coverage": [],
+        }
+    )
+
+    assert result["accepted"] is False
+    assert result["error"] == "Cannot finalize research memo without active content atom drafts"
+
+
+def test_research_memo_from_workspace_rejects_without_active_content_atom_drafts() -> None:
+    run = SimpleNamespace(config={"user_prompt": "Topic"})
+    workspace = {
+        "atom_drafts": [
+            {"atom_id": "merged_atom", "kind": "mechanism", "status": "merged", "merged_into": "atom_1"},
+            {
+                "atom_id": "source_quality",
+                "kind": "unanswered_question",
+                "title": "Source quality warning",
+                "claim": "This source needs corroboration.",
+                "story_value": "Be cautious.",
+            },
+        ],
+        "memo_fields": {
+            "title": "Old memo",
+            "thesis": "Old thesis",
+            "research_synthesis": "Old synthesis",
+        },
+    }
+
+    with pytest.raises(RuntimeError, match="no active content atom drafts"):
+        research_memo_from_workspace(run, workspace)  # type: ignore[arg-type]
+
+
+def test_research_agent_tool_filters_include_gap_and_risk_tools() -> None:
+    assert "record_research_risk" in RESEARCH_JOB_TOOL_NAMES
+    assert "record_research_gap" in RESEARCH_JOB_TOOL_NAMES
+    assert "record_research_gap" in RESEARCH_FINALIZER_TOOL_NAMES
+    assert "merge_editorial_atoms" in RESEARCH_FINALIZER_TOOL_NAMES
+    assert "merge_editorial_atoms" not in RESEARCH_JOB_TOOL_NAMES
+
+
+@pytest.mark.asyncio
+async def test_research_finalizer_clears_stale_memo_fields_before_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2.agents import editorial as editorial_module
+
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    source = _source_card(source_id=source_id)
+    run = SimpleNamespace(id=uuid.uuid4(), project_id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    workspace = {
+        "source_order": ["S01"],
+        "investigation_jobs": [{"job_id": "job_1", "status": "mapped", "source_refs": ["S01"]}],
+        "atom_drafts": [
+            {
+                "atom_id": "atom_1",
+                "kind": "mechanism",
+                "title": "Mechanism",
+                "claim": "Mechanism claim.",
+                "explanation": "Mechanism explanation.",
+                "story_value": "Useful for research.",
+                "source_refs": ["S01"],
+                "source_ids": [source_id],
+                "evidence_ids": [evidence_id],
+                "confidence": 0.8,
+                "risk": "low",
+                "source_coverage_status": "ready",
+            }
+        ],
+        "memo_fields": {
+            "title": "Stale memo",
+            "thesis": "Stale thesis",
+            "research_synthesis": "Stale synthesis",
+        },
+    }
+
+    async def _ensure(*_args, **_kwargs):
+        return workspace
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    class _Runtime:
+        async def call_structured(self, **_kwargs):
+            return SimpleNamespace(ready=True, summary="did not call finalize", notes=[])
+
+    async def _save_state(_db, *, generation_run_id, workspace: dict, status=None):
+        test_workspace.clear()
+        test_workspace.update(workspace)
+        return SimpleNamespace(id=uuid.uuid4(), payload=test_workspace)
+
+    test_workspace = workspace
+    monkeypatch.setattr(editorial_module, "ensure_research_workspace", _ensure)
+    monkeypatch.setattr(editorial_module, "load_research_workspace", _load)
+    monkeypatch.setattr(editorial_module, "save_research_workspace", _save_state)
+
+    with pytest.raises(RuntimeError, match="Research finalizer did not finalize memo fields"):
+        await build_research_memo(
+            object(),  # type: ignore[arg-type]
+            run,
+            _Runtime(),
+            source_cards=[source],
+            quote_cards=[],
+            source_map=SourceMap(source_cards=[source]),
+            source_inventory=SourceMap(source_cards=[source]),
+            evidence_tools=[],
+            evidence_toolset=None,
+            run_planner=False,
+        )
+
+    assert workspace["memo_fields"] == {}
+
+
+@pytest.mark.asyncio
+async def test_research_workspace_rejects_source_quality_atom_and_exposes_risk_tools(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import research_workspace as research_workspace_module
+
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    run = SimpleNamespace(id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    workspace = {
+        "source_order": ["S01"],
+        "investigation_jobs": [
+            {
+                "job_id": "job_1",
+                "source_refs": ["S01"],
+                "allow_broad_search": False,
+                "status": "in_progress",
+                "observations": [],
+                "atom_ids": [],
+                "evidence_ids": [],
+            }
+        ],
+        "current_job": {"job_id": "job_1", "source_refs": ["S01"]},
+        "atom_drafts": [],
+        "risk_register": [],
+        "research_gaps": [],
+    }
+    inventory = SourceMap(source_cards=[_source_card(source_id=source_id)])
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, *, generation_run_id, workspace: dict, status=None):
+        return SimpleNamespace(id=uuid.uuid4(), payload=workspace)
+
+    class _FakeEvidenceToolset:
+        async def _evidence_in_run(self, item_id: str):
+            if item_id == evidence_id:
+                return SimpleNamespace(id=uuid.UUID(evidence_id), source_id=uuid.UUID(source_id))
+            return None
+
+        async def _source_ref_for_id(self, _item_source_id):
+            return "S01"
+
+        async def _source_ids_from_refs_or_ids(self, refs):
+            return ([source_id], []) if refs == ["S01"] else ([], refs)
+
+        async def _mark_evidence_status(self, _item_id, _status, _metadata):
+            raise AssertionError("source-quality pseudo-atom should be rejected before evidence selection")
+
+    monkeypatch.setattr(research_workspace_module, "load_research_workspace", _load)
+    monkeypatch.setattr(research_workspace_module, "save_research_workspace", _save)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=inventory,
+        evidence_toolset=_FakeEvidenceToolset(),
+        mode="job",
+        current_job_id="job_1",
+    )
+    assert "record_research_risk" in {tool.name for tool in tools}
+    assert "record_research_gap" in {tool.name for tool in tools}
+    upsert_atom = next(tool for tool in tools if tool.name == "upsert_editorial_atom")
+
+    result = await upsert_atom.handler(
+        {
+            "job_id": "job_1",
+            "kind": "conflict",
+            "title": "Источник-качество: weak support needs corroboration",
+            "claim": "This is a source-quality warning, not a finding.",
+            "explanation": "The claim needs corroboration.",
+            "source_refs": ["S01"],
+            "evidence_ids": [evidence_id],
+            "quote_refs": [],
+            "story_value": "Warn treatment.",
+            "anchor_refs": [],
+            "confidence": 0.8,
+            "risk": "medium",
+            "source_coverage_status": "partial",
+        }
+    )
+
+    assert result["accepted"] is False
+    assert result["error"] == "source-quality notes are not editorial atoms; use record_research_risk or record_research_gap"
+    assert workspace["atom_drafts"] == []
+
+
+@pytest.mark.asyncio
+async def test_research_risk_and_gap_reject_refs_outside_current_job(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import research_workspace as research_workspace_module
+
+    source_id_1 = str(uuid.uuid4())
+    source_id_2 = str(uuid.uuid4())
+    run = SimpleNamespace(id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    workspace = {
+        "source_order": ["S01", "S02"],
+        "investigation_jobs": [
+            {
+                "job_id": "job_1",
+                "source_refs": ["S01"],
+                "allow_broad_search": False,
+                "status": "in_progress",
+                "observations": [],
+                "atom_ids": [],
+                "evidence_ids": [],
+            }
+        ],
+        "current_job": {"job_id": "job_1", "source_refs": ["S01"]},
+        "atom_drafts": [],
+        "risk_register": [],
+        "research_gaps": [],
+    }
+    inventory = SourceMap(source_cards=[_source_card(source_id=source_id_1), _source_card(source_id=source_id_2)])
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, *, generation_run_id, workspace: dict, status=None):
+        return SimpleNamespace(id=uuid.uuid4(), payload=workspace)
+
+    monkeypatch.setattr(research_workspace_module, "load_research_workspace", _load)
+    monkeypatch.setattr(research_workspace_module, "save_research_workspace", _save)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=inventory,
+        evidence_toolset=None,
+        mode="job",
+        current_job_id="job_1",
+    )
+    risk_tool = next(tool for tool in tools if tool.name == "record_research_risk")
+    gap_tool = next(tool for tool in tools if tool.name == "record_research_gap")
+
+    risk_result = await risk_tool.handler({"risk": "Risk", "severity": "medium", "source_refs": ["S02"], "evidence_ids": []})
+    gap_result = await gap_tool.handler(
+        {
+            "question": "Gap?",
+            "category": "missing_source",
+            "severity": "blocking",
+            "source_refs": ["S02"],
+            "evidence_ids": [],
+            "status": "open",
+            "resolution_note": "",
+        }
+    )
+
+    assert risk_result["accepted"] is False
+    assert risk_result["error"] == "risk source_refs must belong to the current research job"
+    assert gap_result["accepted"] is False
+    assert gap_result["error"] == "gap source_refs must belong to the current research job"
+    assert workspace["risk_register"] == []
+    assert workspace["research_gaps"] == []
+
+
+@pytest.mark.asyncio
+async def test_research_gap_merge_does_not_demote_blocking_gap(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import research_workspace as research_workspace_module
+
+    source_id = str(uuid.uuid4())
+    run = SimpleNamespace(id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    workspace = {
+        "source_order": ["S01"],
+        "investigation_jobs": [
+            {
+                "job_id": "job_1",
+                "source_refs": ["S01"],
+                "allow_broad_search": False,
+                "status": "in_progress",
+                "observations": [],
+                "atom_ids": [],
+                "evidence_ids": [],
+            }
+        ],
+        "current_job": {"job_id": "job_1", "source_refs": ["S01"]},
+        "research_gaps": [],
+    }
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, *, generation_run_id, workspace: dict, status=None):
+        return SimpleNamespace(id=uuid.uuid4(), payload=workspace)
+
+    monkeypatch.setattr(research_workspace_module, "load_research_workspace", _load)
+    monkeypatch.setattr(research_workspace_module, "save_research_workspace", _save)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=SourceMap(source_cards=[_source_card(source_id=source_id)]),
+        evidence_toolset=None,
+        mode="job",
+        current_job_id="job_1",
+    )
+    gap_tool = next(tool for tool in tools if tool.name == "record_research_gap")
+    base_args = {
+        "question": "What exactly happened in 1997-98?",
+        "category": "chronology_detail",
+        "source_refs": ["S01"],
+        "evidence_ids": [],
+        "status": "open",
+        "resolution_note": "",
+    }
+
+    first = await gap_tool.handler({**base_args, "severity": "blocking"})
+    second = await gap_tool.handler({**base_args, "question": "What exactly happened in 1997–98?", "severity": "non_blocking"})
+
+    assert first["accepted"] is True
+    assert second["accepted"] is True
+    assert len(workspace["research_gaps"]) == 1
+    assert workspace["research_gaps"][0]["severity"] == "blocking"
+
+    resolved = await gap_tool.handler(
+        {
+            **base_args,
+            "severity": "optional",
+            "evidence_ids": ["ev-1"],
+            "status": "resolved",
+            "resolution_note": "Resolved by a direct legal source.",
+        }
+    )
+
+    assert resolved["accepted"] is True
+    assert workspace["research_gaps"][0]["status"] == "resolved"
+    assert workspace["research_gaps"][0]["severity"] == "blocking"
+    assert workspace["research_gaps"][0]["resolution_note"] == "Resolved by a direct legal source."
+
+
+@pytest.mark.asyncio
+async def test_research_gap_rejects_resolved_blocking_without_evidence(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import research_workspace as research_workspace_module
+
+    source_id = str(uuid.uuid4())
+    run = SimpleNamespace(id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    workspace = {
+        "source_order": ["S01"],
+        "investigation_jobs": [
+            {
+                "job_id": "job_1",
+                "source_refs": ["S01"],
+                "allow_broad_search": False,
+                "status": "in_progress",
+                "observations": [],
+                "atom_ids": [],
+                "evidence_ids": [],
+            }
+        ],
+        "current_job": {"job_id": "job_1", "source_refs": ["S01"]},
+        "research_gaps": [],
+    }
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, *, generation_run_id, workspace: dict, status=None):
+        return SimpleNamespace(id=uuid.uuid4(), payload=workspace)
+
+    monkeypatch.setattr(research_workspace_module, "load_research_workspace", _load)
+    monkeypatch.setattr(research_workspace_module, "save_research_workspace", _save)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=SourceMap(source_cards=[_source_card(source_id=source_id)]),
+        evidence_toolset=None,
+        mode="job",
+        current_job_id="job_1",
+    )
+    gap_tool = next(tool for tool in tools if tool.name == "record_research_gap")
+
+    result = await gap_tool.handler(
+        {
+            "question": "Which legal rule controls the mechanism?",
+            "category": "legal_detail",
+            "severity": "blocking",
+            "source_refs": ["S01"],
+            "evidence_ids": [],
+            "status": "resolved",
+            "resolution_note": "Resolved by a direct legal source.",
+        }
+    )
+
+    assert result["accepted"] is False
+    assert result["error"] == "blocking research gaps cannot be resolved without evidence_ids"
+    assert workspace["research_gaps"] == []
+
+
+@pytest.mark.asyncio
+async def test_research_gap_resolution_auto_selects_evidence(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import research_workspace as research_workspace_module
+
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    run = SimpleNamespace(id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    workspace = {
+        "source_order": ["S01"],
+        "investigation_jobs": [
+            {
+                "job_id": "job_1",
+                "source_refs": ["S01"],
+                "allow_broad_search": False,
+                "status": "in_progress",
+                "observations": [],
+                "atom_ids": [],
+                "evidence_ids": [],
+            }
+        ],
+        "current_job": {"job_id": "job_1", "source_refs": ["S01"]},
+        "research_gaps": [],
+        "selected_evidence_ids": [],
+    }
+    selected_calls = []
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, *, generation_run_id, workspace: dict, status=None):
+        return SimpleNamespace(id=uuid.uuid4(), payload=workspace)
+
+    class _FakeEvidenceToolset:
+        async def _evidence_in_run(self, item_id: str):
+            if item_id == evidence_id:
+                return SimpleNamespace(id=uuid.UUID(evidence_id), source_id=uuid.UUID(source_id))
+            return None
+
+        async def _source_ref_for_id(self, _item_source_id):
+            return "S01"
+
+        async def _source_ids_from_refs_or_ids(self, refs):
+            return ([source_id], []) if refs == ["S01"] else ([], refs)
+
+        async def _mark_evidence_status(self, item_id, status, metadata):
+            selected_calls.append((item_id, status, metadata))
+
+    monkeypatch.setattr(research_workspace_module, "load_research_workspace", _load)
+    monkeypatch.setattr(research_workspace_module, "save_research_workspace", _save)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=SourceMap(source_cards=[_source_card(source_id=source_id)]),
+        evidence_toolset=_FakeEvidenceToolset(),
+        mode="job",
+        current_job_id="job_1",
+    )
+    gap_tool = next(tool for tool in tools if tool.name == "record_research_gap")
+
+    result = await gap_tool.handler(
+        {
+            "question": "Which legal rule controls the mechanism?",
+            "category": "legal_detail",
+            "severity": "blocking",
+            "source_refs": ["S01"],
+            "evidence_ids": [evidence_id],
+            "status": "resolved",
+            "resolution_note": "Resolved by direct evidence.",
+        }
+    )
+
+    assert result["accepted"] is True
+    assert selected_calls == [
+        (
+            evidence_id,
+            "selected",
+            {
+                "selected_purpose": "research_gap_resolution",
+                "selected_role": "research_gap_resolution",
+                "selected_rationale": "Resolved by direct evidence.",
+            },
+        )
+    ]
+    assert workspace["research_gaps"][0]["status"] == "resolved"
+    assert workspace["research_gaps"][0]["evidence_ids"] == [evidence_id]
+
+
+def test_dedupe_research_gaps_merges_duplicates_instead_of_first_writer_wins() -> None:
+    from app.generation_v2 import research_workspace as research_workspace_module
+
+    gaps = research_workspace_module._dedupe_gaps(
+        [
+            {
+                "gap_id": "optional",
+                "question": "What exactly happened in 1997-98?",
+                "category": "chronology_detail",
+                "severity": "optional",
+                "status": "open",
+            },
+            {
+                "gap_id": "blocking",
+                "question": "What exactly happened in 1997–98?",
+                "category": "chronology_detail",
+                "severity": "blocking",
+                "status": "deferred",
+            },
+        ]
+    )
+
+    assert len(gaps) == 1
+    assert gaps[0]["severity"] == "blocking"
+    assert gaps[0]["status"] == "deferred"
+
+
+@pytest.mark.asyncio
+async def test_enqueue_research_repair_jobs_from_blocking_gaps(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import research_workspace as research_workspace_module
+
+    run = SimpleNamespace(id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    stored_workspace = {
+        "source_order": ["S01", "S02"],
+        "investigation_jobs": [],
+        "memo_fields": {"title": "Old failed memo"},
+        "research_gaps": [
+            {
+                "gap_id": "legal_gap",
+                "question": "Which legal rule controls the mechanism?",
+                "category": "legal_detail",
+                "severity": "blocking",
+                "source_refs": ["S01"],
+                "evidence_ids": [],
+                "status": "open",
+            },
+            {
+                "gap_id": "optional_gap",
+                "question": "Would extra color help?",
+                "category": "optional_context",
+                "severity": "optional",
+                "source_refs": ["S02"],
+                "evidence_ids": [],
+                "status": "open",
+            },
+        ],
+    }
+
+    async def _load(_db, _run_id):
+        return stored_workspace
+
+    async def _save(_db, *, generation_run_id, workspace: dict, status=None):
+        nonlocal stored_workspace
+        stored_workspace = workspace
+        return SimpleNamespace(id=uuid.uuid4(), payload=workspace)
+
+    monkeypatch.setattr(research_workspace_module, "load_research_workspace", _load)
+    monkeypatch.setattr(research_workspace_module, "save_research_workspace", _save)
+
+    repair_job_ids = await enqueue_research_repair_jobs(None, run=run)  # type: ignore[arg-type]
+    duplicate_job_ids = await enqueue_research_repair_jobs(None, run=run)  # type: ignore[arg-type]
+
+    assert len(repair_job_ids) == 1
+    assert duplicate_job_ids == []
+    repair_job = stored_workspace["investigation_jobs"][0]
+    assert repair_job["job_id"] == repair_job_ids[0]
+    assert repair_job["status"] == "planned"
+    assert repair_job["source_refs"] == ["S01"]
+    assert repair_job["allow_broad_search"] is False
+    assert repair_job["required_atom_kinds"] == ["mechanism"]
+    assert repair_job["repair_for_gap_id"] == "legal_gap"
+    assert repair_job["repair_gap"]["gap_id"] == "legal_gap"
+    assert repair_job["repair_gap"]["category"] == "legal_detail"
+    assert "same gap_id" in repair_job["purpose"]
+    assert "status='resolved'" in repair_job["purpose"]
+    assert stored_workspace["memo_fields"] == {}
+    assert stored_workspace["status"] == "repair_planned"
+
+
+def test_research_memo_uses_structured_gaps_and_excludes_source_quality_atoms() -> None:
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    run = SimpleNamespace(config={"user_prompt": "Topic"})
+    workspace = {
+        "atom_drafts": [
+            {
+                "atom_id": "valid_atom",
+                "kind": "mechanism",
+                "title": "Mechanism",
+                "claim": "The mechanism is supported.",
+                "explanation": "The mechanism is supported.",
+                "story_value": "Explains the system.",
+                "source_ids": [source_id],
+                "evidence_ids": [evidence_id],
+                "confidence": 0.8,
+                "risk": "low",
+                "source_coverage_status": "ready",
+            },
+            {
+                "atom_id": "bad_atom",
+                "kind": "conflict",
+                "title": "Source quality warning",
+                "claim": "This source needs corroboration.",
+                "explanation": "This source needs corroboration.",
+                "story_value": "Warn treatment.",
+                "source_ids": [source_id],
+                "evidence_ids": [evidence_id],
+                "confidence": 0.7,
+                "risk": "needs corroboration",
+                "source_coverage_status": "partial",
+            },
+        ],
+        "research_gaps": [
+            {
+                "gap_id": "g1",
+                "question": "What exactly happened in 1997-98?",
+                "category": "chronology_detail",
+                "severity": "blocking",
+                "source_refs": ["S01"],
+                "evidence_ids": [evidence_id],
+                "status": "open",
+            },
+            {
+                "gap_id": "g2",
+                "question": "What exactly happened in 1997–98?",
+                "category": "chronology_detail",
+                "severity": "blocking",
+                "source_refs": ["S01"],
+                "evidence_ids": [evidence_id],
+                "status": "open",
+            },
+            {
+                "gap_id": "g3",
+                "question": "Find independent corroboration for the origin story.",
+                "category": "weak_corroboration",
+                "severity": "non_blocking",
+                "source_refs": ["S01"],
+                "evidence_ids": [evidence_id],
+                "status": "open",
+            },
+        ],
+        "risk_register": [],
+        "memo_fields": {
+            "title": "Research title",
+            "thesis": "Research thesis",
+            "research_synthesis": "Research synthesis",
+            "risk_register": [],
+        },
+    }
+
+    memo = research_memo_from_workspace(run, workspace)
+
+    assert len(memo.editorial_atoms) == 1
+    assert memo.editorial_atoms[0].title == "Mechanism"
+    assert memo.open_questions == ["What exactly happened in 1997-98?"]
+    assert any("weak_corroboration" in risk for risk in memo.risk_register)
+    assert any("Source-quality note excluded" in risk for risk in memo.risk_register)
+
+
+def test_research_memo_ignores_finalizer_freeform_risks_when_structured_risks_exist() -> None:
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    run = SimpleNamespace(config={"user_prompt": "Topic"})
+    workspace = {
+        "atom_drafts": [
+            {
+                "atom_id": "valid_atom",
+                "kind": "mechanism",
+                "title": "Mechanism",
+                "claim": "The mechanism is supported.",
+                "explanation": "The mechanism is supported.",
+                "story_value": "Explains the system.",
+                "source_ids": [source_id],
+                "evidence_ids": [evidence_id],
+                "confidence": 0.8,
+                "risk": "low",
+                "source_coverage_status": "ready",
+            }
+        ],
+        "risk_register": [
+            {
+                "risk": "HSBC origin narrative relies partly on a source-owner retrospective.",
+                "severity": "medium",
+                "source_refs": ["S01"],
+                "evidence_ids": [evidence_id],
+            }
+        ],
+        "research_gaps": [
+            {
+                "gap_id": "g1",
+                "question": "Why was the initial delegation chosen?",
+                "category": "weak_corroboration",
+                "severity": "non_blocking",
+                "source_refs": ["S01"],
+                "evidence_ids": [evidence_id],
+                "status": "open",
+                "resolution_note": "Current sources explain the arrangement but not a contemporaneous rationale.",
+            }
+        ],
+        "memo_fields": {
+            "title": "Research title",
+            "thesis": "Research thesis",
+            "research_synthesis": "Research synthesis",
+            "risk_register": [
+                "Нерешённый вопрос: почему изначально выбрали делегирование эмиссии.",
+                "История HSBC частично опирается на ретроспективу самого банка.",
+            ],
+        },
+    }
+
+    memo = research_memo_from_workspace(run, workspace)
+
+    assert memo.open_questions == []
+    assert len(memo.risk_register) == 2
+    assert any("HSBC origin narrative" in risk for risk in memo.risk_register)
+    assert any("weak_corroboration" in risk for risk in memo.risk_register)
+    assert not any("Нерешённый вопрос" in risk for risk in memo.risk_register)
+    assert not any("ретроспективу самого банка" in risk for risk in memo.risk_register)
+
+
+def test_research_memo_does_not_silently_merge_near_duplicate_atom_drafts() -> None:
+    source_id = str(uuid.uuid4())
+    evidence_id_1 = str(uuid.uuid4())
+    evidence_id_2 = str(uuid.uuid4())
+    run = SimpleNamespace(config={"user_prompt": "Topic"})
+    workspace = {
+        "atom_drafts": [
+            {
+                "atom_id": "hk10_a",
+                "kind": "exception",
+                "title": "The explicit exception is the HK$10 note issued by the government",
+                "claim": "The HK$10 note is government issued.",
+                "explanation": "The HK$10 note is the explicit exception.",
+                "story_value": "Prevents overstatement.",
+                "source_ids": [source_id],
+                "evidence_ids": [evidence_id_1],
+                "confidence": 0.8,
+                "risk": "low",
+                "source_coverage_status": "ready",
+            },
+            {
+                "atom_id": "hk10_b",
+                "kind": "exception",
+                "title": "The only explicit note carve-out is the government-issued HK$10 note",
+                "claim": "The HK$10 note is the bounded government carve-out.",
+                "explanation": "The HK$10 note is a bounded exception and should not be overstated.",
+                "story_value": "Prevents overstatement with a precise carve-out.",
+                "source_ids": [source_id],
+                "evidence_ids": [evidence_id_2],
+                "confidence": 0.9,
+                "risk": "low",
+                "source_coverage_status": "ready",
+            },
+            {
+                "atom_id": "different_conflict",
+                "kind": "conflict",
+                "title": "The 1983 reform was a dispute over monetary regime",
+                "claim": "1983 was not only panic.",
+                "explanation": "1983 combined crisis pressure and policy conflict.",
+                "story_value": "Adds conflict.",
+                "source_ids": [source_id],
+                "evidence_ids": [str(uuid.uuid4())],
+                "confidence": 0.8,
+                "risk": "low",
+                "source_coverage_status": "ready",
+            },
+        ],
+        "research_gaps": [],
+        "risk_register": [],
+        "memo_fields": {
+            "title": "Research title",
+            "thesis": "Research thesis",
+            "research_synthesis": "Research synthesis",
+            "risk_register": [],
+        },
+    }
+
+    memo = research_memo_from_workspace(run, workspace)
+
+    assert len(memo.editorial_atoms) == 3
+    exception_atoms = [atom for atom in memo.editorial_atoms if atom.kind == "exception"]
+    assert len(exception_atoms) == 2
+
+
+@pytest.mark.asyncio
+async def test_merge_editorial_atoms_tool_explicitly_merges_same_kind_drafts(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import research_workspace as research_workspace_module
+
+    source_id = str(uuid.uuid4())
+    evidence_id_1 = str(uuid.uuid4())
+    evidence_id_2 = str(uuid.uuid4())
+    run = SimpleNamespace(id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    workspace = {
+        "source_order": ["S01"],
+        "investigation_jobs": [
+            {
+                "job_id": "job_1",
+                "label": "Exception",
+                "story_job": "exception",
+                "source_refs": ["S01"],
+                "questions": ["What is the exception?"],
+                "status": "mapped",
+                "priority": "normal",
+                "observations": [],
+                "atom_ids": ["hk10_a", "hk10_b"],
+                "summary": "Mapped exception.",
+            }
+        ],
+        "atom_drafts": [
+            {
+                "atom_id": "hk10_a",
+                "kind": "exception",
+                "title": "The explicit exception is the HK$10 note issued by the government",
+                "claim": "The HK$10 note is government issued.",
+                "explanation": "The HK$10 note is the explicit exception.",
+                "story_value": "Prevents overstatement.",
+                "source_refs": ["S01"],
+                "source_ids": [source_id],
+                "evidence_ids": [evidence_id_1],
+                "confidence": 0.8,
+                "risk": "low",
+                "source_coverage_status": "ready",
+            },
+            {
+                "atom_id": "hk10_b",
+                "kind": "exception",
+                "title": "The only explicit note carve-out is the government-issued HK$10 note",
+                "claim": "The HK$10 note is the bounded government carve-out.",
+                "explanation": "The HK$10 note is a bounded exception and should not be overstated.",
+                "story_value": "Prevents overstatement with a precise carve-out.",
+                "source_refs": ["S01"],
+                "source_ids": [source_id],
+                "evidence_ids": [evidence_id_2],
+                "confidence": 0.9,
+                "risk": "low",
+                "source_coverage_status": "ready",
+            },
+        ],
+        "research_gaps": [],
+        "risk_register": [],
+        "memo_fields": {
+            "title": "Research title",
+            "thesis": "Research thesis",
+            "research_synthesis": "Research synthesis",
+            "risk_register": [],
+        },
+    }
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, *, generation_run_id, workspace: dict, status=None):
+        return SimpleNamespace(id=uuid.uuid4(), payload=workspace)
+
+    monkeypatch.setattr(research_workspace_module, "load_research_workspace", _load)
+    monkeypatch.setattr(research_workspace_module, "save_research_workspace", _save)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=SourceMap(source_cards=[_source_card(source_id=source_id)]),
+        evidence_toolset=None,
+        mode="finalizer",
+    )
+    merge_tool = next(tool for tool in tools if tool.name == "merge_editorial_atoms")
+
+    result = await merge_tool.handler(
+        {
+            "primary_atom_id": "hk10_a",
+            "duplicate_atom_ids": ["hk10_b"],
+            "title": "Government-issued HK$10 note is the bounded exception",
+        }
+    )
+    memo = research_memo_from_workspace(run, workspace)
+    summary = research_workspace_summary_for_prompt(workspace)
+
+    assert result["accepted"] is True
+    assert len(memo.editorial_atoms) == 1
+    assert memo.editorial_atoms[0].title == "Government-issued HK$10 note is the bounded exception"
+    assert memo.editorial_atoms[0].evidence_ids == [evidence_id_1, evidence_id_2]
+    assert workspace["atom_drafts"][1]["merged_into"] == "hk10_a"
+    assert summary["jobs"][0]["atom_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_merge_editorial_atoms_rejects_cross_kind_drafts(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import research_workspace as research_workspace_module
+
+    run = SimpleNamespace(id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    workspace = {
+        "source_order": ["S01"],
+        "atom_drafts": [
+            {"atom_id": "a1", "kind": "exception", "title": "Exception", "evidence_ids": []},
+            {"atom_id": "a2", "kind": "conflict", "title": "Conflict", "evidence_ids": []},
+        ],
+    }
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, *, generation_run_id, workspace: dict, status=None):
+        return SimpleNamespace(id=uuid.uuid4(), payload=workspace)
+
+    monkeypatch.setattr(research_workspace_module, "load_research_workspace", _load)
+    monkeypatch.setattr(research_workspace_module, "save_research_workspace", _save)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=SourceMap(),
+        evidence_toolset=None,
+        mode="finalizer",
+    )
+    merge_tool = next(tool for tool in tools if tool.name == "merge_editorial_atoms")
+
+    result = await merge_tool.handler({"primary_atom_id": "a1", "duplicate_atom_ids": ["a2"]})
+
+    assert result["accepted"] is False
+    assert result["error"] == "merge_editorial_atoms only merges atom drafts with the same kind"
+
+
+@pytest.mark.asyncio
+async def test_research_read_guard_is_advisory_after_many_reads(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import research_workspace as research_workspace_module
+
+    run_id = uuid.uuid4()
+    workspace = {
+        "current_job": {"job_id": "job_1", "started_at": "2026-01-01T00:00:00", "source_refs": ["S01"]},
+        "reads_since_commit": 0,
+    }
+    saved: list[dict] = []
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, *, generation_run_id, workspace: dict, status=None):
+        saved.append(dict(workspace))
+        return SimpleNamespace(id=uuid.uuid4(), payload=workspace)
+
+    class _CommitResult:
+        def scalar_one_or_none(self):
+            return None
+
+    class _ReadResult:
+        def scalars(self):
+            return [SimpleNamespace() for _ in range(9)]
+
+    class _Db:
+        def __init__(self):
+            self.calls = 0
+
+        async def execute(self, _query):
+            self.calls += 1
+            return _CommitResult() if self.calls == 1 else _ReadResult()
+
+    monkeypatch.setattr(research_workspace_module, "load_research_workspace", _load)
+    monkeypatch.setattr(research_workspace_module, "save_research_workspace", _save)
+
+    result = await research_workflow_guard_error(_Db(), generation_run_id=run_id, current_job_id="job_1")  # type: ignore[arg-type]
+
+    assert result is None
+    assert saved[-1]["reads_since_commit"] == 9
+    assert saved[-1]["commit_recommended"] is True
+
+
+@pytest.mark.asyncio
+async def test_research_read_advisory_is_returned_in_model_facing_output() -> None:
+    toolset = EvidenceToolset(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),
+        run_view=SimpleNamespace(),  # type: ignore[arg-type]
+        provider_index=None,
+        research_current_job_id="job_1",
+    )
+
+    async def _fake_search(_args):
+        toolset._research_commit_advisory = {
+            "reads_since_commit": 7,
+            "warning_threshold": 6,
+            "advisory_threshold": 8,
+            "commit_recommended": True,
+            "suggested_next_actions": ["record_research_observation"],
+        }
+        return {"accepted": True, "results": []}
+
+    toolset.search_corpus_tool = _fake_search  # type: ignore[method-assign]
+    tool = next(item for item in toolset.agent_tools() if item.name == "search_corpus")
+
+    result = await tool.handler({"query": "topic", "purpose": "test", "scope": "all_sources", "source_refs": [], "limit": 5})
+
+    assert result["commit_advisory"]["commit_recommended"] is True
+    assert result["commit_advisory"]["reads_since_commit"] == 7
+
+
+@pytest.mark.asyncio
+async def test_research_read_advisory_is_not_added_to_failed_output() -> None:
+    toolset = EvidenceToolset(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),
+        run_view=SimpleNamespace(),  # type: ignore[arg-type]
+        provider_index=None,
+        research_current_job_id="job_1",
+    )
+
+    async def _fake_read(_args):
+        toolset._research_commit_advisory = {
+            "reads_since_commit": 7,
+            "warning_threshold": 6,
+            "advisory_threshold": 8,
+            "commit_recommended": True,
+            "suggested_next_actions": ["record_research_observation"],
+        }
+        return {"found": False, "error": "Invalid evidence_id"}
+
+    toolset.read_evidence_tool = _fake_read  # type: ignore[method-assign]
+    tool = next(item for item in toolset.agent_tools() if item.name == "read_evidence")
+
+    result = await tool.handler({"evidence_id": "not-a-uuid"})
+
+    assert result == {"found": False, "error": "Invalid evidence_id"}
+
+
+def test_research_gate_fails_blocking_open_questions() -> None:
+    source_id = str(uuid.uuid4())
+    version_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    memo = ResearchMemo(
+        title="Research",
+        thesis="Thesis",
+        research_synthesis="Synthesis",
+        editorial_atoms=[
+            EditorialAtom(
+                kind="mechanism",
+                title="Mechanism",
+                explanation="Supported mechanism.",
+                source_ids=[source_id],
+                evidence_ids=[evidence_id],
+                story_value="Useful.",
+                confidence=0.9,
+                source_coverage_status="ready",
+            )
+        ],
+        open_questions=["Blocking legal gap remains."],
+        risk_register=[],
+    )
+    run_view = SimpleNamespace(selected_source_ids=[source_id], selected_source_version_ids=[version_id])
+    evidence_records = [
+        {
+            "id": evidence_id,
+            "source_id": source_id,
+            "source_version_id": version_id,
+            "metadata": {"usage_status": "selected"},
+        }
+    ]
+
+    audit = _validate_research_memo_evidence(
+        memo,
+        evidence_records=evidence_records,
+        run_view=run_view,  # type: ignore[arg-type]
+        duration_seconds=1800,
+    )
+
+    assert audit.passed is False
+    assert "blocking unresolved research gaps" in audit.missing_material[0]
 
 
 def test_research_workspace_signature_changes_when_sourcemap_content_changes() -> None:

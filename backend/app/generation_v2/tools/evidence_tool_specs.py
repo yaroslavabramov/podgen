@@ -44,7 +44,7 @@ class EvidenceToolSpecsMixin:
                     },
                     "required": ["query", "purpose", "scope", "source_refs", "limit"],
                 },
-                handler=self.search_corpus_tool,
+                handler=lambda args: self._call_with_research_commit_advisory(self.search_corpus_tool, args),
             ),
             AgentTool(
                 name="read_evidence",
@@ -58,7 +58,7 @@ class EvidenceToolSpecsMixin:
                     "properties": {"evidence_id": {"type": "string"}},
                     "required": ["evidence_id"],
                 },
-                handler=self.read_evidence_tool,
+                handler=lambda args: self._call_with_research_commit_advisory(self.read_evidence_tool, args),
             ),
             AgentTool(
                 name="inspect_source",
@@ -76,7 +76,7 @@ class EvidenceToolSpecsMixin:
                     },
                     "required": ["source_ref", "max_items"],
                 },
-                handler=self.inspect_source_tool,
+                handler=lambda args: self._call_with_research_commit_advisory(self.inspect_source_tool, args),
             ),
             AgentTool(
                 name="read_source_window",
@@ -98,7 +98,7 @@ class EvidenceToolSpecsMixin:
                     },
                     "required": ["source_ref", "locator", "max_chars"],
                 },
-                handler=self.read_source_window_tool,
+                handler=lambda args: self._call_with_research_commit_advisory(self.read_source_window_tool, args),
             ),
             AgentTool(
                 name="read_source_with_model",
@@ -123,7 +123,7 @@ class EvidenceToolSpecsMixin:
                     },
                     "required": ["source_ref", "focus_question", "claim_text", "purpose", "locator_hint"],
                 },
-                handler=self.read_source_with_model_tool,
+                handler=lambda args: self._call_with_research_commit_advisory(self.read_source_with_model_tool, args),
             ),
             AgentTool(
                 name="search_within_source",
@@ -142,7 +142,7 @@ class EvidenceToolSpecsMixin:
                     },
                     "required": ["source_ref", "query", "limit"],
                 },
-                handler=self.search_within_source_tool,
+                handler=lambda args: self._call_with_research_commit_advisory(self.search_within_source_tool, args),
             ),
             AgentTool(
                 name="skim_source",
@@ -161,7 +161,7 @@ class EvidenceToolSpecsMixin:
                     },
                     "required": ["source_ref", "max_windows"],
                 },
-                handler=self.skim_source_tool,
+                handler=lambda args: self._call_with_research_commit_advisory(self.skim_source_tool, args),
             ),
             AgentTool(
                 name="find_quotes",
@@ -180,7 +180,7 @@ class EvidenceToolSpecsMixin:
                     },
                     "required": ["topic", "source_refs", "limit"],
                 },
-                handler=self.find_quotes_tool,
+                handler=lambda args: self._call_with_research_commit_advisory(self.find_quotes_tool, args),
             ),
             AgentTool(
                 name="search_sources",
@@ -197,7 +197,7 @@ class EvidenceToolSpecsMixin:
                     },
                     "required": ["query", "limit"],
                 },
-                handler=self.search_sources_tool,
+                handler=lambda args: self._call_with_research_commit_advisory(self.search_sources_tool, args),
             ),
             AgentTool(
                 name="compare_source_evidence",
@@ -220,7 +220,7 @@ class EvidenceToolSpecsMixin:
                     },
                     "required": ["source_refs", "question", "limit_per_source"],
                 },
-                handler=self.compare_source_evidence_tool,
+                handler=lambda args: self._call_with_research_commit_advisory(self.compare_source_evidence_tool, args),
             ),
             AgentTool(
                 name="compare_evidence_for_question",
@@ -242,7 +242,7 @@ class EvidenceToolSpecsMixin:
                     },
                     "required": ["source_refs", "question", "limit_per_source"],
                 },
-                handler=self.compare_evidence_for_question_tool,
+                handler=lambda args: self._call_with_research_commit_advisory(self.compare_evidence_for_question_tool, args),
             ),
             AgentTool(
                 name="select_evidence",

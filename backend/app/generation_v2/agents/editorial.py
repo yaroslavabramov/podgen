@@ -42,6 +42,7 @@ from app.generation_v2.research_workspace import (
     research_job_prompt_payload,
     research_memo_from_workspace,
     research_workspace_summary_for_prompt,
+    save_research_workspace,
     source_map_research_summary,
     start_research_job,
     unprocessed_research_jobs,
@@ -136,9 +137,11 @@ RESEARCH_JOB_TOOL_NAMES = {
     "compare_evidence_for_question",
     "record_research_observation",
     "upsert_editorial_atom",
+    "record_research_risk",
+    "record_research_gap",
     "finish_research_job",
 }
-RESEARCH_FINALIZER_TOOL_NAMES = {"record_research_risk", "finalize_research_memo"}
+RESEARCH_FINALIZER_TOOL_NAMES = {"merge_editorial_atoms", "record_research_risk", "record_research_gap", "finalize_research_memo"}
 AUDIT_TOOL_NAMES = {"search_corpus", "read_evidence"}
 TREATMENT_TOOL_NAMES = {"read_evidence", "read_source_window", "search_within_source"}
 WRITER_TOOL_NAMES = {"read_evidence", "read_source_window", "search_within_source"}
@@ -611,10 +614,10 @@ async def build_research_memo(
     vector_store_id: str | None = None,
     show_bible: ShowBibleContext | None = None,
     hosted_file_search_handler=None,
+    run_planner: bool = True,
 ) -> ResearchMemo:
     source_map = source_map or SourceMap(source_cards=source_cards, quote_cards=quote_cards)
     full_source_inventory = source_inventory or source_map
-    duration_minutes = int((run.config or {}).get("duration_target", 1800)) // 60
     if db is None:
         return await _build_research_memo_ephemeral(
             run,
@@ -632,27 +635,28 @@ async def build_research_memo(
     )
     planner_source_map_summary = source_map_research_summary(source_map, full_source_inventory, include_evidence_ids=False)
     job_source_map_summary = source_map_research_summary(source_map, full_source_inventory, include_evidence_ids=True)
-    planner_tools = build_research_workspace_tools(
-        db=db,
-        run=run,
-        workspace=workspace,
-        source_inventory=full_source_inventory,
-        evidence_toolset=evidence_toolset,
-        mode="planner",
-    )
     try:
-        await build_research_planner_agent(
-            db=db,
-            run=run,
-            runtime=runtime,
-            workspace_summary=research_workspace_summary_for_prompt(workspace),
-            source_map_summary=planner_source_map_summary,
-            workspace_tools=planner_tools,
-            show_bible=show_bible,
-        )
-        workspace = await load_research_workspace(db, run.id) or workspace
+        if run_planner:
+            planner_tools = build_research_workspace_tools(
+                db=db,
+                run=run,
+                workspace=workspace,
+                source_inventory=full_source_inventory,
+                evidence_toolset=evidence_toolset,
+                mode="planner",
+            )
+            await build_research_planner_agent(
+                db=db,
+                run=run,
+                runtime=runtime,
+                workspace_summary=research_workspace_summary_for_prompt(workspace),
+                source_map_summary=planner_source_map_summary,
+                workspace_tools=planner_tools,
+                show_bible=show_bible,
+            )
+            workspace = await load_research_workspace(db, run.id) or workspace
         if not (workspace.get("investigation_jobs") or []):
-            raise RuntimeError("Research planner did not create investigation jobs.")
+            raise RuntimeError("Research workspace has no investigation jobs.")
         for job in list(unprocessed_research_jobs(workspace)):
             job_id = str(job.get("job_id") or "")
             if not job_id:
@@ -699,6 +703,10 @@ async def build_research_memo(
             refreshed_job = next((item for item in workspace.get("investigation_jobs") or [] if item.get("job_id") == job_id), {})
             if refreshed_job.get("status") in {"planned", "in_progress"}:
                 raise RuntimeError(f"Research job did not finish durably: {job_id}")
+        workspace = dict(workspace)
+        workspace["memo_fields"] = {}
+        workspace["status"] = "finalizing"
+        await save_research_workspace(db, generation_run_id=run.id, workspace=workspace)
         finalizer_tools = build_research_workspace_tools(
             db=db,
             run=run,
@@ -832,7 +840,6 @@ async def _build_research_memo_ephemeral(
     evidence_tools: list[AgentTool] | None,
     show_bible: ShowBibleContext | None,
 ) -> ResearchMemo:
-    completion = ResearchWorkflowCompletion(ready=True, summary="ephemeral", notes=[])
     noop_workspace_tools = _noop_research_workspace_tools()
     planner_source_map_summary = source_map_research_summary(source_map, source_inventory, include_evidence_ids=False)
     job_source_map_summary = source_map_research_summary(source_map, source_inventory, include_evidence_ids=True)
@@ -900,6 +907,7 @@ def _noop_research_workspace_tools() -> list[AgentTool]:
             "upsert_editorial_atom",
             "finish_research_job",
             "record_research_risk",
+            "record_research_gap",
             "finalize_research_memo",
         ]
     ]

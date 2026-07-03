@@ -31,7 +31,7 @@ from app.generation_v2.citation_validation import (
     validation_quality_metrics,
 )
 from app.generation_v2.finalize import build_v2_shownotes, generate_audio_from_segments, transcript_payload, write_v2_script_segments
-from app.generation_v2.research_workspace import load_research_workspace_artifact
+from app.generation_v2.research_workspace import enqueue_research_repair_jobs, load_research_workspace_artifact
 from app.generation_v2.runtime import V2Runtime
 from app.generation_v2.schemas import (
     ActDossier,
@@ -166,6 +166,7 @@ async def execute_generation_v2(
     run_source_cards = _merge_source_cards(triage_state.source_inventory.source_cards, source_cards)
     await _commit_step(run, db, "corpus_prepare", 12, next_step="editorial_research")
 
+    research_repair_rounds_used = 0
     while True:
         await _phase(run, db, "v2_editorial_research", "Building editorial research memo", 14)
         memo = await build_research_memo(
@@ -181,6 +182,7 @@ async def execute_generation_v2(
             vector_store_id=corpus.vector_store_id,
             hosted_file_search_handler=evidence_toolset.persist_hosted_file_search_calls,
             show_bible=show_bible,
+            run_planner=research_repair_rounds_used == 0,
         )
         research_workspace_artifact = await load_research_workspace_artifact(db, run.id)
         research_workspace_artifact_ids = [str(research_workspace_artifact.id)] if research_workspace_artifact else []
@@ -242,6 +244,18 @@ async def execute_generation_v2(
             input_artifact_ids=[str(memo_artifact.id), *atom_artifact_ids, source_map_artifact_id],
         )
         if not memo_evidence_gate.passed:
+            if memo.open_questions:
+                if research_repair_rounds_used < 1:
+                    repair_job_ids = await enqueue_research_repair_jobs(db, run=run)
+                    if repair_job_ids:
+                        research_repair_rounds_used += 1
+                        await db.commit()
+                        continue
+                await db.commit()
+                raise RuntimeError(
+                    "V2 research memo evidence gate failed after targeted repair: "
+                    + "; ".join(memo.open_questions[:5])
+                )
             previous_round = acquisition_rounds_used
             triage_state, acquisition_rounds_used = await _run_source_acquisition_until_triage_ready(
                 run,
@@ -1693,6 +1707,8 @@ def _validate_research_memo_evidence(
     }
     high_impact = {"conflict", "mechanism", "turning_point", "consequence", "human_cost", "institutional_incentive"}
     issues: list[str] = []
+    if memo.open_questions:
+        issues.append("Research memo has blocking unresolved research gaps: " + "; ".join(memo.open_questions[:5]))
     for idx, atom in enumerate(memo.editorial_atoms, start=1):
         invalid_sources = [source_id for source_id in atom.source_ids if source_id not in valid_source_ids]
         if invalid_sources:

@@ -50,6 +50,7 @@ from app.services.llm import (
     _generation_v2_model_read_model,
     _openai_response_model,
     _openai_token_cost_payload,
+    _openai_trace_usage_payload,
     _openai_usage,
     get_openai_client,
 )
@@ -741,6 +742,13 @@ class EvidenceRetrievalMixin:
         billing_model = response_model or requested_model
         token_cost_payload = _openai_token_cost_payload(billing_model, usage)
         estimated_token_cost_usd = token_cost_payload["estimated_token_cost_usd"]
+        trace_usage_payload = _openai_trace_usage_payload(
+            requested_model=requested_model,
+            response_model=response_model,
+            billing_model=billing_model,
+            usage=usage,
+            token_cost_payload=token_cost_payload,
+        )
         safe_set_run(
             run_tree,
             outputs={
@@ -751,6 +759,7 @@ class EvidenceRetrievalMixin:
                 "supports_query": read_result.get("supports_query"),
                 "support_level": read_result.get("support_level"),
                 **token_cost_payload,
+                **trace_usage_payload,
                 **usage,
             },
         )
@@ -804,7 +813,9 @@ class EvidenceRetrievalMixin:
                 "supports_query": read_result.get("supports_query"),
                 "support_level": read_result.get("support_level"),
                 "confidence": read_result.get("confidence"),
+                "usage": trace_usage_payload,
                 **token_cost_payload,
+                **trace_usage_payload,
                 **usage,
             },
             provider_call_id=getattr(response, "id", None),

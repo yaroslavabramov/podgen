@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.generation_v2.artifacts import save_tool_trace
-from app.generation_v2.research_workspace import research_workflow_guard_error
+from app.generation_v2.research_workspace import research_workflow_commit_advisory
 from app.generation_v2.source_triage_workspace import mark_workspace_write_action, triage_workflow_guard_error
 from app.models.generation_v2 import (
     EvidenceItem,
@@ -135,16 +135,35 @@ class EvidenceToolHandlersMixin:
 
     async def _triage_read_guard_error(self) -> dict[str, Any] | None:
         if getattr(self, "research_current_job_id", None):
-            return await research_workflow_guard_error(
+            advisory = await research_workflow_commit_advisory(
                 self.db,
                 generation_run_id=self.run.id,
                 current_job_id=getattr(self, "research_current_job_id", None),
             )
+            setattr(self, "_research_commit_advisory", advisory)
+            return None
         return await triage_workflow_guard_error(
             self.db,
             generation_run_id=self.run.id,
             current_set_id=getattr(self, "triage_current_set_id", None),
         )
+
+    async def _call_with_research_commit_advisory(self, handler, args: dict[str, Any]) -> dict[str, Any]:
+        setattr(self, "_research_commit_advisory", None)
+        output = await handler(args)
+        return self._with_research_commit_advisory(output)
+
+    def _with_research_commit_advisory(self, output: dict[str, Any]) -> dict[str, Any]:
+        advisory = getattr(self, "_research_commit_advisory", None)
+        if not advisory or not advisory.get("commit_recommended") or not isinstance(output, dict):
+            return output
+        if output.get("accepted") is False:
+            return output
+        if output.get("found") is False or output.get("error"):
+            return output
+        payload = dict(output)
+        payload["commit_advisory"] = advisory
+        return payload
 
     async def _source_ref_for_id(self, source_id: uuid.UUID | str) -> str:
         context = await self._source_ref_context()
@@ -186,6 +205,36 @@ class EvidenceToolHandlersMixin:
             idx = int(version_part[1:])
             if 1 <= idx <= len(versions):
                 return str(versions[idx - 1].id)
+        return None
+
+    async def _invalid_source_or_version_ref_error(self, *, source_ref: str = "", version_ref: str = "") -> dict[str, Any] | None:
+        source_ref = str(source_ref or "").strip()
+        version_ref = str(version_ref or "").strip()
+        if source_ref:
+            resolved_source_id = await self._source_id_from_ref_or_id(source_ref)
+            if not resolved_source_id:
+                return {
+                    "accepted": False,
+                    "error": "source_ref is outside this run corpus view",
+                    "invalid_source_ref": source_ref,
+                }
+            scope_error = await self._triage_scope_error_for_source_ids([resolved_source_id])
+            if scope_error:
+                return scope_error
+        if version_ref:
+            resolved_source_version_id = await self._source_version_id_from_ref(version_ref)
+            if not resolved_source_version_id:
+                return {
+                    "accepted": False,
+                    "error": "version_ref is outside this run corpus view",
+                    "invalid_version_ref": version_ref,
+                }
+            if _uuid_or_none(resolved_source_version_id):
+                version = await self.db.get(SourceVersion, uuid.UUID(resolved_source_version_id))
+                if version is not None:
+                    scope_error = await self._triage_scope_error_for_source_ids([str(version.source_id)])
+                    if scope_error:
+                        return scope_error
         return None
 
     async def _versions_for_source(self, source_id: str) -> list[SourceVersion]:
@@ -347,6 +396,12 @@ class EvidenceToolHandlersMixin:
         guard_error = await self._triage_read_guard_error()
         if guard_error:
             return guard_error
+        ref_error = await self._invalid_source_or_version_ref_error(
+            source_ref=str(args.get("source_ref") or ""),
+            version_ref=str(args.get("version_ref") or ""),
+        )
+        if ref_error:
+            return {"found": False, **ref_error}
         version = await self._resolve_source_version(
             source_id=str(args.get("source_id") or ""),
             source_version_id=str(args.get("source_version_id") or ""),
@@ -390,6 +445,12 @@ class EvidenceToolHandlersMixin:
         guard_error = await self._triage_read_guard_error()
         if guard_error:
             return guard_error
+        ref_error = await self._invalid_source_or_version_ref_error(
+            source_ref=str(args.get("source_ref") or ""),
+            version_ref=str(args.get("version_ref") or ""),
+        )
+        if ref_error:
+            return {"found": False, **ref_error}
         version = await self._resolve_source_version(
             source_id=str(args.get("source_id") or ""),
             source_version_id=str(args.get("source_version_id") or ""),
@@ -440,6 +501,9 @@ class EvidenceToolHandlersMixin:
         return {"found": True, "evidence": payload}
 
     async def read_source_with_model_tool(self, args: dict[str, Any]) -> dict[str, Any]:
+        guard_error = await self._triage_read_guard_error()
+        if guard_error:
+            return guard_error
         focus_question = str(args.get("focus_question") or "").strip()
         claim_text = str(args.get("claim_text") or "").strip()
         purpose = str(args.get("purpose") or "model_file_read").strip() or "model_file_read"
@@ -452,9 +516,33 @@ class EvidenceToolHandlersMixin:
         source_ref = str(args.get("source_ref") or "")
         version_ref = str(args.get("version_ref") or "")
         if source_ref and not source_id:
-            source_id = await self._source_id_from_ref_or_id(source_ref) or ""
+            resolved_source_id = await self._source_id_from_ref_or_id(source_ref)
+            if not resolved_source_id:
+                return {
+                    "found": False,
+                    "accepted": False,
+                    "error": "source_ref is outside this run corpus view",
+                    "invalid_source_ref": source_ref,
+                }
+            source_id = resolved_source_id
         if version_ref and not source_version_id:
-            source_version_id = await self._source_version_id_from_ref(version_ref) or ""
+            resolved_source_version_id = await self._source_version_id_from_ref(version_ref)
+            if not resolved_source_version_id:
+                return {
+                    "found": False,
+                    "accepted": False,
+                    "error": "version_ref is outside this run corpus view",
+                    "invalid_version_ref": version_ref,
+                }
+            source_version_id = resolved_source_version_id
+        scope_source_ids = [source_id] if source_id and _uuid_or_none(source_id) else []
+        if source_version_id and _uuid_or_none(source_version_id):
+            scoped_version = await self.db.get(SourceVersion, uuid.UUID(source_version_id))
+            if scoped_version is not None:
+                scope_source_ids.append(str(scoped_version.source_id))
+        scope_error = await self._triage_scope_error_for_source_ids(_dedupe(scope_source_ids))
+        if scope_error:
+            return {**scope_error, "found": False}
         request_cache_key = self._model_read_request_cache_key(
             source_id=source_id,
             source_version_id=source_version_id,
@@ -831,6 +919,15 @@ class EvidenceToolHandlersMixin:
         }
 
     async def search_within_source_tool(self, args: dict[str, Any]) -> dict[str, Any]:
+        guard_error = await self._triage_read_guard_error()
+        if guard_error:
+            return {**guard_error, "results": []}
+        ref_error = await self._invalid_source_or_version_ref_error(
+            source_ref=str(args.get("source_ref") or ""),
+            version_ref=str(args.get("version_ref") or ""),
+        )
+        if ref_error:
+            return {**ref_error, "results": []}
         version = await self._resolve_source_version(
             source_id=str(args.get("source_id") or ""),
             source_version_id=str(args.get("source_version_id") or ""),
@@ -882,6 +979,12 @@ class EvidenceToolHandlersMixin:
         guard_error = await self._triage_read_guard_error()
         if guard_error:
             return guard_error
+        ref_error = await self._invalid_source_or_version_ref_error(
+            source_ref=str(args.get("source_ref") or ""),
+            version_ref=str(args.get("version_ref") or ""),
+        )
+        if ref_error:
+            return {"found": False, **ref_error}
         version = await self._resolve_source_version(
             source_id=str(args.get("source_id") or ""),
             source_version_id=str(args.get("source_version_id") or ""),

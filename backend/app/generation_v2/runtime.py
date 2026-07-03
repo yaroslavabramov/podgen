@@ -26,6 +26,7 @@ from app.services.llm import (
     _generation_v2_model_for_agent,
     _openai_response_model,
     _openai_token_cost_payload,
+    _openai_trace_usage_payload,
     _openai_usage,
     get_openai_client,
 )
@@ -256,6 +257,13 @@ class V2Runtime:
             billing_model = response_model or requested_model
             token_cost_payload = _openai_token_cost_payload(billing_model, usage)
             estimated_token_cost_usd = token_cost_payload["estimated_token_cost_usd"]
+            trace_usage_payload = _openai_trace_usage_payload(
+                requested_model=requested_model,
+                response_model=response_model,
+                billing_model=billing_model,
+                usage=usage,
+                token_cost_payload=token_cost_payload,
+            )
             file_search_calls = _file_search_calls(response)
             web_search_calls = _web_search_calls(response)
             function_calls = _function_calls(response)
@@ -293,9 +301,7 @@ class V2Runtime:
                     "output_text_chars": len(response.output_text or ""),
                     "file_search_call_count": len(file_search_calls),
                     "web_search_call_count": len(web_search_calls),
-                    **token_cost_payload,
-                    "requested_model": requested_model,
-                    "response_model": response_model,
+                    **trace_usage_payload,
                     **usage,
                 },
             )
@@ -332,7 +338,9 @@ class V2Runtime:
                     "chain_id": chain_id,
                     "checkpoint_index": checkpoint_index,
                     "chain_round": chain_round,
+                    "usage": trace_usage_payload,
                     **token_cost_payload,
+                    **trace_usage_payload,
                     **usage,
                 },
                 provider_call_id=response.id,
@@ -1295,6 +1303,7 @@ def _tool_model_facing_schema(tool_name: str) -> str:
         "upsert_editorial_atom": "write_ack",
         "finish_research_job": "write_ack",
         "record_research_risk": "write_ack",
+        "record_research_gap": "write_ack",
         "finalize_research_memo": "write_ack",
         "upsert_source_card": "write_ack",
         "create_quote_card": "write_ack",
