@@ -54,6 +54,7 @@ from app.generation_v2.prompting import (
     CITATION_LINKER_SYSTEM,
     EPISODE_CRITIQUE_PROMPT,
     EPISODE_CRITIC_SYSTEM,
+    RESEARCH_AUDIT_PROMPT,
     RESEARCH_AUDIT_SYSTEM,
     RESEARCH_FINALIZER_PROMPT,
     RESEARCH_JOB_PROMPT,
@@ -106,6 +107,7 @@ from app.generation_v2.schemas import (
     FactIssue,
     QuoteCard,
     ResearchAudit,
+    ResearchAuditIssue,
     ResearchMemo,
     CorpusGapReport,
     SourceAcquisitionCandidate,
@@ -1617,6 +1619,14 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert "source ids" not in RESEARCH_JOB_PROMPT.lower()
     assert "source_ids" not in RESEARCH_FINALIZER_PROMPT
     assert "source ids" not in RESEARCH_FINALIZER_PROMPT.lower()
+    assert "Audit input:" in RESEARCH_AUDIT_PROMPT
+    assert "Do not write treatment" in RESEARCH_AUDIT_PROMPT
+    assert 'target_step="research_finalizer"' in RESEARCH_AUDIT_PROMPT
+    assert 'target_step="source_acquisition"' in RESEARCH_AUDIT_PROMPT
+    assert "read_evidence only when" in RESEARCH_AUDIT_PROMPT
+    assert "If passed=true, repair_targets, missing_material, and required_followups must be empty" in RESEARCH_AUDIT_PROMPT
+    assert "research_memo_json" not in RESEARCH_AUDIT_PROMPT
+    assert "source_map_json" not in RESEARCH_AUDIT_PROMPT
     assert "under-grounded, invalid, unwritten, or missing persisted gap/caution work" in SOURCE_TRIAGE_REPAIR_PROMPT
     assert "missing_model_read_source_ids" not in SOURCE_TRIAGE_REPAIR_PROMPT
     assert "select_evidence" not in SOURCE_TRIAGE_REPAIR_PROMPT
@@ -1864,6 +1874,7 @@ async def test_phase_specific_agent_tool_sets_are_not_broad() -> None:
         "finish_research_job",
     }
     assert set(calls["research_finalizer_agent"]) == {
+        "merge_editorial_atoms",
         "record_research_risk",
         "record_research_gap",
         "finalize_research_memo",
@@ -1886,6 +1897,66 @@ async def test_phase_specific_agent_tool_sets_are_not_broad() -> None:
         "search_within_source",
         "select_evidence",
     }
+
+
+@pytest.mark.asyncio
+async def test_research_audit_prompt_uses_compact_payload_without_backend_source_ids() -> None:
+    _CaptureRuntime.calls = {}
+    _CaptureRuntime.kwargs_by_agent = {}
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    run = SimpleNamespace(
+        id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        config={"user_prompt": "Audit topic", "duration_target": 2700, "language": "ru"},
+    )
+    source = _source_card(source_id=source_id, title="Audit source")
+    memo = ResearchMemo(
+        title="Memo",
+        thesis="Thesis",
+        research_synthesis="Synthesis",
+        editorial_atoms=[
+            EditorialAtom(
+                kind="mechanism",
+                title="Mechanism",
+                explanation="A grounded mechanism.",
+                source_ids=[source_id],
+                anchor_refs=["backend-anchor"],
+                evidence_ids=[evidence_id],
+                story_value="Explains the system.",
+            )
+        ],
+    )
+
+    audit = await audit_research_memo(
+        None,  # type: ignore[arg-type]
+        run,
+        _CaptureRuntime(
+            ResearchAudit(
+                passed=True,
+                score=0.9,
+                verdict="ok",
+                repair_targets=["source_acquisition"],
+                missing_material=["minor caution"],
+                required_followups=["minor followup"],
+            )
+        ),
+        research_memo=memo,
+        source_map=SourceMap(),
+        source_inventory=SourceMap(source_cards=[source]),
+        evidence_tools=[],
+    )
+
+    prompt = _CaptureRuntime.kwargs_by_agent["research_auditor"]["prompt"]
+    assert "Audit input:" in prompt
+    assert '"source_refs"' in prompt
+    assert "S01" in prompt
+    assert source_id not in prompt
+    assert '"source_ids"' not in prompt
+    assert '"anchor_refs"' not in prompt
+    assert audit.repair_targets == []
+    assert audit.missing_material == []
+    assert audit.required_followups == []
 
 
 @pytest.mark.asyncio
@@ -7279,6 +7350,71 @@ def test_corpus_gap_report_collects_triage_gate_failures() -> None:
     assert any(gap.kind == "triage_not_ready" for gap in report.gaps)
     assert any(gap.kind == "missing_function" and "mechanism" in gap.required_editorial_functions for gap in report.gaps)
     assert any(gap.kind == "source_map_gap" for gap in report.gaps)
+
+
+def test_corpus_gap_report_uses_only_source_acquisition_research_audit_issues() -> None:
+    run = SimpleNamespace(id=uuid.uuid4(), project_id=uuid.uuid4(), config={"duration_target": 2700})
+    audit = ResearchAudit(
+        passed=False,
+        score=0.3,
+        verdict="failed",
+        issues=[
+            ResearchAuditIssue(
+                issue_type="duplicate_or_stale_atom",
+                severity="major",
+                target_step="research_finalizer",
+                description="Merge duplicate atom drafts before treatment.",
+                suggested_repair="Use merge_editorial_atoms.",
+            ),
+            ResearchAuditIssue(
+                issue_type="source_gap",
+                severity="blocking",
+                target_step="source_acquisition",
+                description="Missing independent source for the central mechanism.",
+                suggested_repair="Acquire an independent source for the central mechanism.",
+            ),
+        ],
+    )
+
+    report = build_corpus_gap_report(
+        run,  # type: ignore[arg-type]
+        trigger_phase="research_audit",
+        round_number=1,
+        source_map=SourceMap(),
+        research_audit=audit,
+    )
+
+    descriptions = [gap.description for gap in report.gaps]
+    assert any("independent source" in item for item in descriptions)
+    assert not any("duplicate atom" in item or "merge_editorial_atoms" in item for item in descriptions)
+
+
+def test_corpus_gap_report_does_not_acquire_for_non_source_research_audit_issue() -> None:
+    run = SimpleNamespace(id=uuid.uuid4(), project_id=uuid.uuid4(), config={"duration_target": 2700})
+    audit = ResearchAudit(
+        passed=False,
+        score=0.4,
+        verdict="failed",
+        issues=[
+            ResearchAuditIssue(
+                issue_type="duplicate_or_stale_atom",
+                severity="major",
+                target_step="research_finalizer",
+                description="Merge duplicate atom drafts before treatment.",
+            )
+        ],
+    )
+
+    report = build_corpus_gap_report(
+        run,  # type: ignore[arg-type]
+        trigger_phase="research_audit",
+        round_number=1,
+        source_map=SourceMap(),
+        research_audit=audit,
+    )
+
+    assert report.should_acquire is False
+    assert report.gaps == []
 
 
 def test_source_acquisition_candidate_validation_rejects_bad_urls_and_unknown_gaps(monkeypatch) -> None:

@@ -92,6 +92,7 @@ def build_corpus_gap_report(
     config = run.config or {}
     duration = int(config.get("duration_target") or 1800)
     gaps: list[CorpusGap] = []
+    research_audit_non_acquisition_only = False
 
     def add_gap(
         kind: str,
@@ -161,8 +162,21 @@ def build_corpus_gap_report(
                 origin="source_triage_gate",
             )
     if research_audit and not research_audit.passed:
-        for item in [*research_audit.missing_material, *research_audit.required_followups][:24]:
-            add_gap("research_audit", item, functions=_functions_from_text(item), severity="high", origin="research_audit")
+        if research_audit.issues:
+            acquisition_issues = [issue for issue in research_audit.issues if issue.target_step == "source_acquisition"]
+            research_audit_non_acquisition_only = not acquisition_issues
+            for issue in acquisition_issues[:24]:
+                description = issue.suggested_repair or issue.description
+                add_gap(
+                    "research_audit",
+                    description,
+                    functions=_functions_from_text(description),
+                    severity="high" if issue.severity in {"blocking", "major"} else "medium",
+                    origin="research_audit",
+                )
+        else:
+            for item in [*research_audit.missing_material, *research_audit.required_followups][:24]:
+                add_gap("research_audit", item, functions=_functions_from_text(item), severity="high", origin="research_audit")
     if treatment_gate and not getattr(treatment_gate, "passed", True):
         for item in [*getattr(treatment_gate, "weak_sections", []), *getattr(treatment_gate, "rewrite_instructions", [])][:24]:
             add_gap("treatment", item, functions=_functions_from_text(item), severity="high", origin="treatment_gate")
@@ -174,24 +188,29 @@ def build_corpus_gap_report(
             severity="high",
             origin="duration_gate",
         )
-    if not gaps:
+    if not gaps and not research_audit_non_acquisition_only:
         add_gap("coverage", "Corpus coverage is weak or unspecified; acquire stronger primary and source-backed material.", severity="medium")
 
     required_functions = sorted({function for gap in gaps for function in gap.required_editorial_functions if function})
     source_count = len(source_map.source_cards) if source_map else 0
     evidence_count = len(source_map.evidence_ids) if source_map else 0
+    should_acquire = bool(gaps)
     return CorpusGapReport(
         run_id=str(run.id),
         project_id=str(run.project_id),
         round_number=round_number,
         trigger_phase=trigger_phase,
         target_duration_seconds=duration,
-        summary=f"{len(gaps)} corpus gap(s) require source acquisition before continuing.",
+        summary=(
+            f"{len(gaps)} corpus gap(s) require source acquisition before continuing."
+            if should_acquire
+            else "Research audit failure does not require source acquisition."
+        ),
         gaps=gaps,
         required_editorial_functions=required_functions,
         source_count=source_count,
         evidence_count=evidence_count,
-        should_acquire=True,
+        should_acquire=should_acquire,
     )
 
 

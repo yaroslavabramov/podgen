@@ -143,17 +143,42 @@ The final ResearchMemo is assembled from persisted atom_drafts. Do not restate a
 Return only ResearchWorkflowCompletion JSON after finalize_research_memo is accepted."""
 
 
-RESEARCH_AUDIT_PROMPT = """Audit this research memo for long-form podcast readiness.
+RESEARCH_AUDIT_PROMPT = """Audit the research step before treatment.
 
-Target duration: {duration_minutes} minutes
-Minimum expectation: enough concrete editorial material for every act.
+Target duration: {duration_minutes} minutes.
 
-Research memo:
-{research_memo_json}
+Inputs:
+- audit_input_json: compact research memo, workspace, and SourceMap summary.
+- show_bible_json: topic/style context if present.
 
-Source map:
-{source_map_json}
+Audit input:
+{audit_input_json}
 
-Judge whether this research memo is specific, grounded, and broad enough for a later treatment agent to plan the episode.
-Passing requires specificity, evidence_id coverage, and usable mechanism/history/turn/conflict/consequence material.
-For long-form targets, fail unless the memo has enough distinct source-grounded findings for treatment planning. Do not require the research memo itself to contain act structure."""
+Show bible:
+{show_bible_json}
+
+Task:
+Decide whether treatment can safely plan from this research memo. Do not write treatment, acts, outline, script, or new research atoms.
+
+Check:
+- Distinct editorial atoms: enough specific findings, not repeated drafts of the same point.
+- Grounding: important claims have evidence_ids and readable source context.
+- Story functions: mechanism, history/origin, turning point, consequence, conflict or institutional incentive, and real uncertainties for long-form topics.
+- Gaps and risks: blocking gaps should stop treatment; non-blocking cautions should be passed as risks.
+- SourceMap coverage: major clusters are represented by atoms, risks, or explicit deferred reasons.
+
+Use tools sparingly:
+- read_evidence only when a cited evidence_id looks suspicious or too thin.
+- search_corpus only when the memo likely missed material already present in the corpus.
+- Do not use tools to build new findings; this is an audit.
+
+Issue routing:
+- target_step="research_finalizer": duplicate atoms, stale source-quality atoms, bad memo formatting, risks/gaps placed in the wrong field.
+- target_step="editorial_research": missing/weak atom, weak grounding, missing SourceMap cluster coverage when corpus likely has relevant material.
+- target_step="source_acquisition": the corpus lacks necessary sources or perspectives.
+- target_step="treatment": non-blocking caution treatment must respect.
+- target_step="none": no repair needed.
+
+If passed=true, repair_targets, missing_material, and required_followups must be empty. Keep non-blocking caveats only as issues with severity="minor".
+Pass only if there are no blocking or major issues that must be repaired before treatment.
+Return ResearchAudit JSON. For every failure, include structured issues with issue_type, severity, target_step, description, and suggested_repair."""

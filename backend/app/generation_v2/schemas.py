@@ -248,12 +248,36 @@ class ResearchMemo(BaseModel):
     risk_register: list[str] = Field(default_factory=list)
 
 
+class ResearchAuditIssue(BaseModel):
+    issue_type: Literal[
+        "insufficient_material",
+        "weak_grounding",
+        "missing_story_function",
+        "duplicate_or_stale_atom",
+        "blocking_gap",
+        "source_gap",
+        "language_or_format",
+        "tool_contract",
+        "other",
+    ] = "other"
+    severity: Literal["blocking", "major", "minor"] = "major"
+    target_step: Literal["editorial_research", "research_finalizer", "source_acquisition", "treatment", "none"] = "none"
+    description: str
+    suggested_repair: str = ""
+    atom_refs: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+    source_refs: list[str] = Field(default_factory=list)
+
+
 class ResearchAudit(BaseModel):
     passed: bool
     score: float = Field(ge=0, le=1)
     verdict: str
     missing_material: list[str] = Field(default_factory=list)
     required_followups: list[str] = Field(default_factory=list)
+    blocking: bool = False
+    issues: list[ResearchAuditIssue] = Field(default_factory=list)
+    repair_targets: list[Literal["editorial_research", "research_finalizer", "source_acquisition", "treatment", "none"]] = Field(default_factory=list)
 
 
 class TreatmentAct(BaseModel):

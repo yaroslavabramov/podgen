@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -66,6 +67,7 @@ from app.generation_v2.schemas import (
     FinalTranscript,
     CorpusGapReport,
     ResearchAudit,
+    ResearchAuditIssue,
     ResearchMemo,
     ResearchWorkflowCompletion,
     ShowBibleContext,
@@ -901,6 +903,7 @@ def _noop_research_workspace_tools() -> list[AgentTool]:
     return [
         AgentTool(name=name, description=name, parameters={"type": "object", "properties": {}}, handler=_handler)
         for name in [
+            "merge_editorial_atoms",
             "upsert_research_job",
             "finalize_research_plan",
             "record_research_observation",
@@ -913,6 +916,112 @@ def _noop_research_workspace_tools() -> list[AgentTool]:
     ]
 
 
+def _source_refs_for_ids(source_ids: list[str], context: SourceRefContext) -> list[str]:
+    refs: list[str] = []
+    for source_id in source_ids:
+        ref = source_ref_for_id(str(source_id), context)
+        if ref != "S??":
+            refs.append(ref)
+    return refs
+
+
+def _research_audit_input(
+    *,
+    run: GenerationRun,
+    research_memo: ResearchMemo,
+    source_map: SourceMap,
+    source_inventory: SourceMap | None,
+    workspace: dict[str, Any] | None,
+) -> dict[str, Any]:
+    inventory = source_inventory or source_map
+    context = _source_ref_context(inventory.source_cards)
+    workspace = workspace or {}
+    atom_drafts = [item for item in workspace.get("atom_drafts") or [] if isinstance(item, dict)]
+    active_drafts = [item for item in atom_drafts if not item.get("merged_into")]
+    return {
+        "topic": str((run.config or {}).get("user_prompt") or "")[:700],
+        "language": str((run.config or {}).get("language") or "en"),
+        "duration_minutes": int((run.config or {}).get("duration_target", 1800)) // 60,
+        "research_memo": {
+            "title": research_memo.title,
+            "thesis": _trim(research_memo.thesis, 900),
+            "research_synthesis": _trim(research_memo.research_synthesis, 1600),
+            "editorial_atoms": [
+                {
+                    "atom_ref": f"A{idx:02d}",
+                    "kind": atom.kind,
+                    "title": atom.title,
+                    "explanation": _trim(atom.explanation, 900),
+                    "story_value": _trim(atom.story_value, 600),
+                    "source_refs": _source_refs_for_ids(atom.source_ids, context),
+                    "quote_refs": atom.quote_refs[:8],
+                    "evidence_ids": atom.evidence_ids[:12],
+                    "confidence": atom.confidence,
+                    "risk": atom.risk,
+                    "source_coverage_status": atom.source_coverage_status,
+                }
+                for idx, atom in enumerate(research_memo.editorial_atoms, start=1)
+            ],
+            "source_coverage": [_trim(item, 450) for item in research_memo.source_coverage[:30]],
+            "open_questions": [_trim(item, 450) for item in research_memo.open_questions[:20]],
+            "risk_register": [_trim(item, 450) for item in research_memo.risk_register[:30]],
+        },
+        "workspace": {
+            "status": workspace.get("status"),
+            "job_count": len(workspace.get("investigation_jobs") or []),
+            "processed_jobs": workspace.get("processed_jobs") or [],
+            "covered_source_refs": workspace.get("covered_source_refs") or [],
+            "selected_evidence_count": len(workspace.get("selected_evidence_ids") or []),
+            "active_atom_draft_count": len(active_drafts),
+            "merged_atom_draft_count": len(atom_drafts) - len(active_drafts),
+            "research_gaps": [
+                {
+                    "gap_id": item.get("gap_id"),
+                    "question": _trim(str(item.get("question") or ""), 450),
+                    "category": item.get("category"),
+                    "severity": item.get("severity"),
+                    "status": item.get("status"),
+                    "source_refs": item.get("source_refs") or [],
+                    "evidence_ids": item.get("evidence_ids") or [],
+                    "resolution_note": _trim(str(item.get("resolution_note") or ""), 350),
+                }
+                for item in (workspace.get("research_gaps") or [])[:40]
+                if isinstance(item, dict)
+            ],
+            "risk_register": [
+                {
+                    "risk": _trim(str(item.get("risk") if isinstance(item, dict) else item), 450),
+                    "severity": str(item.get("severity") or "medium") if isinstance(item, dict) else "medium",
+                    "source_refs": (item.get("source_refs") or []) if isinstance(item, dict) else [],
+                    "evidence_ids": (item.get("evidence_ids") or []) if isinstance(item, dict) else [],
+                }
+                for item in (workspace.get("risk_register") or [])[:40]
+            ],
+        },
+        "source_map_summary": source_map_research_summary(source_map, inventory, include_evidence_ids=True),
+    }
+
+
+def _normalize_research_audit(audit: ResearchAudit) -> ResearchAudit:
+    if audit.passed:
+        audit.blocking = False
+        audit.repair_targets = []
+        audit.missing_material = []
+        audit.required_followups = []
+        return audit
+    targets = sorted(
+        {
+            issue.target_step
+            for issue in audit.issues
+            if issue.target_step != "none" and issue.severity in {"blocking", "major"}
+        }
+    )
+    if targets:
+        audit.repair_targets = targets
+    audit.blocking = bool(any(issue.severity == "blocking" for issue in audit.issues)) or audit.blocking
+    return audit
+
+
 async def audit_research_memo(
     db: AsyncSession,
     run: GenerationRun,
@@ -920,24 +1029,28 @@ async def audit_research_memo(
     *,
     research_memo: ResearchMemo,
     source_map: SourceMap | None = None,
+    source_inventory: SourceMap | None = None,
     evidence_tools: list[AgentTool] | None = None,
     vector_store_id: str | None = None,
     show_bible: ShowBibleContext | None = None,
 ) -> ResearchAudit:
     source_map = source_map or SourceMap()
-    source_ref_context = _source_ref_context(source_map.source_cards)
+    workspace = await load_research_workspace(db, run.id) if db is not None else None
     prompt = RESEARCH_AUDIT_PROMPT.format(
         duration_minutes=int((run.config or {}).get("duration_target", 1800)) // 60,
-        research_memo_json=research_memo.model_dump_json(),
-        source_map_json=_json(
-            {
-                "sources": _source_inventory(source_map.source_cards, limit=80, ref_context=source_ref_context),
-                "triage": _triage_inventory(source_map.source_triage, ref_context=source_ref_context),
-            }
+        audit_input_json=_json(
+            _research_audit_input(
+                run=run,
+                research_memo=research_memo,
+                source_map=source_map,
+                source_inventory=source_inventory,
+                workspace=workspace,
+            )
         ),
+        show_bible_json=(show_bible or ShowBibleContext()).model_dump_json(),
     )
     try:
-        return await runtime.call_structured(
+        audit = await runtime.call_structured(
             db=db,
             generation_run_id=run.id,
             phase="v2_research_audit",
@@ -950,6 +1063,7 @@ async def audit_research_memo(
             tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
             max_output_tokens=5000,
         )
+        return _normalize_research_audit(audit)
     except V2RuntimeUnavailable as exc:
         _allow_runtime_fallback(runtime, "v2_research_audit", "research_auditor", exc)
         atom_count = len(research_memo.editorial_atoms)
@@ -959,6 +1073,19 @@ async def audit_research_memo(
             verdict="Fallback audit: enough editorial atoms for drafting." if atom_count >= 3 else "Not enough editorial atoms.",
             missing_material=[] if atom_count >= 3 else ["More concrete source material is needed."],
             required_followups=[],
+            blocking=atom_count < 3,
+            issues=[]
+            if atom_count >= 3
+            else [
+                ResearchAuditIssue(
+                    issue_type="insufficient_material",
+                    severity="blocking",
+                    target_step="editorial_research",
+                    description="More concrete source material is needed.",
+                    suggested_repair="Run targeted editorial research before treatment.",
+                )
+            ],
+            repair_targets=[] if atom_count >= 3 else ["editorial_research"],
         )
 
 

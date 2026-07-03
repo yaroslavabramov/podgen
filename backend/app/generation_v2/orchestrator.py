@@ -43,6 +43,7 @@ from app.generation_v2.schemas import (
     FactIssue,
     QuoteCard,
     ResearchAudit,
+    ResearchAuditIssue,
     ResearchMemo,
     ShowBibleContext,
     SourceCard,
@@ -125,6 +126,31 @@ class V2StepExecutionStopped(RuntimeError):
         super().__init__(f"V2 stopped after {executed_step}")
         self.executed_step = executed_step
         self.next_step = next_step
+
+
+def _research_audit_target_steps(audit: ResearchAudit) -> set[str]:
+    targets = {
+        str(issue.target_step)
+        for issue in audit.issues
+        if str(issue.target_step or "none") != "none"
+    }
+    if targets:
+        return targets
+    return {str(target) for target in audit.repair_targets if str(target or "none") != "none"}
+
+
+def _research_audit_requires_source_acquisition(audit: ResearchAudit) -> bool:
+    return "source_acquisition" in _research_audit_target_steps(audit)
+
+
+def _research_audit_failure_message(audit: ResearchAudit, *, label: str = "V2 research audit failed") -> str:
+    targets = sorted(_research_audit_target_steps(audit))
+    issues = [issue.description for issue in audit.issues[:5]]
+    followups = issues or audit.required_followups[:5] or audit.missing_material[:5]
+    suffix = f"; targets={targets}" if targets else ""
+    if followups:
+        suffix += "; followups=" + " | ".join(followups)
+    return f"{label}: {audit.verdict}{suffix}"
 
 
 async def execute_generation_v2(
@@ -256,26 +282,32 @@ async def execute_generation_v2(
                     "V2 research memo evidence gate failed after targeted repair: "
                     + "; ".join(memo.open_questions[:5])
                 )
-            previous_round = acquisition_rounds_used
-            triage_state, acquisition_rounds_used = await _run_source_acquisition_until_triage_ready(
-                run,
-                db,
-                runtime,
-                triage_state=triage_state,
-                trigger_phase="memo_evidence",
-                acquisition_rounds_used=acquisition_rounds_used,
-                research_audit=memo_evidence_gate,
-            )
-            if acquisition_rounds_used > previous_round and triage_state.triage_completion.ready and triage_state.triage_gate.passed:
-                corpus, evidence_toolset, evidence_tools, source_map, source_cards, quote_cards, source_triage = _triage_runtime_values(triage_state)
-                source_artifact_ids = triage_state.source_artifact_ids
-                quote_artifact_ids = triage_state.quote_artifact_ids
-                source_map_artifact_id = triage_state.source_map_artifact_id
-                source_workspace_artifact_ids = triage_state.source_workspace_artifact_ids
-                run_source_cards = _merge_source_cards(triage_state.source_inventory.source_cards, source_cards)
-                continue
+            if _research_audit_requires_source_acquisition(memo_evidence_gate):
+                previous_round = acquisition_rounds_used
+                triage_state, acquisition_rounds_used = await _run_source_acquisition_until_triage_ready(
+                    run,
+                    db,
+                    runtime,
+                    triage_state=triage_state,
+                    trigger_phase="memo_evidence",
+                    acquisition_rounds_used=acquisition_rounds_used,
+                    research_audit=memo_evidence_gate,
+                )
+                if acquisition_rounds_used > previous_round and triage_state.triage_completion.ready and triage_state.triage_gate.passed:
+                    corpus, evidence_toolset, evidence_tools, source_map, source_cards, quote_cards, source_triage = _triage_runtime_values(triage_state)
+                    source_artifact_ids = triage_state.source_artifact_ids
+                    quote_artifact_ids = triage_state.quote_artifact_ids
+                    source_map_artifact_id = triage_state.source_map_artifact_id
+                    source_workspace_artifact_ids = triage_state.source_workspace_artifact_ids
+                    run_source_cards = _merge_source_cards(triage_state.source_inventory.source_cards, source_cards)
+                    continue
             await db.commit()
-            raise RuntimeError(f"V2 research memo evidence gate failed: {memo_evidence_gate.verdict}")
+            raise RuntimeError(
+                _research_audit_failure_message(
+                    memo_evidence_gate,
+                    label="V2 research memo evidence gate failed",
+                )
+            )
         await _commit_step(run, db, "editorial_research", 24, next_step="research_audit")
 
         await _phase(run, db, "v2_research_audit", "Auditing research readiness", 26)
@@ -285,6 +317,7 @@ async def execute_generation_v2(
             runtime,
             research_memo=memo,
             source_map=source_map,
+            source_inventory=triage_state.source_inventory,
             evidence_tools=evidence_tools,
             show_bible=show_bible,
         )
@@ -302,26 +335,27 @@ async def execute_generation_v2(
             metadata=runtime.fallback_metadata_for("v2_research_audit", "research_auditor"),
         )
         if not audit.passed:
-            previous_round = acquisition_rounds_used
-            triage_state, acquisition_rounds_used = await _run_source_acquisition_until_triage_ready(
-                run,
-                db,
-                runtime,
-                triage_state=triage_state,
-                trigger_phase="research_audit",
-                acquisition_rounds_used=acquisition_rounds_used,
-                research_audit=audit,
-            )
-            if acquisition_rounds_used > previous_round and triage_state.triage_completion.ready and triage_state.triage_gate.passed:
-                corpus, evidence_toolset, evidence_tools, source_map, source_cards, quote_cards, source_triage = _triage_runtime_values(triage_state)
-                source_artifact_ids = triage_state.source_artifact_ids
-                quote_artifact_ids = triage_state.quote_artifact_ids
-                source_map_artifact_id = triage_state.source_map_artifact_id
-                source_workspace_artifact_ids = triage_state.source_workspace_artifact_ids
-                run_source_cards = _merge_source_cards(triage_state.source_inventory.source_cards, source_cards)
-                continue
+            if _research_audit_requires_source_acquisition(audit):
+                previous_round = acquisition_rounds_used
+                triage_state, acquisition_rounds_used = await _run_source_acquisition_until_triage_ready(
+                    run,
+                    db,
+                    runtime,
+                    triage_state=triage_state,
+                    trigger_phase="research_audit",
+                    acquisition_rounds_used=acquisition_rounds_used,
+                    research_audit=audit,
+                )
+                if acquisition_rounds_used > previous_round and triage_state.triage_completion.ready and triage_state.triage_gate.passed:
+                    corpus, evidence_toolset, evidence_tools, source_map, source_cards, quote_cards, source_triage = _triage_runtime_values(triage_state)
+                    source_artifact_ids = triage_state.source_artifact_ids
+                    quote_artifact_ids = triage_state.quote_artifact_ids
+                    source_map_artifact_id = triage_state.source_map_artifact_id
+                    source_workspace_artifact_ids = triage_state.source_workspace_artifact_ids
+                    run_source_cards = _merge_source_cards(triage_state.source_inventory.source_cards, source_cards)
+                    continue
             await db.commit()
-            raise RuntimeError(f"V2 research audit failed: {audit.verdict}")
+            raise RuntimeError(_research_audit_failure_message(audit))
         await _commit_step(run, db, "research_audit", 32, next_step="treatment")
 
         await _phase(run, db, "v2_treatment", "Creating episode treatment", 34)
@@ -1707,29 +1741,53 @@ def _validate_research_memo_evidence(
     }
     high_impact = {"conflict", "mechanism", "turning_point", "consequence", "human_cost", "institutional_incentive"}
     issues: list[str] = []
+    audit_issues: list[ResearchAuditIssue] = []
+
+    def add_issue(
+        description: str,
+        *,
+        issue_type: str = "weak_grounding",
+        target_step: str = "editorial_research",
+        severity: str = "blocking",
+    ) -> None:
+        issues.append(description)
+        audit_issues.append(
+            ResearchAuditIssue(
+                issue_type=issue_type,  # type: ignore[arg-type]
+                severity=severity,  # type: ignore[arg-type]
+                target_step=target_step,  # type: ignore[arg-type]
+                description=description,
+                suggested_repair=description,
+            )
+        )
+
     if memo.open_questions:
-        issues.append("Research memo has blocking unresolved research gaps: " + "; ".join(memo.open_questions[:5]))
+        add_issue(
+            "Research memo has blocking unresolved research gaps: " + "; ".join(memo.open_questions[:5]),
+            issue_type="blocking_gap",
+            target_step="editorial_research",
+        )
     for idx, atom in enumerate(memo.editorial_atoms, start=1):
         invalid_sources = [source_id for source_id in atom.source_ids if source_id not in valid_source_ids]
         if invalid_sources:
-            issues.append(f"Atom {idx} references unknown source ids: {', '.join(invalid_sources)}.")
+            add_issue(f"Atom {idx} references unknown source ids: {', '.join(invalid_sources)}.")
         for evidence_id in atom.evidence_ids:
             evidence = evidence_by_id.get(evidence_id)
             if evidence is None:
-                issues.append(f"Atom {idx} references unknown evidence id: {evidence_id}.")
+                add_issue(f"Atom {idx} references unknown evidence id: {evidence_id}.")
                 continue
             if evidence_id not in valid_evidence_ids:
                 metadata = evidence.get("metadata") or {}
                 if metadata.get("usage_status") not in {EVIDENCE_STATUS_SELECTED, EVIDENCE_STATUS_CITED}:
-                    issues.append(f"Atom {idx} references evidence id that was not explicitly selected: {evidence_id}.")
+                    add_issue(f"Atom {idx} references evidence id that was not explicitly selected: {evidence_id}.")
                 elif str(evidence.get("source_id")) not in valid_source_ids or str(evidence.get("source_version_id")) not in valid_version_ids:
-                    issues.append(f"Atom {idx} references evidence id outside the run corpus view: {evidence_id}.")
+                    add_issue(f"Atom {idx} references evidence id outside the run corpus view: {evidence_id}.")
                 else:
-                    issues.append(f"Atom {idx} references invalid evidence id: {evidence_id}.")
+                    add_issue(f"Atom {idx} references invalid evidence id: {evidence_id}.")
         if atom.kind in high_impact and not atom.evidence_ids:
-            issues.append(f"High-impact atom {idx} ({atom.kind}) has no evidence ids.")
+            add_issue(f"High-impact atom {idx} ({atom.kind}) has no evidence ids.")
         if atom.source_coverage_status == "weak" and atom.kind in high_impact:
-            issues.append(f"High-impact atom {idx} ({atom.kind}) is marked weak.")
+            add_issue(f"High-impact atom {idx} ({atom.kind}) is marked weak.")
     if duration_seconds >= 3600:
         grounded_high_impact = [
             atom
@@ -1737,7 +1795,10 @@ def _validate_research_memo_evidence(
             if atom.kind in high_impact and atom.evidence_ids and not [eid for eid in atom.evidence_ids if eid not in valid_evidence_ids]
         ]
         if len(grounded_high_impact) < 4:
-            issues.append("Long-form V2 memo requires at least four grounded high-impact editorial atoms.")
+            add_issue(
+                "Long-form V2 memo requires at least four grounded high-impact editorial atoms.",
+                issue_type="insufficient_material",
+            )
     if duration_seconds >= 2700:
         coverage = _research_story_coverage(memo, valid_evidence_ids)
         required = {
@@ -1750,17 +1811,22 @@ def _validate_research_memo_evidence(
         }
         for key, message in required.items():
             if not coverage.get(key):
-                issues.append(message)
+                add_issue(message, issue_type="missing_story_function")
     if source_map is not None:
         cluster_issues = _research_source_map_cluster_coverage_issues(memo, source_map)
-        issues.extend(cluster_issues)
+        for issue in cluster_issues:
+            add_issue(issue, issue_type="missing_story_function")
     score = 1.0 if not issues else max(0.0, 1.0 - len(issues) * 0.15)
+    repair_targets = sorted({issue.target_step for issue in audit_issues if issue.target_step != "none"})
     return ResearchAudit(
         passed=not issues,
         score=score,
         verdict="Research memo evidence gate passed." if not issues else "Research memo evidence gate failed.",
         missing_material=issues,
         required_followups=issues,
+        blocking=bool(issues),
+        issues=audit_issues,
+        repair_targets=repair_targets,  # type: ignore[arg-type]
     )
 
 

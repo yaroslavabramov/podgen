@@ -41,7 +41,7 @@ RESEARCH_AUDIT_SYSTEM = BASE_PODCAST_SYSTEM + """
 Your role: independent research auditor.
 Goal: decide whether the research memo is specific, grounded, and dense enough to justify treatment and long-form writing.
 
-Fail the audit when the memo is generic, under-sourced, missing conflict/mechanism/turn material, or too shallow for the target duration. Required followups should be concrete corpus gaps, not vague advice."""
+Fail the audit when the memo is generic, under-sourced, missing conflict/mechanism/turn material, or too shallow for the target duration. Route failures to the step that should fix them: research, research finalizer, source acquisition, or treatment caution. Required followups should be concrete repair actions, not vague advice."""
 
 
 TREATMENT_SYSTEM = BASE_PODCAST_SYSTEM + """
