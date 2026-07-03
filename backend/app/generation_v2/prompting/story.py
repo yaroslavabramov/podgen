@@ -1,29 +1,26 @@
 TREATMENT_PROMPT = """Create a full episode treatment.
 
-Topic/user prompt:
-{user_prompt}
-
-Target duration: {duration_minutes} minutes
-Language: {language}
-
-Research memo:
-{research_memo_json}
-
-Source map:
-{source_map_json}
+Treatment input:
+{treatment_input_json}
 
 Show Bible context:
 {show_bible_json}
 
 Product context:
-The treatment is the contract for writing. It decides what each act earns, which evidence it depends on, and how the listener's understanding changes.
+The treatment is the contract for writing. It turns research atoms into a listener-facing act sequence: what each act earns, why it belongs there, which sources it leans on, and how the listener's understanding changes.
 
-Use {act_count} acts. Each act must have a clear editorial job, turn, and source focus.
-Every TreatmentAct.source_focus entry must be an exact source_id from the memo. Do not invent source ids.
-Every act should include required_evidence_ids drawn primarily from research memo atom evidence_ids when factual material is required; SourceMap evidence is only a fallback seed.
-Use targeted tools only for specific missing treatment requirements: read_evidence, read_source_window, or search_within_source. Do not broadly research new angles in treatment.
+Task:
+Create {min_act_count}-{max_act_count} acts. Choose the count from the research shape: use fewer acts for a clean linear argument, more acts when the listener needs separate turns for mechanism, history, conflict, consequences, and unresolved risks. Each act must have a clear editorial job, turn, source focus, and atom anchors.
+
+Use the handles from treatment_input_json:
+- source_focus: use source_ref values like S01.
+- required_atom_refs: use atom_ref values like A01.
+
+Audit cautions are constraints, not story beats. Do not build an act around a minor caveat; instead avoid overclaiming or route the caveat into source_coverage/style constraints.
+
 Allocate target_minutes from editorial difficulty and listener work, not equal blocks.
-Avoid generic act labels. The title/story_role/opening_question/main_turn/ending_turn should make clear what changes in that act."""
+Avoid generic act labels. The title/story_role/opening_question/main_turn/ending_turn should make clear what changes in that act.
+Return only TreatmentPlan JSON. Do not write dialogue, scenes, transcript, or act prose."""
 
 
 ACT_DRAFT_PROMPT = """Write act {act_number} as dialogue between hosts A and B.

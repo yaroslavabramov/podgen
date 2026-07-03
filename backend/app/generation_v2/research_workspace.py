@@ -1195,7 +1195,7 @@ def research_memo_from_workspace(run: GenerationRun, workspace: dict[str, Any]) 
                 anchor_refs=anchor_refs[:12],
                 evidence_ids=evidence_ids,
                 confidence=_confidence(draft.get("confidence")),
-                risk=str(draft.get("risk") or "medium")[:40] or "medium",
+                risk=str(draft.get("risk") or "medium")[:600] or "medium",
                 source_coverage_status=_coverage_status(str(draft.get("source_coverage_status") or "")),  # type: ignore[arg-type]
             )
         )
@@ -1258,14 +1258,14 @@ def source_map_research_summary(
             "useful_for": card.useful_for[:8],
             "summary": card.summary[:700],
             "cautions": card.gaps_or_cautions[:6],
-            **({"evidence_ids": card.evidence_ids[:8]} if include_evidence_ids else {}),
+            **({"evidence_ids": card.evidence_ids[:8]} if include_evidence_ids and card.evidence_ids else {}),
         }
         for card in source_map.source_cards[:80]
     ]
     quote_cards = [
         {
             "source_ref": source_ref_for_id(card.source_id, context),
-            **({"evidence_id": card.evidence_id} if include_evidence_ids else {}),
+            **({"evidence_id": card.evidence_id} if include_evidence_ids and card.evidence_id else {}),
             "locator": card.locator,
             "narrative_use": card.narrative_use,
             "quote_excerpt": card.quote[:500],
@@ -1280,7 +1280,7 @@ def source_map_research_summary(
             "primary_source_refs": refs(cluster.primary_source_ids),
             "secondary_source_refs": refs(cluster.secondary_source_ids),
             "duplicate_source_refs": refs(cluster.duplicate_source_ids),
-            **({"evidence_ids": cluster.evidence_ids[:10]} if include_evidence_ids else {}),
+            **({"evidence_ids": cluster.evidence_ids[:10]} if include_evidence_ids and cluster.evidence_ids else {}),
             "rationale": cluster.rationale[:500],
         }
         for cluster in source_map.source_triage.source_clusters[:40]
@@ -1290,21 +1290,22 @@ def source_map_research_summary(
             "source_ref": source_ref_for_id(relationship.source_id, context),
             "related_source_ref": source_ref_for_id(relationship.related_source_id, context),
             "relationship": relationship.relationship,
-            **({"evidence_ids": relationship.evidence_ids[:10]} if include_evidence_ids else {}),
+            **({"evidence_ids": relationship.evidence_ids[:10]} if include_evidence_ids and relationship.evidence_ids else {}),
             "rationale": relationship.rationale[:400],
         }
         for relationship in source_map.source_triage.source_relationships[:60]
     ]
+    gaps = _dedupe([*source_map.gaps[:20], *source_map.source_triage.gaps[:20]])
     return {
         "source_card_count": len(source_map.source_cards),
         "quote_card_count": len(source_map.quote_cards),
-        "gap_count": len(source_map.gaps) + len(source_map.source_triage.gaps),
+        "gap_count": len(gaps),
         "includes_evidence_ids": include_evidence_ids,
         "source_cards": source_cards,
         "quote_cards": quote_cards,
         "clusters": clusters,
         "relationships": relationships,
-        "gaps": [*source_map.gaps[:20], *source_map.source_triage.gaps[:20]],
+        "gaps": gaps,
     }
 
 

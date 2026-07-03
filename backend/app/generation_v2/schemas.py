@@ -304,6 +304,28 @@ class Treatment(BaseModel):
     style_constraints: list[str] = Field(default_factory=list)
 
 
+class TreatmentPlanAct(BaseModel):
+    act_number: int
+    title: str
+    story_role: str
+    opening_question: str
+    main_turn: str
+    ending_turn: str
+    source_focus: list[str] = Field(default_factory=list)
+    target_minutes: float
+    required_atom_refs: list[str] = Field(default_factory=list)
+    source_density_target: int = 2
+
+
+class TreatmentPlan(BaseModel):
+    title: str
+    logline: str
+    host_dynamic: str
+    acts: list[TreatmentPlanAct]
+    recurring_questions: list[str] = Field(default_factory=list)
+    style_constraints: list[str] = Field(default_factory=list)
+
+
 class ActDossier(BaseModel):
     act_number: int
     title: str

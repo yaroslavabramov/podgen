@@ -18,6 +18,7 @@ from app.generation_v2.agents.editorial import (
     _fallback_research_memo,
     _fallback_treatment,
     _quote_inventory,
+    _fallback_treatment,
     _source_inventory,
     _source_ref_context,
     _triage_inventory,
@@ -34,6 +35,7 @@ from app.generation_v2.agents.editorial import (
     extract_and_link_claims,
     judge_claim_support,
     rewrite_act_draft,
+    treatment_act_count_range,
     update_continuity_ledger,
     write_act_draft,
 )
@@ -44,6 +46,7 @@ from app.generation_v2.orchestrator import (
     _save_evidence_artifact_map,
     _source_triage_repair_context,
     _validate_research_memo_evidence,
+    _validate_treatment,
 )
 from app.generation_v2.prompting import (
     ACT_DRAFT_PROMPT,
@@ -69,6 +72,7 @@ from app.generation_v2.prompting import (
     SOURCE_TRIAGE_SET_PROMPT,
     SOURCE_TRIAGE_SYSTEM,
     SUPPORT_JUDGE_SYSTEM,
+    TREATMENT_PROMPT,
     TREATMENT_SYSTEM,
 )
 from app.generation_v2.runtime import (
@@ -123,6 +127,8 @@ from app.generation_v2.schemas import (
     SupportJudgmentBundle,
     Treatment,
     TreatmentAct,
+    TreatmentPlan,
+    TreatmentPlanAct,
 )
 from app.generation_v2.source_triage import build_source_triage
 from app.generation_v2.source_acquisition import (
@@ -1619,6 +1625,18 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert "source ids" not in RESEARCH_JOB_PROMPT.lower()
     assert "source_ids" not in RESEARCH_FINALIZER_PROMPT
     assert "source ids" not in RESEARCH_FINALIZER_PROMPT.lower()
+    assert "Treatment input:" in TREATMENT_PROMPT
+    assert "source_ref values like S01" in TREATMENT_PROMPT
+    assert "Audit cautions are constraints, not story beats" in TREATMENT_PROMPT
+    assert "TreatmentPlan JSON" in TREATMENT_PROMPT
+    assert "research_memo_json" not in TREATMENT_PROMPT
+    assert "source_map_json" not in TREATMENT_PROMPT
+    assert "source_id" not in TREATMENT_PROMPT
+    assert "evidence_id" not in TREATMENT_PROMPT
+    assert "quote_refs" not in TREATMENT_PROMPT
+    assert "required_quote_refs" not in TREATMENT_PROMPT
+    assert "evidence_id" not in TREATMENT_SYSTEM
+    assert "required evidence" not in TREATMENT_SYSTEM.lower()
     assert "Audit input:" in RESEARCH_AUDIT_PROMPT
     assert "Do not write treatment" in RESEARCH_AUDIT_PROMPT
     assert 'target_step="research_finalizer"' in RESEARCH_AUDIT_PROMPT
@@ -1690,7 +1708,8 @@ def test_agent_system_prompts_are_role_specific_and_product_aware() -> None:
         assert "Your role:" in system, name
         assert "long-form podcast production system" in system, name
         assert "source_ref values" in system, name
-        assert "version_ref is optional" in system, name
+        if name != "treatment":
+            assert "version_ref is optional" in system, name
         assert "Generation V2" not in system, name
         assert "Podgen Generation" not in system, name
 
@@ -1762,6 +1781,25 @@ async def test_phase_specific_agent_tool_sets_are_not_broad() -> None:
         required_evidence_ids=[quote.evidence_id or ""],
         source_density_target=1,
     )
+    treatment_plan = TreatmentPlan(
+        title="Episode",
+        logline="A specific episode.",
+        host_dynamic="A asks, B probes.",
+        acts=[
+            TreatmentPlanAct(
+                act_number=1,
+                title=treatment_act.title,
+                story_role=treatment_act.story_role,
+                opening_question=treatment_act.opening_question,
+                main_turn=treatment_act.main_turn,
+                ending_turn=treatment_act.ending_turn,
+                source_focus=["S01"],
+                target_minutes=treatment_act.target_minutes,
+                required_atom_refs=["A01"],
+                source_density_target=treatment_act.source_density_target,
+            )
+        ],
+    )
     treatment = Treatment(
         title="Episode",
         logline="A specific episode.",
@@ -1803,7 +1841,7 @@ async def test_phase_specific_agent_tool_sets_are_not_broad() -> None:
     await build_treatment(
         None,  # type: ignore[arg-type]
         run,
-        _CaptureRuntime(treatment),
+        _CaptureRuntime(treatment_plan),
         research_memo=research_memo,
         source_map=source_map,
         evidence_tools=all_tools,
@@ -1884,7 +1922,7 @@ async def test_phase_specific_agent_tool_sets_are_not_broad() -> None:
     assert "search_sources" not in calls[research_job_agent]
     assert _CaptureRuntime.kwargs_by_agent[research_job_agent]["max_tool_rounds"] == 80
     assert set(calls["research_auditor"]) == {"search_corpus", "read_evidence"}
-    assert set(calls["story_editor"]) == {"read_evidence", "read_source_window", "search_within_source"}
+    assert set(calls["story_editor"]) == set()
     assert set(calls["act_writer_1"]) == {"read_evidence", "read_source_window", "search_within_source"}
     assert set(calls["episode_critic"]) == {"search_corpus", "read_evidence"}
     assert set(calls["act_rewriter_1"]) == {"read_evidence", "read_source_window", "search_within_source"}
@@ -1924,6 +1962,7 @@ async def test_research_audit_prompt_uses_compact_payload_without_backend_source
                 anchor_refs=["backend-anchor"],
                 evidence_ids=[evidence_id],
                 story_value="Explains the system.",
+                risk="low",
             )
         ],
     )
@@ -1957,6 +1996,267 @@ async def test_research_audit_prompt_uses_compact_payload_without_backend_source
     assert audit.repair_targets == []
     assert audit.missing_material == []
     assert audit.required_followups == []
+
+
+@pytest.mark.asyncio
+async def test_treatment_prompt_uses_refs_and_normalizes_source_focus() -> None:
+    _CaptureRuntime.calls = {}
+    _CaptureRuntime.kwargs_by_agent = {}
+    source_id = str(uuid.uuid4())
+    unused_source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    run = SimpleNamespace(
+        id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        config={"user_prompt": "Treatment topic", "duration_target": 2700, "language": "ru"},
+    )
+    source = _source_card(source_id=source_id, title="Treatment source")
+    unused_source = _source_card(source_id=unused_source_id, title="Unused treatment source")
+    memo = ResearchMemo(
+        title="Memo",
+        thesis="Thesis",
+        research_synthesis="Synthesis",
+        editorial_atoms=[
+            EditorialAtom(
+                kind="mechanism",
+                title="Mechanism",
+                explanation="A grounded mechanism.",
+                source_ids=[source_id],
+                anchor_refs=["backend-anchor"],
+                evidence_ids=[evidence_id],
+                story_value="Explains the system.",
+            )
+        ],
+    )
+    treatment_response = TreatmentPlan(
+        title="Episode",
+        logline="A plan.",
+        host_dynamic="A drives; B pressure-tests.",
+        acts=[
+            TreatmentPlanAct(
+                act_number=1,
+                title="Act",
+                story_role="mechanism",
+                opening_question="How does it work?",
+                main_turn="The mechanism turns.",
+                ending_turn="The next act complicates it.",
+                source_focus=["S01"],
+                target_minutes=10,
+                required_atom_refs=["A01"],
+                source_density_target=1,
+            )
+        ],
+    )
+
+    treatment = await build_treatment(
+        None,  # type: ignore[arg-type]
+        run,
+        _CaptureRuntime(treatment_response),
+        research_memo=memo,
+        source_map=SourceMap(
+            gaps=[
+                "Global unrelated gap.",
+                "S01 relevant caution: use this source for institutional framing, not as neutral policy explanation.",
+            ]
+        ),
+        source_inventory=SourceMap(source_cards=[source, unused_source]),
+        research_audit=ResearchAudit(
+            passed=True,
+            score=0.9,
+            verdict="ok with minor caveat",
+            issues=[
+                ResearchAuditIssue(
+                    issue_type="source_gap",
+                    severity="minor",
+                    target_step="treatment",
+                    description="Minor caveat for treatment.",
+                )
+            ],
+        ),
+        evidence_tools=[],
+    )
+
+    prompt = _CaptureRuntime.kwargs_by_agent["story_editor"]["prompt"]
+    assert "Treatment input:" in prompt
+    assert "Create exactly" not in prompt
+    assert "Create 4-6 acts" in prompt
+    assert '"act_count_range": {"min": 4, "max": 6}' in prompt
+    assert '"atom_ref"' in prompt
+    assert '"source_refs"' in prompt
+    assert '"source_context"' in prompt
+    assert '"source_cautions"' in prompt
+    assert '"source_notes"' not in prompt
+    assert '"audit_constraints"' in prompt
+    assert "Minor caveat for treatment." in prompt
+    assert "S01 relevant caution: use this source for institutional framing" in prompt
+    assert "Global unrelated gap." not in prompt
+    assert '"caution": "low"' not in prompt
+    assert '"quote_refs"' not in prompt
+    assert '"required_quote_refs"' not in prompt
+    assert source_id not in prompt
+    assert unused_source_id not in prompt
+    assert "Unused treatment source" not in prompt
+    assert evidence_id not in prompt
+    assert '"evidence_ids"' not in prompt
+    assert '"source_ids"' not in prompt
+    assert '"source_inventory"' not in prompt
+    assert '"source_index"' not in prompt
+    assert '"source_map_summary"' not in prompt
+    assert '"anchor_refs"' not in prompt
+    assert "version_count" not in prompt
+    assert "ready_version_count" not in prompt
+    assert "failed_version_count" not in prompt
+    assert "representation_summary" not in prompt
+    assert "coverage_status" not in prompt
+    assert "length_hint" not in prompt
+    assert "source_coverage_status" not in prompt
+    assert _CaptureRuntime.kwargs_by_agent["story_editor"]["schema_model"] is TreatmentPlan
+    assert _CaptureRuntime.calls["story_editor"] == []
+    assert _CaptureRuntime.kwargs_by_agent["story_editor"]["tool_policy"].local_tools is False
+    assert treatment.acts[0].source_focus == [source_id]
+    assert treatment.acts[0].required_evidence_ids == [evidence_id]
+
+
+def test_treatment_plan_schema_does_not_expose_evidence_ids() -> None:
+    assert "required_evidence_ids" not in TreatmentPlanAct.model_fields
+    assert "required_quote_refs" not in TreatmentPlanAct.model_fields
+    assert "required_atom_refs" in TreatmentPlanAct.model_fields
+
+
+def test_fallback_treatment_uses_atom_refs_not_anchor_refs() -> None:
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    run = SimpleNamespace(config={"user_prompt": "Topic", "duration_target": 2700})
+    memo = ResearchMemo(
+        title="Memo",
+        thesis="Thesis",
+        research_synthesis="Synthesis",
+        editorial_atoms=[
+            EditorialAtom(
+                kind="mechanism",
+                title="Mechanism",
+                explanation="A grounded mechanism.",
+                source_ids=[source_id],
+                anchor_refs=["backend-anchor"],
+                evidence_ids=[evidence_id],
+                story_value="Explains the system.",
+            )
+        ],
+    )
+
+    treatment = _fallback_treatment(run, memo, 1)
+
+    assert treatment.acts[0].required_atom_refs == ["A01"]
+    assert treatment.acts[0].required_quote_refs == []
+    assert "backend-anchor" not in treatment.acts[0].required_atom_refs
+    assert treatment.acts[0].required_evidence_ids == [evidence_id]
+
+
+@pytest.mark.asyncio
+async def test_treatment_unknown_atom_ref_fails_before_persisted_treatment() -> None:
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    run = SimpleNamespace(
+        id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        config={"user_prompt": "Treatment topic", "duration_target": 2700, "language": "ru"},
+    )
+    memo = ResearchMemo(
+        title="Memo",
+        thesis="Thesis",
+        research_synthesis="Synthesis",
+        editorial_atoms=[
+            EditorialAtom(
+                kind="mechanism",
+                title="Mechanism",
+                explanation="A grounded mechanism.",
+                source_ids=[source_id],
+                evidence_ids=[evidence_id],
+                story_value="Explains the system.",
+            )
+        ],
+    )
+    response = TreatmentPlan(
+        title="Episode",
+        logline="A plan.",
+        host_dynamic="A drives; B pressure-tests.",
+        acts=[
+            TreatmentPlanAct(
+                act_number=1,
+                title="Act",
+                story_role="mechanism",
+                opening_question="How?",
+                main_turn="Turn.",
+                ending_turn="End.",
+                target_minutes=45,
+                required_atom_refs=["A99"],
+                source_density_target=1,
+            )
+        ],
+    )
+
+    with pytest.raises(ValueError, match="unknown atom refs"):
+        await build_treatment(
+            None,  # type: ignore[arg-type]
+            run,
+            _CaptureRuntime(response),
+            research_memo=memo,
+            source_map=SourceMap(),
+            source_inventory=SourceMap(source_cards=[_source_card(source_id=source_id)]),
+            research_audit=ResearchAudit(passed=True, score=0.9, verdict="ok"),
+            evidence_tools=[],
+        )
+
+
+def test_treatment_act_count_range_and_gate_allow_editorial_choice() -> None:
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    source = _source_card(source_id=source_id)
+    acts = [
+        TreatmentAct(
+            act_number=idx,
+            title=f"Act {idx}",
+            story_role="turn",
+            opening_question="What changes?",
+            main_turn="The story advances.",
+            ending_turn="The next question is clear.",
+            source_focus=[source_id],
+            target_minutes=9,
+            required_atom_refs=[f"A{idx:02d}"],
+            required_evidence_ids=[evidence_id],
+            source_density_target=1,
+        )
+        for idx in range(1, 6)
+    ]
+
+    assert treatment_act_count_range(2700) == (4, 6)
+    gate = _validate_treatment(
+        Treatment(title="Episode", logline="Plan.", host_dynamic="A/B.", acts=acts),
+        [source],
+        duration_seconds=2700,
+    )
+    assert gate.passed is True
+
+    too_few = _validate_treatment(
+        Treatment(title="Episode", logline="Plan.", host_dynamic="A/B.", acts=acts[:3]),
+        [source],
+        duration_seconds=2700,
+    )
+    assert too_few.passed is False
+    assert "requires 4-6 acts" in too_few.weak_sections[0]
+
+    no_expanded_evidence = _validate_treatment(
+        Treatment(
+            title="Episode",
+            logline="Plan.",
+            host_dynamic="A/B.",
+            acts=[acts[0].model_copy(update={"required_evidence_ids": []})],
+        ),
+        [source],
+        duration_seconds=2700,
+    )
+    assert no_expanded_evidence.passed is False
+    assert any("lacks enough required evidence ids" in issue for issue in no_expanded_evidence.weak_sections)
 
 
 @pytest.mark.asyncio

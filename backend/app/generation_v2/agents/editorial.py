@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -81,6 +82,8 @@ from app.generation_v2.schemas import (
     SupportJudgmentBundle,
     Treatment,
     TreatmentAct,
+    TreatmentPlan,
+    TreatmentPlanAct,
 )
 from app.models.generation_run import GenerationRun
 from app.generation_v2.tools.evidence_toolset import EvidenceToolset
@@ -145,7 +148,6 @@ RESEARCH_JOB_TOOL_NAMES = {
 }
 RESEARCH_FINALIZER_TOOL_NAMES = {"merge_editorial_atoms", "record_research_risk", "record_research_gap", "finalize_research_memo"}
 AUDIT_TOOL_NAMES = {"search_corpus", "read_evidence"}
-TREATMENT_TOOL_NAMES = {"read_evidence", "read_source_window", "search_within_source"}
 WRITER_TOOL_NAMES = {"read_evidence", "read_source_window", "search_within_source"}
 CRITIC_TOOL_NAMES = {"search_corpus", "read_evidence"}
 REWRITER_TOOL_NAMES = {"read_evidence", "read_source_window", "search_within_source"}
@@ -374,6 +376,17 @@ def _trim(text: str, limit: int) -> str:
     if len(text) <= limit:
         return text
     return f"{text[: max(0, limit - 3)].rstrip()}..."
+
+
+def _dedupe_strings(values) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        text = str(value or "").strip()
+        if text and text not in seen:
+            seen.add(text)
+            result.append(text)
+    return result
 
 
 def _quote_matches_requirements(quote: QuoteCard, refs: set[str]) -> bool:
@@ -925,6 +938,223 @@ def _source_refs_for_ids(source_ids: list[str], context: SourceRefContext) -> li
     return refs
 
 
+def _risk_for_treatment(risk: str) -> str:
+    risk = _trim(risk, 360)
+    if risk.lower() in {"low", "medium", "high"}:
+        return ""
+    if len(risk) < 55:
+        return ""
+    return risk
+
+
+def _treatment_atom_payload(atom: EditorialAtom, idx: int, context: SourceRefContext) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "atom_ref": f"A{idx:02d}",
+        "kind": atom.kind,
+        "title": atom.title,
+        "explanation": _trim(atom.explanation, 700),
+        "story_value": _trim(atom.story_value, 420),
+        "source_refs": _source_refs_for_ids(atom.source_ids, context),
+        "confidence": atom.confidence,
+    }
+    risk = _risk_for_treatment(atom.risk)
+    if risk:
+        payload["caution"] = risk
+    return payload
+
+
+def _treatment_atom_refs(research_memo: ResearchMemo) -> dict[str, EditorialAtom]:
+    return {f"A{idx:02d}": atom for idx, atom in enumerate(research_memo.editorial_atoms, start=1)}
+
+
+def _treatment_referenced_source_refs(
+    *,
+    research_memo: ResearchMemo,
+    source_map: SourceMap,
+    research_audit: ResearchAudit | None,
+    context: SourceRefContext,
+) -> set[str]:
+    refs: set[str] = set()
+    for atom in research_memo.editorial_atoms:
+        refs.update(_source_refs_for_ids(atom.source_ids, context))
+    if research_audit is not None:
+        for issue in research_audit.issues:
+            for value in issue.source_refs:
+                text = str(value or "").strip()
+                if not text:
+                    continue
+                if text in context.source_id_by_ref:
+                    refs.add(text)
+                elif text in context.ref_by_source_id:
+                    refs.add(context.ref_by_source_id[text])
+    refs.discard("S??")
+    return refs
+
+
+def _treatment_source_context(
+    source_cards: list[SourceCard],
+    *,
+    referenced_refs: set[str],
+    ref_context: SourceRefContext,
+) -> list[dict[str, Any]]:
+    context = ref_context
+    context_rows: list[dict[str, Any]] = []
+    for card in source_cards:
+        source_ref = source_ref_for_id(card.source_id, context)
+        if source_ref not in referenced_refs:
+            continue
+        row = {
+            "source_ref": source_ref,
+            "title": _trim(card.title, 220),
+            "domain": card.domain,
+            "source_type": card.source_type,
+        }
+        hint = _trim(card.summary, 260)
+        role_bits = [_trim(item, 160) for item in card.useful_for[:3] if item]
+        if role_bits:
+            row["role_hint"] = "; ".join(role_bits)
+        elif hint:
+            row["role_hint"] = hint
+        context_rows.append(row)
+    return context_rows
+
+
+def _source_note_ref_pair(source_id: str, related_source_id: str, context: SourceRefContext) -> tuple[str, str] | None:
+    left = source_ref_for_id(source_id, context)
+    right = source_ref_for_id(related_source_id, context)
+    if "S??" in {left, right}:
+        return None
+    return left, right
+
+
+_LOW_VALUE_TREATMENT_CAUTION_FRAGMENTS = (
+    "read window",
+    "skimmed window",
+    "narrower window",
+    "extracted text",
+    "ocr",
+    "summary excerpt",
+    "quote carefully",
+)
+
+
+def _treatment_relevant_caution(text: str) -> str:
+    text = _trim(text, 320)
+    if len(text) < 45:
+        return ""
+    lowered = text.lower()
+    if any(fragment in lowered for fragment in _LOW_VALUE_TREATMENT_CAUTION_FRAGMENTS):
+        return ""
+    return text
+
+
+def _add_source_caution(
+    cautions: list[dict[str, Any]],
+    seen: set[tuple[str, tuple[str, ...], str]],
+    *,
+    category: str,
+    source_refs: list[str],
+    note: str,
+) -> None:
+    refs = tuple(sorted({ref for ref in source_refs if ref != "S??"}))
+    note = _treatment_relevant_caution(note)
+    if not refs or not note:
+        return
+    key = (category, refs, note.lower())
+    if key in seen:
+        return
+    seen.add(key)
+    cautions.append({"category": category, "source_refs": list(refs), "note": note})
+
+
+def _treatment_source_cautions(
+    *,
+    source_map: SourceMap,
+    source_inventory: SourceMap,
+    referenced_refs: set[str],
+    ref_context: SourceRefContext,
+) -> list[dict[str, Any]]:
+    cautions: list[dict[str, Any]] = []
+    seen: set[tuple[str, tuple[str, ...], str]] = set()
+    inventory_cards = {card.source_id: card for card in source_inventory.source_cards}
+    for relationship in source_map.source_triage.source_relationships:
+        refs = _source_note_ref_pair(relationship.source_id, relationship.related_source_id, ref_context)
+        if refs is None or not (set(refs) & referenced_refs):
+            continue
+        if relationship.relationship not in {
+            "duplicate",
+            "near_duplicate",
+            "primary_to_secondary",
+            "contradicts",
+            "updates",
+        }:
+            continue
+        rationale = _trim(relationship.rationale, 320)
+        _add_source_caution(
+            cautions,
+            seen,
+            category=relationship.relationship,
+            source_refs=list(refs),
+            note=rationale or f"{refs[0]} is {relationship.relationship} with {refs[1]}.",
+        )
+    for cluster in source_map.source_triage.source_clusters:
+        cluster_refs = [source_ref_for_id(source_id, ref_context) for source_id in cluster.source_ids]
+        cluster_refs = [ref for ref in cluster_refs if ref != "S??"]
+        if not set(cluster_refs) & referenced_refs:
+            continue
+        duplicate_refs = [source_ref_for_id(source_id, ref_context) for source_id in cluster.duplicate_source_ids]
+        duplicate_refs = [ref for ref in duplicate_refs if ref != "S??"]
+        if duplicate_refs or cluster.rationale:
+            refs = ", ".join(cluster_refs[:8])
+            duplicate_note = f"; duplicates: {', '.join(duplicate_refs[:6])}" if duplicate_refs else ""
+            _add_source_caution(
+                cautions,
+                seen,
+                category="cluster",
+                source_refs=cluster_refs[:8],
+                note=f"{cluster.label}: {refs}{duplicate_note}. {_trim(cluster.rationale, 280)}".strip(),
+            )
+    for card in [*source_map.source_cards, *inventory_cards.values()]:
+        source_ref = source_ref_for_id(card.source_id, ref_context)
+        if source_ref not in referenced_refs:
+            continue
+        for caution in card.gaps_or_cautions[:2]:
+            _add_source_caution(
+                cautions,
+                seen,
+                category="source",
+                source_refs=[source_ref],
+                note=str(caution),
+            )
+    ref_pattern = re.compile(r"\bS\d+\b")
+    for gap in [*source_map.gaps, *source_map.source_triage.gaps, *source_map.contradictions]:
+        text = _trim(str(gap or ""), 360)
+        mentioned_refs = set(ref_pattern.findall(text))
+        if text and mentioned_refs and mentioned_refs & referenced_refs:
+            _add_source_caution(
+                cautions,
+                seen,
+                category="corpus",
+                source_refs=sorted(mentioned_refs & referenced_refs),
+                note=text,
+            )
+    return cautions[:12]
+
+
+def _treatment_audit_constraints(research_memo: ResearchMemo, research_audit: ResearchAudit | None) -> list[str]:
+    constraints: list[str] = []
+    constraints.extend(_trim(item, 420) for item in research_memo.risk_register[:20] if item)
+    constraints.extend(f"Open question: {_trim(item, 360)}" for item in research_memo.open_questions[:8] if item)
+    if research_audit is not None:
+        if research_audit.verdict:
+            constraints.append(f"Audit verdict: {_trim(research_audit.verdict, 500)}")
+        for issue in research_audit.issues[:20]:
+            if issue.severity == "blocking":
+                continue
+            constraints.append(f"{issue.severity} {issue.issue_type}: {_trim(issue.description, 420)}")
+    return _dedupe_strings(constraints)[:32]
+
+
 def _research_audit_input(
     *,
     run: GenerationRun,
@@ -1022,6 +1252,128 @@ def _normalize_research_audit(audit: ResearchAudit) -> ResearchAudit:
     return audit
 
 
+def _treatment_input(
+    *,
+    run: GenerationRun,
+    research_memo: ResearchMemo,
+    source_map: SourceMap,
+    source_inventory: SourceMap,
+    research_audit: ResearchAudit | None,
+    act_count_range: tuple[int, int],
+) -> dict[str, Any]:
+    context = _source_ref_context(source_inventory.source_cards)
+    referenced_refs = _treatment_referenced_source_refs(
+        research_memo=research_memo,
+        source_map=source_map,
+        research_audit=research_audit,
+        context=context,
+    )
+    return {
+        "episode_brief": {
+            "topic": str((run.config or {}).get("user_prompt") or "")[:700],
+            "language": str((run.config or {}).get("language") or "en"),
+            "duration_minutes": int((run.config or {}).get("duration_target", 1800)) // 60,
+            "act_count_range": {"min": act_count_range[0], "max": act_count_range[1]},
+            "title": research_memo.title,
+            "thesis": _trim(research_memo.thesis, 900),
+            "research_synthesis": _trim(research_memo.research_synthesis, 1400),
+        },
+        "research_atoms": [
+            _treatment_atom_payload(atom, idx, context) for idx, atom in enumerate(research_memo.editorial_atoms, start=1)
+        ],
+        "source_context": _treatment_source_context(
+            source_inventory.source_cards,
+            referenced_refs=referenced_refs,
+            ref_context=context,
+        ),
+        "source_cautions": _treatment_source_cautions(
+            source_map=source_map,
+            source_inventory=source_inventory,
+            referenced_refs=referenced_refs,
+            ref_context=context,
+        ),
+        "audit_constraints": _treatment_audit_constraints(research_memo, research_audit),
+    }
+
+
+def _resolve_treatment_source_focus(
+    *,
+    plan_act: TreatmentPlanAct,
+    selected_atoms: list[EditorialAtom],
+    source_inventory: SourceMap,
+) -> list[str]:
+    context = _source_ref_context(source_inventory.source_cards)
+    known_source_ids = set(context.ref_by_source_id)
+    source_focus: list[str] = []
+    for value in plan_act.source_focus:
+        text = str(value or "").strip()
+        source_id = context.source_id_by_ref.get(text)
+        if source_id is None and text in known_source_ids:
+            source_id = text
+        if source_id and source_id not in source_focus:
+            source_focus.append(source_id)
+    minimum = max(1, min(int(plan_act.source_density_target or 1), 2))
+    for atom in selected_atoms:
+        for source_id in atom.source_ids:
+            if source_id and source_id not in source_focus:
+                source_focus.append(source_id)
+            if len(source_focus) >= minimum:
+                break
+        if len(source_focus) >= minimum:
+            break
+    return source_focus
+
+
+def _treatment_from_plan(
+    plan: TreatmentPlan,
+    *,
+    research_memo: ResearchMemo,
+    source_map: SourceMap,
+    source_inventory: SourceMap,
+) -> Treatment:
+    atom_by_ref = _treatment_atom_refs(research_memo)
+    acts: list[TreatmentAct] = []
+    for plan_act in plan.acts:
+        atom_refs = [str(ref).strip() for ref in plan_act.required_atom_refs if str(ref).strip()]
+        unknown_refs = [ref for ref in atom_refs if ref not in atom_by_ref]
+        if unknown_refs:
+            raise ValueError(f"Treatment act {plan_act.act_number} references unknown atom refs: {unknown_refs}")
+        selected_atoms = [atom_by_ref[ref] for ref in atom_refs]
+        evidence_ids: list[str] = []
+        for atom in selected_atoms:
+            for evidence_id in atom.evidence_ids:
+                if evidence_id and evidence_id not in evidence_ids:
+                    evidence_ids.append(evidence_id)
+        acts.append(
+            TreatmentAct(
+                act_number=plan_act.act_number,
+                title=plan_act.title,
+                story_role=plan_act.story_role,
+                opening_question=plan_act.opening_question,
+                main_turn=plan_act.main_turn,
+                ending_turn=plan_act.ending_turn,
+                source_focus=_resolve_treatment_source_focus(
+                    plan_act=plan_act,
+                    selected_atoms=selected_atoms,
+                    source_inventory=source_inventory,
+                ),
+                target_minutes=plan_act.target_minutes,
+                required_atom_refs=atom_refs,
+                required_quote_refs=[],
+                required_evidence_ids=evidence_ids,
+                source_density_target=plan_act.source_density_target,
+            )
+        )
+    return Treatment(
+        title=plan.title,
+        logline=plan.logline,
+        host_dynamic=plan.host_dynamic,
+        acts=acts,
+        recurring_questions=plan.recurring_questions,
+        style_constraints=plan.style_constraints,
+    )
+
+
 async def audit_research_memo(
     db: AsyncSession,
     run: GenerationRun,
@@ -1097,51 +1449,52 @@ async def build_treatment(
     research_memo: ResearchMemo,
     source_map: SourceMap | None = None,
     source_inventory: SourceMap | None = None,
+    research_audit: ResearchAudit | None = None,
     evidence_tools: list[AgentTool] | None = None,
     vector_store_id: str | None = None,
     show_bible: ShowBibleContext | None = None,
 ) -> Treatment:
     source_map = source_map or SourceMap()
     full_source_inventory = source_inventory or source_map
-    source_ref_context = _source_ref_context(full_source_inventory.source_cards)
-    act_count = _act_count(int((run.config or {}).get("duration_target", 1800)))
+    act_count_range = treatment_act_count_range(int((run.config or {}).get("duration_target", 1800)))
     prompt = TREATMENT_PROMPT.format(
-        user_prompt=(run.config or {}).get("user_prompt", ""),
-        duration_minutes=int((run.config or {}).get("duration_target", 1800)) // 60,
-        language=(run.config or {}).get("language", "en"),
         show_bible_json=(show_bible or ShowBibleContext()).model_dump_json(),
-        act_count=act_count,
-        research_memo_json=research_memo.model_dump_json(),
-        source_map_json=_json(
-            {
-                "full_sources": _source_inventory(
-                    full_source_inventory.source_cards,
-                    limit=160,
-                    ref_context=source_ref_context,
-                ),
-                "sources": _source_inventory(source_map.source_cards, limit=80, ref_context=source_ref_context),
-                "quotes": _quote_inventory(source_map.quote_cards, limit=60, ref_context=source_ref_context),
-                "triage": _triage_inventory(source_map.source_triage, ref_context=source_ref_context),
-            }
+        min_act_count=act_count_range[0],
+        max_act_count=act_count_range[1],
+        treatment_input_json=_json(
+            _treatment_input(
+                run=run,
+                research_memo=research_memo,
+                source_map=source_map,
+                source_inventory=full_source_inventory,
+                research_audit=research_audit,
+                act_count_range=act_count_range,
+            )
         ),
     )
     try:
-        return await runtime.call_structured(
+        treatment_plan = await runtime.call_structured(
             db=db,
             generation_run_id=run.id,
             phase="v2_treatment",
             agent_name="story_editor",
-            schema_model=Treatment,
+            schema_model=TreatmentPlan,
             system=TREATMENT_SYSTEM,
             prompt=prompt,
             vector_store_id=None,
-            local_tools=_phase_tools(evidence_tools, TREATMENT_TOOL_NAMES),
-            tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
+            local_tools=[],
+            tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=False),
             max_output_tokens=12000,
+        )
+        return _treatment_from_plan(
+            treatment_plan,
+            research_memo=research_memo,
+            source_map=source_map,
+            source_inventory=full_source_inventory,
         )
     except V2RuntimeUnavailable as exc:
         _allow_runtime_fallback(runtime, "v2_treatment", "story_editor", exc)
-        return _fallback_treatment(run, research_memo, act_count)
+        return _fallback_treatment(run, research_memo, _fallback_act_count(act_count_range))
 
 
 def build_act_dossier(
@@ -1603,8 +1956,8 @@ def _fallback_treatment(run: GenerationRun, memo: ResearchMemo, act_count: int) 
                 ending_turn=f"The next layer changes how we understand {memo.title}.",
                 source_focus=atom.source_ids,
                 target_minutes=per_act,
-                required_atom_refs=atom.anchor_refs,
-                required_quote_refs=atom.quote_refs,
+                required_atom_refs=[f"A{((idx - 1) % len(memo.editorial_atoms)) + 1:02d}"],
+                required_quote_refs=[],
                 required_evidence_ids=atom.evidence_ids,
                 source_density_target=max(1, min(3, len(atom.source_ids) or 1)),
             )
@@ -1748,15 +2101,23 @@ def _fallback_support_judgments(bundle: ClaimCitationBundle, evidence_by_id: dic
     return SupportJudgmentBundle.model_validate({"judgments": judgments})
 
 
-def _act_count(duration_seconds: int) -> int:
+def treatment_act_count_range(duration_seconds: int) -> tuple[int, int]:
     minutes = duration_seconds / 60
+    if minutes <= 20:
+        return (2, 3)
     if minutes <= 30:
-        return 3
+        return (3, 4)
     if minutes <= 45:
-        return 4
+        return (4, 6)
     if minutes < 60:
-        return 5
-    return 6
+        return (5, 7)
+    if minutes < 75:
+        return (6, 8)
+    return (7, 9)
+
+
+def _fallback_act_count(act_count_range: tuple[int, int]) -> int:
+    return max(act_count_range[0], round((act_count_range[0] + act_count_range[1]) / 2))
 
 
 def _json(value: object) -> str:

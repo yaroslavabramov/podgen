@@ -44,14 +44,14 @@ Goal: decide whether the research memo is specific, grounded, and dense enough t
 Fail the audit when the memo is generic, under-sourced, missing conflict/mechanism/turn material, or too shallow for the target duration. Route failures to the step that should fix them: research, research finalizer, source acquisition, or treatment caution. Required followups should be concrete repair actions, not vague advice."""
 
 
-TREATMENT_SYSTEM = BASE_PODCAST_SYSTEM + """
+TREATMENT_SYSTEM = """You are the story editor inside a source-grounded long-form podcast production system.
+The product turns a user topic plus an indexed corpus into a two-host episode. The episode should feel like editorial work, not a summary: it needs conflict, mechanism, history, turns, consequences, exceptions, human stakes, institutional incentives, and unresolved risks.
 
-Your role: story editor.
-Goal: design the episode's act structure from the research memo and SourceMap.
+Your role: design the episode's act structure from the research atoms and treatment brief.
+Goal: build the listener-facing sequence. Each act is a listener job: it should change what the listener understands, not merely cover a topic.
 
-Each act is a listener job: it should change what the listener understands, not merely cover a topic. Allocate runtime to earned editorial work. Each act must specify source focus, required atoms, required evidence, and the turn it delivers.
-
-Do not do broad research. Use targeted reads only when a treatment requirement is unclear. Do not invent source or evidence handles."""
+Use source_ref values and atom_ref handles from the treatment input. Do not do research in treatment. If the brief is too weak, reflect that as a constraint instead of inventing material.
+Write in the requested output language. Return only JSON matching the requested schema."""
 
 
 ACT_WRITER_SYSTEM = BASE_PODCAST_SYSTEM + """

@@ -21,6 +21,7 @@ from app.generation_v2.agents.editorial import (
     rewrite_act_draft,
     extract_and_link_claims,
     judge_claim_support,
+    treatment_act_count_range,
     update_continuity_ledger,
     write_act_draft,
 )
@@ -318,6 +319,7 @@ async def execute_generation_v2(
             research_memo=memo,
             source_map=source_map,
             source_inventory=triage_state.source_inventory,
+            research_audit=audit,
             evidence_tools=evidence_tools,
             show_bible=show_bible,
         )
@@ -366,6 +368,7 @@ async def execute_generation_v2(
             research_memo=memo,
             source_map=source_map,
             source_inventory=triage_state.source_inventory,
+            research_audit=audit,
             evidence_tools=evidence_tools,
             show_bible=show_bible,
         )
@@ -1704,14 +1707,21 @@ async def _load_show_bible_context(db: AsyncSession, run: GenerationRun) -> Show
 def _validate_treatment(treatment: Treatment, source_cards: list[SourceCard], duration_seconds: int) -> EpisodeCritique:
     source_ids = {card.source_id for card in source_cards if card.coverage_status in {"ready", "partial"}}
     issues: list[str] = []
-    if duration_seconds >= 3600 and len(treatment.acts) < 6:
-        issues.append("Long-form V2 treatment requires at least 6 acts.")
+    min_acts, max_acts = treatment_act_count_range(duration_seconds)
+    if not (min_acts <= len(treatment.acts) <= max_acts):
+        issues.append(f"Treatment requires {min_acts}-{max_acts} acts for this target duration.")
+    target_minutes = duration_seconds / 60
+    total_minutes = sum(max(0.0, float(act.target_minutes or 0.0)) for act in treatment.acts)
+    if treatment.acts and not (target_minutes * 0.85 <= total_minutes <= target_minutes * 1.15):
+        issues.append(
+            f"Treatment act target_minutes total {total_minutes:.1f} does not match target duration {target_minutes:.1f}."
+        )
     for act in treatment.acts:
         if len(set(act.source_focus) & source_ids) < max(1, min(act.source_density_target, 2)):
             issues.append(f"Act {act.act_number} does not meet source density target.")
-        if not act.required_atom_refs and duration_seconds >= 3600:
+        if not act.required_atom_refs and duration_seconds >= 2700:
             issues.append(f"Act {act.act_number} lacks required editorial atom anchors.")
-        if duration_seconds >= 3600 and len(act.required_evidence_ids) < max(1, min(act.source_density_target, 2)):
+        if duration_seconds >= 2700 and len(act.required_evidence_ids) < max(1, min(act.source_density_target, 2)):
             issues.append(f"Act {act.act_number} lacks enough required evidence ids for long-form drafting.")
     return EpisodeCritique(
         passed=not issues,
