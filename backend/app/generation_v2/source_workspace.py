@@ -736,10 +736,10 @@ def _infer_useful_for(text: str) -> list[str]:
     lower = (text or "").lower()
     buckets: list[str] = []
     for label, markers in {
-        "history": ("history", "timeline", "founded", "began", "started"),
+        "context": ("history", "timeline", "founded", "began", "started", "background"),
         "mechanism": ("mechanism", "because", "how it works", "process", "system"),
-        "conflict": ("conflict", "debate", "critic", "lawsuit", "controvers"),
-        "consequence": ("impact", "result", "consequence", "cost", "effect"),
+        "tension": ("conflict", "debate", "critic", "lawsuit", "controvers", "tradeoff"),
+        "impact": ("impact", "result", "consequence", "cost", "effect"),
     }.items():
         if any(marker in lower for marker in markers):
             buckets.append(label)

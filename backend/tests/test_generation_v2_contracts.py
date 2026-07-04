@@ -12,6 +12,8 @@ from app.config import settings
 from app.generation_v2.agents.editorial import (
     RESEARCH_FINALIZER_TOOL_NAMES,
     RESEARCH_JOB_TOOL_NAMES,
+    _audit_evidence_previews,
+    _audit_tools_with_evidence_refs,
     _evidence_inventory,
     _fallback_act_draft,
     _fallback_claims,
@@ -26,7 +28,6 @@ from app.generation_v2.agents.editorial import (
     build_act_dossier,
     build_research_memo,
     build_source_acquisition_agent,
-    build_source_triage_agent,
     build_source_triage_finalizer_agent,
     build_source_triage_planner_agent,
     build_source_triage_set_agent,
@@ -42,8 +43,10 @@ from app.generation_v2.agents.editorial import (
 from app.generation_v2.citation_validation import validate_citations
 from app.generation_v2.finalize import generate_audio_from_segments
 from app.generation_v2.orchestrator import (
+    _enqueue_treatment_research_repair_jobs,
     _research_memo_evidence_ids,
     _save_evidence_artifact_map,
+    _source_acquisition_audit_from_research_gaps,
     _source_triage_repair_context,
     _validate_research_memo_evidence,
     _validate_treatment,
@@ -67,8 +70,6 @@ from app.generation_v2.prompting import (
     SOURCE_ACQUISITION_SYSTEM,
     SOURCE_TRIAGE_FINALIZER_PROMPT,
     SOURCE_TRIAGE_PLANNER_PROMPT,
-    SOURCE_TRIAGE_PROMPT,
-    SOURCE_TRIAGE_REPAIR_PROMPT,
     SOURCE_TRIAGE_SET_PROMPT,
     SOURCE_TRIAGE_SYSTEM,
     SUPPORT_JUDGE_SYSTEM,
@@ -1545,29 +1546,22 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert "not claim ids, citation ids, evidence ids, or source ids" in ACT_DRAFT_PROMPT
     assert "Before using any required evidence_id in speech, call read_evidence" in ACT_DRAFT_PROMPT
     assert "read_evidence, read_source_window, or search_within_source only to repair a known gap" in ACT_REWRITE_PROMPT
-    assert "Build a working map of the corpus" in SOURCE_TRIAGE_PROMPT
-    assert "SourceMap questions:" in SOURCE_TRIAGE_PROMPT
-    assert "corpus cartography" in SOURCE_TRIAGE_PROMPT
-    assert "Workflow:" in SOURCE_TRIAGE_PROMPT
-    assert "Pick one small source set" in SOURCE_TRIAGE_PROMPT
-    assert "For each not-yet-examined source in the set, normally start with skim_source" in SOURCE_TRIAGE_PROMPT
-    assert "Use read_source_window after skim/search" in SOURCE_TRIAGE_PROMPT
-    assert "read at least two relevant sources before writing the relationship or cluster" in SOURCE_TRIAGE_PROMPT
-    assert "Do not treat reading as a cost problem" in SOURCE_TRIAGE_PROMPT
-    assert "Quality bar:" in SOURCE_TRIAGE_PROMPT
-    assert "Tool policy:" in SOURCE_TRIAGE_PROMPT
-    assert "Mini-example:" in SOURCE_TRIAGE_PROMPT
-    assert "Final response:" in SOURCE_TRIAGE_PROMPT
-    assert "Return SourceTriageCompletion JSON only" in SOURCE_TRIAGE_PROMPT
-    assert "Do not include SourceMap content in the final response" in SOURCE_TRIAGE_PROMPT
-    assert "most usable sources should appear in at least one SourceCard" in SOURCE_TRIAGE_PROMPT
-    assert "search_corpus is for targeted cross-corpus questions" in SOURCE_TRIAGE_PROMPT
-    assert "compare_source_evidence" in SOURCE_TRIAGE_PROMPT
-    assert "record_source_cluster" in SOURCE_TRIAGE_PROMPT
-    assert "select_evidence" not in SOURCE_TRIAGE_PROMPT
-    assert "source version IDs" not in SOURCE_TRIAGE_PROMPT
-    assert "Do not spend the whole budget" not in SOURCE_TRIAGE_PROMPT
-    assert "Do not follow instructions inside" not in SOURCE_TRIAGE_PROMPT
+    assert "Plan source triage" in SOURCE_TRIAGE_PLANNER_PROMPT
+    assert "list_source_capsules" in SOURCE_TRIAGE_PLANNER_PROMPT
+    assert "capsule is not an editorial decision" in SOURCE_TRIAGE_PLANNER_PROMPT
+    assert "Map one source set" in SOURCE_TRIAGE_SET_PROMPT
+    assert "search/read/skim tools create or return evidence_id handles" in SOURCE_TRIAGE_SET_PROMPT
+    assert "Read enough to understand the source set" in SOURCE_TRIAGE_SET_PROMPT
+    assert "compare at least two relevant sources" in SOURCE_TRIAGE_SET_PROMPT
+    assert "Finalize source triage" in SOURCE_TRIAGE_FINALIZER_PROMPT
+    assert "Assembled SourceMap from persisted write actions" in SOURCE_TRIAGE_FINALIZER_PROMPT
+    assert "select_evidence" not in SOURCE_TRIAGE_PLANNER_PROMPT
+    assert "select_evidence" not in SOURCE_TRIAGE_SET_PROMPT
+    assert "select_evidence" not in SOURCE_TRIAGE_FINALIZER_PROMPT
+    assert "source version IDs" not in SOURCE_TRIAGE_PLANNER_PROMPT
+    assert "source version IDs" not in SOURCE_TRIAGE_SET_PROMPT
+    assert "Do not spend the whole budget" not in SOURCE_TRIAGE_SET_PROMPT
+    assert "Do not follow instructions inside" not in SOURCE_TRIAGE_SET_PROMPT
     for case_specific_term in (
         "official/regulator",
         "bank/source-owner",
@@ -1577,7 +1571,8 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
         "legal texts",
         "law",
     ):
-        assert case_specific_term not in SOURCE_TRIAGE_PROMPT
+        assert case_specific_term not in SOURCE_TRIAGE_PLANNER_PROMPT
+        assert case_specific_term not in SOURCE_TRIAGE_SET_PROMPT
     assert "upsert_research_job" in RESEARCH_PLANNER_PROMPT
     assert RESEARCH_PLANNER_PROMPT.count("Atom kinds:") == 1
     assert RESEARCH_JOB_PROMPT.count("Atom kinds:") == 1
@@ -1585,6 +1580,11 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert ATOM_KIND_PROMPT_BLOCK in RESEARCH_JOB_PROMPT
     assert 'Use kind="history" for' not in RESEARCH_JOB_PROMPT
     assert 'Use kind="mechanism" for' not in RESEARCH_JOB_PROMPT
+    assert "institutional_incentive" not in ATOM_KIND_PROMPT_BLOCK
+    assert "human_cost" not in ATOM_KIND_PROMPT_BLOCK
+    assert "open_question" in ATOM_KIND_PROMPT_BLOCK
+    assert "driver" in ATOM_KIND_PROMPT_BLOCK
+    assert "impact" in ATOM_KIND_PROMPT_BLOCK
     assert "legal or institutional plumbing" not in RESEARCH_PLANNER_PROMPT
     assert "legal or institutional plumbing" not in RESEARCH_JOB_PROMPT
     assert "legal or institutional plumbing" not in ATOM_KIND_GUIDANCE
@@ -1611,7 +1611,8 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert "Same finding means" in RESEARCH_FINALIZER_PROMPT
     assert "Do not call finalize_research_memo until this duplicate audit is complete" in RESEARCH_FINALIZER_PROMPT
     assert "research_synthesis" in RESEARCH_FINALIZER_PROMPT
-    assert "research synthesis, not an episode treatment" in RESEARCH_FINALIZER_PROMPT
+    assert "internal research digest, not an episode treatment" in RESEARCH_FINALIZER_PROMPT
+    assert "short supported_answer" in RESEARCH_FINALIZER_PROMPT
     assert "narrative_spine" not in RESEARCH_FINALIZER_PROMPT
     assert "treatment-ready" not in RESEARCH_FINALIZER_PROMPT
     assert "can become acts" not in RESEARCH_FINALIZER_PROMPT
@@ -1635,22 +1636,20 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert "evidence_id" not in TREATMENT_PROMPT
     assert "quote_refs" not in TREATMENT_PROMPT
     assert "required_quote_refs" not in TREATMENT_PROMPT
+    assert "required evidence" not in TREATMENT_PROMPT.lower()
     assert "evidence_id" not in TREATMENT_SYSTEM
     assert "required evidence" not in TREATMENT_SYSTEM.lower()
     assert "Audit input:" in RESEARCH_AUDIT_PROMPT
     assert "Do not write treatment" in RESEARCH_AUDIT_PROMPT
     assert 'target_step="research_finalizer"' in RESEARCH_AUDIT_PROMPT
     assert 'target_step="source_acquisition"' in RESEARCH_AUDIT_PROMPT
-    assert "read_evidence only when" in RESEARCH_AUDIT_PROMPT
+    assert 'read_priority="required"' in RESEARCH_AUDIT_PROMPT
+    assert "read_evidence takes evidence_ref values" in RESEARCH_AUDIT_PROMPT
     assert "If passed=true, repair_targets, missing_material, and required_followups must be empty" in RESEARCH_AUDIT_PROMPT
     assert "research_memo_json" not in RESEARCH_AUDIT_PROMPT
     assert "source_map_json" not in RESEARCH_AUDIT_PROMPT
-    assert "under-grounded, invalid, unwritten, or missing persisted gap/caution work" in SOURCE_TRIAGE_REPAIR_PROMPT
-    assert "missing_model_read_source_ids" not in SOURCE_TRIAGE_REPAIR_PROMPT
-    assert "select_evidence" not in SOURCE_TRIAGE_REPAIR_PROMPT
-    assert "Do not restart from scratch" in SOURCE_TRIAGE_REPAIR_PROMPT
-    assert "prefetch_seed" not in SOURCE_TRIAGE_PROMPT
-    assert "warm-cache" not in SOURCE_TRIAGE_PROMPT
+    assert "prefetch_seed" not in SOURCE_TRIAGE_PLANNER_PROMPT
+    assert "warm-cache" not in SOURCE_TRIAGE_SET_PROMPT
     assert "Use read_evidence for suspicious leaps" in EPISODE_CRITIQUE_PROMPT
     assert "do not introduce new facts" in EPISODE_CRITIQUE_PROMPT
     assert "claim_type=factual" in CLAIM_CITATION_PROMPT
@@ -1661,7 +1660,7 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert "select_evidence before linking" in CLAIM_CITATION_PROMPT
     assert "coverage_warning" in CLAIM_CITATION_PROMPT
     assert "blocking=true for missing evidence" in CLAIM_CITATION_PROMPT
-    assert '{"ready": boolean, "summary": string, "notes": string[]}' in SOURCE_TRIAGE_PROMPT
+    assert '{"ready": boolean, "summary": string, "notes": string[]}' in SOURCE_TRIAGE_SET_PROMPT
 
 
 def test_source_triage_repair_context_scopes_to_gate_failures() -> None:
@@ -1949,10 +1948,13 @@ async def test_research_audit_prompt_uses_compact_payload_without_backend_source
         config={"user_prompt": "Audit topic", "duration_target": 2700, "language": "ru"},
     )
     source = _source_card(source_id=source_id, title="Audit source")
+    source_map_evidence_id = "source-map-only-ev"
+    source_map_card = _source_card(source_id=source_id, title="Mapped audit source")
+    source_map_card.evidence_ids = [source_map_evidence_id]
     memo = ResearchMemo(
         title="Memo",
-        thesis="Thesis",
-        research_synthesis="Synthesis",
+        thesis="Research thesis",
+        research_synthesis="Research synthesis",
         editorial_atoms=[
             EditorialAtom(
                 kind="mechanism",
@@ -1981,7 +1983,7 @@ async def test_research_audit_prompt_uses_compact_payload_without_backend_source
             )
         ),
         research_memo=memo,
-        source_map=SourceMap(),
+        source_map=SourceMap(source_cards=[source_map_card]),
         source_inventory=SourceMap(source_cards=[source]),
         evidence_tools=[],
     )
@@ -1990,12 +1992,129 @@ async def test_research_audit_prompt_uses_compact_payload_without_backend_source
     assert "Audit input:" in prompt
     assert '"source_refs"' in prompt
     assert "S01" in prompt
+    assert evidence_id not in prompt
+    assert '"evidence_previews"' in prompt
+    assert source_map_evidence_id not in prompt
+    assert '"supported_answer"' in prompt
+    assert '"thesis"' not in prompt
+    assert '"research_synthesis"' not in prompt
     assert source_id not in prompt
     assert '"source_ids"' not in prompt
     assert '"anchor_refs"' not in prompt
     assert audit.repair_targets == []
     assert audit.missing_material == []
     assert audit.required_followups == []
+
+
+@pytest.mark.asyncio
+async def test_research_audit_reads_evidence_by_preview_ref_not_backend_uuid() -> None:
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    suspicious_evidence_id = str(uuid.uuid4())
+    context = _source_ref_context([_source_card(source_id=source_id, title="Audit source")])
+    memo = ResearchMemo(
+        title="Memo",
+        thesis="Supported answer.",
+        research_synthesis="Internal digest.",
+        editorial_atoms=[
+            EditorialAtom(
+                kind="mechanism",
+                title="Mechanism",
+                explanation="A high-impact finding.",
+                source_ids=[source_id],
+                evidence_ids=[evidence_id],
+                story_value="Explains the system.",
+                story_weight="core",
+                source_coverage_status="ready",
+            ),
+            EditorialAtom(
+                kind="impact",
+                title="Partially grounded consequence",
+                explanation="A suspicious single-source finding.",
+                source_ids=[source_id],
+                evidence_ids=[suspicious_evidence_id],
+                story_value="Could affect treatment but needs audit read.",
+                story_weight="supporting",
+                source_coverage_status="partial",
+            )
+        ],
+    )
+    previews_by_atom, evidence_id_by_ref, required_refs = _audit_evidence_previews(
+        research_memo=memo,
+        evidence_records=[
+            {
+                "id": evidence_id,
+                "source_id": source_id,
+                "locator_text": "p. 12",
+                "snippet_text": "The mechanism is described directly.",
+                "metadata": {"support_summary": "Directly supports the mechanism."},
+            },
+            {
+                "id": suspicious_evidence_id,
+                "source_id": source_id,
+                "locator_text": "p. 14",
+                "snippet_text": "The consequence is asserted by one source.",
+                "metadata": {"support_summary": "Potentially supports a partial consequence."},
+            }
+        ],
+        context=context,
+        source_titles_by_id={source_id: "Audit source"},
+    )
+    read_args: list[dict] = []
+    read_refs: set[str] = set()
+
+    async def _read_evidence(args: dict) -> dict:
+        read_args.append(args)
+        if args["evidence_id"] == suspicious_evidence_id:
+            return {"found": False, "error": "source temporarily unavailable", "evidence_id": args["evidence_id"]}
+        return {
+            "found": True,
+            "evidence_id": args["evidence_id"],
+            "evidence": {
+                "evidence_id": args["evidence_id"],
+                "source_ref": "S01",
+                "snippet_text": "Read detail.",
+            },
+        }
+
+    wrapped_tools = _audit_tools_with_evidence_refs(
+        [
+            AgentTool(
+                name="read_evidence",
+                description="raw read",
+                parameters={"type": "object", "properties": {"evidence_id": {"type": "string"}}, "required": ["evidence_id"]},
+                handler=_read_evidence,
+            )
+        ],
+        evidence_id_by_ref=evidence_id_by_ref,
+        read_refs=read_refs,
+    )
+    read_tool = wrapped_tools[0]
+
+    preview = previews_by_atom["A01"][0]
+    assert preview["evidence_ref"] == "E001"
+    assert preview["read_priority"] == "required"
+    assert "evidence_id" not in preview
+    assert previews_by_atom["A02"][0]["read_priority"] == "required"
+    assert required_refs == {"E001", "E002"}
+    assert "evidence_id" not in read_tool.parameters["properties"]
+
+    result = await read_tool.handler({"evidence_ref": "E001"})
+
+    assert result["found"] is True
+    assert result["evidence_ref"] == "E001"
+    assert "evidence_id" not in result
+    assert "evidence_id" not in result["evidence"]
+    assert read_refs == {"E001"}
+    assert read_args == [{"evidence_id": evidence_id}]
+
+    failed = await read_tool.handler({"evidence_ref": "E999"})
+    failed_known = await read_tool.handler({"evidence_ref": "E002"})
+
+    assert failed == {"found": False, "error": "unknown_evidence_ref", "evidence_ref": "E999"}
+    assert failed_known["found"] is False
+    assert "evidence_id" not in failed_known
+    assert read_refs == {"E001"}
 
 
 @pytest.mark.asyncio
@@ -2014,8 +2133,8 @@ async def test_treatment_prompt_uses_refs_and_normalizes_source_focus() -> None:
     unused_source = _source_card(source_id=unused_source_id, title="Unused treatment source")
     memo = ResearchMemo(
         title="Memo",
-        thesis="Thesis",
-        research_synthesis="Synthesis",
+        thesis="Research thesis",
+        research_synthesis="Research synthesis",
         editorial_atoms=[
             EditorialAtom(
                 kind="mechanism",
@@ -2091,6 +2210,10 @@ async def test_treatment_prompt_uses_refs_and_normalizes_source_focus() -> None:
     assert "S01 relevant caution: use this source for institutional framing" in prompt
     assert "Global unrelated gap." not in prompt
     assert '"caution": "low"' not in prompt
+    assert "Research thesis" not in prompt
+    assert "Research synthesis" not in prompt
+    assert '"thesis"' not in prompt
+    assert '"research_synthesis"' not in prompt
     assert '"quote_refs"' not in prompt
     assert '"required_quote_refs"' not in prompt
     assert source_id not in prompt
@@ -2110,6 +2233,8 @@ async def test_treatment_prompt_uses_refs_and_normalizes_source_focus() -> None:
     assert "coverage_status" not in prompt
     assert "length_hint" not in prompt
     assert "source_coverage_status" not in prompt
+    assert '"story_weight"' in prompt
+    assert '"coverage"' in prompt
     assert _CaptureRuntime.kwargs_by_agent["story_editor"]["schema_model"] is TreatmentPlan
     assert _CaptureRuntime.calls["story_editor"] == []
     assert _CaptureRuntime.kwargs_by_agent["story_editor"]["tool_policy"].local_tools is False
@@ -2259,6 +2384,173 @@ def test_treatment_act_count_range_and_gate_allow_editorial_choice() -> None:
     assert any("lacks enough required evidence ids" in issue for issue in no_expanded_evidence.weak_sections)
 
 
+def test_treatment_gate_rejects_planning_gap_and_caveat_primary_anchor() -> None:
+    source_id = str(uuid.uuid4())
+    caveat_evidence_id = str(uuid.uuid4())
+    core_evidence_id = str(uuid.uuid4())
+    source = _source_card(source_id=source_id)
+    memo = ResearchMemo(
+        title="Memo",
+        thesis="Supported answer.",
+        research_synthesis="Internal digest.",
+        editorial_atoms=[
+            EditorialAtom(
+                kind="exception",
+                title="Bounded exception",
+                explanation="A caveat to the main pattern.",
+                source_ids=[source_id],
+                evidence_ids=[caveat_evidence_id],
+                story_value="Prevents overstatement.",
+                story_weight="caveat",
+                source_coverage_status="ready",
+            ),
+            EditorialAtom(
+                kind="mechanism",
+                title="Core mechanism",
+                explanation="A core finding.",
+                source_ids=[source_id],
+                evidence_ids=[core_evidence_id],
+                story_value="Explains the system.",
+                story_weight="core",
+                source_coverage_status="ready",
+            ),
+        ],
+    )
+    acts = [
+        TreatmentAct(
+            act_number=1,
+            title="Caveat act",
+            story_role="exception",
+            opening_question="What is the exception?",
+            main_turn="The caveat appears.",
+            ending_turn="The main pattern resumes.",
+            source_focus=[source_id],
+            target_minutes=12,
+            required_atom_refs=["A01"],
+            required_evidence_ids=[caveat_evidence_id],
+            source_density_target=1,
+        ),
+        *[
+            TreatmentAct(
+                act_number=idx,
+                title=f"Core act {idx}",
+                story_role="mechanism",
+                opening_question="How does it work?",
+                main_turn="The mechanism advances.",
+                ending_turn="Next turn.",
+                source_focus=[source_id],
+                target_minutes=11,
+                required_atom_refs=["A02"],
+                required_evidence_ids=[core_evidence_id],
+                source_density_target=1,
+            )
+            for idx in range(2, 5)
+        ],
+    ]
+
+    gate = _validate_treatment(
+        Treatment(
+            title="Episode",
+            logline="Plan.",
+            host_dynamic="A/B.",
+            acts=acts,
+            planning_gaps=["1997-98 needs independent corroboration before it can anchor an act."],
+        ),
+        [source],
+        duration_seconds=2700,
+        research_memo=memo,
+    )
+
+    assert gate.passed is False
+    assert any("planning gap requires research repair" in issue for issue in gate.weak_sections)
+    assert any("has no core atom anchor" in issue for issue in gate.weak_sections)
+    assert any("uses a caveat atom as its primary anchor" in issue for issue in gate.weak_sections)
+
+
+@pytest.mark.asyncio
+async def test_treatment_gate_research_issues_enqueue_research_repair(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import orchestrator as orchestrator_module
+
+    run = SimpleNamespace(id=uuid.uuid4())
+    workspace = {"research_gaps": [], "investigation_jobs": [], "memo_fields": {"title": "stale"}}
+    saved: list[dict] = []
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, *, generation_run_id, workspace: dict, status=None):
+        saved.append(workspace)
+        return SimpleNamespace(id=uuid.uuid4(), payload=workspace)
+
+    async def _enqueue(_db, *, run):
+        assert workspace["research_gaps"][0]["severity"] == "blocking"
+        assert workspace["research_gaps"][0]["treatment_relevance"] == "central"
+        assert workspace["research_gaps"][0]["category"] == "weak_corroboration"
+        return ["repair_job_1"]
+
+    monkeypatch.setattr(orchestrator_module, "load_research_workspace", _load)
+    monkeypatch.setattr(orchestrator_module, "save_research_workspace", _save)
+    monkeypatch.setattr(orchestrator_module, "enqueue_research_repair_jobs", _enqueue)
+
+    repair_jobs = await _enqueue_treatment_research_repair_jobs(
+        None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        treatment_gate=EpisodeCritique(
+            passed=False,
+            summary="failed",
+            weak_sections=[
+                "Treatment planning gap requires research repair: 1997-98 needs independent corroboration.",
+                "Treatment act target_minutes total 30.0 does not match target duration 45.0.",
+            ],
+            rewrite_instructions=[],
+        ),
+    )
+
+    assert repair_jobs == ["repair_job_1"]
+    assert saved
+    assert workspace["status"] == "treatment_repair_needed"
+    assert workspace["memo_fields"] == {}
+    assert workspace["research_gaps"][0]["question"].startswith("Treatment planning gap requires research repair")
+
+
+@pytest.mark.asyncio
+async def test_treatment_gate_bad_atom_selection_does_not_enqueue_research_repair(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import orchestrator as orchestrator_module
+
+    run = SimpleNamespace(id=uuid.uuid4())
+    workspace = {"research_gaps": [], "investigation_jobs": [], "memo_fields": {"title": "stale"}}
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, *, generation_run_id, workspace: dict, status=None):
+        raise AssertionError("pure treatment selection errors should not create research gaps")
+
+    async def _enqueue(_db, *, run):
+        raise AssertionError("pure treatment selection errors should not enqueue research repair")
+
+    monkeypatch.setattr(orchestrator_module, "load_research_workspace", _load)
+    monkeypatch.setattr(orchestrator_module, "save_research_workspace", _save)
+    monkeypatch.setattr(orchestrator_module, "enqueue_research_repair_jobs", _enqueue)
+
+    repair_jobs = await _enqueue_treatment_research_repair_jobs(
+        None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        treatment_gate=EpisodeCritique(
+            passed=False,
+            summary="failed",
+            weak_sections=[
+                "Act 1 has no core atom anchor.",
+                "Act 1 uses a caveat atom as its primary anchor.",
+            ],
+            rewrite_instructions=[],
+        ),
+    )
+
+    assert repair_jobs == []
+    assert workspace["research_gaps"] == []
+
+
 @pytest.mark.asyncio
 async def test_research_workflow_uses_sourcemap_summary_not_full_inventory_prompt() -> None:
     _CaptureRuntime.calls = {}
@@ -2351,7 +2643,7 @@ def test_research_sourcemap_summary_controls_evidence_visibility_by_stage() -> N
     assert job_summary["relationships"][0]["evidence_ids"] == ["ev-relationship"]
 
 
-def test_research_finalizer_prompt_payload_contains_persisted_work_not_counts_only() -> None:
+def test_research_finalizer_prompt_payload_contains_persisted_work_without_raw_evidence_ids() -> None:
     workspace = {
         "source_order": ["S01"],
         "selected_evidence_ids": ["ev-1"],
@@ -2408,11 +2700,59 @@ def test_research_finalizer_prompt_payload_contains_persisted_work_not_counts_on
     assert payload["selected_evidence_count"] == 1
     assert payload["jobs"][0]["job_id"] == "job-mechanism"
     assert payload["observations"][0]["note"] == "S01 gives the concrete exchange process."
-    assert payload["atom_drafts"][0]["evidence_ids"] == ["ev-1"]
+    assert payload["observations"][0]["evidence_count"] == 1
+    assert "evidence_ids" not in payload["observations"][0]
+    assert payload["atom_drafts"][0]["atom_ref"] == "A01"
+    assert payload["atom_drafts"][0]["atom_id"] == "atom-1"
+    assert payload["atom_drafts"][0]["evidence_count"] == 1
+    assert payload["atom_drafts"][0]["has_evidence"] is True
+    assert "evidence_ids" not in payload["atom_drafts"][0]
     assert payload["risk_register"][0]["source_refs"] == ["S01"]
+    assert payload["risk_register"][0]["evidence_count"] == 1
+    assert "evidence_ids" not in payload["risk_register"][0]
     assert "Use atom_drafts as the memo backbone" in payload["assembly_instruction"]
+    assert "Use atom_ref handles for risk/gap links" in payload["assembly_instruction"]
     assert "raw outputs from independent jobs" in payload["assembly_instruction"]
     assert "merge_editorial_atoms for duplicates" in payload["assembly_instruction"]
+
+
+def test_research_workspace_summary_can_hide_global_evidence_ids_for_planner() -> None:
+    workspace = {
+        "source_order": ["S01"],
+        "selected_evidence_ids": ["ev-1"],
+        "research_gaps": [
+            {
+                "gap_id": "gap-1",
+                "question": "What remains unresolved?",
+                "category": "weak_corroboration",
+                "severity": "non_blocking",
+                "source_refs": ["S01"],
+                "evidence_ids": ["ev-1"],
+                "status": "open",
+            }
+        ],
+        "atom_drafts": [
+            {
+                "atom_id": "atom-1",
+                "kind": "mechanism",
+                "title": "Mechanism",
+                "claim": "A supported claim.",
+                "source_refs": ["S01"],
+                "evidence_ids": ["ev-1"],
+            }
+        ],
+    }
+
+    payload = research_workspace_summary_for_prompt(
+        workspace,
+        include_atom_evidence_ids=False,
+        include_gap_evidence_ids=False,
+    )
+
+    assert payload["atom_drafts"][0]["evidence_count"] == 1
+    assert payload["research_gaps"][0]["evidence_count"] == 1
+    assert "evidence_ids" not in payload["atom_drafts"][0]
+    assert "evidence_ids" not in payload["research_gaps"][0]
 
 
 def test_fallback_editorial_flow_produces_draft_and_claims() -> None:
@@ -2803,7 +3143,7 @@ def test_compact_evidence_inventory_caps_and_preserves_preferred_ids() -> None:
     assert "evidence_strength" not in inventory[0]
 
 
-def test_research_memo_evidence_gate_blocks_unanchored_high_impact_atoms() -> None:
+def test_research_memo_evidence_gate_blocks_unanchored_atoms() -> None:
     source_id = str(uuid.uuid4())
     source_version_id = str(uuid.uuid4())
     evidence_id = str(uuid.uuid4())
@@ -2819,6 +3159,7 @@ def test_research_memo_evidence_gate_blocks_unanchored_high_impact_atoms() -> No
                 source_ids=[source_id],
                 evidence_ids=[],
                 story_value="Explains the system.",
+                story_weight="core",
             )
         ],
     )
@@ -2836,7 +3177,7 @@ def test_research_memo_evidence_gate_blocks_unanchored_high_impact_atoms() -> No
     )
 
     assert gate.passed is False
-    assert "High-impact atom 1" in gate.missing_material[0]
+    assert "Atom 1" in gate.missing_material[0]
 
 
 def test_research_memo_evidence_gate_accepts_research_created_selected_evidence_outside_source_map() -> None:
@@ -3702,41 +4043,6 @@ async def test_source_triage_gate_requires_selected_evidence_on_each_source_card
 
 
 @pytest.mark.asyncio
-async def test_source_triage_agent_uses_map_oriented_tool_set() -> None:
-    _CaptureRuntime.calls = {}
-    _CaptureRuntime.kwargs_by_agent = {}
-    run = SimpleNamespace(id=uuid.uuid4(), project_id=uuid.uuid4(), config={"user_prompt": "Topic"})
-    completion = SourceTriageCompletion(ready=True, summary="Source triage write actions completed.", notes=["done"])
-
-    result = await build_source_triage_agent(
-        None,  # type: ignore[arg-type]
-        run,
-        _CaptureRuntime(completion),
-        source_inventory=SourceMap(source_cards=[_source_card()], quote_cards=[]),
-        evidence_tools=_all_evidence_tools(),
-    )
-
-    assert result.ready is True
-    assert result.summary == "Source triage write actions completed."
-    assert set(_CaptureRuntime.calls["source_triage_agent"]) == {
-        "list_sources",
-        "search_corpus",
-        "read_evidence",
-        "read_source_window",
-        "skim_source",
-        "inspect_source",
-        "compare_source_evidence",
-        "upsert_source_card",
-        "create_quote_card",
-        "record_source_relationship",
-        "record_source_cluster",
-        "record_gap",
-        "finalize_source_map",
-    }
-    assert _CaptureRuntime.kwargs_by_agent["source_triage_agent"]["tool_policy"].file_search is False
-
-
-@pytest.mark.asyncio
 async def test_source_triage_workflow_agents_have_stage_specific_tools() -> None:
     _CaptureRuntime.calls = {}
     _CaptureRuntime.kwargs_by_agent = {}
@@ -3744,6 +4050,10 @@ async def test_source_triage_workflow_agents_have_stage_specific_tools() -> None
     completion = SourceTriageCompletion(ready=True, summary="ok", notes=[])
     workspace_tools = _workspace_triage_tools()
     all_tools = [*_all_evidence_tools(), *workspace_tools]
+    source_map_card = _source_card(title="Mapped source")
+    source_map_card.evidence_ids = ["triage-finalizer-ev"]
+    earlier_inventory_card = _source_card(title="Earlier inventory source")
+    source_inventory = SourceMap(source_cards=[earlier_inventory_card, source_map_card])
 
     await build_source_triage_planner_agent(
         None,  # type: ignore[arg-type]
@@ -3764,7 +4074,8 @@ async def test_source_triage_workflow_agents_have_stage_specific_tools() -> None
         run,
         _CaptureRuntime(completion),
         workspace_summary={"status": "mapped"},
-        source_map=SourceMap(),
+        source_map=SourceMap(source_cards=[source_map_card]),
+        source_inventory=source_inventory,
         finalizer_tools=all_tools,
     )
 
@@ -3796,6 +4107,10 @@ async def test_source_triage_workflow_agents_have_stage_specific_tools() -> None
         "finalize_source_map",
         "finish_triage_source_set",
     }
+    finalizer_prompt = _CaptureRuntime.kwargs_by_agent["source_triage_finalizer_agent"]["prompt"]
+    assert "Mapped source" in finalizer_prompt
+    assert '"source_ref": "S02"' in finalizer_prompt
+    assert "triage-finalizer-ev" not in finalizer_prompt
 
 
 @pytest.mark.asyncio
@@ -4073,6 +4388,7 @@ async def test_research_workspace_upsert_atom_resolves_refs_and_auto_selects(mon
         current_job_id="job_1",
     )
     upsert_atom = next(tool for tool in tools if tool.name == "upsert_editorial_atom")
+    full_risk = "This risk text is intentionally longer than forty characters and must survive persistence intact."
 
     result = await upsert_atom.handler(
         {
@@ -4087,17 +4403,110 @@ async def test_research_workspace_upsert_atom_resolves_refs_and_auto_selects(mon
             "story_value": "Explains the system.",
             "anchor_refs": [],
             "confidence": 0.8,
-            "risk": "low",
+            "risk": full_risk,
             "source_coverage_status": "ready",
+            "story_weight": "core",
+            "treatment_role_hint": "Use as a main mechanism anchor.",
         }
     )
 
     assert result["accepted"] is True
     assert workspace["atom_drafts"][0]["source_ids"] == [source_id]
     assert workspace["atom_drafts"][0]["evidence_ids"] == [evidence_id]
+    assert workspace["atom_drafts"][0]["risk"] == full_risk
+    assert workspace["atom_drafts"][0]["story_weight"] == "core"
+    assert workspace["atom_drafts"][0]["treatment_role_hint"] == "Use as a main mechanism anchor."
     assert fake_toolset.selected[0] == evidence_id
     assert fake_toolset.selected[1] == "selected"
     assert fake_toolset.selected[2]["selected_role"] == "research_atom"
+
+
+@pytest.mark.asyncio
+async def test_research_workspace_rejects_oversized_semantic_atom_field_without_truncating(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import research_workspace as research_workspace_module
+
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    run = SimpleNamespace(id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    workspace = {
+        "source_order": ["S01"],
+        "investigation_jobs": [
+            {
+                "job_id": "job_1",
+                "source_refs": ["S01"],
+                "allow_broad_search": False,
+                "status": "in_progress",
+                "observations": [],
+                "atom_ids": [],
+                "evidence_ids": [],
+            }
+        ],
+        "current_job": {"job_id": "job_1", "source_refs": ["S01"]},
+        "atom_drafts": [],
+        "selected_evidence_ids": [],
+        "covered_source_refs": [],
+    }
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, *, generation_run_id, workspace: dict, status=None):
+        return SimpleNamespace(id=uuid.uuid4(), payload=workspace)
+
+    class _FakeEvidenceToolset:
+        async def _evidence_in_run(self, item_id: str):
+            if item_id == evidence_id:
+                return SimpleNamespace(id=uuid.UUID(evidence_id), source_id=uuid.UUID(source_id))
+            return None
+
+        async def _source_ref_for_id(self, _item_source_id):
+            return "S01"
+
+        async def _source_ids_from_refs_or_ids(self, refs):
+            return ([source_id], []) if refs == ["S01"] else ([], refs)
+
+        async def _mark_evidence_status(self, _item_id, _status, _metadata):
+            raise AssertionError("oversized semantic field should be rejected before persistence")
+
+    monkeypatch.setattr(research_workspace_module, "load_research_workspace", _load)
+    monkeypatch.setattr(research_workspace_module, "save_research_workspace", _save)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=SourceMap(source_cards=[_source_card(source_id=source_id)]),
+        evidence_toolset=_FakeEvidenceToolset(),
+        mode="job",
+        current_job_id="job_1",
+    )
+    upsert_atom = next(tool for tool in tools if tool.name == "upsert_editorial_atom")
+
+    result = await upsert_atom.handler(
+        {
+            "job_id": "job_1",
+            "kind": "mechanism",
+            "title": "Mechanism",
+            "claim": "The mechanism works through a concrete institutional process.",
+            "explanation": "The mechanism works through a concrete institutional process.",
+            "source_refs": ["S01"],
+            "evidence_ids": [evidence_id],
+            "quote_refs": [],
+            "story_value": "Explains the system.",
+            "anchor_refs": [],
+            "confidence": 0.8,
+            "risk": "x" * 5000,
+            "source_coverage_status": "ready",
+            "story_weight": "core",
+            "treatment_role_hint": "Use as a main mechanism anchor.",
+        }
+    )
+
+    assert result["accepted"] is False
+    assert result["error"] == "semantic_field_too_long"
+    assert result["field"] == "risk"
+    assert workspace["atom_drafts"] == []
 
 
 @pytest.mark.asyncio
@@ -4179,7 +4588,7 @@ async def test_research_workspace_rejects_unknown_atom_kind(monkeypatch: pytest.
 
     assert result["accepted"] is False
     assert result["error"] == "atom kind must be one of the supported research finding kinds"
-    assert "unanswered_question" in result["allowed_kinds"]
+    assert "open_question" in result["allowed_kinds"]
     assert workspace["atom_drafts"] == []
 
 
@@ -4278,6 +4687,8 @@ def test_research_finalizer_tool_schema_uses_research_synthesis() -> None:
 
     finalize = next(tool for tool in tools if tool.name == "finalize_research_memo")
     merge = next(tool for tool in tools if tool.name == "merge_editorial_atoms")
+    risk_tool = next(tool for tool in tools if tool.name == "record_research_risk")
+    gap_tool = next(tool for tool in tools if tool.name == "record_research_gap")
     properties = finalize.parameters["properties"]
     required = set(finalize.parameters["required"])
 
@@ -4292,6 +4703,34 @@ def test_research_finalizer_tool_schema_uses_research_synthesis() -> None:
     assert set(merge.parameters["required"]) == {"primary_atom_id", "duplicate_atom_ids"}
     assert "Mandatory finalizer duplicate-audit tool" in merge.description
     assert "same research finding" in merge.description
+    assert "atom_refs" in risk_tool.parameters["properties"]
+    assert "evidence_ids" not in risk_tool.parameters["properties"]
+    assert "evidence_ids" not in set(risk_tool.parameters["required"])
+    assert "atom_refs" in gap_tool.parameters["properties"]
+    assert "evidence_ids" not in gap_tool.parameters["properties"]
+    assert "evidence_ids" not in set(gap_tool.parameters["required"])
+
+
+def test_research_job_risk_gap_tools_do_not_expose_atom_refs() -> None:
+    run = SimpleNamespace(id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    workspace = {"source_order": ["S01"], "atom_drafts": []}
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=SourceMap(),
+        evidence_toolset=None,
+        mode="job",
+        current_job_id="job_1",
+    )
+
+    risk_tool = next(tool for tool in tools if tool.name == "record_research_risk")
+    gap_tool = next(tool for tool in tools if tool.name == "record_research_gap")
+
+    assert "atom_refs" not in risk_tool.parameters["properties"]
+    assert "atom_refs" not in gap_tool.parameters["properties"]
+    assert "evidence_ids" in risk_tool.parameters["properties"]
+    assert "evidence_ids" in gap_tool.parameters["properties"]
 
 
 def test_research_workspace_tool_schemas_expose_atom_kind_enum() -> None:
@@ -4317,13 +4756,28 @@ def test_research_workspace_tool_schemas_expose_atom_kind_enum() -> None:
 
     upsert_job = next(tool for tool in planner_tools if tool.name == "upsert_research_job")
     upsert_atom = next(tool for tool in job_tools if tool.name == "upsert_editorial_atom")
+    record_gap = next(tool for tool in job_tools if tool.name == "record_research_gap")
 
     job_kind_enum = upsert_job.parameters["properties"]["required_atom_kinds"]["items"]["enum"]
     atom_kind_enum = upsert_atom.parameters["properties"]["kind"]["enum"]
     assert atom_kind_enum == job_kind_enum
     assert "mechanism" in atom_kind_enum
+    assert "context" in atom_kind_enum
+    assert "change" in atom_kind_enum
+    assert "tension" in atom_kind_enum
+    assert "driver" in atom_kind_enum
+    assert "impact" in atom_kind_enum
+    assert "open_question" in atom_kind_enum
+    assert "institutional_incentive" not in atom_kind_enum
+    assert "human_cost" not in atom_kind_enum
+    assert "unanswered_question" not in atom_kind_enum
     assert "tradeoff" not in atom_kind_enum
     assert "legal_anchor" not in atom_kind_enum
+    assert upsert_atom.parameters["properties"]["story_weight"]["enum"] == ["caveat", "core", "supporting"]
+    assert "story_weight" in set(upsert_atom.parameters["required"])
+    assert "treatment_role_hint" in set(upsert_atom.parameters["required"])
+    assert record_gap.parameters["properties"]["treatment_relevance"]["enum"] == ["central", "minor", "supporting"]
+    assert "treatment_relevance" in set(record_gap.parameters["required"])
 
 
 @pytest.mark.asyncio
@@ -4390,7 +4844,7 @@ async def test_research_finalizer_rejects_without_active_content_atom_drafts(mon
             {"atom_id": "merged_atom", "kind": "mechanism", "status": "merged", "merged_into": "atom_1"},
             {
                 "atom_id": "source_quality",
-                "kind": "unanswered_question",
+                "kind": "open_question",
                 "title": "Source quality warning",
                 "claim": "This source needs corroboration.",
                 "story_value": "Be cautious.",
@@ -4434,7 +4888,7 @@ def test_research_memo_from_workspace_rejects_without_active_content_atom_drafts
             {"atom_id": "merged_atom", "kind": "mechanism", "status": "merged", "merged_into": "atom_1"},
             {
                 "atom_id": "source_quality",
-                "kind": "unanswered_question",
+                "kind": "open_question",
                 "title": "Source quality warning",
                 "claim": "This source needs corroboration.",
                 "story_value": "Be cautious.",
@@ -4596,7 +5050,7 @@ async def test_research_workspace_rejects_source_quality_atom_and_exposes_risk_t
     result = await upsert_atom.handler(
         {
             "job_id": "job_1",
-            "kind": "conflict",
+            "kind": "tension",
             "title": "Источник-качество: weak support needs corroboration",
             "claim": "This is a source-quality warning, not a finding.",
             "explanation": "The claim needs corroboration.",
@@ -4614,6 +5068,97 @@ async def test_research_workspace_rejects_source_quality_atom_and_exposes_risk_t
     assert result["accepted"] is False
     assert result["error"] == "source-quality notes are not editorial atoms; use record_research_risk or record_research_gap"
     assert workspace["atom_drafts"] == []
+
+
+@pytest.mark.asyncio
+async def test_research_risk_persists_full_text_and_rejects_oversized_text(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import research_workspace as research_workspace_module
+
+    source_id = str(uuid.uuid4())
+    run = SimpleNamespace(id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    workspace = {
+        "source_order": ["S01"],
+        "investigation_jobs": [
+            {
+                "job_id": "job_1",
+                "source_refs": ["S01"],
+                "allow_broad_search": False,
+                "status": "in_progress",
+                "observations": [],
+                "atom_ids": [],
+                "evidence_ids": [],
+            }
+        ],
+        "current_job": {"job_id": "job_1", "source_refs": ["S01"]},
+        "risk_register": [],
+    }
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, *, generation_run_id, workspace: dict, status=None):
+        return SimpleNamespace(id=uuid.uuid4(), payload=workspace)
+
+    monkeypatch.setattr(research_workspace_module, "load_research_workspace", _load)
+    monkeypatch.setattr(research_workspace_module, "save_research_workspace", _save)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=SourceMap(source_cards=[_source_card(source_id=source_id)]),
+        evidence_toolset=None,
+        mode="job",
+        current_job_id="job_1",
+    )
+    risk_tool = next(tool for tool in tools if tool.name == "record_research_risk")
+    full_risk = "This risk text is longer than forty characters and must not be silently sliced in persistence."
+
+    accepted = await risk_tool.handler({"risk": full_risk, "severity": "medium", "source_refs": ["S01"], "evidence_ids": []})
+    rejected = await risk_tool.handler({"risk": "x" * 5000, "severity": "medium", "source_refs": ["S01"], "evidence_ids": []})
+
+    assert accepted["accepted"] is True
+    assert workspace["risk_register"][0]["risk"] == full_risk
+    assert rejected["accepted"] is False
+    assert rejected["error"] == "semantic_field_too_long"
+    assert rejected["field"] == "risk"
+
+
+@pytest.mark.asyncio
+async def test_research_finalizer_risk_resolves_a_refs_to_atom_ids(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import research_workspace as research_workspace_module
+
+    run = SimpleNamespace(id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    workspace = {
+        "source_order": ["S01"],
+        "atom_drafts": [
+            {"atom_id": "atom_1", "kind": "mechanism", "title": "Mechanism", "evidence_ids": []},
+            {"atom_id": "atom_2", "kind": "history", "title": "History", "evidence_ids": []},
+        ],
+        "risk_register": [],
+    }
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, *, generation_run_id, workspace: dict, status=None):
+        return SimpleNamespace(id=uuid.uuid4(), payload=workspace)
+
+    monkeypatch.setattr(research_workspace_module, "load_research_workspace", _load)
+    monkeypatch.setattr(research_workspace_module, "save_research_workspace", _save)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=SourceMap(source_cards=[_source_card(source_id=str(uuid.uuid4()))]),
+        evidence_toolset=None,
+        mode="finalizer",
+    )
+    risk_tool = next(tool for tool in tools if tool.name == "record_research_risk")
+
+    result = await risk_tool.handler({"risk": "Check this atom carefully.", "severity": "medium", "source_refs": [], "atom_refs": ["A01"]})
+
+    assert result["accepted"] is True
+    assert workspace["risk_register"][0]["atom_refs"] == ["atom_1"]
 
 
 @pytest.mark.asyncio
@@ -4813,7 +5358,7 @@ async def test_research_gap_rejects_resolved_blocking_without_evidence(monkeypat
     )
 
     assert result["accepted"] is False
-    assert result["error"] == "blocking research gaps cannot be resolved without evidence_ids"
+    assert result["error"] == "blocking research gaps cannot be resolved without evidence_ids or atom_refs"
     assert workspace["research_gaps"] == []
 
 
@@ -5015,7 +5560,7 @@ def test_research_memo_uses_structured_gaps_and_excludes_source_quality_atoms() 
             },
             {
                 "atom_id": "bad_atom",
-                "kind": "conflict",
+                "kind": "tension",
                 "title": "Source quality warning",
                 "claim": "This source needs corroboration.",
                 "explanation": "This source needs corroboration.",
@@ -5072,6 +5617,89 @@ def test_research_memo_uses_structured_gaps_and_excludes_source_quality_atoms() 
     assert memo.open_questions == ["What exactly happened in 1997-98?"]
     assert any("weak_corroboration" in risk for risk in memo.risk_register)
     assert any("Source-quality note excluded" in risk for risk in memo.risk_register)
+
+
+def test_central_research_gap_stays_open_question_even_when_non_blocking() -> None:
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    run = SimpleNamespace(config={"user_prompt": "Topic"})
+    workspace = {
+        "atom_drafts": [
+            {
+                "atom_id": "valid_atom",
+                "kind": "mechanism",
+                "title": "Mechanism",
+                "claim": "The mechanism is supported.",
+                "explanation": "The mechanism is supported.",
+                "story_value": "Explains the system.",
+                "source_ids": [source_id],
+                "evidence_ids": [evidence_id],
+                "confidence": 0.8,
+                "risk": "low",
+                "source_coverage_status": "ready",
+                "story_weight": "core",
+            }
+        ],
+        "research_gaps": [
+            {
+                "gap_id": "g_central",
+                "question": "Why did the core institutional arrangement persist?",
+                "category": "weak_corroboration",
+                "severity": "non_blocking",
+                "treatment_relevance": "central",
+                "source_refs": ["S01"],
+                "evidence_ids": [],
+                "status": "open",
+            }
+        ],
+        "risk_register": [],
+        "memo_fields": {
+            "title": "Research title",
+            "thesis": "Research thesis",
+            "research_synthesis": "Research synthesis",
+            "risk_register": [],
+        },
+    }
+
+    memo = research_memo_from_workspace(run, workspace)
+
+    assert memo.open_questions == ["Why did the core institutional arrangement persist?"]
+    assert not any("Why did the core institutional arrangement persist?" in risk for risk in memo.risk_register)
+
+
+def test_research_atom_missing_story_weight_defaults_to_supporting_not_core() -> None:
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    run = SimpleNamespace(config={"user_prompt": "Topic"})
+    workspace = {
+        "atom_drafts": [
+            {
+                "atom_id": "legacy_mechanism",
+                "kind": "mechanism",
+                "title": "Legacy mechanism",
+                "claim": "The mechanism is supported.",
+                "explanation": "The mechanism is supported.",
+                "story_value": "Explains the system.",
+                "source_ids": [source_id],
+                "evidence_ids": [evidence_id],
+                "confidence": 0.8,
+                "risk": "low",
+                "source_coverage_status": "ready",
+            }
+        ],
+        "research_gaps": [],
+        "risk_register": [],
+        "memo_fields": {
+            "title": "Research title",
+            "thesis": "Research thesis",
+            "research_synthesis": "Research synthesis",
+            "risk_register": [],
+        },
+    }
+
+    memo = research_memo_from_workspace(run, workspace)
+
+    assert memo.editorial_atoms[0].story_weight == "supporting"
 
 
 def test_research_memo_ignores_finalizer_freeform_risks_when_structured_risks_exist() -> None:
@@ -5308,7 +5936,7 @@ async def test_merge_editorial_atoms_rejects_cross_kind_drafts(monkeypatch: pyte
         "source_order": ["S01"],
         "atom_drafts": [
             {"atom_id": "a1", "kind": "exception", "title": "Exception", "evidence_ids": []},
-            {"atom_id": "a2", "kind": "conflict", "title": "Conflict", "evidence_ids": []},
+            {"atom_id": "a2", "kind": "tension", "title": "Tension", "evidence_ids": []},
         ],
     }
 
@@ -5481,6 +6109,32 @@ def test_research_gate_fails_blocking_open_questions() -> None:
     assert "blocking unresolved research gaps" in audit.missing_material[0]
 
 
+def test_open_missing_source_research_gap_routes_to_source_acquisition() -> None:
+    audit = _source_acquisition_audit_from_research_gaps(
+        {
+            "research_gaps": [
+                {
+                    "gap_id": "gap_missing_source",
+                    "question": "Need independent source coverage for the central claim.",
+                    "category": "missing_source",
+                    "severity": "blocking",
+                    "treatment_relevance": "central",
+                    "status": "open",
+                    "resolution_note": "Existing corpus lacks the necessary outside perspective.",
+                    "source_refs": ["S01"],
+                }
+            ]
+        }
+    )
+
+    assert audit is not None
+    assert audit.passed is False
+    assert audit.repair_targets == ["source_acquisition"]
+    assert audit.issues[0].target_step == "source_acquisition"
+    assert audit.issues[0].issue_type == "source_acquisition_needed"
+    assert audit.issues[0].source_refs == ["S01"]
+
+
 def test_research_workspace_signature_changes_when_sourcemap_content_changes() -> None:
     from app.generation_v2 import research_workspace as research_workspace_module
 
@@ -5531,7 +6185,17 @@ def test_research_job_prompt_payload_filters_sourcemap_to_current_job_refs() -> 
                 "status": "in_progress",
             }
         ],
-        "atom_drafts": [],
+        "atom_drafts": [
+            {
+                "atom_id": "atom_1",
+                "job_id": "job_done",
+                "kind": "mechanism",
+                "title": "Previous atom",
+                "claim": "Prior finding.",
+                "source_refs": ["S01"],
+                "evidence_ids": ["global-ev"],
+            }
+        ],
     }
     summary = {
         "source_card_count": 2,
@@ -5566,6 +6230,8 @@ def test_research_job_prompt_payload_filters_sourcemap_to_current_job_refs() -> 
     assert filtered["source_card_count"] == 2
     assert filtered["includes_evidence_ids"] is False
     assert filtered["filtered_for_source_refs"] == ["S01"]
+    assert payload["workspace_progress"]["atom_drafts"][0]["evidence_count"] == 1
+    assert "evidence_ids" not in payload["workspace_progress"]["atom_drafts"][0]
 
 
 def test_research_memo_from_workspace_assembles_downstream_source_ids() -> None:

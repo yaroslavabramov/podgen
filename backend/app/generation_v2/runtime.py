@@ -1068,7 +1068,13 @@ async def _build_agent_checkpoint_state(
 
             workspace = await load_research_workspace(db, generation_run_id)
             if workspace:
-                state["research_workspace"] = research_workspace_summary_for_prompt(workspace, max_jobs=40, max_atoms=40)
+                state["research_workspace"] = research_workspace_summary_for_prompt(
+                    workspace,
+                    max_jobs=40,
+                    max_atoms=40,
+                    include_atom_evidence_ids=False,
+                    include_gap_evidence_ids=False,
+                )
         except Exception as exc:
             state["research_workspace_error"] = str(exc)
     return state

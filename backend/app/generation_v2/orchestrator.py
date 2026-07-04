@@ -32,7 +32,12 @@ from app.generation_v2.citation_validation import (
     validation_quality_metrics,
 )
 from app.generation_v2.finalize import build_v2_shownotes, generate_audio_from_segments, transcript_payload, write_v2_script_segments
-from app.generation_v2.research_workspace import enqueue_research_repair_jobs, load_research_workspace_artifact
+from app.generation_v2.research_workspace import (
+    enqueue_research_repair_jobs,
+    load_research_workspace,
+    load_research_workspace_artifact,
+    save_research_workspace,
+)
 from app.generation_v2.runtime import V2Runtime
 from app.generation_v2.schemas import (
     ActDossier,
@@ -144,6 +149,65 @@ def _research_audit_requires_source_acquisition(audit: ResearchAudit) -> bool:
     return "source_acquisition" in _research_audit_target_steps(audit)
 
 
+_SOURCE_ACQUISITION_GAP_MARKERS = (
+    "source_acquisition",
+    "source acquisition",
+    "missing source",
+    "new source",
+    "additional source",
+    "outside corpus",
+    "corpus lacks",
+    "need source",
+    "needs source",
+)
+
+
+def _gap_needs_source_acquisition(gap: Any) -> bool:
+    if not isinstance(gap, dict):
+        return False
+    if str(gap.get("status") or "open") not in {"open", "deferred"}:
+        return False
+    severity = str(gap.get("severity") or "")
+    treatment_relevance = str(gap.get("treatment_relevance") or "")
+    if severity != "blocking" and treatment_relevance != "central":
+        return False
+    category = str(gap.get("category") or "")
+    if category == "missing_source":
+        return True
+    text = " ".join(
+        str(gap.get(key) or "")
+        for key in ("question", "resolution_note", "category")
+    ).lower()
+    return any(marker in text for marker in _SOURCE_ACQUISITION_GAP_MARKERS)
+
+
+def _source_acquisition_audit_from_research_gaps(workspace: dict[str, Any] | None) -> ResearchAudit | None:
+    gaps = [gap for gap in (workspace or {}).get("research_gaps") or [] if _gap_needs_source_acquisition(gap)]
+    if not gaps:
+        return None
+    issues = [
+        ResearchAuditIssue(
+            issue_type="source_acquisition_needed",
+            severity="blocking",
+            target_step="source_acquisition",
+            description=str(gap.get("question") or "Research repair needs source acquisition."),
+            suggested_repair=str(gap.get("resolution_note") or gap.get("question") or "Acquire additional sources for this central research gap."),
+            source_refs=[str(item) for item in gap.get("source_refs") or [] if str(item).strip()],
+        )
+        for gap in gaps[:6]
+    ]
+    return ResearchAudit(
+        passed=False,
+        score=0.0,
+        verdict="Central research gap requires source acquisition.",
+        missing_material=[issue.description for issue in issues],
+        required_followups=[issue.suggested_repair for issue in issues if issue.suggested_repair],
+        blocking=True,
+        issues=issues,
+        repair_targets=["source_acquisition"],
+    )
+
+
 def _research_audit_failure_message(audit: ResearchAudit, *, label: str = "V2 research audit failed") -> str:
     targets = sorted(_research_audit_target_steps(audit))
     issues = [issue.description for issue in audit.issues[:5]]
@@ -152,6 +216,67 @@ def _research_audit_failure_message(audit: ResearchAudit, *, label: str = "V2 re
     if followups:
         suffix += "; followups=" + " | ".join(followups)
     return f"{label}: {audit.verdict}{suffix}"
+
+
+def _treatment_gate_research_issues(treatment_gate: EpisodeCritique) -> list[str]:
+    research_markers = (
+        "planning gap requires research repair",
+        "partial/weak material",
+    )
+    issues: list[str] = []
+    for issue in treatment_gate.weak_sections:
+        text = str(issue or "").strip()
+        if text and any(marker in text for marker in research_markers):
+            issues.append(text)
+    return issues[:4]
+
+
+def _treatment_repair_gap_id(issue: str, idx: int) -> str:
+    slug = "".join(ch.lower() if ch.isalnum() else "_" for ch in issue).strip("_")
+    slug = "_".join(part for part in slug.split("_") if part)[:64]
+    return f"treatment_repair_{slug or idx}"
+
+
+async def _enqueue_treatment_research_repair_jobs(
+    db: AsyncSession,
+    *,
+    run: GenerationRun,
+    treatment_gate: EpisodeCritique,
+) -> list[str]:
+    issues = _treatment_gate_research_issues(treatment_gate)
+    if not issues:
+        return []
+    workspace = await load_research_workspace(db, run.id)
+    if not workspace:
+        return []
+    existing_gap_ids = {str(item.get("gap_id") or "") for item in workspace.get("research_gaps") or [] if isinstance(item, dict)}
+    new_gaps: list[dict[str, Any]] = []
+    for idx, issue in enumerate(issues, start=1):
+        gap_id = _treatment_repair_gap_id(issue, idx)
+        if gap_id in existing_gap_ids:
+            continue
+        new_gaps.append(
+            {
+                "gap_id": gap_id,
+                "question": issue,
+                "category": "weak_corroboration",
+                "severity": "blocking",
+                "treatment_relevance": "central",
+                "source_refs": [],
+                "evidence_ids": [],
+                "status": "open",
+                "resolution_note": "Created by treatment gate; resolve or bound before treatment can anchor this material.",
+                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
+        )
+    if not new_gaps:
+        return []
+    workspace["research_gaps"] = [*(workspace.get("research_gaps") or []), *new_gaps]
+    workspace["status"] = "treatment_repair_needed"
+    workspace["current_job"] = None
+    workspace["memo_fields"] = {}
+    await save_research_workspace(db, generation_run_id=run.id, workspace=workspace)
+    return await enqueue_research_repair_jobs(db, run=run)
 
 
 async def execute_generation_v2(
@@ -278,6 +403,27 @@ async def execute_generation_v2(
                         research_repair_rounds_used += 1
                         await db.commit()
                         continue
+                source_acquisition_audit = _source_acquisition_audit_from_research_gaps(await load_research_workspace(db, run.id))
+                if source_acquisition_audit:
+                    previous_round = acquisition_rounds_used
+                    triage_state, acquisition_rounds_used = await _run_source_acquisition_until_triage_ready(
+                        run,
+                        db,
+                        runtime,
+                        triage_state=triage_state,
+                        trigger_phase="research_gap",
+                        acquisition_rounds_used=acquisition_rounds_used,
+                        research_audit=source_acquisition_audit,
+                    )
+                    if acquisition_rounds_used > previous_round and triage_state.triage_completion.ready and triage_state.triage_gate.passed:
+                        corpus, evidence_toolset, evidence_tools, source_map, source_cards, quote_cards, source_triage = _triage_runtime_values(triage_state)
+                        source_artifact_ids = triage_state.source_artifact_ids
+                        quote_artifact_ids = triage_state.quote_artifact_ids
+                        source_map_artifact_id = triage_state.source_map_artifact_id
+                        source_workspace_artifact_ids = triage_state.source_workspace_artifact_ids
+                        run_source_cards = _merge_source_cards(triage_state.source_inventory.source_cards, source_cards)
+                        research_repair_rounds_used = 0
+                        continue
                 await db.commit()
                 raise RuntimeError(
                     "V2 research memo evidence gate failed after targeted repair: "
@@ -301,6 +447,7 @@ async def execute_generation_v2(
                     source_map_artifact_id = triage_state.source_map_artifact_id
                     source_workspace_artifact_ids = triage_state.source_workspace_artifact_ids
                     run_source_cards = _merge_source_cards(triage_state.source_inventory.source_cards, source_cards)
+                    research_repair_rounds_used = 0
                     continue
             await db.commit()
             raise RuntimeError(
@@ -372,7 +519,12 @@ async def execute_generation_v2(
             evidence_tools=evidence_tools,
             show_bible=show_bible,
         )
-        treatment_gate = _validate_treatment(treatment, run_source_cards, int((run.config or {}).get("duration_target", 1800)))
+        treatment_gate = _validate_treatment(
+            treatment,
+            run_source_cards,
+            int((run.config or {}).get("duration_target", 1800)),
+            research_memo=memo,
+        )
         treatment_artifact = await save_artifact(
             db,
             generation_run_id=run.id,
@@ -396,26 +548,19 @@ async def execute_generation_v2(
                 status=V2ArtifactStatus.FAILED,
                 input_artifact_ids=[str(treatment_artifact.id), source_map_artifact_id, *source_artifact_ids],
             )
-            previous_round = acquisition_rounds_used
-            triage_state, acquisition_rounds_used = await _run_source_acquisition_until_triage_ready(
-                run,
-                db,
-                runtime,
-                triage_state=triage_state,
-                trigger_phase="treatment",
-                acquisition_rounds_used=acquisition_rounds_used,
-                treatment_gate=treatment_gate,
-            )
-            if acquisition_rounds_used > previous_round and triage_state.triage_completion.ready and triage_state.triage_gate.passed:
-                corpus, evidence_toolset, evidence_tools, source_map, source_cards, quote_cards, source_triage = _triage_runtime_values(triage_state)
-                source_artifact_ids = triage_state.source_artifact_ids
-                quote_artifact_ids = triage_state.quote_artifact_ids
-                source_map_artifact_id = triage_state.source_map_artifact_id
-                source_workspace_artifact_ids = triage_state.source_workspace_artifact_ids
-                run_source_cards = _merge_source_cards(triage_state.source_inventory.source_cards, source_cards)
-                continue
+            if research_repair_rounds_used < 1:
+                repair_job_ids = await _enqueue_treatment_research_repair_jobs(db, run=run, treatment_gate=treatment_gate)
+                if repair_job_ids:
+                    research_repair_rounds_used += 1
+                    await db.commit()
+                    continue
             await db.commit()
-            raise RuntimeError(f"V2 treatment gate failed: {treatment_gate.summary}")
+            raise RuntimeError(
+                "V2 treatment gate failed: "
+                + treatment_gate.summary
+                + "; "
+                + " | ".join(treatment_gate.weak_sections[:5])
+            )
         await _commit_step(run, db, "treatment", 42, next_step="act_1")
         break
 
@@ -853,6 +998,7 @@ async def _prepare_and_triage(run: GenerationRun, db: AsyncSession, runtime: V2R
             runtime,
             workspace_summary=workspace_summary_for_prompt(workspace),
             source_map=source_map,
+            source_inventory=source_inventory,
             finalizer_tools=finalizer_tools,
         )
     source_map = await build_source_map_from_write_actions(
@@ -938,6 +1084,7 @@ async def _prepare_and_triage(run: GenerationRun, db: AsyncSession, runtime: V2R
                 runtime,
                 workspace_summary=workspace_summary_for_prompt(workspace),
                 source_map=source_map,
+                source_inventory=source_inventory,
                 finalizer_tools=finalizer_tools,
             )
         source_map = await build_source_map_from_write_actions(
@@ -1704,12 +1851,26 @@ async def _load_show_bible_context(db: AsyncSession, run: GenerationRun) -> Show
     )
 
 
-def _validate_treatment(treatment: Treatment, source_cards: list[SourceCard], duration_seconds: int) -> EpisodeCritique:
+def _validate_treatment(
+    treatment: Treatment,
+    source_cards: list[SourceCard],
+    duration_seconds: int,
+    *,
+    research_memo: ResearchMemo | None = None,
+) -> EpisodeCritique:
     source_ids = {card.source_id for card in source_cards if card.coverage_status in {"ready", "partial"}}
+    atom_by_ref = (
+        {f"A{idx:02d}": atom for idx, atom in enumerate(research_memo.editorial_atoms, start=1)}
+        if research_memo is not None
+        else {}
+    )
     issues: list[str] = []
     min_acts, max_acts = treatment_act_count_range(duration_seconds)
     if not (min_acts <= len(treatment.acts) <= max_acts):
         issues.append(f"Treatment requires {min_acts}-{max_acts} acts for this target duration.")
+    for gap in treatment.planning_gaps:
+        if str(gap).strip():
+            issues.append(f"Treatment planning gap requires research repair: {str(gap).strip()}")
     target_minutes = duration_seconds / 60
     total_minutes = sum(max(0.0, float(act.target_minutes or 0.0)) for act in treatment.acts)
     if treatment.acts and not (target_minutes * 0.85 <= total_minutes <= target_minutes * 1.15):
@@ -1723,6 +1884,19 @@ def _validate_treatment(treatment: Treatment, source_cards: list[SourceCard], du
             issues.append(f"Act {act.act_number} lacks required editorial atom anchors.")
         if duration_seconds >= 2700 and len(act.required_evidence_ids) < max(1, min(act.source_density_target, 2)):
             issues.append(f"Act {act.act_number} lacks enough required evidence ids for long-form drafting.")
+        if duration_seconds >= 2700 and atom_by_ref:
+            selected_atoms = [atom_by_ref[ref] for ref in act.required_atom_refs if ref in atom_by_ref]
+            core_atoms = [atom for atom in selected_atoms if atom.story_weight == "core"]
+            weak_or_partial = [atom for atom in selected_atoms if atom.source_coverage_status in {"partial", "weak"}]
+            caveat_atoms = [atom for atom in selected_atoms if atom.story_weight == "caveat"]
+            if not core_atoms:
+                issues.append(f"Act {act.act_number} has no core atom anchor.")
+            if selected_atoms and selected_atoms[0].story_weight == "caveat":
+                issues.append(f"Act {act.act_number} uses a caveat atom as its primary anchor.")
+            if caveat_atoms and len(core_atoms) < 1:
+                issues.append(f"Act {act.act_number} builds on caveat material without a core atom.")
+            if act.target_minutes >= 6 and weak_or_partial and len(core_atoms) < 2:
+                issues.append(f"Act {act.act_number} gives major time to partial/weak material without enough core support.")
     return EpisodeCritique(
         passed=not issues,
         summary="Treatment gate passed." if not issues else "Treatment gate failed.",
@@ -1749,7 +1923,6 @@ def _validate_research_memo_evidence(
         and str(item.get("source_id")) in valid_source_ids
         and str(item.get("source_version_id")) in valid_version_ids
     }
-    high_impact = {"conflict", "mechanism", "turning_point", "consequence", "human_cost", "institutional_incentive"}
     issues: list[str] = []
     audit_issues: list[ResearchAuditIssue] = []
 
@@ -1794,30 +1967,30 @@ def _validate_research_memo_evidence(
                     add_issue(f"Atom {idx} references evidence id outside the run corpus view: {evidence_id}.")
                 else:
                     add_issue(f"Atom {idx} references invalid evidence id: {evidence_id}.")
-        if atom.kind in high_impact and not atom.evidence_ids:
-            add_issue(f"High-impact atom {idx} ({atom.kind}) has no evidence ids.")
-        if atom.source_coverage_status == "weak" and atom.kind in high_impact:
-            add_issue(f"High-impact atom {idx} ({atom.kind}) is marked weak.")
+        if not atom.evidence_ids:
+            add_issue(f"Atom {idx} ({atom.kind}) has no evidence ids.")
+        if atom.source_coverage_status == "weak" and atom.story_weight == "core":
+            add_issue(f"Core atom {idx} ({atom.kind}) is marked weak.")
     if duration_seconds >= 3600:
-        grounded_high_impact = [
+        grounded_core = [
             atom
             for atom in memo.editorial_atoms
-            if atom.kind in high_impact and atom.evidence_ids and not [eid for eid in atom.evidence_ids if eid not in valid_evidence_ids]
+            if atom.story_weight == "core" and atom.evidence_ids and not [eid for eid in atom.evidence_ids if eid not in valid_evidence_ids]
         ]
-        if len(grounded_high_impact) < 4:
+        if len(grounded_core) < 4:
             add_issue(
-                "Long-form V2 memo requires at least four grounded high-impact editorial atoms.",
+                "Long-form V2 memo requires at least four grounded core editorial atoms.",
                 issue_type="insufficient_material",
             )
     if duration_seconds >= 2700:
         coverage = _research_story_coverage(memo, valid_evidence_ids)
         required = {
             "mechanism": "45+ minute memo requires a grounded mechanism atom.",
-            "history_origin": "45+ minute memo requires grounded origin/history material.",
-            "turning_point": "45+ minute memo requires a grounded turning-point atom.",
-            "consequence_tradeoff": "45+ minute memo requires grounded consequence/tradeoff material.",
-            "incentive_conflict": "45+ minute memo requires grounded incentive or conflict material.",
-            "unanswered_risk": "45+ minute memo requires an unanswered question or explicit risk.",
+            "context": "45+ minute memo requires grounded context/setup material.",
+            "change": "45+ minute memo requires a grounded change/turn atom.",
+            "impact": "45+ minute memo requires grounded impact/stakes material.",
+            "driver_tension": "45+ minute memo requires grounded driver or tension material.",
+            "open_question_risk": "45+ minute memo requires an open question or explicit risk.",
         }
         for key, message in required.items():
             if not coverage.get(key):
@@ -1846,26 +2019,26 @@ def _research_story_coverage(memo: ResearchMemo, valid_evidence_ids: set[str]) -
 
     coverage = {
         "mechanism": False,
-        "history_origin": False,
-        "turning_point": False,
-        "consequence_tradeoff": False,
-        "incentive_conflict": False,
-        "unanswered_risk": bool(memo.open_questions or memo.risk_register),
+        "context": False,
+        "change": False,
+        "impact": False,
+        "driver_tension": False,
+        "open_question_risk": bool(memo.open_questions or memo.risk_register),
     }
     for atom in memo.editorial_atoms:
         text = f"{atom.title} {atom.explanation} {atom.story_value}".lower()
         if atom.kind == "mechanism" and grounded(atom):
             coverage["mechanism"] = True
-        if (atom.kind == "history" or "origin" in text or "history" in text) and grounded(atom):
-            coverage["history_origin"] = True
-        if atom.kind == "turning_point" and grounded(atom):
-            coverage["turning_point"] = True
-        if (atom.kind == "consequence" or "tradeoff" in text or "trade-off" in text) and grounded(atom):
-            coverage["consequence_tradeoff"] = True
-        if atom.kind in {"institutional_incentive", "conflict"} and grounded(atom):
-            coverage["incentive_conflict"] = True
-        if atom.kind == "unanswered_question":
-            coverage["unanswered_risk"] = True
+        if (atom.kind == "context" or "origin" in text or "history" in text or "background" in text) and grounded(atom):
+            coverage["context"] = True
+        if atom.kind == "change" and grounded(atom):
+            coverage["change"] = True
+        if (atom.kind == "impact" or "tradeoff" in text or "trade-off" in text or "consequence" in text) and grounded(atom):
+            coverage["impact"] = True
+        if atom.kind in {"driver", "tension"} and grounded(atom):
+            coverage["driver_tension"] = True
+        if atom.kind == "open_question":
+            coverage["open_question_risk"] = True
     return coverage
 
 

@@ -133,7 +133,7 @@ def build_corpus_gap_report(
             add_gap(
                 "source_map_gap",
                 f"Contradiction needs better coverage: {contradiction}",
-                functions=["contradiction", "conflict"],
+                functions=["contradiction", "tension"],
                 severity="medium",
                 origin="source_map",
             )
@@ -184,7 +184,7 @@ def build_corpus_gap_report(
         add_gap(
             "duration",
             "Long-form target needs broader source density before drafting.",
-            functions=["conflict", "mechanism", "turning_point", "consequence"],
+            functions=["tension", "mechanism", "change", "impact"],
             severity="high",
             origin="duration_gate",
         )
@@ -555,13 +555,12 @@ def normalize_candidate_url(url: str) -> str:
 def _functions_from_text(text: str) -> list[str]:
     lowered = text.lower()
     mapping = {
-        "conflict": ["conflict", "contradiction", "dispute", "tension"],
+        "tension": ["conflict", "contradiction", "dispute", "tension", "tradeoff", "trade-off"],
         "mechanism": ["mechanism", "how", "why", "process", "system"],
-        "turning_point": ["turn", "turning", "shift", "change"],
-        "consequence": ["consequence", "impact", "effect", "result"],
-        "human_cost": ["human", "cost", "harm", "people"],
-        "institutional_incentive": ["incentive", "institution", "agency", "company", "regulator"],
-        "history": ["history", "background", "origin"],
+        "change": ["turn", "turning", "shift", "change", "reform", "reversal"],
+        "impact": ["consequence", "impact", "effect", "result", "cost", "harm", "benefit", "risk"],
+        "driver": ["driver", "cause", "pressure", "constraint", "incentive", "condition"],
+        "context": ["history", "background", "origin", "setup"],
     }
     return [function for function, markers in mapping.items() if any(marker in lowered for marker in markers)]
 

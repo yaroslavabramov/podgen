@@ -135,7 +135,7 @@ def _source_score(card: SourceCard, prompt_tokens: set[str]) -> tuple[float, lis
 
 
 def _coverage_gaps(top_sources_by_function: dict[str, list[str]]) -> list[str]:
-    required = ["conflict", "mechanism", "consequence"]
+    required = ["tension", "mechanism", "impact"]
     return [f"No strong {function} source identified" for function in required if not top_sources_by_function.get(function)]
 
 
@@ -143,14 +143,13 @@ def _act_functions(text: str) -> list[str]:
     lower = text.lower()
     functions: list[str] = []
     for label, markers in {
-        "conflict": ("conflict", "tension", "dispute", "stakes"),
+        "tension": ("conflict", "tension", "dispute", "stakes", "tradeoff", "trade-off"),
         "mechanism": ("mechanism", "how", "system", "process"),
-        "history": ("history", "origin", "before", "timeline"),
-        "turning_point": ("turn", "shift", "break", "change"),
-        "consequence": ("cost", "impact", "effect", "consequence"),
+        "context": ("history", "origin", "before", "timeline", "background"),
+        "change": ("turn", "shift", "break", "change", "reform"),
+        "impact": ("cost", "impact", "effect", "consequence", "risk", "benefit"),
         "exception": ("exception", "edge", "counterexample"),
-        "human_cost": ("human", "people", "worker", "community"),
-        "institutional_incentive": ("incentive", "institution", "regulator", "company"),
+        "driver": ("driver", "cause", "pressure", "constraint", "incentive"),
     }.items():
         if any(marker in lower for marker in markers):
             functions.append(label)

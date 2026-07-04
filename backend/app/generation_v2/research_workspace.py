@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.generation_v2.artifacts import save_artifact
-from app.generation_v2.research_kinds import ALLOWED_RESEARCH_ATOM_KINDS, ATOM_KIND_GUIDANCE
+from app.generation_v2.research_kinds import ALLOWED_RESEARCH_ATOM_KINDS, ATOM_KIND_GUIDANCE, normalize_research_atom_kind
 from app.generation_v2.runtime import AgentTool
 from app.generation_v2.schemas import EditorialAtom, ResearchMemo, SourceMap
 from app.generation_v2.tools.evidence_refs import build_source_ref_context, source_ref_for_id
@@ -54,6 +54,23 @@ RESEARCH_GAP_CATEGORIES = {
 }
 RESEARCH_GAP_SEVERITIES = {"blocking", "non_blocking", "optional"}
 RESEARCH_GAP_STATUSES = {"open", "resolved", "deferred"}
+RESEARCH_GAP_TREATMENT_RELEVANCE = {"central", "supporting", "minor"}
+RESEARCH_ATOM_STORY_WEIGHTS = {"core", "supporting", "caveat"}
+SEMANTIC_FIELD_LIMITS = {
+    "title": 260,
+    "claim": 2400,
+    "explanation": 3200,
+    "story_value": 1600,
+    "risk": 1800,
+    "treatment_role_hint": 600,
+    "note": 3200,
+    "question": 1000,
+    "resolution_note": 1800,
+    "thesis": 2400,
+    "research_synthesis": 4000,
+    "source_coverage_item": 1000,
+    "risk_register_item": 1800,
+}
 SOURCE_QUALITY_PATTERNS = (
     "source quality",
     "source-quality",
@@ -69,6 +86,24 @@ SOURCE_QUALITY_PATTERNS = (
     "нужно добрать источник",
     "требует добора",
 )
+
+
+def _semantic_field_error(args: dict[str, Any], field_names: list[str]) -> dict[str, Any] | None:
+    for field in field_names:
+        value = args.get(field)
+        if value is None:
+            continue
+        text = str(value)
+        limit = SEMANTIC_FIELD_LIMITS.get(field)
+        if limit and len(text) > limit:
+            return {
+                "accepted": False,
+                "error": "semantic_field_too_long",
+                "field": field,
+                "max_length": limit,
+                "actual_length": len(text),
+            }
+    return None
 
 
 async def load_research_workspace(db: AsyncSession, generation_run_id: uuid.UUID) -> dict[str, Any] | None:
@@ -171,7 +206,10 @@ async def enqueue_research_repair_jobs(
     blocking_gaps = [
         gap
         for gap in _dedupe_gaps(current.get("research_gaps") or [])
-        if gap.get("severity") == "blocking" and gap.get("status") in {"open", "deferred"}
+        if (
+            gap.get("status") in {"open", "deferred"}
+            and (gap.get("severity") == "blocking" or _treatment_relevance(gap.get("treatment_relevance")) == "central")
+        )
     ]
     repair_jobs: list[dict[str, Any]] = []
     for gap in blocking_gaps[:max_jobs]:
@@ -213,6 +251,7 @@ async def enqueue_research_repair_jobs(
                     "question": question[:600],
                     "category": str(gap.get("category") or ""),
                     "severity": str(gap.get("severity") or "blocking"),
+                    "treatment_relevance": _treatment_relevance(gap.get("treatment_relevance")),
                     "source_refs": source_refs,
                     "evidence_ids": _dedupe([str(item) for item in gap.get("evidence_ids") or [] if str(item).strip()]),
                     "status": str(gap.get("status") or "open"),
@@ -333,6 +372,9 @@ def build_research_workspace_tools(
         note = str(args.get("note") or "").strip()
         if not note:
             return {"accepted": False, "error": "note is required"}
+        field_error = _semantic_field_error({"note": note}, ["note"])
+        if field_error:
+            return field_error
         evidence_ids = _dedupe([str(item) for item in args.get("evidence_ids") or [] if str(item).strip()])
         invalid_evidence = await _invalid_job_evidence_ids(evidence_toolset, job, evidence_ids)
         if invalid_evidence:
@@ -340,7 +382,7 @@ def build_research_workspace_tools(
         observation = {
             "source_refs": source_refs,
             "evidence_ids": evidence_ids,
-            "note": note[:1800],
+            "note": note,
             "pending_questions": [str(item)[:360] for item in args.get("pending_questions") or [] if str(item).strip()][:8],
             "created_at": _now(),
         }
@@ -396,6 +438,19 @@ def build_research_workspace_tools(
         story_value = str(args.get("story_value") or "").strip()
         if not title or not claim or not story_value:
             return {"accepted": False, "error": "title, claim, and story_value are required"}
+        field_error = _semantic_field_error(
+            {
+                "title": title,
+                "claim": claim,
+                "explanation": str(args.get("explanation") or claim).strip(),
+                "story_value": story_value,
+                "risk": str(args.get("risk") or "medium").strip(),
+                "treatment_role_hint": str(args.get("treatment_role_hint") or "").strip(),
+            },
+            ["title", "claim", "explanation", "story_value", "risk", "treatment_role_hint"],
+        )
+        if field_error:
+            return field_error
         if _looks_like_source_quality_note(title, claim, story_value, str(args.get("explanation") or "")):
             return {
                 "accepted": False,
@@ -408,26 +463,30 @@ def build_research_workspace_tools(
                 {
                     "selected_purpose": f"research_atom:{kind}",
                     "selected_role": "research_atom",
-                    "selected_rationale": title[:240],
+                    "selected_rationale": title,
                 },
             )
         atom_id = _stable_id(str(args.get("atom_id") or ""), title, len(current.get("atom_drafts") or []) + 1)
+        story_weight = _story_weight(str(args.get("story_weight") or ""), kind=kind)
+        treatment_role_hint = str(args.get("treatment_role_hint") or "").strip()
         draft = {
             "atom_id": atom_id,
             "job_id": job_id,
             "kind": kind,
-            "title": title[:220],
-            "claim": claim[:1400],
-            "explanation": str(args.get("explanation") or claim)[:1800],
+            "title": title,
+            "claim": claim,
+            "explanation": str(args.get("explanation") or claim).strip(),
             "source_refs": source_refs,
             "source_ids": source_ids,
             "quote_refs": [str(item)[:200] for item in args.get("quote_refs") or [] if str(item).strip()][:8],
-            "story_value": story_value[:900],
+            "story_value": story_value,
             "anchor_refs": [str(item)[:120] for item in args.get("anchor_refs") or [] if str(item).strip()][:8],
             "evidence_ids": evidence_ids,
             "confidence": _confidence(args.get("confidence")),
-            "risk": str(args.get("risk") or "medium")[:40] or "medium",
+            "risk": str(args.get("risk") or "medium").strip() or "medium",
             "source_coverage_status": _coverage_status(str(args.get("source_coverage_status") or "")),
+            "story_weight": story_weight,
+            "treatment_role_hint": treatment_role_hint,
             "created_at": _now(),
             "updated_at": _now(),
         }
@@ -478,6 +537,9 @@ def build_research_workspace_tools(
         risk = str(args.get("risk") or "").strip()
         if not risk:
             return {"accepted": False, "error": "risk is required"}
+        field_error = _semantic_field_error({"risk": risk}, ["risk"])
+        if field_error:
+            return field_error
         source_refs = _dedupe([str(item) for item in args.get("source_refs") or [] if str(item).strip()])
         invalid_refs = [ref for ref in source_refs if ref not in set(current.get("source_order") or [])]
         if invalid_refs:
@@ -499,12 +561,16 @@ def build_research_workspace_tools(
                 else "risk evidence_ids must exist in this run"
             )
             return {"accepted": False, "error": error, "invalid_evidence_ids": invalid_evidence}
+        atom_refs, invalid_atom_refs = _resolve_workspace_atom_refs(current, args.get("atom_refs") or [])
+        if invalid_atom_refs:
+            return {"accepted": False, "error": "risk atom_refs must exist in workspace", "invalid_atom_refs": invalid_atom_refs}
         current.setdefault("risk_register", []).append(
             {
-                "risk": risk[:1200],
+                "risk": risk,
                 "severity": str(args.get("severity") or "medium")[:40] or "medium",
                 "source_refs": source_refs,
                 "evidence_ids": evidence_ids,
+                "atom_refs": atom_refs,
                 "created_at": _now(),
             }
         )
@@ -520,12 +586,22 @@ def build_research_workspace_tools(
         question = str(args.get("question") or "").strip()
         if not question:
             return {"accepted": False, "error": "gap question is required"}
+        field_error = _semantic_field_error({"question": question}, ["question"])
+        if field_error:
+            return field_error
         category = str(args.get("category") or "").strip()
         if category not in RESEARCH_GAP_CATEGORIES:
             return {"accepted": False, "error": "gap category is invalid", "allowed_categories": sorted(RESEARCH_GAP_CATEGORIES)}
         severity = str(args.get("severity") or "").strip()
         if severity not in RESEARCH_GAP_SEVERITIES:
             return {"accepted": False, "error": "gap severity is invalid", "allowed_severities": sorted(RESEARCH_GAP_SEVERITIES)}
+        treatment_relevance = str(args.get("treatment_relevance") or "supporting").strip()
+        if treatment_relevance not in RESEARCH_GAP_TREATMENT_RELEVANCE:
+            return {
+                "accepted": False,
+                "error": "gap treatment_relevance is invalid",
+                "allowed_treatment_relevance": sorted(RESEARCH_GAP_TREATMENT_RELEVANCE),
+            }
         status = str(args.get("status") or "open").strip() or "open"
         if status not in RESEARCH_GAP_STATUSES:
             return {"accepted": False, "error": "gap status is invalid", "allowed_statuses": sorted(RESEARCH_GAP_STATUSES)}
@@ -550,11 +626,17 @@ def build_research_workspace_tools(
                 else "gap evidence_ids must exist in this run"
             )
             return {"accepted": False, "error": error, "invalid_evidence_ids": invalid_evidence}
+        atom_refs, invalid_atom_refs = _resolve_workspace_atom_refs(current, args.get("atom_refs") or [])
+        if invalid_atom_refs:
+            return {"accepted": False, "error": "gap atom_refs must exist in workspace", "invalid_atom_refs": invalid_atom_refs}
         resolution_note = str(args.get("resolution_note") or "").strip()
+        field_error = _semantic_field_error({"resolution_note": resolution_note}, ["resolution_note"])
+        if field_error:
+            return field_error
         if status == "resolved" and not resolution_note:
             return {"accepted": False, "error": "resolved research gaps require resolution_note"}
-        if severity == "blocking" and status == "resolved" and not evidence_ids:
-            return {"accepted": False, "error": "blocking research gaps cannot be resolved without evidence_ids"}
+        if severity == "blocking" and status == "resolved" and not evidence_ids and not atom_refs:
+            return {"accepted": False, "error": "blocking research gaps cannot be resolved without evidence_ids or atom_refs"}
         if status == "resolved" and evidence_toolset is not None:
             for evidence_id in evidence_ids:
                 await evidence_toolset._mark_evidence_status(
@@ -563,20 +645,22 @@ def build_research_workspace_tools(
                     {
                         "selected_purpose": "research_gap_resolution",
                         "selected_role": "research_gap_resolution",
-                        "selected_rationale": resolution_note[:240],
+                        "selected_rationale": resolution_note,
                     },
                 )
         normalized_key = _gap_key(category, question)
         gap_id = _stable_id(str(args.get("gap_id") or ""), question, len(current.get("research_gaps") or []) + 1)
         gap = {
             "gap_id": gap_id,
-            "question": question[:600],
+            "question": question,
             "category": category,
             "severity": severity,
+            "treatment_relevance": treatment_relevance,
             "source_refs": source_refs,
             "evidence_ids": evidence_ids,
+            "atom_refs": atom_refs,
             "status": status,
-            "resolution_note": resolution_note[:900],
+            "resolution_note": resolution_note,
             "normalized_key": normalized_key,
             "created_at": _now(),
             "updated_at": _now(),
@@ -632,6 +716,12 @@ def build_research_workspace_tools(
                 "primary_kind": primary_kind,
                 "cross_kind_atom_ids": cross_kind,
             }
+        field_error = _semantic_field_error(
+            args,
+            [key for key in ["title", "claim", "explanation", "story_value", "risk", "treatment_role_hint"] if args.get(key)],
+        )
+        if field_error:
+            return field_error
 
         merged = _merge_atom_drafts_explicit(primary, [by_id[atom_id] for atom_id in duplicate_atom_ids], args)
         merged_at = _now()
@@ -673,12 +763,28 @@ def build_research_workspace_tools(
         research_synthesis = str(args.get("research_synthesis") or "").strip()
         if not title or not thesis or not research_synthesis:
             return {"accepted": False, "error": "title, thesis, and research_synthesis are required"}
+        field_error = _semantic_field_error(
+            {"title": title, "thesis": thesis, "research_synthesis": research_synthesis},
+            ["title", "thesis", "research_synthesis"],
+        )
+        if field_error:
+            return field_error
+        source_coverage = [str(item).strip() for item in args.get("source_coverage") or [] if str(item).strip()]
+        risk_register = [str(item).strip() for item in args.get("risk_register") or [] if str(item).strip()]
+        for item in source_coverage:
+            field_error = _semantic_field_error({"source_coverage_item": item}, ["source_coverage_item"])
+            if field_error:
+                return field_error
+        for item in risk_register:
+            field_error = _semantic_field_error({"risk_register_item": item}, ["risk_register_item"])
+            if field_error:
+                return field_error
         current["memo_fields"] = {
-            "title": title[:240],
-            "thesis": thesis[:1800],
-            "research_synthesis": research_synthesis[:1800],
-            "source_coverage": [str(item)[:400] for item in args.get("source_coverage") or [] if str(item).strip()][:40],
-            "risk_register": [str(item)[:500] for item in args.get("risk_register") or [] if str(item).strip()][:40],
+            "title": title,
+            "thesis": thesis,
+            "research_synthesis": research_synthesis,
+            "source_coverage": source_coverage[:40],
+            "risk_register": risk_register[:40],
         }
         current["status"] = "finalized"
         _reset_research_read_advisory(current)
@@ -759,17 +865,19 @@ def build_research_workspace_tools(
                             "job_id": {"type": "string"},
                             "atom_id": {"type": "string"},
                             "kind": {"type": "string", "enum": sorted(ALLOWED_RESEARCH_ATOM_KINDS)},
-                            "title": {"type": "string"},
-                            "claim": {"type": "string"},
-                            "explanation": {"type": "string"},
+                            "title": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["title"]},
+                            "claim": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["claim"]},
+                            "explanation": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["explanation"]},
                             "source_refs": {"type": "array", "items": {"type": "string"}},
                             "evidence_ids": {"type": "array", "items": {"type": "string"}},
                             "quote_refs": {"type": "array", "items": {"type": "string"}},
-                            "story_value": {"type": "string"},
+                            "story_value": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["story_value"]},
                             "anchor_refs": {"type": "array", "items": {"type": "string"}},
                             "confidence": {"type": "number", "minimum": 0, "maximum": 1},
-                            "risk": {"type": "string"},
+                            "risk": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["risk"]},
                             "source_coverage_status": {"type": "string", "enum": ["ready", "partial", "weak"]},
+                            "story_weight": {"type": "string", "enum": sorted(RESEARCH_ATOM_STORY_WEIGHTS)},
+                            "treatment_role_hint": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["treatment_role_hint"]},
                         },
                         "required": [
                             "job_id",
@@ -785,6 +893,8 @@ def build_research_workspace_tools(
                             "confidence",
                             "risk",
                             "source_coverage_status",
+                            "story_weight",
+                            "treatment_role_hint",
                         ],
                     },
                     handler=upsert_editorial_atom_tool,
@@ -810,7 +920,7 @@ def build_research_workspace_tools(
                     parameters={
                         "type": "object",
                         "properties": {
-                            "risk": {"type": "string"},
+                            "risk": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["risk"]},
                             "severity": {"type": "string"},
                             "source_refs": {"type": "array", "items": {"type": "string"}},
                             "evidence_ids": {"type": "array", "items": {"type": "string"}},
@@ -826,18 +936,20 @@ def build_research_workspace_tools(
                         "type": "object",
                         "properties": {
                             "gap_id": {"type": "string"},
-                            "question": {"type": "string"},
+                            "question": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["question"]},
                             "category": {"type": "string", "enum": sorted(RESEARCH_GAP_CATEGORIES)},
                             "severity": {"type": "string", "enum": sorted(RESEARCH_GAP_SEVERITIES)},
+                            "treatment_relevance": {"type": "string", "enum": sorted(RESEARCH_GAP_TREATMENT_RELEVANCE)},
                             "source_refs": {"type": "array", "items": {"type": "string"}},
                             "evidence_ids": {"type": "array", "items": {"type": "string"}},
                             "status": {"type": "string", "enum": sorted(RESEARCH_GAP_STATUSES)},
-                            "resolution_note": {"type": "string"},
+                            "resolution_note": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["resolution_note"]},
                         },
                         "required": [
                             "question",
                             "category",
                             "severity",
+                            "treatment_relevance",
                             "source_refs",
                             "evidence_ids",
                             "status",
@@ -862,12 +974,14 @@ def build_research_workspace_tools(
                         "properties": {
                             "primary_atom_id": {"type": "string"},
                             "duplicate_atom_ids": {"type": "array", "items": {"type": "string"}},
-                            "title": {"type": "string"},
-                            "claim": {"type": "string"},
-                            "explanation": {"type": "string"},
-                            "story_value": {"type": "string"},
-                            "risk": {"type": "string"},
+                            "title": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["title"]},
+                            "claim": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["claim"]},
+                            "explanation": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["explanation"]},
+                            "story_value": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["story_value"]},
+                            "risk": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["risk"]},
                             "source_coverage_status": {"type": "string", "enum": ["ready", "partial", "weak"]},
+                            "story_weight": {"type": "string", "enum": sorted(RESEARCH_ATOM_STORY_WEIGHTS)},
+                            "treatment_role_hint": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["treatment_role_hint"]},
                         },
                         "required": ["primary_atom_id", "duplicate_atom_ids"],
                     },
@@ -879,12 +993,12 @@ def build_research_workspace_tools(
                     parameters={
                         "type": "object",
                         "properties": {
-                            "risk": {"type": "string"},
+                            "risk": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["risk"]},
                             "severity": {"type": "string"},
                             "source_refs": {"type": "array", "items": {"type": "string"}},
-                            "evidence_ids": {"type": "array", "items": {"type": "string"}},
+                            "atom_refs": {"type": "array", "items": {"type": "string"}},
                         },
-                        "required": ["risk", "severity", "source_refs", "evidence_ids"],
+                        "required": ["risk", "severity", "source_refs"],
                     },
                     handler=record_research_risk_tool,
                 ),
@@ -895,20 +1009,21 @@ def build_research_workspace_tools(
                         "type": "object",
                         "properties": {
                             "gap_id": {"type": "string"},
-                            "question": {"type": "string"},
+                            "question": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["question"]},
                             "category": {"type": "string", "enum": sorted(RESEARCH_GAP_CATEGORIES)},
                             "severity": {"type": "string", "enum": sorted(RESEARCH_GAP_SEVERITIES)},
+                            "treatment_relevance": {"type": "string", "enum": sorted(RESEARCH_GAP_TREATMENT_RELEVANCE)},
                             "source_refs": {"type": "array", "items": {"type": "string"}},
-                            "evidence_ids": {"type": "array", "items": {"type": "string"}},
+                            "atom_refs": {"type": "array", "items": {"type": "string"}},
                             "status": {"type": "string", "enum": sorted(RESEARCH_GAP_STATUSES)},
-                            "resolution_note": {"type": "string"},
+                            "resolution_note": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["resolution_note"]},
                         },
                         "required": [
                             "question",
                             "category",
                             "severity",
+                            "treatment_relevance",
                             "source_refs",
-                            "evidence_ids",
                             "status",
                             "resolution_note",
                         ],
@@ -918,17 +1033,24 @@ def build_research_workspace_tools(
                 AgentTool(
                     name="finalize_research_memo",
                     description=(
-                        "Persist final memo fields. The backend assembles ResearchMemo atoms and structured risks "
-                        "from durable workspace drafts; risk_register is optional extra cautions only."
+                        "Persist internal research digest fields. The backend assembles ResearchMemo atoms and "
+                        "structured risks from durable workspace drafts; thesis is a short supported answer, "
+                        "research_synthesis is audit/debug context, and risk_register is optional extra cautions only."
                     ),
                     parameters={
                         "type": "object",
                         "properties": {
-                            "title": {"type": "string"},
-                            "thesis": {"type": "string"},
-                            "research_synthesis": {"type": "string"},
-                            "source_coverage": {"type": "array", "items": {"type": "string"}},
-                            "risk_register": {"type": "array", "items": {"type": "string"}},
+                            "title": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["title"]},
+                            "thesis": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["thesis"]},
+                            "research_synthesis": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["research_synthesis"]},
+                            "source_coverage": {
+                                "type": "array",
+                                "items": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["source_coverage_item"]},
+                            },
+                            "risk_register": {
+                                "type": "array",
+                                "items": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["risk_register_item"]},
+                            },
                         },
                         "required": [
                             "title",
@@ -1038,7 +1160,59 @@ async def research_workflow_commit_advisory(
     return advisory if advisory["commit_recommended"] else None
 
 
-def research_workspace_summary_for_prompt(workspace: dict[str, Any], *, max_jobs: int = 30, max_atoms: int = 30) -> dict[str, Any]:
+def _prompt_gap_payload(gap: dict[str, Any], *, include_evidence_ids: bool) -> dict[str, Any]:
+    evidence_ids = gap.get("evidence_ids") or []
+    payload = {
+        "gap_id": gap.get("gap_id"),
+        "question": str(gap.get("question") or "")[:600],
+        "category": gap.get("category"),
+        "severity": gap.get("severity"),
+        "treatment_relevance": _treatment_relevance(gap.get("treatment_relevance")),
+        "status": gap.get("status"),
+        "source_refs": gap.get("source_refs") or [],
+        "atom_refs": gap.get("atom_refs") or [],
+        "evidence_count": len(evidence_ids),
+        "has_evidence": bool(evidence_ids),
+        "resolution_note": str(gap.get("resolution_note") or "")[:500],
+    }
+    if include_evidence_ids and evidence_ids:
+        payload["evidence_ids"] = evidence_ids
+    return payload
+
+
+def _prompt_atom_payload(atom: dict[str, Any], *, include_evidence_ids: bool, atom_ref: str | None = None) -> dict[str, Any]:
+    evidence_ids = atom.get("evidence_ids") or []
+    payload = {
+        "atom_ref": atom_ref,
+        "atom_id": atom.get("atom_id"),
+        "job_id": atom.get("job_id"),
+        "kind": atom.get("kind"),
+        "title": atom.get("title"),
+        "claim": str(atom.get("claim") or "")[:700],
+        "explanation": str(atom.get("explanation") or "")[:900],
+        "story_value": str(atom.get("story_value") or "")[:500],
+        "source_refs": atom.get("source_refs") or [],
+        "evidence_count": len(evidence_ids),
+        "has_evidence": bool(evidence_ids),
+        "confidence": atom.get("confidence"),
+        "risk": atom.get("risk"),
+        "source_coverage_status": atom.get("source_coverage_status"),
+        "story_weight": _story_weight(str(atom.get("story_weight") or ""), kind=str(atom.get("kind") or "")),
+        "treatment_role_hint": str(atom.get("treatment_role_hint") or "")[:400],
+    }
+    if include_evidence_ids and evidence_ids:
+        payload["evidence_ids"] = evidence_ids
+    return payload
+
+
+def research_workspace_summary_for_prompt(
+    workspace: dict[str, Any],
+    *,
+    max_jobs: int = 30,
+    max_atoms: int = 30,
+    include_atom_evidence_ids: bool = True,
+    include_gap_evidence_ids: bool = True,
+) -> dict[str, Any]:
     workspace = _normalize_workspace(workspace)
     return {
         "status": workspace.get("status"),
@@ -1048,7 +1222,10 @@ def research_workspace_summary_for_prompt(workspace: dict[str, Any], *, max_jobs
         "processed_jobs": workspace.get("processed_jobs") or [],
         "covered_source_refs": workspace.get("covered_source_refs") or [],
         "selected_evidence_count": len(workspace.get("selected_evidence_ids") or []),
-        "research_gaps": _dedupe_gaps(workspace.get("research_gaps") or [])[:80],
+        "research_gaps": [
+            _prompt_gap_payload(item, include_evidence_ids=include_gap_evidence_ids)
+            for item in _dedupe_gaps(workspace.get("research_gaps") or [])[:80]
+        ],
         "risk_count": len(workspace.get("risk_register") or []),
         "jobs": [
             {
@@ -1067,21 +1244,8 @@ def research_workspace_summary_for_prompt(workspace: dict[str, Any], *, max_jobs
             for item in (workspace.get("investigation_jobs") or [])[:max_jobs]
         ],
         "atom_drafts": [
-            {
-                "atom_id": item.get("atom_id"),
-                "job_id": item.get("job_id"),
-                "kind": item.get("kind"),
-                "title": item.get("title"),
-                "claim": str(item.get("claim") or "")[:700],
-                "explanation": str(item.get("explanation") or "")[:900],
-                "story_value": str(item.get("story_value") or "")[:500],
-                "source_refs": item.get("source_refs") or [],
-                "evidence_ids": item.get("evidence_ids") or [],
-                "confidence": item.get("confidence"),
-                "risk": item.get("risk"),
-                "source_coverage_status": item.get("source_coverage_status"),
-            }
-            for item in _active_atom_drafts(workspace.get("atom_drafts") or [])[:max_atoms]
+            _prompt_atom_payload(item, include_evidence_ids=include_atom_evidence_ids, atom_ref=f"A{idx:02d}")
+            for idx, item in enumerate(_active_atom_drafts(workspace.get("atom_drafts") or [])[:max_atoms], start=1)
         ],
         "commit_advisory": {
             "reads_since_commit": workspace.get("reads_since_commit") or 0,
@@ -1101,17 +1265,25 @@ def research_finalizer_payload_for_prompt(workspace: dict[str, Any], *, max_jobs
     observations: list[dict[str, Any]] = []
     for job in workspace.get("investigation_jobs") or []:
         for observation in job.get("observations") or []:
+            evidence_ids = observation.get("evidence_ids") or []
             observations.append(
                 {
                     "job_id": job.get("job_id"),
                     "job_label": job.get("label"),
                     "source_refs": observation.get("source_refs") or [],
-                    "evidence_ids": observation.get("evidence_ids") or [],
+                    "evidence_count": len(evidence_ids),
+                    "has_evidence": bool(evidence_ids),
                     "note": str(observation.get("note") or "")[:700],
                     "pending_questions": [str(item)[:220] for item in observation.get("pending_questions") or []][:6],
                 }
             )
-    base = research_workspace_summary_for_prompt(workspace, max_jobs=max_jobs, max_atoms=max_atoms)
+    base = research_workspace_summary_for_prompt(
+        workspace,
+        max_jobs=max_jobs,
+        max_atoms=max_atoms,
+        include_atom_evidence_ids=False,
+        include_gap_evidence_ids=False,
+    )
     return {
         "status": base.get("status"),
         "source_count": base.get("source_count"),
@@ -1120,22 +1292,25 @@ def research_finalizer_payload_for_prompt(workspace: dict[str, Any], *, max_jobs
         "jobs": base.get("jobs") or [],
         "atom_drafts": base.get("atom_drafts") or [],
         "observations": observations[:max_observations],
-        "research_gaps": _dedupe_gaps(workspace.get("research_gaps") or [])[:80],
+        "research_gaps": base.get("research_gaps") or [],
         "risk_register": [
             {
                 "risk": str(item.get("risk") if isinstance(item, dict) else item)[:500],
                 "severity": str(item.get("severity") or "medium")[:40] if isinstance(item, dict) else "medium",
                 "source_refs": (item.get("source_refs") or []) if isinstance(item, dict) else [],
-                "evidence_ids": (item.get("evidence_ids") or []) if isinstance(item, dict) else [],
+                "atom_refs": (item.get("atom_refs") or []) if isinstance(item, dict) else [],
+                "evidence_count": len(item.get("evidence_ids") or []) if isinstance(item, dict) else 0,
+                "has_evidence": bool(item.get("evidence_ids") or []) if isinstance(item, dict) else False,
             }
             for item in (workspace.get("risk_register") or [])[:40]
         ],
         "assembly_instruction": (
             "Use atom_drafts as the memo backbone, but treat them as raw outputs from independent jobs that "
             "may overlap. Audit same-kind atom_drafts for repeated findings before finalization and use "
-            "merge_editorial_atoms for duplicates. Use observations and research_gaps to explain coverage "
-            "and risks. Do not invent atoms that were not persisted as atom_drafts. Blocking open/deferred "
-            "gaps become final open_questions; non-blocking/optional gaps become risk/source-coverage notes."
+            "merge_editorial_atoms for duplicates, passing atom_id handles. Use atom_ref handles for risk/gap "
+            "links. Use observations and research_gaps to explain coverage and risks. Do not invent atoms "
+            "that were not persisted as atom_drafts. Blocking open/deferred gaps become final open_questions; "
+            "non-blocking/optional gaps become risk/source-coverage notes."
         ),
     }
 
@@ -1145,7 +1320,13 @@ def research_job_prompt_payload(workspace: dict[str, Any], job_id: str, *, sourc
     job = _workspace_job(workspace, job_id) or {}
     return {
         "job": job,
-        "workspace_progress": research_workspace_summary_for_prompt(workspace, max_jobs=40, max_atoms=40),
+        "workspace_progress": research_workspace_summary_for_prompt(
+            workspace,
+            max_jobs=40,
+            max_atoms=40,
+            include_atom_evidence_ids=False,
+            include_gap_evidence_ids=False,
+        ),
         "source_map_summary": _source_map_summary_for_job(source_map_summary, job),
         "commit_advisory": {
             "reads_since_commit": workspace.get("reads_since_commit") or 0,
@@ -1187,16 +1368,18 @@ def research_memo_from_workspace(run: GenerationRun, workspace: dict[str, Any]) 
         atoms.append(
             EditorialAtom(
                 kind=_coerce_atom_kind(str(draft.get("kind") or "")),  # type: ignore[arg-type]
-                title=str(draft.get("title") or "Editorial atom")[:220],
-                explanation=str(draft.get("explanation") or draft.get("claim") or "")[:1800],
+                title=str(draft.get("title") or "Editorial atom"),
+                explanation=str(draft.get("explanation") or draft.get("claim") or ""),
                 source_ids=_dedupe([str(item) for item in draft.get("source_ids") or [] if str(item).strip()]),
                 quote_refs=[str(item) for item in draft.get("quote_refs") or [] if str(item).strip()][:8],
-                story_value=str(draft.get("story_value") or "Use in treatment.")[:900],
+                story_value=str(draft.get("story_value") or "Use in treatment."),
                 anchor_refs=anchor_refs[:12],
                 evidence_ids=evidence_ids,
                 confidence=_confidence(draft.get("confidence")),
-                risk=str(draft.get("risk") or "medium")[:600] or "medium",
+                risk=str(draft.get("risk") or "medium") or "medium",
                 source_coverage_status=_coverage_status(str(draft.get("source_coverage_status") or "")),  # type: ignore[arg-type]
+                story_weight=_story_weight(str(draft.get("story_weight") or ""), kind=str(draft.get("kind") or "")),  # type: ignore[arg-type]
+                treatment_role_hint=str(draft.get("treatment_role_hint") or ""),
             )
         )
     if not atoms:
@@ -1211,12 +1394,20 @@ def research_memo_from_workspace(run: GenerationRun, workspace: dict[str, Any]) 
     blocking_open_questions = [
         str(item.get("question") or "")[:400]
         for item in gaps
-        if item.get("severity") == "blocking" and item.get("status") in {"open", "deferred"} and str(item.get("question") or "").strip()
+        if (
+            item.get("status") in {"open", "deferred"}
+            and (item.get("severity") == "blocking" or _treatment_relevance(item.get("treatment_relevance")) == "central")
+            and str(item.get("question") or "").strip()
+        )
     ]
     nonblocking_gap_risks = [
         _risk_from_gap(item)
         for item in gaps
-        if item.get("severity") in {"non_blocking", "optional"} and item.get("status") in {"open", "deferred"}
+        if (
+            item.get("severity") in {"non_blocking", "optional"}
+            and _treatment_relevance(item.get("treatment_relevance")) != "central"
+            and item.get("status") in {"open", "deferred"}
+        )
     ]
     structured_risks = [*risks, *nonblocking_gap_risks, *source_quality_risks]
     memo_field_risks = [str(item) for item in fields.get("risk_register") or [] if str(item).strip()]
@@ -1231,7 +1422,7 @@ def research_memo_from_workspace(run: GenerationRun, workspace: dict[str, Any]) 
         research_synthesis=(
             fields.get("research_synthesis")
             or fields.get("narrative_spine")
-            or "The memo identifies source-grounded findings, mechanisms, chronology, disputes, consequences, and unresolved research risks."
+            or "The memo identifies source-grounded findings, context, mechanisms, changes, tensions, drivers, impacts, and unresolved research risks."
         ),
         editorial_atoms=atoms,
         source_coverage=(fields.get("source_coverage") or processed_summaries)[:40],
@@ -1418,6 +1609,30 @@ def _invalid_workspace_refs(workspace: dict[str, Any], source_refs: list[str]) -
     return [ref for ref in source_refs if ref not in source_order]
 
 
+def _resolve_workspace_atom_refs(workspace: dict[str, Any], atom_refs: list[Any]) -> tuple[list[str], list[str]]:
+    active_drafts = _active_atom_drafts(workspace.get("atom_drafts") or [])
+    atom_id_by_ref: dict[str, str] = {}
+    for idx, draft in enumerate(active_drafts, start=1):
+        atom_id = str(draft.get("atom_id") or "").strip()
+        if not atom_id:
+            continue
+        atom_id_by_ref[atom_id] = atom_id
+        atom_id_by_ref[f"A{idx:02d}"] = atom_id
+    resolved: list[str] = []
+    invalid: list[str] = []
+    for item in atom_refs:
+        ref = str(item or "").strip()
+        if not ref:
+            continue
+        atom_id = atom_id_by_ref.get(ref)
+        if atom_id:
+            if atom_id not in resolved:
+                resolved.append(atom_id)
+        else:
+            invalid.append(ref)
+    return resolved, invalid
+
+
 async def _invalid_job_evidence_ids(
     evidence_toolset: Any | None,
     job: dict[str, Any],
@@ -1557,6 +1772,7 @@ def _dedupe_gaps(values: list[Any]) -> list[dict[str, Any]]:
         gap["category"] = category
         gap["severity"] = str(gap.get("severity") or "non_blocking") if str(gap.get("severity") or "") in RESEARCH_GAP_SEVERITIES else "non_blocking"
         gap["status"] = str(gap.get("status") or "open") if str(gap.get("status") or "") in RESEARCH_GAP_STATUSES else "open"
+        gap["treatment_relevance"] = _treatment_relevance(gap.get("treatment_relevance"))
         gap["normalized_key"] = str(gap.get("normalized_key") or _gap_key(category, question))
         key = gap["normalized_key"]
         if key not in merged_by_key:
@@ -1593,12 +1809,14 @@ def _merge_atom_drafts_explicit(primary: dict[str, Any], duplicates: list[dict[s
     all_drafts = [primary, *duplicates]
     for key in ("source_refs", "source_ids", "quote_refs", "anchor_refs", "evidence_ids"):
         merged[key] = _dedupe([str(value) for draft in all_drafts for value in (draft.get(key) or []) if str(value).strip()])
-    for key, limit in (("title", 220), ("claim", 1400), ("explanation", 1800), ("story_value", 900), ("risk", 40)):
+    for key in ("title", "claim", "explanation", "story_value", "risk", "treatment_role_hint"):
         value = str(overrides.get(key) or "").strip()
         if value:
-            merged[key] = value[:limit]
+            merged[key] = value
     if str(overrides.get("source_coverage_status") or "").strip():
         merged["source_coverage_status"] = _coverage_status(str(overrides.get("source_coverage_status") or ""))
+    if str(overrides.get("story_weight") or "").strip():
+        merged["story_weight"] = _story_weight(str(overrides.get("story_weight") or ""), kind=str(merged.get("kind") or ""))
     try:
         merged["confidence"] = max(float(draft.get("confidence") or 0.0) for draft in all_drafts)
     except (TypeError, ValueError):
@@ -1627,15 +1845,30 @@ def _merge_research_gap(existing: dict[str, Any] | None, incoming: dict[str, Any
     incoming_status = str(incoming.get("status") or "open")
     incoming_resolution = str(incoming.get("resolution_note") or "").strip()
     severity_rank = {"optional": 0, "non_blocking": 1, "blocking": 2}
+    relevance_rank = {"minor": 0, "supporting": 1, "central": 2}
     existing_severity = str(existing.get("severity") or "non_blocking")
     incoming_severity = str(incoming.get("severity") or "non_blocking")
     strongest_severity = existing_severity if severity_rank.get(existing_severity, 1) > severity_rank.get(incoming_severity, 1) else incoming_severity
+    existing_relevance = _treatment_relevance(existing.get("treatment_relevance"))
+    incoming_relevance = _treatment_relevance(incoming.get("treatment_relevance"))
+    strongest_relevance = (
+        existing_relevance
+        if relevance_rank.get(existing_relevance, 1) > relevance_rank.get(incoming_relevance, 1)
+        else incoming_relevance
+    )
     existing_question = str(existing.get("question") or "").strip()
+    source_refs = _dedupe([*(existing.get("source_refs") or []), *(incoming.get("source_refs") or [])])
+    evidence_ids = _dedupe([*(existing.get("evidence_ids") or []), *(incoming.get("evidence_ids") or [])])
+    atom_refs = _dedupe([*(existing.get("atom_refs") or []), *(incoming.get("atom_refs") or [])])
     if incoming_status == "resolved" and incoming_resolution:
         merged.update(incoming)
         merged["gap_id"] = existing.get("gap_id") or incoming.get("gap_id")
         merged["created_at"] = existing.get("created_at") or incoming.get("created_at")
         merged["severity"] = strongest_severity
+        merged["treatment_relevance"] = strongest_relevance
+        merged["source_refs"] = source_refs
+        merged["evidence_ids"] = evidence_ids
+        merged["atom_refs"] = atom_refs
         if existing_question:
             merged["question"] = existing_question
         return merged
@@ -1644,6 +1877,10 @@ def _merge_research_gap(existing: dict[str, Any] | None, incoming: dict[str, Any
     merged["gap_id"] = existing.get("gap_id") or incoming.get("gap_id")
     merged["created_at"] = existing.get("created_at") or incoming.get("created_at")
     merged["severity"] = strongest_severity
+    merged["treatment_relevance"] = strongest_relevance
+    merged["source_refs"] = source_refs
+    merged["evidence_ids"] = evidence_ids
+    merged["atom_refs"] = atom_refs
     if existing_question:
         merged["question"] = existing_question
     if existing.get("status") == "resolved" and incoming_status != "resolved":
@@ -1688,10 +1925,11 @@ def _source_quality_risk_from_draft(draft: dict[str, Any]) -> str:
 def _risk_from_gap(gap: dict[str, Any]) -> str:
     severity = str(gap.get("severity") or "non_blocking")
     category = str(gap.get("category") or "optional_context")
+    relevance = _treatment_relevance(gap.get("treatment_relevance"))
     question = str(gap.get("question") or "").strip()
     note = str(gap.get("resolution_note") or "").strip()
     suffix = f" {note}" if note else ""
-    return f"{severity} research gap ({category}): {question}.{suffix}".strip()
+    return f"{severity} {relevance} research gap ({category}): {question}.{suffix}".strip()
 
 
 def _repair_atom_kinds_for_gap(gap: dict[str, Any]) -> list[str]:
@@ -1699,21 +1937,33 @@ def _repair_atom_kinds_for_gap(gap: dict[str, Any]) -> list[str]:
     if category == "legal_detail":
         return ["mechanism"]
     if category == "chronology_detail":
-        return ["history", "turning_point"]
+        return ["context", "change"]
     if category == "contradiction":
-        return ["conflict"]
+        return ["tension"]
     if category == "weak_corroboration":
-        return ["consequence", "conflict"]
-    return ["unanswered_question"]
+        return ["impact", "tension"]
+    return ["open_question"]
 
 
 def _atom_kind(value: str) -> str | None:
-    text = str(value or "").strip()
+    text = normalize_research_atom_kind(value, default="")
     return text if text in ALLOWED_RESEARCH_ATOM_KINDS else None
 
 
 def _coerce_atom_kind(value: str) -> str:
-    return _atom_kind(value) or "unanswered_question"
+    return _atom_kind(value) or "open_question"
+
+
+def _story_weight(value: str, *, kind: str = "") -> str:
+    text = str(value or "").strip()
+    if text in RESEARCH_ATOM_STORY_WEIGHTS:
+        return text
+    return "supporting"
+
+
+def _treatment_relevance(value: Any) -> str:
+    text = str(value or "").strip()
+    return text if text in RESEARCH_GAP_TREATMENT_RELEVANCE else "supporting"
 
 
 def _coverage_status(value: str) -> str:

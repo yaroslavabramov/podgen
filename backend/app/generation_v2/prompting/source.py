@@ -1,65 +1,3 @@
-SOURCE_TRIAGE_PROMPT = """Run source triage for this generation run.
-
-Topic/user prompt:
-{user_prompt}
-
-Corpus inventory summary. This is not the source list. Use list_sources to load source_ref handles and compact source metadata:
-{source_inventory_json}
-
-Mission:
-Build a working map of the corpus so later research can use sources intelligently. This is corpus cartography, not a research memo and not an episode outline.
-
-SourceMap questions:
-- What source groups exist in this corpus?
-- Which sources are good entry points for the topic, and what job can each do?
-- Which sources are closest to the original record, artifact, dataset, transcript, or direct statement for a claim?
-- Which sources interpret, summarize, republish, contextualize, duplicate, update, contradict, or merely repeat other sources?
-- What coverage gaps or source-quality risks should later research know?
-
-Handles:
-- observed evidence: any retrieval/read result persisted by a tool.
-- map evidence: evidence_id values from search/read tools that ground a source card, relationship, cluster, or gap. These are seeds for the map, not the final podcast evidence budget.
-- source_ref: the source handle shown in inventory, such as S01, S17, or S001 depending on corpus size.
-
-Workflow:
-1. Load inventory with list_sources, normally limit=25 and cursor="". Page again from next_cursor until it is empty. Form provisional source sets by likely role, topic coverage, origin, duplication, update chain, or quality risk.
-2. Pick one small source set around one source-map question. A normal set is 2-5 sources; use one source only when it is clearly a standalone anchor or a standalone risk.
-3. For each not-yet-examined source in the set, normally start with skim_source(source_ref, max_windows=3-5) to understand its role and scope. If corpus search already surfaced a precise passage, read_evidence may substitute for that first skim for this specific question.
-4. Use read_source_window after skim/search when you need exact support, a quote seed, a concrete locator, or relationship evidence. Sources may cover several topics; it is fine to read multiple windows from one source when that source is doing multiple jobs. For relationships and clusters, read at least two relevant sources before writing the relationship or cluster.
-5. Immediately write what that source set taught you:
-   - upsert_source_card for anchor or high-utility sources;
-   - record_source_cluster when the set belongs together;
-   - record_source_relationship when one source duplicates, updates, contradicts, interprets, or gives background for another;
-   - create_quote_card only when a read/search result contains an obvious reusable quote seed;
-   - record_gap when the set is weak, noisy, missing direct support, or needs later research.
-6. Move to the next source set. Do not keep conclusions only in memory. The backend SourceMap is assembled from write actions, so unwritten conclusions are lost at checkpoints.
-7. Finish when the main source groups, best entry points, important overlaps, and meaningful gaps are represented. Call finalize_source_map before the final response.
-
-Quality bar:
-- For small and medium corpora, most usable sources should appear in at least one SourceCard, source cluster, source relationship, quote card, or recorded gap/caution.
-- For large corpora, cover as many source groups as the tool budget allows. Do not stop after only the first obvious cluster if other source groups remain unexamined.
-- Every promoted SourceCard needs evidence_ids that support its source role, utility, or limits.
-- Every substantive cluster or relationship needs evidence_ids from at least two relevant sources.
-- Do not treat reading as a cost problem. Read what is needed to classify the corpus accurately, then write the map entry.
-
-Tool policy:
-- list_sources loads source_ref handles and compact metadata.
-- skim_source is the default first-read tool for a source you have not examined.
-- read_source_window is for exact follow-up after skim/search.
-- search_corpus is for targeted cross-corpus questions, quote leads, or relationship checks; it does not replace skimming when you need the source's overall role.
-- read_evidence opens a search result when the preview is not enough.
-- compare_source_evidence retrieves comparable evidence from 2-5 source_refs for a cluster or relationship.
-- Write map content through upsert_source_card, record_source_cluster, record_source_relationship, create_quote_card, and record_gap.
-
-Mini-example:
-If S03 and S08 appear to repeat the same material, skim both sources, read one confirming window if needed, then record_source_relationship with relationship="duplicate" or "near_duplicate" and/or record_source_cluster. Do not create two high-utility SourceCards unless they add distinct material.
-
-Final response:
-Return SourceTriageCompletion JSON only:
-{{"ready": boolean, "summary": string, "notes": string[]}}
-Do not include SourceMap content in the final response; write SourceMap content through tools."""
-
-
 SOURCE_TRIAGE_PLANNER_PROMPT = """Plan source triage for this generation run.
 
 Topic/user prompt:
@@ -154,32 +92,6 @@ Use finalize_source_map when ready. If a known gap is not yet represented, use r
 
 Return SourceTriageCompletion JSON only:
 {{"ready": boolean, "summary": string, "notes": string[]}}"""
-
-
-SOURCE_TRIAGE_REPAIR_PROMPT = """Repair source triage write actions for this generation run.
-
-Topic/user prompt:
-{user_prompt}
-
-Corpus inventory summary. Use list_sources if you need source_ref handles or compact source metadata:
-{source_inventory_json}
-
-Current assembled SourceMap from previous write actions:
-{source_map_json}
-
-Gate failure that must be repaired:
-{gate_json}
-
-Purpose:
-The previous SourceMap was useful, but it failed backend quality checks. Do not restart from scratch. Add or overwrite write actions only where needed, then call finalize_source_map.
-
-Repair method:
-- For each source the gate flags as under-grounded, invalid, unwritten, or missing persisted gap/caution work, use list_sources if needed to recover its source_ref, then use inspect_source/read_source_window/read_evidence/search_corpus enough to ground or demote the source. Re-run upsert_source_card, record_source_cluster, record_source_relationship, create_quote_card, or record_gap.
-- If a source should not be promoted, do not create new claims from it; record_gap explaining why support is unavailable.
-- If gate.unpersisted_completion_gap_notes is non-empty, call record_gap for those exact unresolved cautions before finalizing.
-- If the gate lists invalid evidence/source references, ungrounded relationships, or missing function evidence, repair those by finding valid evidence or overwriting the affected write actions using source_refs from inventory.
-- Preserve useful existing source work unless the gate identifies it as invalid.
-- If you cannot repair a required gate issue with available tools, return ready=false and explain the exact blocker in summary/notes. Otherwise call finalize_source_map with ready=true."""
 
 
 SOURCE_ACQUISITION_PROMPT = """Acquire additional sources for corpus coverage.

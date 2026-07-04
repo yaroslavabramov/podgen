@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.generation_v2.research_kinds import normalize_research_atom_kind
 
 
 class SourceCard(BaseModel):
@@ -216,15 +218,14 @@ class SourceAcquisitionCompletion(BaseModel):
 
 class EditorialAtom(BaseModel):
     kind: Literal[
-        "conflict",
+        "tension",
         "mechanism",
-        "history",
-        "turning_point",
-        "consequence",
+        "context",
+        "change",
+        "impact",
+        "driver",
         "exception",
-        "human_cost",
-        "institutional_incentive",
-        "unanswered_question",
+        "open_question",
     ]
     title: str
     explanation: str
@@ -236,6 +237,13 @@ class EditorialAtom(BaseModel):
     confidence: float = Field(default=0.5, ge=0, le=1)
     risk: str = "medium"
     source_coverage_status: Literal["ready", "partial", "weak"] = "partial"
+    story_weight: Literal["core", "supporting", "caveat"] = "supporting"
+    treatment_role_hint: str = ""
+
+    @field_validator("kind", mode="before")
+    @classmethod
+    def normalize_kind(cls, value: str) -> str:
+        return normalize_research_atom_kind(str(value or ""))
 
 
 class ResearchMemo(BaseModel):
@@ -255,17 +263,23 @@ class ResearchAuditIssue(BaseModel):
         "missing_story_function",
         "duplicate_or_stale_atom",
         "blocking_gap",
+        "needs_research_repair",
+        "source_acquisition_needed",
+        "treatment_caution",
+        "no_issue",
         "source_gap",
         "language_or_format",
         "tool_contract",
+        "planning_gap",
         "other",
     ] = "other"
     severity: Literal["blocking", "major", "minor"] = "major"
-    target_step: Literal["editorial_research", "research_finalizer", "source_acquisition", "treatment", "none"] = "none"
+    target_step: Literal["editorial_research", "research_finalizer", "research_audit", "source_acquisition", "treatment", "none"] = "none"
     description: str
     suggested_repair: str = ""
     atom_refs: list[str] = Field(default_factory=list)
     evidence_ids: list[str] = Field(default_factory=list)
+    evidence_refs: list[str] = Field(default_factory=list)
     source_refs: list[str] = Field(default_factory=list)
 
 
@@ -277,7 +291,7 @@ class ResearchAudit(BaseModel):
     required_followups: list[str] = Field(default_factory=list)
     blocking: bool = False
     issues: list[ResearchAuditIssue] = Field(default_factory=list)
-    repair_targets: list[Literal["editorial_research", "research_finalizer", "source_acquisition", "treatment", "none"]] = Field(default_factory=list)
+    repair_targets: list[Literal["editorial_research", "research_finalizer", "research_audit", "source_acquisition", "treatment", "none"]] = Field(default_factory=list)
 
 
 class TreatmentAct(BaseModel):
@@ -302,6 +316,7 @@ class Treatment(BaseModel):
     acts: list[TreatmentAct]
     recurring_questions: list[str] = Field(default_factory=list)
     style_constraints: list[str] = Field(default_factory=list)
+    planning_gaps: list[str] = Field(default_factory=list)
 
 
 class TreatmentPlanAct(BaseModel):
@@ -324,6 +339,7 @@ class TreatmentPlan(BaseModel):
     acts: list[TreatmentPlanAct]
     recurring_questions: list[str] = Field(default_factory=list)
     style_constraints: list[str] = Field(default_factory=list)
+    planning_gaps: list[str] = Field(default_factory=list)
 
 
 class ActDossier(BaseModel):

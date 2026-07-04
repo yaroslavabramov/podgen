@@ -10,16 +10,25 @@ Product context:
 The treatment is the contract for writing. It turns research atoms into a listener-facing act sequence: what each act earns, why it belongs there, which sources it leans on, and how the listener's understanding changes.
 
 Task:
-Create {min_act_count}-{max_act_count} acts. Choose the count from the research shape: use fewer acts for a clean linear argument, more acts when the listener needs separate turns for mechanism, history, conflict, consequences, and unresolved risks. Each act must have a clear editorial job, turn, source focus, and atom anchors.
+Create {min_act_count}-{max_act_count} acts from the research_atoms. Choose the count from the research shape: use fewer acts for a clean linear argument, more acts when the listener needs separate turns for context, mechanism, change, tension, impact, and unresolved risks. Each act must have a clear editorial job, turn, source focus, and atom anchors.
+
+The treatment creates its own title, logline, and act sequence from the atoms. Do not rely on or invent a separate research thesis/synthesis; those are internal research digest fields and are not part of this input.
 
 Use the handles from treatment_input_json:
 - source_focus: use source_ref values like S01.
 - required_atom_refs: use atom_ref values like A01.
 
-Audit cautions are constraints, not story beats. Do not build an act around a minor caveat; instead avoid overclaiming or route the caveat into source_coverage/style constraints.
+Use atom weights:
+- core atoms can anchor acts.
+- supporting atoms can strengthen an act but should not be the main anchor alone.
+- caveat atoms are constraints or bounded exceptions; do not build a full act around a caveat unless core atoms carry the act.
+
+Audit cautions are constraints, not story beats. Do not build an act around a minor caveat. If the episode structure needs weak/partial/caveat material as a major act, add a concise planning_gap instead of hiding the weakness in prose.
+Do not say "the research is incomplete" in the episode. Either use uncertainty as a bounded caveat or route it through planning_gaps.
 
 Allocate target_minutes from editorial difficulty and listener work, not equal blocks.
 Avoid generic act labels. The title/story_role/opening_question/main_turn/ending_turn should make clear what changes in that act.
+If planning_gaps is non-empty, still return your best TreatmentPlan draft, but the backend gate will route the gaps back to research before writing.
 Return only TreatmentPlan JSON. Do not write dialogue, scenes, transcript, or act prose."""
 
 

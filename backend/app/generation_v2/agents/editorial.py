@@ -26,8 +26,6 @@ from app.generation_v2.prompting import (
     SOURCE_ACQUISITION_SYSTEM,
     SOURCE_TRIAGE_FINALIZER_PROMPT,
     SOURCE_TRIAGE_PLANNER_PROMPT,
-    SOURCE_TRIAGE_PROMPT,
-    SOURCE_TRIAGE_REPAIR_PROMPT,
     SOURCE_TRIAGE_SET_PROMPT,
     SOURCE_TRIAGE_SYSTEM,
     SUPPORT_JUDGMENT_PROMPT,
@@ -50,6 +48,7 @@ from app.generation_v2.research_workspace import (
     unprocessed_research_jobs,
 )
 from app.generation_v2.source_triage import quote_ref, select_sources_for_act
+from app.generation_v2.source_corpus import list_evidence_dicts
 from app.generation_v2.tools.evidence_refs import (
     SourceRefContext,
     build_source_ref_context,
@@ -89,21 +88,6 @@ from app.models.generation_run import GenerationRun
 from app.generation_v2.tools.evidence_toolset import EvidenceToolset
 
 
-TRIAGE_TOOL_NAMES = {
-    "list_sources",
-    "search_corpus",
-    "read_evidence",
-    "read_source_window",
-    "skim_source",
-    "inspect_source",
-    "compare_source_evidence",
-    "upsert_source_card",
-    "create_quote_card",
-    "record_source_relationship",
-    "record_source_cluster",
-    "record_gap",
-    "finalize_source_map",
-}
 TRIAGE_PLANNER_TOOL_NAMES = {
     "list_source_capsules",
     "upsert_triage_source_set",
@@ -202,24 +186,6 @@ def _source_inventory(
         }
         for card in source_cards[:limit]
     ]
-
-
-def _count_by(source_cards: list[SourceCard], attr: str) -> dict[str, int]:
-    counts: dict[str, int] = {}
-    for card in source_cards:
-        value = str(getattr(card, attr, None) or "unknown").lower()
-        counts[value] = counts.get(value, 0) + 1
-    return dict(sorted(counts.items()))
-
-
-def _source_inventory_summary(source_cards: list[SourceCard]) -> dict:
-    return {
-        "total_sources": len(source_cards),
-        "list_sources_page_size": 25,
-        "source_type_counts": _count_by(source_cards, "source_type"),
-        "coverage_status_counts": _count_by(source_cards, "coverage_status"),
-        "instruction": "Call list_sources with limit=25 and cursor='' to see source_ref handles and compact source metadata. Continue from next_cursor until it is empty.",
-    }
 
 
 def _quote_inventory(
@@ -482,12 +448,18 @@ async def build_source_triage_finalizer_agent(
     *,
     workspace_summary: dict,
     source_map: SourceMap,
+    source_inventory: SourceMap | None = None,
     finalizer_tools: list[AgentTool] | None = None,
 ) -> SourceTriageCompletion:
+    compact_source_map = source_map_research_summary(
+        source_map,
+        source_inventory or source_map,
+        include_evidence_ids=False,
+    )
     prompt = SOURCE_TRIAGE_FINALIZER_PROMPT.format(
         user_prompt=(run.config or {}).get("user_prompt", ""),
         workspace_json=_json(workspace_summary),
-        source_map_json=_json(source_map.model_dump(mode="json")),
+        source_map_json=_json(compact_source_map),
     )
     agent_name = "source_triage_finalizer_agent"
     try:
@@ -511,56 +483,6 @@ async def build_source_triage_finalizer_agent(
             ready=False,
             summary="Runtime fallback was used; source triage finalizer did not run.",
             notes=[],
-        )
-
-
-async def build_source_triage_agent(
-    db: AsyncSession,
-    run: GenerationRun,
-    runtime: V2Runtime,
-    *,
-    source_inventory: SourceMap,
-    evidence_tools: list[AgentTool] | None = None,
-    vector_store_id: str | None = None,
-    hosted_file_search_handler=None,
-    repair_context: dict | None = None,
-) -> SourceTriageCompletion:
-    user_prompt = (run.config or {}).get("user_prompt", "")
-    source_inventory_json = _json(_source_inventory_summary(source_inventory.source_cards))
-    if repair_context:
-        prompt = SOURCE_TRIAGE_REPAIR_PROMPT.format(
-            user_prompt=user_prompt,
-            source_inventory_json=source_inventory_json,
-            source_map_json=_json(repair_context.get("source_map") or {}),
-            gate_json=_json(repair_context.get("gate") or {}),
-        )
-    else:
-        prompt = SOURCE_TRIAGE_PROMPT.format(
-            user_prompt=user_prompt,
-            source_inventory_json=source_inventory_json,
-        )
-    try:
-        return await runtime.call_structured(
-            db=db,
-            generation_run_id=run.id,
-            phase="v2_source_triage",
-            agent_name="source_triage_agent",
-            schema_model=SourceTriageCompletion,
-            system=SOURCE_TRIAGE_SYSTEM,
-            prompt=prompt,
-            vector_store_id=vector_store_id,
-            local_tools=_phase_tools(evidence_tools, TRIAGE_TOOL_NAMES),
-            tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
-            hosted_file_search_handler=hosted_file_search_handler,
-            max_output_tokens=10000,
-            max_tool_rounds=settings.generation_v2_triage_max_tool_rounds,
-        )
-    except V2RuntimeUnavailable as exc:
-        _allow_runtime_fallback(runtime, "v2_source_triage", "source_triage_agent", exc)
-        return SourceTriageCompletion(
-            ready=False,
-            summary="Runtime fallback was used; source triage write actions were not completed by the model.",
-            notes=["Fallback source inventory is not an authoritative SourceMap."],
         )
 
 
@@ -664,7 +586,11 @@ async def build_research_memo(
                 db=db,
                 run=run,
                 runtime=runtime,
-                workspace_summary=research_workspace_summary_for_prompt(workspace),
+                workspace_summary=research_workspace_summary_for_prompt(
+                    workspace,
+                    include_atom_evidence_ids=False,
+                    include_gap_evidence_ids=False,
+                ),
                 source_map_summary=planner_source_map_summary,
                 workspace_tools=planner_tools,
                 show_bible=show_bible,
@@ -878,7 +804,11 @@ async def _build_research_memo_ephemeral(
             db=None,  # type: ignore[arg-type]
             run=run,
             runtime=runtime,
-            workspace_summary=research_workspace_summary_for_prompt(workspace),
+            workspace_summary=research_workspace_summary_for_prompt(
+                workspace,
+                include_atom_evidence_ids=False,
+                include_gap_evidence_ids=False,
+            ),
             source_map_summary=planner_source_map_summary,
             workspace_tools=noop_workspace_tools,
             show_bible=show_bible,
@@ -956,7 +886,11 @@ def _treatment_atom_payload(atom: EditorialAtom, idx: int, context: SourceRefCon
         "story_value": _trim(atom.story_value, 420),
         "source_refs": _source_refs_for_ids(atom.source_ids, context),
         "confidence": atom.confidence,
+        "story_weight": atom.story_weight,
+        "coverage": atom.source_coverage_status,
     }
+    if atom.treatment_role_hint:
+        payload["treatment_role_hint"] = _trim(atom.treatment_role_hint, 360)
     risk = _risk_for_treatment(atom.risk)
     if risk:
         payload["caution"] = risk
@@ -1155,6 +1089,145 @@ def _treatment_audit_constraints(research_memo: ResearchMemo, research_audit: Re
     return _dedupe_strings(constraints)[:32]
 
 
+def _evidence_support_text(evidence: dict[str, Any]) -> str:
+    metadata = evidence.get("metadata") or {}
+    return _trim(
+        str(metadata.get("support_summary") or metadata.get("quote_text") or evidence.get("query_text") or evidence.get("purpose") or ""),
+        260,
+    )
+
+
+def _evidence_preview_snippet(evidence: dict[str, Any]) -> str:
+    metadata = evidence.get("metadata") or {}
+    return _trim(
+        str(metadata.get("quote_text") or evidence.get("snippet_text") or metadata.get("support_summary") or ""),
+        420,
+    )
+
+
+def _audit_evidence_previews(
+    *,
+    research_memo: ResearchMemo,
+    evidence_records: list[dict],
+    context: SourceRefContext,
+    source_titles_by_id: dict[str, str],
+    max_per_atom: int = 4,
+) -> tuple[dict[str, list[dict[str, Any]]], dict[str, str], set[str]]:
+    evidence_by_id = {str(item.get("id")): item for item in evidence_records if item.get("id")}
+    previews_by_atom_ref: dict[str, list[dict[str, Any]]] = {}
+    evidence_id_by_ref: dict[str, str] = {}
+    required_refs: set[str] = set()
+    next_index = 1
+    for atom_idx, atom in enumerate(research_memo.editorial_atoms, start=1):
+        atom_ref = f"A{atom_idx:02d}"
+        atom_previews: list[dict[str, Any]] = []
+        suspicious = atom.source_coverage_status in {"partial", "weak"} or len(atom.source_ids) <= 1 or atom.kind == "open_question"
+        for evidence_id in atom.evidence_ids[:max_per_atom]:
+            evidence = evidence_by_id.get(str(evidence_id))
+            if not evidence:
+                continue
+            evidence_ref = f"E{next_index:03d}"
+            next_index += 1
+            source_id = str(evidence.get("source_id") or "")
+            source_ref = source_ref_for_id(source_id, context)
+            priority = "optional"
+            if atom.story_weight == "core" and not atom_previews:
+                priority = "required"
+                required_refs.add(evidence_ref)
+            elif suspicious:
+                priority = "required"
+                required_refs.add(evidence_ref)
+            preview = {
+                "evidence_ref": evidence_ref,
+                "atom_ref": atom_ref,
+                "source_ref": source_ref,
+                "source_title": _trim(source_titles_by_id.get(source_id, ""), 180),
+                "locator": _trim(str(evidence.get("locator_text") or evidence.get("locator_type") or ""), 160),
+                "short_snippet": _evidence_preview_snippet(evidence),
+                "supports_claim": _evidence_support_text(evidence),
+                "read_priority": priority,
+            }
+            atom_previews.append(preview)
+            evidence_id_by_ref[evidence_ref] = str(evidence_id)
+        previews_by_atom_ref[atom_ref] = atom_previews
+    return previews_by_atom_ref, evidence_id_by_ref, required_refs
+
+
+def _audit_tools_with_evidence_refs(
+    evidence_tools: list[AgentTool] | None,
+    *,
+    evidence_id_by_ref: dict[str, str],
+    read_refs: set[str],
+) -> list[AgentTool]:
+    tools: list[AgentTool] = []
+    for tool in _phase_tools(evidence_tools, AUDIT_TOOL_NAMES):
+        if tool.name != "read_evidence":
+            tools.append(tool)
+            continue
+
+        async def _read_evidence_by_ref(args: dict[str, Any], *, _tool: AgentTool = tool) -> dict[str, Any]:
+            evidence_ref = str(args.get("evidence_ref") or "").strip()
+            if not evidence_ref:
+                return {"found": False, "error": "missing_evidence_ref"}
+            evidence_id = evidence_id_by_ref.get(evidence_ref)
+            if not evidence_id:
+                return {"found": False, "error": "unknown_evidence_ref", "evidence_ref": evidence_ref}
+            args = {key: value for key, value in args.items() if key != "evidence_ref"}
+            args["evidence_id"] = evidence_id
+            result = await _tool.handler(args)
+            found = bool(result.get("found"))
+            evidence = result.get("evidence") if isinstance(result.get("evidence"), dict) else None
+            has_error = bool(result.get("error") or (evidence or {}).get("error"))
+            if found and not has_error:
+                read_refs.add(evidence_ref)
+            sanitized = _strip_audit_backend_ids(result)
+            sanitized["evidence_ref"] = evidence_ref
+            return sanitized
+
+        tools.append(
+            AgentTool(
+                name="read_evidence",
+                description=(
+                    "Read one audit evidence preview by evidence_ref from audit_input_json. "
+                    "Use this for required or suspicious evidence previews before passing audit."
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "evidence_ref": {"type": "string"},
+                    },
+                    "required": ["evidence_ref"],
+                },
+                handler=_read_evidence_by_ref,
+            )
+        )
+    return tools
+
+
+def _strip_audit_backend_ids(value: Any) -> Any:
+    blocked = {
+        "evidence_id",
+        "evidence_ids",
+        "source_id",
+        "source_version_id",
+        "provider_file_id",
+        "provider_vector_store_id",
+        "provider_vector_store_file_id",
+        "retrieval_channel",
+        "representation_kind",
+        "usage_status",
+    }
+    if isinstance(value, dict):
+        return {
+            key: _strip_audit_backend_ids(item)
+            for key, item in value.items()
+            if key not in blocked
+        }
+    if isinstance(value, list):
+        return [_strip_audit_backend_ids(item) for item in value]
+    return value
+
+
 def _research_audit_input(
     *,
     run: GenerationRun,
@@ -1162,10 +1235,18 @@ def _research_audit_input(
     source_map: SourceMap,
     source_inventory: SourceMap | None,
     workspace: dict[str, Any] | None,
+    evidence_records: list[dict] | None = None,
 ) -> dict[str, Any]:
     inventory = source_inventory or source_map
     context = _source_ref_context(inventory.source_cards)
     workspace = workspace or {}
+    source_titles_by_id = {card.source_id: card.title for card in inventory.source_cards}
+    evidence_previews_by_atom_ref, _, _ = _audit_evidence_previews(
+        research_memo=research_memo,
+        evidence_records=evidence_records or [],
+        context=context,
+        source_titles_by_id=source_titles_by_id,
+    )
     atom_drafts = [item for item in workspace.get("atom_drafts") or [] if isinstance(item, dict)]
     active_drafts = [item for item in atom_drafts if not item.get("merged_into")]
     return {
@@ -1174,8 +1255,7 @@ def _research_audit_input(
         "duration_minutes": int((run.config or {}).get("duration_target", 1800)) // 60,
         "research_memo": {
             "title": research_memo.title,
-            "thesis": _trim(research_memo.thesis, 900),
-            "research_synthesis": _trim(research_memo.research_synthesis, 1600),
+            "supported_answer": _trim(research_memo.thesis, 500),
             "editorial_atoms": [
                 {
                     "atom_ref": f"A{idx:02d}",
@@ -1185,10 +1265,12 @@ def _research_audit_input(
                     "story_value": _trim(atom.story_value, 600),
                     "source_refs": _source_refs_for_ids(atom.source_ids, context),
                     "quote_refs": atom.quote_refs[:8],
-                    "evidence_ids": atom.evidence_ids[:12],
+                    "evidence_previews": evidence_previews_by_atom_ref.get(f"A{idx:02d}", []),
                     "confidence": atom.confidence,
                     "risk": atom.risk,
                     "source_coverage_status": atom.source_coverage_status,
+                    "story_weight": atom.story_weight,
+                    "treatment_role_hint": atom.treatment_role_hint,
                 }
                 for idx, atom in enumerate(research_memo.editorial_atoms, start=1)
             ],
@@ -1210,9 +1292,11 @@ def _research_audit_input(
                     "question": _trim(str(item.get("question") or ""), 450),
                     "category": item.get("category"),
                     "severity": item.get("severity"),
+                    "treatment_relevance": item.get("treatment_relevance") or "supporting",
                     "status": item.get("status"),
                     "source_refs": item.get("source_refs") or [],
-                    "evidence_ids": item.get("evidence_ids") or [],
+                    "evidence_count": len(item.get("evidence_ids") or []),
+                    "has_evidence": bool(item.get("evidence_ids") or []),
                     "resolution_note": _trim(str(item.get("resolution_note") or ""), 350),
                 }
                 for item in (workspace.get("research_gaps") or [])[:40]
@@ -1223,12 +1307,13 @@ def _research_audit_input(
                     "risk": _trim(str(item.get("risk") if isinstance(item, dict) else item), 450),
                     "severity": str(item.get("severity") or "medium") if isinstance(item, dict) else "medium",
                     "source_refs": (item.get("source_refs") or []) if isinstance(item, dict) else [],
-                    "evidence_ids": (item.get("evidence_ids") or []) if isinstance(item, dict) else [],
+                    "evidence_count": len(item.get("evidence_ids") or []) if isinstance(item, dict) else 0,
+                    "has_evidence": bool(item.get("evidence_ids") or []) if isinstance(item, dict) else False,
                 }
                 for item in (workspace.get("risk_register") or [])[:40]
             ],
         },
-        "source_map_summary": source_map_research_summary(source_map, inventory, include_evidence_ids=True),
+        "source_map_summary": source_map_research_summary(source_map, inventory, include_evidence_ids=False),
     }
 
 
@@ -1268,18 +1353,20 @@ def _treatment_input(
         research_audit=research_audit,
         context=context,
     )
+    weight_rank = {"core": 0, "supporting": 1, "caveat": 2}
+    indexed_atoms = sorted(
+        list(enumerate(research_memo.editorial_atoms, start=1)),
+        key=lambda item: (weight_rank.get(item[1].story_weight, 1), item[0]),
+    )
     return {
         "episode_brief": {
             "topic": str((run.config or {}).get("user_prompt") or "")[:700],
             "language": str((run.config or {}).get("language") or "en"),
             "duration_minutes": int((run.config or {}).get("duration_target", 1800)) // 60,
             "act_count_range": {"min": act_count_range[0], "max": act_count_range[1]},
-            "title": research_memo.title,
-            "thesis": _trim(research_memo.thesis, 900),
-            "research_synthesis": _trim(research_memo.research_synthesis, 1400),
         },
         "research_atoms": [
-            _treatment_atom_payload(atom, idx, context) for idx, atom in enumerate(research_memo.editorial_atoms, start=1)
+            _treatment_atom_payload(atom, idx, context) for idx, atom in indexed_atoms
         ],
         "source_context": _treatment_source_context(
             source_inventory.source_cards,
@@ -1371,6 +1458,7 @@ def _treatment_from_plan(
         acts=acts,
         recurring_questions=plan.recurring_questions,
         style_constraints=plan.style_constraints,
+        planning_gaps=[str(item) for item in plan.planning_gaps if str(item).strip()],
     )
 
 
@@ -1388,6 +1476,17 @@ async def audit_research_memo(
 ) -> ResearchAudit:
     source_map = source_map or SourceMap()
     workspace = await load_research_workspace(db, run.id) if db is not None else None
+    evidence_records = await list_evidence_dicts(db, run.id) if db is not None else []
+    inventory = source_inventory or source_map
+    context = _source_ref_context(inventory.source_cards)
+    source_titles_by_id = {card.source_id: card.title for card in inventory.source_cards}
+    _, evidence_id_by_ref, required_evidence_refs = _audit_evidence_previews(
+        research_memo=research_memo,
+        evidence_records=evidence_records,
+        context=context,
+        source_titles_by_id=source_titles_by_id,
+    )
+    audit_read_refs: set[str] = set()
     prompt = RESEARCH_AUDIT_PROMPT.format(
         duration_minutes=int((run.config or {}).get("duration_target", 1800)) // 60,
         audit_input_json=_json(
@@ -1397,6 +1496,7 @@ async def audit_research_memo(
                 source_map=source_map,
                 source_inventory=source_inventory,
                 workspace=workspace,
+                evidence_records=evidence_records,
             )
         ),
         show_bible_json=(show_bible or ShowBibleContext()).model_dump_json(),
@@ -1411,10 +1511,36 @@ async def audit_research_memo(
             system=RESEARCH_AUDIT_SYSTEM,
             prompt=prompt,
             vector_store_id=None,
-            local_tools=_phase_tools(evidence_tools, AUDIT_TOOL_NAMES),
+            local_tools=_audit_tools_with_evidence_refs(
+                evidence_tools,
+                evidence_id_by_ref=evidence_id_by_ref,
+                read_refs=audit_read_refs,
+            ),
             tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
             max_output_tokens=5000,
         )
+        duration_seconds = int((run.config or {}).get("duration_target", 1800))
+        missing_required_reads = sorted(required_evidence_refs - audit_read_refs) if duration_seconds >= 2700 else []
+        if audit.passed and missing_required_reads:
+            return ResearchAudit(
+                passed=False,
+                score=min(audit.score, 0.55),
+                verdict="Research audit did not read required evidence previews.",
+                missing_material=["Audit must read required evidence previews before treatment."],
+                required_followups=[f"Read required evidence_refs: {', '.join(missing_required_reads[:12])}"],
+                blocking=True,
+                issues=[
+                    ResearchAuditIssue(
+                        issue_type="tool_contract",
+                        severity="blocking",
+                        target_step="research_audit",
+                        description="Audit passed without reading required core evidence previews.",
+                        suggested_repair="Rerun research audit and read the required evidence_refs before passing.",
+                        evidence_refs=missing_required_reads,
+                    )
+                ],
+                repair_targets=["research_audit"],
+            )
         return _normalize_research_audit(audit)
     except V2RuntimeUnavailable as exc:
         _allow_runtime_fallback(runtime, "v2_research_audit", "research_auditor", exc)
@@ -1888,15 +2014,14 @@ def _allow_runtime_fallback(runtime: V2Runtime, phase: str, agent_name: str, exc
 
 def _fallback_research_memo(run: GenerationRun, source_cards: list[SourceCard], quote_cards: list[QuoteCard]) -> ResearchMemo:
     kinds = [
-        "conflict",
+        "tension",
         "mechanism",
-        "history",
-        "turning_point",
-        "consequence",
+        "context",
+        "change",
+        "impact",
         "exception",
-        "human_cost",
-        "institutional_incentive",
-        "unanswered_question",
+        "driver",
+        "open_question",
     ]
     atoms: list[EditorialAtom] = []
     for idx, card in enumerate(source_cards[:9]):
@@ -1904,8 +2029,8 @@ def _fallback_research_memo(run: GenerationRun, source_cards: list[SourceCard], 
         atoms.append(
             EditorialAtom(
                 kind=kind,  # type: ignore[arg-type]
-                title=f"{kind.replace('_', ' ').title()}: {card.title[:90]}",
-                explanation=card.summary[:700],
+                title=f"{kind.replace('_', ' ').title()}: {card.title}",
+                explanation=card.summary,
                 source_ids=[card.source_id],
                 quote_refs=[quote.quote[:120] for quote in quote_cards if quote.source_id == card.source_id][:2],
                 story_value=f"Use as {kind.replace('_', ' ')} material in the episode.",
@@ -1919,7 +2044,7 @@ def _fallback_research_memo(run: GenerationRun, source_cards: list[SourceCard], 
     if not atoms:
         atoms.append(
             EditorialAtom(
-                kind="unanswered_question",
+                kind="open_question",
                 title="Source gap",
                 explanation="No project sources were available for evidence-backed research.",
                 story_value="Blocks high-confidence editorial generation.",
@@ -1949,10 +2074,10 @@ def _fallback_treatment(run: GenerationRun, memo: ResearchMemo, act_count: int) 
         acts.append(
             TreatmentAct(
                 act_number=idx,
-                title=atom.title[:100],
+                title=atom.title,
                 story_role=atom.kind.replace("_", " "),
                 opening_question=f"What does this reveal about {memo.title}?",
-                main_turn=atom.explanation[:220],
+                main_turn=atom.explanation,
                 ending_turn=f"The next layer changes how we understand {memo.title}.",
                 source_focus=atom.source_ids,
                 target_minutes=per_act,

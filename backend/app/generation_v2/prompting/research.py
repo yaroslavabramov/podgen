@@ -23,11 +23,11 @@ Create durable investigation jobs that will turn the SourceMap into source-groun
 
 Long-form research should cover:
 - central mechanism: how the key system/process works;
-- origin/history: how the situation came to exist;
-- turning points: changes, crises, reforms, or reversals;
-- conflict/incentives: actors, constraints, incentives, disagreements, or institutional logic;
-- consequences/tradeoffs: what the system enables, prevents, costs, or risks;
-- exceptions/research gaps: what remains uncertain, contested, missing, or weakly sourced.
+- context/setup: how the situation came to exist and what background matters;
+- change: events, shifts, crises, reforms, reversals, or trajectory changes;
+- tension/driver: tensions, tradeoffs, contradictions, causes, pressures, constraints, or conditions;
+- impact: what changes, costs, benefits, risks, or stakes follow;
+- exceptions/open questions: what remains uncertain, contested, missing, or weakly sourced.
 
 {atom_kind_block}
 
@@ -35,19 +35,19 @@ Use upsert_research_job for each investigation job, then finalize_research_plan.
 Planning is an editorial decision: use SourceMap clusters, relationships, quote cards, gaps, and source cards to choose job scopes. Do not read or search here; this agent only writes the plan.
 
 A good job has:
-- one clear research_job label, such as mechanism, history_origin, turning_point, conflict_incentive, consequence_tradeoff, exception_or_risk, or synthesis_gap;
+- one clear research_job label, such as mechanism, context, change, tension_driver, impact, exception_or_gap, or synthesis_gap;
 - source_refs from SourceMap clusters/source cards when known;
 - concrete questions that can be answered by reading/searching those sources;
 - required_atom_kinds that the job is expected to produce;
 - enough scope to compare sources when comparison matters, but not a single mega-job that says "research everything";
 - allow_broad_search=true only when the SourceMap does not identify enough relevant sources, with questions narrow enough for targeted corpus search.
 
-For 45+ minute episodes, normally create multiple jobs covering mechanism, origin/history, turning points, conflict/incentives, consequences/tradeoffs, and unresolved risks. If the SourceMap already marks a group as duplicate, weak, or deferred, make that a lower-priority risk/gap job instead of spending a full investigation job on it.
+For 45+ minute episodes, normally create multiple jobs covering mechanism, context, change, tension/driver, impact, and unresolved risks. If the SourceMap already marks a group as duplicate, weak, or deferred, make that a lower-priority risk/gap job instead of spending a full investigation job on it.
 
 Mini-examples:
 - Good job: label="Mechanism", story_job="mechanism", source_refs=["S03","S07"], questions=["What process does each source say makes the system work?", "Where do the sources agree or differ?"], required_atom_kinds=["mechanism"], priority="high", allow_broad_search=false.
 - Bad job: label="Research topic", story_job="general", source_refs=[], questions=["Find interesting facts"], required_atom_kinds=[], priority="normal", allow_broad_search=true.
-- Good broad job: label="Missing consequences", story_job="consequence_tradeoff", source_refs=[], questions=["Search for concrete costs, tradeoffs, or downstream effects not covered by the mapped sources"], required_atom_kinds=["consequence"], priority="normal", allow_broad_search=true.
+- Good broad job: label="Missing impact", story_job="impact", source_refs=[], questions=["Search for concrete costs, tradeoffs, downstream effects, or stakes not covered by the mapped sources"], required_atom_kinds=["impact"], priority="normal", allow_broad_search=true.
 
 Return only ResearchWorkflowCompletion JSON after the tools have persisted the plan.""".replace("{atom_kind_block}", ATOM_KIND_PROMPT_BLOCK)
 
@@ -85,22 +85,31 @@ How to work:
 
 Repair jobs:
 - If the current job payload has repair_for_gap_id or repair_gap, the job is repairing that exact blocking gap.
-- If you resolve it, persist the substantive finding first with upsert_editorial_atom or record_research_observation, then call record_research_gap with the same gap_id, original category/severity, status="resolved", evidence_ids from the resolving read(s), and a resolution_note.
-- If you cannot resolve it, call record_research_gap with the same gap_id, status="open" or "deferred", severity="blocking", and a resolution_note explaining what is still missing; then finish the job as deferred.
+- If you resolve it, persist the substantive finding first with upsert_editorial_atom or record_research_observation, then call record_research_gap with the same gap_id, original category/severity/treatment_relevance, status="resolved", evidence_ids from the resolving read(s), and a resolution_note.
+- If you cannot resolve it, call record_research_gap with the same gap_id, status="open" or "deferred", original or stronger severity/treatment_relevance, and a resolution_note explaining what is still missing; then finish the job as deferred.
 
-A strong editorial atom is not a topic and not an act outline. It states a source-grounded finding: mechanism, history, turning point, conflict, incentive, consequence, exception, human cost, or genuinely unresolved question.
-unanswered_question is only for findings that remain unresolved or weak after reading. Supported claims with caveats belong in an atom plus risk or source_coverage_status.
+A strong editorial atom is not a topic and not an act outline. It states a source-grounded finding: context, mechanism, change, tension, driver, impact, exception, or genuinely unresolved open question.
+open_question is only for findings that remain unresolved or weak after reading. Supported claims with caveats belong in an atom plus risk or source_coverage_status.
+Atom weight:
+- story_weight="core" only for findings strong enough to anchor a treatment act.
+- story_weight="supporting" for material that supports a larger act but should not be the main act anchor.
+- story_weight="caveat" for exceptions, unresolved questions, and bounded warnings.
+- treatment_role_hint should explain in one sentence how treatment may use the atom.
+Research gap relevance:
+- treatment_relevance="central" only when the episode cannot responsibly proceed without resolving or tightly bounding the gap.
+- treatment_relevance="supporting" when it affects a segment or caution.
+- treatment_relevance="minor" when it should not shape treatment.
 
 {atom_kind_block}
 
 Mini-examples:
 - Bad atom: title="Background", claim="Several sources discuss this topic.", story_value="Useful context."
 - Bad atom: title="Source quality warning", claim="This source needs corroboration.", story_value="Be careful with this source." Use record_research_risk or record_research_gap instead.
-- Good atom: kind="mechanism", title="The system works because two actors exchange enforceable obligations", claim="The source evidence shows a concrete process with actors, assets, and constraints; the episode can explain that process before judging its consequences.", story_value="Gives the listener the operating model needed for the rest of the episode."
+- Good atom: kind="mechanism", story_weight="core", title="The process depends on two linked constraints", claim="The source evidence shows a concrete process with parts, dependencies, and constraints; the episode can explain that process before judging its impact.", story_value="Gives the listener the operating model needed for the rest of the episode.", treatment_role_hint="Can anchor a mechanism act."
 - Good risk: "S01 is close to an actor being described; use it for that actor's own account, but avoid making it the only support for a contested claim."
-- Good gap: category="weak_corroboration", severity="non_blocking", question="Do independent sources corroborate this source's explanation?", source_refs=["S01"], evidence_ids=[], status="open", resolution_note="".
-- Good repaired gap: gap_id="gap_timing", category="chronology_detail", severity="blocking", status="resolved", evidence_ids=["ev_123"], resolution_note="The cited source directly resolves the timing question."
-- Good observation: "S01 and S02 disagree on timing. One is closer to the actor's account, while the other is a later interpretation. Need one more read before turning this into a turning_point atom."
+- Good gap: category="weak_corroboration", severity="non_blocking", treatment_relevance="supporting", question="Do independent sources corroborate this source's explanation?", source_refs=["S01"], evidence_ids=[], status="open", resolution_note="".
+- Good repaired gap: gap_id="gap_timing", category="chronology_detail", severity="blocking", treatment_relevance="central", status="resolved", evidence_ids=["ev_123"], resolution_note="The cited source directly resolves the timing question."
+- Good observation: "S01 and S02 disagree on timing. One is closer to the event, while the other is a later interpretation. Need one more read before turning this into a change atom."
 
 Return only ResearchWorkflowCompletion JSON after the job is finished or explicitly deferred.""".replace("{atom_kind_block}", ATOM_KIND_PROMPT_BLOCK)
 
@@ -124,19 +133,19 @@ Review the persisted investigation jobs, observations, atom_drafts, research_gap
 
 Duplicate audit comes first:
 - atom_drafts are raw outputs from separate jobs, so overlaps are expected.
-- Compare every active atom_draft by title, claim/explanation, story_value, kind, source refs, and evidence_ids before finalizing.
+- Compare every active atom_draft by title, claim/explanation, story_value, kind, source refs, and evidence_count before finalizing.
 - Same finding means the atoms answer the same research question or would give treatment the same story beat, even when titles, wording, language, job labels, source refs, or evidence differ.
-- Likely duplicates: one atom restates another with extra citations; one atom is a narrow example of the same bounded exception; one atom repeats the same background/turning-point claim.
-- Not duplicates: same topic but different research function, such as mechanism vs consequence, event vs conflict, origin vs later turning point, or claim vs unresolved gap.
+- Likely duplicates: one atom restates another with extra source support; one atom is a narrow example of the same bounded exception; one atom repeats the same context/change claim.
+- Not duplicates: same topic but different research function, such as mechanism vs impact, event vs tension, context vs later change, or claim vs unresolved gap.
 - For each same-kind duplicate group, call merge_editorial_atoms before finalize_research_memo. Keep the atom with the clearest claim as primary and merge the other evidence/source refs into it.
 - Do not call finalize_research_memo until this duplicate audit is complete. If no merge is needed, source_coverage should say that the finalizer checked atom overlap and kept only distinct findings.
 
 Use record_research_risk for any important contradiction, missing coverage, weak support, or uncertainty that should survive into later planning.
-Use record_research_gap only for structured unresolved research gaps. Mark severity="blocking" only when treatment should not proceed without repair; use severity="non_blocking" or "optional" for caveats that should not block treatment.
+Use record_research_gap only for structured unresolved research gaps. Mark treatment_relevance="central" for gaps that touch the user prompt's central promise or would become important if treatment gives that topic a full act. Central open/deferred gaps must not be hidden as ordinary risk_register caveats. Mark severity="blocking" only when treatment should not proceed without repair; use severity="non_blocking" or "optional" for caveats that should not block treatment.
 Then call finalize_research_memo with title, thesis, research_synthesis, and source_coverage.
 Do not repeat already recorded risks or research gaps in finalize_research_memo.risk_register. That field is only for a genuinely additional caution that cannot be represented by record_research_risk or record_research_gap; otherwise pass an empty list or omit it.
 
-The final memo is a research synthesis, not an episode treatment. Do not write acts, act numbers, scene order, host moves, or episode outline. The thesis should answer what the research currently supports. research_synthesis should summarize the confirmed mechanisms, timeline, disputes, consequences, weak claims, and unresolved research gaps. Source coverage should say what is well supported, partial, deferred, or risky.
+The final memo is an internal research digest, not an episode treatment and not the episode's editorial angle. Do not write acts, act numbers, scene order, host moves, logline, or episode outline. The thesis is a short supported_answer: the most compact answer the evidence currently supports, not a chronological recap. research_synthesis is an audit/debug digest of confirmed context, mechanisms, changes, tensions, drivers, impacts, weak claims, and unresolved research gaps; it is not passed to treatment as story structure. Source coverage should say what is well supported, partial, deferred, or risky.
 
 The final ResearchMemo is assembled from persisted atom_drafts. Do not restate all atoms in the final JSON response; the final JSON response is only ResearchWorkflowCompletion.
 
@@ -162,22 +171,27 @@ Decide whether treatment can safely plan from this research memo. Do not write t
 
 Check:
 - Distinct editorial atoms: enough specific findings, not repeated drafts of the same point.
-- Grounding: important claims have evidence_ids and readable source context.
-- Story functions: mechanism, history/origin, turning point, consequence, conflict or institutional incentive, and real uncertainties for long-form topics.
+- Grounding: important claims have evidence_previews with locators/snippets/source context.
+- Story functions: mechanism, context/setup, change, tension or driver, impact, and real uncertainties for long-form topics.
 - Gaps and risks: blocking gaps should stop treatment; non-blocking cautions should be passed as risks.
 - SourceMap coverage: major clusters are represented by atoms, risks, or explicit deferred reasons.
 
-Use tools sparingly:
-- read_evidence only when a cited evidence_id looks suspicious or too thin.
+Use tools deliberately:
+- For 45+ minute work, read every evidence_preview marked read_priority="required" before passing audit.
+- The backend marks core atom grounding and suspicious previews as required: partial/weak coverage, single-source major claims, or open-question atoms.
+- Read recommended previews when they are likely to anchor treatment or clarify a risk.
+- read_evidence takes evidence_ref values such as E001 from audit_input_json, not backend UUIDs.
 - search_corpus only when the memo likely missed material already present in the corpus.
 - Do not use tools to build new findings; this is an audit.
 
 Issue routing:
 - target_step="research_finalizer": duplicate atoms, stale source-quality atoms, bad memo formatting, risks/gaps placed in the wrong field.
+- target_step="research_audit": audit did not perform required evidence reads.
 - target_step="editorial_research": missing/weak atom, weak grounding, missing SourceMap cluster coverage when corpus likely has relevant material.
 - target_step="source_acquisition": the corpus lacks necessary sources or perspectives.
 - target_step="treatment": non-blocking caution treatment must respect.
 - target_step="none": no repair needed.
+Use issue_type="needs_research_repair" when existing corpus likely has material but research did not extract it. Use "source_acquisition_needed" when the corpus lacks the needed source/perspective. Use "treatment_caution" only for non-blocking constraints. Use "no_issue" only with target_step="none".
 
 If passed=true, repair_targets, missing_material, and required_followups must be empty. Keep non-blocking caveats only as issues with severity="minor".
 Pass only if there are no blocking or major issues that must be repaired before treatment.
