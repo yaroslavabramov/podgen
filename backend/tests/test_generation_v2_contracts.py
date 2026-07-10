@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import ast
 import hashlib
+import inspect
 import json
+import textwrap
 import uuid
 from types import SimpleNamespace
 
@@ -9,6 +12,7 @@ import pytest
 from pydantic import BaseModel
 
 from app.config import settings
+from app.generation_v2.contracts import V2AgentName, V2AgentPrefix, V2Phase
 from app.generation_v2.agents.editorial import (
     RESEARCH_FINALIZER_TOOL_NAMES,
     RESEARCH_JOB_TOOL_NAMES,
@@ -20,7 +24,6 @@ from app.generation_v2.agents.editorial import (
     _fallback_research_memo,
     _fallback_treatment,
     _quote_inventory,
-    _fallback_treatment,
     _source_inventory,
     _source_ref_context,
     _triage_inventory,
@@ -149,10 +152,16 @@ from app.generation_v2.source_corpus import (
     _provider_attributes,
     _version_has_snapshot,
     _version_upload_payload,
+    SourceCorpusProjectSyncDeps,
+    SourceCorpusProviderUploadDeps,
+    SourceCorpusReconciliationDeps,
     prepare_v2_corpus,
     reconcile_project_corpus_index_now,
     reconcile_provider_corpus_files,
 )
+from app.generation_v2.source_corpus_provider_attribute_sync import sync_provider_file_attributes
+from app.generation_v2.source_corpus_provider_polling import poll_provider_file_until_terminal
+from app.generation_v2.source_corpus_vector_ops import ensure_vector_store_file_attached
 from app.generation_v2.source_workspace import _quote_cards_from_chunks
 from app.generation_v2 import source_triage_workspace as triage_workspace_module
 from app.generation_v2.source_triage_workspace import (
@@ -412,6 +421,9 @@ def test_v2_runtime_routes_models_per_agent(monkeypatch: pytest.MonkeyPatch) -> 
     assert runtime.model_for("v2_fact_citation", "citation_linker") == "gpt-5.4-mini"
     assert runtime.model_for("v2_fact_citation", "support_judge") == "gpt-5.4-mini"
     assert runtime.model_for("v2_unknown", "unknown_agent") == "gpt-5.4-mini"
+    assert runtime.model_for(V2Phase.SOURCE_TRIAGE, V2AgentName.SOURCE_TRIAGE_PLANNER) == "gpt-5.4-mini"
+    assert runtime.model_for(V2Phase.SOURCE_ACQUISITION, f"{V2AgentPrefix.SOURCE_ACQUISITION_ROUND.value}2") == "gpt-5.4-mini"
+    assert runtime.model_for(V2Phase.EDITORIAL_RESEARCH, f"{V2AgentPrefix.RESEARCH_JOB.value}mechanism") == "gpt-5.4-mini"
 
 
 @pytest.mark.asyncio
@@ -1749,6 +1761,24 @@ def test_runtime_tool_trace_names_include_function_tool_names() -> None:
     assert tools[0]["name"] == "search_corpus"
 
 
+def test_orchestrator_research_audit_call_matches_agent_signature() -> None:
+    from app.generation_v2.pipeline.editorial_research_stage import EditorialResearchStageRunner
+
+    tree = ast.parse(textwrap.dedent(inspect.getsource(EditorialResearchStageRunner.run_audit)))
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "audit_research_memo"
+    ]
+    assert calls
+
+    accepted_keywords = set(inspect.signature(audit_research_memo).parameters)
+    for call in calls:
+        used_keywords = {keyword.arg for keyword in call.keywords if keyword.arg is not None}
+        assert used_keywords <= accepted_keywords
+        assert "research_audit" not in used_keywords
+
+
 @pytest.mark.asyncio
 async def test_phase_specific_agent_tool_sets_are_not_broad() -> None:
     _CaptureRuntime.calls = {}
@@ -2469,7 +2499,7 @@ def test_treatment_gate_rejects_planning_gap_and_caveat_primary_anchor() -> None
 
 @pytest.mark.asyncio
 async def test_treatment_gate_research_issues_enqueue_research_repair(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.generation_v2 import orchestrator as orchestrator_module
+    from app.generation_v2.pipeline import orchestrator_compat
 
     run = SimpleNamespace(id=uuid.uuid4())
     workspace = {"research_gaps": [], "investigation_jobs": [], "memo_fields": {"title": "stale"}}
@@ -2488,9 +2518,9 @@ async def test_treatment_gate_research_issues_enqueue_research_repair(monkeypatc
         assert workspace["research_gaps"][0]["category"] == "weak_corroboration"
         return ["repair_job_1"]
 
-    monkeypatch.setattr(orchestrator_module, "load_research_workspace", _load)
-    monkeypatch.setattr(orchestrator_module, "save_research_workspace", _save)
-    monkeypatch.setattr(orchestrator_module, "enqueue_research_repair_jobs", _enqueue)
+    monkeypatch.setattr(orchestrator_compat, "load_research_workspace", _load)
+    monkeypatch.setattr(orchestrator_compat, "save_research_workspace", _save)
+    monkeypatch.setattr(orchestrator_compat, "enqueue_research_repair_jobs", _enqueue)
 
     repair_jobs = await _enqueue_treatment_research_repair_jobs(
         None,  # type: ignore[arg-type]
@@ -2515,7 +2545,7 @@ async def test_treatment_gate_research_issues_enqueue_research_repair(monkeypatc
 
 @pytest.mark.asyncio
 async def test_treatment_gate_bad_atom_selection_does_not_enqueue_research_repair(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.generation_v2 import orchestrator as orchestrator_module
+    from app.generation_v2.pipeline import orchestrator_compat
 
     run = SimpleNamespace(id=uuid.uuid4())
     workspace = {"research_gaps": [], "investigation_jobs": [], "memo_fields": {"title": "stale"}}
@@ -2529,9 +2559,9 @@ async def test_treatment_gate_bad_atom_selection_does_not_enqueue_research_repai
     async def _enqueue(_db, *, run):
         raise AssertionError("pure treatment selection errors should not enqueue research repair")
 
-    monkeypatch.setattr(orchestrator_module, "load_research_workspace", _load)
-    monkeypatch.setattr(orchestrator_module, "save_research_workspace", _save)
-    monkeypatch.setattr(orchestrator_module, "enqueue_research_repair_jobs", _enqueue)
+    monkeypatch.setattr(orchestrator_compat, "load_research_workspace", _load)
+    monkeypatch.setattr(orchestrator_compat, "save_research_workspace", _save)
+    monkeypatch.setattr(orchestrator_compat, "enqueue_research_repair_jobs", _enqueue)
 
     repair_jobs = await _enqueue_treatment_research_repair_jobs(
         None,  # type: ignore[arg-type]
@@ -3356,7 +3386,7 @@ def test_research_memo_gate_skips_low_priority_duplicate_cluster_coverage() -> N
 
 @pytest.mark.asyncio
 async def test_research_memo_evidence_artifacts_are_saved_for_atom_evidence(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.generation_v2 import orchestrator as orchestrator_module
+    from app.generation_v2.pipeline import artifact_claim_persistence as claim_persistence_module
 
     run = SimpleNamespace(id=uuid.uuid4())
     evidence_id = str(uuid.uuid4())
@@ -3387,8 +3417,8 @@ async def test_research_memo_evidence_artifacts_are_saved_for_atom_evidence(monk
         saved.append(kwargs)
         return SimpleNamespace(id=uuid.uuid4())
 
-    monkeypatch.setattr(orchestrator_module, "list_evidence_dicts", fake_list_evidence_dicts)
-    monkeypatch.setattr(orchestrator_module, "save_artifact", fake_save_artifact)
+    monkeypatch.setattr(claim_persistence_module, "list_evidence_dicts", fake_list_evidence_dicts)
+    monkeypatch.setattr(claim_persistence_module, "save_artifact", fake_save_artifact)
 
     artifact_map = await _save_evidence_artifact_map(
         None,  # type: ignore[arg-type]
@@ -4915,7 +4945,7 @@ def test_research_agent_tool_filters_include_gap_and_risk_tools() -> None:
 
 @pytest.mark.asyncio
 async def test_research_finalizer_clears_stale_memo_fields_before_run(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.generation_v2.agents import editorial as editorial_module
+    from app.generation_v2.agents import research_memo_agent
 
     source_id = str(uuid.uuid4())
     evidence_id = str(uuid.uuid4())
@@ -4963,9 +4993,9 @@ async def test_research_finalizer_clears_stale_memo_fields_before_run(monkeypatc
         return SimpleNamespace(id=uuid.uuid4(), payload=test_workspace)
 
     test_workspace = workspace
-    monkeypatch.setattr(editorial_module, "ensure_research_workspace", _ensure)
-    monkeypatch.setattr(editorial_module, "load_research_workspace", _load)
-    monkeypatch.setattr(editorial_module, "save_research_workspace", _save_state)
+    monkeypatch.setattr(research_memo_agent, "ensure_research_workspace", _ensure)
+    monkeypatch.setattr(research_memo_agent, "load_research_workspace", _load)
+    monkeypatch.setattr(research_memo_agent, "save_research_workspace", _save_state)
 
     with pytest.raises(RuntimeError, match="Research finalizer did not finalize memo fields"):
         await build_research_memo(
@@ -5121,6 +5151,64 @@ async def test_research_risk_persists_full_text_and_rejects_oversized_text(monke
     assert rejected["accepted"] is False
     assert rejected["error"] == "semantic_field_too_long"
     assert rejected["field"] == "risk"
+
+
+@pytest.mark.asyncio
+async def test_research_planner_persists_full_questions_and_rejects_extra_items(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import research_workspace as research_workspace_module
+
+    run = SimpleNamespace(id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    workspace = {"source_order": ["S01"], "investigation_jobs": []}
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, *, generation_run_id, workspace: dict, status=None):
+        return SimpleNamespace(id=uuid.uuid4(), payload=workspace)
+
+    monkeypatch.setattr(research_workspace_module, "load_research_workspace", _load)
+    monkeypatch.setattr(research_workspace_module, "save_research_workspace", _save)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=SourceMap(),
+        evidence_toolset=None,
+        mode="planner",
+    )
+    upsert_job = next(tool for tool in tools if tool.name == "upsert_research_job")
+    full_question = ("How does the mechanism work? " * 25).strip()
+
+    accepted = await upsert_job.handler(
+        {
+            "label": "Mechanism",
+            "story_job": "mechanism",
+            "purpose": "Map the mechanism.",
+            "source_refs": ["S01"],
+            "questions": [full_question],
+            "required_atom_kinds": ["mechanism"],
+            "priority": "high",
+            "allow_broad_search": False,
+        }
+    )
+    rejected = await upsert_job.handler(
+        {
+            "label": "Too many",
+            "story_job": "mechanism",
+            "purpose": "Map too many questions.",
+            "source_refs": ["S01"],
+            "questions": [f"Question {idx}" for idx in range(11)],
+            "required_atom_kinds": ["mechanism"],
+            "priority": "high",
+            "allow_broad_search": False,
+        }
+    )
+
+    assert accepted["accepted"] is True
+    assert workspace["investigation_jobs"][0]["questions"] == [full_question]
+    assert rejected["accepted"] is False
+    assert rejected["error"] == "semantic_list_too_long"
+    assert rejected["field"] == "questions"
 
 
 @pytest.mark.asyncio
@@ -6387,6 +6475,46 @@ async def test_record_triage_observation_rejects_evidence_outside_current_set(mo
 
 
 @pytest.mark.asyncio
+async def test_source_triage_planner_rejects_overlong_semantic_fields_without_persistence(monkeypatch: pytest.MonkeyPatch) -> None:
+    workspace = {"source_order": ["S01"], "source_sets": []}
+    run = SimpleNamespace(id=uuid.uuid4())
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, *, generation_run_id, workspace: dict, status=None):
+        return SimpleNamespace(id=uuid.uuid4(), payload=workspace)
+
+    monkeypatch.setattr(triage_workspace_module, "load_source_triage_workspace", _load)
+    monkeypatch.setattr(triage_workspace_module, "save_source_triage_workspace", _save)
+    tools = build_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(),
+        evidence_toolset=None,
+        mode="planner",
+    )
+    upsert_set = next(tool for tool in tools if tool.name == "upsert_triage_source_set")
+
+    result = await upsert_set.handler(
+        {
+            "label": "Primary set",
+            "purpose": "x" * 601,
+            "source_refs": ["S01"],
+            "rationale": "Group primary sources.",
+            "questions": ["What is this source for?"],
+            "priority": "normal",
+        }
+    )
+
+    assert result["accepted"] is False
+    assert result["error"] == "semantic_field_too_long"
+    assert result["field"] == "purpose"
+    assert workspace["source_sets"] == []
+
+
+@pytest.mark.asyncio
 async def test_list_source_capsules_paginates_under_model_contract(monkeypatch: pytest.MonkeyPatch) -> None:
     source_cards = [_source_card(source_id=str(uuid.uuid4()), title=f"Source {idx:02d}") for idx in range(36)]
     inventory = SourceMap(source_cards=source_cards)
@@ -7385,6 +7513,28 @@ class _FakeProviderClient:
         self.vector_stores = _FakeProviderVectorStores(vector_files)
 
 
+def _reconciliation_deps(vector_files: _FakeVectorStoreFiles) -> SourceCorpusReconciliationDeps:
+    async def list_files(_provider_index):
+        return list(vector_files.files.values())
+
+    async def detach_file(provider_index, provider_file_id):
+        return await vector_files.delete(
+            vector_store_id=provider_index.provider_vector_store_id,
+            file_id=provider_file_id,
+        )
+
+    async def commit_if_supported(db):
+        commit = getattr(db, "commit", None)
+        if commit is not None:
+            await commit()
+
+    return SourceCorpusReconciliationDeps(
+        list_vector_store_files=list_files,
+        detach_openai_vector_store_file=detach_file,
+        commit_if_supported=commit_if_supported,
+    )
+
+
 @pytest.mark.asyncio
 async def test_prepare_v2_corpus_is_read_only_and_skips_not_ready_sources(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.generation_v2 import source_corpus as source_corpus_module
@@ -7473,9 +7623,7 @@ async def test_prepare_v2_corpus_fails_when_every_source_is_skipped(monkeypatch:
 
 
 @pytest.mark.asyncio
-async def test_project_corpus_index_sync_is_provider_only(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.generation_v2 import source_corpus as source_corpus_module
-
+async def test_project_corpus_index_sync_is_provider_only() -> None:
     async def fail_if_called(*_args, **_kwargs):
         raise AssertionError("corpus-index sync must not create source versions or render/fetch sources")
 
@@ -7507,12 +7655,12 @@ async def test_project_corpus_index_sync_is_provider_only(monkeypatch: pytest.Mo
         captured["source_ids"] = source_ids
         return []
 
-    monkeypatch.setattr(source_corpus_module, "ensure_source_versions", fail_if_called)
-    monkeypatch.setattr(source_corpus_module, "_ensure_web_snapshot_versions", fail_if_called)
-    monkeypatch.setattr(source_corpus_module, "ensure_project_provider_index", fake_ensure_provider_index)
-    monkeypatch.setattr(source_corpus_module, "sync_provider_corpus_files", fake_sync_provider_files)
-
-    summary = await reconcile_project_corpus_index_now(fake_db, project_id)  # type: ignore[arg-type]
+    deps = SourceCorpusProjectSyncDeps(
+        ensure_project_provider_index=fake_ensure_provider_index,
+        ensure_source_versions=fail_if_called,
+        sync_provider_corpus_files=fake_sync_provider_files,
+    )
+    summary = await reconcile_project_corpus_index_now(fake_db, project_id, deps=deps)  # type: ignore[arg-type]
 
     assert captured["versions"] == [version]
     assert captured["source_ids"] == {source.id}
@@ -7557,11 +7705,8 @@ async def test_ensure_source_version_replaces_after_new_row_without_provider_det
 
 @pytest.mark.asyncio
 async def test_provider_upload_resume_reuses_file_created_before_attach_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.generation_v2 import source_corpus as source_corpus_module
-
     monkeypatch.setattr(settings, "openai_api_key", "test-key")
     monkeypatch.setattr(settings, "generation_v2_enable_provider_uploads", True)
-    monkeypatch.setattr(source_corpus_module, "download_text", lambda _client, _path: "source text")
 
     project_id = uuid.uuid4()
     source = _source(project_id)
@@ -7578,9 +7723,15 @@ async def test_provider_upload_resume_reuses_file_created_before_attach_failure(
     fake_db = _FakeCorpusDb(sources=[source], versions=[version], provider_index=provider_index)
     first_vector_files = _FakeVectorStoreFiles(create_failure=RuntimeError("attach unavailable"))
     first_client = _FakeProviderClient(first_vector_files)
-    monkeypatch.setattr(source_corpus_module, "get_openai_client", lambda: first_client)
+    first_deps = SourceCorpusProviderUploadDeps(
+        get_openai_client=lambda: first_client,
+        version_upload_payload=lambda _version: ("source.txt", b"source text"),
+        sync_provider_file_attributes=sync_provider_file_attributes,
+        ensure_vector_store_file_attached=ensure_vector_store_file_attached,
+        poll_provider_file_until_terminal=poll_provider_file_until_terminal,
+    )
 
-    first_result = await _ensure_provider_file(fake_db, None, provider_index, version)  # type: ignore[arg-type]
+    first_result = await _ensure_provider_file(fake_db, None, provider_index, version, deps=first_deps)  # type: ignore[arg-type]
 
     assert first_client.files.create_calls
     assert first_result.provider_file_id == "file_fake_1"
@@ -7595,9 +7746,15 @@ async def test_provider_upload_resume_reuses_file_created_before_attach_failure(
     )
     second_vector_files = _FakeVectorStoreFiles(files={"file_fake_1": completed_vector_file})
     second_client = _FakeProviderClient(second_vector_files)
-    monkeypatch.setattr(source_corpus_module, "get_openai_client", lambda: second_client)
+    second_deps = SourceCorpusProviderUploadDeps(
+        get_openai_client=lambda: second_client,
+        version_upload_payload=lambda _version: ("source.txt", b"source text"),
+        sync_provider_file_attributes=sync_provider_file_attributes,
+        ensure_vector_store_file_attached=ensure_vector_store_file_attached,
+        poll_provider_file_until_terminal=poll_provider_file_until_terminal,
+    )
 
-    resumed = await _ensure_provider_file(fake_db, None, provider_index, version)  # type: ignore[arg-type]
+    resumed = await _ensure_provider_file(fake_db, None, provider_index, version, deps=second_deps)  # type: ignore[arg-type]
 
     assert second_client.files.create_calls == []
     assert second_vector_files.create_calls == []
@@ -7608,8 +7765,6 @@ async def test_provider_upload_resume_reuses_file_created_before_attach_failure(
 
 @pytest.mark.asyncio
 async def test_reconcile_adopts_completed_openai_file_for_existing_canonical_version(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.generation_v2 import source_corpus as source_corpus_module
-
     monkeypatch.setattr(settings, "openai_api_key", "test-key")
     project_id = uuid.uuid4()
     source = _source(project_id)
@@ -7630,7 +7785,6 @@ async def test_reconcile_adopts_completed_openai_file_for_existing_canonical_ver
         last_error=None,
     )
     vector_files = _FakeVectorStoreFiles(files={"file_adopt": vector_file})
-    monkeypatch.setattr(source_corpus_module, "get_openai_client", lambda: _FakeProviderClient(vector_files))
     fake_db = _FakeCorpusDb(sources=[source], versions=[version], provider_index=provider_index)
 
     summary = await reconcile_provider_corpus_files(
@@ -7638,6 +7792,7 @@ async def test_reconcile_adopts_completed_openai_file_for_existing_canonical_ver
         provider_index,
         [version],
         source_ids={source.id},
+        deps=_reconciliation_deps(vector_files),
     )
 
     assert summary["adopted_count"] == 1
@@ -7654,8 +7809,6 @@ async def test_reconcile_adopts_completed_openai_file_for_existing_canonical_ver
 async def test_reconcile_retains_db_backed_inactive_provider_file_until_replacement_ready(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.generation_v2 import source_corpus as source_corpus_module
-
     monkeypatch.setattr(settings, "openai_api_key", "test-key")
     project_id = uuid.uuid4()
     source = _source(project_id)
@@ -7688,7 +7841,6 @@ async def test_reconcile_retains_db_backed_inactive_provider_file_until_replacem
         last_error=None,
     )
     vector_files = _FakeVectorStoreFiles(files={"file_stale_but_db_backed": vector_file})
-    monkeypatch.setattr(source_corpus_module, "get_openai_client", lambda: _FakeProviderClient(vector_files))
     fake_db = _FakeCorpusDb(
         sources=[source],
         versions=[version],
@@ -7701,6 +7853,7 @@ async def test_reconcile_retains_db_backed_inactive_provider_file_until_replacem
         provider_index,
         [version],
         source_ids={source.id},
+        deps=_reconciliation_deps(vector_files),
     )
 
     assert summary["retained_stale_db_file_count"] == 1
@@ -7712,8 +7865,6 @@ async def test_reconcile_retains_db_backed_inactive_provider_file_until_replacem
 
 @pytest.mark.asyncio
 async def test_reconcile_detaches_openai_file_with_missing_source_version(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.generation_v2 import source_corpus as source_corpus_module
-
     monkeypatch.setattr(settings, "openai_api_key", "test-key")
     project_id = uuid.uuid4()
     source = _source(project_id)
@@ -7733,7 +7884,6 @@ async def test_reconcile_detaches_openai_file_with_missing_source_version(monkey
     }
     vector_file = SimpleNamespace(id="file_orphan", status="completed", attributes=orphan_attributes, last_error=None)
     vector_files = _FakeVectorStoreFiles(files={"file_orphan": vector_file})
-    monkeypatch.setattr(source_corpus_module, "get_openai_client", lambda: _FakeProviderClient(vector_files))
     fake_db = _FakeCorpusDb(sources=[source], versions=[version], provider_index=provider_index)
 
     summary = await reconcile_provider_corpus_files(
@@ -7741,6 +7891,7 @@ async def test_reconcile_detaches_openai_file_with_missing_source_version(monkey
         provider_index,
         [version],
         source_ids={source.id},
+        deps=_reconciliation_deps(vector_files),
     )
 
     assert summary["invalid_orphan_count"] == 1
@@ -7764,7 +7915,7 @@ def test_original_file_provider_upload_payload_preserves_native_bytes(monkeypatc
         assert path == "sources/project/report.pdf"
         return payload
 
-    monkeypatch.setattr("app.generation_v2.source_corpus.download_file", fake_download_file)
+    monkeypatch.setattr("app.generation_v2.source_corpus_upload_payload.download_file", fake_download_file)
     version = SourceVersion(
         id=uuid.uuid4(),
         source_id=uuid.uuid4(),
@@ -7791,7 +7942,7 @@ def test_original_pdf_provider_upload_payload_normalizes_arxiv_filename(monkeypa
         assert path == "sources/project/2511.10715"
         return payload
 
-    monkeypatch.setattr("app.generation_v2.source_corpus.download_file", fake_download_file)
+    monkeypatch.setattr("app.generation_v2.source_corpus_upload_payload.download_file", fake_download_file)
     version = SourceVersion(
         id=uuid.uuid4(),
         source_id=uuid.uuid4(),
@@ -7822,8 +7973,6 @@ def test_pdf_url_response_is_detected_for_native_openai_ingest() -> None:
 
 @pytest.mark.asyncio
 async def test_openai_url_read_uses_responses_file_url(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.generation_v2 import source_corpus as source_corpus_module
-
     fake_client = _FakeModelReadClient(
         {
             "read_status": "readable",
@@ -7838,7 +7987,7 @@ async def test_openai_url_read_uses_responses_file_url(monkeypatch: pytest.Monke
     )
     monkeypatch.setattr(settings, "openai_api_key", "test-key")
     monkeypatch.setattr(settings, "generation_v2_corpus_prepare_model", "gpt-5.4-mini")
-    monkeypatch.setattr(source_corpus_module, "get_openai_client", lambda: fake_client)
+    monkeypatch.setattr("app.generation_v2.source_corpus_url_versions.get_openai_client", lambda: fake_client)
 
     result = await _call_openai_url_file_read("https://example.com/article.html")
 
@@ -8353,6 +8502,21 @@ def test_corpus_gap_report_uses_only_source_acquisition_research_audit_issues() 
     descriptions = [gap.description for gap in report.gaps]
     assert any("independent source" in item for item in descriptions)
     assert not any("duplicate atom" in item or "merge_editorial_atoms" in item for item in descriptions)
+
+
+def test_corpus_gap_report_preserves_full_gap_description() -> None:
+    run = SimpleNamespace(id=uuid.uuid4(), project_id=uuid.uuid4(), config={"duration_target": 2700})
+    long_gap = "Need this full source-map gap preserved. " * 35
+
+    report = build_corpus_gap_report(
+        run,  # type: ignore[arg-type]
+        trigger_phase="source_triage",
+        round_number=1,
+        source_map=SourceMap(gaps=[long_gap]),
+    )
+
+    assert report.gaps
+    assert report.gaps[0].description == " ".join(long_gap.split())
 
 
 def test_corpus_gap_report_does_not_acquire_for_non_source_research_audit_issue() -> None:

@@ -1,0 +1,97 @@
+from __future__ import annotations
+
+from app.generation_v2.contracts.agents import V2ToolName
+from app.generation_v2.runtime import AgentTool
+
+
+def _tool_values(*tools: V2ToolName) -> set[str]:
+    return {tool.value for tool in tools}
+
+
+TRIAGE_PLANNER_TOOL_NAMES = _tool_values(
+    V2ToolName.LIST_SOURCE_CAPSULES,
+    V2ToolName.UPSERT_TRIAGE_SOURCE_SET,
+    V2ToolName.FINALIZE_TRIAGE_WORKSPACE_PLAN,
+)
+TRIAGE_SET_TOOL_NAMES = _tool_values(
+    V2ToolName.SEARCH_CORPUS,
+    V2ToolName.READ_EVIDENCE,
+    V2ToolName.READ_SOURCE_WINDOW,
+    V2ToolName.SKIM_SOURCE,
+    V2ToolName.INSPECT_SOURCE,
+    V2ToolName.COMPARE_SOURCE_EVIDENCE,
+    V2ToolName.UPSERT_SOURCE_CARD,
+    V2ToolName.CREATE_QUOTE_CARD,
+    V2ToolName.RECORD_SOURCE_RELATIONSHIP,
+    V2ToolName.RECORD_SOURCE_CLUSTER,
+    V2ToolName.RECORD_GAP,
+    V2ToolName.RECORD_TRIAGE_OBSERVATION,
+    V2ToolName.FINISH_TRIAGE_SOURCE_SET,
+)
+TRIAGE_FINALIZER_TOOL_NAMES = _tool_values(
+    V2ToolName.RECORD_GAP,
+    V2ToolName.FINALIZE_SOURCE_MAP,
+    V2ToolName.FINISH_TRIAGE_SOURCE_SET,
+)
+RESEARCH_PLANNER_TOOL_NAMES = _tool_values(
+    V2ToolName.UPSERT_RESEARCH_JOB,
+    V2ToolName.FINALIZE_RESEARCH_PLAN,
+)
+RESEARCH_JOB_TOOL_NAMES = _tool_values(
+    V2ToolName.SEARCH_CORPUS,
+    V2ToolName.FIND_QUOTES,
+    V2ToolName.READ_EVIDENCE,
+    V2ToolName.READ_SOURCE_WINDOW,
+    V2ToolName.READ_SOURCE_WITH_MODEL,
+    V2ToolName.SEARCH_WITHIN_SOURCE,
+    V2ToolName.SKIM_SOURCE,
+    V2ToolName.INSPECT_SOURCE,
+    V2ToolName.COMPARE_EVIDENCE_FOR_QUESTION,
+    V2ToolName.RECORD_RESEARCH_OBSERVATION,
+    V2ToolName.UPSERT_EDITORIAL_ATOM,
+    V2ToolName.RECORD_RESEARCH_RISK,
+    V2ToolName.RECORD_RESEARCH_GAP,
+    V2ToolName.FINISH_RESEARCH_JOB,
+)
+RESEARCH_FINALIZER_TOOL_NAMES = _tool_values(
+    V2ToolName.MERGE_EDITORIAL_ATOMS,
+    V2ToolName.RECORD_RESEARCH_RISK,
+    V2ToolName.RECORD_RESEARCH_GAP,
+    V2ToolName.FINALIZE_RESEARCH_MEMO,
+)
+AUDIT_TOOL_NAMES = _tool_values(
+    V2ToolName.SEARCH_CORPUS,
+    V2ToolName.READ_EVIDENCE,
+)
+WRITER_TOOL_NAMES = _tool_values(
+    V2ToolName.READ_EVIDENCE,
+    V2ToolName.READ_SOURCE_WINDOW,
+    V2ToolName.SEARCH_WITHIN_SOURCE,
+)
+CRITIC_TOOL_NAMES = _tool_values(
+    V2ToolName.SEARCH_CORPUS,
+    V2ToolName.READ_EVIDENCE,
+)
+REWRITER_TOOL_NAMES = _tool_values(
+    V2ToolName.READ_EVIDENCE,
+    V2ToolName.READ_SOURCE_WINDOW,
+    V2ToolName.SEARCH_WITHIN_SOURCE,
+)
+CITATION_TOOL_NAMES = _tool_values(
+    V2ToolName.SEARCH_CORPUS,
+    V2ToolName.READ_EVIDENCE,
+    V2ToolName.FIND_QUOTES,
+    V2ToolName.READ_SOURCE_WINDOW,
+    V2ToolName.READ_SOURCE_WITH_MODEL,
+    V2ToolName.SEARCH_WITHIN_SOURCE,
+    V2ToolName.SELECT_EVIDENCE,
+)
+ACQUISITION_TOOL_NAMES = _tool_values(
+    V2ToolName.INGEST_SOURCE_CANDIDATE,
+    V2ToolName.REJECT_SOURCE_CANDIDATE,
+    V2ToolName.FINALIZE_SOURCE_ACQUISITION_ROUND,
+)
+
+
+def phase_tools(evidence_tools: list[AgentTool] | None, allowed_names: set[str]) -> list[AgentTool]:
+    return [tool for tool in evidence_tools or [] if tool.name in allowed_names]

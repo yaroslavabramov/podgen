@@ -1,0 +1,181 @@
+from __future__ import annotations
+
+import uuid
+from typing import Any
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.generation_v2.schemas import SourceMap, SourceTriageCompletion, SourceTriageGate
+from app.generation_v2.tools.evidence_refs import build_source_ref_context, resolve_source_ref
+from app.generation_v2.tools.evidence_source_inventory import build_source_inventory
+from app.generation_v2.tools.evidence_source_map_gate_diagnostics import (
+    missing_model_read_sources as _missing_model_read_sources,
+    missing_source_card_evidence_sources as _missing_source_card_evidence_sources,
+    unpersisted_completion_gap_notes as _unpersisted_completion_gap_notes,
+)
+from app.generation_v2.tools.evidence_source_map_ids import (
+    source_map_evidence_ids as _source_map_evidence_ids,
+    source_map_source_ids as _source_map_source_ids,
+    source_map_version_ids as _source_map_version_ids,
+)
+from app.generation_v2.tools.evidence_types import (
+    EVIDENCE_STATUS_CITED,
+    EVIDENCE_STATUS_SELECTED,
+    _TRIAGE_READING_TOOL_NAMES,
+)
+from app.models.generation_v2 import EvidenceItem, RunCorpusView, V2ToolTrace
+
+
+async def validate_source_map_gate(
+    db: AsyncSession,
+    *,
+    generation_run_id: uuid.UUID,
+    source_map: SourceMap,
+    run_view: RunCorpusView,
+    triage_completion: SourceTriageCompletion | None = None,
+) -> SourceTriageGate:
+    selected_source_ids = {str(item) for item in run_view.selected_source_ids}
+    selected_version_ids = {str(item) for item in run_view.selected_source_version_ids}
+    evidence_result = await db.execute(select(EvidenceItem).where(EvidenceItem.generation_run_id == generation_run_id))
+    evidence_by_id = {str(item.id): item for item in evidence_result.scalars()}
+    selected_evidence_ids = {
+        evidence_id
+        for evidence_id, evidence in evidence_by_id.items()
+        if (evidence.metadata_ or {}).get("usage_status") in {EVIDENCE_STATUS_SELECTED, EVIDENCE_STATUS_CITED}
+    }
+    trace_result = await db.execute(
+        select(V2ToolTrace).where(
+            V2ToolTrace.generation_run_id == generation_run_id,
+            V2ToolTrace.phase == "v2_source_triage",
+            V2ToolTrace.tool_name.in_(list(_TRIAGE_READING_TOOL_NAMES)),
+        )
+    )
+    triage_traces = list(trace_result.scalars())
+    tool_call_count = len(triage_traces)
+    referenced_source_ids = _source_map_source_ids(source_map)
+    referenced_version_ids = _source_map_version_ids(source_map)
+    referenced_evidence_ids = set(_source_map_evidence_ids(source_map))
+    invalid_source_ids = sorted(source_id for source_id in referenced_source_ids if source_id not in selected_source_ids)
+    invalid_version_ids = sorted(version_id for version_id in referenced_version_ids if version_id not in selected_version_ids)
+    invalid_evidence_ids = sorted(
+        evidence_id
+        for evidence_id in referenced_evidence_ids
+        if evidence_id not in evidence_by_id
+        or evidence_id not in selected_evidence_ids
+        or str(evidence_by_id[evidence_id].source_id) not in selected_source_ids
+        or str(evidence_by_id[evidence_id].source_version_id) not in selected_version_ids
+    )
+    ungrounded_relationships = []
+    for relation in source_map.source_triage.source_relationships:
+        valid_relation_evidence = [eid for eid in relation.evidence_ids if eid in selected_evidence_ids]
+        if relation.relationship in {"primary_to_secondary", "duplicate", "near_duplicate", "contradicts", "updates"} and not valid_relation_evidence:
+            ungrounded_relationships.append(f"{relation.source_id}:{relation.relationship}:{relation.related_source_id}")
+    for cluster in source_map.source_triage.source_clusters:
+        if (cluster.primary_source_ids or cluster.secondary_source_ids or cluster.duplicate_source_ids) and not [
+            eid for eid in cluster.evidence_ids if eid in selected_evidence_ids
+        ]:
+            ungrounded_relationships.append(f"cluster:{cluster.cluster_id}")
+    missing_function_evidence = [
+        function
+        for function, evidence_ids in source_map.source_triage.top_evidence_by_function.items()
+        if not [eid for eid in evidence_ids if eid in selected_evidence_ids and eid not in invalid_evidence_ids]
+    ]
+    if not source_map.source_triage.top_evidence_by_function:
+        missing_function_evidence.append("top_evidence_by_function")
+    warnings = []
+    if not source_map.retrieval_notes:
+        warnings.append("Triage produced no retrieval notes.")
+    requires_tool_call = len(selected_source_ids) > 1
+    unselected_quote_evidence = [
+        str(quote.evidence_id)
+        for quote in source_map.quote_cards
+        if quote.evidence_id and quote.evidence_id not in selected_evidence_ids
+    ]
+    if unselected_quote_evidence:
+        invalid_evidence_ids = sorted({*invalid_evidence_ids, *unselected_quote_evidence})
+    evidence_count = len([eid for eid in referenced_evidence_ids if eid in selected_evidence_ids])
+    missing_source_card_evidence_source_ids = _missing_source_card_evidence_sources(
+        source_map,
+        evidence_by_id,
+        selected_evidence_ids,
+        invalid_evidence_ids=set(invalid_evidence_ids),
+    )
+    missing_model_read_source_ids = _missing_model_read_sources(source_map, evidence_by_id, selected_evidence_ids)
+    if missing_function_evidence:
+        warnings.append("Some triage function seed evidence is missing or incomplete.")
+    unpersisted_completion_gap_notes = _unpersisted_completion_gap_notes(triage_completion, source_map)
+    try:
+        write_source_ref_context = build_source_ref_context(await build_source_inventory(db, run_view))
+    except Exception:
+        write_source_ref_context = build_source_ref_context(source_map)
+    missing_source_card_write_source_ids = missing_source_card_write_sources(
+        source_map,
+        triage_traces,
+        write_source_ref_context,
+    )
+    passed = not (
+        (requires_tool_call and tool_call_count == 0)
+        or "Triage did not call finalize_source_map." in source_map.gaps
+        or evidence_count == 0
+        or invalid_source_ids
+        or invalid_version_ids
+        or invalid_evidence_ids
+        or missing_source_card_evidence_source_ids
+        or missing_source_card_write_source_ids
+        or unpersisted_completion_gap_notes
+        or ungrounded_relationships
+    )
+    summary = "Source triage gate passed." if passed else "Source triage gate failed."
+    if requires_tool_call and tool_call_count == 0:
+        summary += " No triage reading/search tool calls were recorded."
+    if "Triage did not call finalize_source_map." in source_map.gaps:
+        summary += " Source triage did not finalize the source map."
+    if evidence_count == 0:
+        summary += " No valid persisted evidence ids were referenced."
+    if missing_source_card_evidence_source_ids:
+        summary += " Every SourceCard must contain at least one selected evidence id."
+    if missing_source_card_write_source_ids:
+        summary += " Source cards must come from accepted upsert_source_card write actions."
+    if unpersisted_completion_gap_notes:
+        summary += " Triage completion mentions gaps/cautions that were not persisted with record_gap."
+    return SourceTriageGate(
+        passed=passed,
+        summary=summary,
+        tool_call_count=tool_call_count,
+        checked_source_count=len(referenced_source_ids),
+        checked_evidence_count=evidence_count,
+        invalid_source_ids=invalid_source_ids,
+        invalid_source_version_ids=invalid_version_ids,
+        invalid_evidence_ids=invalid_evidence_ids,
+        missing_source_card_evidence_source_ids=missing_source_card_evidence_source_ids,
+        missing_model_read_source_ids=missing_model_read_source_ids,
+        missing_source_card_write_source_ids=missing_source_card_write_source_ids,
+        unpersisted_completion_gap_notes=unpersisted_completion_gap_notes,
+        ungrounded_relationships=ungrounded_relationships,
+        missing_function_evidence=missing_function_evidence,
+        warnings=warnings,
+    )
+
+
+def missing_source_card_write_sources(
+    source_map: SourceMap,
+    traces: list[V2ToolTrace],
+    source_ref_context: Any,
+) -> list[str]:
+    upserted = {
+        _action_source_id(getattr(trace, "input_json", None) or {}, source_ref_context, "source_ref", "source_id")
+        for trace in traces
+        if getattr(trace, "tool_name", "") == "upsert_source_card" and _trace_accepted(trace)
+    }
+    return sorted(card.source_id for card in source_map.source_cards if card.source_id not in upserted)
+
+
+def _action_source_id(action: dict[str, Any], context: Any, ref_key: str, id_key: str) -> str:
+    value = str(action.get(ref_key) or action.get(id_key) or "")
+    return resolve_source_ref(value, context) or ""
+
+
+def _trace_accepted(trace: V2ToolTrace) -> bool:
+    output = getattr(trace, "output_json", None) or {}
+    return bool(output.get("accepted", True))
