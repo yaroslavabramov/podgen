@@ -16,6 +16,7 @@ from app.generation_v2.source_corpus_provider_detach import (
     detach_provider_file_from_active_index,
     list_vector_store_files,
     mark_provider_files_inactive as _mark_provider_files_inactive,
+    retry_pending_provider_detaches,
 )
 from app.generation_v2.source_corpus_provider_attribute_sync import (
     sync_provider_file_attributes,
@@ -53,6 +54,7 @@ class SourceCorpusProviderSyncDeps:
     reconcile_provider_corpus_files: Any
     ensure_provider_file: Any
     detach_excluded_provider_files: Any
+    retry_pending_provider_detaches: Any
 
 
 def default_source_corpus_provider_sync_deps() -> SourceCorpusProviderSyncDeps:
@@ -60,6 +62,7 @@ def default_source_corpus_provider_sync_deps() -> SourceCorpusProviderSyncDeps:
         reconcile_provider_corpus_files=reconcile_provider_corpus_files,
         ensure_provider_file=_ensure_provider_file,
         detach_excluded_provider_files=_detach_excluded_provider_files,
+        retry_pending_provider_detaches=retry_pending_provider_detaches,
     )
 
 
@@ -80,6 +83,7 @@ async def sync_provider_corpus_files(
     ):
         return []
     await _commit_if_supported(db)
+    await deps.retry_pending_provider_detaches(db, provider_index)
     active_source_versions = [version for version in source_versions if version.is_active]
     agent_facing_versions = _agent_facing_provider_versions(active_source_versions)
     agent_facing_version_ids = {version.id for version in agent_facing_versions}

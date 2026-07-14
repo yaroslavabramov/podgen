@@ -25,7 +25,7 @@ def build_source_triage(
     ranked: list[SourceTriageItem] = []
     for card in source_cards:
         score, reasons = _source_score(card, prompt_tokens)
-        top_quote_refs = [_quote_ref(quote) for quote in quotes_by_source.get(card.source_id, [])[:4]]
+        top_quote_refs = [_quote_ref(quote) for quote in quotes_by_source.get(card.source_id, [])]
         ranked.append(
             SourceTriageItem(
                 source_id=card.source_id,
@@ -49,10 +49,10 @@ def build_source_triage(
     for item in ranked:
         for function in item.useful_for or ["background"]:
             top_sources_by_function.setdefault(function, []).append(item.source_id)
-            top_evidence_by_function.setdefault(function, []).extend(item.evidence_ids[:4])
-    top_sources_by_function = {key: value[:6] for key, value in top_sources_by_function.items()}
+            top_evidence_by_function.setdefault(function, []).extend(item.evidence_ids)
+    top_sources_by_function = {key: value for key, value in top_sources_by_function.items()}
     top_evidence_by_function = {
-        key: _dedupe(value)[:12]
+        key: _dedupe(value)
         for key, value in top_evidence_by_function.items()
     }
 
@@ -61,7 +61,7 @@ def build_source_triage(
         f"{item.source_id}: low reliability source needs framing"
         for item in ranked
         if item.reliability == "low"
-    ][:8]
+    ]
     return SourceTriageReport(
         ranked_sources=ranked,
         top_sources_by_function=top_sources_by_function,

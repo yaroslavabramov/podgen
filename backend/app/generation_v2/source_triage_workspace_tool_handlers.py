@@ -38,6 +38,8 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
         invalid = [ref for ref in source_refs if ref not in set(source_set.get("source_refs") or [])]
         if invalid:
             return {"accepted": False, "error": "Observation source_refs must belong to the current source set", "invalid_source_refs": invalid}
+        if not source_refs:
+            return {"accepted": False, "error": "record_triage_observation requires at least one source_ref"}
         note = str(args.get("note") or "").strip()
         if not note:
             return {"accepted": False, "error": "note is required"}
@@ -110,6 +112,38 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
         if status in {"deferred", "needs_repair"} and not str(args.get("deferred_reason") or "").strip():
             return {"accepted": False, "error": "deferred_reason is required for deferred/needs_repair status"}
         deferred_reason = str(args.get("deferred_reason") or "").strip()
+        deferred_sources = []
+        for item in args.get("deferred_sources") or []:
+            if not isinstance(item, dict):
+                continue
+            source_ref = str(item.get("source_ref") or "").strip()
+            reason = str(item.get("reason") or "").strip()
+            if source_ref not in set(source_set.get("source_refs") or []):
+                return {"accepted": False, "error": "deferred source_ref must belong to the current source set", "source_ref": source_ref}
+            if not reason:
+                return {"accepted": False, "error": "Each deferred source requires a reason", "source_ref": source_ref}
+            reason_error = semantic_field_error(
+                {"deferred_reason": reason}, TRIAGE_SEMANTIC_FIELD_LIMITS, ["deferred_reason"]
+            )
+            if reason_error:
+                return reason_error
+            deferred_sources.append({"source_ref": source_ref, "reason": reason})
+        if status == "mapped":
+            covered_refs = set(public_api._source_set_covered_refs(source_set))
+            deferred_refs = {item["source_ref"] for item in deferred_sources}
+            unresolved_refs = [
+                str(ref)
+                for ref in source_set.get("source_refs") or []
+                if str(ref) not in covered_refs and str(ref) not in deferred_refs
+            ]
+            if unresolved_refs:
+                return {
+                    "accepted": False,
+                    "error": "Every source in a mapped set must be covered by a durable observation/write or explicitly deferred",
+                    "unresolved_source_refs": unresolved_refs,
+                }
+            if not covered_refs:
+                return {"accepted": False, "error": "Use deferred status when no source in the set was mapped"}
         field_error = semantic_field_error(
             {"findings_summary": summary, "deferred_reason": deferred_reason},
             TRIAGE_SEMANTIC_FIELD_LIMITS,
@@ -126,6 +160,13 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
         processed.append({"set_id": set_id, "status": status, "summary": source_set["findings_summary"], "updated_at": public_api._now()})
         current["processed_sets"] = processed
         current["current_set"] = None
+        if status == "mapped":
+            current["mapped_sources"] = public_api._dedupe(
+                [*(current.get("mapped_sources") or []), *public_api._source_set_covered_refs(source_set)]
+            )
+            current["deferred_sources"] = public_api._merge_deferred(
+                current.get("deferred_sources") or [], deferred_sources
+            )
         if status == "deferred":
             current["deferred_sources"] = public_api._merge_deferred(
                 current.get("deferred_sources") or [],

@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.generation_v2 import V2ToolTrace
+from app.generation_v2.corpus_scope import scope_for_run_view
 
 CHECKPOINT_READ_TOOL_NAMES = (
     "skim_source",
@@ -23,17 +24,21 @@ async def read_counts_by_source_ref(
     generation_run_id: uuid.UUID,
     phase: str,
     agent_name: str,
+    run_view=None,
 ) -> dict[str, int]:
-    read_result = await db.execute(
-        select(V2ToolTrace)
-        .where(
-            V2ToolTrace.generation_run_id == generation_run_id,
-            V2ToolTrace.phase == phase,
-            V2ToolTrace.agent_name == agent_name,
-            V2ToolTrace.tool_name.in_(CHECKPOINT_READ_TOOL_NAMES),
-        )
-        .order_by(V2ToolTrace.created_at.asc())
+    query = select(V2ToolTrace).where(
+        V2ToolTrace.generation_run_id == generation_run_id,
+        V2ToolTrace.phase == phase,
+        V2ToolTrace.agent_name == agent_name,
+        V2ToolTrace.tool_name.in_(CHECKPOINT_READ_TOOL_NAMES),
     )
+    if run_view is not None:
+        scope = scope_for_run_view(run_view)
+        query = query.where(
+            V2ToolTrace.corpus_revision == scope.revision,
+            V2ToolTrace.attempt == scope.attempt,
+        )
+    read_result = await db.execute(query.order_by(V2ToolTrace.created_at.asc()))
     read_counts: dict[str, int] = {}
     for trace in read_result.scalars():
         for ref in source_refs_from_trace(trace):

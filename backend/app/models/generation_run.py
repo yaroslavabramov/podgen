@@ -1,12 +1,16 @@
 import uuid
 from datetime import datetime
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from sqlalchemy import String, Text, DateTime, Float, ForeignKey, Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+if TYPE_CHECKING:
+    from app.models.project import Project
 
 
 class GenerationStatus(StrEnum):
@@ -38,6 +42,10 @@ class GenerationRun(Base):
     error_message: Mapped[str | None] = mapped_column(Text)
     started_at: Mapped[datetime | None] = mapped_column(DateTime)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    v2_worker_task_id: Mapped[str | None] = mapped_column(String(255))
+    v2_worker_claim_token: Mapped[str | None] = mapped_column(String(36))
+    v2_worker_lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime)
+    v2_worker_heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     project: Mapped["Project"] = relationship(back_populates="generation_runs")

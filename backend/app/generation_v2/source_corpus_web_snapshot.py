@@ -14,6 +14,7 @@ from app.generation_v2.source_corpus_helpers import (
     versioned_object_name as _versioned_object_name,
 )
 from app.generation_v2.source_corpus_version_persistence import ensure_source_version
+from app.generation_v2.safe_browser import guarded_page_goto, public_browser_launch_args
 from app.models.generation_v2 import SourceRepresentationKind, SourceVersion
 from app.models.source import Source
 from app.services.storage import get_minio_client, upload_file, upload_text
@@ -81,11 +82,19 @@ async def ensure_web_snapshot_versions(db: AsyncSession, source: Source) -> list
             from playwright.async_api import async_playwright
 
             async with async_playwright() as playwright:
-                browser = await playwright.chromium.launch()
-                page = await browser.new_page()
-                await page.goto(source.original_url, wait_until="networkidle", timeout=settings.web_fetch_timeout * 1000)
-                text = await page.locator("body").inner_text(timeout=5000)
-                await browser.close()
+                browser = await playwright.chromium.launch(args=public_browser_launch_args(source.original_url))
+                try:
+                    context = await browser.new_context(service_workers="block")
+                    page = await context.new_page()
+                    await guarded_page_goto(
+                        page,
+                        source.original_url,
+                        wait_until="networkidle",
+                        timeout=settings.web_fetch_timeout * 1000,
+                    )
+                    text = await page.locator("body").inner_text(timeout=5000)
+                finally:
+                    await browser.close()
             content_hash = _hash_text(text)
             object_name = _versioned_object_name(source.id, content_hash, "rendered.txt")
             upload_text(get_minio_client(), text, object_name)
@@ -105,9 +114,10 @@ async def ensure_web_snapshot_versions(db: AsyncSession, source: Source) -> list
 
 
 async def fetch_url_for_v2_snapshot(url: str):
-    from app.ingestion.web import _safe_fetch
+    from app.ingestion.web import _check_ssrf, _safe_fetch
 
     timeout_seconds = max(1, settings.web_fetch_timeout + 5)
+    _check_ssrf(url)
     try:
         return await asyncio.wait_for(_safe_fetch(url), timeout=timeout_seconds)
     except Exception as first_exc:

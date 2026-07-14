@@ -3,6 +3,23 @@ from __future__ import annotations
 from typing import Any
 
 from app.generation_v2.runtime import AgentTool
+from app.generation_v2.tools.evidence_write_validation import (
+    SOURCE_MAP_WRITE_LIST_LIMITS,
+    SOURCE_MAP_WRITE_TEXT_LIMITS,
+)
+
+
+def _text(tool_name: str, field: str) -> dict[str, Any]:
+    return {"type": "string", "maxLength": SOURCE_MAP_WRITE_TEXT_LIMITS[tool_name][field]}
+
+
+def _strings(tool_name: str, field: str) -> dict[str, Any]:
+    max_items, max_length = SOURCE_MAP_WRITE_LIST_LIMITS[tool_name][field]
+    return {
+        "type": "array",
+        "maxItems": max_items,
+        "items": {"type": "string", "maxLength": max_length},
+    }
 
 
 def evidence_write_tools(owner: Any) -> list[AgentTool]:
@@ -16,10 +33,10 @@ def evidence_write_tools(owner: Any) -> list[AgentTool]:
             parameters={
                 "type": "object",
                 "properties": {
-                    "evidence_id": {"type": "string"},
-                    "purpose": {"type": "string"},
-                    "role": {"type": "string"},
-                    "rationale": {"type": "string"},
+                    "evidence_id": _text("select_evidence", "evidence_id"),
+                    "purpose": _text("select_evidence", "purpose"),
+                    "role": _text("select_evidence", "role"),
+                    "rationale": _text("select_evidence", "rationale"),
                 },
                 "required": ["evidence_id", "purpose", "role", "rationale"],
             },
@@ -34,11 +51,11 @@ def evidence_write_tools(owner: Any) -> list[AgentTool]:
             parameters={
                 "type": "object",
                 "properties": {
-                    "source_ref": {"type": "string"},
-                    "summary": {"type": "string"},
-                    "useful_for": {"type": "array", "items": {"type": "string"}},
-                    "evidence_ids": {"type": "array", "items": {"type": "string"}},
-                    "gaps_or_cautions": {"type": "array", "items": {"type": "string"}},
+                    "source_ref": _text("upsert_source_card", "source_ref"),
+                    "summary": _text("upsert_source_card", "summary"),
+                    "useful_for": _strings("upsert_source_card", "useful_for"),
+                    "evidence_ids": _strings("upsert_source_card", "evidence_ids"),
+                    "gaps_or_cautions": _strings("upsert_source_card", "gaps_or_cautions"),
                 },
                 "required": ["source_ref", "summary", "useful_for", "evidence_ids", "gaps_or_cautions"],
             },
@@ -53,12 +70,12 @@ def evidence_write_tools(owner: Any) -> list[AgentTool]:
             parameters={
                 "type": "object",
                 "properties": {
-                    "evidence_id": {"type": "string"},
-                    "quote": {"type": "string"},
-                    "locator": {"type": "string"},
-                    "narrative_use": {"type": "string"},
+                    "evidence_id": _text("create_quote_card", "evidence_id"),
+                    "quote": _text("create_quote_card", "quote"),
+                    "locator": _text("create_quote_card", "locator"),
+                    "narrative_use": _text("create_quote_card", "narrative_use"),
                     "confidence": {"type": "number", "minimum": 0, "maximum": 1},
-                    "confidence_reason": {"type": "string"},
+                    "confidence_reason": _text("create_quote_card", "confidence_reason"),
                 },
                 "required": [
                     "evidence_id",
@@ -80,11 +97,11 @@ def evidence_write_tools(owner: Any) -> list[AgentTool]:
             parameters={
                 "type": "object",
                 "properties": {
-                    "source_ref": {"type": "string"},
-                    "related_source_ref": {"type": "string"},
-                    "relationship": {"type": "string"},
-                    "evidence_ids": {"type": "array", "items": {"type": "string"}},
-                    "rationale": {"type": "string"},
+                    "source_ref": _text("record_source_relationship", "source_ref"),
+                    "related_source_ref": _text("record_source_relationship", "related_source_ref"),
+                    "relationship": _text("record_source_relationship", "relationship"),
+                    "evidence_ids": _strings("record_source_relationship", "evidence_ids"),
+                    "rationale": _text("record_source_relationship", "rationale"),
                 },
                 "required": ["source_ref", "related_source_ref", "relationship", "evidence_ids", "rationale"],
             },
@@ -99,13 +116,13 @@ def evidence_write_tools(owner: Any) -> list[AgentTool]:
             parameters={
                 "type": "object",
                 "properties": {
-                    "label": {"type": "string"},
-                    "source_refs": {"type": "array", "items": {"type": "string"}},
-                    "primary_source_refs": {"type": "array", "items": {"type": "string"}},
-                    "secondary_source_refs": {"type": "array", "items": {"type": "string"}},
-                    "duplicate_source_refs": {"type": "array", "items": {"type": "string"}},
-                    "evidence_ids": {"type": "array", "items": {"type": "string"}},
-                    "rationale": {"type": "string"},
+                    "label": _text("record_source_cluster", "label"),
+                    "source_refs": _strings("record_source_cluster", "source_refs"),
+                    "primary_source_refs": _strings("record_source_cluster", "primary_source_refs"),
+                    "secondary_source_refs": _strings("record_source_cluster", "secondary_source_refs"),
+                    "duplicate_source_refs": _strings("record_source_cluster", "duplicate_source_refs"),
+                    "evidence_ids": _strings("record_source_cluster", "evidence_ids"),
+                    "rationale": _text("record_source_cluster", "rationale"),
                 },
                 "required": [
                     "label",
@@ -128,10 +145,10 @@ def evidence_write_tools(owner: Any) -> list[AgentTool]:
             parameters={
                 "type": "object",
                 "properties": {
-                    "kind": {"type": "string"},
-                    "description": {"type": "string"},
-                    "source_refs": {"type": "array", "items": {"type": "string"}},
-                    "evidence_ids": {"type": "array", "items": {"type": "string"}},
+                    "kind": _text("record_gap", "kind"),
+                    "description": _text("record_gap", "description"),
+                    "source_refs": _strings("record_gap", "source_refs"),
+                    "evidence_ids": _strings("record_gap", "evidence_ids"),
                 },
                 "required": ["kind", "description", "source_refs", "evidence_ids"],
             },
@@ -145,7 +162,7 @@ def evidence_write_tools(owner: Any) -> list[AgentTool]:
             parameters={
                 "type": "object",
                 "properties": {
-                    "summary": {"type": "string"},
+                    "summary": _text("finalize_source_map", "summary"),
                     "ready": {"type": "boolean"},
                 },
                 "required": ["summary", "ready"],

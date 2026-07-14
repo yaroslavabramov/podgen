@@ -98,6 +98,7 @@ async def build_treatment(
     evidence_tools: list[AgentTool] | None = None,
     vector_store_id: str | None = None,
     show_bible: ShowBibleContext | None = None,
+    repair_instructions: list[str] | None = None,
 ) -> Treatment:
     return await _build_treatment_impl(
         db,
@@ -110,4 +111,5 @@ async def build_treatment(
         evidence_tools=evidence_tools,
         vector_store_id=vector_store_id,
         show_bible=show_bible,
+        repair_instructions=repair_instructions,
     )

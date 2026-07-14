@@ -5,10 +5,15 @@ from typing import Any
 
 from app.generation_v2.source_triage_workspace import mark_workspace_write_action
 from app.generation_v2.tools.evidence_source_map import _relationship_kind
-from app.generation_v2.tools.evidence_utils import _quote_text_matches_evidence
+from app.generation_v2.tools.evidence_utils import _exact_quote_text_matches
+from app.generation_v2.tools.evidence_write_validation import validate_source_map_write_args
+from app.models.generation_v2 import EvidenceStrength
 
 
 async def upsert_source_card(owner: Any, args: dict[str, Any]) -> dict[str, Any]:
+    validation_error = validate_source_map_write_args("upsert_source_card", args)
+    if validation_error:
+        return validation_error
     source_ref = str(args.get("source_ref") or args.get("source_id") or "")
     scope_error = await owner._triage_scope_error_for_refs([source_ref] if source_ref else [])
     if scope_error:
@@ -44,6 +49,9 @@ async def upsert_source_card(owner: Any, args: dict[str, Any]) -> dict[str, Any]
 
 
 async def create_quote_card(owner: Any, args: dict[str, Any]) -> dict[str, Any]:
+    validation_error = validate_source_map_write_args("create_quote_card", args)
+    if validation_error:
+        return validation_error
     source_id = str(args.get("source_id") or "")
     source_version_id = str(args.get("source_version_id") or "")
     evidence_id = str(args.get("evidence_id") or "")
@@ -64,7 +72,12 @@ async def create_quote_card(owner: Any, args: dict[str, Any]) -> dict[str, Any]:
         return {"accepted": False, "error": "provided source does not match selected evidence"}
     if source_version_id and str(evidence.source_version_id) != source_version_id:
         return {"accepted": False, "error": "provided source version does not match selected evidence"}
-    if not _quote_text_matches_evidence(quote, evidence.snippet_text):
+    if evidence.evidence_strength != EvidenceStrength.EXACT:
+        return {
+            "accepted": False,
+            "error": "quote evidence is not canonically verified; keep it as a paraphrase instead of a quote card",
+        }
+    if not _exact_quote_text_matches(quote, evidence.snippet_text):
         return {"accepted": False, "error": "quote text is not found in selected evidence snippet/window"}
     invalid = await owner._select_evidence_ids_for_write(
         [evidence_id],
@@ -85,6 +98,9 @@ async def create_quote_card(owner: Any, args: dict[str, Any]) -> dict[str, Any]:
 
 
 async def record_source_relationship(owner: Any, args: dict[str, Any]) -> dict[str, Any]:
+    validation_error = validate_source_map_write_args("record_source_relationship", args)
+    if validation_error:
+        return validation_error
     raw_refs = [
         str(args.get("source_ref") or args.get("source_id") or ""),
         str(args.get("related_source_ref") or args.get("related_source_id") or ""),
@@ -126,6 +142,9 @@ async def record_source_relationship(owner: Any, args: dict[str, Any]) -> dict[s
 
 
 async def record_source_cluster(owner: Any, args: dict[str, Any]) -> dict[str, Any]:
+    validation_error = validate_source_map_write_args("record_source_cluster", args)
+    if validation_error:
+        return validation_error
     source_refs = [str(item) for item in args.get("source_refs") or args.get("source_ids") or [] if item]
     primary_refs = [str(item) for item in args.get("primary_source_refs") or [] if item]
     secondary_refs = [str(item) for item in args.get("secondary_source_refs") or [] if item]
@@ -181,6 +200,9 @@ async def record_source_cluster(owner: Any, args: dict[str, Any]) -> dict[str, A
 
 
 async def record_gap(owner: Any, args: dict[str, Any]) -> dict[str, Any]:
+    validation_error = validate_source_map_write_args("record_gap", args)
+    if validation_error:
+        return validation_error
     source_refs = [str(item) for item in args.get("source_refs") or args.get("source_ids") or [] if item]
     scope_error = await owner._triage_scope_error_for_refs(source_refs)
     if scope_error:
@@ -211,6 +233,9 @@ async def record_gap(owner: Any, args: dict[str, Any]) -> dict[str, Any]:
 
 
 async def finalize_source_map(owner: Any, args: dict[str, Any]) -> dict[str, Any]:
+    validation_error = validate_source_map_write_args("finalize_source_map", args)
+    if validation_error:
+        return validation_error
     if not bool(args.get("ready")):
         return {"accepted": False, "error": "finalize_source_map ready=false; record gaps first or keep triage unfinished"}
     if not str(args.get("summary") or "").strip():

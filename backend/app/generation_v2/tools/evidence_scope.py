@@ -89,6 +89,12 @@ class EvidenceScopeMixin:
         invalid = [str(source_id) for source_id in source_ids if str(source_id) not in allowed_ids]
         if not invalid:
             return None
+        context = await self._source_ref_context()
+        invalid_refs = [
+            ref
+            for source_id in invalid
+            if (ref := source_ref_for_id(source_id, context)) != "S??"
+        ]
         is_research = bool(getattr(self, "research_allowed_source_refs", None))
         return {
             "accepted": False,
@@ -98,7 +104,8 @@ class EvidenceScopeMixin:
                 if is_research
                 else "This source-set agent can only use sources from its current source set."
             ),
-            "invalid_source_ids": invalid,
+            "invalid_source_refs": invalid_refs,
+            "invalid_source_count": len(invalid),
         }
 
     async def _triage_read_guard_error(self) -> dict[str, Any] | None:

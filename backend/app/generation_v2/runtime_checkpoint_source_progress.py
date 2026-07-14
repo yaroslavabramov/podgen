@@ -10,6 +10,7 @@ from app.generation_v2.runtime_checkpoint_read_counts import (
     read_counts_by_source_ref as _read_counts_by_source_ref,
     source_refs_from_trace as _source_refs_from_trace,
 )
+from app.generation_v2.corpus_scope import scope_for_run_view
 from app.models.generation_v2 import RunCorpusView, V2ToolTrace
 
 CHECKPOINT_STATE_ID_LIMIT = 40
@@ -21,17 +22,21 @@ async def source_inventory_progress(
     generation_run_id: uuid.UUID,
     phase: str,
     agent_name: str,
+    run_view: RunCorpusView | None = None,
 ) -> dict[str, Any] | None:
-    list_result = await db.execute(
-        select(V2ToolTrace)
-        .where(
-            V2ToolTrace.generation_run_id == generation_run_id,
-            V2ToolTrace.phase == phase,
-            V2ToolTrace.agent_name == agent_name,
-            V2ToolTrace.tool_name == "list_sources",
-        )
-        .order_by(V2ToolTrace.created_at.asc())
+    query = select(V2ToolTrace).where(
+        V2ToolTrace.generation_run_id == generation_run_id,
+        V2ToolTrace.phase == phase,
+        V2ToolTrace.agent_name == agent_name,
+        V2ToolTrace.tool_name == "list_sources",
     )
+    if run_view is not None:
+        scope = scope_for_run_view(run_view)
+        query = query.where(
+            V2ToolTrace.corpus_revision == scope.revision,
+            V2ToolTrace.attempt == scope.attempt,
+        )
+    list_result = await db.execute(query.order_by(V2ToolTrace.created_at.asc()))
     seen_cursors: list[str] = []
     seen_source_refs: list[str] = []
     total_source_count = None
@@ -77,6 +82,7 @@ async def source_triage_progress(
         db,
         generation_run_id=generation_run_id,
         inventory=inventory,
+        run_view=run_view,
     )
     mapped_source_refs = [source_ref_by_id.get(card.source_id, card.source_id) for card in source_map.source_cards]
     cluster_source_refs = _cluster_source_refs(source_map, source_ref_by_id)
@@ -88,8 +94,22 @@ async def source_triage_progress(
         generation_run_id=generation_run_id,
         phase=phase,
         agent_name=agent_name,
+        run_view=run_view,
     )
     read_source_refs = sorted(read_counts)
+    remaining_source_refs = [
+        source_ref_by_id.get(source_id, source_id)
+        for source_id in selected_source_ids
+        if source_ref_by_id.get(source_id, source_id) not in mapped_ref_set
+    ]
+    retrieval_note_previews = [
+        {
+            "text_preview": str(note)[:500],
+            "text_chars": len(str(note)),
+            "text_truncated": len(str(note)) > 500,
+        }
+        for note in source_map.retrieval_notes[:6]
+    ]
     return {
         "source_map": {
             "source_card_count": len(source_map.source_cards),
@@ -100,12 +120,11 @@ async def source_triage_progress(
             "mapped_source_refs": mapped_source_refs[:CHECKPOINT_STATE_ID_LIMIT],
             "cluster_source_refs": cluster_source_refs[:CHECKPOINT_STATE_ID_LIMIT],
             "relationship_source_refs": relationship_source_refs[:CHECKPOINT_STATE_ID_LIMIT],
-            "remaining_source_refs": [
-                source_ref_by_id.get(source_id, source_id)
-                for source_id in selected_source_ids
-                if source_ref_by_id.get(source_id, source_id) not in mapped_ref_set
-            ][:CHECKPOINT_STATE_ID_LIMIT],
-            "retrieval_notes": source_map.retrieval_notes[:6],
+            "remaining_source_refs": remaining_source_refs[:CHECKPOINT_STATE_ID_LIMIT],
+            "remaining_source_ref_count": len(remaining_source_refs),
+            "retrieval_note_previews": retrieval_note_previews,
+            "retrieval_note_count": len(source_map.retrieval_notes),
+            "retrieval_note_omitted_count": max(0, len(source_map.retrieval_notes) - len(retrieval_note_previews)),
         },
         "source_triage_progress": {
             "read_source_ref_count": len(read_source_refs),

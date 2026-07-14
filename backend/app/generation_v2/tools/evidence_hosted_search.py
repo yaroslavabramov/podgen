@@ -114,7 +114,7 @@ class EvidenceHostedSearchMixin:
             search_result_index=result_index,
             score=_confidence(result.get("score")),
             snippet_text=snippet,
-            normalized_quote_text=_normalize(snippet[:500]),
+            normalized_quote_text=_normalize(snippet),
             locator_text=str(result.get("filename") or "file_search snippet"),
             locator_type=EvidenceLocatorType.PROVIDER_SNIPPET,
             evidence_strength=EvidenceStrength.SNIPPET,

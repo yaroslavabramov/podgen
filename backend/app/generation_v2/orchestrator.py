@@ -9,6 +9,7 @@ from app.generation_v2.pipeline.source_triage_flow import (
     _prepare_and_triage,
     _run_source_acquisition_until_triage_ready,
 )
+from app.generation_v2.pipeline.source_acquisition_flow import persisted_source_acquisition_rounds_used
 from app.generation_v2.pipeline.status import (
     V2StepExecutionStopped,
     commit_step,
@@ -41,7 +42,7 @@ async def execute_generation_v2(
 ) -> str | None:
     runtime = V2Runtime()
     show_bible = await _load_show_bible_context(db, run)
-    acquisition_rounds_used = 0
+    acquisition_rounds_used = await persisted_source_acquisition_rounds_used(db, run.id)
 
     triage_state = await _prepare_and_triage(run, db, runtime)
     if not triage_state.triage_completion.ready or not triage_state.triage_gate.passed:

@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from app.generation_v2.agents.editorial_context import trim as _trim
 from app.generation_v2.schemas import SourceMap
 from app.generation_v2.tools.evidence_refs import SourceRefContext, source_ref_for_id
 
@@ -28,7 +27,7 @@ def source_note_ref_pair(source_id: str, related_source_id: str, context: Source
 
 
 def treatment_relevant_caution(text: str) -> str:
-    text = _trim(text, 320)
+    text = str(text or "").strip()
     if len(text) < 45:
         return ""
     lowered = text.lower()
@@ -78,7 +77,7 @@ def treatment_source_cautions(
             "updates",
         }:
             continue
-        rationale = _trim(relationship.rationale, 320)
+        rationale = str(relationship.rationale or "").strip()
         add_source_caution(
             cautions,
             seen,
@@ -100,14 +99,14 @@ def treatment_source_cautions(
                 cautions,
                 seen,
                 category="cluster",
-                source_refs=cluster_refs[:8],
-                note=f"{cluster.label}: {refs}{duplicate_note}. {_trim(cluster.rationale, 280)}".strip(),
+                source_refs=cluster_refs,
+                note=f"{cluster.label}: {refs}{duplicate_note}. {cluster.rationale}".strip(),
             )
     for card in [*source_map.source_cards, *inventory_cards.values()]:
         source_ref = source_ref_for_id(card.source_id, ref_context)
         if source_ref not in referenced_refs:
             continue
-        for caution in card.gaps_or_cautions[:2]:
+        for caution in card.gaps_or_cautions:
             add_source_caution(
                 cautions,
                 seen,
@@ -117,7 +116,7 @@ def treatment_source_cautions(
             )
     ref_pattern = re.compile(r"\bS\d+\b")
     for gap in [*source_map.gaps, *source_map.source_triage.gaps, *source_map.contradictions]:
-        text = _trim(str(gap or ""), 360)
+        text = str(gap or "").strip()
         mentioned_refs = set(ref_pattern.findall(text))
         if text and mentioned_refs and mentioned_refs & referenced_refs:
             add_source_caution(
@@ -127,7 +126,7 @@ def treatment_source_cautions(
                 source_refs=sorted(mentioned_refs & referenced_refs),
                 note=text,
             )
-    return cautions[:12]
+    return cautions
 
 
 __all__ = [

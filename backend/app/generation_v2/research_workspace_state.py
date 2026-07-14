@@ -20,4 +20,6 @@ def normalize_workspace(workspace: dict[str, Any]) -> dict[str, Any]:
     workspace.setdefault("research_gaps", [])
     workspace.setdefault("risk_register", [])
     workspace.setdefault("memo_fields", {})
+    workspace.setdefault("repair_budget", {})
+    workspace.setdefault("repair_operations", {})
     return workspace

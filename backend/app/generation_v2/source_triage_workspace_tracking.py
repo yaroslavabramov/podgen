@@ -64,6 +64,8 @@ async def triage_workflow_guard_error(
     if not current_set_id:
         return None
     workspace = await load_source_triage_workspace(db, generation_run_id)
+    revision = int((workspace or {}).get("corpus_revision") or 1)
+    attempt = int((workspace or {}).get("attempt") or 1)
     current_set = (workspace or {}).get("current_set") or {}
     started_at = _parse_dt(current_set.get("started_at"))
     if started_at is None:
@@ -72,6 +74,8 @@ async def triage_workflow_guard_error(
         select(V2ToolTrace)
         .where(
             V2ToolTrace.generation_run_id == generation_run_id,
+            V2ToolTrace.corpus_revision == revision,
+            V2ToolTrace.attempt == attempt,
             V2ToolTrace.phase == "v2_source_triage",
             V2ToolTrace.created_at >= started_at,
             V2ToolTrace.tool_name.in_(list(TRIAGE_SEMANTIC_COMMIT_TOOLS)),
@@ -85,6 +89,8 @@ async def triage_workflow_guard_error(
         select(V2ToolTrace)
         .where(
             V2ToolTrace.generation_run_id == generation_run_id,
+            V2ToolTrace.corpus_revision == revision,
+            V2ToolTrace.attempt == attempt,
             V2ToolTrace.phase == "v2_source_triage",
             V2ToolTrace.created_at >= since,
             V2ToolTrace.tool_name.in_(list(TRIAGE_READ_TOOLS)),

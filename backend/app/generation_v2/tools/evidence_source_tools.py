@@ -45,16 +45,6 @@ class EvidenceSourceToolsMixin:
         text = _source_version_text(version)
         items = _source_outline(text, max_items=max_items) if text.strip() else []
         if not items:
-            chunks = await self._chunks_for_source(str(version.source_id), limit=max_items)
-            items = [
-                {
-                    "locator": " > ".join(chunk.heading_path or []) or f"chunk {chunk.chunk_index}",
-                    "locator_type": "section" if chunk.heading_path else "chunk",
-                    "preview": chunk.content[:180],
-                }
-                for chunk in chunks
-            ]
-        if not items:
             windows = await self._source_windows(version, max_windows=min(max_items, 12))
             items = [
                 {
@@ -108,7 +98,7 @@ class EvidenceSourceToolsMixin:
             search_result_index=0,
             score=1.0,
             snippet_text=snippet,
-            normalized_quote_text=_normalize(snippet[:500]),
+            normalized_quote_text=_normalize(snippet),
             locator_text=locator_text,
             locator_type=locator_type,
             evidence_strength=EvidenceStrength.EXACT if locator else EvidenceStrength.SNIPPET,

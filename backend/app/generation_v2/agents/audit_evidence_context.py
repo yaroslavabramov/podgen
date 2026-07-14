@@ -25,13 +25,13 @@ def evidence_preview_snippet(evidence: dict[str, Any]) -> str:
     )
 
 
-def audit_evidence_previews(
+def audit_evidence_catalog(
     *,
     research_memo: ResearchMemo,
     evidence_records: list[dict],
     context: SourceRefContext,
     source_titles_by_id: dict[str, str],
-    max_per_atom: int = 4,
+    required_preview_limit: int = 4,
 ) -> tuple[dict[str, list[dict[str, Any]]], dict[str, str], set[str]]:
     evidence_by_id = {str(item.get("id")): item for item in evidence_records if item.get("id")}
     previews_by_atom_ref: dict[str, list[dict[str, Any]]] = {}
@@ -42,7 +42,7 @@ def audit_evidence_previews(
         atom_ref = f"A{atom_idx:02d}"
         atom_previews: list[dict[str, Any]] = []
         suspicious = atom.source_coverage_status in {"partial", "weak"} or len(atom.source_ids) <= 1 or atom.kind == "open_question"
-        for evidence_id in atom.evidence_ids[:max_per_atom]:
+        for evidence_index, evidence_id in enumerate(atom.evidence_ids):
             evidence = evidence_by_id.get(str(evidence_id))
             if not evidence:
                 continue
@@ -51,10 +51,11 @@ def audit_evidence_previews(
             source_id = str(evidence.get("source_id") or "")
             source_ref = source_ref_for_id(source_id, context)
             priority = "optional"
-            if atom.story_weight == "core" and not atom_previews:
+            within_required_preview = evidence_index < required_preview_limit
+            if within_required_preview and atom.story_weight == "core" and not atom_previews:
                 priority = "required"
                 required_refs.add(evidence_ref)
-            elif suspicious:
+            elif within_required_preview and suspicious:
                 priority = "required"
                 required_refs.add(evidence_ref)
             preview = {
@@ -71,6 +72,28 @@ def audit_evidence_previews(
             evidence_id_by_ref[evidence_ref] = str(evidence_id)
         previews_by_atom_ref[atom_ref] = atom_previews
     return previews_by_atom_ref, evidence_id_by_ref, required_refs
+
+
+def audit_evidence_previews(
+    *,
+    research_memo: ResearchMemo,
+    evidence_records: list[dict],
+    context: SourceRefContext,
+    source_titles_by_id: dict[str, str],
+    max_per_atom: int = 4,
+) -> tuple[dict[str, list[dict[str, Any]]], dict[str, str], set[str]]:
+    catalog, evidence_id_by_ref, required_refs = audit_evidence_catalog(
+        research_memo=research_memo,
+        evidence_records=evidence_records,
+        context=context,
+        source_titles_by_id=source_titles_by_id,
+        required_preview_limit=max_per_atom,
+    )
+    return (
+        {atom_ref: previews[:max_per_atom] for atom_ref, previews in catalog.items()},
+        evidence_id_by_ref,
+        required_refs,
+    )
 
 
 def strip_audit_backend_ids(value: Any) -> Any:
@@ -98,6 +121,7 @@ def audit_tools_with_evidence_refs(
     *,
     evidence_id_by_ref: dict[str, str],
     read_refs: set[str],
+    evidence_previews_by_atom_ref: dict[str, list[dict[str, Any]]] | None = None,
 ) -> list[AgentTool]:
     tools: list[AgentTool] = []
     for tool in phase_tools(evidence_tools, AUDIT_TOOL_NAMES):
@@ -141,10 +165,54 @@ def audit_tools_with_evidence_refs(
                 handler=_read_evidence_by_ref,
             )
         )
+    if evidence_previews_by_atom_ref is not None:
+
+        async def _list_audit_evidence(args: dict[str, Any]) -> dict[str, Any]:
+            atom_ref = str(args.get("atom_ref") or "").strip()
+            if atom_ref not in evidence_previews_by_atom_ref:
+                return {"accepted": False, "error": "unknown_atom_ref", "atom_ref": atom_ref}
+            cursor_text = str(args.get("cursor") or "0")
+            cursor = int(cursor_text) if cursor_text.isdigit() else 0
+            limit = max(1, min(int(args.get("limit") or 10), 20))
+            previews = evidence_previews_by_atom_ref[atom_ref]
+            items = previews[cursor : cursor + limit]
+            next_offset = cursor + len(items)
+            return {
+                "accepted": True,
+                "atom_ref": atom_ref,
+                "items": items,
+                "page": {
+                    "total_count": len(previews),
+                    "returned_count": len(items),
+                    "omitted_count": max(0, len(previews) - next_offset),
+                    "cursor": str(cursor),
+                    "next_cursor": str(next_offset) if next_offset < len(previews) else "",
+                },
+            }
+
+        tools.append(
+            AgentTool(
+                name="list_audit_evidence",
+                description=(
+                    "Page through compact evidence previews for one atom when audit_input_json reports omitted evidence."
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "atom_ref": {"type": "string"},
+                        "cursor": {"type": "string"},
+                        "limit": {"type": "integer", "minimum": 1, "maximum": 20},
+                    },
+                    "required": ["atom_ref", "cursor", "limit"],
+                },
+                handler=_list_audit_evidence,
+            )
+        )
     return tools
 
 
 __all__ = [
+    "audit_evidence_catalog",
     "audit_evidence_previews",
     "audit_tools_with_evidence_refs",
     "evidence_preview_snippet",

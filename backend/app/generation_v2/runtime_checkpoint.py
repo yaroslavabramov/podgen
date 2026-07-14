@@ -54,7 +54,16 @@ def compact_checkpoint_value(
                 max_depth=max_depth,
                 depth=depth + 1,
             )
-            compact[key_text] = compact_item
+            if item_omitted and isinstance(item, str):
+                compact[f"{key_text}_preview"] = compact_item
+                compact[f"{key_text}_chars"] = len(item)
+                compact[f"{key_text}_truncated"] = True
+            elif item_omitted and isinstance(item, list):
+                compact[f"{key_text}_preview"] = compact_item
+                compact[f"{key_text}_total_count"] = len(item)
+                compact[f"{key_text}_omitted_count"] = max(0, len(item) - max_list_items)
+            else:
+                compact[key_text] = compact_item
             omitted = omitted or item_omitted
         return compact, omitted
     if hasattr(value, "model_dump"):

@@ -325,7 +325,7 @@ def _normalize_title(title: str | None) -> str | None:
         return None
     if len(value) < 3:
         return None
-    return value[:500]
+    return value
 
 
 def _normalize_nav_candidate(line: str) -> str:

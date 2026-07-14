@@ -137,8 +137,20 @@ def finish_triage_source_set_tool(handler: ToolHandler, *, description: str) -> 
                 "status": {"type": "string", "enum": ["mapped", "deferred", "needs_repair"]},
                 "summary": {"type": "string", "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["findings_summary"]},
                 "deferred_reason": {"type": "string", "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["deferred_reason"]},
+                "deferred_sources": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "source_ref": {"type": "string"},
+                            "reason": {"type": "string", "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["deferred_reason"]},
+                        },
+                        "required": ["source_ref", "reason"],
+                        "additionalProperties": False,
+                    },
+                },
             },
-            "required": ["set_id", "status", "summary", "deferred_reason"],
+            "required": ["set_id", "status", "summary", "deferred_reason", "deferred_sources"],
         },
         handler=handler,
     )

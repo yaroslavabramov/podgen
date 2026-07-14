@@ -12,6 +12,7 @@ from app.generation_v2.source_triage_workspace import (
     save_source_triage_workspace,
     unresolved_source_set_summary,
     unresolved_source_sets,
+    unresolved_source_refs,
 )
 from app.models.generation_run import GenerationRun
 
@@ -23,19 +24,27 @@ async def source_triage_unresolved_completion(
     workspace: dict[str, Any],
 ) -> SourceTriageCompletion:
     unresolved = unresolved_source_set_summary(workspace)
+    unresolved_refs = unresolved_source_refs(workspace)
     await save_tool_trace(
         db,
         generation_run_id=run.id,
         phase=V2Phase.SOURCE_TRIAGE,
         agent_name=V2AgentName.SOURCE_TRIAGE_WORKFLOW,
         tool_name=V2ToolName.SOURCE_SETS_UNRESOLVED,
-        input_json={"unresolved_source_sets": unresolved},
-        output_json={"accepted": False, "unresolved_set_count": len(unresolved_source_sets(workspace))},
+        input_json={"unresolved_source_sets": unresolved, "unresolved_source_refs": unresolved_refs},
+        output_json={
+            "accepted": False,
+            "unresolved_set_count": len(unresolved_source_sets(workspace)),
+            "unresolved_source_count": len(unresolved_refs),
+        },
     )
     return SourceTriageCompletion(
         ready=False,
         summary="Source triage workflow has unresolved source sets; finalization is blocked.",
-        notes=[f"{item['set_id']}:{item['status']}:{','.join(item.get('source_refs') or [])}" for item in unresolved],
+        notes=[
+            *[f"{item['set_id']}:{item['status']}:{','.join(item.get('source_refs') or [])}" for item in unresolved],
+            *(["Unresolved source refs: " + ",".join(unresolved_refs)] if unresolved_refs else []),
+        ],
     )
 
 
@@ -100,7 +109,7 @@ def combined_triage_completion(
     return SourceTriageCompletion(
         ready=finalizer_completion.ready,
         summary=finalizer_completion.summary,
-        notes=notes[:60],
+        notes=notes,
     )
 
 

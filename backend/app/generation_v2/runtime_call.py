@@ -67,7 +67,7 @@ class RuntimeCallSession(Generic[T]):
         self.hosted_file_search_handler = hosted_file_search_handler
         self.max_output_tokens = max_output_tokens
         self.temperature = temperature
-        self.checkpoint = checkpoint_policy or _default_checkpoint_policy(agent_name)
+        self.checkpoint = checkpoint_policy or _default_checkpoint_policy(agent_name, phase=phase)
 
         self.prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
         self.input_payload: Any = prompt

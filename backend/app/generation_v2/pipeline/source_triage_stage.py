@@ -15,7 +15,10 @@ from app.generation_v2.pipeline.source_triage_finalization_helpers import (
     materialize_workspace_deferrals_as_gap_traces,
     source_triage_unresolved_completion,
 )
-from app.generation_v2.pipeline.source_triage_gate_repair_flow import run_source_triage_gate_repair
+from app.generation_v2.pipeline.source_triage_gate_repair_flow import (
+    run_source_triage_gate_repair,
+    source_triage_repair_already_used,
+)
 from app.generation_v2.pipeline.source_triage_set_flow import run_source_triage_set
 from app.generation_v2.pipeline.state import TriageState
 from app.generation_v2.pipeline.status import start_phase
@@ -29,8 +32,10 @@ from app.generation_v2.source_triage_workspace import (
     save_source_triage_workspace,
     unprocessed_source_sets,
     unresolved_source_sets,
+    unresolved_source_refs,
     workspace_summary_for_prompt,
 )
+from app.generation_v2.source_triage_repair_state import pending_triage_repair
 from app.generation_v2.tools.evidence import (
     EvidenceToolset,
     build_source_inventory,
@@ -100,6 +105,16 @@ class SourceTriageStageRunner:
         self,
         context: SourceTriageStageContext,
     ) -> tuple[SourceTriageCompletion, list[SourceTriageCompletion], dict[str, Any]]:
+        if pending_triage_repair(context.workspace) is not None:
+            return (
+                SourceTriageCompletion(
+                    ready=False,
+                    summary="Resuming the durably reserved source-triage repair pass.",
+                    notes=[],
+                ),
+                [],
+                context.workspace,
+            )
         planner_tools = build_workspace_tools(
             db=self.db,
             run=self.run,
@@ -164,6 +179,7 @@ class SourceTriageStageRunner:
             self.db,
             generation_run_id=self.run.id,
             inventory=context.source_inventory,
+            run_view=context.corpus.run_view,
         )
         finalizer_tools = [
             *context.evidence_toolset.agent_tools(),
@@ -176,8 +192,19 @@ class SourceTriageStageRunner:
                 mode="finalizer",
             ),
         ]
+        if pending_triage_repair(workspace) is not None:
+            return (
+                source_map,
+                finalizer_tools,
+                SourceTriageCompletion(
+                    ready=False,
+                    summary="Source-triage finalization is delegated to the pending targeted repair pass.",
+                    notes=[],
+                ),
+                workspace,
+            )
         unresolved_sets = unresolved_source_sets(workspace)
-        if unresolved_sets:
+        if unresolved_sets or unresolved_source_refs(workspace):
             finalizer_completion = await source_triage_unresolved_completion(db=self.db, run=self.run, workspace=workspace)
         else:
             finalizer_completion = await build_source_triage_finalizer_agent(
@@ -193,6 +220,7 @@ class SourceTriageStageRunner:
             self.db,
             generation_run_id=self.run.id,
             inventory=context.source_inventory,
+            run_view=context.corpus.run_view,
         )
         return source_map, finalizer_tools, finalizer_completion, workspace
 
@@ -226,8 +254,11 @@ class SourceTriageStageRunner:
             source_map=source_map,
             run_view=context.corpus.run_view,
             triage_completion=triage_completion,
+            triage_workspace=workspace,
         )
-        if not triage_gate.passed:
+        if pending_triage_repair(workspace) is not None or (
+            not triage_gate.passed and not await source_triage_repair_already_used(self.db, self.run.id)
+        ):
             workspace, source_map, triage_gate, triage_completion = await run_source_triage_gate_repair(
                 db=self.db,
                 run=self.run,
@@ -243,6 +274,10 @@ class SourceTriageStageRunner:
                 finalizer_tools=finalizer_tools,
                 unresolved_completion_handler=source_triage_unresolved_completion,
                 materialize_deferrals_handler=materialize_workspace_deferrals_as_gap_traces,
+            )
+        elif not triage_gate.passed:
+            triage_completion.notes.append(
+                "Targeted source-triage repair budget was already consumed; the gate remains failed."
             )
         workspace = await load_source_triage_workspace(self.db, self.run.id) or workspace
         workspace_artifact = await save_source_triage_workspace(

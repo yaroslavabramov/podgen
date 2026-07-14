@@ -6,6 +6,7 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.generation_v2.safe_browser import guarded_page_goto, public_browser_launch_args
 from app.models.generation_v2 import SourceRepresentation, SourceRepresentationKind, V2RecordStatus
 from app.models.source import Source
 from app.services.storage import get_minio_client, upload_text
@@ -78,11 +79,19 @@ async def capture_rendered_snapshot(db: AsyncSession, source: Source) -> SourceR
         from playwright.async_api import async_playwright
 
         async with async_playwright() as playwright:
-            browser = await playwright.chromium.launch()
-            page = await browser.new_page()
-            await page.goto(source.original_url, wait_until="networkidle", timeout=settings.web_fetch_timeout * 1000)
-            text = await page.locator("body").inner_text(timeout=5000)
-            await browser.close()
+            browser = await playwright.chromium.launch(args=public_browser_launch_args(source.original_url))
+            try:
+                context = await browser.new_context(service_workers="block")
+                page = await context.new_page()
+                await guarded_page_goto(
+                    page,
+                    source.original_url,
+                    wait_until="networkidle",
+                    timeout=settings.web_fetch_timeout * 1000,
+                )
+                text = await page.locator("body").inner_text(timeout=5000)
+            finally:
+                await browser.close()
 
         object_name = f"v2/sources/{source.id}/rendered.txt"
         upload_text(get_minio_client(), text, object_name)

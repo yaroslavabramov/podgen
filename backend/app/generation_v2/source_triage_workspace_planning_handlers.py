@@ -131,10 +131,23 @@ class SourceTriageWorkspacePlanningHandlersMixin:
             else:
                 refs = [str(item)]
                 reason = str(args.get("deferred_reason") or "").strip()
-            for ref in refs:
-                if ref in source_order:
-                    deferred.append({"source_ref": ref, "reason": reason or "Deferred by triage planner."})
+            valid_refs = [ref for ref in refs if ref in source_order]
+            if valid_refs and not reason:
+                return {
+                    "accepted": False,
+                    "error": "Each deferred source requires an explicit reason",
+                    "source_refs": valid_refs,
+                }
+            for ref in valid_refs:
+                deferred.append({"source_ref": ref, "reason": reason})
         deferred_refs = {item["source_ref"] for item in deferred}
+        overlap = sorted(covered.intersection(deferred_refs))
+        if overlap:
+            return {
+                "accepted": False,
+                "error": "A source_ref cannot be both assigned to a source set and deferred",
+                "overlapping_source_refs": overlap,
+            }
         missing = [ref for ref in source_order if ref not in covered and ref not in deferred_refs]
         if not source_sets:
             return {"accepted": False, "error": "Cannot finalize triage workspace without source sets"}
@@ -142,7 +155,7 @@ class SourceTriageWorkspacePlanningHandlersMixin:
             return {
                 "accepted": False,
                 "error": "Every source_ref must be assigned to a source set or explicitly deferred",
-                "missing_source_refs": missing[:80],
+                "missing_source_refs": missing,
             }
         for item in deferred:
             field_error = semantic_field_error(

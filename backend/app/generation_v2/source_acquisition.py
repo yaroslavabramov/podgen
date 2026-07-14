@@ -34,7 +34,9 @@ def acquisition_enabled(run: GenerationRun) -> bool:
 
 
 def remaining_acquisition_rounds(used_rounds: int) -> int:
-    return max(0, int(settings.generation_v2_source_acquisition_max_rounds) - used_rounds)
+    # One targeted source-repair pass may inspect at most three candidates.
+    configured = min(1, max(0, int(settings.generation_v2_source_acquisition_max_rounds)))
+    return max(0, configured - used_rounds)
 
 
 def source_acquisition_report_from_rounds(

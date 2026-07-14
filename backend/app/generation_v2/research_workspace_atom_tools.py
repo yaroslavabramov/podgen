@@ -25,6 +25,7 @@ from app.generation_v2.research_workspace_helpers import (
 from app.generation_v2.schemas import SourceMap
 from app.generation_v2.tools.evidence_types import EVIDENCE_STATUS_SELECTED
 from app.models.generation_run import GenerationRun
+from app.models.generation_v2 import EvidenceStrength
 
 
 def upsert_editorial_atom_handler(
@@ -119,6 +120,29 @@ def upsert_editorial_atom_handler(
             list_error = semantic_list_error(field=field_name, values=values, max_items=max_items, item_limit=limit)
             if list_error:
                 return list_error
+        invalid_quote_refs = [quote_ref for quote_ref in quote_refs if quote_ref not in evidence_ids]
+        if invalid_quote_refs:
+            return {
+                "accepted": False,
+                "error": "quote_refs must be evidence_ids selected for this editorial atom",
+                "invalid_quote_refs": invalid_quote_refs,
+            }
+        invalid_exact_quote_refs: list[str] = []
+        for quote_ref in quote_refs:
+            evidence = await evidence_toolset._evidence_in_run(quote_ref)
+            metadata = getattr(evidence, "metadata_", {}) or {}
+            if (
+                evidence is None
+                or str(getattr(evidence, "evidence_strength", "") or "") != EvidenceStrength.EXACT
+                or (metadata.get("model_file_read") and metadata.get("exact_quote_verified") is not True)
+            ):
+                invalid_exact_quote_refs.append(quote_ref)
+        if invalid_exact_quote_refs:
+            return {
+                "accepted": False,
+                "error": "quote_refs require canonically verified exact evidence from the current run",
+                "invalid_quote_refs": invalid_exact_quote_refs,
+            }
         draft = {
             "atom_id": atom_id,
             "job_id": job_id,

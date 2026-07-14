@@ -4,22 +4,34 @@ import uuid
 from typing import Any
 
 
-def provider_filters(source_ids: list[str]) -> dict[str, Any]:
+def provider_filters(
+    source_ids: list[str],
+    source_version_ids: list[str] | None = None,
+) -> dict[str, Any]:
     valid = [source_id for source_id in source_ids if _uuid_or_none(source_id)]
+    valid_versions = [version_id for version_id in (source_version_ids or []) if _uuid_or_none(version_id)]
     base_filters = [
         {"type": "eq", "key": "is_active", "value": True},
         {"type": "eq", "key": "agent_facing", "value": True},
         {"type": "eq", "key": "canonical_retrieval_surface", "value": True},
     ]
-    if not valid:
-        return {"type": "and", "filters": base_filters}
-    source_filters = [{"type": "eq", "key": "source_id", "value": source_id} for source_id in valid]
+    scope_filters: list[dict[str, Any]] = []
+    if valid:
+        source_filters = [{"type": "eq", "key": "source_id", "value": source_id} for source_id in valid]
+        scope_filters.append(
+            {"type": "or", "filters": source_filters} if len(source_filters) > 1 else source_filters[0]
+        )
+    if valid_versions:
+        version_filters = [
+            {"type": "eq", "key": "source_version_id", "value": version_id}
+            for version_id in valid_versions
+        ]
+        scope_filters.append(
+            {"type": "or", "filters": version_filters} if len(version_filters) > 1 else version_filters[0]
+        )
     return {
         "type": "and",
-        "filters": [
-            *base_filters,
-            {"type": "or", "filters": source_filters} if len(source_filters) > 1 else source_filters[0],
-        ],
+        "filters": [*base_filters, *scope_filters],
     }
 
 

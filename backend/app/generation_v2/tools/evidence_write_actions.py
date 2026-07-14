@@ -12,10 +12,14 @@ from app.generation_v2.tools.evidence_source_map_write_actions import (
 )
 from app.generation_v2.tools.evidence_types import EVIDENCE_STATUS_SELECTED
 from app.generation_v2.tools.evidence_utils import _unsupported_model_read_selected_as_support
+from app.generation_v2.tools.evidence_write_validation import validate_source_map_write_args
 
 
 class EvidenceWriteActionMixin:
     async def select_evidence_tool(self, args: dict[str, Any]) -> dict[str, Any]:
+        validation_error = validate_source_map_write_args("select_evidence", args)
+        if validation_error:
+            return validation_error
         evidence_id = str(args.get("evidence_id") or "")
         item = await self._evidence_in_run(evidence_id)
         if item is None:

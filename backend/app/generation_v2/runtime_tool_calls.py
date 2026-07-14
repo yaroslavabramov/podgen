@@ -69,6 +69,7 @@ async def process_runtime_function_calls(
             payload=debug_base,
         )
         tool = local_tool_map.get(call["name"])
+        trace_only_error: dict[str, Any] | None = None
         if tool is None:
             output = {"error": f"Unknown local tool: {call['name']}"}
         else:
@@ -76,8 +77,16 @@ async def process_runtime_function_calls(
                 output = await tool.handler(call["arguments"])
             except Exception as exc:
                 logger.warning("V2 local tool failed: %s", call["name"], exc_info=True)
-                output = {"error": str(exc)}
-        raw_output_chars = len(json.dumps(output, ensure_ascii=False, default=str))
+                output = {
+                    "error": "tool_execution_failed",
+                    "message": "The tool failed internally. Retry once or choose another supported action.",
+                }
+                trace_only_error = {
+                    "type": type(exc).__name__,
+                    "detail": str(exc),
+                }
+        trace_output = {**output, **({"_runtime_error": trace_only_error} if trace_only_error else {})}
+        raw_output_chars = len(json.dumps(trace_output, ensure_ascii=False, default=str))
         dump_v2_debug(
             run_id=str(generation_run_id),
             phase=phase,
@@ -86,7 +95,7 @@ async def process_runtime_function_calls(
             payload={
                 **debug_base,
                 "raw_output_chars": raw_output_chars,
-                "raw_output": output,
+                "raw_output": trace_output,
             },
         )
         try:
@@ -104,7 +113,7 @@ async def process_runtime_function_calls(
                     "contract_violation": str(exc),
                     "model_output_stats": output_stats,
                     "raw_output_chars": raw_output_chars,
-                    "raw_output": output,
+                    "raw_output": trace_output,
                 },
             )
             await save_tool_trace(
@@ -115,7 +124,7 @@ async def process_runtime_function_calls(
                 tool_name=call["name"],
                 input_json=call["arguments"],
                 output_json=_trace_output_with_runtime(
-                    output,
+                    trace_output,
                     output_stats,
                     chain_id=chain_id,
                     checkpoint_index=checkpoint_index,
@@ -134,7 +143,7 @@ async def process_runtime_function_calls(
             tool_name=call["name"],
             input_json=call["arguments"],
             output_json=_trace_output_with_runtime(
-                output,
+                trace_output,
                 output_stats,
                 chain_id=chain_id,
                 checkpoint_index=checkpoint_index,

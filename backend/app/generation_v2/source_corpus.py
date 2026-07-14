@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.generation_v2.contracts import V2AgentName, V2Phase, V2ToolName
+from app.generation_v2.corpus_scope import scope_for_run_view, session_corpus_scope_or_none
 import logging
 import uuid
 from dataclasses import dataclass
@@ -17,7 +18,7 @@ from app.models.generation_v2 import (
     RunCorpusView,
     SourceVersion,
 )
-from app.models.source import Source
+from app.models.source import IngestionStatus, Source
 from app.generation_v2.source_corpus_helpers import (
     agent_facing_provider_versions as _agent_facing_provider_versions,
     canonical_provider_version as _canonical_provider_version,
@@ -109,6 +110,29 @@ class CorpusPreparationResult:
 
 async def prepare_v2_corpus(db: AsyncSession, run: GenerationRun) -> CorpusPreparationResult:
     sources = await _load_run_sources(db, run)
+    explicitly_selected_source_ids = {
+        str(value) for value in (run.config or {}).get("source_ids", []) if value
+    }
+    loaded_source_ids = {str(source.id) for source in sources}
+    missing_selected_source_ids = sorted(explicitly_selected_source_ids - loaded_source_ids)
+    if missing_selected_source_ids:
+        raise RuntimeError(
+            "V2 selected sources are missing or outside the project: "
+            + ", ".join(missing_selected_source_ids)
+        )
+    selected_source_ids = explicitly_selected_source_ids or loaded_source_ids
+    invalid_selected_sources = [
+        source
+        for source in sources
+        if str(source.id) in selected_source_ids
+        and (bool(source.is_temporary) or str(source.ingestion_status) == str(IngestionStatus.FAILED))
+    ]
+    if invalid_selected_sources:
+        details = ", ".join(
+            f"{source.id} ({'staged' if source.is_temporary else 'failed'})"
+            for source in invalid_selected_sources
+        )
+        raise RuntimeError(f"V2 selected sources are not ready: {details}")
     if not sources:
         raise RuntimeError("V2 corpus has no eligible project sources")
 
@@ -121,6 +145,15 @@ async def prepare_v2_corpus(db: AsyncSession, run: GenerationRun) -> CorpusPrepa
         provider_files,
         provider_index,
     )
+    unready_selected_sources = [
+        item for item in skipped_sources if str(item.get("source_id") or "") in selected_source_ids
+    ]
+    if unready_selected_sources:
+        details = ", ".join(
+            f"{item['source_id']} ({item.get('reason') or 'not_ready'})"
+            for item in unready_selected_sources
+        )
+        raise RuntimeError(f"V2 selected sources are not ready: {details}")
     run_view = await create_run_corpus_view(
         db,
         run,
@@ -142,6 +175,8 @@ async def prepare_v2_corpus(db: AsyncSession, run: GenerationRun) -> CorpusPrepa
         input_json={"source_count": len(sources)},
         output_json={
             "run_corpus_view_id": str(run_view.id),
+            "corpus_revision": run_view.revision,
+            "attempt": run_view.attempt,
             "provider_index_id": str(provider_index.id) if provider_index else None,
             "vector_store_id": provider_index.provider_vector_store_id if provider_index else None,
             "source_version_count": len(usable_versions),
@@ -168,12 +203,22 @@ _format_openai_url_read_document = format_openai_url_read_document
 _loads_json_object = loads_json_object
 
 
-async def list_evidence_dicts(db: AsyncSession, run_id: uuid.UUID) -> list[dict[str, Any]]:
+async def list_evidence_dicts(
+    db: AsyncSession,
+    run_id: uuid.UUID,
+    *,
+    run_view: RunCorpusView | None = None,
+) -> list[dict[str, Any]]:
     from app.models.generation_v2 import EvidenceItem
 
-    result = await db.execute(
-        select(EvidenceItem).where(EvidenceItem.generation_run_id == run_id).order_by(EvidenceItem.created_at.asc())
-    )
+    query = select(EvidenceItem).where(EvidenceItem.generation_run_id == run_id)
+    scope = scope_for_run_view(run_view) if run_view is not None else session_corpus_scope_or_none(db, run_id)
+    if scope is not None:
+        query = query.where(
+            EvidenceItem.corpus_revision == scope.revision,
+            EvidenceItem.attempt == scope.attempt,
+        )
+    result = await db.execute(query.order_by(EvidenceItem.created_at.asc()))
     return [_evidence_to_dict(item) for item in result.scalars()]
 
 

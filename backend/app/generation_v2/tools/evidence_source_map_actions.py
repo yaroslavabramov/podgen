@@ -15,6 +15,7 @@ from app.generation_v2.schemas import (
     SourceTriageItem,
     SourceTriageReport,
 )
+from app.generation_v2.corpus_scope import scope_for_run_view
 from app.generation_v2.tools.evidence_refs import build_source_ref_context, resolve_source_ref
 from app.generation_v2.tools.evidence_source_map_action_helpers import (
     cluster_id as _cluster_id,
@@ -33,18 +34,28 @@ async def build_source_map_from_write_actions(
     *,
     generation_run_id: uuid.UUID,
     inventory: SourceMap,
+    run_view: Any | None = None,
 ) -> SourceMap:
+    scope = scope_for_run_view(run_view)
     trace_result = await db.execute(
         select(V2ToolTrace)
         .where(
             V2ToolTrace.generation_run_id == generation_run_id,
+            V2ToolTrace.corpus_revision == scope.revision,
+            V2ToolTrace.attempt == scope.attempt,
             V2ToolTrace.phase == "v2_source_triage",
             V2ToolTrace.tool_name.in_(list(_WRITE_TOOL_NAMES)),
         )
         .order_by(V2ToolTrace.created_at.asc())
     )
     traces = [trace for trace in trace_result.scalars() if _trace_accepted(trace)]
-    evidence_result = await db.execute(select(EvidenceItem).where(EvidenceItem.generation_run_id == generation_run_id))
+    evidence_result = await db.execute(
+        select(EvidenceItem).where(
+            EvidenceItem.generation_run_id == generation_run_id,
+            EvidenceItem.corpus_revision == scope.revision,
+            EvidenceItem.attempt == scope.attempt,
+        )
+    )
     evidence_by_id = {str(item.id): item for item in evidence_result.scalars()}
     inventory_by_source = {card.source_id: card for card in inventory.source_cards}
     source_ref_context = build_source_ref_context(inventory)
@@ -89,7 +100,7 @@ async def build_source_map_from_write_actions(
                     source_id=str(action.get("source_id") or evidence.source_id),
                     source_version_id=str(action.get("source_version_id") or evidence.source_version_id),
                     evidence_id=evidence_id,
-                    quote=str(action.get("quote") or evidence.snippet_text[:500]),
+                    quote=str(action.get("quote") or evidence.snippet_text),
                     locator=str(action.get("locator") or evidence.locator_text or ""),
                     narrative_use=str(action.get("narrative_use") or "triage"),
                     representation_id=str(evidence.source_version_id),
@@ -183,7 +194,7 @@ async def build_source_map_from_write_actions(
                 authority=card.authority,
                 reliability=card.reliability,
                 useful_for=card.useful_for,
-                top_quote_refs=[quote.evidence_id or "" for quote in quote_cards if quote.source_id == card.source_id][:6],
+                top_quote_refs=[quote.evidence_id or "" for quote in quote_cards if quote.source_id == card.source_id],
                 relevance_reasons=["Selected by source triage write actions."],
                 cautions=card.gaps_or_cautions,
             )
@@ -202,8 +213,8 @@ async def build_source_map_from_write_actions(
         quote_cards=quote_cards,
         source_triage=SourceTriageReport(
             ranked_sources=ranked,
-            top_sources_by_function={key: _dedupe(value)[:10] for key, value in top_sources_by_function.items()},
-            top_evidence_by_function={key: _dedupe(value)[:12] for key, value in top_evidence_by_function.items()},
+            top_sources_by_function={key: _dedupe(value) for key, value in top_sources_by_function.items()},
+            top_evidence_by_function={key: _dedupe(value) for key, value in top_evidence_by_function.items()},
             gaps=gaps,
             contradictions=contradictions,
             source_clusters=clusters,

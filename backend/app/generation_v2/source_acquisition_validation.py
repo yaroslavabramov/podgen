@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+import json
+from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from app.config import settings
@@ -42,10 +44,76 @@ SOCIAL_HOSTS = {
     "www.linkedin.com",
 }
 
+SOURCE_ACQUISITION_WRITE_MAX_CHARS = 9_000
+SOURCE_ACQUISITION_TEXT_LIMITS: dict[str, dict[str, int]] = {
+    "ingest_source_candidate": {
+        "url": 2_048,
+        "expected_editorial_function": 240,
+        "rationale": 4_000,
+        "source_type_hint": 64,
+        "authority_hint": 120,
+    },
+    "reject_source_candidate": {"url": 2_048, "reason": 4_000},
+    "finalize_source_acquisition_round": {"summary": 7_000},
+}
+SOURCE_ACQUISITION_LIST_LIMITS: dict[str, dict[str, tuple[int, int]]] = {
+    "ingest_source_candidate": {"gap_ids": (100, 128)},
+    "reject_source_candidate": {"gap_ids": (100, 128)},
+    "finalize_source_acquisition_round": {"unresolved_gap_ids": (100, 128)},
+}
+
+
+def validate_source_acquisition_tool_args(tool_name: str, args: dict[str, Any]) -> dict[str, Any] | None:
+    for field, max_length in SOURCE_ACQUISITION_TEXT_LIMITS.get(tool_name, {}).items():
+        value = str(args.get(field) or "")
+        if len(value) > max_length:
+            return _semantic_too_long(field, max_length, len(value))
+    for field, (max_items, max_item_length) in SOURCE_ACQUISITION_LIST_LIMITS.get(tool_name, {}).items():
+        values = args.get(field) or []
+        if not isinstance(values, list):
+            return {"accepted": False, "error": f"semantic_field_invalid: field={field} expected=array"}
+        if len(values) > max_items:
+            return {
+                "accepted": False,
+                "error": (
+                    f"semantic_collection_too_large: field={field} "
+                    f"max_items={max_items} actual_items={len(values)}"
+                ),
+            }
+        for index, item in enumerate(values):
+            item_length = len(str(item or ""))
+            if item_length > max_item_length:
+                return _semantic_too_long(f"{field}[{index}]", max_item_length, item_length)
+    payload_length = len(json.dumps(args, ensure_ascii=False, default=str))
+    if payload_length > SOURCE_ACQUISITION_WRITE_MAX_CHARS:
+        return {
+            "accepted": False,
+            "error": (
+                f"semantic_payload_too_long: tool={tool_name} "
+                f"max_length={SOURCE_ACQUISITION_WRITE_MAX_CHARS} actual_length={payload_length}"
+            ),
+        }
+    return None
+
+
+def _semantic_too_long(field: str, max_length: int, actual_length: int) -> dict[str, Any]:
+    return {
+        "accepted": False,
+        "error": (
+            f"semantic_field_too_long: field={field} "
+            f"max_length={max_length} actual_length={actual_length}"
+        ),
+    }
+
 
 def validate_candidate_static(candidate: SourceAcquisitionCandidate, gap_report: CorpusGapReport) -> str | None:
     if not candidate.normalized_url:
         return "Invalid or empty URL."
+    if len(candidate.normalized_url) > 2048:
+        return (
+            "semantic_field_too_long: field=source.original_url "
+            f"max_length=2048 actual_length={len(candidate.normalized_url)}"
+        )
     parsed = urlparse(candidate.normalized_url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         return "Candidate URL must be http(s)."
@@ -87,7 +155,12 @@ def normalize_candidate_url(url: str) -> str:
 def title_from_url(url: str) -> str:
     parsed = urlparse(url)
     path = parsed.path.rstrip("/").split("/")[-1] or parsed.hostname or "Acquired source"
-    return path.replace("-", " ").replace("_", " ")[:500]
+    title = path.replace("-", " ").replace("_", " ")
+    if len(title) > 500:
+        raise ValueError(
+            f"semantic_field_too_long: field=source.title max_length=500 actual_length={len(title)}"
+        )
+    return title
 
 
 def is_primaryish(candidate: SourceAcquisitionCandidate) -> bool:

@@ -14,14 +14,11 @@ from app.generation_v2.tools.evidence_local_windows import (
     resolve_local_fallback_source_version as _resolve_local_fallback_source_version,
     source_windows as _local_source_windows,
 )
-from app.generation_v2.tools.evidence_types import _CHUNK_BACKED_VERSION_KINDS
 from app.generation_v2.tools.evidence_utils import (
-    _chunk_version_priority,
     _readable_version_priority,
     _uuid_list,
     _uuid_or_none,
 )
-from app.models.chunk import Chunk
 from app.models.generation_v2 import (
     EvidenceItem,
     SourceVersion,
@@ -74,27 +71,6 @@ class EvidenceLocalSourceMixin:
             and str(source_version_id) in {str(item) for item in self.run_view.selected_source_version_ids}
         )
 
-    async def _chunk_backed_versions_by_source(self, source_ids: set[str]) -> dict[str, SourceVersion]:
-        selected_version_ids = _uuid_list(self.run_view.selected_source_version_ids)
-        if not selected_version_ids:
-            return {}
-        result = await self.db.execute(
-            select(SourceVersion).where(
-                SourceVersion.is_active.is_(True),
-                SourceVersion.status == V2RecordStatus.READY,
-                SourceVersion.source_id.in_([uuid.UUID(source_id) for source_id in source_ids if _uuid_or_none(source_id)]),
-                SourceVersion.id.in_(selected_version_ids),
-                SourceVersion.kind.in_(_CHUNK_BACKED_VERSION_KINDS),
-            )
-        )
-        selected: dict[str, SourceVersion] = {}
-        for version in result.scalars():
-            source_id = str(version.source_id)
-            current = selected.get(source_id)
-            if current is None or _chunk_version_priority(version.kind) < _chunk_version_priority(current.kind):
-                selected[source_id] = version
-        return selected
-
     async def _resolve_source_version(
         self,
         *,
@@ -128,7 +104,6 @@ class EvidenceLocalSourceMixin:
                 SourceVersion.source_id == uuid.UUID(source_id),
                 SourceVersion.id.in_(_uuid_list(list(selected_version_ids))),
                 SourceVersion.status == V2RecordStatus.READY,
-                SourceVersion.is_active.is_(True),
             )
         )
         versions = list(result.scalars())
@@ -149,17 +124,5 @@ class EvidenceLocalSourceMixin:
 
     async def _source_windows(self, version: SourceVersion, *, max_windows: int) -> list[dict[str, Any]]:
         return await _local_source_windows(self, version, max_windows=max_windows)
-
-    async def _chunks_for_source(self, source_id: str, *, limit: int) -> list[Chunk]:
-        if not _uuid_or_none(source_id):
-            return []
-        result = await self.db.execute(
-            select(Chunk)
-            .where(Chunk.source_id == uuid.UUID(source_id))
-            .order_by(Chunk.chunk_index.asc())
-            .limit(max(1, limit))
-        )
-        return list(result.scalars())
-
 
 __all__ = ["EvidenceLocalSourceMixin"]

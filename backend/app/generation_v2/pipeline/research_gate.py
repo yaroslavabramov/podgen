@@ -21,7 +21,8 @@ def research_audit_target_steps(audit: ResearchAudit) -> set[str]:
     targets = {
         str(issue.target_step)
         for issue in audit.issues
-        if str(issue.target_step or "none") != "none"
+        if str(issue.severity) in {"blocking", "major"}
+        and str(issue.target_step or "none") != "none"
     }
     if targets:
         return targets
@@ -68,7 +69,7 @@ def source_acquisition_audit_from_research_gaps(workspace: dict[str, Any] | None
             ),
             source_refs=[str(item) for item in gap.get("source_refs") or [] if str(item).strip()],
         )
-        for gap in gaps[:6]
+        for gap in gaps
     ]
     return ResearchAudit(
         passed=False,
@@ -102,7 +103,7 @@ def treatment_gate_research_issues(treatment_gate: EpisodeCritique) -> list[str]
         text = str(issue or "").strip()
         if text and any(marker in text for marker in research_markers):
             issues.append(text)
-    return issues[:4]
+    return issues
 
 
 def treatment_repair_gap_id(issue: str, idx: int) -> str:

@@ -2,7 +2,7 @@ import uuid
 
 import pytest
 
-from app.ingestion.router import WebQualityIngestionError, run_ingestion
+from app.ingestion.router import IngestionIndexingError, WebQualityIngestionError, run_ingestion
 from app.models.source import Source, SourceType
 
 
@@ -85,3 +85,33 @@ async def test_low_signal_web_source_fails_instead_of_creating_tiny_chunk(monkey
     assert isinstance(source.metadata_, dict)
     assert source.metadata_["web_quality"]["state"] == "low_signal"
     assert source.metadata_["web_quality"]["blocked"] is False
+
+
+@pytest.mark.asyncio
+async def test_required_local_index_rejects_zero_chunks(monkeypatch: pytest.MonkeyPatch) -> None:
+    source = Source(
+        project_id=uuid.uuid4(),
+        source_type=SourceType.WEB,
+        original_url="https://example.com/header-only-report",
+    )
+    db = _DummySession()
+
+    async def _fake_extract_web(url: str) -> tuple[str, str | None, str | None, str]:
+        del url
+        return (
+            "A detailed public report explains the mechanism, evidence, consequences, and limitations. " * 20,
+            "Detailed public report",
+            None,
+            "direct",
+        )
+
+    async def _zero_chunks(*_args, **_kwargs):
+        return []
+
+    monkeypatch.setattr("app.ingestion.router.extract_web_with_profile", _fake_extract_web)
+    monkeypatch.setattr("app.ingestion.router.get_minio_client", lambda: object())
+    monkeypatch.setattr("app.ingestion.router.upload_text", lambda *args, **kwargs: None)
+    monkeypatch.setattr("app.ingestion.router.structural_chunk", _zero_chunks)
+
+    with pytest.raises(IngestionIndexingError, match="no searchable chunks"):
+        await run_ingestion(source, db, require_indexed_chunks=True)

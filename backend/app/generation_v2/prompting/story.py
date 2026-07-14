@@ -11,12 +11,15 @@ The treatment is the contract for writing. It turns research atoms into a listen
 
 Task:
 Create {min_act_count}-{max_act_count} acts from the research_atoms. Choose the count from the research shape: use fewer acts for a clean linear argument, more acts when the listener needs separate turns for context, mechanism, change, tension, impact, and unresolved risks. Each act must have a clear editorial job, turn, source focus, and atom anchors.
+Write every human-readable output field in episode_brief.output_language.
 
-The treatment creates its own title, logline, and act sequence from the atoms. Do not rely on or invent a separate research thesis/synthesis; those are internal research digest fields and are not part of this input.
+The treatment creates its own title, logline, and act sequence from the atoms. Preserve episode_brief.supported_answer_preview as the episode-level supported answer while deciding the sequence; do not invent a different answer or a separate synthesis.
 
 Use the handles from treatment_input_json:
 - source_focus: use source_ref values like S01.
 - required_atom_refs: use atom_ref values like A01.
+- Keys ending in _preview contain text plus completeness metadata. Use only their text as editorial material; complete=false means the full persisted field is longer, not that you may invent the missing part.
+- research_atoms, source_cautions, audit_constraints, and repair_instructions are complete validated fields/lists. Respect every supplied caution, constraint, and repair instruction.
 
 Use atom weights:
 - core atoms can anchor acts.
@@ -28,8 +31,11 @@ Do not say "the research is incomplete" in the episode. Either use uncertainty a
 
 Allocate target_minutes from editorial difficulty and listener work, not equal blocks.
 Avoid generic act labels. The title/story_role/opening_question/main_turn/ending_turn should make clear what changes in that act.
+Every act must contain at least one required_atom_ref. Number acts exactly 1..N with no duplicates, use only supplied source_ref/atom_ref handles, keep every required text field non-empty, and make every target_minutes positive.
+If repair_instructions is present, correct every listed contract error while preserving supported material.
 If planning_gaps is non-empty, still return your best TreatmentPlan draft, but the backend gate will route the gaps back to research before writing.
-Return only TreatmentPlan JSON. Do not write dialogue, scenes, transcript, or act prose."""
+Invalid output examples: duplicate act numbers; blank turns; an act without required_atom_refs; an unknown S/A handle; zero or negative target_minutes.
+Return only TreatmentPlan JSON with exactly the schema fields. Do not write dialogue, scenes, transcript, commentary, or act prose."""
 
 
 ACT_DRAFT_PROMPT = """Write act {act_number} as dialogue between hosts A and B.

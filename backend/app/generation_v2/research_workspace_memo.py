@@ -38,6 +38,7 @@ def research_memo_from_workspace(run: GenerationRun, workspace: dict) -> Researc
             EditorialAtom(
                 kind=_coerce_atom_kind(str(draft.get("kind") or "")),  # type: ignore[arg-type]
                 title=str(draft.get("title") or "Editorial atom"),
+                claim=str(draft.get("claim") or draft.get("explanation") or ""),
                 explanation=str(draft.get("explanation") or draft.get("claim") or ""),
                 source_ids=_dedupe([str(item) for item in draft.get("source_ids") or [] if str(item).strip()]),
                 quote_refs=[str(item) for item in draft.get("quote_refs") or [] if str(item).strip()],

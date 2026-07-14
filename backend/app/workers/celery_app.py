@@ -3,6 +3,11 @@ from celery.schedules import crontab
 
 from app.config import settings
 
+redis_visibility_timeout = max(
+    int(settings.celery_redis_visibility_timeout_seconds),
+    int(settings.generation_v2_worker_hard_time_limit_seconds) * 2,
+)
+
 celery_app = Celery(
     "podgen",
     broker=settings.redis_url,
@@ -23,6 +28,9 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     task_acks_late=True,
     task_reject_on_worker_lost=True,
+    broker_transport_options={"visibility_timeout": redis_visibility_timeout},
+    result_backend_transport_options={"visibility_timeout": redis_visibility_timeout},
+    visibility_timeout=redis_visibility_timeout,
     beat_schedule={
         "cleanup-expired-temp-sources": {
             "task": "app.workers.ingestion_tasks.cleanup_expired_temp_sources",
@@ -31,6 +39,10 @@ celery_app.conf.update(
         "sweep-dirty-content-maps": {
             "task": "app.workers.ingestion_tasks.sweep_dirty_content_maps",
             "schedule": crontab(minute="*/5"),  # Backstop for missed debounce rebuilds
+        },
+        "recover-stale-generation-v2-runs": {
+            "task": "app.workers.generation_tasks.recover_stale_generation_v2_runs",
+            "schedule": crontab(minute="*"),
         },
     },
 )

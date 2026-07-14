@@ -123,6 +123,8 @@ def evidence_to_dict(item) -> dict[str, Any]:
     return {
         "id": str(item.id),
         "generation_run_id": str(item.generation_run_id),
+        "corpus_revision": int(getattr(item, "corpus_revision", 1) or 1),
+        "attempt": int(getattr(item, "attempt", 1) or 1),
         "project_id": str(item.project_id),
         "source_id": str(item.source_id),
         "source_version_id": str(item.source_version_id),

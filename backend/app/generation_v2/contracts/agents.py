@@ -33,6 +33,7 @@ class V2AgentPrefix(StrEnum):
 
 class V2ToolName(StrEnum):
     LIST_SOURCE_CAPSULES = "list_source_capsules"
+    LIST_TRIAGE_SOURCE_SETS = "list_triage_source_sets"
     UPSERT_TRIAGE_SOURCE_SET = "upsert_triage_source_set"
     FINALIZE_TRIAGE_WORKSPACE_PLAN = "finalize_triage_workspace_plan"
     SEARCH_CORPUS = "search_corpus"
@@ -62,6 +63,7 @@ class V2ToolName(StrEnum):
     FINISH_RESEARCH_JOB = "finish_research_job"
     MERGE_EDITORIAL_ATOMS = "merge_editorial_atoms"
     FINALIZE_RESEARCH_MEMO = "finalize_research_memo"
+    LIST_RESEARCH_WORKSPACE_ITEMS = "list_research_workspace_items"
     SELECT_EVIDENCE = "select_evidence"
     INGEST_SOURCE_CANDIDATE = "ingest_source_candidate"
     REJECT_SOURCE_CANDIDATE = "reject_source_candidate"

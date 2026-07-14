@@ -57,6 +57,8 @@ def tool_model_facing_schema(tool_name: str) -> str:
         "search_sources": "source_search_summary",
         "find_quotes": "evidence_preview_results",
         "read_evidence": "evidence_read",
+        "list_audit_evidence": "audit_evidence_page",
+        "list_research_workspace_items": "research_workspace_page",
         "read_source_window": "evidence_read",
         "read_source_with_model": "model_read_evidence_read",
         "skim_source": "source_skim_windows",
@@ -79,6 +81,9 @@ def tool_model_facing_schema(tool_name: str) -> str:
         "record_source_cluster": "write_ack",
         "record_gap": "write_ack",
         "finalize_source_map": "write_ack",
+        "ingest_source_candidate": "source_acquisition_ack",
+        "reject_source_candidate": "source_acquisition_ack",
+        "finalize_source_acquisition_round": "source_acquisition_round_ack",
     }.get(tool_name, "unknown_tool_output")
 
 

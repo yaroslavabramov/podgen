@@ -121,6 +121,7 @@ class SourceTriageGate(BaseModel):
     unpersisted_completion_gap_notes: list[str] = Field(default_factory=list)
     ungrounded_relationships: list[str] = Field(default_factory=list)
     missing_function_evidence: list[str] = Field(default_factory=list)
+    unresolved_source_refs: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
 

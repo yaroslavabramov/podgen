@@ -16,12 +16,14 @@ async def sync_provider_file_attributes(
     provider_index: ProviderCorpusIndex,
     provider_file: ProviderCorpusFile,
     attributes: dict[str, str | bool | float],
+    *,
+    force: bool = False,
 ) -> bool:
     if (
         not settings.openai_api_key
         or not provider_index.provider_vector_store_id
         or not provider_file.provider_file_id
-        or _provider_external_attributes(provider_file.attributes or {}) == attributes
+        or (not force and _provider_external_attributes(provider_file.attributes or {}) == attributes)
     ):
         return True
     try:

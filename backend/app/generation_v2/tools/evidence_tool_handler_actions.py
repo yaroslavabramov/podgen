@@ -14,7 +14,7 @@ from app.generation_v2.tools.evidence_tool_payloads import (
     compact_source_card as _compact_source_card,
 )
 from app.generation_v2.tools.evidence_utils import _uuid_or_none
-from app.models.generation_v2 import EvidenceItem, SourceVersion
+from app.models.generation_v2 import SourceVersion
 
 
 async def list_sources_tool_action(owner: Any, args: dict[str, Any]) -> dict[str, Any]:
@@ -100,8 +100,8 @@ async def read_evidence_tool_action(owner: Any, args: dict[str, Any]) -> dict[st
         evidence_id = uuid.UUID(str(args.get("evidence_id") or ""))
     except ValueError:
         return {"found": False, "error": "Invalid evidence_id"}
-    item = await owner.db.get(EvidenceItem, evidence_id)
-    if item is None or item.generation_run_id != owner.run.id:
+    item = await owner._evidence_in_run(str(evidence_id))
+    if item is None:
         return {"found": False}
     scope_error = await owner._triage_scope_error_for_source_ids([str(item.source_id)])
     if scope_error:

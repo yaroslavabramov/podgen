@@ -1,11 +1,33 @@
+import asyncio
+import logging
+import math
 import uuid
-from datetime import datetime
+from contextlib import asynccontextmanager, suppress
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, text, update
 
+from app.config import settings
 from app.observability import push_trace_context, safe_set_run, trace_span, tracing_scope
 from app.workers.celery_app import celery_app
+
+
+logger = logging.getLogger(__name__)
+_V2_RECOVERY_PENDING_TOKEN = "recovery_pending"
+_V2_LEASE_LOST = object()
+
+
+@dataclass(frozen=True)
+class V2WorkerClaim:
+    task_id: str
+    token: str
+
+
+@dataclass(frozen=True)
+class V2WorkerBusy:
+    retry_after_seconds: int
 
 
 @celery_app.task(name="app.workers.generation_tasks.run_generation_pipeline", bind=True, max_retries=0)
@@ -24,12 +46,40 @@ def run_generation_step(self, generation_run_id: str, action: str = "next"):
     asyncio.run(_run_step_async(generation_run_id, action))
 
 
-@celery_app.task(name="app.workers.generation_tasks.run_generation_v2", bind=True, max_retries=0)
+@celery_app.task(
+    name="app.workers.generation_tasks.run_generation_v2",
+    bind=True,
+    max_retries=None,
+    time_limit=settings.generation_v2_worker_hard_time_limit_seconds,
+)
 def run_generation_v2(self, generation_run_id: str, generate_audio: bool = True):
     """Launch the Generation V2 editorial pipeline."""
-    import asyncio
+    worker_task_id = str(getattr(self.request, "id", None) or uuid.uuid4())
+    run_visible = asyncio.run(
+        _run_generation_v2_async(
+            generation_run_id,
+            generate_audio=generate_audio,
+            worker_task_id=worker_task_id,
+        )
+    )
+    if isinstance(run_visible, V2WorkerBusy):
+        raise self.retry(
+            exc=RuntimeError(f"Generation run {generation_run_id} is owned by a live V2 worker"),
+            countdown=run_visible.retry_after_seconds,
+        )
+    if not run_visible:
+        retry_number = int(getattr(self.request, "retries", 0) or 0)
+        raise self.retry(
+            exc=RuntimeError(f"Generation run {generation_run_id} is not committed yet"),
+            countdown=min(2**retry_number, 8),
+            max_retries=5,
+        )
 
-    asyncio.run(_run_generation_v2_async(generation_run_id, generate_audio=generate_audio))
+
+@celery_app.task(name="app.workers.generation_tasks.recover_stale_generation_v2_runs", max_retries=0)
+def recover_stale_generation_v2_runs():
+    """Re-enqueue fenced full-V2 runs after a whole worker/container disappears."""
+    asyncio.run(_recover_stale_generation_v2_runs_async())
 
 
 @celery_app.task(name="app.workers.generation_tasks.run_generation_compare", bind=True, max_retries=0)
@@ -602,7 +652,12 @@ async def _run_v2_step_action(db, run, *, generation_run_id: str, action: str, r
                     raise
 
 
-async def _run_generation_v2_async(generation_run_id: str, *, generate_audio: bool = True):
+async def _run_generation_v2_async(
+    generation_run_id: str,
+    *,
+    generate_audio: bool = True,
+    worker_task_id: str | None = None,
+) -> bool | V2WorkerBusy:
     from app.workers.worker_db import worker_session_factory
     from app.models.generation_run import GenerationRun, GenerationStatus
     from app.realtime.publisher import publish_event
@@ -612,8 +667,10 @@ async def _run_generation_v2_async(generation_run_id: str, *, generate_audio: bo
     async with worker_session_factory() as db:
         result = await db.execute(select(GenerationRun).where(GenerationRun.id == uuid.UUID(generation_run_id)))
         run = result.scalar_one_or_none()
-        if run is None or run.status == GenerationStatus.CANCELLED:
-            return
+        if run is None:
+            return False
+        if run.status == GenerationStatus.CANCELLED:
+            return True
 
         trace_ctx = _trace_context(run, component="worker.generation.v2")
         with push_trace_context(trace_ctx):
@@ -624,46 +681,92 @@ async def _run_generation_v2_async(generation_run_id: str, *, generate_audio: bo
                     inputs={"generation_run_id": generation_run_id, "generate_audio": generate_audio},
                     tags=["celery-task", "generation-v2"],
                 ) as task_run:
-                    claimed = await _claim_run_for_worker(db, run)
-                    if not claimed:
-                        return
+                    claim_result = await _claim_v2_run_for_worker(
+                        db,
+                        run,
+                        worker_task_id=str(worker_task_id or uuid.uuid4()),
+                    )
+                    if isinstance(claim_result, V2WorkerBusy):
+                        return claim_result
+                    if claim_result is None:
+                        return True
+                    claim = claim_result
                     result = await db.execute(select(GenerationRun).where(GenerationRun.id == run.id))
                     run = result.scalar_one_or_none()
-                    if run is None or run.status == GenerationStatus.CANCELLED:
-                        return
+                    if run is None:
+                        return False
+                    if run.status == GenerationStatus.CANCELLED:
+                        return True
+                    lease_lost = asyncio.Event()
+                    heartbeat_task = asyncio.create_task(
+                        _heartbeat_v2_worker_lease(run.id, claim, lease_lost=lease_lost)
+                    )
                     try:
-                        await assert_step_not_stopped()
-                        from app.generation_v2.orchestrator import execute_generation_v2
+                        # A process-level advisory lock serializes pipelines even when a
+                        # stale worker resumes after its durable lease was fenced.
+                        async with _v2_execution_lock(run.id):
+                            terminal_run = await _lock_owned_v2_run(db, run.id, claim)
+                            if terminal_run is None or lease_lost.is_set():
+                                await db.rollback()
+                                return True
+                            run = terminal_run
+                            await assert_step_not_stopped()
+                            from app.generation_v2.orchestrator import execute_generation_v2
 
-                        episode_id = await execute_generation_v2(run, db, generate_audio=generate_audio)
+                            execution_result = await _await_v2_execution_or_lease_loss(
+                                execute_generation_v2(run, db, generate_audio=generate_audio),
+                                lease_lost,
+                            )
+                            if execution_result is _V2_LEASE_LOST:
+                                await db.rollback()
+                                return True
+                            episode_id = execution_result
                         from app.generation_v2.source_workspace import cleanup_provider_workspace
 
-                        await cleanup_provider_workspace(db, run.id)
-                        run.status = GenerationStatus.COMPLETED
-                        run.completed_at = datetime.utcnow()
+                        terminal_run = await _lock_owned_v2_run(db, run.id, claim)
+                        if terminal_run is None:
+                            await db.rollback()
+                            return True
+                        await cleanup_provider_workspace(db, terminal_run.id)
+                        terminal_run.status = GenerationStatus.COMPLETED
+                        terminal_run.completed_at = datetime.utcnow()
                         await db.commit()
                         publish_event(generation_run_id, generation_completed(str(episode_id or "")))
                         safe_set_run(task_run, outputs={"status": "completed", "episode_id": str(episode_id or "")})
                     except StepExecutionStopped as stop_exc:
-                        run.status = GenerationStatus.CANCELLED
-                        run.error_message = None
-                        run.completed_at = datetime.utcnow()
-                        run.config = _ack_run_stop_requested(run.config, str(stop_exc))
+                        terminal_run = await _lock_owned_v2_run(db, run.id, claim)
+                        if terminal_run is None:
+                            await db.rollback()
+                            return True
+                        terminal_run.status = GenerationStatus.CANCELLED
+                        terminal_run.error_message = None
+                        terminal_run.completed_at = datetime.utcnow()
+                        terminal_run.config = _ack_run_stop_requested(terminal_run.config, str(stop_exc))
                         from app.generation_v2.source_workspace import cleanup_provider_workspace
 
-                        await cleanup_provider_workspace(db, run.id)
+                        await cleanup_provider_workspace(db, terminal_run.id)
                         await db.commit()
                         publish_event(generation_run_id, generation_cancelled(str(stop_exc)))
                     except Exception as exc:
-                        run.status = GenerationStatus.FAILED
-                        run.error_message = str(exc)
-                        run.completed_at = datetime.utcnow()
+                        await db.rollback()
+                        terminal_run = await _lock_owned_v2_run(db, run.id, claim)
+                        if terminal_run is None:
+                            await db.rollback()
+                            return True
+                        terminal_run.status = GenerationStatus.FAILED
+                        terminal_run.error_message = str(exc)
+                        terminal_run.completed_at = datetime.utcnow()
                         from app.generation_v2.source_workspace import cleanup_provider_workspace
 
-                        await cleanup_provider_workspace(db, run.id)
+                        await cleanup_provider_workspace(db, terminal_run.id)
                         await db.commit()
                         publish_event(generation_run_id, generation_failed(str(exc)))
                         raise
+                    finally:
+                        heartbeat_task.cancel()
+                        with suppress(asyncio.CancelledError):
+                            await heartbeat_task
+        return True
 
 
 async def _run_generation_compare_async(generation_run_id: str):
@@ -769,6 +872,293 @@ async def _promote_generation_variant_to_audio_async(generation_run_id: str):
             await db.commit()
             publish_event(generation_run_id, generation_failed(str(exc)))
             raise
+
+
+async def _recover_stale_generation_v2_runs_async(
+    *,
+    now: datetime | None = None,
+) -> int:
+    from app.models.generation_run import GenerationRun, GenerationStatus
+    from app.workers.worker_db import worker_session_factory
+
+    recovery_time = _utc_naive(now or datetime.utcnow())
+    stale_before = recovery_time - timedelta(
+        seconds=max(60, int(settings.generation_v2_worker_heartbeat_stale_seconds))
+    )
+    retry_after = max(60, int(settings.generation_v2_worker_recovery_enqueue_lease_seconds))
+    queued: list[tuple[uuid.UUID, str, bool]] = []
+    async with worker_session_factory() as db:
+        result = await db.execute(
+            select(GenerationRun)
+            .where(
+                GenerationRun.status == GenerationStatus.RUNNING,
+                GenerationRun.config["generation_mode"].astext == "v2",
+                or_(
+                    GenerationRun.config["execution_mode"].astext == "full",
+                    GenerationRun.config["execution_mode"].astext.is_(None),
+                ),
+                or_(
+                    GenerationRun.config["compare_parent_run_id"].astext.is_(None),
+                    GenerationRun.config["compare_parent_run_id"].astext == "",
+                ),
+                or_(
+                    GenerationRun.v2_worker_heartbeat_at.is_(None),
+                    GenerationRun.v2_worker_heartbeat_at <= stale_before,
+                    GenerationRun.v2_worker_lease_expires_at.is_(None),
+                    GenerationRun.v2_worker_lease_expires_at <= recovery_time,
+                ),
+            )
+            .order_by(GenerationRun.created_at.asc())
+            .limit(50)
+            .with_for_update(skip_locked=True)
+        )
+        for run in result.scalars():
+            if not _is_recoverable_full_v2_run(run):
+                continue
+            task_id = str(uuid.uuid4())
+            run.v2_worker_task_id = task_id
+            run.v2_worker_claim_token = _V2_RECOVERY_PENDING_TOKEN
+            run.v2_worker_heartbeat_at = recovery_time
+            run.v2_worker_lease_expires_at = recovery_time + timedelta(seconds=retry_after)
+            queued.append(
+                (
+                    run.id,
+                    task_id,
+                    not bool((run.config or {}).get("compare_draft_only")),
+                )
+            )
+        await db.commit()
+
+    for run_id, task_id, generate_audio in queued:
+        try:
+            run_generation_v2.apply_async(
+                args=[str(run_id)],
+                kwargs={"generate_audio": generate_audio},
+                task_id=task_id,
+            )
+        except Exception:
+            # The short recovery marker expires, so the next beat pass retries
+            # without silently losing the stale run.
+            logger.warning("Could not re-enqueue stale V2 run %s", run_id, exc_info=True)
+    return len(queued)
+
+
+def _is_recoverable_full_v2_run(run: Any) -> bool:
+    config = run.config if isinstance(getattr(run, "config", None), dict) else {}
+    return bool(
+        config.get("generation_mode") == "v2"
+        and config.get("execution_mode", "full") == "full"
+        and not config.get("compare_parent_run_id")
+    )
+
+
+async def _claim_v2_run_for_worker(
+    db,
+    run,
+    *,
+    worker_task_id: str,
+    now: datetime | None = None,
+    lease_seconds: int | None = None,
+    stale_heartbeat_seconds: int | None = None,
+) -> V2WorkerClaim | V2WorkerBusy | None:
+    """Claim a full V2 run with a durable lease and a per-delivery fencing token."""
+    from app.config import settings
+    from app.models.generation_run import GenerationRun, GenerationStatus
+
+    claim_time = _utc_naive(now or datetime.utcnow())
+    duration = max(
+        60,
+        int(lease_seconds if lease_seconds is not None else settings.generation_v2_worker_lease_seconds),
+    )
+    stale_after = max(
+        60,
+        int(
+            stale_heartbeat_seconds
+            if stale_heartbeat_seconds is not None
+            else settings.generation_v2_worker_heartbeat_stale_seconds
+        ),
+    )
+    result = await db.execute(
+        select(GenerationRun)
+        .where(GenerationRun.id == run.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    locked_run = result.scalar_one_or_none()
+    if locked_run is None:
+        await db.commit()
+        return None
+
+    allowed = locked_run.status == GenerationStatus.QUEUED
+    if locked_run.status == GenerationStatus.RUNNING:
+        recovery_delivery = bool(
+            locked_run.v2_worker_claim_token == _V2_RECOVERY_PENDING_TOKEN
+            and locked_run.v2_worker_task_id == worker_task_id
+        )
+        expires_at = getattr(locked_run, "v2_worker_lease_expires_at", None)
+        heartbeat_at = getattr(locked_run, "v2_worker_heartbeat_at", None)
+        expired_or_legacy = expires_at is None or _utc_naive(expires_at) <= claim_time
+        stale_or_legacy = heartbeat_at is None or (
+            _utc_naive(heartbeat_at) + timedelta(seconds=stale_after) <= claim_time
+        )
+        allowed = recovery_delivery or expired_or_legacy or stale_or_legacy
+    elif not allowed:
+        # Delayed/duplicate deliveries for a terminal run are safe to ACK.
+        await db.commit()
+        return None
+    if not allowed:
+        await db.commit()
+        eligible_times = [
+            _utc_naive(value)
+            for value in (
+                getattr(locked_run, "v2_worker_lease_expires_at", None),
+                (
+                    _utc_naive(locked_run.v2_worker_heartbeat_at) + timedelta(seconds=stale_after)
+                    if getattr(locked_run, "v2_worker_heartbeat_at", None) is not None
+                    else None
+                ),
+            )
+            if value is not None
+        ]
+        retry_after = min(60, max(5, math.ceil((min(eligible_times) - claim_time).total_seconds())))
+        return V2WorkerBusy(retry_after_seconds=retry_after)
+
+    claim = V2WorkerClaim(task_id=worker_task_id, token=str(uuid.uuid4()))
+    locked_run.status = GenerationStatus.RUNNING
+    locked_run.error_message = None
+    locked_run.started_at = locked_run.started_at or claim_time
+    locked_run.completed_at = None
+    locked_run.v2_worker_task_id = claim.task_id
+    locked_run.v2_worker_claim_token = claim.token
+    locked_run.v2_worker_heartbeat_at = claim_time
+    locked_run.v2_worker_lease_expires_at = claim_time + timedelta(seconds=duration)
+    await db.commit()
+    return claim
+
+
+async def _renew_v2_worker_lease(
+    db,
+    generation_run_id: uuid.UUID,
+    claim: V2WorkerClaim,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    from app.config import settings
+    from app.models.generation_run import GenerationRun, GenerationStatus
+
+    heartbeat_at = _utc_naive(now or datetime.utcnow())
+    lease_seconds = max(60, int(settings.generation_v2_worker_lease_seconds))
+    renewed = await db.execute(
+        update(GenerationRun)
+        .where(
+            GenerationRun.id == generation_run_id,
+            GenerationRun.status == GenerationStatus.RUNNING,
+            GenerationRun.v2_worker_task_id == claim.task_id,
+            GenerationRun.v2_worker_claim_token == claim.token,
+        )
+        .values(
+            v2_worker_heartbeat_at=heartbeat_at,
+            v2_worker_lease_expires_at=heartbeat_at + timedelta(seconds=lease_seconds),
+        )
+    )
+    await db.commit()
+    return (renewed.rowcount or 0) > 0
+
+
+async def _heartbeat_v2_worker_lease(
+    generation_run_id: uuid.UUID,
+    claim: V2WorkerClaim,
+    *,
+    lease_lost: asyncio.Event | None = None,
+) -> None:
+    from app.config import settings
+    from app.workers.worker_db import worker_session_factory
+
+    lease_seconds = max(60, int(settings.generation_v2_worker_lease_seconds))
+    interval = max(5, min(int(settings.generation_v2_worker_heartbeat_seconds), lease_seconds // 3))
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            async with worker_session_factory() as heartbeat_db:
+                if not await _renew_v2_worker_lease(heartbeat_db, generation_run_id, claim):
+                    if lease_lost is not None:
+                        lease_lost.set()
+                    return
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.warning("Could not renew V2 worker lease for run %s", generation_run_id, exc_info=True)
+
+
+async def _await_v2_execution_or_lease_loss(execution, lease_lost: asyncio.Event):
+    """Cancel an in-flight pipeline as soon as another worker fences its lease."""
+    execution_task = asyncio.create_task(execution)
+    lease_task = asyncio.create_task(lease_lost.wait())
+    try:
+        done, _ = await asyncio.wait(
+            {execution_task, lease_task},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        if execution_task in done:
+            return await execution_task
+        execution_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await execution_task
+        return _V2_LEASE_LOST
+    finally:
+        lease_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await lease_task
+
+
+@asynccontextmanager
+async def _v2_execution_lock(generation_run_id: uuid.UUID):
+    """Hold one PostgreSQL session lock for the complete V2 pipeline execution."""
+    from app.workers.worker_db import worker_engine
+
+    if worker_engine.dialect.name != "postgresql":
+        yield
+        return
+
+    lock_key = generation_run_id.int & ((1 << 63) - 1)
+    async with worker_engine.connect() as connection:
+        await connection.execute(
+            text("SELECT pg_advisory_lock(:lock_key)"),
+            {"lock_key": lock_key},
+        )
+        try:
+            yield
+        finally:
+            with suppress(Exception):
+                await asyncio.shield(
+                    connection.execute(
+                        text("SELECT pg_advisory_unlock(:lock_key)"),
+                        {"lock_key": lock_key},
+                    )
+                )
+
+
+async def _lock_owned_v2_run(db, generation_run_id: uuid.UUID, claim: V2WorkerClaim):
+    from app.models.generation_run import GenerationRun, GenerationStatus
+
+    result = await db.execute(
+        select(GenerationRun)
+        .where(
+            GenerationRun.id == generation_run_id,
+            GenerationRun.status == GenerationStatus.RUNNING,
+            GenerationRun.v2_worker_task_id == claim.task_id,
+            GenerationRun.v2_worker_claim_token == claim.token,
+        )
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
+
+
+def _utc_naive(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
 
 
 async def _claim_run_for_worker(db, run) -> bool:

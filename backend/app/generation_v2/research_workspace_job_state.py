@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 from app.generation_v2.research_workspace_helpers import (
@@ -118,6 +119,50 @@ def source_order(inventory: SourceMap) -> list[str]:
     return [source_ref_for_id(card.source_id, context) for card in inventory.source_cards]
 
 
+def prepare_workspace_jobs_for_resume(workspace: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    current = dict(workspace or {})
+    resumed_job_ids: list[str] = []
+    jobs: list[dict[str, Any]] = []
+    for item in current.get("investigation_jobs") or []:
+        job = dict(item)
+        status = str(job.get("status") or "planned")
+        questions = [str(question).strip() for question in job.get("questions") or [] if str(question).strip()]
+        outcomes = [outcome for outcome in job.get("question_outcomes") or [] if isinstance(outcome, dict)]
+        complete_outcomes = _outcomes_cover_questions(questions, outcomes)
+        if status == "in_progress" or (status in {"mapped", "deferred"} and not complete_outcomes):
+            job["status"] = "planned"
+            job["resume_reason"] = (
+                "Previous research attempt stopped before durable completion."
+                if status == "in_progress"
+                else "Previous completion did not resolve or defer every planned question."
+            )
+            job["updated_at"] = datetime.now(UTC).isoformat()
+            resumed_job_ids.append(str(job.get("job_id") or ""))
+        jobs.append(job)
+    if resumed_job_ids:
+        resumed_set = set(resumed_job_ids)
+        current["investigation_jobs"] = jobs
+        current["processed_jobs"] = [
+            item for item in current.get("processed_jobs") or [] if str(item.get("job_id") or "") not in resumed_set
+        ]
+        current["current_job"] = None
+        current["memo_fields"] = {}
+        current["status"] = "planned"
+    return current, [job_id for job_id in resumed_job_ids if job_id]
+
+
+def _outcomes_cover_questions(questions: list[str], outcomes: list[dict[str, Any]]) -> bool:
+    def key(value: Any) -> str:
+        return " ".join(str(value or "").split()).casefold()
+
+    expected = {key(question) for question in questions}
+    actual = [key(outcome.get("question")) for outcome in outcomes]
+    return bool(expected) and set(actual) == expected and len(actual) == len(set(actual)) and all(
+        str(outcome.get("status") or "") in {"answered", "deferred"} and str(outcome.get("note") or "").strip()
+        for outcome in outcomes
+    )
+
+
 __all__ = [
     "invalid_job_evidence_ids",
     "invalid_workspace_evidence_ids",
@@ -129,5 +174,6 @@ __all__ = [
     "resolve_workspace_atom_refs",
     "source_ids_for_refs",
     "source_order",
+    "prepare_workspace_jobs_for_resume",
     "workspace_job",
 ]

@@ -27,7 +27,7 @@ async def search_text_source_windows(owner: Any, version: Any, *, query: str, te
             search_result_index=idx,
             score=window["score"],
             snippet_text=window["snippet_text"],
-            normalized_quote_text=_normalize(window["snippet_text"][:500]),
+            normalized_quote_text=_normalize(window["snippet_text"]),
             locator_text=window["locator_text"],
             locator_type=window["locator_type"],
             evidence_strength=EvidenceStrength.EXACT
@@ -83,7 +83,7 @@ async def skim_source(owner: Any, args: dict[str, Any]) -> dict[str, Any]:
             search_result_index=idx,
             score=float(max_windows - idx),
             snippet_text=window["snippet_text"],
-            normalized_quote_text=_normalize(window["snippet_text"][:500]),
+            normalized_quote_text=_normalize(window["snippet_text"]),
             locator_text=window["locator_text"],
             locator_type=window["locator_type"],
             evidence_strength=EvidenceStrength.SNIPPET,

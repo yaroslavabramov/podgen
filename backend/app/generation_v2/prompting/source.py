@@ -45,7 +45,7 @@ How evidence works here:
 - Search previews are leads. Use read_evidence or read_source_window when the exact text matters.
 
 How to work:
-1. Start from the capsules in this set. Decide what needs to be verified by reading or searching.
+1. Start from the capsules in this set. Decide what needs to be verified by reading or searching. If a compact field is truncated, or this agent resumed after a checkpoint, call list_triage_source_sets with section="current_set" first, then page section="observations" from cursor "0" until next_cursor is empty. Those pages restore full validated purpose, rationale, findings, questions, and observation text. Use section="plan_summary" or section="deferred_sources" when those workspace previews are truncated or omitted.
 2. Use skim_source for source-level orientation when a capsule is not enough.
 3. Use read_source_window or read_evidence for exact support, quote seeds, source limits, or relationship evidence.
 4. Use search_corpus only inside the current set for targeted questions. Use compare_source_evidence when several sources need comparable evidence for a cluster or relationship.
@@ -88,7 +88,7 @@ Finalize criteria:
 - For small and medium corpora, most usable sources are represented somewhere in the map or explicitly deferred.
 - The summary should explain what the map covers and what research should watch.
 
-Use finalize_source_map when ready. If a known gap is not yet represented, use record_gap first, then finalize_source_map.
+If plan_summary or deferred-source previews are truncated or omitted, use list_triage_source_sets with section="plan_summary" or section="deferred_sources" and follow next_cursor. Use finalize_source_map when ready. If a known gap is not yet represented, use record_gap first, then finalize_source_map.
 
 Return SourceTriageCompletion JSON only:
 {{"ready": boolean, "summary": string, "notes": string[]}}"""

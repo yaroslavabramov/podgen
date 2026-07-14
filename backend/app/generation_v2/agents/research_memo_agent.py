@@ -14,6 +14,7 @@ from app.generation_v2.research_workspace import (
     build_research_workspace_tools,
     ensure_research_workspace,
     load_research_workspace,
+    prepare_research_jobs_for_resume,
     research_finalizer_payload_for_prompt,
     research_job_prompt_payload,
     research_memo_from_workspace,
@@ -22,6 +23,12 @@ from app.generation_v2.research_workspace import (
     source_map_research_summary,
     start_research_job,
     unprocessed_research_jobs,
+)
+from app.generation_v2.research_workspace_repair_budget import (
+    TARGETED_REPAIR_BUDGET,
+    complete_repair_operation_in_workspace,
+    pending_repair_operation,
+    start_repair_operation_in_workspace,
 )
 from app.generation_v2.runtime import AgentTool, V2Runtime, V2RuntimeUnavailable
 from app.generation_v2.schemas import QuoteCard, ResearchMemo, ShowBibleContext, SourceCard, SourceMap
@@ -61,16 +68,29 @@ async def build_research_memo(
         run=run,
         source_map=source_map,
         source_inventory=full_source_inventory,
+        run_view=evidence_toolset.run_view if evidence_toolset is not None else None,
     )
+    workspace, _ = await prepare_research_jobs_for_resume(
+        db,
+        run=run,
+        workspace=workspace,
+        save_workspace=save_research_workspace,
+    )
+    targeted_repair_active = pending_repair_operation(workspace, TARGETED_REPAIR_BUDGET) is not None
+    if targeted_repair_active:
+        start_repair_operation_in_workspace(workspace, TARGETED_REPAIR_BUDGET)
+        await save_research_workspace(db, generation_run_id=run.id, workspace=workspace)
+        await db.commit()
     planner_source_map_summary = source_map_research_summary(source_map, full_source_inventory, include_evidence_ids=False)
     job_source_map_summary = source_map_research_summary(source_map, full_source_inventory, include_evidence_ids=True)
     try:
-        if run_planner:
+        if run_planner and workspace.get("status") == "planning":
             planner_tools = build_research_workspace_tools(
                 db=db,
                 run=run,
                 workspace=workspace,
                 source_inventory=full_source_inventory,
+                source_map=source_map,
                 evidence_toolset=evidence_toolset,
                 mode="planner",
             )
@@ -112,6 +132,7 @@ async def build_research_memo(
                 run=run,
                 workspace=workspace,
                 source_inventory=full_source_inventory,
+                source_map=source_map,
                 evidence_toolset=scoped_toolset or evidence_toolset,
                 mode="job",
                 current_job_id=job_id,
@@ -136,6 +157,13 @@ async def build_research_memo(
             refreshed_job = next((item for item in workspace.get("investigation_jobs") or [] if item.get("job_id") == job_id), {})
             if refreshed_job.get("status") in {"planned", "in_progress"}:
                 raise RuntimeError(f"Research job did not finish durably: {job_id}")
+        unresolved_jobs = [
+            str(item.get("job_id") or "")
+            for item in workspace.get("investigation_jobs") or []
+            if item.get("status") not in {"mapped", "deferred"}
+        ]
+        if unresolved_jobs:
+            raise RuntimeError("Research finalization blocked by unresolved jobs: " + ", ".join(unresolved_jobs))
         workspace = dict(workspace)
         workspace["memo_fields"] = {}
         workspace["status"] = "finalizing"
@@ -145,6 +173,7 @@ async def build_research_memo(
             run=run,
             workspace=workspace,
             source_inventory=full_source_inventory,
+            source_map=source_map,
             evidence_toolset=evidence_toolset,
             mode="finalizer",
         )
@@ -159,6 +188,10 @@ async def build_research_memo(
         workspace = await load_research_workspace(db, run.id) or workspace
         if not workspace.get("memo_fields"):
             raise RuntimeError("Research finalizer did not finalize memo fields.")
+        if targeted_repair_active:
+            complete_repair_operation_in_workspace(workspace, TARGETED_REPAIR_BUDGET)
+            await save_research_workspace(db, generation_run_id=run.id, workspace=workspace)
+            await db.commit()
         return research_memo_from_workspace(run, workspace)
     except V2RuntimeUnavailable as exc:
         _allow_runtime_fallback(runtime, "v2_editorial_research", "research_planner_agent", exc)

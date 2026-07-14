@@ -5,12 +5,20 @@ from typing import Any
 
 from sqlalchemy import select
 
+from app.generation_v2.corpus_scope import scope_for_run_view
 from app.generation_v2.tools.evidence_types import EVIDENCE_STATUS_CITED, EVIDENCE_STATUS_SELECTED
 from app.generation_v2.tools.evidence_utils import _dedupe, _unsupported_model_read_selected_as_support, _uuid_or_none
 from app.models.generation_v2 import EvidenceItem
 
 
 class EvidenceSelectionMixin:
+    def _evidence_in_current_scope(self, item: EvidenceItem) -> bool:
+        scope = scope_for_run_view(self.run_view)
+        return bool(
+            int(getattr(item, "corpus_revision", 1) or 1) == scope.revision
+            and int(getattr(item, "attempt", 1) or 1) == scope.attempt
+        )
+
     async def _mark_evidence_status(
         self,
         evidence_id: str,
@@ -20,7 +28,7 @@ class EvidenceSelectionMixin:
         if not _uuid_or_none(evidence_id):
             return None
         item = await self.db.get(EvidenceItem, uuid.UUID(evidence_id))
-        if item is None or item.generation_run_id != self.run.id:
+        if item is None or item.generation_run_id != self.run.id or not self._evidence_in_current_scope(item):
             return None
         item.metadata_ = {
             **(item.metadata_ or {}),
@@ -34,7 +42,7 @@ class EvidenceSelectionMixin:
         if not _uuid_or_none(evidence_id):
             return None
         item = await self.db.get(EvidenceItem, uuid.UUID(evidence_id))
-        if item is None or item.generation_run_id != self.run.id:
+        if item is None or item.generation_run_id != self.run.id or not self._evidence_in_current_scope(item):
             return None
         if not self._in_run_corpus_view(item.source_id, item.source_version_id):
             return None
@@ -53,7 +61,7 @@ class EvidenceSelectionMixin:
         if not _uuid_or_none(evidence_id):
             return None
         item = await self.db.get(EvidenceItem, uuid.UUID(evidence_id))
-        if item is None or item.generation_run_id != self.run.id:
+        if item is None or item.generation_run_id != self.run.id or not self._evidence_in_current_scope(item):
             return None
         if (item.metadata_ or {}).get("usage_status") not in {EVIDENCE_STATUS_SELECTED, EVIDENCE_STATUS_CITED}:
             return None
@@ -62,9 +70,12 @@ class EvidenceSelectionMixin:
         return item
 
     async def _selected_evidence_ids(self) -> set[str]:
+        scope = scope_for_run_view(self.run_view)
         result = await self.db.execute(
             select(EvidenceItem).where(
                 EvidenceItem.generation_run_id == self.run.id,
+                EvidenceItem.corpus_revision == scope.revision,
+                EvidenceItem.attempt == scope.attempt,
             )
         )
         return {

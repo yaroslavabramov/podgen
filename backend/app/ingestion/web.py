@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote, unquote, urljoin, urlparse
 
+import httpcore
 import httpx
 
 from app.config import settings
@@ -101,15 +102,29 @@ def _check_ssrf(url: str) -> None:
     if not hostname:
         raise ValueError(f"Cannot parse hostname from URL: {url}")
 
-    infos = _resolve_host_infos(hostname)
+    _validated_public_ip_strings(hostname)
 
-    for family, _, _, _, sockaddr in infos:
+
+def _validated_public_ip_strings(hostname: str) -> list[str]:
+    infos = _resolve_host_infos(hostname)
+    addresses: list[str] = []
+    for _, _, _, _, sockaddr in infos:
         ip = ipaddress.ip_address(sockaddr[0])
+        if not ip.is_global:
+            raise ValueError(
+                f"SSRF blocked: {hostname} resolves to non-public address {ip}"
+            )
         for net in _BLOCKED_NETWORKS:
             if ip in net:
                 raise ValueError(
                     f"SSRF blocked: {hostname} resolves to private address {ip}"
                 )
+        address = str(ip)
+        if address not in addresses:
+            addresses.append(address)
+    if not addresses:
+        raise DNSResolutionError(f"DNS resolution returned no addresses for {hostname}")
+    return addresses
 
 
 def _resolve_host_infos(hostname: str):
@@ -127,6 +142,49 @@ def _resolve_host_infos(hostname: str):
                 time.sleep(retry_delay_sec)
 
     raise DNSResolutionError(f"DNS resolution failed for {hostname}: {last_error}")
+
+
+class _SSRFGuardedNetworkBackend(httpcore.AsyncNetworkBackend):
+    """Resolve once, validate, then connect to that exact public IP."""
+
+    def __init__(self, backend: httpcore.AsyncNetworkBackend | None = None) -> None:
+        self._backend = backend or httpcore.AnyIOBackend()
+
+    async def connect_tcp(
+        self,
+        host: str,
+        port: int,
+        timeout: float | None = None,
+        local_address: str | None = None,
+        socket_options=None,
+    ) -> httpcore.AsyncNetworkStream:
+        last_error: Exception | None = None
+        for address in _validated_public_ip_strings(str(host)):
+            try:
+                return await self._backend.connect_tcp(
+                    address,
+                    port,
+                    timeout=timeout,
+                    local_address=local_address,
+                    socket_options=socket_options,
+                )
+            except (httpcore.ConnectError, httpcore.ConnectTimeout) as exc:
+                last_error = exc
+        if last_error is not None:
+            raise last_error
+        raise httpcore.ConnectError(f"No public address available for {host}")
+
+    async def connect_unix_socket(self, *args, **kwargs) -> httpcore.AsyncNetworkStream:
+        raise httpcore.ConnectError("Unix sockets are disabled for web fetching")
+
+    async def sleep(self, seconds: float) -> None:
+        await self._backend.sleep(seconds)
+
+
+class _SSRFGuardedTransport(httpx.AsyncHTTPTransport):
+    def __init__(self) -> None:
+        super().__init__(trust_env=False)
+        self._pool._network_backend = _SSRFGuardedNetworkBackend()
 
 
 def _origin(url: str) -> str:
@@ -217,9 +275,12 @@ async def _safe_fetch(
     async with httpx.AsyncClient(
         timeout=_TIMEOUT,
         follow_redirects=False,
+        transport=_SSRFGuardedTransport(),
+        trust_env=False,
     ) as client:
         current_url = url
         for _ in range(_MAX_REDIRECTS):
+            _check_ssrf(current_url)
             response = await client.get(current_url, headers=current_headers)
             if response.is_redirect:
                 location = response.headers.get("location")

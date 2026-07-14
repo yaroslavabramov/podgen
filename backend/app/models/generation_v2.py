@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -199,7 +199,18 @@ class ProviderCorpusFile(Base):
 class RunCorpusView(Base):
     __tablename__ = "run_corpus_views"
     __table_args__ = (
-        UniqueConstraint("generation_run_id", name="uq_run_corpus_view_generation_run"),
+        UniqueConstraint(
+            "generation_run_id",
+            "revision",
+            "attempt",
+            name="uq_run_corpus_view_generation_run_revision_attempt",
+        ),
+        Index(
+            "uq_run_corpus_views_current",
+            "generation_run_id",
+            unique=True,
+            postgresql_where=text("is_current"),
+        ),
         Index("ix_run_corpus_views_project", "project_id"),
         Index("ix_run_corpus_views_manifest_hash", "manifest_hash"),
     )
@@ -221,6 +232,13 @@ class RunCorpusView(Base):
         UUID(as_uuid=True),
         ForeignKey("provider_corpus_indexes.id", ondelete="SET NULL"),
     )
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    supersedes_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("run_corpus_views.id", ondelete="SET NULL"),
+    )
     selected_source_ids: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     selected_source_version_ids: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     active_source_filter: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
@@ -239,7 +257,17 @@ class EvidenceItem(Base):
         Index("ix_evidence_items_run", "generation_run_id"),
         Index("ix_evidence_items_project_source", "project_id", "source_id"),
         Index("ix_evidence_items_source_version", "source_version_id"),
-        Index("ix_evidence_items_dedupe", "generation_run_id", "source_version_id", "snippet_hash", "retrieval_channel", "purpose"),
+        Index("ix_evidence_items_run_scope", "generation_run_id", "corpus_revision", "attempt"),
+        Index(
+            "ix_evidence_items_dedupe",
+            "generation_run_id",
+            "corpus_revision",
+            "attempt",
+            "source_version_id",
+            "snippet_hash",
+            "retrieval_channel",
+            "purpose",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -249,6 +277,8 @@ class EvidenceItem(Base):
         nullable=False,
         index=True,
     )
+    corpus_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     project_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("projects.id", ondelete="CASCADE"),
@@ -354,6 +384,7 @@ class V2Artifact(Base):
             name="uq_v2_artifact_version",
         ),
         Index("ix_v2_artifacts_run_type", "generation_run_id", "artifact_type"),
+        Index("ix_v2_artifacts_run_scope", "generation_run_id", "corpus_revision", "attempt"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -366,6 +397,7 @@ class V2Artifact(Base):
     artifact_type: Mapped[str] = mapped_column(String(50), nullable=False)
     artifact_key: Mapped[str] = mapped_column(String(160), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    corpus_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     prompt_hash: Mapped[str | None] = mapped_column(String(64))
@@ -383,6 +415,7 @@ class V2ToolTrace(Base):
     __tablename__ = "v2_tool_traces"
     __table_args__ = (
         Index("ix_v2_tool_traces_run_phase", "generation_run_id", "phase"),
+        Index("ix_v2_tool_traces_run_scope", "generation_run_id", "corpus_revision", "attempt", "phase"),
         Index("ix_v2_tool_traces_provider_call", "provider_call_id"),
     )
 
@@ -393,6 +426,8 @@ class V2ToolTrace(Base):
         nullable=False,
         index=True,
     )
+    corpus_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     phase: Mapped[str] = mapped_column(String(80), nullable=False)
     agent_name: Mapped[str] = mapped_column(String(120), nullable=False)
     tool_name: Mapped[str] = mapped_column(String(120), nullable=False)

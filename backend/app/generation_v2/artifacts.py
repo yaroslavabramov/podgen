@@ -10,6 +10,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.generation_v2.artifact_costs import summarize_tool_trace_costs
+from app.generation_v2.corpus_scope import session_corpus_scope
 from app.models.generation_v2 import V2Artifact, V2ArtifactStatus, V2ToolTrace
 
 
@@ -34,8 +35,12 @@ async def save_artifact(
     prompt: str | None = None,
     prompt_hash: str | None = None,
     metadata: dict[str, Any] | None = None,
-    attempt: int = 1,
+    corpus_revision: int | None = None,
+    attempt: int | None = None,
 ) -> V2Artifact:
+    scope = session_corpus_scope(db, generation_run_id)
+    resolved_revision = int(corpus_revision or scope.revision)
+    resolved_attempt = int(attempt or scope.attempt)
     version_result = await db.execute(
         select(func.max(V2Artifact.version)).where(
             V2Artifact.generation_run_id == generation_run_id,
@@ -61,7 +66,8 @@ async def save_artifact(
         artifact_type=artifact_type,
         artifact_key=artifact_key,
         version=next_version,
-        attempt=attempt,
+        corpus_revision=resolved_revision,
+        attempt=resolved_attempt,
         is_current=True,
         prompt_hash=prompt_hash or (hashlib.sha256(prompt.encode("utf-8")).hexdigest() if prompt else None),
         input_artifact_ids=input_artifact_ids or [],
@@ -102,6 +108,7 @@ async def list_artifacts_grouped(
                 "id": str(artifact.id),
                 "artifact_key": artifact.artifact_key,
                 "version": artifact.version,
+                "corpus_revision": artifact.corpus_revision,
                 "attempt": artifact.attempt,
                 "is_current": artifact.is_current,
                 "prompt_hash": artifact.prompt_hash,
@@ -131,9 +138,14 @@ async def save_tool_trace(
     input_tokens: int | None = None,
     output_tokens: int | None = None,
     cost_usd: float | None = None,
+    corpus_revision: int | None = None,
+    attempt: int | None = None,
 ) -> V2ToolTrace:
+    scope = session_corpus_scope(db, generation_run_id)
     trace = V2ToolTrace(
         generation_run_id=generation_run_id,
+        corpus_revision=int(corpus_revision or scope.revision),
+        attempt=int(attempt or scope.attempt),
         phase=phase,
         agent_name=agent_name,
         tool_name=tool_name,
@@ -162,6 +174,8 @@ async def list_tool_traces(db: AsyncSession, generation_run_id: uuid.UUID) -> li
             {
                 "id": str(trace.id),
                 "phase": trace.phase,
+                "corpus_revision": trace.corpus_revision,
+                "attempt": trace.attempt,
                 "agent_name": trace.agent_name,
                 "tool_name": trace.tool_name,
                 "input_json": trace.input_json,

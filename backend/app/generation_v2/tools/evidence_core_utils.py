@@ -50,6 +50,12 @@ def quote_text_matches_evidence(quote: str, snippet: str) -> bool:
     return len(overlap) / max(1, len(quote_tokens)) >= 0.75
 
 
+def exact_quote_text_matches(quote: str, source_text: str) -> bool:
+    normalized_quote = normalize(quote)
+    normalized_source = normalize(source_text)
+    return bool(normalized_quote and normalized_source and normalized_quote in normalized_source)
+
+
 def hosted_result_file_id(result: dict[str, Any]) -> str | None:
     for key in ("file_id", "fileId", "id"):
         value = result.get(key)
@@ -142,6 +148,7 @@ def normalize(text: str) -> str:
 __all__ = [
     "chunk_version_priority",
     "dedupe",
+    "exact_quote_text_matches",
     "hosted_result_file_id",
     "hosted_result_text",
     "normalize",

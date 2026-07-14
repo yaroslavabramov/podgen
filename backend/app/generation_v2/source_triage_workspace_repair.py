@@ -38,6 +38,7 @@ def create_repair_sets_from_gate(
             if source_id and (ref := source_ref_for_id(source_id, context)) in source_order
         ]
     )
+    refs = _dedupe([*refs, *[str(item) for item in getattr(gate, "unresolved_source_refs", []) or [] if str(item) in source_order]])
     if not refs and "finalize" not in str(getattr(gate, "summary", "")).lower():
         refs = [str(ref) for ref in (workspace.get("mapped_sources") or workspace.get("source_order") or [])[:6]]
     if not refs:

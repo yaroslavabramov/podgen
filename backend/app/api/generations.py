@@ -193,6 +193,10 @@ async def start_generation(project_id: uuid.UUID, data: GenerationCreate, user: 
 
     # Trigger async generation for full mode only.
     if data.execution_mode == "full":
+        # The request-scoped dependency commits after this handler returns, which
+        # is too late for a fast worker. Make the run visible before enqueueing.
+        await db.commit()
+        await db.refresh(run)
         if data.generation_mode == "v2":
             from app.workers.generation_tasks import run_generation_v2
 
@@ -352,6 +356,8 @@ async def promote_generation_audio(run_id: uuid.UUID, user: CurrentUser, db: DB,
     target_run.completed_at = None
     target_run.config = {**(target_run.config or {}), "audio_promotion_requested": True}
     await db.flush()
+    await db.refresh(target_run)
+    await db.commit()
     await db.refresh(target_run)
 
     from app.workers.generation_tasks import promote_generation_variant_to_audio
@@ -533,6 +539,8 @@ async def resume_generation(run_id: uuid.UUID, user: CurrentUser, db: DB):
     run.completed_at = None
     await db.flush()
     await db.refresh(run)
+    await db.commit()
+    await db.refresh(run)
 
     if generation_mode == "v2":
         from app.workers.generation_tasks import run_generation_v2
@@ -682,6 +690,8 @@ async def _enqueue_step_action(
     run.completed_at = None
     run.config = _mark_step_action_requested(run.config, action, requested_target_node)
     await db.flush()
+    await db.refresh(run)
+    await db.commit()
     await db.refresh(run)
 
     from app.workers.generation_tasks import run_generation_step

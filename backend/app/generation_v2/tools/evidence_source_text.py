@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+
 from app.models.generation_v2 import SourceRepresentationKind, SourceVersion
 from app.services.storage import download_text, get_minio_client
 
@@ -10,9 +12,13 @@ def source_version_text(version: SourceVersion) -> str:
     if version.kind == SourceRepresentationKind.ORIGINAL_FILE and not looks_text_readable_path(version.storage_path):
         return ""
     try:
-        return download_text(get_minio_client(), version.storage_path)
+        text = download_text(get_minio_client(), version.storage_path)
     except Exception:
         return ""
+    expected_hash = str(version.content_hash or "").strip().lower()
+    if expected_hash and hashlib.sha256(text.encode("utf-8")).hexdigest() != expected_hash:
+        return ""
+    return text
 
 
 def looks_text_readable_path(path: str) -> bool:

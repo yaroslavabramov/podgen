@@ -46,7 +46,19 @@ def tool_round_limit(max_tool_rounds: int | None) -> int | None:
     return max(1, configured_int)
 
 
-def default_checkpoint_policy(agent_name: str) -> AgentCheckpointPolicy:
-    if agent_name == V2AgentName.SOURCE_TRIAGE:
+def default_checkpoint_policy(agent_name: str, *, phase: str | None = None) -> AgentCheckpointPolicy:
+    is_triage_agent = agent_name == V2AgentName.SOURCE_TRIAGE or agent_name.startswith("source_triage_")
+    is_editorial_research_agent = (
+        agent_name == V2AgentName.RESEARCH_PLANNER
+        or agent_name == V2AgentName.RESEARCH_FINALIZER
+        or agent_name.startswith("research_job_agent_")
+    )
+    if phase is not None:
+        if phase == "v2_source_triage" and is_triage_agent:
+            return AgentCheckpointPolicy(enabled=True)
+        if phase == "v2_editorial_research" and is_editorial_research_agent:
+            return AgentCheckpointPolicy(enabled=True)
+        return AgentCheckpointPolicy(enabled=False)
+    if is_triage_agent or is_editorial_research_agent:
         return AgentCheckpointPolicy(enabled=True)
     return AgentCheckpointPolicy(enabled=False)

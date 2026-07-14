@@ -59,6 +59,7 @@ def research_job_tools(
                     "source_refs": {"type": "array", "items": {"type": "string"}},
                     "evidence_ids": {"type": "array", "items": {"type": "string"}},
                     "quote_refs": {
+                        "description": "Optional exact-quote handles; each value must also appear in evidence_ids.",
                         "type": "array",
                         "maxItems": RESEARCH_QUOTE_REF_LIMIT,
                         "items": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["quote_ref"]},
@@ -105,8 +106,23 @@ def research_job_tools(
                     "status": {"type": "string", "enum": ["mapped", "deferred"]},
                     "summary": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["job_summary"]},
                     "deferred_reason": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["deferred_reason"]},
+                    "question_outcomes": {
+                        "type": "array",
+                        "maxItems": 10,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "question": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["question"]},
+                                "status": {"type": "string", "enum": ["answered", "deferred"]},
+                                "note": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["job_summary"]},
+                                "evidence_ids": {"type": "array", "items": {"type": "string"}},
+                            },
+                            "required": ["question", "status", "note", "evidence_ids"],
+                            "additionalProperties": False,
+                        },
+                    },
                 },
-                "required": ["job_id", "status", "summary", "deferred_reason"],
+                "required": ["job_id", "status", "summary", "deferred_reason", "question_outcomes"],
             },
             handler=finish_research_job_handler,
         ),

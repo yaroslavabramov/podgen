@@ -41,6 +41,8 @@ def validate_treatment(
     duration_seconds: int,
     *,
     research_memo: ResearchMemo | None = None,
+    valid_evidence_ids: set[str] | None = None,
+    valid_quote_refs: set[str] | None = None,
 ) -> EpisodeCritique:
     source_ids = {card.source_id for card in source_cards if card.coverage_status in {"ready", "partial"}}
     atom_by_ref = (
@@ -49,27 +51,97 @@ def validate_treatment(
         else {}
     )
     issues: list[str] = []
+    for field_name, value in (
+        ("title", treatment.title),
+        ("logline", treatment.logline),
+        ("host_dynamic", treatment.host_dynamic),
+    ):
+        if not str(value or "").strip():
+            issues.append(f"Treatment {field_name} must not be empty.")
     min_acts, max_acts = treatment_act_count_range(duration_seconds)
     if not (min_acts <= len(treatment.acts) <= max_acts):
         issues.append(f"Treatment requires {min_acts}-{max_acts} acts for this target duration.")
+    actual_act_numbers = [act.act_number for act in treatment.acts]
+    expected_act_numbers = list(range(1, len(treatment.acts) + 1))
+    if actual_act_numbers != expected_act_numbers:
+        issues.append("Treatment act numbers must be unique and sequential starting at 1.")
     for gap in treatment.planning_gaps:
         if str(gap).strip():
             issues.append(f"Treatment planning gap requires research repair: {str(gap).strip()}")
     target_minutes = duration_seconds / 60
-    total_minutes = sum(max(0.0, float(act.target_minutes or 0.0)) for act in treatment.acts)
+    total_minutes = sum(float(act.target_minutes or 0.0) for act in treatment.acts)
     if treatment.acts and not (target_minutes * 0.85 <= total_minutes <= target_minutes * 1.15):
         issues.append(
             f"Treatment act target_minutes total {total_minutes:.1f} does not match target duration {target_minutes:.1f}."
         )
     for act in treatment.acts:
+        for field_name, value in (
+            ("title", act.title),
+            ("story_role", act.story_role),
+            ("opening_question", act.opening_question),
+            ("main_turn", act.main_turn),
+            ("ending_turn", act.ending_turn),
+        ):
+            if not str(value or "").strip():
+                issues.append(f"Act {act.act_number} {field_name} must not be empty.")
+        if float(act.target_minutes or 0.0) <= 0:
+            issues.append(f"Act {act.act_number} target_minutes must be positive.")
+        unknown_source_ids = sorted({source_id for source_id in act.source_focus if source_id not in source_ids})
+        if unknown_source_ids:
+            issues.append(f"Act {act.act_number} references unknown or unavailable sources: {unknown_source_ids}.")
         if len(set(act.source_focus) & source_ids) < max(1, min(act.source_density_target, 2)):
             issues.append(f"Act {act.act_number} does not meet source density target.")
-        if not act.required_atom_refs and duration_seconds >= 2700:
+        if not act.required_atom_refs:
             issues.append(f"Act {act.act_number} lacks required editorial atom anchors.")
+        unknown_atom_refs = sorted({ref for ref in act.required_atom_refs if ref not in atom_by_ref})
+        if unknown_atom_refs:
+            issues.append(f"Act {act.act_number} references unknown editorial atoms: {unknown_atom_refs}.")
+        selected_atoms = [atom_by_ref[ref] for ref in act.required_atom_refs if ref in atom_by_ref]
+        selected_evidence_ids = {
+            evidence_id for atom in selected_atoms for evidence_id in atom.evidence_ids if evidence_id
+        }
+        selected_quote_refs = {quote_ref for atom in selected_atoms for quote_ref in atom.quote_refs if quote_ref}
+        unrelated_evidence_ids = sorted(
+            {evidence_id for evidence_id in act.required_evidence_ids if evidence_id not in selected_evidence_ids}
+        )
+        unrelated_quote_refs = sorted(
+            {quote_ref for quote_ref in act.required_quote_refs if quote_ref not in selected_quote_refs}
+        )
+        stale_evidence_ids = sorted(
+            {
+                evidence_id
+                for evidence_id in act.required_evidence_ids
+                if valid_evidence_ids is not None and evidence_id not in valid_evidence_ids
+            }
+        )
+        stale_quote_refs = sorted(
+            {
+                quote_ref
+                for quote_ref in act.required_quote_refs
+                if valid_quote_refs is not None and quote_ref not in valid_quote_refs
+            }
+        )
+        if unrelated_evidence_ids:
+            issues.append(
+                f"Act {act.act_number} references evidence not attached to its editorial atoms: "
+                f"{unrelated_evidence_ids}."
+            )
+        if unrelated_quote_refs:
+            issues.append(
+                f"Act {act.act_number} references quotes not attached to its editorial atoms: {unrelated_quote_refs}."
+            )
+        if stale_evidence_ids:
+            issues.append(
+                f"Act {act.act_number} references evidence outside the current run corpus view: {stale_evidence_ids}."
+            )
+        if stale_quote_refs:
+            issues.append(
+                f"Act {act.act_number} references quotes that are not exact evidence in the current run: "
+                f"{stale_quote_refs}."
+            )
         if duration_seconds >= 2700 and len(act.required_evidence_ids) < max(1, min(act.source_density_target, 2)):
             issues.append(f"Act {act.act_number} lacks enough required evidence ids for long-form drafting.")
         if duration_seconds >= 2700 and atom_by_ref:
-            selected_atoms = [atom_by_ref[ref] for ref in act.required_atom_refs if ref in atom_by_ref]
             core_atoms = [atom for atom in selected_atoms if atom.story_weight == "core"]
             weak_or_partial = [atom for atom in selected_atoms if atom.source_coverage_status in {"partial", "weak"}]
             caveat_atoms = [atom for atom in selected_atoms if atom.story_weight == "caveat"]

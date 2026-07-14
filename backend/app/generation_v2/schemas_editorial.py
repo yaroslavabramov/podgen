@@ -16,6 +16,10 @@ from app.generation_v2.research_kinds import normalize_research_atom_kind
 class EditorialAtom(BaseModel):
     kind: EditorialAtomKind
     title: str
+    # Kept separate from explanation so the research assertion survives the
+    # memo -> treatment handoff. The default keeps completed legacy artifacts
+    # readable; all new workspace conversions populate it explicitly.
+    claim: str = ""
     explanation: str
     source_ids: list[str] = Field(default_factory=list)
     quote_refs: list[str] = Field(default_factory=list)

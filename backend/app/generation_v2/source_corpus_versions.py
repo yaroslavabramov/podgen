@@ -77,14 +77,25 @@ async def ensure_source_versions(db: AsyncSession, source: Source) -> list[Sourc
             logger.info("Could not read raw text for source version %s: %s", source.id, exc)
             status = V2RecordStatus.FAILED
         kind = SourceRepresentationKind.TRANSCRIPT if source.source_type in {"audio", "video"} else SourceRepresentationKind.EXTRACTED_TEXT
+        content_hash = _hash_text(text or source.raw_text_path)
+        immutable_text_path = source.raw_text_path
+        if text.strip():
+            filename = "transcript.txt" if kind == SourceRepresentationKind.TRANSCRIPT else "extracted.txt"
+            immutable_text_path = _versioned_object_name(source.id, content_hash, filename)
+            upload_text(get_minio_client(), text, immutable_text_path)
         versions.append(
             await ensure_source_version(
                 db,
                 source,
                 kind=kind,
-                storage_path=source.raw_text_path,
-                content_hash=_hash_text(text or source.raw_text_path),
-                metadata={"canonical": False, "view": "deterministic_ingestion"},
+                storage_path=immutable_text_path,
+                content_hash=content_hash,
+                metadata={
+                    "canonical": False,
+                    "view": "deterministic_ingestion",
+                    "immutable_snapshot": bool(text.strip()),
+                    "source_raw_text_path": source.raw_text_path,
+                },
                 status=status,
             )
         )

@@ -32,6 +32,7 @@ async def build_treatment(
     evidence_tools: list[AgentTool] | None = None,
     vector_store_id: str | None = None,
     show_bible: ShowBibleContext | None = None,
+    repair_instructions: list[str] | None = None,
 ) -> Treatment:
     del evidence_tools, vector_store_id
     source_map = source_map or SourceMap()
@@ -49,6 +50,7 @@ async def build_treatment(
                 source_inventory=full_source_inventory,
                 research_audit=research_audit,
                 act_count_range=act_count_range,
+                repair_instructions=repair_instructions,
             )
         ),
     )

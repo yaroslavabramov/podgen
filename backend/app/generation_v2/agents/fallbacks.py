@@ -40,7 +40,7 @@ def fallback_treatment(run: GenerationRun, memo: ResearchMemo, act_count: int) -
                 source_focus=atom.source_ids,
                 target_minutes=per_act,
                 required_atom_refs=[f"A{((idx - 1) % len(memo.editorial_atoms)) + 1:02d}"],
-                required_quote_refs=[],
+                required_quote_refs=list(dict.fromkeys(ref for ref in atom.quote_refs if ref)),
                 required_evidence_ids=atom.evidence_ids,
                 source_density_target=max(1, min(3, len(atom.source_ids) or 1)),
             )

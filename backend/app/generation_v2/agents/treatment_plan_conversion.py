@@ -30,8 +30,12 @@ def resolve_treatment_source_focus(
         source_id = context.source_id_by_ref.get(text)
         if source_id is None and text in known_source_ids:
             source_id = text
-        if source_id and source_id not in source_focus:
-            source_focus.append(source_id)
+        resolved_value = source_id or text
+        if resolved_value and resolved_value not in source_focus:
+            # Preserve invalid model handles so the deterministic treatment
+            # validator can reject and repair them instead of silently hiding
+            # the contract violation.
+            source_focus.append(resolved_value)
     minimum = max(1, min(int(plan_act.source_density_target or 1), 2))
     for atom in selected_atoms:
         for source_id in atom.source_ids:
@@ -55,15 +59,17 @@ def treatment_from_plan(
     acts: list[TreatmentAct] = []
     for plan_act in plan.acts:
         atom_refs = [str(ref).strip() for ref in plan_act.required_atom_refs if str(ref).strip()]
-        unknown_refs = [ref for ref in atom_refs if ref not in atom_by_ref]
-        if unknown_refs:
-            raise ValueError(f"Treatment act {plan_act.act_number} references unknown atom refs: {unknown_refs}")
-        selected_atoms = [atom_by_ref[ref] for ref in atom_refs]
+        selected_atoms = [atom_by_ref[ref] for ref in atom_refs if ref in atom_by_ref]
         evidence_ids: list[str] = []
+        quote_refs: list[str] = []
         for atom in selected_atoms:
             for evidence_id in atom.evidence_ids:
                 if evidence_id and evidence_id not in evidence_ids:
                     evidence_ids.append(evidence_id)
+            for quote_ref in atom.quote_refs:
+                quote_ref = str(quote_ref or "").strip()
+                if quote_ref and quote_ref not in quote_refs:
+                    quote_refs.append(quote_ref)
         acts.append(
             TreatmentAct(
                 act_number=plan_act.act_number,
@@ -79,7 +85,7 @@ def treatment_from_plan(
                 ),
                 target_minutes=plan_act.target_minutes,
                 required_atom_refs=atom_refs,
-                required_quote_refs=[],
+                required_quote_refs=quote_refs,
                 required_evidence_ids=evidence_ids,
                 source_density_target=plan_act.source_density_target,
             )

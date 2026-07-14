@@ -130,12 +130,9 @@ async def load_run_sources(db: AsyncSession, run: GenerationRun) -> list[Source]
         select(Source)
         .where(
             Source.project_id == run.project_id,
-            or_(Source.is_temporary.is_(False), Source.id.cast(String).in_(attached_source_ids)),
             or_(
-                Source.ingestion_status == "completed",
-                Source.file_path.is_not(None),
-                Source.original_url.is_not(None),
-                Source.raw_text_path.is_not(None),
+                Source.id.cast(String).in_(attached_source_ids),
+                Source.is_temporary.is_(False),
             ),
         )
         .order_by(Source.created_at.asc())

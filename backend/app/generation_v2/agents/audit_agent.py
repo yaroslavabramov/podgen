@@ -4,8 +4,9 @@ from app.generation_v2.contracts import V2AgentName, V2Phase
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.generation_v2.agents.audit_context import (
-    audit_evidence_previews as _audit_evidence_previews,
+    audit_evidence_catalog as _audit_evidence_catalog,
     audit_tools_with_evidence_refs as _audit_tools_with_evidence_refs,
+    audit_workspace_page_tool as _audit_workspace_page_tool,
     normalize_research_audit as _normalize_research_audit,
     research_audit_input as _research_audit_input,
 )
@@ -45,13 +46,28 @@ async def audit_research_memo(
     inventory = source_inventory or source_map
     context = _source_ref_context(inventory.source_cards)
     source_titles_by_id = {card.source_id: card.title for card in inventory.source_cards}
-    _, evidence_id_by_ref, required_evidence_refs = _audit_evidence_previews(
+    evidence_catalog_by_atom_ref, evidence_id_by_ref, required_evidence_refs = _audit_evidence_catalog(
         research_memo=research_memo,
         evidence_records=evidence_records,
         context=context,
         source_titles_by_id=source_titles_by_id,
     )
     audit_read_refs: set[str] = set()
+    audit_tools = _audit_tools_with_evidence_refs(
+        evidence_tools,
+        evidence_id_by_ref=evidence_id_by_ref,
+        read_refs=audit_read_refs,
+        evidence_previews_by_atom_ref=evidence_catalog_by_atom_ref,
+    )
+    audit_tools.append(
+        _audit_workspace_page_tool(
+            research_memo=research_memo,
+            source_map=source_map,
+            source_inventory=inventory,
+            workspace=workspace,
+            evidence_previews_by_atom_ref=evidence_catalog_by_atom_ref,
+        )
+    )
     prompt = RESEARCH_AUDIT_PROMPT.format(
         duration_minutes=int((run.config or {}).get("duration_target", 1800)) // 60,
         audit_input_json=_json(
@@ -76,14 +92,11 @@ async def audit_research_memo(
             system=RESEARCH_AUDIT_SYSTEM,
             prompt=prompt,
             vector_store_id=None,
-            local_tools=_audit_tools_with_evidence_refs(
-                evidence_tools,
-                evidence_id_by_ref=evidence_id_by_ref,
-                read_refs=audit_read_refs,
-            ),
+            local_tools=audit_tools,
             tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
             max_output_tokens=5000,
         )
+        audit = _normalize_research_audit(audit)
         duration_seconds = int((run.config or {}).get("duration_target", 1800))
         missing_required_reads = sorted(required_evidence_refs - audit_read_refs) if duration_seconds >= 2700 else []
         if audit.passed and missing_required_reads:
@@ -106,7 +119,7 @@ async def audit_research_memo(
                 ],
                 repair_targets=["research_audit"],
             )
-        return _normalize_research_audit(audit)
+        return audit
     except V2RuntimeUnavailable as exc:
         _allow_runtime_fallback(runtime, "v2_research_audit", "research_auditor", exc)
         atom_count = len(research_memo.editorial_atoms)

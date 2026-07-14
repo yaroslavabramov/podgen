@@ -5,7 +5,6 @@ from typing import Any
 
 from app.generation_v2.tools.evidence_utils import (
     _retrieval_channel_for_version,
-    _select_chunk_window,
     _source_outline,
     _uuid_or_none,
     _version_can_back_local_window,
@@ -46,7 +45,6 @@ async def resolve_local_fallback_source_version(owner: Any, *, source_id: str, s
             SourceVersion.source_id == uuid.UUID(target_source_id),
             SourceVersion.id.in_(_uuid_list(list(selected_version_ids))),
             SourceVersion.status == V2RecordStatus.READY,
-            SourceVersion.is_active.is_(True),
         )
     )
     versions = [version for version in result.scalars() if _version_can_back_local_window(version)]
@@ -65,27 +63,10 @@ async def read_source_window(
     if text.strip():
         snippet, locator_text, locator_type = _window_for_locator(text, locator=locator, max_chars=max_chars)
         return snippet, locator_text, locator_type, _retrieval_channel_for_version(version)
-    chunks = await owner._chunks_for_source(str(version.source_id), limit=12)
-    if not chunks:
-        return "", "", EvidenceLocatorType.UNKNOWN, _retrieval_channel_for_version(version)
-    selected = _select_chunk_window(chunks, locator=locator)
-    locator_text = " > ".join(selected.heading_path or []) or f"chunk {selected.chunk_index}"
-    return selected.content[:max_chars], locator_text, EvidenceLocatorType.SECTION, _retrieval_channel_for_version(version)
+    return "", "", EvidenceLocatorType.UNKNOWN, _retrieval_channel_for_version(version)
 
 
 async def source_windows(owner: Any, version: SourceVersion, *, max_windows: int) -> list[dict[str, Any]]:
-    chunks = await owner._chunks_for_source(str(version.source_id), limit=max_windows)
-    if chunks:
-        return [
-            {
-                "locator_text": " > ".join(chunk.heading_path or []) or f"chunk {chunk.chunk_index}",
-                "locator_type": EvidenceLocatorType.SECTION if chunk.heading_path else EvidenceLocatorType.UNKNOWN,
-                "snippet_text": chunk.content[:1600],
-                "channel": _retrieval_channel_for_version(version),
-            }
-            for chunk in chunks[:max_windows]
-            if chunk.content.strip()
-        ]
     text = _source_version_text(version)
     if not text.strip():
         return []

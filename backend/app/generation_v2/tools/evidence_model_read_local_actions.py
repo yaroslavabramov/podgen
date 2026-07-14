@@ -41,7 +41,7 @@ async def persist_local_model_read_fallback(
         search_result_index=0,
         score=0.65,
         snippet_text=snippet,
-        normalized_quote_text=_normalize(snippet[:500]),
+        normalized_quote_text=_normalize(snippet),
         locator_text=locator_text or "local source window",
         locator_type=locator_type,
         evidence_strength=EvidenceStrength.WEAK,

@@ -102,6 +102,8 @@ def research_planner_tool_handlers(
             "evidence_ids": [],
             "summary": "",
             "deferred_reason": "",
+            "question_outcomes": [],
+            "attempt": 0,
             "updated_at": _now(),
         }
         jobs = [item for item in current.get("investigation_jobs") or [] if item.get("job_id") != job_id]

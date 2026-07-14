@@ -5,6 +5,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.generation_v2.runtime import AgentTool
+from app.generation_v2.corpus_scope import scope_for_run_view
 from app.generation_v2.schemas import SourceMap
 from app.generation_v2.source_triage_workspace_capsules import (
     build_capsule_for_card as _build_capsule_for_card,
@@ -20,6 +21,9 @@ from app.generation_v2.source_triage_workspace_state import (
     now as _now,
     replace_workspace_set as _replace_workspace_set,
     stable_set_id as _stable_set_id,
+    source_set_covered_refs as _source_set_covered_refs,
+    source_set_has_unresolved_refs as _source_set_has_unresolved_refs,
+    unresolved_source_refs,
     workspace_set as _workspace_set,
 )
 from app.generation_v2.source_triage_workspace_persistence import (
@@ -34,6 +38,7 @@ from app.generation_v2.source_triage_workspace_prompting import (
     workspace_summary_for_prompt,
 )
 from app.generation_v2.source_triage_workspace_repair import create_repair_sets_from_gate
+from app.generation_v2.source_triage_repair_state import carry_pending_triage_repair
 from app.generation_v2.source_triage_workspace_tracking import (
     mark_workspace_write_action,
     triage_workflow_guard_error,
@@ -51,15 +56,24 @@ async def ensure_source_triage_workspace(
     inventory: SourceMap,
 ) -> dict[str, Any]:
     existing = await load_source_triage_workspace(db, run.id)
+    scope = scope_for_run_view(run_view)
     manifest_hash = str(run_view.manifest_hash or "")
     source_order = _source_order(inventory)
-    if existing and existing.get("schema_version") == WORKSPACE_SCHEMA_VERSION and existing.get("manifest_hash") == manifest_hash:
+    if (
+        existing
+        and existing.get("schema_version") == WORKSPACE_SCHEMA_VERSION
+        and existing.get("manifest_hash") == manifest_hash
+        and int(existing.get("corpus_revision") or 1) == scope.revision
+        and int(existing.get("attempt") or 1) == scope.attempt
+    ):
         workspace = _normalize_workspace(existing)
         if workspace.get("source_order") == source_order:
             return workspace
     workspace = {
         "schema_version": WORKSPACE_SCHEMA_VERSION,
         "manifest_hash": manifest_hash,
+        "corpus_revision": scope.revision,
+        "attempt": scope.attempt,
         "status": "orientation",
         "source_order": source_order,
         "source_capsules": {},
@@ -72,6 +86,7 @@ async def ensure_source_triage_workspace(
         "created_at": _now(),
         "updated_at": _now(),
     }
+    workspace = carry_pending_triage_repair(existing or {}, workspace, source_order=source_order)
     await save_source_triage_workspace(db, generation_run_id=run.id, workspace=workspace)
     return workspace
 
@@ -178,7 +193,10 @@ __all__ = [
     "triage_workflow_guard_error",
     "unprocessed_source_sets",
     "unresolved_source_set_summary",
+    "unresolved_source_refs",
     "unresolved_source_sets",
     "_workspace_set",
+    "_source_set_covered_refs",
+    "_source_set_has_unresolved_refs",
     "workspace_summary_for_prompt",
 ]

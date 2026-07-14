@@ -60,6 +60,20 @@ class WebQualityIngestionError(ValueError):
         return patch
 
 
+class IngestionIndexingError(RuntimeError):
+    """The extracted source did not become searchable in the local index."""
+
+
+def _validated_source_title_for_persistence(value: str) -> str:
+    title = str(value)
+    if len(title) > 500:
+        raise ValueError(
+            "semantic_field_too_long: field=source.title "
+            f"max_length=500 actual_length={len(title)}"
+        )
+    return title
+
+
 async def _deactivate_native_ingest_for_web_failure(
     db: AsyncSession,
     source: Source,
@@ -96,7 +110,12 @@ async def _deactivate_native_ingest_for_web_failure(
         logger.warning("Failed to deactivate invalid V2 native ingest for source %s", source.id, exc_info=True)
 
 
-async def run_ingestion(source: Source, db: AsyncSession) -> None:
+async def run_ingestion(
+    source: Source,
+    db: AsyncSession,
+    *,
+    require_indexed_chunks: bool = False,
+) -> None:
     """Full ingestion pipeline for a single source.
 
     1. Extract text based on source_type (pdf / web / video / audio).
@@ -264,7 +283,7 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
                 else:
                     resolved_title = extracted_title
                 if resolved_title and not source.title:
-                    source.title = resolved_title[:500]
+                    source.title = _validated_source_title_for_persistence(resolved_title)
                 if source.source_type == SourceType.WEB:
                     metadata = source.metadata_ if isinstance(source.metadata_, dict) else {}
                     metadata = dict(metadata)
@@ -317,6 +336,10 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
                 logger.info("Source %s: created %d chunks", source_id, len(chunks))
 
                 if not chunks:
+                    if require_indexed_chunks:
+                        raise IngestionIndexingError(
+                            f"Ingestion produced no searchable chunks for source {source_id}"
+                        )
                     logger.warning("Source %s: no chunks produced, skipping embedding", source_id)
                     try:
                         with trace_span("ingestion.canonicalize_source", run_type="chain"):
@@ -351,6 +374,11 @@ async def run_ingestion(source: Source, db: AsyncSession) -> None:
                 ) as embed_run:
                     point_ids = await index_chunks(chunk_dicts)
                     safe_set_run(embed_run, outputs={"embedded_point_count": len(point_ids)})
+
+                if require_indexed_chunks and len(point_ids) != len(chunks):
+                    raise IngestionIndexingError(
+                        f"Ingestion indexed {len(point_ids)} of {len(chunks)} chunks for source {source_id}"
+                    )
 
                 # Write qdrant_point_id back to each chunk
                 for chunk, point_id in zip(chunks, point_ids):

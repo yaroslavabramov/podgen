@@ -26,6 +26,9 @@ async def corpus_inventory_state(db: AsyncSession, run_view: RunCorpusView) -> t
         inventory = None
         source_ref_by_id = {}
     corpus = {
+        "run_corpus_view_id": str(run_view.id),
+        "corpus_revision": int(run_view.revision or 1),
+        "attempt": int(run_view.attempt or 1),
         "selected_source_count": len(run_view.selected_source_ids or []),
         "selected_source_version_count": len(run_view.selected_source_version_ids or []),
         "manifest_hash": run_view.manifest_hash,

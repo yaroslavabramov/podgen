@@ -33,6 +33,7 @@ Long-form research should cover:
 
 Use upsert_research_job for each investigation job, then finalize_research_plan.
 Planning is an editorial decision: use SourceMap clusters, relationships, quote cards, gaps, and source cards to choose job scopes. Do not read or search here; this agent only writes the plan.
+If SourceMap pages report next_cursor or a SourceMap semantic field is truncated, use list_research_workspace_items with the matching source_map_cards, source_map_quotes, source_map_clusters, source_map_relationships, or source_map_gaps section before declaring coverage complete. These sections return one full validated item per page. Persisted jobs, job questions/outcomes, research gaps, workspace risks, and audit repair feedback are likewise recoverable through jobs, job_questions, job_question_outcomes, research_gaps, workspace_risks, and audit_feedback.
 
 A good job has:
 - one clear research_job label, such as mechanism, context, change, tension_driver, impact, exception_or_gap, or synthesis_gap;
@@ -81,7 +82,9 @@ How to work:
 6. After meaningful reading, immediately call record_research_observation or upsert_editorial_atom to persist progress. Use record_research_risk for non-blocking source-quality or uncertainty risks, and record_research_gap for unresolved research gaps.
 7. upsert_editorial_atom is only for substantive findings that later treatment can use as material. The tool validates the refs and attaches included evidence automatically. It is not for source-quality warnings, missing-source notes, weak-corroboration notes, or general cautions.
 8. If a job cannot produce a strong atom, record the reason as an observation or research_gap, then finish it as deferred with a concrete reason.
-9. Finish the job with finish_research_job.
+9. If job.pages.questions or job.pages.observations has next_cursor, page it with list_research_workspace_items using current_job_questions or current_job_observations.
+   If an existing atom_draft or global observation reports a truncated semantic field, page atom_drafts or observations from cursor 0; those sections return one full validated item at a time.
+10. Finish the job with finish_research_job. Include exactly one question_outcome for every planned question, preserving the supplied question text; each outcome must be answered with job evidence_ids or explicitly deferred with a concrete note.
 
 Repair jobs:
 - If the current job payload has repair_for_gap_id or repair_gap, the job is repairing that exact blocking gap.
@@ -130,6 +133,8 @@ Durable research workspace:
 
 Task:
 Review the persisted investigation jobs, observations, atom_drafts, research_gaps, and risks.
+If any workspace or SourceMap page reports next_cursor, use list_research_workspace_items with that section until the material needed for finalization is covered. The jobs, job_questions, job_question_outcomes, research_gaps, workspace_risks, and audit_feedback sections return full persisted semantic fields one item at a time; pass job_id when paging one job's questions or outcomes.
+If any atom_draft or observation reports a truncated semantic field, page atom_drafts or observations from cursor 0 even when the initial page has no next_cursor. Those sections return one full validated item at a time; follow next_cursor through the collection.
 
 Duplicate audit comes first:
 - atom_drafts are raw outputs from separate jobs, so overlaps are expected.
@@ -181,6 +186,8 @@ Use tools deliberately:
 - The backend marks core atom grounding and suspicious previews as required: partial/weak coverage, single-source major claims, or open-question atoms.
 - Read recommended previews when they are likely to anchor treatment or clarify a risk.
 - read_evidence takes evidence_ref values such as E001 from audit_input_json, not backend UUIDs.
+- If an atom reports evidence_preview_omitted_count > 0, use list_audit_evidence with its atom_ref and page through the omitted previews before deciding that its grounding is insufficient.
+- If audit_input_json reports omitted records or a truncated memo/workspace field, use list_research_workspace_items with the matching section and continue until next_cursor is empty. memo_atoms returns one full validated atom at a time; list_audit_evidence pages that atom's evidence separately.
 - search_corpus only when the memo likely missed material already present in the corpus.
 - Do not use tools to build new findings; this is an audit.
 
@@ -195,4 +202,5 @@ Use issue_type="needs_research_repair" when existing corpus likely has material 
 
 If passed=true, repair_targets, missing_material, and required_followups must be empty. Keep non-blocking caveats only as issues with severity="minor".
 Pass only if there are no blocking or major issues that must be repaired before treatment.
+Invalid audit: passed=true together with blocking=true, a blocking/major issue, a repair target, missing material, or a required followup. In every such case passed must be false.
 Return ResearchAudit JSON. For every failure, include structured issues with issue_type, severity, target_step, description, and suggested_repair."""

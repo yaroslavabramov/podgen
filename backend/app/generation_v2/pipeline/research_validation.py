@@ -7,7 +7,7 @@ from app.generation_v2.pipeline.research_coverage import (
 )
 from app.generation_v2.schemas import ResearchAudit, ResearchAuditIssue, ResearchMemo, SourceMap
 from app.generation_v2.tools.evidence_types import EVIDENCE_STATUS_CITED, EVIDENCE_STATUS_SELECTED
-from app.models.generation_v2 import RunCorpusView
+from app.models.generation_v2 import EvidenceStrength, RunCorpusView
 
 
 def dedupe_strings(values) -> list[str]:
@@ -30,6 +30,43 @@ def research_memo_evidence_ids(memo: ResearchMemo) -> list[str]:
     )
 
 
+def selected_evidence_ids_for_run(
+    evidence_records: list[dict],
+    run_view: RunCorpusView,
+) -> set[str]:
+    valid_source_ids = {str(source_id) for source_id in run_view.selected_source_ids}
+    valid_version_ids = {str(version_id) for version_id in run_view.selected_source_version_ids}
+    revision = int(getattr(run_view, "revision", 1) or 1)
+    attempt = int(getattr(run_view, "attempt", 1) or 1)
+    return {
+        str(item.get("id"))
+        for item in evidence_records
+        if item.get("id")
+        and int(item.get("corpus_revision") or 1) == revision
+        and int(item.get("attempt") or 1) == attempt
+        and (item.get("metadata") or {}).get("usage_status") in {EVIDENCE_STATUS_SELECTED, EVIDENCE_STATUS_CITED}
+        and str(item.get("source_id")) in valid_source_ids
+        and str(item.get("source_version_id")) in valid_version_ids
+    }
+
+
+def exact_quote_evidence_ids_for_run(
+    evidence_records: list[dict],
+    run_view: RunCorpusView,
+) -> set[str]:
+    selected_ids = selected_evidence_ids_for_run(evidence_records, run_view)
+    exact_ids: set[str] = set()
+    for item in evidence_records:
+        evidence_id = str(item.get("id") or "")
+        if evidence_id not in selected_ids or str(item.get("evidence_strength") or "") != EvidenceStrength.EXACT:
+            continue
+        metadata = item.get("metadata") or {}
+        if metadata.get("model_file_read") and metadata.get("exact_quote_verified") is not True:
+            continue
+        exact_ids.add(evidence_id)
+    return exact_ids
+
+
 def validate_research_memo_evidence(
     memo: ResearchMemo,
     *,
@@ -41,13 +78,8 @@ def validate_research_memo_evidence(
     valid_source_ids = {str(source_id) for source_id in run_view.selected_source_ids}
     valid_version_ids = {str(version_id) for version_id in run_view.selected_source_version_ids}
     evidence_by_id = {str(item.get("id")): item for item in evidence_records if item.get("id")}
-    valid_evidence_ids = {
-        evidence_id
-        for evidence_id, item in evidence_by_id.items()
-        if (item.get("metadata") or {}).get("usage_status") in {EVIDENCE_STATUS_SELECTED, EVIDENCE_STATUS_CITED}
-        and str(item.get("source_id")) in valid_source_ids
-        and str(item.get("source_version_id")) in valid_version_ids
-    }
+    valid_evidence_ids = selected_evidence_ids_for_run(evidence_records, run_view)
+    valid_quote_evidence_ids = exact_quote_evidence_ids_for_run(evidence_records, run_view)
     issues: list[str] = []
     audit_issues: list[ResearchAuditIssue] = []
 
@@ -92,6 +124,15 @@ def validate_research_memo_evidence(
                     add_issue(f"Atom {idx} references evidence id outside the run corpus view: {evidence_id}.")
                 else:
                     add_issue(f"Atom {idx} references invalid evidence id: {evidence_id}.")
+        for quote_ref in atom.quote_refs:
+            if quote_ref not in atom.evidence_ids:
+                add_issue(f"Atom {idx} quote ref is not attached as atom evidence: {quote_ref}.")
+            if quote_ref not in evidence_by_id:
+                add_issue(f"Atom {idx} references unknown quote evidence id: {quote_ref}.")
+            elif quote_ref not in valid_evidence_ids:
+                add_issue(f"Atom {idx} references quote evidence outside the current run corpus view: {quote_ref}.")
+            elif quote_ref not in valid_quote_evidence_ids:
+                add_issue(f"Atom {idx} quote evidence is not canonically verified as exact: {quote_ref}.")
         if not atom.evidence_ids:
             add_issue(f"Atom {idx} ({atom.kind}) has no evidence ids.")
         if atom.source_coverage_status == "weak" and atom.story_weight == "core":
@@ -141,9 +182,11 @@ def validate_research_memo_evidence(
 
 __all__ = [
     "dedupe_strings",
+    "exact_quote_evidence_ids_for_run",
     "research_cluster_is_major",
     "research_memo_evidence_ids",
     "research_source_map_cluster_coverage_issues",
     "research_story_coverage",
+    "selected_evidence_ids_for_run",
     "validate_research_memo_evidence",
 ]

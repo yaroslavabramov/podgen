@@ -37,7 +37,10 @@ class EvidenceProviderSearchMixin:
         from app.generation_v2.tools import evidence_retrieval
 
         client = evidence_retrieval.get_openai_client()
-        filters = _provider_filters(source_ids or [str(item) for item in self.run_view.selected_source_ids])
+        filters = _provider_filters(
+            source_ids or [str(item) for item in self.run_view.selected_source_ids],
+            [str(item) for item in self.run_view.selected_source_version_ids],
+        )
         results: list[EvidenceItem] = []
         try:
             idx = 0
@@ -87,13 +90,22 @@ class EvidenceProviderSearchMixin:
         snippet = _provider_snippet(item)
         if not snippet.strip():
             return None
+        provider_file_id = str(getattr(item, "file_id", None) or "")
+        eligible_provider_file_ids = {
+            str(value) for value in getattr(self.run_view, "eligible_provider_file_ids", []) if value
+        }
+        if not provider_file_id or provider_file_id not in eligible_provider_file_ids:
+            return None
         file_result = await self.db.execute(
             select(ProviderCorpusFile).where(
                 ProviderCorpusFile.provider_index_id == self.provider_index.id,
                 ProviderCorpusFile.source_version_id == source_version_id,
+                ProviderCorpusFile.provider_file_id == provider_file_id,
             )
         )
         provider_file = file_result.scalar_one_or_none()
+        if provider_file is None:
+            return None
         return await persist_evidence_item(
             self.db,
             generation_run_id=self.run.id,
@@ -102,15 +114,15 @@ class EvidenceProviderSearchMixin:
             source_version_id=source_version_id,
             provider="openai",
             provider_vector_store_id=self.provider_index.provider_vector_store_id,
-            provider_file_id=getattr(item, "file_id", None),
-            provider_vector_store_file_id=provider_file.provider_vector_store_file_id if provider_file else None,
+            provider_file_id=provider_file_id,
+            provider_vector_store_file_id=provider_file.provider_vector_store_file_id,
             retrieval_channel=EvidenceRetrievalChannel.PROVIDER_VECTOR_SEARCH,
             query_text=query,
             purpose=purpose,
             search_result_index=result_index,
             score=float(getattr(item, "score", 0.0) or 0.0),
             snippet_text=snippet,
-            normalized_quote_text=_normalize(snippet[:500]),
+            normalized_quote_text=_normalize(snippet),
             locator_text=str(getattr(item, "filename", "") or "provider snippet"),
             locator_type=EvidenceLocatorType.PROVIDER_SNIPPET,
             evidence_strength=EvidenceStrength.SNIPPET,

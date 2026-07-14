@@ -125,6 +125,12 @@ async def _persist_openai_url_read_version(
     versions: list[SourceVersion] = []
     text = str(read_result.get("extracted_text_markdown") or "").strip()
     read_status = str(read_result.get("read_status") or OpenAIUrlReadStatus.ERROR)
+    candidate_title = str(read_result.get("title") or "")
+    if not source.title and len(candidate_title) > 500:
+        raise ValueError(
+            "semantic_field_too_long: field=source.title max_length=500 "
+            f"actual_length={len(candidate_title)}"
+        )
     source.metadata_ = {
         **(source.metadata_ or {}),
         "v2_openai_url_read": {
@@ -139,8 +145,8 @@ async def _persist_openai_url_read_version(
             "synced_at": datetime.utcnow().isoformat(),
         },
     }
-    if not source.title and read_result.get("title"):
-        source.title = str(read_result["title"])[:500]
+    if not source.title and candidate_title:
+        source.title = candidate_title
     if text and not source.text_preview:
         source.text_preview = text[:500]
     if len(text) < settings.generation_v2_openai_url_read_min_chars or read_status not in OPENAI_URL_READ_SUCCESS_STATUSES:

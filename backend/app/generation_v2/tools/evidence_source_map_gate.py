@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.generation_v2.schemas import SourceMap, SourceTriageCompletion, SourceTriageGate
+from app.generation_v2.corpus_scope import scope_for_run_view
 from app.generation_v2.tools.evidence_refs import build_source_ref_context, resolve_source_ref
 from app.generation_v2.tools.evidence_source_inventory import build_source_inventory
 from app.generation_v2.tools.evidence_source_map_gate_diagnostics import (
@@ -34,10 +35,20 @@ async def validate_source_map_gate(
     source_map: SourceMap,
     run_view: RunCorpusView,
     triage_completion: SourceTriageCompletion | None = None,
+    triage_workspace: dict[str, Any] | None = None,
 ) -> SourceTriageGate:
+    from app.generation_v2.source_triage_workspace_state import unresolved_source_refs
+
+    scope = scope_for_run_view(run_view)
     selected_source_ids = {str(item) for item in run_view.selected_source_ids}
     selected_version_ids = {str(item) for item in run_view.selected_source_version_ids}
-    evidence_result = await db.execute(select(EvidenceItem).where(EvidenceItem.generation_run_id == generation_run_id))
+    evidence_result = await db.execute(
+        select(EvidenceItem).where(
+            EvidenceItem.generation_run_id == generation_run_id,
+            EvidenceItem.corpus_revision == scope.revision,
+            EvidenceItem.attempt == scope.attempt,
+        )
+    )
     evidence_by_id = {str(item.id): item for item in evidence_result.scalars()}
     selected_evidence_ids = {
         evidence_id
@@ -47,6 +58,8 @@ async def validate_source_map_gate(
     trace_result = await db.execute(
         select(V2ToolTrace).where(
             V2ToolTrace.generation_run_id == generation_run_id,
+            V2ToolTrace.corpus_revision == scope.revision,
+            V2ToolTrace.attempt == scope.attempt,
             V2ToolTrace.phase == "v2_source_triage",
             V2ToolTrace.tool_name.in_(list(_TRIAGE_READING_TOOL_NAMES)),
         )
@@ -114,6 +127,8 @@ async def validate_source_map_gate(
         triage_traces,
         write_source_ref_context,
     )
+    unresolved_refs = unresolved_source_refs(triage_workspace or {}) if triage_workspace is not None else []
+    completion_not_ready = triage_completion is not None and not triage_completion.ready
     passed = not (
         (requires_tool_call and tool_call_count == 0)
         or "Triage did not call finalize_source_map." in source_map.gaps
@@ -125,6 +140,8 @@ async def validate_source_map_gate(
         or missing_source_card_write_source_ids
         or unpersisted_completion_gap_notes
         or ungrounded_relationships
+        or unresolved_refs
+        or completion_not_ready
     )
     summary = "Source triage gate passed." if passed else "Source triage gate failed."
     if requires_tool_call and tool_call_count == 0:
@@ -139,6 +156,10 @@ async def validate_source_map_gate(
         summary += " Source cards must come from accepted upsert_source_card write actions."
     if unpersisted_completion_gap_notes:
         summary += " Triage completion mentions gaps/cautions that were not persisted with record_gap."
+    if unresolved_refs:
+        summary += " Every run source must be mapped or explicitly deferred."
+    if completion_not_ready:
+        summary += " Source triage workflow did not complete durably."
     return SourceTriageGate(
         passed=passed,
         summary=summary,
@@ -155,6 +176,7 @@ async def validate_source_map_gate(
         ungrounded_relationships=ungrounded_relationships,
         missing_function_evidence=missing_function_evidence,
         warnings=warnings,
+        unresolved_source_refs=unresolved_refs,
     )
 
 

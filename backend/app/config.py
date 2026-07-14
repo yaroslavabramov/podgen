@@ -81,13 +81,19 @@ class Settings(BaseSettings):
     generation_v2_debug_dump_dir: str = ""
     generation_v2_enable_source_acquisition: bool = True
     generation_v2_source_acquisition_mode: str = "auto"
-    generation_v2_source_acquisition_max_rounds: int = 3
-    generation_v2_source_acquisition_candidates_per_round: int = 20
-    generation_v2_source_acquisition_max_ingest_per_round: int = 10
+    generation_v2_source_acquisition_max_rounds: int = 1
+    generation_v2_source_acquisition_candidates_per_round: int = 3
+    generation_v2_source_acquisition_max_ingest_per_round: int = 3
     generation_v2_source_acquisition_parallelism: int = 3
     generation_v2_source_acquisition_source_timeout_seconds: int = 420
     generation_v2_source_acquisition_min_confidence: float = 0.55
     generation_v2_source_acquisition_domain_cap: int = 3
+    generation_v2_worker_lease_seconds: int = 900
+    generation_v2_worker_heartbeat_seconds: int = 30
+    generation_v2_worker_heartbeat_stale_seconds: int = 600
+    generation_v2_worker_recovery_enqueue_lease_seconds: int = 120
+    generation_v2_worker_hard_time_limit_seconds: int = 21600
+    celery_redis_visibility_timeout_seconds: int = 43200
 
     # LangSmith tracing
     langsmith_tracing: bool = False

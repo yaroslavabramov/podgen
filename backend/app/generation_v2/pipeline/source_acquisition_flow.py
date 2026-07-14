@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import uuid
 from collections.abc import Awaitable, Callable
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.generation_v2.agents.editorial import build_source_acquisition_agent
 from app.generation_v2.artifacts import save_artifact
@@ -19,9 +21,26 @@ from app.generation_v2.source_acquisition import (
     source_acquisition_report_from_rounds,
 )
 from app.models.generation_run import GenerationRun
-from app.models.generation_v2 import V2ArtifactStatus, V2ArtifactType
+from app.models.generation_v2 import V2Artifact, V2ArtifactStatus, V2ArtifactType
 
 PrepareAndTriage = Callable[[GenerationRun, AsyncSession, V2Runtime], Awaitable[TriageState]]
+
+
+async def persisted_source_acquisition_rounds_used(
+    db: AsyncSession,
+    generation_run_id: uuid.UUID,
+) -> int:
+    """Consume the repair budget only after a durable terminal round result."""
+    result = await db.execute(
+        select(V2Artifact.id)
+        .where(
+            V2Artifact.generation_run_id == generation_run_id,
+            V2Artifact.artifact_type == V2ArtifactType.SOURCE_ACQUISITION_ROUND,
+            V2Artifact.status.in_([V2ArtifactStatus.PASSED, V2ArtifactStatus.FAILED]),
+        )
+        .limit(1)
+    )
+    return 1 if result.scalar_one_or_none() is not None else 0
 
 
 async def run_source_acquisition_until_triage_ready(
@@ -68,6 +87,10 @@ async def run_source_acquisition_until_triage_ready(
             gap_report=gap_report,
             round_number=round_number,
         )
+        # Candidate rows are committed before ingest. If the previous worker
+        # died mid-call, restore the same three-candidate budget and repeat the
+        # unfinished ingest before asking the agent for more candidates.
+        await toolset.restore_unfinished_round()
         completion = await build_source_acquisition_agent(
             db,
             run,
@@ -123,3 +146,9 @@ async def run_source_acquisition_until_triage_ready(
         if triage_state.triage_completion.ready and triage_state.triage_gate.passed:
             break
     return triage_state, acquisition_rounds_used
+
+
+__all__ = [
+    "persisted_source_acquisition_rounds_used",
+    "run_source_acquisition_until_triage_ready",
+]

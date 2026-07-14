@@ -105,6 +105,15 @@ def finish_research_job_handler(
         if status == "deferred" and not str(args.get("deferred_reason") or "").strip():
             return {"accepted": False, "error": "deferred_reason is required for deferred status"}
         deferred_reason = str(args.get("deferred_reason") or "").strip()
+        planned_questions = [str(item).strip() for item in job.get("questions") or [] if str(item).strip()]
+        outcomes = [dict(item) for item in args.get("question_outcomes") or [] if isinstance(item, dict)]
+        outcome_error = _question_outcome_error(
+            planned_questions=planned_questions,
+            outcomes=outcomes,
+            job_evidence_ids=[str(item) for item in job.get("evidence_ids") or []],
+        )
+        if outcome_error:
+            return outcome_error
         field_error = _workspace._semantic_field_error(
             {"job_summary": summary, "deferred_reason": deferred_reason},
             ["job_summary", "deferred_reason"],
@@ -114,6 +123,7 @@ def finish_research_job_handler(
         job["status"] = status
         job["summary"] = summary
         job["deferred_reason"] = deferred_reason
+        job["question_outcomes"] = outcomes
         job["updated_at"] = _now()
         _workspace._replace_workspace_job(current, job)
         processed = [item for item in current.get("processed_jobs") or [] if item.get("job_id") != job_id]
@@ -125,3 +135,66 @@ def finish_research_job_handler(
         return {"accepted": True, "job_id": job_id, "status": status, "processed_job_count": len(processed)}
 
     return finish_research_job_tool
+
+
+def _question_outcome_error(
+    *,
+    planned_questions: list[str],
+    outcomes: list[dict[str, Any]],
+    job_evidence_ids: list[str],
+) -> dict[str, Any] | None:
+    def key(value: Any) -> str:
+        return " ".join(str(value or "").split()).casefold()
+
+    planned_by_key = {key(question): question for question in planned_questions}
+    outcomes_by_key: dict[str, dict[str, Any]] = {}
+    duplicates: list[str] = []
+    for outcome in outcomes:
+        outcome_key = key(outcome.get("question"))
+        if outcome_key in outcomes_by_key:
+            duplicates.append(str(outcome.get("question") or ""))
+        outcomes_by_key[outcome_key] = outcome
+    missing = [question for normalized, question in planned_by_key.items() if normalized not in outcomes_by_key]
+    unknown = [
+        str(outcome.get("question") or "")
+        for normalized, outcome in outcomes_by_key.items()
+        if normalized not in planned_by_key
+    ]
+    if missing or unknown or duplicates:
+        return {
+            "accepted": False,
+            "error": "Every planned research question needs exactly one answered or deferred outcome",
+            "missing_questions": missing,
+            "unknown_questions": unknown,
+            "duplicate_questions": duplicates,
+        }
+    allowed_evidence_ids = set(job_evidence_ids)
+    for outcome in outcomes:
+        outcome_status = str(outcome.get("status") or "")
+        note = str(outcome.get("note") or "").strip()
+        evidence_ids = _dedupe([str(item) for item in outcome.get("evidence_ids") or [] if str(item).strip()])
+        if outcome_status not in {"answered", "deferred"}:
+            return {"accepted": False, "error": "question outcome status must be answered or deferred"}
+        if not note:
+            return {"accepted": False, "error": "question outcome note is required", "question": outcome.get("question")}
+        field_error = _workspace._semantic_field_error({"job_summary": note}, ["job_summary"])
+        if field_error:
+            return field_error
+        invalid_evidence_ids = [evidence_id for evidence_id in evidence_ids if evidence_id not in allowed_evidence_ids]
+        if invalid_evidence_ids:
+            return {
+                "accepted": False,
+                "error": "question outcome evidence_ids must already belong to this research job",
+                "invalid_evidence_ids": invalid_evidence_ids,
+            }
+        if outcome_status == "answered" and not evidence_ids:
+            return {
+                "accepted": False,
+                "error": "answered research question requires at least one evidence_id",
+                "question": outcome.get("question"),
+            }
+        outcome["question"] = planned_by_key[key(outcome.get("question"))]
+        outcome["status"] = outcome_status
+        outcome["note"] = note
+        outcome["evidence_ids"] = evidence_ids
+    return None

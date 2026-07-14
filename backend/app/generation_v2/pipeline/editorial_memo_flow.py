@@ -68,7 +68,7 @@ async def build_and_validate_research_memo(
     )
     memo_evidence_gate = validate_research_memo_evidence(
         memo,
-        evidence_records=await list_evidence_dicts(db, run.id),
+        evidence_records=await list_evidence_dicts(db, run.id, run_view=values["corpus"].run_view),
         run_view=values["corpus"].run_view,
         duration_seconds=int((run.config or {}).get("duration_target", 1800)),
         source_map=values["source_map"],
