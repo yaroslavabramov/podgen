@@ -575,11 +575,26 @@ def checkpoint_workspace_payload(workspace: dict[str, Any], *, max_sets: int = 4
     ]
     current_set_summary = None
     if current_set is not None:
+        execution_mode = _source_set_execution_mode(workspace, current_set, current_set_id)
+        targeted_repair = execution_mode == "targeted_repair"
         current_set_summary = {
             "set_id": current_set.get("set_id"),
             "status": current_set.get("status"),
             "source_refs": current_set.get("source_refs") or [],
             "priority": current_set.get("priority"),
+            "execution_mode": execution_mode,
+            "repair_source_refs": (current_set.get("repair_source_refs") or []) if targeted_repair else [],
+            "repair_question_ids": (current_set.get("repair_question_ids") or []) if targeted_repair else [],
+            "repair_targets": [
+                {
+                    "code": item.get("code"),
+                    **_preview_fields("message", item.get("message") or "", 400),
+                    "source_refs": item.get("source_refs") or [],
+                    "question_ids": item.get("question_ids") or [],
+                }
+                for item in current_set.get("repair_targets") or []
+                if targeted_repair and isinstance(item, dict)
+            ],
             "started_at": current_set_pointer.get("started_at"),
             **_preview_fields("label", current_set.get("label") or "", 180),
             **_preview_fields("purpose", current_set.get("purpose") or "", 400),
@@ -636,6 +651,29 @@ def unresolved_source_set_summary(workspace: dict[str, Any], *, limit: int | Non
     ]
 
 
+def _source_set_execution_mode(
+    workspace: dict[str, Any],
+    source_set: dict[str, Any],
+    set_id: str,
+) -> str:
+    if source_set.get("repair_targeted"):
+        return "targeted_repair"
+    has_durable_work = bool(
+        source_set.get("observations")
+        or source_set.get("written_actions")
+        or source_set.get("evidence_ids")
+        or any(
+            isinstance(item, dict) and item.get("set_id") == set_id
+            for item in workspace.get("source_assessments") or []
+        )
+        or any(
+            isinstance(item, dict) and item.get("set_id") == set_id
+            for item in workspace.get("coverage_outcomes") or []
+        )
+    )
+    return "resume" if has_durable_work else "first_pass"
+
+
 def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[str, Any]:
     workspace = _normalize_workspace(workspace)
     source_set = _workspace_set(workspace, set_id) or {}
@@ -649,6 +687,8 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
     observation_previews = _observation_previews(source_set)
     written_actions = list(source_set.get("written_actions") or [])
     written_action_previews = _written_action_previews(source_set)
+    execution_mode = _source_set_execution_mode(workspace, source_set, set_id)
+    targeted_repair = execution_mode == "targeted_repair"
     capsule_previews = [
         _capsule_prompt_preview(capsule)
         for ref in source_set.get("source_refs") or []
@@ -682,10 +722,9 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
             ],
             "question_count": len(source_set.get("question_ids") or []),
             "priority": source_set.get("priority"),
-            "repair": bool(source_set.get("repair")),
-            "repair_targeted": bool(source_set.get("repair_targeted")),
-            "repair_source_refs": source_set.get("repair_source_refs") or [],
-            "repair_question_ids": source_set.get("repair_question_ids") or [],
+            "execution_mode": execution_mode,
+            "repair_source_refs": (source_set.get("repair_source_refs") or []) if targeted_repair else [],
+            "repair_question_ids": (source_set.get("repair_question_ids") or []) if targeted_repair else [],
             "repair_targets": [
                 {
                     "code": item.get("code"),
@@ -694,7 +733,7 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
                     "question_ids": item.get("question_ids") or [],
                 }
                 for item in source_set.get("repair_targets") or []
-                if isinstance(item, dict)
+                if targeted_repair and isinstance(item, dict)
             ],
             "observation_previews": observation_previews,
             "observation_count": len(observations),

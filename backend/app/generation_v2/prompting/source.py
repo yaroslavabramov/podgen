@@ -13,6 +13,7 @@ Complete compact source catalog:
 
 Your job:
 Turn the user's intent into coverage questions, then create a persisted plan that breaks the corpus into source sets. A source set is a small group that should be read or compared together. This stage prepares orientation for research; it does not invent the episode thesis or causal chain.
+The user prompt is the governing editorial request. The catalog may refine vocabulary and reveal supporting branches, but it may not replace the requested explanatory task. Identify the prompt's central question type—cause, mechanism, change, impact, comparison, or factual verification—and persist a critical question that directly preserves its subject and scope. Context, chronology, and origin may support that question, but may not substitute for it.
 
 Available information:
 The compact catalog contains every source_ref in this run and is enough to create the initial plan. It is orientation, not evidence. Do not page through every capsule. Use list_source_capsules only for specific ambiguous source_refs whose catalog preview is insufficient for a sensible grouping. Detailed reading and source judgments belong to the source-set agents.
@@ -21,17 +22,22 @@ What to do:
 1. If planner_resume has no accepted questions, persist the questions that the corpus should help orient with upsert_coverage_question. Derive them from the user intent and compact catalog; do not satisfy a fixed checklist or quota. If it already has accepted questions, keep them and move to its next_action instead of writing replacements.
    Use importance=critical when the question is necessary to answer the user's intent directly; supporting when it
    strengthens that explanation; exploratory when it is an optional branch. These are meanings, not quotas.
+   A coverage question must be a substantive question about the topic whose answer could become downstream research content. Source ranking, representation readability, and triage procedure belong in source assessment or set rationale, not in coverage questions, unless evaluating source accounts is itself the user's subject.
+   Use parent_question_id only for a genuine child of an already persisted question; pass null for a root question.
 2. If a catalog item is genuinely ambiguous, inspect only that source_ref with list_source_capsules. Do not read the full corpus here.
 3. Create source sets with upsert_triage_source_set and attach at least one persisted question_id to every set. A one-source set is valid when comparison is unnecessary.
    A set may serve several questions. Attach every question whose orientation materially depends on that set; do not force an artificial one-question-per-set split.
+   Question-to-set assignment is an execution contract: at least one catalog item in the set must plausibly advance the exact assigned question. If a question spans distinct actors, cases, periods, or sides of a comparison, attach all materially relevant sets or split it into honestly narrower questions instead of assigning its full scope to one-sided material.
 4. Put every source_ref in exactly one set. Capsules are only orientation, so the planner may not discard or defer a source before it has been read by a set agent.
 5. Call finalize_triage_workspace_plan after all sources and questions are assigned.
 
 Planning quality:
 - Use summary previews as orientation; do not infer source quality from title/domain or a caution preview.
+- Sparse, truncated, boilerplate, cautionary, or mechanically weak previews do not establish shared content or a need for repair, and are not a reason to group sources together. If a source remains ambiguous after one capsule read, give it a neutral topical or one-source exploratory set without judging its quality. Initial planner sets are always first-pass work; repair scope is backend-derived from durable validation.
 - Prefer sets that will let the next agent compare sources directly.
 - For small and medium corpora, plan broad coverage.
 - Group sources by the comparison or question the next agent actually needs to resolve, not by a superficial title similarity.
+- Keep distinct actors, roles, periods, and material exceptions visible when the catalog distinguishes them; do not collapse them into a generic actor or rule.
 
 finalize_triage_workspace_plan is terminal: once it is accepted, the backend completes this agent. If a call is rejected, repair the plan and call it again."""
 
@@ -63,9 +69,8 @@ How to work:
 2. Use skim_source for source-level orientation when a capsule is not enough.
 3. Use read_source_window or read_evidence for exact support, quote seeds, source limits, or relationship evidence.
 4. Use search_corpus only inside the current set for targeted questions. Use compare_source_evidence when several sources need comparable evidence for a cluster or relationship.
-5. There are three execution modes. On a first pass, call upsert_source_assessment for every source. On an ordinary
-   resume (repair=true, repair_targeted=false), page accepted assessments/outcomes, preserve them, and fill only what
-   is missing or unfinished. On a targeted repair (repair_targeted=true), use repair_source_refs,
+5. Follow set.execution_mode. On first_pass, call upsert_source_assessment for every source. On resume, page accepted
+   assessments/outcomes, preserve them, and fill only what is missing or unfinished. On targeted_repair, use repair_source_refs,
    repair_question_ids, and repair_targets as the exact scope: page the existing full assessment before replacing it,
    preserve every still-valid field and evidence_id, and do not rewrite accepted records outside that scope. Keep
    these judgments independent:

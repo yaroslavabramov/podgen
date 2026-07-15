@@ -60,7 +60,9 @@ class SourceTriageWorkspacePlanningHandlersMixin:
             for item in current.get("coverage_questions") or []
             if isinstance(item, dict)
         }
-        if parent_question_id and parent_question_id != question_id and parent_question_id not in existing_ids:
+        if parent_question_id == question_id:
+            return {"accepted": False, "error": "parent_question_id cannot reference the question itself"}
+        if parent_question_id and parent_question_id not in existing_ids:
             return {"accepted": False, "error": "parent_question_id must reference an existing question"}
         item = {
             "question_id": question_id,
@@ -155,6 +157,11 @@ class SourceTriageWorkspacePlanningHandlersMixin:
     async def upsert_triage_source_set_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         public_api = workspace_api
         current = await public_api.load_source_triage_workspace(self.db, self.run.id) or self.workspace
+        if "repair" in args:
+            return {
+                "accepted": False,
+                "error": "Planner-created source sets cannot be marked as repair",
+            }
         source_order = set(str(item) for item in current.get("source_order") or [])
         source_refs = public_api._dedupe([str(item) for item in args.get("source_refs") or [] if str(item).strip()])
         invalid = [ref for ref in source_refs if ref not in source_order]
@@ -216,7 +223,7 @@ class SourceTriageWorkspacePlanningHandlersMixin:
             "written_actions": [],
             "observations": [],
             "deferred_reason": "",
-            "repair": bool(args.get("repair")),
+            "repair": False,
             "updated_at": public_api._now(),
         }
         sets = [item for item in current.get("source_sets") or [] if item.get("set_id") != set_id]

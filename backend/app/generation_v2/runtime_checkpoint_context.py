@@ -14,11 +14,13 @@ TRIAGE_PLANNER_RESUME_CONTRACT = """Continue source-triage planning only.
 Use the fresh durable workspace and compact source inventory page in the checkpoint as authoritative; follow its
 next_cursor only when the page metadata says the catalog is incomplete.
 Preserve every accepted coverage question and source-set assignment. Never recreate, translate, or paraphrase
-accepted writes. If there are no accepted questions, derive focused orientation questions from the user intent.
+accepted writes. If there are no accepted questions, preserve the central question type and scope of the user intent
+in a critical substantive question; source ranking and triage procedure are not coverage questions.
 Assign every source_ref to exactly one small comparison-oriented source set, attach every accepted question to a
-set, and inspect only a specifically ambiguous source capsule when necessary. Do not judge source quality, read the
-whole corpus, invent a thesis, or assemble the episode's causal chain. Follow planner_resume.next_action and finish
-only through finalize_triage_workspace_plan."""
+set, and inspect only a specifically ambiguous source capsule when necessary. Sparse or mechanical previews do not
+establish shared content, source quality, or repair scope. Do not read the whole corpus, invent a thesis, or assemble
+the episode's causal chain. Follow planner_resume.next_action and finish only through
+finalize_triage_workspace_plan."""
 
 
 TRIAGE_SET_RESUME_CONTRACT = """Continue mapping only the current source set from the fresh durable workspace.
@@ -26,8 +28,10 @@ Restore omitted full fields with list_triage_source_sets and use source/evidence
 assessment for every assigned source and one outcome for every assigned coverage question. Keep processing,
 representation health, relevance, authority, uniqueness, and downstream disposition separate. Persist useful cards,
 relationships, clusters, quote seeds, observations, and gaps only when grounded in saved evidence. Do not decide the
-episode thesis or story structure. Finish mapped/deferred only after the set is fully resolved; if work remains
-unfinished, finish with needs_repair and a concrete reason so it cannot be finalized."""
+episode thesis or story structure. Follow current_set.execution_mode; when it is targeted_repair, preserve accepted
+work outside current_set.repair_source_refs, repair_question_ids, and repair_targets. Finish mapped/deferred only
+after the set is fully resolved; if work remains unfinished, finish with needs_repair and a concrete reason so it
+cannot be finalized."""
 
 
 TRIAGE_FINALIZER_RESUME_CONTRACT = """Continue source-triage finalization from fresh persisted state only.
