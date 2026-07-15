@@ -7,9 +7,15 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.generation_v2.agents.tool_sets import (
+    TRIAGE_FINALIZER_TOOL_NAMES,
+    TRIAGE_PLANNER_TOOL_NAMES,
+    TRIAGE_SET_TOOL_NAMES,
+)
 from app.generation_v2.agents.audit_context import (
     audit_workspace_page_tool,
     normalize_research_audit,
+    normalize_research_audit_references,
     research_audit_input,
 )
 from app.generation_v2.agents.audit_evidence_context import (
@@ -17,12 +23,18 @@ from app.generation_v2.agents.audit_evidence_context import (
     audit_evidence_previews,
     audit_tools_with_evidence_refs,
 )
-from app.generation_v2.pipeline.research_repair import enqueue_audit_research_repair_jobs
+from app.generation_v2.pipeline.research_repair import (
+    enqueue_audit_research_repair_jobs,
+    enqueue_treatment_research_repair_jobs,
+)
 from app.generation_v2.pipeline.research_validation import validate_research_memo_evidence
 from app.generation_v2.research_workspace import build_research_workspace_tools
 from app.generation_v2.research_workspace_job_state import prepare_workspace_jobs_for_resume
-from app.generation_v2.research_workspace_prompt_payloads import research_workspace_summary_for_prompt
-from app.generation_v2.research_workspace_prompt_payloads import research_job_prompt_payload
+from app.generation_v2.research_workspace_prompt_payloads import (
+    research_finalizer_payload_for_prompt,
+    research_job_prompt_payload,
+    research_workspace_summary_for_prompt,
+)
 from app.generation_v2.research_workspace_repair_budget import (
     AUDIT_RERUN_BUDGET,
     REPAIR_COMPLETED,
@@ -36,14 +48,18 @@ from app.generation_v2.research_workspace_repair_budget import (
     start_persisted_repair_operation,
 )
 from app.generation_v2.research_source_map_prompting import (
+    source_map_planner_summary,
     source_map_research_page,
     source_map_research_summary,
 )
 from app.generation_v2.runtime_checkpoint_restart import checkpoint_restart_instructions
 from app.generation_v2.runtime_contracts import default_checkpoint_policy
+from app.generation_v2.runtime import AgentTool
 from app.generation_v2.runtime_tool_output import model_facing_tool_output
+from app.generation_v2.contracts import V2ToolName
 from app.generation_v2.schemas import (
     EditorialAtom,
+    EpisodeCritique,
     ResearchAudit,
     ResearchAuditIssue,
     ResearchMemo,
@@ -55,6 +71,7 @@ from app.generation_v2.schemas import (
     SourceTriageReport,
 )
 from app.generation_v2.tools.evidence_refs import build_source_ref_context
+from app.generation_v2.tools.evidence_source_map_ids import public_gap_ref
 from app.generation_v2.source_triage_workspace import build_workspace_tools
 from app.generation_v2.source_triage_workspace_prompting import (
     source_set_prompt_payload,
@@ -96,6 +113,41 @@ def test_contradictory_research_audit_cannot_pass() -> None:
     assert audit.repair_targets == ["editorial_research"]
 
 
+def test_audit_references_are_normalized_to_current_public_inventory() -> None:
+    source = _source()
+    evidence_id = str(uuid.uuid4())
+    audit = ResearchAudit(
+        passed=False,
+        score=0.4,
+        verdict="repair",
+        issues=[
+            ResearchAuditIssue(
+                severity="major",
+                target_step="editorial_research",
+                description="Repair grounding.",
+                source_refs=["s01", source.source_id, "S99"],
+                evidence_refs=["e001", "E999"],
+                evidence_ids=[evidence_id, "invented-evidence-id"],
+            )
+        ],
+    )
+
+    normalized = normalize_research_audit_references(
+        audit,
+        context=build_source_ref_context(SourceMap(source_cards=[source])),
+        evidence_id_by_ref={"E001": evidence_id},
+    )
+    issue = normalized.issues[0]
+
+    assert issue.source_refs == ["S01"]
+    assert issue.evidence_refs == ["E001"]
+    assert issue.evidence_ids == [evidence_id]
+    assert "unknown source reference" in issue.suggested_repair
+    assert "unknown evidence reference" in issue.suggested_repair
+    assert "S99" not in issue.suggested_repair
+    assert "E999" not in issue.suggested_repair
+
+
 def test_audit_with_missing_material_cannot_pass_without_structured_issue() -> None:
     audit = normalize_research_audit(
         ResearchAudit(
@@ -108,6 +160,79 @@ def test_audit_with_missing_material_cannot_pass_without_structured_issue() -> N
 
     assert audit.passed is False
     assert audit.blocking is True
+
+
+@pytest.mark.asyncio
+async def test_audit_required_evidence_reads_are_enforced_for_any_episode_duration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2.agents import audit_agent
+
+    class Runtime:
+        async def call_structured(self, **_kwargs):
+            return ResearchAudit(passed=True, score=1.0, verdict="Passed without reading.")
+
+    monkeypatch.setattr(
+        audit_agent,
+        "_audit_evidence_catalog",
+        lambda **_kwargs: ({"A01": []}, {"E001": "backend-evidence-id"}, {"E001"}),
+    )
+    audit = await audit_agent.audit_research_memo(
+        None,  # type: ignore[arg-type]
+        SimpleNamespace(
+            id=uuid.uuid4(),
+            config={"user_prompt": "Topic", "duration_target": 900, "language": "en"},
+        ),
+        Runtime(),  # type: ignore[arg-type]
+        research_memo=ResearchMemo(
+            title="Memo",
+            thesis="Supported answer.",
+            research_synthesis="Internal digest.",
+            editorial_atoms=[],
+        ),
+    )
+
+    assert audit.passed is False
+    assert audit.blocking is True
+    assert audit.repair_targets == ["research_audit"]
+    assert audit.issues[0].evidence_refs == ["E001"]
+
+
+@pytest.mark.asyncio
+async def test_runtime_fallback_cannot_mark_an_unaudited_memo_safe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.config import settings
+    from app.generation_v2.agents import audit_agent
+    from app.generation_v2.runtime import V2RuntimeUnavailable
+
+    class Runtime:
+        fallback_marked = False
+
+        async def call_structured(self, **_kwargs):
+            raise V2RuntimeUnavailable("offline")
+
+        def mark_fallback_used(self, _phase: str, _agent_name: str) -> None:
+            self.fallback_marked = True
+
+    monkeypatch.setattr(settings, "generation_v2_allow_runtime_fallback", True)
+    runtime = Runtime()
+    audit = await audit_agent.audit_research_memo(
+        None,  # type: ignore[arg-type]
+        SimpleNamespace(id=uuid.uuid4(), config={"duration_target": 1800}),
+        runtime,  # type: ignore[arg-type]
+        research_memo=ResearchMemo(
+            title="Memo",
+            thesis="Supported answer.",
+            research_synthesis="Internal digest.",
+            editorial_atoms=[],
+        ),
+    )
+
+    assert runtime.fallback_marked is True
+    assert audit.passed is False
+    assert audit.blocking is True
+    assert audit.repair_targets == ["research_audit"]
 
 
 @pytest.mark.asyncio
@@ -310,9 +435,7 @@ async def test_memo_gate_without_open_questions_enqueues_durable_research_repair
     assert stored_workspace["investigation_jobs"][0]["status"] == "planned"
     operation = stored_workspace["repair_operations"][TARGETED_REPAIR_BUDGET]
     assert operation["status"] == REPAIR_RESERVED
-    assert operation["payload"]["repair_job_ids"] == [
-        stored_workspace["investigation_jobs"][0]["job_id"]
-    ]
+    assert operation["payload"]["repair_job_ids"] == [stored_workspace["investigation_jobs"][0]["job_id"]]
     assert repair_budget(stored_workspace)[TARGETED_REPAIR_BUDGET] == 0
 
 
@@ -585,11 +708,14 @@ async def test_research_finalizer_repair_completes_budget_only_after_durable_mem
     assert stored_workspace["repair_operations"][TARGETED_REPAIR_BUDGET]["status"] == REPAIR_COMPLETED
     assert stored_workspace["repair_budget"][TARGETED_REPAIR_BUDGET] == 1
     assert commits == 2
-    assert reserve_repair_operation_in_workspace(
-        stored_workspace,
-        TARGETED_REPAIR_BUDGET,
-        operation_kind="research_finalizer",
-    ) is None
+    assert (
+        reserve_repair_operation_in_workspace(
+            stored_workspace,
+            TARGETED_REPAIR_BUDGET,
+            operation_kind="research_finalizer",
+        )
+        is None
+    )
 
 
 @pytest.mark.asyncio
@@ -600,6 +726,8 @@ async def test_in_progress_triage_repair_survives_new_corpus_attempt(
 
     source = _source()
     inventory = SourceMap(source_cards=[source])
+    old_evidence_id = str(uuid.uuid4())
+    new_evidence_id = str(uuid.uuid4())
     existing = {
         "schema_version": "source_triage_workspace.v1",
         "manifest_hash": "manifest",
@@ -619,9 +747,9 @@ async def test_in_progress_triage_repair_survives_new_corpus_attempt(
                         "source_refs": ["S01"],
                         "status": "in_progress",
                         "repair": True,
-                        "evidence_ids": ["old-evidence"],
-                        "written_actions": [{"evidence_ids": ["old-evidence"]}],
-                        "observations": [{"evidence_ids": ["old-evidence"]}],
+                        "evidence_ids": [old_evidence_id],
+                        "written_actions": [{"evidence_ids": [old_evidence_id]}],
+                        "observations": [{"evidence_ids": [old_evidence_id]}],
                     }
                 ],
             },
@@ -637,8 +765,12 @@ async def test_in_progress_triage_repair_survives_new_corpus_attempt(
         saved.update(workspace)
         return SimpleNamespace(payload=workspace)
 
+    async def carry_evidence(*_args, **_kwargs):
+        return {old_evidence_id: new_evidence_id}, set()
+
     monkeypatch.setattr(workspace_module, "load_source_triage_workspace", load_workspace)
     monkeypatch.setattr(workspace_module, "save_source_triage_workspace", save_workspace)
+    monkeypatch.setattr(workspace_module, "_carry_evidence_to_current_attempt", carry_evidence)
 
     workspace = await workspace_module.ensure_source_triage_workspace(
         None,  # type: ignore[arg-type]
@@ -652,8 +784,9 @@ async def test_in_progress_triage_repair_survives_new_corpus_attempt(
     assert workspace["repair_operation"]["status"] == "in_progress"
     assert workspace["source_sets"][0]["set_id"] == "repair_1"
     assert workspace["source_sets"][0]["status"] == "planned"
-    assert workspace["source_sets"][0]["evidence_ids"] == []
-    assert workspace["source_sets"][0]["written_actions"] == []
+    assert workspace["source_sets"][0]["evidence_ids"] == [new_evidence_id]
+    assert workspace["source_sets"][0]["written_actions"] == [{"evidence_ids": [new_evidence_id]}]
+    assert workspace["source_sets"][0]["observations"] == [{"evidence_ids": [new_evidence_id]}]
     assert saved == workspace
 
 
@@ -764,17 +897,54 @@ def test_audit_and_wrong_phase_agents_do_not_use_editorial_checkpoints() -> None
     assert default_checkpoint_policy("research_job_agent_job_1", phase="v2_research_audit").enabled is False
 
 
-def test_checkpoint_restart_instructions_match_the_active_phase() -> None:
-    triage = checkpoint_restart_instructions(
+def test_checkpoint_restart_instructions_match_the_active_role() -> None:
+    planner = checkpoint_restart_instructions(
+        {
+            "phase": "v2_source_triage",
+            "agent_name": "source_triage_planner_agent",
+            "corpus": {"source_inventory_page": {"complete": True}},
+        }
+    )
+    triage_set = checkpoint_restart_instructions(
         {"phase": "v2_source_triage", "agent_name": "source_triage_set_agent_set_1"}
+    )
+    finalizer = checkpoint_restart_instructions(
+        {"phase": "v2_source_triage", "agent_name": "source_triage_finalizer_agent"}
     )
     research = checkpoint_restart_instructions(
         {"phase": "v2_editorial_research", "agent_name": "research_job_agent_job_1"}
     )
 
-    assert "upsert_source_card" in triage
+    assert "complete catalog" in planner
+    assert "do not restart full-corpus capsule paging" in planner
+    assert "upsert_source_card" not in planner
+    assert "skim_source" not in planner
+    assert "finalize_source_map" not in planner
+    assert "finish_triage_source_set" in triage_set
+    assert "upsert_source_card" in triage_set
+    assert "read_source_window" in triage_set
+    assert "list_source_capsules" not in triage_set
+    assert "finalize_source_map" not in triage_set
+    assert "finalize_source_map" in finalizer
+    assert "upsert_source_card" not in finalizer
+    assert "skim_source" not in finalizer
+    assert "read_source_window" not in finalizer
+    assert "compare_source_evidence" not in finalizer
+    assert "record_source_relationship" not in finalizer
     assert "finish_research_job" in research
     assert "upsert_source_card" not in research
+    assert "list_sources" not in planner
+    assert "list_sources" not in triage_set
+    assert "list_sources" not in finalizer
+
+    known_tool_names = {item.value for item in V2ToolName}
+
+    def mentioned(text: str) -> set[str]:
+        return {name for name in known_tool_names if name in text}
+
+    assert mentioned(planner) <= TRIAGE_PLANNER_TOOL_NAMES
+    assert mentioned(triage_set) <= TRIAGE_SET_TOOL_NAMES
+    assert mentioned(finalizer) <= TRIAGE_FINALIZER_TOOL_NAMES
 
 
 @pytest.mark.asyncio
@@ -814,9 +984,7 @@ async def test_triage_checkpoint_snapshot_keeps_current_set_and_page_cursor(
         "source_order": [f"S{idx:02d}" for idx in range(43)],
         "source_sets": source_sets,
         "current_set": {"set_id": "set_42", "started_at": "2026-07-14T12:00:00"},
-        "source_capsules": {
-            "S42": {"source_ref": "S42", "title": "Current source", "readable": True}
-        },
+        "source_capsules": {"S42": {"source_ref": "S42", "title": "Current source", "readable": True}},
     }
 
     async def load(_db, _run_id):
@@ -928,7 +1096,12 @@ async def test_research_job_requires_outcome_for_every_planned_question(monkeypa
             "summary": "Mapped.",
             "deferred_reason": "",
             "question_outcomes": [
-                {"question": "How?", "status": "answered", "note": "Evidence answers it.", "evidence_ids": [evidence_id]}
+                {
+                    "question": "How?",
+                    "status": "answered",
+                    "note": "Evidence answers it.",
+                    "evidence_ids": [evidence_id],
+                }
             ],
         }
     )
@@ -939,7 +1112,12 @@ async def test_research_job_requires_outcome_for_every_planned_question(monkeypa
             "summary": "Mapped with one bounded gap.",
             "deferred_reason": "",
             "question_outcomes": [
-                {"question": "How?", "status": "answered", "note": "Evidence answers it.", "evidence_ids": [evidence_id]},
+                {
+                    "question": "How?",
+                    "status": "answered",
+                    "note": "Evidence answers it.",
+                    "evidence_ids": [evidence_id],
+                },
                 {"question": "Why?", "status": "deferred", "note": "No source answers it.", "evidence_ids": []},
             ],
         }
@@ -952,10 +1130,20 @@ async def test_research_job_requires_outcome_for_every_planned_question(monkeypa
 
 
 @pytest.mark.asyncio
-async def test_mapped_triage_set_requires_each_source_mapped_or_deferred(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_mapped_triage_set_requires_one_resolved_assessment_per_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from app.generation_v2 import source_triage_workspace as workspace_api
 
     run = SimpleNamespace(id=uuid.uuid4())
+    source_1 = str(uuid.uuid4())
+    source_2 = str(uuid.uuid4())
+    inventory = SourceMap(
+        source_cards=[
+            _source(source_id=source_1, title="First"),
+            _source(source_id=source_2, title="Second"),
+        ]
+    )
     workspace = {
         "source_order": ["S01", "S02"],
         "current_set": {"set_id": "set_1"},
@@ -964,11 +1152,22 @@ async def test_mapped_triage_set_requires_each_source_mapped_or_deferred(monkeyp
                 "set_id": "set_1",
                 "status": "in_progress",
                 "source_refs": ["S01", "S02"],
-                "observations": [{"source_refs": ["S01"], "note": "Mapped S01."}],
+                "question_ids": ["q1"],
+                "observations": [],
                 "written_actions": [],
                 "evidence_ids": [],
             }
         ],
+        "source_assessments": [
+            {
+                "set_id": "set_1",
+                "source_ref": "S01",
+                "source_id": source_1,
+                "disposition": "anchor",
+                "relevance_reason": "The source is active.",
+            }
+        ],
+        "coverage_outcomes": [{"set_id": "set_1", "question_id": "q1", "status": "covered"}],
         "processed_sets": [],
         "mapped_sources": [],
         "deferred_sources": [],
@@ -986,7 +1185,7 @@ async def test_mapped_triage_set_requires_each_source_mapped_or_deferred(monkeyp
         db=None,  # type: ignore[arg-type]
         run=run,  # type: ignore[arg-type]
         workspace=workspace,
-        inventory=SourceMap(),
+        inventory=inventory,
         mode="set",
         current_set_id="set_1",
     )
@@ -995,24 +1194,77 @@ async def test_mapped_triage_set_requires_each_source_mapped_or_deferred(monkeyp
     rejected = await finish.handler(
         {"set_id": "set_1", "status": "mapped", "summary": "Partial.", "deferred_reason": "", "deferred_sources": []}
     )
+    workspace["source_assessments"].append(
+        {
+            "set_id": "set_1",
+            "source_ref": "S02",
+            "source_id": source_2,
+            "disposition": "deferred",
+            "relevance_reason": "The source is explicitly deferred.",
+        }
+    )
+    contradictory_source_deferral = await finish.handler(
+        {
+            "set_id": "set_1",
+            "status": "mapped",
+            "summary": "Contradictory source deferral.",
+            "deferred_reason": "",
+            "deferred_sources": [{"source_ref": "S01", "reason": "Requested only at finish."}],
+        }
+    )
+    contradictory_set_deferral = await finish.handler(
+        {
+            "set_id": "set_1",
+            "status": "deferred",
+            "summary": "Contradictory set deferral.",
+            "deferred_reason": "The whole set is deferred.",
+            "deferred_sources": [],
+        }
+    )
     accepted = await finish.handler(
         {
             "set_id": "set_1",
             "status": "mapped",
             "summary": "Mapped S01; bounded S02.",
             "deferred_reason": "",
-            "deferred_sources": [{"source_ref": "S02", "reason": "Unreadable source."}],
+            "deferred_sources": [],
         }
     )
 
-    assert rejected["unresolved_source_refs"] == ["S02"]
+    assert rejected["missing_source_refs"] == ["S02"]
+    assert contradictory_source_deferral["accepted"] is False
+    assert contradictory_source_deferral["source_refs"] == ["S01"]
+    assert contradictory_set_deferral["accepted"] is False
+    assert contradictory_set_deferral["source_refs"] == ["S01"]
     assert accepted["accepted"] is True
     assert workspace["mapped_sources"] == ["S01"]
-    assert workspace["deferred_sources"] == [{"source_ref": "S02", "reason": "Unreadable source."}]
+    assert workspace["deferred_sources"] == [{"source_ref": "S02", "reason": "The source is explicitly deferred."}]
+    assert workspace["source_sets"][0]["assessment_source_refs"] == ["S01"]
+    assert workspace["source_sets"][0]["deferred_source_refs"] == ["S02"]
+
+    workspace["source_assessments"][0]["disposition"] = "deferred"
+    workspace["source_assessments"][0]["relevance_reason"] = "The whole set is now deferred."
+    workspace["coverage_outcomes"][0].update({"status": "deferred", "deferred_reason": "The question is deferred."})
+    deferred = await finish.handler(
+        {
+            "set_id": "set_1",
+            "status": "deferred",
+            "summary": "The full set is explicitly deferred.",
+            "deferred_reason": "The full set cannot be used in this run.",
+            "deferred_sources": [],
+        }
+    )
+
+    assert deferred["accepted"] is True
+    assert workspace["mapped_sources"] == []
+    assert workspace["deferred_sources"] == [
+        {"source_ref": "S01", "reason": "The full set cannot be used in this run."},
+        {"source_ref": "S02", "reason": "The full set cannot be used in this run."},
+    ]
 
 
 @pytest.mark.asyncio
-async def test_triage_plan_rejects_deferred_source_without_reason(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_triage_planner_cannot_defer_sources(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.generation_v2 import source_triage_workspace as workspace_api
 
     run = SimpleNamespace(id=uuid.uuid4())
@@ -1044,8 +1296,7 @@ async def test_triage_plan_rejects_deferred_source_without_reason(monkeypatch: p
 
     assert result == {
         "accepted": False,
-        "error": "Each deferred source requires an explicit reason",
-        "source_refs": ["S02"],
+        "error": "The planner cannot defer sources; assign every source to exactly one set",
     }
     assert workspace["deferred_sources"] == []
 
@@ -1055,8 +1306,7 @@ def test_model_context_uses_explicit_previews_and_reports_omitted_pages() -> Non
     workspace = {
         "source_order": ["S01"],
         "atom_drafts": [
-            {"atom_id": f"a{idx}", "kind": "mechanism", "title": f"Atom {idx}", "claim": long_claim}
-            for idx in range(3)
+            {"atom_id": f"a{idx}", "kind": "mechanism", "title": f"Atom {idx}", "claim": long_claim} for idx in range(3)
         ],
         "investigation_jobs": [],
     }
@@ -1068,6 +1318,101 @@ def test_model_context_uses_explicit_previews_and_reports_omitted_pages() -> Non
     assert payload["atom_drafts"][0]["claim_truncated"] is True
     assert payload["pages"]["atom_drafts"]["omitted_count"] == 2
     assert payload["pages"]["atom_drafts"]["next_cursor"] == "1"
+
+
+def test_research_job_context_does_not_copy_foreign_semantic_work() -> None:
+    long_foreign_claim = "foreign semantic finding " * 200
+    workspace = {
+        "source_order": ["S01", "S02"],
+        "investigation_jobs": [
+            {"job_id": "current", "label": "Current", "source_refs": ["S01"], "status": "in_progress"},
+            {"job_id": "done", "label": "Previous", "source_refs": ["S02"], "status": "mapped"},
+        ],
+        "atom_drafts": [
+            {
+                "atom_id": f"foreign-{idx}",
+                "job_id": "done",
+                "kind": "mechanism",
+                "title": f"Foreign {idx}",
+                "claim": long_foreign_claim,
+                "explanation": long_foreign_claim,
+                "story_value": long_foreign_claim,
+                "source_refs": ["S02"],
+            }
+            for idx in range(80)
+        ],
+    }
+
+    payload = research_job_prompt_payload(workspace, "current", source_map_summary={})
+    encoded = json.dumps(payload, ensure_ascii=False)
+
+    assert payload["workspace_progress"]["global_atom_count"] == 80
+    assert "foreign semantic finding" not in encoded
+    assert len(encoded) < 8000
+
+
+def test_research_finalizer_uses_compact_atom_index_without_initial_observation_dump() -> None:
+    workspace = {
+        "source_order": ["S01"],
+        "investigation_jobs": [
+            {
+                "job_id": "job",
+                "label": "Job",
+                "status": "mapped",
+                "observations": [
+                    {
+                        "source_refs": ["S01"],
+                        "note": "long observation " * 1000,
+                        "evidence_ids": ["hidden-evidence"],
+                    }
+                ],
+            }
+        ],
+        "atom_drafts": [
+            {
+                "atom_id": f"atom-{idx}",
+                "job_id": "job",
+                "kind": "mechanism",
+                "title": f"Atom {idx}",
+                "claim": "specific claim " * 100,
+                "explanation": "full explanation " * 300,
+                "story_value": "story value " * 100,
+                "source_refs": ["S01"],
+                "evidence_ids": ["hidden-evidence"],
+            }
+            for idx in range(3)
+        ],
+    }
+
+    payload = research_finalizer_payload_for_prompt(workspace)
+    encoded = json.dumps(payload, ensure_ascii=False)
+
+    assert len(payload["atom_index"]) == 3
+    assert payload["observations"] == []
+    assert payload["pages"]["observations"]["total_count"] == 1
+    assert "full explanation" not in encoded
+    assert "long observation" not in encoded
+    assert "hidden-evidence" not in encoded
+
+
+def test_research_planner_gets_routing_index_not_quote_or_summary_dump() -> None:
+    cards = [
+        _source(title=f"Source {idx}").model_copy(
+            update={"summary": "full source summary " * 200, "gaps_or_cautions": ["warning " * 200]}
+        )
+        for idx in range(100)
+    ]
+    source_map = SourceMap(source_cards=cards)
+
+    payload = source_map_planner_summary(source_map, source_map)
+    encoded = json.dumps(payload, ensure_ascii=False)
+
+    assert payload["source_card_count"] == 100
+    assert len(payload["source_index"]) == 40
+    assert payload["pages"]["source_map_cards"]["omitted_count"] == 60
+    assert "full source summary" not in encoded
+    assert "warning" not in encoded
+    assert len(encoded) < 30000
 
 
 @pytest.mark.asyncio
@@ -1122,11 +1467,10 @@ async def test_research_job_context_is_compact_and_pages_current_job_items(
         current_job_id="job_1",
     )
     page_tool = next(tool for tool in tools if tool.name == "list_research_workspace_items")
-    page = await page_tool.handler(
-        {"section": "current_job_questions", "cursor": "6", "limit": 2}
-    )
+    page = await page_tool.handler({"section": "current_job_questions", "cursor": "6", "limit": 2})
 
-    assert [item["question_preview"] for item in page["items"]] == questions[6:]
+    assert [item["question"] for item in page["items"]] == questions[6:]
+    assert all("question_preview" not in item for item in page["items"])
     assert page["page"]["next_cursor"] == ""
     assert page["page"]["omitted_count"] == 0
 
@@ -1243,10 +1587,10 @@ def test_source_map_initial_context_is_compact_but_pages_restore_full_validated_
     assert pages["source_map_clusters"]["items"][0]["rationale"] == cluster_rationale
     assert pages["source_map_relationships"]["items"][0]["rationale"] == relationship_rationale
     assert pages["source_map_gaps"]["items"][0]["gap"] == gap_text
-    assert pages["source_map_cards"]["page"]["returned_count"] == 1
-    assert pages["source_map_cards"]["page"]["next_cursor"] == "1"
-    assert pages["source_map_cards"]["items"][0]["evidence_ids"] == evidence_ids[:8]
-    assert pages["source_map_cards"]["items"][0]["evidence_id_omitted_count"] == 4
+    assert pages["source_map_cards"]["page"]["returned_count"] == 2
+    assert pages["source_map_cards"]["page"]["next_cursor"] == ""
+    assert pages["source_map_cards"]["items"][0]["evidence_ids"] == evidence_ids
+    assert pages["source_map_cards"]["items"][0]["evidence_id_omitted_count"] == 0
     for page in pages.values():
         model_facing_tool_output("list_research_workspace_items", page)
 
@@ -1331,19 +1675,23 @@ async def test_research_workspace_pages_return_full_validated_atoms_and_observat
         mode="finalizer",
     )
     page_tool = next(tool for tool in tools if tool.name == "list_research_workspace_items")
+    atom_index_page = await page_tool.handler({"section": "atom_index", "cursor": "0", "limit": 40})
     atom_page = await page_tool.handler({"section": "atom_drafts", "cursor": "0", "limit": 40})
     observation_page = await page_tool.handler({"section": "observations", "cursor": "1", "limit": 40})
 
+    assert atom_index_page["items"][0]["atom_ref"] == "A01"
+    assert "explanation" not in atom_index_page["items"][0]
     assert atom_page["items"][0]["claim"] == claim
     assert atom_page["items"][0]["explanation"] == explanation
     assert atom_page["page"]["returned_count"] == 1
     assert observation_page["items"][0]["note"] == note_two
     assert observation_page["items"][0]["pending_questions"] == ["Second full pending question."]
     assert observation_page["page"]["next_cursor"] == ""
-    assert "backend-evidence-1" not in json.dumps(atom_page)
-    assert "backend-evidence-2" not in json.dumps(observation_page)
+    assert atom_page["items"][0]["evidence_ids"] == ["backend-evidence-1"]
+    assert observation_page["items"][0]["evidence_ids"] == ["backend-evidence-2"]
     assert len(json.dumps(atom_page)) < 12000
     assert len(json.dumps(observation_page)) < 12000
+    assert model_facing_tool_output("list_research_workspace_items", atom_index_page) is atom_index_page
     assert model_facing_tool_output("list_research_workspace_items", atom_page) is atom_page
     assert model_facing_tool_output("list_research_workspace_items", observation_page) is observation_page
 
@@ -1470,8 +1818,12 @@ async def test_research_workspace_pages_restore_full_jobs_gaps_risks_and_audit_f
     assert pages["risk"]["items"][0]["risk"] == risk
     assert pages["feedback"]["items"][0]["description"] == feedback_description
     assert pages["feedback"]["items"][0]["suggested_repair"] == suggested_repair
+    assert pages["job"]["items"][0]["evidence_ids"] == [hidden_evidence_id]
+    assert pages["outcome"]["items"][0]["evidence_ids"] == [hidden_evidence_id]
+    assert pages["gap"]["items"][0]["evidence_ids"] == [hidden_evidence_id]
+    assert pages["risk"]["items"][0]["evidence_ids"] == [hidden_evidence_id]
+    assert pages["feedback"]["items"][0]["evidence_ids"] == [hidden_evidence_id]
     for page in pages.values():
-        assert hidden_evidence_id not in json.dumps(page)
         assert len(json.dumps(page)) < 12000
         assert model_facing_tool_output("list_research_workspace_items", page) is page
 
@@ -1488,10 +1840,7 @@ async def test_research_workspace_pages_restore_full_jobs_gaps_risks_and_audit_f
 
 def test_triage_context_reports_source_set_page_and_preview_fields() -> None:
     workspace = {
-        "source_sets": [
-            {"set_id": f"set_{idx}", "status": "mapped", "findings_summary": "x" * 700}
-            for idx in range(3)
-        ]
+        "source_sets": [{"set_id": f"set_{idx}", "status": "mapped", "findings_summary": "x" * 700} for idx in range(3)]
     }
 
     payload = workspace_summary_for_prompt(workspace, max_sets=1)
@@ -1628,9 +1977,7 @@ async def test_triage_set_agent_can_restore_full_current_set_and_observations(
         current_set_id="set_1",
     )
     page_tool = next(tool for tool in set_tools if tool.name == "list_triage_source_sets")
-    current_page = await page_tool.handler(
-        {"section": "current_set", "set_id": "set_1", "cursor": "0", "limit": 1}
-    )
+    current_page = await page_tool.handler({"section": "current_set", "set_id": "set_1", "cursor": "0", "limit": 1})
     observation_page = await page_tool.handler(
         {"section": "observations", "set_id": "set_1", "cursor": "0", "limit": 1}
     )
@@ -1641,8 +1988,8 @@ async def test_triage_set_agent_can_restore_full_current_set_and_observations(
     assert current_page["items"][0]["questions"] == ["q" * 280]
     assert observation_page["items"][0]["note"] == note
     assert observation_page["items"][0]["pending_questions"] == ["pending " * 30]
-    assert observation_page["items"][0]["evidence_ids"] == evidence_ids[:8]
-    assert observation_page["items"][0]["evidence_omitted_count"] == 4
+    assert observation_page["items"][0]["evidence_ids"] == evidence_ids
+    assert observation_page["items"][0]["evidence_omitted_count"] == 0
     model_facing_tool_output("list_triage_source_sets", current_page)
     model_facing_tool_output("list_triage_source_sets", observation_page)
 
@@ -1671,10 +2018,7 @@ async def test_triage_pages_restore_full_plan_summary_and_deferred_reasons(
     deferred_reason = "d" * 1000
     workspace = {
         "plan_summary": plan_summary,
-        "deferred_sources": [
-            {"source_ref": f"S{index:02d}", "reason": deferred_reason}
-            for index in range(1, 26)
-        ],
+        "deferred_sources": [{"source_ref": f"S{index:02d}", "reason": deferred_reason} for index in range(1, 26)],
     }
     compact = workspace_summary_for_prompt(workspace)
     assert compact["plan_summary_truncated"] is True
@@ -1693,12 +2037,8 @@ async def test_triage_pages_restore_full_plan_summary_and_deferred_reasons(
         mode="finalizer",
     )
     page_tool = next(tool for tool in tools if tool.name == "list_triage_source_sets")
-    plan_page = await page_tool.handler(
-        {"section": "plan_summary", "cursor": "0", "limit": 1}
-    )
-    deferred_page = await page_tool.handler(
-        {"section": "deferred_sources", "cursor": "24", "limit": 1}
-    )
+    plan_page = await page_tool.handler({"section": "plan_summary", "cursor": "0", "limit": 1})
+    deferred_page = await page_tool.handler({"section": "deferred_sources", "cursor": "24", "limit": 1})
 
     assert plan_page["items"][0]["summary"] == plan_summary
     assert deferred_page["items"][0] == {"source_ref": "S25", "reason": deferred_reason}
@@ -1764,6 +2104,124 @@ async def test_audit_can_page_evidence_omitted_from_initial_atom_preview() -> No
 
 
 @pytest.mark.asyncio
+async def test_audit_can_read_evidence_grounding_answered_job_outcome() -> None:
+    source = _source()
+    atom_evidence_id = str(uuid.uuid4())
+    outcome_evidence_id = str(uuid.uuid4())
+    memo = ResearchMemo(
+        title="Memo",
+        thesis="Supported answer.",
+        research_synthesis="Digest.",
+        editorial_atoms=[
+            EditorialAtom(
+                kind="context",
+                title="Context",
+                claim="Established context.",
+                explanation="Established context.",
+                source_ids=[source.source_id],
+                evidence_ids=[atom_evidence_id],
+                story_value="Sets the baseline.",
+            )
+        ],
+    )
+    workspace = {
+        "investigation_jobs": [
+            {
+                "job_id": "job-mechanism",
+                "questions": ["What mechanism caused the change?"],
+                "question_outcomes": [
+                    {
+                        "question": "What mechanism caused the change?",
+                        "status": "answered",
+                        "note": "The second evidence item answers it.",
+                        "evidence_ids": [outcome_evidence_id],
+                    }
+                ],
+                "status": "mapped",
+            }
+        ]
+    }
+    records = [
+        {
+            "id": atom_evidence_id,
+            "source_id": source.source_id,
+            "locator_text": "section 1",
+            "snippet_text": "Baseline evidence.",
+        },
+        {
+            "id": outcome_evidence_id,
+            "source_id": source.source_id,
+            "locator_text": "section 2",
+            "snippet_text": "Mechanism evidence.",
+        },
+    ]
+    catalog, evidence_id_by_ref, required_refs = audit_evidence_catalog(
+        research_memo=memo,
+        evidence_records=records,
+        context=build_source_ref_context(SourceMap(source_cards=[source])),
+        source_titles_by_id={source.source_id: source.title},
+        workspace=workspace,
+    )
+    evidence_ref_by_id = {evidence_id: evidence_ref for evidence_ref, evidence_id in evidence_id_by_ref.items()}
+    outcome_ref = evidence_ref_by_id[outcome_evidence_id]
+
+    page_tool = audit_workspace_page_tool(
+        research_memo=memo,
+        source_map=SourceMap(),
+        source_inventory=SourceMap(source_cards=[source]),
+        workspace=workspace,
+        evidence_previews_by_atom_ref=catalog,
+        evidence_ref_by_id=evidence_ref_by_id,
+        required_evidence_refs=required_refs,
+    )
+    outcome_page = await page_tool.handler(
+        {
+            "section": "job_question_outcomes",
+            "cursor": "0",
+            "limit": 1,
+            "job_id": "job-mechanism",
+        }
+    )
+
+    read_arguments: dict[str, str] = {}
+
+    async def read_handler(arguments: dict[str, str]) -> dict[str, object]:
+        read_arguments.update(arguments)
+        return {
+            "found": True,
+            "evidence": {
+                "evidence_id": arguments["evidence_id"],
+                "source_id": source.source_id,
+                "snippet_text": "Mechanism evidence.",
+            },
+        }
+
+    read_refs: set[str] = set()
+    wrapped_tools = audit_tools_with_evidence_refs(
+        [
+            AgentTool(
+                name="read_evidence",
+                description="Read evidence.",
+                parameters={"type": "object"},
+                handler=read_handler,
+            )
+        ],
+        evidence_id_by_ref=evidence_id_by_ref,
+        read_refs=read_refs,
+    )
+    result = await wrapped_tools[0].handler({"evidence_ref": outcome_ref})
+
+    assert outcome_page["items"][0]["evidence_refs"] == [outcome_ref]
+    assert outcome_page["items"][0]["required_evidence_refs"] == [outcome_ref]
+    assert outcome_page["items"][0]["unavailable_evidence_count"] == 0
+    assert outcome_evidence_id not in str(outcome_page)
+    assert outcome_ref in required_refs
+    assert read_arguments == {"evidence_id": outcome_evidence_id}
+    assert read_refs == {outcome_ref}
+    assert outcome_evidence_id not in json.dumps(result)
+
+
+@pytest.mark.asyncio
 async def test_audit_context_pages_full_memo_and_workspace_fields_without_backend_ids() -> None:
     source = _source()
     topic = "topic " * 800
@@ -1789,9 +2247,82 @@ async def test_audit_context_pages_full_memo_and_workspace_fields_without_backen
         risk_register=[f"Risk {index}: preserve this bound." for index in range(25)],
     )
     workspace = {
+        "corpus_brief": {
+            "summary": "Triage handoff summary.",
+            "coverage_questions": [
+                {
+                    "question_id": "q-main",
+                    "kind": "mechanism",
+                    "importance": "critical",
+                    "question": "What mechanism does the corpus establish?",
+                    "rationale": "This is the central handoff question.",
+                    "parent_question_id": "",
+                }
+            ],
+            "coverage_outcomes": [
+                {
+                    "question_id": "q-main",
+                    "status": "covered",
+                    "source_ids": [source.source_id],
+                    "evidence_ids": ["backend-evidence-id"],
+                    "orientation_summary": "The source establishes a bounded mechanism.",
+                    "missing_detail": "",
+                    "conflict_summary": "",
+                    "deferred_reason": "",
+                    "next_action": "research",
+                }
+            ],
+            "research_handoff": [
+                {
+                    "handoff_id": "handoff-main",
+                    "question_ids": ["q-main"],
+                    "action": "research",
+                    "priority": "high",
+                    "preferred_source_ids": [source.source_id],
+                    "starting_evidence_ids": ["backend-evidence-id"],
+                    "objective": "Verify and explain the mechanism.",
+                    "reason": "Triage found a supported starting point.",
+                }
+            ],
+            "gap_records": [
+                {
+                    "gap_id": "gap:earlier",
+                    "kind": "coverage",
+                    "description": "An earlier gap.",
+                    "source_ids": [source.source_id],
+                    "evidence_ids": [],
+                },
+                {
+                    "gap_id": "gap:stable",
+                    "kind": "contradiction",
+                    "description": "A contradiction remains bounded.",
+                    "source_ids": [source.source_id],
+                    "evidence_ids": ["backend-evidence-id"],
+                },
+            ],
+        },
+        "investigation_jobs": [
+            {
+                "job_id": "job-main",
+                "corpus_handoff_id": "handoff-main",
+                "coverage_question_ids": ["q-main"],
+                "label": "Mechanism",
+                "purpose": "Answer the handoff question.",
+                "questions": ["What mechanism does the corpus establish?"],
+                "question_outcomes": [
+                    {
+                        "question": "What mechanism does the corpus establish?",
+                        "status": "answered",
+                        "note": "The evidence supports the bounded mechanism.",
+                        "evidence_ids": ["backend-evidence-id"],
+                    }
+                ],
+                "status": "mapped",
+                "summary": "The job answered its assigned question.",
+            }
+        ],
         "processed_jobs": [
-            {"job_id": f"job-{index}", "status": "finished", "summary": long_summary}
-            for index in range(25)
+            {"job_id": f"job-{index}", "status": "finished", "summary": long_summary} for index in range(25)
         ],
         "research_gaps": [
             {
@@ -1804,8 +2335,7 @@ async def test_audit_context_pages_full_memo_and_workspace_fields_without_backen
             for index in range(25)
         ],
         "risk_register": [
-            {"risk": "workspace risk " * 100, "evidence_ids": ["backend-evidence-id"]}
-            for _ in range(25)
+            {"risk": "workspace risk " * 100, "evidence_ids": ["backend-evidence-id"]} for _ in range(25)
         ],
     }
     run = SimpleNamespace(config={"user_prompt": topic, "duration_target": 1800, "language": "en"})
@@ -1825,6 +2355,14 @@ async def test_audit_context_pages_full_memo_and_workspace_fields_without_backen
     assert len(payload["workspace"]["processed_jobs"]) == 20
     assert payload["workspace"]["processed_jobs"][0]["summary_truncated"] is True
     assert payload["workspace"]["pages"]["research_gaps"]["omitted_count"] == 5
+    assert payload["corpus_brief"]["research_handoff"][0]["handoff_id"] == "handoff-main"
+    assert payload["corpus_brief"]["coverage_outcomes"][0]["source_refs"] == ["S01"]
+    assert payload["corpus_brief"]["gap_records"][1]["gap_ref"] == public_gap_ref(
+        "gap:stable"
+    )
+    assert payload["workspace"]["investigation_jobs"][0]["coverage_question_ids"] == ["q-main"]
+    assert source.source_id not in json.dumps(payload)
+    assert "backend-evidence-id" not in json.dumps(payload)
 
     tool = audit_workspace_page_tool(
         research_memo=memo,
@@ -1836,6 +2374,23 @@ async def test_audit_context_pages_full_memo_and_workspace_fields_without_backen
     atom_page = await tool.handler({"section": "memo_atoms", "cursor": "0", "limit": 5})
     coverage_page = await tool.handler({"section": "memo_source_coverage", "cursor": "20", "limit": 5})
     gap_page = await tool.handler({"section": "research_gaps", "cursor": "0", "limit": 3})
+    handoff_page = await tool.handler(
+        {"section": "corpus_brief_handoff", "cursor": "0", "limit": 1}
+    )
+    question_page = await tool.handler(
+        {"section": "job_questions", "cursor": "0", "limit": 1, "job_id": "job-main"}
+    )
+    outcome_page = await tool.handler(
+        {
+            "section": "job_question_outcomes",
+            "cursor": "0",
+            "limit": 1,
+            "job_id": "job-main",
+        }
+    )
+    brief_gap_page = await tool.handler(
+        {"section": "corpus_brief_gap_records", "cursor": "1", "limit": 1}
+    )
 
     assert atom_page["items"][0]["claim"] == long_claim
     assert atom_page["page"]["returned_count"] == 1
@@ -1844,6 +2399,14 @@ async def test_audit_context_pages_full_memo_and_workspace_fields_without_backen
     assert gap_page["items"][0]["question"] == workspace["research_gaps"][0]["question"]
     assert "backend-evidence-id" not in str(atom_page)
     assert "backend-evidence-id" not in str(gap_page)
+    assert handoff_page["items"][0]["preferred_source_refs"] == ["S01"]
+    assert question_page["items"][0]["question"] == "What mechanism does the corpus establish?"
+    assert outcome_page["items"][0]["status"] == "answered"
+    assert brief_gap_page["items"][0]["gap_ref"] == public_gap_ref("gap:stable")
+    assert outcome_page["items"][0]["evidence_refs"] == []
+    assert outcome_page["items"][0]["unavailable_evidence_count"] == 1
+    assert "backend-evidence-id" not in str(handoff_page)
+    assert "backend-evidence-id" not in str(outcome_page)
 
 
 @pytest.mark.asyncio
@@ -1895,6 +2458,127 @@ async def test_exact_quote_verification_ignores_stale_corpus_versions(monkeypatc
 
 
 @pytest.mark.asyncio
+async def test_exact_quote_match_returns_canonical_selected_span(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_id = uuid.uuid4()
+    version_id = uuid.uuid4()
+    version = SimpleNamespace(
+        id=version_id,
+        source_id=source_id,
+        kind=SourceRepresentationKind.EXTRACTED_TEXT,
+        storage_path="current.txt",
+    )
+    canonical_text = "Heading\n\nThe exact quoted statement.\n\nTail."
+
+    class Result:
+        def scalars(self):
+            return [version]
+
+    class Db:
+        async def execute(self, _query):
+            return Result()
+
+    toolset = SimpleNamespace(
+        db=Db(),
+        run_view=SimpleNamespace(selected_source_version_ids=[str(version_id)]),
+    )
+    monkeypatch.setattr(
+        "app.generation_v2.tools.evidence_model_read_persistence.get_minio_client",
+        lambda: object(),
+    )
+    monkeypatch.setattr(
+        "app.generation_v2.tools.evidence_model_read_persistence.download_text",
+        lambda _client, _path: canonical_text,
+    )
+
+    match = await EvidenceModelReadPersistenceMixin._canonical_quote_match(
+        toolset,  # type: ignore[arg-type]
+        version,  # type: ignore[arg-type]
+        "The exact quoted statement.",
+    )
+
+    assert match is not None
+    matched_version, text, start, end = match
+    assert matched_version is version
+    assert text[start:end] == "The exact quoted statement."
+
+
+@pytest.mark.asyncio
+async def test_verified_exact_quote_persists_the_canonical_source_span(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_id = uuid.uuid4()
+    run_id = uuid.uuid4()
+    source_id = uuid.uuid4()
+    version_id = uuid.uuid4()
+    canonical_text = "Heading\n\nThe Exact Quoted Statement.\n\nTail."
+    start = canonical_text.index("The Exact")
+    end = start + len("The Exact Quoted Statement.")
+    version = SimpleNamespace(
+        id=version_id,
+        source_id=source_id,
+        kind=SourceRepresentationKind.EXTRACTED_TEXT,
+    )
+    provider_file = SimpleNamespace(
+        id=uuid.uuid4(),
+        provider_file_id="file-1",
+        provider_vector_store_file_id="vs-file-1",
+        attributes={},
+    )
+    captured: dict = {}
+
+    async def canonical_match(_version, _quote):
+        return version, canonical_text, start, end
+
+    async def persist(_db, **kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace()
+
+    monkeypatch.setattr(
+        "app.generation_v2.tools.evidence_model_read_persistence.persist_evidence_item",
+        persist,
+    )
+    toolset = SimpleNamespace(
+        db=object(),
+        run=SimpleNamespace(id=run_id, project_id=project_id),
+        provider_index=SimpleNamespace(provider_vector_store_id="vs-1"),
+        _canonical_quote_match=canonical_match,
+    )
+    read_result = {
+        "quote_text": "the exact quoted statement.",
+        "snippet_text": "the exact quoted statement.",
+        "support_summary": "Direct support.",
+        "uncertainty": "",
+        "support_level": "direct",
+        "confidence": 0.9,
+        "locator_text": "",
+        "locator_type": "unknown",
+        "_model_read_file_id": "model-file-1",
+    }
+
+    await EvidenceModelReadPersistenceMixin._persist_model_read_evidence(
+        toolset,  # type: ignore[arg-type]
+        provider_file=provider_file,  # type: ignore[arg-type]
+        version=version,  # type: ignore[arg-type]
+        read_result=read_result,
+        response_id="response-1",
+        focus_question="What is stated?",
+        claim_text="",
+        purpose="research",
+        locator_hint="",
+        cache_key="cache-1",
+        request_cache_key="request-1",
+    )
+
+    assert read_result["quote_text"] == "The Exact Quoted Statement."
+    assert read_result["model_reported_quote_text"] == "the exact quoted statement."
+    assert captured["normalized_quote_text"] == "the exact quoted statement."
+    assert captured["metadata"]["quote_text"] == "The Exact Quoted Statement."
+    assert captured["metadata"]["exact_quote_verified"] is True
+
+
+@pytest.mark.asyncio
 async def test_audit_editorial_repair_persists_gap_and_enqueues_job(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.generation_v2 import research_workspace as workspace_api
 
@@ -1934,3 +2618,142 @@ async def test_audit_editorial_repair_persists_gap_and_enqueues_job(monkeypatch:
     assert job_ids == ["repair_job"]
     assert saved[0]["research_gaps"][0]["question"] == "Resolve the missing mechanism support."
     assert saved[0]["memo_fields"] == {}
+
+
+@pytest.mark.asyncio
+async def test_audit_repair_drops_unknown_legacy_scope_and_falls_back_to_broad(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import research_workspace as workspace_api
+
+    run = SimpleNamespace(id=uuid.uuid4())
+    workspace = {
+        "source_order": ["S01"],
+        "selected_evidence_ids": ["current-evidence"],
+        "research_gaps": [],
+        "investigation_jobs": [],
+    }
+    saved: list[dict] = []
+
+    async def load(_db, _run_id):
+        return workspace
+
+    async def save(_db, **kwargs):
+        saved.append(deepcopy(kwargs["workspace"]))
+        return SimpleNamespace(payload=workspace)
+
+    monkeypatch.setattr(workspace_api, "load_research_workspace", load)
+    monkeypatch.setattr(workspace_api, "save_research_workspace", save)
+    audit = ResearchAudit(
+        passed=False,
+        score=0.3,
+        verdict="repair",
+        issues=[
+            ResearchAuditIssue(
+                severity="blocking",
+                target_step="editorial_research",
+                description="Resolve the missing mechanism support.",
+                source_refs=["S99"],
+                evidence_refs=["E001"],
+                evidence_ids=["invented-evidence"],
+            )
+        ],
+    )
+
+    repair_job_ids = await enqueue_audit_research_repair_jobs(  # type: ignore[arg-type]
+        None,
+        run=run,
+        audit=audit,
+    )
+    gap = saved[0]["research_gaps"][0]
+    repair_job = saved[-1]["investigation_jobs"][-1]
+
+    assert len(repair_job_ids) == 1
+    assert gap["source_refs"] == []
+    assert gap["evidence_ids"] == []
+    assert repair_job["source_refs"] == []
+    assert repair_job["allow_broad_search"] is True
+    assert "re-establish source scope" in gap["resolution_note"]
+    assert "re-establish grounding" in gap["resolution_note"]
+    assert saved[0]["audit_repair_feedback"][0]["source_refs"] == []
+    assert saved[0]["audit_repair_feedback"][0]["evidence_ids"] == []
+
+
+@pytest.mark.asyncio
+async def test_exhausted_audit_repair_does_not_mutate_workspace(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import research_workspace as workspace_api
+
+    run = SimpleNamespace(id=uuid.uuid4())
+    workspace = {
+        "research_gaps": [],
+        "memo_fields": {"title": "Keep the durable memo"},
+        "repair_budget": {TARGETED_REPAIR_BUDGET: 1},
+    }
+    original = deepcopy(workspace)
+
+    async def load(_db, _run_id):
+        return workspace
+
+    async def unexpected(*_args, **_kwargs):
+        raise AssertionError("an exhausted repair must not save or enqueue work")
+
+    monkeypatch.setattr(workspace_api, "load_research_workspace", load)
+    monkeypatch.setattr(workspace_api, "save_research_workspace", unexpected)
+    monkeypatch.setattr(workspace_api, "enqueue_research_repair_jobs", unexpected)
+    audit = ResearchAudit(
+        passed=False,
+        score=0.3,
+        verdict="repair",
+        issues=[
+            ResearchAuditIssue(
+                severity="blocking",
+                target_step="editorial_research",
+                description="Resolve the missing mechanism support.",
+            )
+        ],
+    )
+
+    assert await enqueue_audit_research_repair_jobs(None, run=run, audit=audit) == []  # type: ignore[arg-type]
+    assert workspace == original
+
+
+@pytest.mark.asyncio
+async def test_pending_treatment_repair_resumes_without_mutating_workspace() -> None:
+    run = SimpleNamespace(id=uuid.uuid4())
+    workspace = {
+        "research_gaps": [],
+        "memo_fields": {"title": "Keep the durable memo"},
+        "repair_operations": {
+            TARGETED_REPAIR_BUDGET: {
+                "kind": "research_jobs",
+                "status": REPAIR_IN_PROGRESS,
+                "payload": {"repair_job_ids": ["repair-job-1"]},
+            }
+        },
+    }
+    original = deepcopy(workspace)
+
+    async def load(_db, _run_id):
+        return workspace
+
+    async def unexpected(*_args, **_kwargs):
+        raise AssertionError("a pending repair must resume its durable operation")
+
+    gate = EpisodeCritique(
+        passed=False,
+        summary="failed",
+        weak_sections=["Treatment planning gap requires research repair: ground the mechanism."],
+        rewrite_instructions=[],
+    )
+
+    repair_jobs = await enqueue_treatment_research_repair_jobs(
+        None,  # type: ignore[arg-type]
+        run=run,
+        treatment_gate=gate,
+        load_workspace=load,
+        save_workspace=unexpected,
+        enqueue_repair_jobs=unexpected,
+    )
+
+    assert repair_jobs == ["repair-job-1"]
+    assert workspace == original

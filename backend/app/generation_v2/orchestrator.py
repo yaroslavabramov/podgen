@@ -4,12 +4,17 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.generation_v2.contracts.pipeline import V2PipelineStep
+from app.generation_v2.corpus_brief_actions import (
+    triage_state_acquisition_requests,
+    triage_state_ready_for_research,
+)
 from app.generation_v2.pipeline import orchestrator_compat as _orchestrator_compat
 from app.generation_v2.pipeline.source_triage_flow import (
-    _prepare_and_triage,
     _run_source_acquisition_until_triage_ready,
+    _triage_prepared_corpus,
 )
 from app.generation_v2.pipeline.source_acquisition_flow import persisted_source_acquisition_rounds_used
+from app.generation_v2.pipeline.triage_state_loader import load_passed_triage_state
 from app.generation_v2.pipeline.status import (
     V2StepExecutionStopped,
     commit_step,
@@ -23,6 +28,8 @@ from app.generation_v2.schemas import (
 )
 from app.models.generation_run import GenerationRun
 from app.models.show_bible import ShowBible
+from app.generation_v2.source_corpus import load_current_v2_corpus, prepare_v2_corpus
+from app.generation_v2.source_corpus_run_view import current_attempt_has_triage_history
 
 
 __all__ = ["V2StepExecutionStopped", "execute_generation_v2"]
@@ -44,22 +51,70 @@ async def execute_generation_v2(
     show_bible = await _load_show_bible_context(db, run)
     acquisition_rounds_used = await persisted_source_acquisition_rounds_used(db, run.id)
 
-    triage_state = await _prepare_and_triage(run, db, runtime)
-    if not triage_state.triage_completion.ready or not triage_state.triage_gate.passed:
-        triage_state, acquisition_rounds_used = await _run_source_acquisition_until_triage_ready(
+    config = run.config or {}
+    step_mode = config.get("execution_mode") == "step"
+    requested_step = str(config.get("v2_stop_after_step") or "") if step_mode else ""
+
+    if not step_mode or requested_step == V2PipelineStep.CORPUS_PREPARE:
+        corpus = await prepare_v2_corpus(db, run)
+        await commit_step(
             run,
             db,
-            runtime,
-            triage_state=triage_state,
-            trigger_phase="source_triage",
-            acquisition_rounds_used=acquisition_rounds_used,
+            V2PipelineStep.CORPUS_PREPARE,
+            6,
+            next_step=V2PipelineStep.SOURCE_TRIAGE,
         )
-    if not triage_state.triage_completion.ready or not triage_state.triage_gate.passed:
-        await db.commit()
-        raise RuntimeError(
-            f"V2 source triage gate failed: {triage_state.triage_completion.summary} {triage_state.triage_gate.summary}"
+    else:
+        corpus = await load_current_v2_corpus(db, run)
+        if requested_step == V2PipelineStep.SOURCE_TRIAGE and await current_attempt_has_triage_history(
+            db,
+            corpus.run_view,
+        ):
+            # A fresh transition from corpus_prepare has no triage artifacts.
+            # Durable triage state here means this is a retry of an interrupted
+            # attempt; preserve it as history and start triage in a clean scope.
+            corpus = await prepare_v2_corpus(db, run)
+
+    if not step_mode or requested_step == V2PipelineStep.SOURCE_TRIAGE:
+        triage_state = await _triage_prepared_corpus(run, db, runtime, corpus=corpus)
+        if not triage_state_ready_for_research(triage_state) and (
+            triage_state_acquisition_requests(triage_state)
+            or getattr(triage_state, "corpus_brief", None) is None
+        ):
+            triage_state, acquisition_rounds_used = await _run_source_acquisition_until_triage_ready(
+                run,
+                db,
+                runtime,
+                triage_state=triage_state,
+                trigger_phase="source_triage",
+                acquisition_rounds_used=acquisition_rounds_used,
+            )
+        if not triage_state_ready_for_research(triage_state):
+            await db.commit()
+            raise RuntimeError(
+                f"V2 source triage gate failed: {triage_state.triage_completion.summary} "
+                f"{triage_state.triage_gate.summary}"
+            )
+        await commit_step(
+            run,
+            db,
+            V2PipelineStep.SOURCE_TRIAGE,
+            12,
+            next_step=V2PipelineStep.EDITORIAL_RESEARCH,
         )
-    await commit_step(run, db, V2PipelineStep.CORPUS_PREPARE, 12, next_step=V2PipelineStep.EDITORIAL_RESEARCH)
+    else:
+        triage_state = await load_passed_triage_state(db, run)
+        if triage_state_acquisition_requests(triage_state):
+            triage_state, acquisition_rounds_used = await _run_source_acquisition_until_triage_ready(
+                run,
+                db,
+                runtime,
+                triage_state=triage_state,
+                trigger_phase="source_triage",
+                acquisition_rounds_used=acquisition_rounds_used,
+            )
+        if not triage_state_ready_for_research(triage_state):
+            raise RuntimeError("V2 source triage is not ready for editorial research")
 
     editorial_result = await run_editorial_research_until_treatment(
         db,
@@ -123,7 +178,6 @@ async def execute_generation_v2(
         show_bible=show_bible,
         generate_audio=generate_audio,
     )
-
 
 
 async def _load_show_bible_context(db: AsyncSession, run: GenerationRun) -> ShowBibleContext:

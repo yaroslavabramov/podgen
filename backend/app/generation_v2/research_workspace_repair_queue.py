@@ -64,12 +64,15 @@ async def enqueue_research_repair_jobs(
     current["current_job"] = None
     current["memo_fields"] = {}
     repair_job_ids = [str(job["job_id"]) for job in repair_jobs]
-    if reserve_repair_operation_in_workspace(
-        current,
-        TARGETED_REPAIR_BUDGET,
-        operation_kind="research_jobs",
-        payload=_repair_resume_payload(current, repair_job_ids=repair_job_ids),
-    ) is None:
+    if (
+        reserve_repair_operation_in_workspace(
+            current,
+            TARGETED_REPAIR_BUDGET,
+            operation_kind="research_jobs",
+            payload=_repair_resume_payload(current, repair_job_ids=repair_job_ids),
+        )
+        is None
+    ):
         return []
     await research_workspace.save_research_workspace(db, generation_run_id=run.id, workspace=current)
     return repair_job_ids
@@ -126,6 +129,7 @@ def _research_repair_job(
     question: str,
 ) -> dict[str, Any]:
     source_refs = _dedupe([str(item) for item in gap.get("source_refs") or [] if str(item).strip()])
+    starting_evidence_ids = _dedupe([str(item) for item in gap.get("evidence_ids") or [] if str(item).strip()])
     allow_broad_search = bool(gap.get("category") == ResearchGapCategory.MISSING_SOURCE.value or not source_refs)
     return {
         "job_id": job_id,
@@ -146,6 +150,7 @@ def _research_repair_job(
         "status": "planned",
         "observations": [],
         "atom_ids": [],
+        "starting_evidence_ids": starting_evidence_ids,
         "evidence_ids": [],
         "summary": "",
         "deferred_reason": "",
@@ -159,7 +164,7 @@ def _research_repair_job(
             "severity": str(gap.get("severity") or ResearchGapSeverity.BLOCKING.value),
             "treatment_relevance": _treatment_relevance(gap.get("treatment_relevance")),
             "source_refs": source_refs,
-            "evidence_ids": _dedupe([str(item) for item in gap.get("evidence_ids") or [] if str(item).strip()]),
+            "evidence_ids": starting_evidence_ids,
             "status": str(gap.get("status") or "open"),
         },
         "updated_at": _now(),

@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.generation_v2.debug_dump import dump_v2_debug
+from app.generation_v2.runtime_contracts import CheckpointResumeContext
 from app.generation_v2.runtime_checkpoint_state import (
     checkpoint_reason as _checkpoint_reason,
     checkpoint_restart as _checkpoint_restart,
@@ -46,6 +47,7 @@ async def advance_hosted_followup_without_function_calls(
     function_calls: list[dict[str, Any]],
     hosted_followup: dict[str, Any],
     checkpoint: Any,
+    checkpoint_resume_context: CheckpointResumeContext | None,
     checkpoint_index: int,
     chain_id: str,
     chain_round: int,
@@ -91,7 +93,7 @@ async def advance_hosted_followup_without_function_calls(
             generation_run_id=generation_run_id,
             phase=phase,
             agent_name=agent_name,
-            prompt=prompt,
+            resume_context=checkpoint_resume_context,
             previous_chain_id=chain_id,
             next_checkpoint_index=checkpoint_index + 1,
             reason=checkpoint_reason,

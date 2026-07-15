@@ -60,8 +60,7 @@ async def source_version_fallback(
     if not selected_version_ids or not allowed_source_ids:
         return []
     result = await owner.db.execute(
-        select(SourceVersion)
-        .where(
+        select(SourceVersion).where(
             SourceVersion.status == V2RecordStatus.READY,
             SourceVersion.source_id.in_(_uuid_list(allowed_source_ids)),
             SourceVersion.id.in_(selected_version_ids),
@@ -72,11 +71,13 @@ async def source_version_fallback(
         text = _source_version_text(version)
         if not text.strip():
             continue
+        allow_timestamps = await owner._source_allows_timestamp_locators(version)
         for window in _search_text_windows(
             text,
             query=query,
             max_windows=max(1, limit),
             max_chars=1800,
+            allow_timestamps=allow_timestamps,
         ):
             candidates.append(
                 (
@@ -115,9 +116,7 @@ async def source_version_fallback(
                 locator_text=str(window.get("locator_text") or "source window"),
                 locator_type=locator_type,
                 evidence_strength=(
-                    EvidenceStrength.EXACT
-                    if locator_type in exact_locator_types
-                    else EvidenceStrength.SNIPPET
+                    EvidenceStrength.EXACT if locator_type in exact_locator_types else EvidenceStrength.SNIPPET
                 ),
                 metadata={"immutable_source_version_search": True},
             )

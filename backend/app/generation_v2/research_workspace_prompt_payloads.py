@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.generation_v2.research_source_map_prompting import source_map_summary_for_job
+from app.generation_v2.model_context_text import model_preview_text
 from app.generation_v2.research_workspace_contracts import (
     RESEARCH_READS_PER_COMMIT_ADVISORY,
     RESEARCH_READS_PER_COMMIT_WARNING,
@@ -20,7 +21,7 @@ from app.generation_v2.research_workspace_gap_helpers import (
 
 
 def _preview_fields(name: str, value: Any, limit: int) -> dict[str, Any]:
-    text = str(value or "")
+    text = model_preview_text(value, collapse_whitespace=False)
     return {
         f"{name}_preview": text[:limit],
         f"{name}_chars": len(text),
@@ -49,6 +50,7 @@ def prompt_workspace(workspace: dict[str, Any]) -> dict[str, Any]:
     workspace.setdefault("atom_drafts", [])
     workspace.setdefault("research_gaps", [])
     workspace.setdefault("risk_register", [])
+    workspace.setdefault("corpus_brief_preview", None)
     return workspace
 
 
@@ -79,7 +81,9 @@ def prompt_gap_payload(gap: dict[str, Any], *, include_evidence_ids: bool) -> di
     return payload
 
 
-def prompt_atom_payload(atom: dict[str, Any], *, include_evidence_ids: bool, atom_ref: str | None = None) -> dict[str, Any]:
+def prompt_atom_payload(
+    atom: dict[str, Any], *, include_evidence_ids: bool, atom_ref: str | None = None
+) -> dict[str, Any]:
     evidence_ids = atom.get("evidence_ids") or []
     payload = {
         "atom_ref": atom_ref,
@@ -102,6 +106,27 @@ def prompt_atom_payload(atom: dict[str, Any], *, include_evidence_ids: bool, ato
     if include_evidence_ids and evidence_ids:
         payload["evidence_ids"] = evidence_ids
     return payload
+
+
+def prompt_atom_index_payload(atom: dict[str, Any], *, atom_ref: str) -> dict[str, Any]:
+    """Compact routing entry; full semantic fields stay available through atom_drafts paging."""
+
+    evidence_ids = atom.get("evidence_ids") or []
+    return {
+        "atom_ref": atom_ref,
+        "atom_id": atom.get("atom_id"),
+        "job_id": atom.get("job_id"),
+        "kind": atom.get("kind"),
+        **_preview_fields("title", atom.get("title") or "", 220),
+        **_preview_fields("claim", atom.get("claim") or "", 360),
+        **_preview_fields("story_value", atom.get("story_value") or "", 240),
+        "source_refs": atom.get("source_refs") or [],
+        "evidence_count": len(evidence_ids),
+        "confidence": atom.get("confidence"),
+        "risk": atom.get("risk"),
+        "source_coverage_status": atom.get("source_coverage_status"),
+        "story_weight": _story_weight(str(atom.get("story_weight") or ""), kind=str(atom.get("kind") or "")),
+    }
 
 
 def _job_question_page(job: dict[str, Any], *, cursor: int, limit: int) -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -159,8 +184,33 @@ def current_job_prompt_payload(
         limit=max(1, max_observations),
     )
     repair_gap = job.get("repair_gap") if isinstance(job.get("repair_gap"), dict) else None
+    coverage_question_ids = [
+        str(item) for item in job.get("coverage_question_ids") or [] if str(item).strip()
+    ]
+    brief_outcomes = [
+        item for item in job.get("corpus_brief_outcomes") or [] if isinstance(item, dict)
+    ]
+    brief_outcome_previews = [
+        {
+            "question_id": item.get("question_id"),
+            "status": item.get("status"),
+            "next_action": item.get("next_action"),
+            "source_refs": item.get("source_refs") or [],
+            "evidence_count": len(item.get("evidence_ids") or []),
+            **_preview_fields("orientation_summary", item.get("orientation_summary") or "", 600),
+            **_preview_fields("missing_detail", item.get("missing_detail") or "", 500),
+            **_preview_fields("conflict_summary", item.get("conflict_summary") or "", 500),
+            **_preview_fields("deferred_reason", item.get("deferred_reason") or "", 400),
+            "confidence": item.get("confidence"),
+        }
+        for item in brief_outcomes
+    ]
+    starting_evidence_ids = [str(item) for item in job.get("starting_evidence_ids") or [] if str(item).strip()]
+    starting_evidence_page = starting_evidence_ids[:12]
     payload: dict[str, Any] = {
         "job_id": job.get("job_id"),
+        "corpus_handoff_id": job.get("corpus_handoff_id"),
+        "coverage_question_ids": coverage_question_ids,
         **_preview_fields("label", job.get("label") or "", SEMANTIC_FIELD_LIMITS["label"]),
         "story_job": job.get("story_job"),
         **_preview_fields("purpose", job.get("purpose") or "", SEMANTIC_FIELD_LIMITS["purpose"]),
@@ -186,6 +236,8 @@ def current_job_prompt_payload(
             for item in job.get("question_outcomes") or []
             if isinstance(item, dict)
         ],
+        "starting_evidence_ids": starting_evidence_page,
+        "starting_evidence_count": len(starting_evidence_ids),
         "evidence_count": len(job.get("evidence_ids") or []),
         "atom_ids": job.get("atom_ids") or [],
         "atom_count": len(job.get("atom_ids") or []),
@@ -193,9 +245,26 @@ def current_job_prompt_payload(
         **_preview_fields("deferred_reason", job.get("deferred_reason") or "", 500),
         **_preview_fields("resume_reason", job.get("resume_reason") or "", 500),
         "repair_for_gap_id": job.get("repair_for_gap_id"),
+        "corpus_brief_lineage": {
+            "outcomes": brief_outcome_previews,
+            "requires_full_outcome_read": any(
+                str(item.get("status") or "") in {"partial", "conflicted"}
+                for item in brief_outcomes
+            ),
+            "paging_instruction": (
+                "For partial/conflicted lineage, page corpus_brief_outcomes from cursor 0 and follow "
+                "next_cursor until every coverage_question_id above is found; preserve its covered, "
+                "missing, and conflicting details when investigating."
+            ),
+        },
         "pages": {
             "questions": question_page,
             "observations": observation_page,
+            "starting_evidence": _page_metadata(
+                total=len(starting_evidence_ids),
+                cursor=0,
+                returned=len(starting_evidence_page),
+            ),
         },
     }
     if repair_gap is not None:
@@ -224,17 +293,15 @@ def research_workspace_summary_for_prompt(
     atoms = _active_atom_drafts(workspace.get("atom_drafts") or [])
     gaps = _dedupe_gaps(workspace.get("research_gaps") or [])
     risks = list(workspace.get("risk_register") or [])
-    audit_feedback = [
-        item for item in workspace.get("audit_repair_feedback") or [] if isinstance(item, dict)
-    ]
+    audit_feedback = [item for item in workspace.get("audit_repair_feedback") or [] if isinstance(item, dict)]
     job_page = jobs[job_cursor : job_cursor + max_jobs]
     atom_page = atoms[atom_cursor : atom_cursor + max_atoms]
     gap_page = gaps[gap_cursor : gap_cursor + max_gaps]
-    audit_feedback_page = audit_feedback[
-        audit_feedback_cursor : audit_feedback_cursor + max_audit_feedback
-    ]
+    audit_feedback_page = audit_feedback[audit_feedback_cursor : audit_feedback_cursor + max_audit_feedback]
     return {
         "status": workspace.get("status"),
+        "corpus_brief_attached": bool(workspace.get("corpus_brief_artifact_id")),
+        "corpus_brief_preview": workspace.get("corpus_brief_preview"),
         "source_count": len(workspace.get("source_order") or []),
         "job_count": len(workspace.get("investigation_jobs") or []),
         "current_job": workspace.get("current_job"),
@@ -249,10 +316,7 @@ def research_workspace_summary_for_prompt(
         ],
         "covered_source_refs": workspace.get("covered_source_refs") or [],
         "selected_evidence_count": len(workspace.get("selected_evidence_ids") or []),
-        "research_gaps": [
-            prompt_gap_payload(item, include_evidence_ids=include_gap_evidence_ids)
-            for item in gap_page
-        ],
+        "research_gaps": [prompt_gap_payload(item, include_evidence_ids=include_gap_evidence_ids) for item in gap_page],
         "risk_count": len(risks),
         "jobs": [
             {
@@ -314,7 +378,8 @@ def research_finalizer_payload_for_prompt(
     *,
     max_jobs: int = 60,
     max_atoms: int = 60,
-    max_observations: int = 120,
+    max_observations: int = 0,
+    max_gaps: int = 40,
     max_risks: int = 30,
     observation_cursor: int = 0,
     risk_cursor: int = 0,
@@ -337,16 +402,24 @@ def research_finalizer_payload_for_prompt(
                     ],
                 }
             )
+    atoms = _active_atom_drafts(workspace.get("atom_drafts") or [])
+    gaps = _dedupe_gaps(workspace.get("research_gaps") or [])
+    safe_max_atoms = max(0, max_atoms)
+    safe_max_gaps = max(0, max_gaps)
+    atom_page = atoms[:safe_max_atoms]
+    gap_page = gaps[:safe_max_gaps]
     base = research_workspace_summary_for_prompt(
         workspace,
         max_jobs=max_jobs,
-        max_atoms=max_atoms,
+        max_atoms=0,
+        max_gaps=0,
         max_risks=max_risks,
         risk_cursor=risk_cursor,
         include_atom_evidence_ids=False,
         include_gap_evidence_ids=False,
     )
-    observation_page = observations[observation_cursor : observation_cursor + max_observations]
+    observation_limit = max(0, max_observations)
+    observation_page = observations[observation_cursor : observation_cursor + observation_limit]
     risks = list(workspace.get("risk_register") or [])
     risk_page = risks[risk_cursor : risk_cursor + max_risks]
     return {
@@ -355,9 +428,12 @@ def research_finalizer_payload_for_prompt(
         "job_count": base.get("job_count"),
         "selected_evidence_count": base.get("selected_evidence_count"),
         "jobs": base.get("jobs") or [],
-        "atom_drafts": base.get("atom_drafts") or [],
+        "atom_index": [
+            prompt_atom_index_payload(item, atom_ref=f"A{idx:02d}")
+            for idx, item in enumerate(atom_page, start=1)
+        ],
         "observations": observation_page,
-        "research_gaps": base.get("research_gaps") or [],
+        "research_gaps": [prompt_gap_payload(item, include_evidence_ids=False) for item in gap_page],
         "risk_register": [
             {
                 **_preview_fields("risk", item.get("risk") if isinstance(item, dict) else item, 500),
@@ -371,36 +447,75 @@ def research_finalizer_payload_for_prompt(
         ],
         "pages": {
             **(base.get("pages") or {}),
+            "atom_index": _page_metadata(total=len(atoms), cursor=0, returned=len(atom_page)),
+            "research_gaps": _page_metadata(total=len(gaps), cursor=0, returned=len(gap_page)),
             "observations": _page_metadata(
                 total=len(observations), cursor=observation_cursor, returned=len(observation_page)
             ),
-            "workspace_risks": _page_metadata(
-                total=len(risks), cursor=risk_cursor, returned=len(risk_page)
-            ),
+            "workspace_risks": _page_metadata(total=len(risks), cursor=risk_cursor, returned=len(risk_page)),
         },
         "audit_repair_feedback": base.get("audit_repair_feedback") or [],
         "assembly_instruction": (
-            "Use atom_drafts as the memo backbone, but treat them as raw outputs from independent jobs that "
-            "may overlap. Audit same-kind atom_drafts for repeated findings before finalization and use "
-            "merge_editorial_atoms for duplicates, passing atom_id handles. Use atom_ref handles for risk/gap "
-            "links. Use observations and research_gaps to explain coverage and risks. Do not invent atoms "
-            "that were not persisted as atom_drafts. Blocking open/deferred gaps become final open_questions; "
+            "atom_index is the compact index of active findings. Page atom_index until next_cursor is empty, "
+            "then scan every entry for overlap. Use list_research_workspace_items(section=atom_drafts, "
+            "cursor=<Axx number minus one>) only for same-kind entries that may express the same finding, "
+            "then merge confirmed duplicates. Page "
+            "observations only when an atom, gap, or risk cannot be understood from its index entry. Do not "
+            "invent atoms that were not persisted. Blocking open/deferred gaps become final open_questions; "
             "non-blocking/optional gaps become risk/source-coverage notes."
         ),
     }
 
 
-def research_job_prompt_payload(workspace: dict[str, Any], job_id: str, *, source_map_summary: dict[str, Any]) -> dict[str, Any]:
+def research_job_workspace_progress_for_prompt(
+    workspace: dict[str, Any],
+    *,
+    current_job_id: str,
+) -> dict[str, Any]:
+    """Return routing state, not other agents' semantic work."""
+
+    workspace = prompt_workspace(workspace)
+    jobs = [item for item in workspace.get("investigation_jobs") or [] if isinstance(item, dict)]
+    atoms = _active_atom_drafts(workspace.get("atom_drafts") or [])
+    gaps = _dedupe_gaps(workspace.get("research_gaps") or [])
+    status_counts: dict[str, int] = {}
+    for job in jobs:
+        status = str(job.get("status") or "unknown")
+        status_counts[status] = status_counts.get(status, 0) + 1
+    return {
+        "status": workspace.get("status"),
+        "job_count": len(jobs),
+        "job_status_counts": status_counts,
+        "current_job_id": current_job_id,
+        "other_job_index": [
+            {
+                "job_id": item.get("job_id"),
+                **_preview_fields("label", item.get("label") or "", 180),
+                "story_job": item.get("story_job"),
+                "status": item.get("status"),
+                "source_refs": item.get("source_refs") or [],
+                "required_atom_kinds": item.get("required_atom_kinds") or [],
+            }
+            for item in jobs
+            if str(item.get("job_id") or "") != current_job_id
+        ],
+        "global_atom_count": len(atoms),
+        "open_gap_count": sum(1 for item in gaps if item.get("status") in {"open", "deferred"}),
+        "risk_count": len(workspace.get("risk_register") or []),
+        "selected_evidence_count": len(workspace.get("selected_evidence_ids") or []),
+    }
+
+
+def research_job_prompt_payload(
+    workspace: dict[str, Any], job_id: str, *, source_map_summary: dict[str, Any]
+) -> dict[str, Any]:
     workspace = prompt_workspace(workspace)
     job = workspace_job(workspace, job_id) or {}
     return {
         "job": current_job_prompt_payload(job),
-        "workspace_progress": research_workspace_summary_for_prompt(
+        "workspace_progress": research_job_workspace_progress_for_prompt(
             workspace,
-            max_jobs=40,
-            max_atoms=40,
-            include_atom_evidence_ids=False,
-            include_gap_evidence_ids=False,
+            current_job_id=job_id,
         ),
         "source_map_summary": source_map_summary_for_job(source_map_summary, job),
         "commit_advisory": {
@@ -415,10 +530,12 @@ def research_job_prompt_payload(workspace: dict[str, Any], job_id: str, *, sourc
 __all__ = [
     "current_job_prompt_payload",
     "prompt_atom_payload",
+    "prompt_atom_index_payload",
     "prompt_gap_payload",
     "prompt_workspace",
     "research_finalizer_payload_for_prompt",
     "research_job_prompt_payload",
+    "research_job_workspace_progress_for_prompt",
     "research_workspace_summary_for_prompt",
     "workspace_job",
 ]

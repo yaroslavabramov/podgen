@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 from app.generation_v2.contracts.research import (
@@ -71,6 +73,22 @@ class ResearchAudit(BaseModel):
     repair_targets: list[ResearchAuditTargetStep] = Field(default_factory=list)
 
 
+class TreatmentAtomAnchor(BaseModel):
+    atom_ref: str
+    kind: str
+    title: str
+    claim: str
+    story_value: str
+    story_weight: StoryWeight = StoryWeight.SUPPORTING
+
+
+class TreatmentAtomDisposition(BaseModel):
+    atom_ref: str
+    disposition: Literal["used", "omitted"]
+    act_number: int | None = None
+    reason: str = ""
+
+
 class TreatmentAct(BaseModel):
     act_number: int
     title: str
@@ -83,6 +101,8 @@ class TreatmentAct(BaseModel):
     required_atom_refs: list[str] = Field(default_factory=list)
     required_quote_refs: list[str] = Field(default_factory=list)
     required_evidence_ids: list[str] = Field(default_factory=list)
+    episode_supported_answer: str = ""
+    atom_anchors: list[TreatmentAtomAnchor] = Field(default_factory=list)
     source_density_target: int = 2
 
 
@@ -90,7 +110,9 @@ class Treatment(BaseModel):
     title: str
     logline: str
     host_dynamic: str
+    supported_answer: str = ""
     acts: list[TreatmentAct]
+    core_atom_dispositions: list[TreatmentAtomDisposition] = Field(default_factory=list)
     recurring_questions: list[str] = Field(default_factory=list)
     style_constraints: list[str] = Field(default_factory=list)
     planning_gaps: list[str] = Field(default_factory=list)
@@ -114,6 +136,7 @@ class TreatmentPlan(BaseModel):
     logline: str
     host_dynamic: str
     acts: list[TreatmentPlanAct]
+    core_atom_dispositions: list[TreatmentAtomDisposition] = Field(default_factory=list)
     recurring_questions: list[str] = Field(default_factory=list)
     style_constraints: list[str] = Field(default_factory=list)
     planning_gaps: list[str] = Field(default_factory=list)
@@ -126,6 +149,8 @@ __all__ = [
     "ResearchMemo",
     "Treatment",
     "TreatmentAct",
+    "TreatmentAtomAnchor",
+    "TreatmentAtomDisposition",
     "TreatmentPlan",
     "TreatmentPlanAct",
 ]

@@ -9,6 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.generation_v2.artifacts import save_tool_trace
 from app.generation_v2.runtime_debug import tool_policy_payload as _tool_policy_payload, tool_trace_name as _tool_trace_name
 from app.generation_v2.runtime_response import compact_hosted_calls as _compact_hosted_calls
+from app.generation_v2.runtime_response_status import (
+    response_error,
+    response_incomplete_reason,
+    response_output_statuses,
+)
 from app.observability import safe_set_run
 from app.services.llm import (
     _openai_response_model,
@@ -62,6 +67,9 @@ def set_response_run_outputs(
         outputs={
             "response_id": response.id,
             "status": getattr(response, "status", None),
+            "incomplete_reason": response_incomplete_reason(response),
+            "provider_error": response_error(response),
+            "output_item_statuses": response_output_statuses(response),
             "output_text_chars": len(response.output_text or ""),
             "file_search_call_count": len(file_search_calls),
             "web_search_call_count": len(web_search_calls),
@@ -92,6 +100,7 @@ async def save_response_create_trace(
     web_search_calls: list[dict[str, Any]],
     trace_payload: RuntimeResponseTrace,
     latency_ms: float,
+    max_output_tokens: int | None,
 ) -> None:
     await save_tool_trace(
         db,
@@ -111,6 +120,7 @@ async def save_response_create_trace(
             "chain_round": chain_round,
             "has_previous_response_id": bool(previous_response_id),
             "requested_model": requested_model,
+            "max_output_tokens": max_output_tokens,
         },
         output_json={
             "response_id": response.id,
@@ -118,6 +128,9 @@ async def save_response_create_trace(
             "response_model": trace_payload.response_model,
             "billing_model": trace_payload.billing_model,
             "status": getattr(response, "status", None),
+            "incomplete_reason": response_incomplete_reason(response),
+            "provider_error": response_error(response),
+            "output_item_statuses": response_output_statuses(response),
             "output_text_chars": len(response.output_text or ""),
             "file_search_call_count": len(file_search_calls),
             "web_search_call_count": len(web_search_calls),
@@ -126,6 +139,7 @@ async def save_response_create_trace(
             "chain_id": chain_id,
             "checkpoint_index": checkpoint_index,
             "chain_round": chain_round,
+            "max_output_tokens": max_output_tokens,
             "usage": trace_payload.trace_usage_payload,
             **trace_payload.token_cost_payload,
             **trace_payload.trace_usage_payload,

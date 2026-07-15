@@ -21,6 +21,7 @@ class V2Phase(StrEnum):
 
 class V2PipelineStep(StrEnum):
     CORPUS_PREPARE = "corpus_prepare"
+    SOURCE_TRIAGE = "source_triage"
     EDITORIAL_RESEARCH = "editorial_research"
     RESEARCH_AUDIT = "research_audit"
     TREATMENT = "treatment"

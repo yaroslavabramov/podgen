@@ -26,7 +26,7 @@ async def load_source_triage_workspace(db: AsyncSession, generation_run_id: uuid
     artifact = result.scalar_one_or_none()
     if artifact is None:
         return None
-    return dict(artifact.payload or {})
+    return _normalize_workspace(dict(artifact.payload or {}))
 
 
 async def save_source_triage_workspace(

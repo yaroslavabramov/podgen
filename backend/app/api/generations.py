@@ -1,4 +1,5 @@
 import uuid
+import logging
 from datetime import datetime
 from typing import Literal
 
@@ -34,6 +35,7 @@ from app.schemas.generation import (
 from app.services.cost_estimator import estimate_cost
 
 router = APIRouter(prefix="/api", tags=["generations"])
+logger = logging.getLogger(__name__)
 
 _STEP_NODE_SEQUENCE = [
     "setup_show",
@@ -200,15 +202,21 @@ async def start_generation(project_id: uuid.UUID, data: GenerationCreate, user: 
         if data.generation_mode == "v2":
             from app.workers.generation_tasks import run_generation_v2
 
-            run_generation_v2.delay(str(run.id), generate_audio=True)
+            await _enqueue_saved_generation_run(
+                db,
+                run,
+                run_generation_v2.delay,
+                str(run.id),
+                generate_audio=True,
+            )
         elif data.generation_mode == "compare":
             from app.workers.generation_tasks import run_generation_compare
 
-            run_generation_compare.delay(str(run.id))
+            await _enqueue_saved_generation_run(db, run, run_generation_compare.delay, str(run.id))
         else:
             from app.workers.generation_tasks import run_generation_pipeline
 
-            run_generation_pipeline.delay(str(run.id))
+            await _enqueue_saved_generation_run(db, run, run_generation_pipeline.delay, str(run.id))
 
     return GenerationRunResponse.model_validate(run)
 
@@ -293,10 +301,10 @@ async def get_generation_v2_evidence(run_id: uuid.UUID, user: CurrentUser, db: D
     compare_v2_evidence = None
     if v2_child_id:
         v2_child = await _get_user_run(v2_child_id, user.id, db)
-        compare_v2_evidence = await list_evidence_dicts(db, v2_child.id)
+        compare_v2_evidence = await list_evidence_dicts(db, v2_child.id, include_all_scopes=True)
     return V2EvidenceResponse(
         run_id=run.id,
-        evidence=await list_evidence_dicts(db, run.id),
+        evidence=await list_evidence_dicts(db, run.id, include_all_scopes=True),
         compare_v2_run_id=v2_child_id,
         compare_v2_evidence=compare_v2_evidence,
     )
@@ -545,15 +553,27 @@ async def resume_generation(run_id: uuid.UUID, user: CurrentUser, db: DB):
     if generation_mode == "v2":
         from app.workers.generation_tasks import run_generation_v2
 
-        run_generation_v2.delay(str(run.id), generate_audio=not bool((run.config or {}).get("compare_draft_only")))
+        await _enqueue_saved_generation_run(
+            db,
+            run,
+            run_generation_v2.delay,
+            str(run.id),
+            generate_audio=not bool((run.config or {}).get("compare_draft_only")),
+        )
     elif generation_mode == "compare":
         from app.workers.generation_tasks import run_generation_compare
 
-        run_generation_compare.delay(str(run.id))
+        await _enqueue_saved_generation_run(db, run, run_generation_compare.delay, str(run.id))
     else:
         from app.workers.generation_tasks import run_generation_pipeline
 
-        run_generation_pipeline.delay(str(run.id), resume=True)
+        await _enqueue_saved_generation_run(
+            db,
+            run,
+            run_generation_pipeline.delay,
+            str(run.id),
+            resume=True,
+        )
 
     return GenerationRunResponse.model_validate(run)
 
@@ -696,8 +716,37 @@ async def _enqueue_step_action(
 
     from app.workers.generation_tasks import run_generation_step
 
-    run_generation_step.delay(str(run.id), action=action)
+    await _enqueue_saved_generation_run(
+        db,
+        run,
+        run_generation_step.delay,
+        str(run.id),
+        action=action,
+    )
     return GenerationRunResponse.model_validate(run)
+
+
+async def _enqueue_saved_generation_run(db: DB, run: GenerationRun, enqueue, *args, **kwargs) -> None:
+    try:
+        enqueue(*args, **kwargs)
+    except Exception as exc:
+        logger.exception("Failed to enqueue generation run %s", run.id)
+        if (run.config or {}).get("execution_mode") == "step":
+            config = dict(run.config or {})
+            step_control = dict(config.get("step_control") or {})
+            step_control["requested_action"] = None
+            step_control["requested_target_node"] = None
+            step_control["requested_at"] = None
+            config["step_control"] = step_control
+            run.config = config
+        run.status = GenerationStatus.FAILED
+        run.error_message = "Generation task could not be queued."
+        run.completed_at = datetime.utcnow()
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Generation task could not be queued. Retry the generation request.",
+        ) from exc
 
 
 async def _get_user_run(run_id: uuid.UUID, user_id: uuid.UUID, db: DB) -> GenerationRun:

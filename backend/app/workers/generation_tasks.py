@@ -539,6 +539,7 @@ async def _run_step_async(generation_run_id: str, action: str = "next"):
 async def _run_v2_step_action(db, run, *, generation_run_id: str, action: str, requested_target_node: str | None) -> None:
     from app.generation_v2.orchestrator import V2StepExecutionStopped, execute_generation_v2
     from app.models.generation_run import GenerationRun, GenerationStatus
+    from app.pipeline.step_control import StepExecutionStopped
     from app.realtime.events import generation_completed, generation_failed, generation_paused
     from app.realtime.publisher import publish_event
 
@@ -626,6 +627,46 @@ async def _run_v2_step_action(db, run, *, generation_run_id: str, action: str, r
                             "next_node": stop_exc.next_step,
                         },
                     )
+                except StepExecutionStopped as stop_exc:
+                    await db.rollback()
+                    result = await db.execute(
+                        select(GenerationRun).where(GenerationRun.id == uuid.UUID(generation_run_id))
+                    )
+                    stopped_run = result.scalar_one_or_none()
+                    if stopped_run is not None:
+                        stopped_run.status = GenerationStatus.QUEUED
+                        stopped_run.error_message = None
+                        stopped_run.completed_at = None
+                        stopped_config = _mark_step_stopped(
+                            stopped_run.config,
+                            action,
+                            str(stop_exc),
+                            started=True,
+                        )
+                        stopped_config.pop("v2_stop_after_step", None)
+                        stopped_run.config = stopped_config
+                        stopped_control = _step_control(stopped_config)
+                        stopped_run.current_step = stopped_control.get("next_node") or target_step
+                        await db.commit()
+                        publish_event(
+                            generation_run_id,
+                            generation_paused(
+                                stopped_control.get("executed_node"),
+                                stopped_control.get("next_node"),
+                                stopped=True,
+                                reason=str(stop_exc),
+                            ),
+                        )
+                        safe_set_run(
+                            task_run,
+                            outputs={
+                                "status": "stopped",
+                                "target_step": target_step,
+                                "reason": str(stop_exc),
+                                "executed_node": stopped_control.get("executed_node"),
+                                "next_node": stopped_control.get("next_node"),
+                            },
+                        )
                 except Exception as exc:
                     await db.rollback()
                     result = await db.execute(

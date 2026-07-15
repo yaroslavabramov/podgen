@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+
 from app.generation_v2.tools.evidence_types import EVIDENCE_STATUS_CITED, EVIDENCE_STATUS_SELECTED
 from app.generation_v2.tools.evidence_utils import _dedupe
 from app.models.generation_v2 import EvidenceItem, V2ToolTrace
@@ -47,9 +49,17 @@ def relationship_kind(value: str) -> str:
     return value if value in allowed else "background_for"
 
 
-def cluster_id(label: str, index: int) -> str:
+def cluster_id(label: str, index: int, *, source_ids: list[str] | None = None) -> str:
     slug = "".join(ch.lower() if ch.isalnum() else "_" for ch in label.strip())[:40].strip("_")
-    return slug or f"cluster_{index}"
+    if not slug:
+        slug = f"cluster_{index}"
+    if source_ids is None:
+        # Preserve identities of accepted traces written before stable
+        # collision-resistant cluster ids were introduced.
+        return slug
+    identity = "\x1f".join([" ".join(label.split()).casefold(), *sorted(set(source_ids or []))])
+    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:8]
+    return f"{slug}_{digest}"
 
 
 __all__ = [

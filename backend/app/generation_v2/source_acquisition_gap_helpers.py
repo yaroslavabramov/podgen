@@ -22,8 +22,12 @@ def add_corpus_gap(
     description: str,
     functions: list[str] | None = None,
     source_ids: list[str] | None = None,
+    source_refs: list[str] | None = None,
     severity: SeverityLevel = SeverityLevel.MEDIUM,
     origin: str = "",
+    question_id: str = "",
+    question: str = "",
+    reason: str = "",
 ) -> None:
     clean = " ".join(str(description or "").split())
     if not clean:
@@ -35,8 +39,12 @@ def add_corpus_gap(
             description=clean,
             required_editorial_functions=functions or [],
             related_source_ids=source_ids or [],
+            related_source_refs=source_refs or [],
             severity=severity,
             origin=origin or trigger_phase,
+            question_id=str(question_id),
+            question=str(question),
+            reason=str(reason),
         )
     )
 

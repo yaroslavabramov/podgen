@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.generation_v2.contracts import V2AgentName, V2Phase
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.generation_v2.agent_output_policy import semantic_agent_output_limit
 from app.generation_v2.agents.json_helpers import json_for_prompt as _json
 from app.generation_v2.agents.tool_sets import (
     RESEARCH_FINALIZER_TOOL_NAMES,
@@ -12,11 +13,19 @@ from app.generation_v2.agents.tool_sets import (
 )
 from app.generation_v2.prompting import (
     RESEARCH_FINALIZER_PROMPT,
+    RESEARCH_FINALIZER_SYSTEM,
     RESEARCH_JOB_PROMPT,
+    RESEARCH_JOB_SYSTEM,
     RESEARCH_PLANNER_PROMPT,
-    RESEARCH_SYSTEM,
+    RESEARCH_PLANNER_SYSTEM,
 )
 from app.generation_v2.runtime import AgentTool, ToolPolicy, V2Runtime
+from app.generation_v2.runtime_checkpoint_context import (
+    RESEARCH_FINALIZER_RESUME_CONTRACT,
+    RESEARCH_JOB_RESUME_CONTRACT,
+    RESEARCH_PLANNER_RESUME_CONTRACT,
+    build_checkpoint_resume_context,
+)
 from app.generation_v2.schemas import ResearchWorkflowCompletion, ShowBibleContext
 from app.models.generation_run import GenerationRun
 
@@ -25,8 +34,30 @@ def noop_research_workspace_tools() -> list[AgentTool]:
     async def _handler(_args):
         return {"accepted": True}
 
+    terminal_names = {
+        "finalize_research_plan",
+        "finish_research_job",
+        "finalize_research_memo",
+    }
     return [
-        AgentTool(name=name, description=name, parameters={"type": "object", "properties": {}}, handler=_handler)
+        AgentTool(
+            name=name,
+            description=name,
+            parameters={"type": "object", "properties": {}},
+            handler=_handler,
+            terminal=name in terminal_names,
+            terminal_result_builder=(
+                lambda _arguments, _output: (
+                    ResearchWorkflowCompletion(
+                        ready=True,
+                        summary="Ephemeral research step persisted.",
+                        notes=[],
+                    )
+                    if name in terminal_names
+                    else None
+                )
+            ),
+        )
         for name in [
             "merge_editorial_atoms",
             "upsert_research_job",
@@ -65,13 +96,18 @@ async def build_research_planner_agent(
         phase=V2Phase.EDITORIAL_RESEARCH,
         agent_name=V2AgentName.RESEARCH_PLANNER,
         schema_model=ResearchWorkflowCompletion,
-        system=RESEARCH_SYSTEM,
+        system=RESEARCH_PLANNER_SYSTEM,
         prompt=prompt,
         vector_store_id=None,
         local_tools=phase_tools(workspace_tools, RESEARCH_PLANNER_TOOL_NAMES),
         tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
-        max_output_tokens=6000,
+        max_output_tokens=semantic_agent_output_limit(),
         max_tool_rounds=40,
+        checkpoint_resume_context=build_checkpoint_resume_context(
+            run_config=run.config or {},
+            workflow_contract=RESEARCH_PLANNER_RESUME_CONTRACT,
+            show_bible=show_bible or ShowBibleContext(),
+        ),
     )
 
 
@@ -97,14 +133,18 @@ async def build_research_job_agent(
         phase=V2Phase.EDITORIAL_RESEARCH,
         agent_name=f"research_job_agent_{str(job_id)[:48]}",
         schema_model=ResearchWorkflowCompletion,
-        system=RESEARCH_SYSTEM,
+        system=RESEARCH_JOB_SYSTEM,
         prompt=prompt,
         vector_store_id=None,
         local_tools=phase_tools(job_tools, RESEARCH_JOB_TOOL_NAMES),
         tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
         hosted_file_search_handler=hosted_file_search_handler,
-        max_output_tokens=9000,
+        max_output_tokens=semantic_agent_output_limit(),
         max_tool_rounds=80,
+        checkpoint_resume_context=build_checkpoint_resume_context(
+            run_config=run.config or {},
+            workflow_contract=RESEARCH_JOB_RESUME_CONTRACT,
+        ),
     )
 
 
@@ -130,11 +170,16 @@ async def build_research_finalizer_agent(
         phase=V2Phase.EDITORIAL_RESEARCH,
         agent_name=V2AgentName.RESEARCH_FINALIZER,
         schema_model=ResearchWorkflowCompletion,
-        system=RESEARCH_SYSTEM,
+        system=RESEARCH_FINALIZER_SYSTEM,
         prompt=prompt,
         vector_store_id=None,
         local_tools=phase_tools(finalizer_tools, RESEARCH_FINALIZER_TOOL_NAMES),
         tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
-        max_output_tokens=6000,
+        max_output_tokens=semantic_agent_output_limit(),
         max_tool_rounds=24,
+        checkpoint_resume_context=build_checkpoint_resume_context(
+            run_config=run.config or {},
+            workflow_contract=RESEARCH_FINALIZER_RESUME_CONTRACT,
+            show_bible=show_bible or ShowBibleContext(),
+        ),
     )

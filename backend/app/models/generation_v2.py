@@ -36,6 +36,7 @@ class EvidenceRetrievalChannel(StrEnum):
     LOCAL_CHUNK_SEARCH = "local_chunk_search"
     LOCAL_TRANSCRIPT_SEARCH = "local_transcript_search"
     WEB_SNAPSHOT = "web_snapshot"
+    ATTEMPT_LINEAGE = "attempt_lineage"
 
 
 class EvidenceLocatorType(StrEnum):
@@ -73,6 +74,8 @@ class V2ArtifactType(StrEnum):
     SOURCE_MAP = "source_map"
     SOURCE_TRIAGE = "source_triage"
     SOURCE_TRIAGE_WORKSPACE = "source_triage_workspace"
+    CORPUS_BRIEF = "corpus_brief"
+    CORPUS_BRIEF_AUDIT = "corpus_brief_audit"
     CORPUS_GAP_REPORT = "corpus_gap_report"
     SOURCE_ACQUISITION_CANDIDATE = "source_acquisition_candidate"
     SOURCE_ACQUISITION_ROUND = "source_acquisition_round"
@@ -130,6 +133,62 @@ class SourceVersion(Base):
         ForeignKey("source_versions.id"),
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ProjectSourceProfile(Base):
+    __tablename__ = "project_source_profiles"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_version_id",
+            "schema_version",
+            "version",
+            name="uq_project_source_profile_version",
+        ),
+        Index(
+            "uq_project_source_profiles_current",
+            "source_version_id",
+            "schema_version",
+            unique=True,
+            postgresql_where=text("is_current"),
+        ),
+        Index("ix_project_source_profiles_project_source", "project_id", "source_id"),
+        Index("ix_project_source_profiles_fingerprint", "source_fingerprint"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    source_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("sources.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    source_version_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("source_versions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    schema_version: Mapped[str] = mapped_column(String(50), nullable=False, default="source_profile.v1")
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    source_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default=V2RecordStatus.PENDING)
+    provider: Mapped[str | None] = mapped_column(String(50))
+    model: Mapped[str | None] = mapped_column(String(100))
+    prompt_hash: Mapped[str | None] = mapped_column(String(64))
+    supersedes_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("project_source_profiles.id", ondelete="SET NULL"),
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -258,15 +317,13 @@ class EvidenceItem(Base):
         Index("ix_evidence_items_project_source", "project_id", "source_id"),
         Index("ix_evidence_items_source_version", "source_version_id"),
         Index("ix_evidence_items_run_scope", "generation_run_id", "corpus_revision", "attempt"),
-        Index(
-            "ix_evidence_items_dedupe",
+        UniqueConstraint(
             "generation_run_id",
             "corpus_revision",
             "attempt",
             "source_version_id",
             "snippet_hash",
-            "retrieval_channel",
-            "purpose",
+            name="uq_evidence_items_scope_source_snippet",
         ),
     )
 
@@ -314,6 +371,69 @@ class EvidenceItem(Base):
     locator_type: Mapped[str] = mapped_column(String(50), nullable=False, default=EvidenceLocatorType.UNKNOWN)
     evidence_strength: Mapped[str] = mapped_column(String(50), nullable=False, default=EvidenceStrength.WEAK)
     snippet_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    metadata_: Mapped[dict] = mapped_column("metadata", JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class EvidenceRetrievalEvent(Base):
+    __tablename__ = "evidence_retrieval_events"
+    __table_args__ = (
+        Index("ix_evidence_retrieval_events_evidence", "evidence_id"),
+        Index(
+            "ix_evidence_retrieval_events_run_scope",
+            "generation_run_id",
+            "corpus_revision",
+            "attempt",
+        ),
+        Index("ix_evidence_retrieval_events_source_version", "source_version_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    evidence_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("evidence_items.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    generation_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("generation_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    corpus_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    source_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("sources.id"),
+        nullable=False,
+        index=True,
+    )
+    source_version_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("source_versions.id"),
+        nullable=False,
+        index=True,
+    )
+    provider: Mapped[str | None] = mapped_column(String(50))
+    provider_vector_store_id: Mapped[str | None] = mapped_column(String(255))
+    provider_file_id: Mapped[str | None] = mapped_column(String(255))
+    provider_vector_store_file_id: Mapped[str | None] = mapped_column(String(255))
+    response_id: Mapped[str | None] = mapped_column(String(255))
+    tool_call_id: Mapped[str | None] = mapped_column(String(255))
+    retrieval_channel: Mapped[str] = mapped_column(String(50), nullable=False)
+    query_text: Mapped[str | None] = mapped_column(Text)
+    purpose: Mapped[str | None] = mapped_column(Text)
+    search_result_index: Mapped[int | None] = mapped_column(Integer)
+    score: Mapped[float | None] = mapped_column(Float)
+    locator_text: Mapped[str | None] = mapped_column(Text)
+    locator_type: Mapped[str] = mapped_column(String(50), nullable=False, default=EvidenceLocatorType.UNKNOWN)
     metadata_: Mapped[dict] = mapped_column("metadata", JSONB, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -382,6 +502,13 @@ class V2Artifact(Base):
             "artifact_key",
             "version",
             name="uq_v2_artifact_version",
+        ),
+        Index(
+            "ix_v2_artifacts_current",
+            "generation_run_id",
+            "artifact_type",
+            "artifact_key",
+            "is_current",
         ),
         Index("ix_v2_artifacts_run_type", "generation_run_id", "artifact_type"),
         Index("ix_v2_artifacts_run_scope", "generation_run_id", "corpus_revision", "attempt"),

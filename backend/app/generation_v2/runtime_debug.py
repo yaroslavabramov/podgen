@@ -3,6 +3,11 @@ from __future__ import annotations
 from typing import Any
 
 from app.services.llm import _openai_response_model
+from app.generation_v2.runtime_response_status import (
+    response_error,
+    response_incomplete_reason,
+    response_output_statuses,
+)
 
 
 def tool_trace_name(tool: dict[str, Any]) -> str:
@@ -45,6 +50,7 @@ def runtime_debug_payload(
     web_search_calls: list[dict[str, Any]],
     function_calls: list[dict[str, Any]],
     hosted_followup: dict[str, Any] | None,
+    max_output_tokens: int | None = None,
 ) -> dict[str, Any]:
     return {
         "run_id": str(generation_run_id),
@@ -59,10 +65,14 @@ def runtime_debug_payload(
         "tools": [tool_trace_name(tool) for tool in tools],
         "tool_policy": tool_policy_payload(policy),
         "input_payload": input_payload,
+        "max_output_tokens": max_output_tokens,
         "response": {
             "id": getattr(response, "id", None),
             "model": _openai_response_model(response),
             "status": getattr(response, "status", None),
+            "incomplete_reason": response_incomplete_reason(response),
+            "provider_error": response_error(response),
+            "output_item_statuses": response_output_statuses(response),
             "output_text": getattr(response, "output_text", "") or "",
         },
         "usage": usage,

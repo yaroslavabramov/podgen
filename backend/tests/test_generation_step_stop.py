@@ -8,7 +8,7 @@ import pytest
 
 from app.models.generation_run import GenerationStatus
 from app.pipeline.step_control import StepExecutionStopped
-from app.workers.generation_tasks import _run_step_async
+from app.workers.generation_tasks import _run_step_async, _run_v2_step_action
 
 
 class _FakeResult:
@@ -23,6 +23,7 @@ class _FakeWorkerDB:
     def __init__(self, run) -> None:
         self.run = run
         self.commit_calls = 0
+        self.rollback_calls = 0
 
     async def __aenter__(self):
         return self
@@ -35,6 +36,9 @@ class _FakeWorkerDB:
 
     async def commit(self) -> None:
         self.commit_calls += 1
+
+    async def rollback(self) -> None:
+        self.rollback_calls += 1
 
 
 def _step_run(
@@ -232,3 +236,89 @@ async def test_run_step_stop_during_targeted_rerun_reports_selected_target(
     _, event = published[0]
     assert event.type == "generation_paused"
     assert event.data["executed_node"] == "build_claims"
+
+
+@pytest.mark.asyncio
+async def test_run_v2_step_stop_during_source_triage_pauses_on_same_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run = SimpleNamespace(
+        id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        user_id=uuid.uuid4(),
+        status=GenerationStatus.FAILED,
+        config={
+            "generation_mode": "v2",
+            "execution_mode": "step",
+            "language": "ru",
+            "step_control": {
+                "last_action": "next",
+                "last_node": "corpus_prepare",
+                "executed_node": "corpus_prepare",
+                "next_node": "source_triage",
+                "requested_action": None,
+                "requested_target_node": None,
+                "stop_requested": False,
+            },
+        },
+        started_at=None,
+        current_phase="v2_source_triage",
+        current_step="v2_source_triage",
+        completed_at=None,
+        error_message="previous failed attempt",
+    )
+    db = _FakeWorkerDB(run)
+    published = []
+    execute_calls = []
+
+    async def _fake_execute_generation_v2(actual_run, actual_db, *, generate_audio: bool):
+        assert (actual_run, actual_db, generate_audio) == (run, db, True)
+        execute_calls.append("source_triage")
+        config = dict(run.config)
+        step_control = dict(config["step_control"])
+        step_control["stop_requested"] = True
+        step_control["stop_requested_at"] = "2026-07-15T08:10:00"
+        config["step_control"] = step_control
+        run.config = config
+        raise StepExecutionStopped("Step execution stopped by user request.")
+
+    monkeypatch.setattr("app.generation_v2.orchestrator.execute_generation_v2", _fake_execute_generation_v2)
+    monkeypatch.setattr("app.realtime.publisher.publish_event", lambda run_id, event: published.append((run_id, event)))
+    monkeypatch.setattr("app.workers.generation_tasks.push_trace_context", lambda *_args, **_kwargs: nullcontext())
+    monkeypatch.setattr("app.workers.generation_tasks.tracing_scope", lambda *_args, **_kwargs: nullcontext())
+    monkeypatch.setattr("app.workers.generation_tasks.trace_span", lambda *_args, **_kwargs: nullcontext(None))
+    monkeypatch.setattr("app.workers.generation_tasks.safe_set_run", lambda *_args, **_kwargs: None)
+
+    await _run_v2_step_action(
+        db,
+        run,
+        generation_run_id=str(run.id),
+        action="next",
+        requested_target_node="source_triage",
+    )
+
+    step_control = run.config["step_control"]
+    assert execute_calls == ["source_triage"]
+    assert run.status == GenerationStatus.QUEUED
+    assert run.error_message is None
+    assert run.completed_at is None
+    assert run.current_phase == "v2_source_triage"
+    assert run.current_step == "source_triage"
+    assert "v2_stop_after_step" not in run.config
+    assert step_control["last_node"] == "corpus_prepare"
+    assert step_control["executed_node"] == "source_triage"
+    assert step_control["next_node"] == "source_triage"
+    assert step_control["requested_action"] is None
+    assert step_control["stop_requested"] is False
+    assert step_control["stop_requested_at"] is None
+    assert step_control["stop_reason"] == "Step execution stopped by user request."
+    assert db.commit_calls == 2
+    assert db.rollback_calls == 1
+
+    assert len(published) == 1
+    _, event = published[0]
+    assert event.type == "generation_paused"
+    assert event.data["executed_node"] == "source_triage"
+    assert event.data["next_node"] == "source_triage"
+    assert event.data["stopped"] is True
+    assert event.data["reason"] == "Step execution stopped by user request."

@@ -28,8 +28,8 @@ class EditorialResearchResult:
 
 
 def editorial_runtime_values(triage_state: Any) -> dict[str, Any]:
-    corpus, evidence_toolset, evidence_tools, source_map, source_cards, quote_cards, source_triage = triage_runtime_values(
-        triage_state
+    corpus, evidence_toolset, evidence_tools, source_map, source_cards, quote_cards, source_triage = (
+        triage_runtime_values(triage_state)
     )
     return {
         "corpus": corpus,
@@ -42,6 +42,8 @@ def editorial_runtime_values(triage_state: Any) -> dict[str, Any]:
         "source_artifact_ids": triage_state.source_artifact_ids,
         "quote_artifact_ids": triage_state.quote_artifact_ids,
         "source_map_artifact_id": triage_state.source_map_artifact_id,
+        "corpus_brief": triage_state.corpus_brief,
+        "corpus_brief_artifact_id": triage_state.corpus_brief_artifact_id,
         "source_workspace_artifact_ids": triage_state.source_workspace_artifact_ids,
         "run_source_cards": _merge_source_cards(triage_state.source_inventory.source_cards, source_cards),
     }

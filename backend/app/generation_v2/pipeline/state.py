@@ -26,6 +26,10 @@ class TriageState:
     workspace_artifact_id: str | None
     triage_artifact_id: str
     triage_gate_artifact_id: str
+    corpus_brief: object | None = None
+    corpus_brief_artifact_id: str | None = None
+    corpus_brief_audit_artifact_id: str | None = None
+    corpus_brief_shadow_audit_artifact_id: str | None = None
 
     @property
     def source_workspace_artifact_ids(self) -> list[str]:
@@ -37,6 +41,9 @@ class TriageState:
             *([self.workspace_artifact_id] if self.workspace_artifact_id else []),
             self.triage_artifact_id,
             self.triage_gate_artifact_id,
+            *([self.corpus_brief_artifact_id] if self.corpus_brief_artifact_id else []),
+            *([self.corpus_brief_audit_artifact_id] if self.corpus_brief_audit_artifact_id else []),
+            *([self.corpus_brief_shadow_audit_artifact_id] if self.corpus_brief_shadow_audit_artifact_id else []),
         ]
 
 

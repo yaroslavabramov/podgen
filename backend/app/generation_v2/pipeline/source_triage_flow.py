@@ -14,8 +14,19 @@ from app.generation_v2.schemas import (
 )
 from app.models.generation_run import GenerationRun
 
+
 async def _prepare_and_triage(run: GenerationRun, db: AsyncSession, runtime: V2Runtime) -> TriageState:
     return await SourceTriageStageRunner(run, db, runtime).run_stage()
+
+
+async def _triage_prepared_corpus(
+    run: GenerationRun,
+    db: AsyncSession,
+    runtime: V2Runtime,
+    *,
+    corpus,
+) -> TriageState:
+    return await SourceTriageStageRunner(run, db, runtime, prepared_corpus=corpus).run_stage()
 
 
 async def _run_source_acquisition_until_triage_ready(

@@ -26,6 +26,7 @@ from app.generation_v2.tools.evidence_types import (
     _TRIAGE_READING_TOOL_NAMES,
 )
 from app.models.generation_v2 import EvidenceItem, RunCorpusView, V2ToolTrace
+from app.generation_v2.source_triage_canonical import canonical_workspace_violations
 
 
 async def validate_source_map_gate(
@@ -40,6 +41,12 @@ async def validate_source_map_gate(
     from app.generation_v2.source_triage_workspace_state import unresolved_source_refs
 
     scope = scope_for_run_view(run_view)
+    is_v2_workspace = str((triage_workspace or {}).get("schema_version") or "") == "source_triage_workspace.v2"
+    workspace_violations = (
+        canonical_workspace_violations(triage_workspace or {}, require_syntheses=True)
+        if is_v2_workspace
+        else []
+    )
     selected_source_ids = {str(item) for item in run_view.selected_source_ids}
     selected_version_ids = {str(item) for item in run_view.selected_source_version_ids}
     evidence_result = await db.execute(
@@ -69,8 +76,12 @@ async def validate_source_map_gate(
     referenced_source_ids = _source_map_source_ids(source_map)
     referenced_version_ids = _source_map_version_ids(source_map)
     referenced_evidence_ids = set(_source_map_evidence_ids(source_map))
-    invalid_source_ids = sorted(source_id for source_id in referenced_source_ids if source_id not in selected_source_ids)
-    invalid_version_ids = sorted(version_id for version_id in referenced_version_ids if version_id not in selected_version_ids)
+    invalid_source_ids = sorted(
+        source_id for source_id in referenced_source_ids if source_id not in selected_source_ids
+    )
+    invalid_version_ids = sorted(
+        version_id for version_id in referenced_version_ids if version_id not in selected_version_ids
+    )
     invalid_evidence_ids = sorted(
         evidence_id
         for evidence_id in referenced_evidence_ids
@@ -81,14 +92,78 @@ async def validate_source_map_gate(
     )
     ungrounded_relationships = []
     for relation in source_map.source_triage.source_relationships:
-        valid_relation_evidence = [eid for eid in relation.evidence_ids if eid in selected_evidence_ids]
-        if relation.relationship in {"primary_to_secondary", "duplicate", "near_duplicate", "contradicts", "updates"} and not valid_relation_evidence:
-            ungrounded_relationships.append(f"{relation.source_id}:{relation.relationship}:{relation.related_source_id}")
+        relation_source_ids = {relation.source_id, relation.related_source_id}
+        if relation.source_id == relation.related_source_id:
+            ungrounded_relationships.append(
+                f"relationship:self:{relation.source_id}:{relation.relationship}"
+            )
+        invalid_relation_scope = [
+            evidence_id
+            for evidence_id in relation.evidence_ids
+            if evidence_id in evidence_by_id
+            and str(evidence_by_id[evidence_id].source_id) not in relation_source_ids
+        ]
+        if invalid_relation_scope:
+            ungrounded_relationships.append(
+                f"relationship:evidence_scope:{relation.source_id}:{relation.relationship}:{relation.related_source_id}"
+            )
+        valid_relation_evidence = [
+            evidence_id
+            for evidence_id in relation.evidence_ids
+            if evidence_id in selected_evidence_ids
+            and evidence_id in evidence_by_id
+            and str(evidence_by_id[evidence_id].source_id) in relation_source_ids
+        ]
+        if (
+            relation.relationship in {"primary_to_secondary", "duplicate", "near_duplicate", "contradicts", "updates"}
+            and not valid_relation_evidence
+        ):
+            ungrounded_relationships.append(
+                f"{relation.source_id}:{relation.relationship}:{relation.related_source_id}"
+            )
     for cluster in source_map.source_triage.source_clusters:
-        if (cluster.primary_source_ids or cluster.secondary_source_ids or cluster.duplicate_source_ids) and not [
-            eid for eid in cluster.evidence_ids if eid in selected_evidence_ids
-        ]:
+        cluster_source_ids = set(cluster.source_ids)
+        if len(cluster_source_ids) < 2:
+            ungrounded_relationships.append(f"cluster:membership:{cluster.cluster_id}")
+        role_sets = {
+            "primary": set(cluster.primary_source_ids),
+            "secondary": set(cluster.secondary_source_ids),
+            "duplicate": set(cluster.duplicate_source_ids),
+        }
+        if any(role_source_ids - cluster_source_ids for role_source_ids in role_sets.values()):
+            ungrounded_relationships.append(f"cluster:role_scope:{cluster.cluster_id}")
+        if any(
+            left_ids & right_ids
+            for index, left_ids in enumerate(role_sets.values())
+            for right_ids in list(role_sets.values())[index + 1 :]
+        ):
+            ungrounded_relationships.append(f"cluster:role_overlap:{cluster.cluster_id}")
+        invalid_cluster_scope = [
+            evidence_id
+            for evidence_id in cluster.evidence_ids
+            if evidence_id in evidence_by_id
+            and str(evidence_by_id[evidence_id].source_id) not in cluster_source_ids
+        ]
+        if invalid_cluster_scope:
+            ungrounded_relationships.append(f"cluster:evidence_scope:{cluster.cluster_id}")
+        valid_cluster_evidence = [
+            evidence_id
+            for evidence_id in cluster.evidence_ids
+            if evidence_id in selected_evidence_ids
+            and evidence_id in evidence_by_id
+            and str(evidence_by_id[evidence_id].source_id) in cluster_source_ids
+        ]
+        if (cluster.primary_source_ids or cluster.secondary_source_ids or cluster.duplicate_source_ids) and not valid_cluster_evidence:
             ungrounded_relationships.append(f"cluster:{cluster.cluster_id}")
+    for gap in source_map.gap_records:
+        gap_source_ids = set(gap.source_ids)
+        if any(
+            evidence_id in evidence_by_id
+            and str(evidence_by_id[evidence_id].source_id) not in gap_source_ids
+            for evidence_id in gap.evidence_ids
+        ):
+            ungrounded_relationships.append(f"gap:evidence_scope:{gap.gap_id}")
+    ungrounded_relationships = sorted(set(ungrounded_relationships))
     missing_function_evidence = [
         function
         for function, evidence_ids in source_map.source_triage.top_evidence_by_function.items()
@@ -99,7 +174,7 @@ async def validate_source_map_gate(
     warnings = []
     if not source_map.retrieval_notes:
         warnings.append("Triage produced no retrieval notes.")
-    requires_tool_call = len(selected_source_ids) > 1
+    requires_tool_call = len(selected_source_ids) > 1 and not is_v2_workspace
     unselected_quote_evidence = [
         str(quote.evidence_id)
         for quote in source_map.quote_cards
@@ -114,10 +189,16 @@ async def validate_source_map_gate(
         selected_evidence_ids,
         invalid_evidence_ids=set(invalid_evidence_ids),
     )
+    if is_v2_workspace:
+        # V2 records source usability and unreadable/deferred sources explicitly.
+        # A SourceCard is orientation, not a requirement to manufacture evidence.
+        missing_source_card_evidence_source_ids = []
     missing_model_read_source_ids = _missing_model_read_sources(source_map, evidence_by_id, selected_evidence_ids)
     if missing_function_evidence:
         warnings.append("Some triage function seed evidence is missing or incomplete.")
     unpersisted_completion_gap_notes = _unpersisted_completion_gap_notes(triage_completion, source_map)
+    if is_v2_workspace:
+        unpersisted_completion_gap_notes = []
     try:
         write_source_ref_context = build_source_ref_context(await build_source_inventory(db, run_view))
     except Exception:
@@ -127,12 +208,14 @@ async def validate_source_map_gate(
         triage_traces,
         write_source_ref_context,
     )
+    if is_v2_workspace:
+        missing_source_card_write_source_ids = []
     unresolved_refs = unresolved_source_refs(triage_workspace or {}) if triage_workspace is not None else []
     completion_not_ready = triage_completion is not None and not triage_completion.ready
     passed = not (
         (requires_tool_call and tool_call_count == 0)
         or "Triage did not call finalize_source_map." in source_map.gaps
-        or evidence_count == 0
+        or (evidence_count == 0 and not is_v2_workspace)
         or invalid_source_ids
         or invalid_version_ids
         or invalid_evidence_ids
@@ -141,6 +224,7 @@ async def validate_source_map_gate(
         or unpersisted_completion_gap_notes
         or ungrounded_relationships
         or unresolved_refs
+        or workspace_violations
         or completion_not_ready
     )
     summary = "Source triage gate passed." if passed else "Source triage gate failed."
@@ -148,7 +232,7 @@ async def validate_source_map_gate(
         summary += " No triage reading/search tool calls were recorded."
     if "Triage did not call finalize_source_map." in source_map.gaps:
         summary += " Source triage did not finalize the source map."
-    if evidence_count == 0:
+    if evidence_count == 0 and not is_v2_workspace:
         summary += " No valid persisted evidence ids were referenced."
     if missing_source_card_evidence_source_ids:
         summary += " Every SourceCard must contain at least one selected evidence id."
@@ -156,8 +240,12 @@ async def validate_source_map_gate(
         summary += " Source cards must come from accepted upsert_source_card write actions."
     if unpersisted_completion_gap_notes:
         summary += " Triage completion mentions gaps/cautions that were not persisted with record_gap."
+    if ungrounded_relationships:
+        summary += " Source relationships, clusters, or gaps contain invalid structural grounding."
     if unresolved_refs:
         summary += " Every run source must be mapped or explicitly deferred."
+    if workspace_violations:
+        summary += " Canonical source assessments or coverage outcomes are incomplete."
     if completion_not_ready:
         summary += " Source triage workflow did not complete durably."
     return SourceTriageGate(
@@ -177,6 +265,7 @@ async def validate_source_map_gate(
         missing_function_evidence=missing_function_evidence,
         warnings=warnings,
         unresolved_source_refs=unresolved_refs,
+        workspace_violations=workspace_violations,
     )
 
 

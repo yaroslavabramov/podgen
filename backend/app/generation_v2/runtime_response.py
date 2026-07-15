@@ -37,16 +37,34 @@ def function_calls(response: Any) -> list[dict[str, Any]]:
     for item in getattr(response, "output", []) or []:
         if item_get(item, "type") != "function_call":
             continue
-        raw_arguments = item_get(item, "arguments", "{}") or "{}"
-        try:
-            arguments = json.loads(raw_arguments)
-        except json.JSONDecodeError:
-            arguments = {"_raw": raw_arguments}
+        raw_arguments = item_get(item, "arguments", "{}")
+        arguments_valid = True
+        arguments_error = ""
+        if isinstance(raw_arguments, dict):
+            arguments = dict(raw_arguments)
+        elif isinstance(raw_arguments, str):
+            try:
+                arguments = json.loads(raw_arguments or "{}")
+            except json.JSONDecodeError as exc:
+                arguments_valid = False
+                arguments_error = f"invalid function arguments JSON: {exc.msg}"
+                arguments = {}
+            if not isinstance(arguments, dict):
+                arguments_valid = False
+                arguments_error = "function arguments must be a JSON object"
+                arguments = {}
+        else:
+            arguments_valid = False
+            arguments_error = "function arguments must be a JSON object"
+            arguments = {}
         calls.append(
             {
                 "call_id": item_get(item, "call_id", "") or item_get(item, "id", ""),
                 "name": item_get(item, "name", ""),
                 "arguments": arguments,
+                "arguments_valid": arguments_valid,
+                "arguments_error": arguments_error,
+                "status": item_get(item, "status", None),
             }
         )
     return calls

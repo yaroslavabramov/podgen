@@ -7,6 +7,7 @@ from app.generation_v2.tools.evidence_model_read_local_actions import (
     persist_local_model_read_fallback,
     save_empty_local_model_read_trace,
 )
+from app.generation_v2.tools.evidence_utils import _retrieval_channel_for_version, _search_text_windows
 
 
 class EvidenceModelReadLocalMixin:
@@ -23,7 +24,9 @@ class EvidenceModelReadLocalMixin:
         provider_failures: list[dict[str, Any]],
         provider_candidate_count: int,
     ) -> dict[str, Any]:
-        version = await self._resolve_local_fallback_source_version(source_id=source_id, source_version_id=source_version_id)
+        version = await self._resolve_local_fallback_source_version(
+            source_id=source_id, source_version_id=source_version_id
+        )
         if version is None:
             return {
                 "found": False,
@@ -38,7 +41,9 @@ class EvidenceModelReadLocalMixin:
             locator_hint=locator_hint,
             read_surface_id="local_fallback",
         )
-        cached_items = await self._cached_evidence_items(cache_field="model_read_cache_key", cache_key=cache_key, limit=1)
+        cached_items = await self._cached_evidence_items(
+            cache_field="model_read_cache_key", cache_key=cache_key, limit=1
+        )
         if cached_items:
             return await self._cached_local_model_read_response(
                 cached_items[0],
@@ -51,8 +56,32 @@ class EvidenceModelReadLocalMixin:
                 request_cache_key=request_cache_key,
                 provider_failures=provider_failures,
             )
-        locator = locator_hint or claim_text or focus_question
-        snippet, locator_text, locator_type, channel = await self._read_source_window(version, locator=locator, max_chars=3000)
+        snippet = ""
+        locator_text = ""
+        locator_type = "unknown"
+        channel = _retrieval_channel_for_version(version)
+        if locator_hint:
+            snippet, locator_text, locator_type, channel = await self._read_source_window(
+                version,
+                locator=locator_hint,
+                max_chars=3000,
+            )
+        if not snippet.strip():
+            from app.generation_v2.tools import evidence_retrieval
+
+            text = evidence_retrieval._source_version_text(version)
+            allow_timestamps = await self._source_allows_timestamp_locators(version)
+            matches = _search_text_windows(
+                text,
+                query=claim_text or focus_question,
+                max_windows=1,
+                max_chars=3000,
+                allow_timestamps=allow_timestamps,
+            )
+            if matches:
+                snippet = str(matches[0].get("snippet_text") or "")
+                locator_text = str(matches[0].get("locator_text") or "")
+                locator_type = str(matches[0].get("locator_type") or "unknown")
         if not snippet.strip():
             await self._save_empty_local_model_read_trace(
                 version=version,
@@ -132,7 +161,6 @@ class EvidenceModelReadLocalMixin:
             provider_candidate_count=provider_candidate_count,
             provider_failures=provider_failures,
         )
-
 
 
 __all__ = ["EvidenceModelReadLocalMixin"]

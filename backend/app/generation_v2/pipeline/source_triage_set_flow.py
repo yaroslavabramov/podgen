@@ -48,12 +48,18 @@ async def run_source_triage_set(
     )
     current_set = next((item for item in workspace.get("source_sets") or [] if item.get("set_id") == set_id), source_set)
     allowed_refs = {str(ref) for ref in current_set.get("source_refs") or [] if str(ref).strip()}
+    repair_write_refs = (
+        {str(ref) for ref in current_set.get("repair_source_refs") or [] if str(ref).strip()}
+        if current_set.get("repair_targeted")
+        else None
+    )
     scoped_toolset = EvidenceToolset(
         db=db,
         run=run,
         run_view=corpus.run_view,
         provider_index=corpus.provider_index,
         triage_allowed_source_refs=allowed_refs,
+        triage_write_allowed_source_refs=repair_write_refs,
         triage_current_set_id=set_id,
     )
     set_tools = [

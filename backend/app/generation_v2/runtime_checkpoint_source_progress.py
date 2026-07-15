@@ -110,13 +110,29 @@ async def source_triage_progress(
         }
         for note in source_map.retrieval_notes[:6]
     ]
+    structured_gap_keys = {
+        " ".join(str(item.description).split()).casefold() for item in source_map.gap_records
+    }
+    legacy_gap_count = len(
+        {
+            " ".join(str(item).split()).casefold()
+            for item in [
+                *source_map.gaps,
+                *source_map.source_triage.gaps,
+                *source_map.contradictions,
+                *source_map.source_triage.contradictions,
+            ]
+            if str(item).strip()
+            and " ".join(str(item).split()).casefold() not in structured_gap_keys
+        }
+    )
     return {
         "source_map": {
             "source_card_count": len(source_map.source_cards),
             "quote_card_count": len(source_map.quote_cards),
             "cluster_count": len(source_map.source_triage.source_clusters),
             "relationship_count": len(source_map.source_triage.source_relationships),
-            "gap_count": len(source_map.gaps),
+            "gap_count": len(source_map.gap_records) + legacy_gap_count,
             "mapped_source_refs": mapped_source_refs[:CHECKPOINT_STATE_ID_LIMIT],
             "cluster_source_refs": cluster_source_refs[:CHECKPOINT_STATE_ID_LIMIT],
             "relationship_source_refs": relationship_source_refs[:CHECKPOINT_STATE_ID_LIMIT],

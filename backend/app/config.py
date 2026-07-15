@@ -62,6 +62,10 @@ class Settings(BaseSettings):
     generation_v2_model_read_model: str = "gpt-5.4-mini"
     generation_v2_corpus_prepare_model: str = "gpt-5.4-mini"
     generation_v2_openai_reasoning_effort: str = "medium"
+    # Optional per-response cost cap for semantic V2 agents. None delegates
+    # the output window to the selected model; incomplete responses continue
+    # in the same chain instead of becoming malformed agent output.
+    generation_v2_semantic_agent_max_output_tokens: int | None = None
     generation_v2_enable_provider_uploads: bool = True
     generation_v2_enable_openai_url_read: bool = False
     generation_v2_enable_openai_url_recovery: bool = False

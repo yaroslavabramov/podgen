@@ -8,9 +8,9 @@ from app.models.source import Source
 
 def readable_version_priority(kind: str) -> int:
     order = {
-        SourceRepresentationKind.PAGE_MARKED_TEXT: 0,
-        SourceRepresentationKind.EXTRACTED_TEXT: 1,
-        SourceRepresentationKind.TRANSCRIPT: 1,
+        SourceRepresentationKind.EXTRACTED_TEXT: 0,
+        SourceRepresentationKind.TRANSCRIPT: 0,
+        SourceRepresentationKind.PAGE_MARKED_TEXT: 2,
         SourceRepresentationKind.RENDERED_SNAPSHOT: 2,
         SourceRepresentationKind.FETCHED_HTML: 3,
         SourceRepresentationKind.ORIGINAL_FILE: 10,
@@ -52,7 +52,7 @@ def provider_status(statuses: list[str]) -> str:
 def neutral_preview(source: Source, versions: list[SourceVersion]) -> str:
     preview = (source.text_preview or "").strip()
     if preview:
-        return preview[:700]
+        return preview
     version_labels = ", ".join(f"{version.kind}:{version.status}" for version in versions[:6])
     return f"Neutral source metadata only. Available versions: {version_labels or 'none'}."
 

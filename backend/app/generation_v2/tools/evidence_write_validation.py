@@ -33,6 +33,8 @@ SOURCE_MAP_WRITE_TEXT_LIMITS: dict[str, dict[str, int]] = {
     },
     "record_source_cluster": {"label": 500, "rationale": 5_000},
     "record_gap": {"kind": 120, "description": 7_000},
+    "resolve_gap": {"gap_ref": 32, "basis_ref": 256, "reason": 3_000},
+    "resolve_source_map_repair": {"repair_ref": 32, "reason": 3_000},
     "finalize_source_map": {"summary": 7_000},
 }
 
@@ -54,6 +56,7 @@ SOURCE_MAP_WRITE_LIST_LIMITS: dict[str, dict[str, tuple[int, int]]] = {
     "record_gap": {
         "source_refs": (80, 128),
         "source_ids": (80, 128),
+        "question_ids": (80, 128),
         "evidence_ids": (40, 128),
     },
 }

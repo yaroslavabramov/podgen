@@ -18,8 +18,10 @@ class EvidenceToolset(EvidenceToolSpecsMixin, EvidenceToolHandlersMixin, Evidenc
     run_view: RunCorpusView
     provider_index: ProviderCorpusIndex | None
     triage_allowed_source_refs: set[str] | None = None
+    triage_write_allowed_source_refs: set[str] | None = None
     triage_current_set_id: str | None = None
     research_allowed_source_refs: set[str] | None = None
+    research_allow_broad_search: bool = False
     research_current_job_id: str | None = None
 
 

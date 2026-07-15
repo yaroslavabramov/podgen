@@ -33,7 +33,9 @@ def source_inventory(
             "version_count": len(card.source_version_ids or card.representation_ids or []),
             "ready_version_count": card.ready_representation_count,
             "failed_version_count": card.failed_representation_count,
-            "representation_summary": trim(card.representation_summary, 180),
+            "representation_summary_preview": trim(card.representation_summary, 180),
+            "representation_summary_chars": len(card.representation_summary),
+            "representation_summary_truncated": len(card.representation_summary) > 180,
             "useful_for": card.useful_for[:8],
             "evidence_ids": card.evidence_ids[:8],
             "brief_hint": trim(card.summary, 420),
@@ -135,11 +137,8 @@ def dedupe_strings(values) -> list[str]:
 
 
 def quote_matches_requirements(quote: QuoteCard, refs: set[str]) -> bool:
-    return bool(
-        (quote.evidence_id and quote.evidence_id in refs)
-        or quote_ref(quote) in refs
-        or quote.locator in refs
-    )
+    return bool((quote.evidence_id and quote.evidence_id in refs) or quote_ref(quote) in refs or quote.locator in refs)
+
 
 __all__ = [
     "evidence_inventory",

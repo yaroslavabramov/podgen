@@ -46,6 +46,8 @@ async def build_and_validate_research_memo(
         source_cards=values["source_cards"],
         quote_cards=values["quote_cards"],
         source_map=values["source_map"],
+        corpus_brief=values.get("corpus_brief"),
+        corpus_brief_artifact_id=values.get("corpus_brief_artifact_id"),
         source_inventory=source_inventory,
         evidence_tools=values["evidence_tools"],
         evidence_toolset=values["evidence_toolset"],

@@ -3,11 +3,15 @@ from __future__ import annotations
 import uuid
 from collections.abc import Awaitable, Callable
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.generation_v2.agents.editorial import build_source_acquisition_agent
 from app.generation_v2.artifacts import save_artifact
+from app.generation_v2.corpus_brief_actions import (
+    triage_state_acquisition_requests,
+    triage_state_ready_for_research,
+)
 from app.generation_v2.contracts.pipeline import V2Phase
 from app.generation_v2.pipeline.state import TriageState
 from app.generation_v2.pipeline.status import start_phase
@@ -56,6 +60,16 @@ async def run_source_acquisition_until_triage_ready(
     treatment_gate: EpisodeCritique | None = None,
 ) -> tuple[TriageState, int]:
     if not acquisition_enabled(run):
+        _raise_if_explicit_acquisition_remains(
+            triage_state,
+            reason="source acquisition is disabled for this run",
+        )
+        return triage_state, acquisition_rounds_used
+    if remaining_acquisition_rounds(acquisition_rounds_used) <= 0:
+        _raise_if_explicit_acquisition_remains(
+            triage_state,
+            reason="the source-acquisition repair budget is exhausted",
+        )
         return triage_state, acquisition_rounds_used
     rounds = []
     while remaining_acquisition_rounds(acquisition_rounds_used) > 0:
@@ -68,6 +82,7 @@ async def run_source_acquisition_until_triage_ready(
             triage_completion_summary=triage_state.triage_completion.summary,
             triage_ready=triage_state.triage_completion.ready,
             triage_gate=triage_state.triage_gate,
+            corpus_brief=getattr(triage_state, "corpus_brief", None),
             research_audit=research_audit,
             treatment_gate=treatment_gate,
         )
@@ -139,16 +154,62 @@ async def run_source_acquisition_until_triage_ready(
             status=V2ArtifactStatus.PASSED if report.total_accepted else V2ArtifactStatus.FAILED,
             input_artifact_ids=[str(gap_artifact.id), str(round_artifact.id)],
         )
+        _attach_acquired_sources_to_explicit_selection(
+            run,
+            round_payload.ingested_source_ids,
+        )
         await db.commit()
         if round_payload.accepted_count <= 0:
             break
         triage_state = await prepare_and_triage(run, db, runtime)
-        if triage_state.triage_completion.ready and triage_state.triage_gate.passed:
+        if triage_state_ready_for_research(triage_state):
             break
+    _raise_if_explicit_acquisition_remains(
+        triage_state,
+        reason="the source-acquisition round did not resolve the requested CorpusBrief action",
+    )
     return triage_state, acquisition_rounds_used
 
 
+def _raise_if_explicit_acquisition_remains(
+    triage_state: TriageState,
+    *,
+    reason: str,
+) -> None:
+    requests = triage_state_acquisition_requests(triage_state)
+    if not requests:
+        return
+    questions = "; ".join(f"{item.question_id}: {item.question}" for item in requests)
+    raise RuntimeError(
+        "V2 CorpusBrief still requires source acquisition before research, but "
+        f"{reason}. Pending questions: {questions}"
+    )
+
+
+def _attach_acquired_sources_to_explicit_selection(
+    run: GenerationRun,
+    acquired_source_ids: list[str],
+) -> None:
+    """Keep an explicitly pinned run selection open only for its own repairs.
+
+    Runs without ``source_ids`` intentionally follow all ready project sources.
+    Runs with an explicit selection would otherwise promote an acquired source
+    successfully and then omit it from the replacement corpus revision.
+    """
+    config = dict(run.config or {})
+    if "source_ids" not in config:
+        return
+    selected = [str(value) for value in config.get("source_ids") or [] if str(value).strip()]
+    for source_id in acquired_source_ids:
+        value = str(source_id).strip()
+        if value and value not in selected:
+            selected.append(value)
+    config["source_ids"] = selected
+    run.config = config
+
+
 __all__ = [
+    "_attach_acquired_sources_to_explicit_selection",
     "persisted_source_acquisition_rounds_used",
     "run_source_acquisition_until_triage_ready",
 ]

@@ -1,5 +1,6 @@
-from types import SimpleNamespace
 from copy import deepcopy
+import json
+from types import SimpleNamespace
 import uuid
 
 import pytest
@@ -13,11 +14,16 @@ from app.generation_v2.schemas import (
     EditorialAtom,
     ResearchAudit,
     ResearchMemo,
+    QuoteCard,
     ShowBibleContext,
+    SourceAssessment,
     SourceCard,
+    SourceGapRecord,
     SourceMap,
     Treatment,
     TreatmentAct,
+    TreatmentAtomAnchor,
+    TreatmentAtomDisposition,
     TreatmentPlan,
     TreatmentPlanAct,
 )
@@ -68,7 +74,31 @@ def _valid_act(number: int) -> TreatmentAct:
         required_atom_refs=["A01"],
         required_quote_refs=["quote-1"],
         required_evidence_ids=["evidence-1"],
+        episode_supported_answer="Supported answer.",
+        atom_anchors=[
+            TreatmentAtomAnchor(
+                atom_ref="A01",
+                kind="mechanism",
+                title="Mechanism",
+                claim="The central assertion.",
+                story_value="This gives the episode a concrete turn.",
+                story_weight="core",
+            )
+        ],
         source_density_target=1,
+    )
+
+
+def _valid_treatment(*, acts: list[TreatmentAct] | None = None) -> Treatment:
+    return Treatment(
+        title="Episode",
+        logline="A grounded plan.",
+        host_dynamic="A leads; B tests.",
+        supported_answer="Supported answer.",
+        acts=acts if acts is not None else [_valid_act(1), _valid_act(2), _valid_act(3)],
+        core_atom_dispositions=[
+            TreatmentAtomDisposition(atom_ref="A01", disposition="used", act_number=1)
+        ],
     )
 
 
@@ -115,6 +145,9 @@ def test_treatment_conversion_carries_atom_quote_refs() -> None:
                 source_density_target=1,
             )
         ],
+        core_atom_dispositions=[
+            TreatmentAtomDisposition(atom_ref="A01", disposition="used", act_number=1)
+        ],
     )
 
     treatment = treatment_from_plan(
@@ -126,6 +159,10 @@ def test_treatment_conversion_carries_atom_quote_refs() -> None:
 
     assert treatment.acts[0].required_quote_refs == ["quote-1"]
     assert treatment.acts[0].required_evidence_ids == ["evidence-1"]
+    assert treatment.supported_answer == memo.thesis
+    assert treatment.acts[0].episode_supported_answer == memo.thesis
+    assert treatment.acts[0].atom_anchors[0].claim == memo.editorial_atoms[0].claim
+    assert treatment.core_atom_dispositions[0].atom_ref == "A01"
 
 
 def test_treatment_conversion_does_not_hide_unknown_source_handle() -> None:
@@ -192,13 +229,22 @@ def test_thirty_minute_treatment_rejects_mechanically_empty_acts() -> None:
     assert any("lacks required editorial atom anchors" in issue for issue in gate.weak_sections)
 
 
-def test_thirty_minute_treatment_accepts_valid_structural_contract() -> None:
+def test_treatment_rejects_empty_act_list() -> None:
     treatment = Treatment(
         title="Episode",
         logline="A grounded plan.",
         host_dynamic="A leads; B tests.",
-        acts=[_valid_act(1), _valid_act(2), _valid_act(3)],
+        acts=[],
     )
+
+    gate = validate_treatment(treatment, [_source()], 1800, research_memo=_memo())
+
+    assert gate.passed is False
+    assert "Treatment must contain at least one act." in gate.weak_sections
+
+
+def test_thirty_minute_treatment_accepts_valid_structural_contract() -> None:
+    treatment = _valid_treatment()
 
     gate = validate_treatment(treatment, [_source()], 1800, research_memo=_memo())
 
@@ -209,12 +255,7 @@ def test_treatment_rejects_refs_not_owned_by_selected_atom() -> None:
     act = _valid_act(1).model_copy(
         update={"required_evidence_ids": ["other-evidence"], "required_quote_refs": ["other-quote"]}
     )
-    treatment = Treatment(
-        title="Episode",
-        logline="A grounded plan.",
-        host_dynamic="A leads; B tests.",
-        acts=[act, _valid_act(2), _valid_act(3)],
-    )
+    treatment = _valid_treatment(acts=[act, _valid_act(2), _valid_act(3)])
 
     gate = validate_treatment(treatment, [_source()], 1800, research_memo=_memo())
 
@@ -224,12 +265,7 @@ def test_treatment_rejects_refs_not_owned_by_selected_atom() -> None:
 
 
 def test_treatment_rejects_stale_quote_ref_even_when_atom_owns_it() -> None:
-    treatment = Treatment(
-        title="Episode",
-        logline="A grounded plan.",
-        host_dynamic="A leads; B tests.",
-        acts=[_valid_act(1), _valid_act(2), _valid_act(3)],
-    )
+    treatment = _valid_treatment()
 
     gate = validate_treatment(
         treatment,
@@ -268,11 +304,175 @@ def test_treatment_model_input_keeps_full_validated_research_and_repair_fields()
     assert "untrusted data" in TREATMENT_SYSTEM
 
 
+def test_treatment_model_input_exposes_selected_quote_without_backend_ids() -> None:
+    source_id = str(uuid.uuid4())
+    source_version_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    research_evidence_id = str(uuid.uuid4())
+    source = _source(source_id)
+    source.source_version_ids = [source_version_id]
+    memo = ResearchMemo(
+        title="Memo",
+        thesis="Supported answer.",
+        research_synthesis="Internal digest.",
+        editorial_atoms=[
+            EditorialAtom(
+                kind="mechanism",
+                title="Mechanism",
+                claim="The mechanism changed.",
+                explanation="The evidence explains the mechanism.",
+                source_ids=[source_id],
+                quote_refs=[evidence_id, research_evidence_id],
+                evidence_ids=[evidence_id, research_evidence_id],
+                story_value="This provides the turn.",
+                story_weight="core",
+            )
+        ],
+    )
+    payload = treatment_input(
+        run=SimpleNamespace(config={"user_prompt": "Topic", "duration_target": 1800, "language": "en"}),
+        research_memo=memo,
+        source_map=SourceMap(
+            quote_cards=[
+                QuoteCard(
+                    source_id=source_id,
+                    source_version_id=source_version_id,
+                    evidence_id=evidence_id,
+                    quote="The mechanism changed in 2024.",
+                    locator=f"[source_id={source_id} page_marker=4 paragraph=2] section {source_version_id}",
+                    narrative_use=f"Use {evidence_id} for the central turn.",
+                )
+            ]
+        ),
+        source_inventory=SourceMap(source_cards=[source]),
+        research_audit=None,
+        act_count_range=(3, 4),
+        evidence_records=[
+            {
+                "id": evidence_id,
+                "source_id": source_id,
+                "source_version_id": source_version_id,
+                "snippet_text": "The mechanism changed in 2024.",
+                "locator_text": "section 4",
+                "metadata": {},
+            },
+            {
+                "id": research_evidence_id,
+                "source_id": source_id,
+                "source_version_id": source_version_id,
+                "snippet_text": "A second exact line with context.",
+                "locator_text": f"[source_id={source_id} page_marker=5 paragraph=1] section 5",
+                "metadata": {"quote_text": "A second exact line."},
+            },
+        ],
+    )
+
+    assert payload["research_atoms"][0]["selected_quote_refs"] == ["Q01", "Q02"]
+    assert payload["selected_quotes"][0]["quote_ref"] == "Q01"
+    assert payload["selected_quotes"][0]["exact_quote"] == "The mechanism changed in 2024."
+    assert payload["selected_quotes"][1]["quote_ref"] == "Q02"
+    assert payload["selected_quotes"][1]["exact_quote"] == "A second exact line."
+    serialized = json.dumps(payload)
+    assert source_id not in serialized
+    assert source_version_id not in serialized
+    assert evidence_id not in serialized
+    assert research_evidence_id not in serialized
+    assert "page_marker" not in serialized
+
+
+def test_treatment_model_input_keeps_complete_semantic_handoff_without_reader() -> None:
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    long_quote = "Exact source wording " * 180
+    long_thesis = "Supported answer detail " * 90
+    long_source_summary = "Source role detail " * 160
+    source_coverage = [
+        "Ready: the central mechanism is supported.",
+        "Partial: " + "bounded detail " * 50,
+        "Deferred gap: the downstream impact could not be established.",
+    ]
+    source = _source(source_id)
+    source.summary = long_source_summary
+    memo = ResearchMemo(
+        title="Memo",
+        thesis=long_thesis,
+        research_synthesis="Internal digest.",
+        source_coverage=source_coverage,
+        editorial_atoms=[
+            EditorialAtom(
+                kind="mechanism",
+                title="Mechanism",
+                claim="The mechanism changed.",
+                explanation="The evidence explains the mechanism.",
+                source_ids=[source_id],
+                quote_refs=[evidence_id],
+                evidence_ids=[evidence_id],
+                story_value="This provides the turn.",
+                story_weight="core",
+            )
+        ],
+    )
+
+    payload = treatment_input(
+        run=SimpleNamespace(config={"user_prompt": "Topic", "duration_target": 1800, "language": "en"}),
+        research_memo=memo,
+        source_map=SourceMap(
+            quote_cards=[
+                QuoteCard(
+                    source_id=source_id,
+                    evidence_id=evidence_id,
+                    quote=long_quote,
+                    locator="section 4",
+                    narrative_use="Central turn.",
+                )
+            ]
+        ),
+        source_inventory=SourceMap(source_cards=[source]),
+        research_audit=None,
+        act_count_range=(3, 4),
+    )
+
+    assert payload["episode_brief"]["supported_answer"] == long_thesis
+    assert "supported_answer_preview" not in payload["episode_brief"]
+    assert payload["selected_quotes"][0]["exact_quote"] == long_quote
+    assert "exact_quote_preview" not in payload["selected_quotes"][0]
+    assert payload["source_context"][0]["role_hint"] == long_source_summary
+    assert "role_hint_preview" not in payload["source_context"][0]
+    assert payload["source_coverage"] == source_coverage
+    assert "source_coverage_previews" not in payload
+
+
+def test_treatment_source_coverage_replaces_only_known_internal_evidence_ids() -> None:
+    job_only_evidence_id = str(uuid.uuid4())
+    source_material_uuid = str(uuid.uuid4())
+    coverage = (
+        f"Deferred evidence {job_only_evidence_id} remains unresolved; "
+        f"the source itself prints identifier {source_material_uuid}."
+    )
+    memo = _memo().model_copy(update={"source_coverage": [coverage]})
+
+    payload = treatment_input(
+        run=SimpleNamespace(config={"user_prompt": "Topic", "duration_target": 1800, "language": "en"}),
+        research_memo=memo,
+        source_map=SourceMap(),
+        source_inventory=SourceMap(source_cards=[_source()]),
+        research_audit=None,
+        act_count_range=(3, 4),
+        evidence_records=[{"id": job_only_evidence_id}],
+    )
+
+    rendered = payload["source_coverage"][0]
+    assert job_only_evidence_id not in rendered
+    assert "Deferred evidence E001 remains unresolved" in rendered
+    assert source_material_uuid in rendered
+
+
 def test_treatment_model_input_keeps_every_caution_and_constraint() -> None:
-    source = _source()
-    source.gaps_or_cautions = [
-        f"Caution {index}: this source has a specific limitation treatment must preserve."
-        for index in range(15)
+    inventory_source = _source()
+    inventory_source.gaps_or_cautions = ["Provider indexing is incomplete."]
+    editorial_source = _source()
+    editorial_source.gaps_or_cautions = [
+        f"Caution {index}: this source has a specific limitation treatment must preserve." for index in range(15)
     ]
     memo = _memo().model_copy(
         update={
@@ -283,8 +483,8 @@ def test_treatment_model_input_keeps_every_caution_and_constraint() -> None:
     payload = treatment_input(
         run=SimpleNamespace(config={"user_prompt": "Topic", "duration_target": 1800, "language": "en"}),
         research_memo=memo,
-        source_map=SourceMap(source_cards=[source]),
-        source_inventory=SourceMap(source_cards=[source]),
+        source_map=SourceMap(source_cards=[editorial_source]),
+        source_inventory=SourceMap(source_cards=[inventory_source]),
         research_audit=None,
         act_count_range=(3, 4),
     )
@@ -294,6 +494,256 @@ def test_treatment_model_input_keeps_every_caution_and_constraint() -> None:
     assert len(payload["audit_constraints"]) == 36
     assert payload["audit_constraints"][34].startswith("Risk 34:")
     assert payload["audit_constraints"][-1] == "Open question: One bounded question remains unresolved."
+
+
+def test_treatment_uses_structured_gap_lineage_without_prose_source_refs() -> None:
+    source = _source()
+    unrelated_source = _source("source-2")
+    payload = treatment_input(
+        run=SimpleNamespace(config={"user_prompt": "Topic", "duration_target": 1800, "language": "en"}),
+        research_memo=_memo(),
+        source_map=SourceMap(
+            source_cards=[source],
+            gaps=["The institutional accounts still conflict."],
+            gap_records=[
+                SourceGapRecord(
+                    gap_id="gap:scoped",
+                    kind="contradiction",
+                    description="The institutional accounts still conflict.",
+                    source_ids=[source.source_id],
+                ),
+                SourceGapRecord(
+                    gap_id="gap:global",
+                    kind="gap",
+                    description="No selected source establishes the downstream impact.",
+                ),
+                SourceGapRecord(
+                    gap_id="gap:unrelated",
+                    kind="caution",
+                    description="An unrelated source has a separate limitation.",
+                    source_ids=[unrelated_source.source_id],
+                ),
+            ],
+        ),
+        source_inventory=SourceMap(source_cards=[source, unrelated_source]),
+        research_audit=None,
+        act_count_range=(3, 4),
+    )
+
+    assert payload["source_cautions"] == [
+        {
+            "category": "corpus_contradiction",
+            "source_refs": ["S01"],
+            "note": "The institutional accounts still conflict.",
+        },
+        {
+            "category": "corpus_gap",
+            "source_refs": [],
+            "note": "No selected source establishes the downstream impact.",
+        },
+    ]
+
+
+def test_treatment_input_does_not_turn_positive_audit_verdict_into_story_material() -> None:
+    payload = treatment_input(
+        run=SimpleNamespace(config={"user_prompt": "Topic", "duration_target": 1800, "language": "en"}),
+        research_memo=_memo(),
+        source_map=SourceMap(),
+        source_inventory=SourceMap(source_cards=[_source()]),
+        research_audit=ResearchAudit(
+            passed=True,
+            score=1.0,
+            verdict="All checks passed; no constraints remain.",
+        ),
+        act_count_range=(3, 4),
+    )
+
+    assert payload["audit_constraints"] == []
+    assert "All checks passed" not in json.dumps(payload)
+
+
+def test_treatment_model_input_filters_inventory_noise_but_keeps_editorial_limitations() -> None:
+    inventory_source = _source()
+    inventory_source.gaps_or_cautions = ["OCR errors likely.", "Provider indexing is incomplete."]
+    editorial_source = _source()
+    editorial_source.gaps_or_cautions = ["OCR errors likely.", "Quote carefully."]
+
+    payload = treatment_input(
+        run=SimpleNamespace(config={"user_prompt": "Topic", "duration_target": 1800, "language": "en"}),
+        research_memo=_memo(),
+        source_map=SourceMap(
+            source_cards=[editorial_source],
+            source_assessments=[
+                SourceAssessment(
+                    assessment_id="assessment-1",
+                    source_id="source-1",
+                    representation_status="partial",
+                    representation_reason="Tables require the native document view.",
+                    limitations=["The publication date is not independently corroborated."],
+                )
+            ],
+        ),
+        source_inventory=SourceMap(source_cards=[inventory_source]),
+        research_audit=None,
+        act_count_range=(3, 4),
+    )
+
+    assert [item["note"] for item in payload["source_cautions"]] == [
+        "Quote carefully.",
+        "The publication date is not independently corroborated.",
+        "Tables require the native document view.",
+    ]
+
+
+def test_treatment_model_input_does_not_drop_short_semantic_atom_caution() -> None:
+    memo = _memo()
+    memo.editorial_atoms[0].risk = "Timing remains uncertain."
+
+    payload = treatment_input(
+        run=SimpleNamespace(config={"user_prompt": "Topic", "duration_target": 1800, "language": "en"}),
+        research_memo=memo,
+        source_map=SourceMap(),
+        source_inventory=SourceMap(source_cards=[_source()]),
+        research_audit=None,
+        act_count_range=(3, 4),
+    )
+
+    assert payload["research_atoms"][0]["caution"] == "Timing remains uncertain."
+
+
+def test_treatment_allows_an_explicit_core_omission_with_reason() -> None:
+    memo = _memo().model_copy(
+        update={
+            "editorial_atoms": [
+                _memo().editorial_atoms[0],
+                EditorialAtom(
+                    kind="context",
+                    title="Necessary context",
+                    claim="The context establishes the baseline.",
+                    explanation="The context establishes the baseline.",
+                    source_ids=["source-1"],
+                    evidence_ids=["evidence-2"],
+                    story_value="The listener needs this baseline.",
+                    story_weight="supporting",
+                    source_coverage_status="ready",
+                ),
+            ]
+        }
+    )
+    act = TreatmentAct(
+        act_number=1,
+        title="Context",
+        story_role="context",
+        opening_question="What is the baseline?",
+        main_turn="The baseline becomes clear.",
+        ending_turn="The mechanism remains outside this episode's scope.",
+        source_focus=["source-1"],
+        target_minutes=30,
+        required_atom_refs=["A02"],
+        required_evidence_ids=["evidence-2"],
+        episode_supported_answer=memo.thesis,
+        atom_anchors=[
+            TreatmentAtomAnchor(
+                atom_ref="A02",
+                kind="context",
+                title="Necessary context",
+                claim="The context establishes the baseline.",
+                story_value="The listener needs this baseline.",
+                story_weight="supporting",
+            )
+        ],
+        source_density_target=1,
+    )
+    treatment = Treatment(
+        title="Episode",
+        logline="A grounded plan.",
+        host_dynamic="A leads; B tests.",
+        supported_answer=memo.thesis,
+        acts=[act],
+        core_atom_dispositions=[
+            TreatmentAtomDisposition(
+                atom_ref="A01",
+                disposition="omitted",
+                reason="The mechanism needs a second independent source before it can carry an act.",
+            )
+        ],
+    )
+
+    gate = validate_treatment(treatment, [_source()], 1800, research_memo=memo)
+
+    assert gate.passed is True
+
+
+def test_treatment_rejects_a_core_atom_marked_omitted_but_used() -> None:
+    treatment = _valid_treatment().model_copy(
+        update={
+            "core_atom_dispositions": [
+                TreatmentAtomDisposition(
+                    atom_ref="A01",
+                    disposition="omitted",
+                    reason="No place in the episode.",
+                )
+            ]
+        }
+    )
+
+    gate = validate_treatment(treatment, [_source()], 1800, research_memo=_memo())
+
+    assert gate.passed is False
+    assert any("marked omitted but is used" in issue for issue in gate.weak_sections)
+
+
+def test_treatment_requires_exactly_one_disposition_for_each_core_atom() -> None:
+    missing = _valid_treatment().model_copy(update={"core_atom_dispositions": []})
+    duplicate = _valid_treatment().model_copy(
+        update={
+            "core_atom_dispositions": [
+                TreatmentAtomDisposition(atom_ref="A01", disposition="used", act_number=1),
+                TreatmentAtomDisposition(atom_ref="A01", disposition="used", act_number=2),
+            ]
+        }
+    )
+
+    missing_gate = validate_treatment(missing, [_source()], 1800, research_memo=_memo())
+    duplicate_gate = validate_treatment(duplicate, [_source()], 1800, research_memo=_memo())
+
+    assert any("lack an explicit disposition" in issue for issue in missing_gate.weak_sections)
+    assert any("duplicate dispositions" in issue for issue in duplicate_gate.weak_sections)
+
+
+def test_treatment_rejects_an_act_number_on_an_omitted_core_atom() -> None:
+    treatment = _valid_treatment().model_copy(
+        update={
+            "acts": [],
+            "core_atom_dispositions": [
+                TreatmentAtomDisposition(
+                    atom_ref="A01",
+                    disposition="omitted",
+                    act_number=1,
+                    reason="The core material is deliberately outside this episode.",
+                )
+            ],
+        }
+    )
+
+    gate = validate_treatment(treatment, [_source()], 1800, research_memo=_memo())
+
+    assert any("must not carry an act_number" in issue for issue in gate.weak_sections)
+
+
+def test_treatment_rejects_an_atom_anchor_that_changes_the_research_claim() -> None:
+    fabricated_anchor = _valid_act(1).atom_anchors[0].model_copy(update={"claim": "A different claim."})
+    act = _valid_act(1).model_copy(update={"atom_anchors": [fabricated_anchor]})
+
+    gate = validate_treatment(
+        _valid_treatment(acts=[act]),
+        [_source()],
+        1800,
+        research_memo=_memo(),
+    )
+
+    assert gate.passed is False
+    assert any("does not preserve the research atom" in issue for issue in gate.weak_sections)
 
 
 @pytest.mark.asyncio
@@ -326,12 +776,7 @@ async def test_treatment_mechanical_failure_gets_one_targeted_retry(
             for _ in range(3)
         ],
     )
-    valid = Treatment(
-        title="Episode",
-        logline="A grounded plan.",
-        host_dynamic="A leads; B tests.",
-        acts=[_valid_act(1), _valid_act(2), _valid_act(3)],
-    )
+    valid = _valid_treatment()
     repair_inputs: list[list[str] | None] = []
     gate_saves: list[str] = []
     stored_workspace: dict = {"repair_budget": {}, "repair_operations": {}}
@@ -437,12 +882,7 @@ async def test_treatment_rewrite_resumes_persisted_in_progress_instructions_afte
 
     async def fake_build_treatment(*_args, repair_instructions=None, **_kwargs) -> Treatment:
         repair_inputs.append(repair_instructions)
-        return Treatment(
-            title="Episode",
-            logline="A grounded plan.",
-            host_dynamic="A leads; B tests.",
-            acts=[_valid_act(1), _valid_act(2), _valid_act(3)],
-        )
+        return _valid_treatment()
 
     async def fake_save_treatment(*_args, **_kwargs) -> str:
         return "treatment-resumed"

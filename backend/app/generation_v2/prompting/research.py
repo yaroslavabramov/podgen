@@ -15,25 +15,19 @@ Show Bible context:
 SourceMap summary from triage:
 {source_map_summary_json}
 
-Research workspace:
+Initial durable research workspace snapshot:
 {workspace_json}
 
 Task:
 Create durable investigation jobs that will turn the SourceMap into source-grounded research findings. You are not writing the memo or planning the episode structure yet; you are assigning focused research work that later job agents can actually execute.
 
-Long-form research should cover:
-- central mechanism: how the key system/process works;
-- context/setup: how the situation came to exist and what background matters;
-- change: events, shifts, crises, reforms, reversals, or trajectory changes;
-- tension/driver: tensions, tradeoffs, contradictions, causes, pressures, constraints, or conditions;
-- impact: what changes, costs, benefits, risks, or stakes follow;
-- exceptions/open questions: what remains uncertain, contested, missing, or weakly sourced.
+The persisted CorpusBrief in the workspace is the authoritative handoff from triage. Start from its coverage questions, outcomes, and research_handoff items. Seeded jobs preserve those decisions; refine their scope or add a job only when the brief leaves a concrete unresolved investigation. Do not create generic jobs merely to fill a taxonomy or a target count.
 
 {atom_kind_block}
 
 Use upsert_research_job for each investigation job, then finalize_research_plan.
-Planning is an editorial decision: use SourceMap clusters, relationships, quote cards, gaps, and source cards to choose job scopes. Do not read or search here; this agent only writes the plan.
-If SourceMap pages report next_cursor or a SourceMap semantic field is truncated, use list_research_workspace_items with the matching source_map_cards, source_map_quotes, source_map_clusters, source_map_relationships, or source_map_gaps section before declaring coverage complete. These sections return one full validated item per page. Persisted jobs, job questions/outcomes, research gaps, workspace risks, and audit repair feedback are likewise recoverable through jobs, job_questions, job_question_outcomes, research_gaps, workspace_risks, and audit_feedback.
+Planning is an editorial decision: use CorpusBrief first, then SourceMap clusters, relationships, quote cards, gaps, assessments, and source cards to refine job scopes. Do not read or search here; this agent only writes the plan. Sources marked deferred, unusable, unreadable, or out of scope are cautions/gaps, not active job inputs.
+If CorpusBrief or SourceMap context reports omitted or truncated material, use list_research_workspace_items with corpus_brief_summary, corpus_brief_intent, corpus_brief_cautions, corpus_brief_questions, corpus_brief_outcomes, corpus_brief_handoff, corpus_brief_source_sets, corpus_brief_gap_records, source_map_cards, source_map_assessments, source_map_quotes, source_map_clusters, source_map_relationships, source_map_gaps, or source_map_gap_records. These sections return whole validated items up to the requested limit; follow the returned next_cursor because the output budget may reduce a page. Persisted jobs, job questions/outcomes, research gaps, workspace risks, and audit repair feedback are likewise recoverable through their named sections.
 
 A good job has:
 - one clear research_job label, such as mechanism, context, change, tension_driver, impact, exception_or_gap, or synthesis_gap;
@@ -43,14 +37,16 @@ A good job has:
 - enough scope to compare sources when comparison matters, but not a single mega-job that says "research everything";
 - allow_broad_search=true only when the SourceMap does not identify enough relevant sources, with questions narrow enough for targeted corpus search.
 
-For 45+ minute episodes, normally create multiple jobs covering mechanism, context, change, tension/driver, impact, and unresolved risks. If the SourceMap already marks a group as duplicate, weak, or deferred, make that a lower-priority risk/gap job instead of spending a full investigation job on it.
+Use context, mechanism, change, tension/driver, impact, and exceptions as editorial lenses when the actual topic calls for them, not as mandatory boxes. If the brief marks material missing or deferred, preserve that state instead of pretending it is an active source-backed job.
 
 Mini-examples:
 - Good job: label="Mechanism", story_job="mechanism", source_refs=["S03","S07"], questions=["What process does each source say makes the system work?", "Where do the sources agree or differ?"], required_atom_kinds=["mechanism"], priority="high", allow_broad_search=false.
 - Bad job: label="Research topic", story_job="general", source_refs=[], questions=["Find interesting facts"], required_atom_kinds=[], priority="normal", allow_broad_search=true.
 - Good broad job: label="Missing impact", story_job="impact", source_refs=[], questions=["Search for concrete costs, tradeoffs, downstream effects, or stakes not covered by the mapped sources"], required_atom_kinds=["impact"], priority="normal", allow_broad_search=true.
 
-Return only ResearchWorkflowCompletion JSON after the tools have persisted the plan.""".replace("{atom_kind_block}", ATOM_KIND_PROMPT_BLOCK)
+Successfully calling finalize_research_plan ends this agent immediately. Do not produce a trailing JSON response after that tool is accepted.""".replace(
+    "{atom_kind_block}", ATOM_KIND_PROMPT_BLOCK
+)
 
 
 RESEARCH_JOB_PROMPT = """Run one editorial research investigation job.
@@ -61,7 +57,7 @@ Topic/user prompt:
 Target duration: {duration_minutes} minutes
 Language: {language}
 
-Current job and durable workspace state:
+Initial job and durable workspace snapshot:
 {job_payload_json}
 
 Task:
@@ -74,16 +70,16 @@ What success looks like:
 - If the job stays weak, you preserve the reason as an observation and finish it as deferred.
 
 How to work:
-1. Orient to the current job payload: questions, source_refs, seed source cards/quotes, clusters, relationships, gaps, and existing atom drafts.
+1. Orient to the current job payload: questions, source_refs, CorpusBrief lineage, seed source cards/quotes, clusters, relationships, and gaps. workspace_progress is routing state only; other agents' findings are deliberately not copied into this job. coverage_question_ids and corpus_handoff_id preserve the exact triage assignment. For partial or conflicted CorpusBrief outcomes, follow corpus_brief_lineage.paging_instruction before researching; preserve what triage already established, what remains missing, and the exact conflict instead of restarting the question from scratch.
 2. For named source_refs, start with skim_source or inspect_source when you do not yet understand the source's structure or role. Use search_within_source and read_source_window for targeted support after that.
-3. For broad jobs, start with two to four targeted search_corpus calls using scope=all_sources, then narrow follow-up reads to the source_refs returned by those results.
-4. Use read_evidence for seed evidence_ids or search results that look important. Use read_source_with_model for important PDF/document claims or when local windows are not enough to support a precise atom.
+3. For broad jobs, use targeted search_corpus calls with scope=all_sources, then narrow follow-up reads to relevant returned source_refs. Stop searching when the assigned questions are answered or honestly deferred; do not fill a call quota.
+4. starting_evidence_ids are triage reading leads, not completed research evidence. Call read_evidence for each seed you intend to use; only then may you attach it to an observation or atom. If job.pages.starting_evidence has next_cursor, page current_job_starting_evidence first. Use read_evidence for search results that look important. Use read_source_with_model for important PDF/document claims or when local windows are not enough to support a precise atom.
 5. Use compare_evidence_for_question when multiple job sources need to be weighed together.
 6. After meaningful reading, immediately call record_research_observation or upsert_editorial_atom to persist progress. Use record_research_risk for non-blocking source-quality or uncertainty risks, and record_research_gap for unresolved research gaps.
 7. upsert_editorial_atom is only for substantive findings that later treatment can use as material. The tool validates the refs and attaches included evidence automatically. It is not for source-quality warnings, missing-source notes, weak-corroboration notes, or general cautions.
 8. If a job cannot produce a strong atom, record the reason as an observation or research_gap, then finish it as deferred with a concrete reason.
-9. If job.pages.questions or job.pages.observations has next_cursor, page it with list_research_workspace_items using current_job_questions or current_job_observations.
-   If an existing atom_draft or global observation reports a truncated semantic field, page atom_drafts or observations from cursor 0; those sections return one full validated item at a time.
+9. If job.pages.questions, job.pages.observations, or job.pages.starting_evidence has next_cursor, page it with list_research_workspace_items using current_job_questions, current_job_observations, or current_job_starting_evidence.
+   If an existing atom_draft or global observation reports a truncated semantic field, page atom_drafts or observations from cursor 0; those sections return whole validated items and may reduce a page to stay inside the output budget.
 10. Finish the job with finish_research_job. Include exactly one question_outcome for every planned question, preserving the supplied question text; each outcome must be answered with job evidence_ids or explicitly deferred with a concrete note.
 
 Repair jobs:
@@ -114,7 +110,9 @@ Mini-examples:
 - Good repaired gap: gap_id="gap_timing", category="chronology_detail", severity="blocking", treatment_relevance="central", status="resolved", evidence_ids=["ev_123"], resolution_note="The cited source directly resolves the timing question."
 - Good observation: "S01 and S02 disagree on timing. One is closer to the event, while the other is a later interpretation. Need one more read before turning this into a change atom."
 
-Return only ResearchWorkflowCompletion JSON after the job is finished or explicitly deferred.""".replace("{atom_kind_block}", ATOM_KIND_PROMPT_BLOCK)
+Successfully calling finish_research_job ends this agent immediately. Do not produce a trailing JSON response after that tool is accepted.""".replace(
+    "{atom_kind_block}", ATOM_KIND_PROMPT_BLOCK
+)
 
 
 RESEARCH_FINALIZER_PROMPT = """Finalize the editorial research memo from persisted workspace state.
@@ -128,17 +126,17 @@ Language: {language}
 Show Bible context:
 {show_bible_json}
 
-Durable research workspace:
+Initial durable research workspace snapshot:
 {workspace_json}
 
 Task:
-Review the persisted investigation jobs, observations, atom_drafts, research_gaps, and risks.
-If any workspace or SourceMap page reports next_cursor, use list_research_workspace_items with that section until the material needed for finalization is covered. The jobs, job_questions, job_question_outcomes, research_gaps, workspace_risks, and audit_feedback sections return full persisted semantic fields one item at a time; pass job_id when paging one job's questions or outcomes.
-If any atom_draft or observation reports a truncated semantic field, page atom_drafts or observations from cursor 0 even when the initial page has no next_cursor. Those sections return one full validated item at a time; follow next_cursor through the collection.
+Review the persisted investigation jobs, atom_index, research_gaps, and risks. Observations are available on demand; they are not copied into the initial prompt.
+If any workspace or SourceMap page reports next_cursor, use list_research_workspace_items with that section until the material needed for finalization is covered. The jobs, job_questions, job_question_outcomes, research_gaps, workspace_risks, and audit_feedback sections return whole persisted semantic fields up to the requested limit; always continue from the returned next_cursor and pass job_id when paging one job's questions or outcomes.
+Page atom_index until its next_cursor is empty so every active finding is included in the duplicate scan. If an index entry looks like a duplicate candidate or its preview is insufficient, fetch that exact full item with atom_drafts using the atom number as cursor (A01 -> cursor 0). Page observations only when a specific finding, gap, or risk cannot be understood without them.
 
 Duplicate audit comes first:
-- atom_drafts are raw outputs from separate jobs, so overlaps are expected.
-- Compare every active atom_draft by title, claim/explanation, story_value, kind, source refs, and evidence_count before finalizing.
+- atom_index entries represent raw outputs from separate jobs, so overlaps are expected.
+- Compare every active index entry by title, claim, story value, kind, source refs, and evidence_count. Read full claim/explanation for plausible same-kind duplicates before deciding.
 - Same finding means the atoms answer the same research question or would give treatment the same story beat, even when titles, wording, language, job labels, source refs, or evidence differ.
 - Likely duplicates: one atom restates another with extra source support; one atom is a narrow example of the same bounded exception; one atom repeats the same context/change claim.
 - Not duplicates: same topic but different research function, such as mechanism vs impact, event vs tension, context vs later change, or claim vs unresolved gap.
@@ -148,13 +146,13 @@ Duplicate audit comes first:
 Use record_research_risk for any important contradiction, missing coverage, weak support, or uncertainty that should survive into later planning.
 Use record_research_gap only for structured unresolved research gaps. Mark treatment_relevance="central" for gaps that touch the user prompt's central promise or would become important if treatment gives that topic a full act. Central open/deferred gaps must not be hidden as ordinary risk_register caveats. Mark severity="blocking" only when treatment should not proceed without repair; use severity="non_blocking" or "optional" for caveats that should not block treatment.
 Then call finalize_research_memo with title, thesis, research_synthesis, and source_coverage.
-Do not repeat already recorded risks or research gaps in finalize_research_memo.risk_register. That field is only for a genuinely additional caution that cannot be represented by record_research_risk or record_research_gap; otherwise pass an empty list or omit it.
+Do not repeat already recorded risks or research gaps in finalize_research_memo.risk_register. That field is only for a genuinely additional caution that cannot be represented by record_research_risk or record_research_gap; otherwise pass an empty list. Always supply the field.
 
 The final memo is an internal research digest, not an episode treatment and not the episode's editorial angle. Do not write acts, act numbers, scene order, host moves, logline, or episode outline. The thesis is a short supported_answer: the most compact answer the evidence currently supports, not a chronological recap. research_synthesis is an audit/debug digest of confirmed context, mechanisms, changes, tensions, drivers, impacts, weak claims, and unresolved research gaps; it is not passed to treatment as story structure. Source coverage should say what is well supported, partial, deferred, or risky.
 
-The final ResearchMemo is assembled from persisted atom_drafts. Do not restate all atoms in the final JSON response; the final JSON response is only ResearchWorkflowCompletion.
+The final ResearchMemo is assembled from persisted atom_drafts by the backend; do not restate those atoms after finalization.
 
-Return only ResearchWorkflowCompletion JSON after finalize_research_memo is accepted."""
+Successfully calling finalize_research_memo ends this agent immediately. Do not produce a trailing JSON response after that tool is accepted."""
 
 
 RESEARCH_AUDIT_PROMPT = """Audit the research step before treatment.
@@ -175,26 +173,29 @@ Task:
 Decide whether treatment can safely plan from this research memo. Do not write treatment, acts, outline, script, or new research atoms.
 
 Check:
-- Distinct editorial atoms: enough specific findings, not repeated drafts of the same point.
+- Assigned work: every persisted research question is answered or explicitly deferred, and every CorpusBrief handoff item remains represented by a linked job and outcome.
+- Distinct editorial atoms: persisted findings are specific and do not contain unmerged drafts of the same point.
 - Grounding: important claims have evidence_previews with locators/snippets/source context.
-- Story functions: mechanism, context/setup, change, tension or driver, impact, and real uncertainties for long-form topics.
 - Gaps and risks: blocking gaps should stop treatment; non-blocking cautions should be passed as risks.
-- SourceMap coverage: major clusters are represented by atoms, risks, or explicit deferred reasons.
+- Explicit handoff coverage: sources or questions selected by CorpusBrief are represented by findings, risks, or explicit deferred reasons. Do not invent a requirement to cover every SourceMap cluster.
+
+Do not demand a minimum atom count, a mandatory context/mechanism/change/impact taxonomy, or extra material merely because the target duration is long. Those are editorial lenses, not pass/fail boxes.
 
 Use tools deliberately:
-- For 45+ minute work, read every evidence_preview marked read_priority="required" before passing audit.
+- Read every evidence_preview marked read_priority="required" before passing audit.
 - The backend marks core atom grounding and suspicious previews as required: partial/weak coverage, single-source major claims, or open-question atoms.
 - Read recommended previews when they are likely to anchor treatment or clarify a risk.
 - read_evidence takes evidence_ref values such as E001 from audit_input_json, not backend UUIDs.
+- job_question_outcomes pages expose evidence_refs for the evidence behind each answer. Read every ref listed in required_evidence_refs before accepting that answer as grounded. If an answered outcome has unavailable_evidence_count > 0, treat the missing current-run evidence as a grounding problem.
 - If an atom reports evidence_preview_omitted_count > 0, use list_audit_evidence with its atom_ref and page through the omitted previews before deciding that its grounding is insufficient.
-- If audit_input_json reports omitted records or a truncated memo/workspace field, use list_research_workspace_items with the matching section and continue until next_cursor is empty. memo_atoms returns one full validated atom at a time; list_audit_evidence pages that atom's evidence separately.
+- If audit_input_json reports omitted records or a truncated memo/workspace/CorpusBrief field, use list_research_workspace_items with the matching section and continue from its returned next_cursor until empty. Use jobs, job_questions, job_question_outcomes, corpus_brief_questions, corpus_brief_outcomes, corpus_brief_handoff, and corpus_brief_gap_records for the assigned-work audit; pass job_id when paging one job. Pages return whole records up to the requested limit and may be smaller under the output budget; list_audit_evidence pages atom evidence separately.
 - search_corpus only when the memo likely missed material already present in the corpus.
 - Do not use tools to build new findings; this is an audit.
 
 Issue routing:
 - target_step="research_finalizer": duplicate atoms, stale source-quality atoms, bad memo formatting, risks/gaps placed in the wrong field.
 - target_step="research_audit": audit did not perform required evidence reads.
-- target_step="editorial_research": missing/weak atom, weak grounding, missing SourceMap cluster coverage when corpus likely has relevant material.
+- target_step="editorial_research": an assigned handoff question was lost, a persisted finding is weakly grounded, or existing corpus evidence likely resolves a concrete recorded gap.
 - target_step="source_acquisition": the corpus lacks necessary sources or perspectives.
 - target_step="treatment": non-blocking caution treatment must respect.
 - target_step="none": no repair needed.

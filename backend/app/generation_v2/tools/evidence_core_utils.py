@@ -16,7 +16,8 @@ from app.models.generation_v2 import (
 
 
 def unsupported_model_read_selected_as_support(item: EvidenceItem, *, purpose: str, role: str) -> bool:
-    if item.retrieval_channel != EvidenceRetrievalChannel.MODEL_FILE_READ:
+    retrieval_channel = evidence_origin_retrieval_channel(item)
+    if retrieval_channel != EvidenceRetrievalChannel.MODEL_FILE_READ:
         return False
     metadata = item.metadata_ or {}
     support_level = str(metadata.get("support_level") or "")
@@ -36,6 +37,14 @@ def unsupported_model_read_selected_as_support(item: EvidenceItem, *, purpose: s
     return not bool(purpose_role.intersection(allowed))
 
 
+def evidence_origin_retrieval_channel(item: EvidenceItem) -> str:
+    retrieval_channel = str(getattr(item, "retrieval_channel", "") or "")
+    if retrieval_channel == EvidenceRetrievalChannel.ATTEMPT_LINEAGE:
+        metadata = getattr(item, "metadata_", None) or {}
+        return str(metadata.get("origin_retrieval_channel") or retrieval_channel)
+    return retrieval_channel
+
+
 def quote_text_matches_evidence(quote: str, snippet: str) -> bool:
     normalized_quote = normalize(quote)
     normalized_snippet = normalize(snippet)
@@ -51,9 +60,16 @@ def quote_text_matches_evidence(quote: str, snippet: str) -> bool:
 
 
 def exact_quote_text_matches(quote: str, source_text: str) -> bool:
-    normalized_quote = normalize(quote)
-    normalized_source = normalize(source_text)
-    return bool(normalized_quote and normalized_source and normalized_quote in normalized_source)
+    return exact_quote_source_span(quote, source_text) is not None
+
+
+def exact_quote_source_span(quote: str, source_text: str) -> str | None:
+    """Return the source's actual matching span for a whitespace-tolerant quote."""
+    parts = [part for part in re.split(r"\s+", str(quote or "").strip()) if part]
+    if not parts:
+        return None
+    match = re.search(r"\s+".join(re.escape(part) for part in parts), source_text or "", flags=re.IGNORECASE)
+    return (source_text or "")[match.start() : match.end()] if match is not None else None
 
 
 def hosted_result_file_id(result: dict[str, Any]) -> str | None:
@@ -148,6 +164,8 @@ def normalize(text: str) -> str:
 __all__ = [
     "chunk_version_priority",
     "dedupe",
+    "evidence_origin_retrieval_channel",
+    "exact_quote_source_span",
     "exact_quote_text_matches",
     "hosted_result_file_id",
     "hosted_result_text",

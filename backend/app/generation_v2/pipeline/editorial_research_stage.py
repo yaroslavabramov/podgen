@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.generation_v2.agents.editorial import audit_research_memo, build_treatment
 from app.generation_v2.contracts.pipeline import V2Phase, V2PipelineStep
+from app.generation_v2.corpus_brief_actions import triage_state_ready_for_research
 from app.generation_v2.pipeline.artifact_persistence import (
     save_main_research_audit_artifact,
     save_treatment_artifact,
@@ -412,8 +413,7 @@ class EditorialResearchStageRunner:
         )
         if (
             self.acquisition_rounds_used > previous_round
-            and self.triage_state.triage_completion.ready
-            and self.triage_state.triage_gate.passed
+            and triage_state_ready_for_research(self.triage_state)
         ):
             self.values = editorial_runtime_values(self.triage_state)
             return True

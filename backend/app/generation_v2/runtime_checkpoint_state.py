@@ -11,11 +11,10 @@ from app.generation_v2.artifacts import save_tool_trace
 from app.generation_v2.runtime_checkpoint import compact_checkpoint_value
 from app.generation_v2.runtime_checkpoint_restart import (
     CHECKPOINT_LAST_TOOL_RESULT_LIMIT,
-    CHECKPOINT_TASK_BRIEF_CHARS,
     checkpoint_restart_instructions,
     checkpoint_restart_message,
-    checkpoint_task_brief,
 )
+from app.generation_v2.runtime_contracts import CheckpointResumeContext
 from app.generation_v2.runtime_checkpoint_snapshot import build_agent_checkpoint_state
 from app.generation_v2.runtime_checkpoint_trace import (
     checkpoint_source_inventory,
@@ -61,7 +60,7 @@ def checkpoint_reason(
     input_tokens = int(usage.get("input_tokens") or usage.get("prompt_tokens") or 0)
     if input_tokens >= policy.max_chain_input_tokens:
         return f"input_tokens>={policy.max_chain_input_tokens}"
-    if chain_round >= policy.max_chain_rounds:
+    if policy.max_chain_rounds is not None and policy.max_chain_rounds > 0 and chain_round >= policy.max_chain_rounds:
         return f"chain_rounds>={policy.max_chain_rounds}"
     if chain_model_tool_output_chars >= policy.max_chain_model_tool_output_chars:
         return f"model_tool_output_chars>={policy.max_chain_model_tool_output_chars}"
@@ -74,22 +73,25 @@ async def checkpoint_restart(
     generation_run_id: uuid.UUID,
     phase: str,
     agent_name: str,
-    prompt: str,
+    resume_context: CheckpointResumeContext | None,
     previous_chain_id: str,
     next_checkpoint_index: int,
     reason: str,
     last_tool_results: list[dict[str, Any]],
     prompt_hash: str,
 ) -> tuple[int, str, list[dict[str, Any]]]:
+    if resume_context is None:
+        raise RuntimeError(f"{agent_name} checkpoint restart is missing its immutable resume context")
     state = await build_agent_checkpoint_state(
         db,
         generation_run_id=generation_run_id,
         phase=phase,
         agent_name=agent_name,
     )
+    validate_durable_checkpoint_state(state, phase=phase, agent_name=agent_name)
     next_chain_id = chain_id(phase, agent_name, prompt_hash, next_checkpoint_index)
     message = checkpoint_restart_message(
-        prompt=prompt,
+        resume_context=resume_context,
         reason=reason,
         previous_chain_id=previous_chain_id,
         next_chain_id=next_chain_id,
@@ -130,6 +132,54 @@ async def commit_runtime_side_effects(db: AsyncSession) -> None:
     if inspect.isawaitable(result):
         await result
 
+
+def validate_durable_checkpoint_state(
+    state: dict[str, Any],
+    *,
+    phase: str,
+    agent_name: str,
+) -> None:
+    if not isinstance(state.get("corpus"), dict):
+        raise RuntimeError(f"{agent_name} checkpoint could not load the current corpus state")
+    if phase == "v2_source_triage":
+        workspace = state.get("source_triage_workspace")
+        if not isinstance(workspace, dict):
+            detail = state.get("source_triage_workspace_error")
+            suffix = f": {detail}" if detail else ""
+            raise RuntimeError(f"{agent_name} checkpoint could not load durable triage workspace{suffix}")
+        if agent_name == "source_triage_planner_agent":
+            corpus = state["corpus"]
+            inventory = corpus.get("source_inventory")
+            page = corpus.get("source_inventory_page")
+            if not isinstance(inventory, list) or not isinstance(page, dict):
+                raise RuntimeError(f"{agent_name} checkpoint could not load the complete source inventory")
+            total_count = int(page.get("total_count") or 0)
+            returned_count = int(page.get("returned_count") or 0)
+            if (
+                returned_count != len(inventory)
+                or total_count != int(corpus.get("selected_source_count") or 0)
+                or (returned_count < total_count and not str(page.get("next_cursor") or ""))
+                or (bool(page.get("complete")) != (returned_count == total_count))
+            ):
+                raise RuntimeError(f"{agent_name} checkpoint source inventory page is inconsistent")
+        elif agent_name.startswith("source_triage_set_agent_"):
+            if not isinstance(workspace.get("current_set"), dict):
+                raise RuntimeError(f"{agent_name} checkpoint could not restore the current source set")
+        elif agent_name == "source_triage_finalizer_agent":
+            if not isinstance(state.get("source_map"), dict):
+                raise RuntimeError(f"{agent_name} checkpoint could not load current SourceMap progress")
+        return
+    if phase == "v2_editorial_research":
+        workspace = state.get("research_workspace")
+        if not isinstance(workspace, dict):
+            detail = state.get("research_workspace_error")
+            suffix = f": {detail}" if detail else ""
+            raise RuntimeError(f"{agent_name} checkpoint could not load durable research workspace{suffix}")
+        if agent_name.startswith("research_job_agent_") and not isinstance(
+            workspace.get("current_job_detail"), dict
+        ):
+            raise RuntimeError(f"{agent_name} checkpoint could not restore the current research job")
+
 __all__ = [
     "checkpoint_source_inventory",
     "checkpoint_trim",
@@ -141,8 +191,7 @@ __all__ = [
     "source_triage_progress",
     "build_agent_checkpoint_state",
     "CHECKPOINT_LAST_TOOL_RESULT_LIMIT",
-    "CHECKPOINT_TASK_BRIEF_CHARS",
     "checkpoint_restart_instructions",
     "checkpoint_restart_message",
-    "checkpoint_task_brief",
+    "validate_durable_checkpoint_state",
 ]

@@ -66,17 +66,25 @@ async def guarded_page_goto(page: Any, url: str, *, wait_until: str, timeout: in
     violations: list[str] = []
     allowed_hostname = (urlparse(url).hostname or "").casefold()
 
-    def validate_request_url(request_url: str) -> None:
+    def request_is_same_origin(request_url: str) -> bool:
         validate_public_browser_url(request_url)
         parsed = urlparse(request_url)
-        if parsed.scheme.lower() in _NETWORK_BROWSER_SCHEMES and (parsed.hostname or "").casefold() != allowed_hostname:
-            raise ValueError(f"Rendered browser cross-origin request is blocked: {parsed.hostname or 'missing'}")
+        return parsed.scheme.lower() not in _NETWORK_BROWSER_SCHEMES or (
+            parsed.hostname or ""
+        ).casefold() == allowed_hostname
 
     async def guard_request(route: Any, request: Any) -> None:
         try:
-            validate_request_url(str(request.url))
+            same_origin = request_is_same_origin(str(request.url))
         except ValueError as exc:
             violations.append(str(exc))
+            await route.abort("blockedbyclient")
+            return
+        # Public cross-origin assets are not an SSRF violation, but Chromium is
+        # intentionally pinned to the validated document host. Drop those
+        # requests without turning an otherwise readable page into a failed
+        # source merely because it references a CDN, analytics, or an image.
+        if not same_origin:
             await route.abort("blockedbyclient")
             return
         await route.continue_()
@@ -88,10 +96,13 @@ async def guarded_page_goto(page: Any, url: str, *, wait_until: str, timeout: in
     if hasattr(router, "route_web_socket"):
         async def guard_websocket(websocket: Any) -> None:
             try:
-                validate_request_url(str(websocket.url))
+                same_origin = request_is_same_origin(str(websocket.url))
             except ValueError as exc:
                 violations.append(str(exc))
                 await websocket.close(code=1008, reason="Blocked unsafe destination")
+                return
+            if not same_origin:
+                await websocket.close(code=1008, reason="Blocked cross-origin destination")
                 return
             websocket.connect_to_server()
 
@@ -104,7 +115,12 @@ async def guarded_page_goto(page: Any, url: str, *, wait_until: str, timeout: in
         raise
     if violations:
         raise ValueError(f"Rendered snapshot blocked an unsafe request: {violations[0]}")
-    validate_request_url(str(page.url))
+    final_url = str(page.url)
+    if not request_is_same_origin(final_url):
+        raise ValueError(
+            f"Rendered browser cross-origin redirect is blocked: "
+            f"{urlparse(final_url).hostname or 'missing'}"
+        )
     return response
 
 

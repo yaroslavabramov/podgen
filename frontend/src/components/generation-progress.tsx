@@ -42,14 +42,15 @@ export function GenerationProgress() {
   ];
   const v2Phases = [
     { id: "v2_corpus_prepare", label: "Corpus", icon: "1" },
-    { id: "v2_source_acquisition", label: "Acquisition", icon: "2" },
-    { id: "v2_editorial_research", label: "Editorial Research", icon: "3" },
-    { id: "v2_research_audit", label: "Research Audit", icon: "4" },
-    { id: "v2_treatment", label: "Treatment", icon: "5" },
-    { id: "v2_act_drafting", label: "Act Drafts", icon: "6" },
-    { id: "v2_critique_rewrite", label: "Critique", icon: "7" },
-    { id: "v2_fact_citation", label: "Citations", icon: "8" },
-    { id: "v2_audio", label: t("phaseAudio"), icon: "9" },
+    { id: "v2_source_triage", label: "Source Triage", icon: "2" },
+    { id: "v2_source_acquisition", label: "Acquisition", icon: "3" },
+    { id: "v2_editorial_research", label: "Editorial Research", icon: "4" },
+    { id: "v2_research_audit", label: "Research Audit", icon: "5" },
+    { id: "v2_treatment", label: "Treatment", icon: "6" },
+    { id: "v2_act_drafting", label: "Act Drafts", icon: "7" },
+    { id: "v2_critique_rewrite", label: "Critique", icon: "8" },
+    { id: "v2_fact_citation", label: "Citations", icon: "9" },
+    { id: "v2_audio", label: t("phaseAudio"), icon: "10" },
   ];
   const phases = currentPhase.startsWith("v2_") ? v2Phases : v1Phases;
 

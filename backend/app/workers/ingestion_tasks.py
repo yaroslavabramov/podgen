@@ -598,8 +598,8 @@ async def _sync_v2_corpus_after_ingestion(source, db) -> None:
         )
 
 
-@celery_app.task(name="app.workers.ingestion_tasks.sync_source_to_v2_corpus")
-def sync_source_to_v2_corpus(source_id: str) -> bool:
+@celery_app.task(name="app.workers.ingestion_tasks.sync_source_to_v2_corpus", bind=True, max_retries=5)
+def sync_source_to_v2_corpus(self, source_id: str) -> bool:
     """Native-first V2 corpus preparation for one source.
 
     This uploads stable source versions to the project-level OpenAI corpus index
@@ -607,10 +607,17 @@ def sync_source_to_v2_corpus(source_id: str) -> bool:
     """
     import asyncio
 
-    return asyncio.run(_sync_source_to_v2_corpus_async(source_id))
+    result = asyncio.run(_sync_source_to_v2_corpus_async(source_id))
+    if result is None:
+        try:
+            raise self.retry(countdown=1)
+        except MaxRetriesExceededError:
+            asyncio.run(_mark_source_failed(source_id, "Source not found after V2 corpus-sync retries"))
+            return False
+    return result
 
 
-async def _sync_source_to_v2_corpus_async(source_id: str) -> bool:
+async def _sync_source_to_v2_corpus_async(source_id: str) -> bool | None:
     from sqlalchemy import select
     from app.generation_v2.source_corpus import sync_source_to_project_corpus_now
     from app.models.source import Source
@@ -621,7 +628,10 @@ async def _sync_source_to_v2_corpus_async(source_id: str) -> bool:
         result = await db.execute(select(Source).where(Source.id == source_uuid))
         source = result.scalar_one_or_none()
         if source is None:
-            return False
+            # The API transaction may still be committing. The bound task
+            # retries this state instead of silently losing both native sync
+            # and the deterministic ingest it is responsible for enqueueing.
+            return None
         trace_ctx = {
             "component": "worker.v2_native_source_sync",
             "source_id": str(source.id),

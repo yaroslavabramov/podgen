@@ -19,6 +19,13 @@ async def ensure_source_version(
     metadata: dict[str, Any],
     status: str = V2RecordStatus.READY,
 ) -> SourceVersion:
+    # Version replacement is a read-modify-write operation. Serialize it per
+    # source so duplicate sync workers cannot leave multiple competing current
+    # versions of the same representation kind.
+    get_bind = getattr(db, "get_bind", None)
+    bind = get_bind() if callable(get_bind) else None
+    if getattr(getattr(bind, "dialect", None), "name", None) == "postgresql":
+        await db.execute(select(Source.id).where(Source.id == source.id).with_for_update())
     result = await db.execute(
         select(SourceVersion).where(
             SourceVersion.source_id == source.id,
@@ -47,12 +54,14 @@ async def ensure_source_version(
         upload_status=V2RecordStatus.PENDING,
         status=status,
         metadata_=metadata,
-        supersedes_source_version_id=previous.id if previous else None,
-        is_active=True,
+        supersedes_source_version_id=previous.id if previous and status == V2RecordStatus.READY else None,
+        # A failed materialization is immutable history, not the new current
+        # retrieval surface. Keep the last ready version active for this source.
+        is_active=status == V2RecordStatus.READY,
     )
     db.add(version)
     await db.flush()
-    if previous:
+    if previous and status == V2RecordStatus.READY:
         previous.is_active = False
         version.supersedes_source_version_id = previous.id
         await db.flush()

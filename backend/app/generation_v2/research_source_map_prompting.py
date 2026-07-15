@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from app.generation_v2.research_workspace_helpers import dedupe as _dedupe
+from app.generation_v2.model_facing_pagination import fit_model_page
+from app.generation_v2.model_context_text import model_preview_text
 from app.generation_v2.schemas import SourceMap
-from app.generation_v2.runtime_tool_output import MODEL_TOOL_OUTPUT_MAX_CHARS
 from app.generation_v2.tools.evidence_refs import build_source_ref_context, source_ref_for_id
+from app.generation_v2.tools.evidence_source_map_ids import public_gap_ref
 
 
 def _preview_fields(name: str, value: Any, limit: int) -> dict[str, Any]:
-    text = str(value or "")
+    text = model_preview_text(value, collapse_whitespace=False)
     return {
         f"{name}_preview": text[:limit],
         f"{name}_chars": len(text),
@@ -33,13 +34,16 @@ def _page_metadata(total: int, returned: int, limit: int, *, cursor: int = 0) ->
 def _source_card_payload(card: Any, context: Any, *, include_evidence_ids: bool) -> dict[str, Any]:
     return {
         "source_ref": source_ref_for_id(card.source_id, context),
-        "title": card.title,
+        "title": model_preview_text(card.title, collapse_whitespace=False),
         "domain": card.domain,
+        "authority": card.authority,
+        "coverage_status": card.coverage_status,
+        "coverage_question_ids": card.coverage_question_ids,
+        "editorial_functions": card.editorial_functions,
         "useful_for": card.useful_for,
         **_preview_fields("summary", card.summary, 700),
         "caution_previews": [_preview_fields("text", item, 400) for item in card.gaps_or_cautions],
-        **({"evidence_ids": card.evidence_ids[:8]} if include_evidence_ids and card.evidence_ids else {}),
-        "evidence_id_count": len(card.evidence_ids),
+        **_evidence_page_fields(card.evidence_ids, include_evidence_ids=include_evidence_ids, limit=8),
     }
 
 
@@ -47,8 +51,8 @@ def _quote_card_payload(card: Any, context: Any, *, include_evidence_ids: bool) 
     return {
         "source_ref": source_ref_for_id(card.source_id, context),
         **({"evidence_id": card.evidence_id} if include_evidence_ids and card.evidence_id else {}),
-        "locator": card.locator,
-        "narrative_use": card.narrative_use,
+        "locator": model_preview_text(card.locator, collapse_whitespace=False),
+        "narrative_use": model_preview_text(card.narrative_use, collapse_whitespace=False),
         **_preview_fields("quote", card.quote, 500),
     }
 
@@ -59,13 +63,12 @@ def _cluster_payload(cluster: Any, context: Any, *, include_evidence_ids: bool) 
 
     return {
         "cluster_id": cluster.cluster_id,
-        "label": cluster.label,
+        "label": model_preview_text(cluster.label, collapse_whitespace=False),
         "source_refs": refs(cluster.source_ids),
         "primary_source_refs": refs(cluster.primary_source_ids),
         "secondary_source_refs": refs(cluster.secondary_source_ids),
         "duplicate_source_refs": refs(cluster.duplicate_source_ids),
-        **({"evidence_ids": cluster.evidence_ids[:10]} if include_evidence_ids and cluster.evidence_ids else {}),
-        "evidence_id_count": len(cluster.evidence_ids),
+        **_evidence_page_fields(cluster.evidence_ids, include_evidence_ids=include_evidence_ids, limit=10),
         **_preview_fields("rationale", cluster.rationale, 500),
     }
 
@@ -75,22 +78,58 @@ def _relationship_payload(relationship: Any, context: Any, *, include_evidence_i
         "source_ref": source_ref_for_id(relationship.source_id, context),
         "related_source_ref": source_ref_for_id(relationship.related_source_id, context),
         "relationship": relationship.relationship,
-        **(
-            {"evidence_ids": relationship.evidence_ids[:10]}
-            if include_evidence_ids and relationship.evidence_ids
-            else {}
+        **_evidence_page_fields(
+            relationship.evidence_ids,
+            include_evidence_ids=include_evidence_ids,
+            limit=10,
         ),
-        "evidence_id_count": len(relationship.evidence_ids),
         **_preview_fields("rationale", relationship.rationale, 400),
     }
 
 
-def _evidence_page_fields(values: list[Any], *, include_evidence_ids: bool, limit: int) -> dict[str, Any]:
-    evidence_ids = [str(item) for item in values if str(item).strip()]
+def _gap_record_payload(
+    record: Any,
+    context: Any,
+    *,
+    gap_ref: str,
+    include_evidence_ids: bool,
+) -> dict[str, Any]:
     return {
-        **({"evidence_ids": evidence_ids[:limit]} if include_evidence_ids and evidence_ids else {}),
+        "gap_ref": gap_ref,
+        "kind": record.kind,
+        "source_refs": [source_ref_for_id(source_id, context) for source_id in record.source_ids],
+        "question_ids": list(record.question_ids),
+        **_evidence_page_fields(
+            record.evidence_ids,
+            include_evidence_ids=include_evidence_ids,
+            limit=10,
+        ),
+        **_preview_fields(
+            "description",
+            model_preview_text(
+                record.description,
+                replacements=context.ref_by_source_id,
+                collapse_whitespace=False,
+            ),
+            600,
+        ),
+    }
+
+
+def _evidence_page_fields(
+    values: list[Any],
+    *,
+    include_evidence_ids: bool,
+    limit: int | None,
+) -> dict[str, Any]:
+    evidence_ids = [str(item) for item in values if str(item).strip()]
+    returned_ids = evidence_ids if limit is None else evidence_ids[:limit]
+    return {
+        **({"evidence_ids": returned_ids} if include_evidence_ids and evidence_ids else {}),
         "evidence_id_count": len(evidence_ids),
-        "evidence_id_omitted_count": max(0, len(evidence_ids) - limit) if include_evidence_ids else len(evidence_ids),
+        "evidence_id_omitted_count": (
+            max(0, len(evidence_ids) - len(returned_ids)) if include_evidence_ids else len(evidence_ids)
+        ),
     }
 
 
@@ -111,7 +150,37 @@ def _full_source_card_payload(card: Any, context: Any, *, include_evidence_ids: 
         "ready_representation_count": card.ready_representation_count,
         "failed_representation_count": card.failed_representation_count,
         "coverage_status": card.coverage_status,
-        **_evidence_page_fields(card.evidence_ids, include_evidence_ids=include_evidence_ids, limit=8),
+        "coverage_question_ids": list(card.coverage_question_ids),
+        "editorial_functions": list(card.editorial_functions),
+        **_evidence_page_fields(card.evidence_ids, include_evidence_ids=include_evidence_ids, limit=None),
+    }
+
+
+def _full_assessment_payload(assessment: Any, context: Any, *, include_evidence_ids: bool) -> dict[str, Any]:
+    source_ref = source_ref_for_id(assessment.source_id, context)
+    return {
+        "assessment_ref": f"assessment:{source_ref}",
+        "source_ref": source_ref,
+        "processing_status": assessment.processing_status,
+        "representation_status": assessment.representation_status,
+        "representation_reason": assessment.representation_reason,
+        "relevance": assessment.relevance,
+        "relevance_reason": assessment.relevance_reason,
+        "authority": assessment.authority,
+        "authority_reason": assessment.authority_reason,
+        "uniqueness": assessment.uniqueness,
+        "uniqueness_reason": assessment.uniqueness_reason,
+        "disposition": assessment.disposition,
+        "disposition_reason": assessment.disposition_reason,
+        "coverage_question_ids": list(assessment.coverage_question_ids),
+        "editorial_functions": list(assessment.editorial_functions),
+        "limitations": list(assessment.limitations),
+        "confidence": assessment.confidence,
+        **_evidence_page_fields(
+            assessment.evidence_ids,
+            include_evidence_ids=include_evidence_ids,
+            limit=None,
+        ),
     }
 
 
@@ -141,7 +210,7 @@ def _full_cluster_payload(cluster: Any, context: Any, *, include_evidence_ids: b
         "secondary_source_refs": refs(cluster.secondary_source_ids),
         "duplicate_source_refs": refs(cluster.duplicate_source_ids),
         "rationale": cluster.rationale,
-        **_evidence_page_fields(cluster.evidence_ids, include_evidence_ids=include_evidence_ids, limit=10),
+        **_evidence_page_fields(cluster.evidence_ids, include_evidence_ids=include_evidence_ids, limit=None),
     }
 
 
@@ -151,19 +220,43 @@ def _full_relationship_payload(relationship: Any, context: Any, *, include_evide
         "related_source_ref": source_ref_for_id(relationship.related_source_id, context),
         "relationship": relationship.relationship,
         "rationale": relationship.rationale,
-        **_evidence_page_fields(relationship.evidence_ids, include_evidence_ids=include_evidence_ids, limit=10),
+        **_evidence_page_fields(relationship.evidence_ids, include_evidence_ids=include_evidence_ids, limit=None),
     }
 
 
-def _checked_full_page(payload: dict[str, Any]) -> dict[str, Any]:
-    # Callers add the accepted flag before the runtime contract check.
-    encoded = json.dumps({"accepted": True, **payload}, ensure_ascii=False, default=str)
-    if len(encoded) > MODEL_TOOL_OUTPUT_MAX_CHARS:
-        section = str(payload.get("section") or "source_map")
-        raise ValueError(
-            f"{section} persisted item exceeds the {MODEL_TOOL_OUTPUT_MAX_CHARS}-character model-read contract"
-        )
-    return payload
+def _full_gap_record_payload(
+    record: Any,
+    context: Any,
+    *,
+    gap_ref: str,
+    include_evidence_ids: bool,
+) -> dict[str, Any]:
+    return {
+        "gap_ref": gap_ref,
+        "kind": record.kind,
+        "description": model_preview_text(
+            record.description,
+            replacements=context.ref_by_source_id,
+            collapse_whitespace=False,
+        ),
+        "source_refs": [source_ref_for_id(source_id, context) for source_id in record.source_ids],
+        "question_ids": list(record.question_ids),
+        **_evidence_page_fields(
+            record.evidence_ids,
+            include_evidence_ids=include_evidence_ids,
+            limit=None,
+        ),
+    }
+
+
+def _sanitize_model_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return model_preview_text(value, collapse_whitespace=False)
+    if isinstance(value, list):
+        return [_sanitize_model_value(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _sanitize_model_value(item) for key, item in value.items()}
+    return value
 
 
 def _dedupe_preserving_text(values: list[Any]) -> list[str]:
@@ -189,11 +282,38 @@ def source_map_research_page(
     include_evidence_ids: bool = True,
 ) -> dict[str, Any]:
     context = build_source_ref_context(source_inventory or source_map)
-    all_gaps = _dedupe_preserving_text([*source_map.gaps, *source_map.source_triage.gaps])
+    structured_gap_keys = {
+        " ".join(str(record.description).split()).casefold() for record in source_map.gap_records
+    }
+    all_gaps = _dedupe_preserving_text(
+        [
+            item
+            for item in [
+                *source_map.gaps,
+                *source_map.source_triage.gaps,
+                *source_map.contradictions,
+                *source_map.source_triage.contradictions,
+            ]
+            if " ".join(str(item).split()).casefold() not in structured_gap_keys
+        ]
+    )
+    all_gaps = [
+        model_preview_text(item, replacements=context.ref_by_source_id, collapse_whitespace=False)
+        for item in all_gaps
+    ]
+    gap_ref_by_id = {record.gap_id: public_gap_ref(record.gap_id) for record in source_map.gap_records}
     collections: dict[str, tuple[list[Any], Any]] = {
         "source_map_cards": (
             list(source_map.source_cards),
             lambda item: _full_source_card_payload(item, context, include_evidence_ids=include_evidence_ids),
+        ),
+        "source_map_assessments": (
+            list(source_map.source_assessments),
+            lambda item: _full_assessment_payload(
+                item,
+                context,
+                include_evidence_ids=include_evidence_ids,
+            ),
         ),
         "source_map_quotes": (
             list(source_map.quote_cards),
@@ -208,21 +328,33 @@ def source_map_research_page(
             lambda item: _full_relationship_payload(item, context, include_evidence_ids=include_evidence_ids),
         ),
         "source_map_gaps": (all_gaps, lambda item: {"gap": str(item)}),
+        "source_map_gap_records": (
+            list(source_map.gap_records),
+            lambda item: _full_gap_record_payload(
+                item,
+                context,
+                gap_ref=gap_ref_by_id[item.gap_id],
+                include_evidence_ids=include_evidence_ids,
+            ),
+        ),
     }
     if section not in collections:
         raise ValueError(f"Unknown SourceMap page section: {section}")
     values, serializer = collections[section]
     safe_cursor = max(0, int(cursor))
-    # Full validated items are deliberately one-per-page so the runtime's
-    # model-facing output contract cannot silently cut semantic fields.
-    safe_limit = 1
+    safe_limit = max(1, min(int(limit), 40))
     page_values = values[safe_cursor : safe_cursor + safe_limit]
     items = [serializer(item) for item in page_values]
-    return _checked_full_page({
-        "section": section,
-        "items": items,
-        "page": _page_metadata(len(values), len(items), safe_limit, cursor=safe_cursor),
-    })
+    return fit_model_page(
+        _sanitize_model_value(
+            {
+                "section": section,
+                "items": items,
+                "page": _page_metadata(len(values), len(items), safe_limit, cursor=safe_cursor),
+            }
+        ),
+        requested_limit=safe_limit,
+    )
 
 
 def source_map_research_summary(
@@ -236,11 +368,29 @@ def source_map_research_summary(
     quote_card_limit = 60
     cluster_limit = 40
     relationship_limit = 60
+    assessment_limit = 80
     gap_limit = 40
+    gap_record_limit = 40
 
     source_cards = [
         _source_card_payload(card, context, include_evidence_ids=include_evidence_ids)
         for card in source_map.source_cards[:source_card_limit]
+    ]
+    assessments = [
+        {
+            "source_ref": source_ref_for_id(item.source_id, context),
+            "processing_status": item.processing_status,
+            "representation_status": item.representation_status,
+            "relevance": item.relevance,
+            "authority": item.authority,
+            "uniqueness": item.uniqueness,
+            "disposition": item.disposition,
+            "coverage_question_ids": item.coverage_question_ids,
+            "editorial_functions": item.editorial_functions,
+            "limitation_count": len(item.limitations),
+            "evidence_id_count": len(item.evidence_ids),
+        }
+        for item in source_map.source_assessments[:assessment_limit]
     ]
     quote_cards = [
         _quote_card_payload(card, context, include_evidence_ids=include_evidence_ids)
@@ -254,30 +404,165 @@ def source_map_research_summary(
         _relationship_payload(relationship, context, include_evidence_ids=include_evidence_ids)
         for relationship in source_map.source_triage.source_relationships[:relationship_limit]
     ]
-    all_gaps = _dedupe([*source_map.gaps, *source_map.source_triage.gaps])
+    gap_records = [
+        _gap_record_payload(
+            item,
+            context,
+            gap_ref=public_gap_ref(item.gap_id),
+            include_evidence_ids=include_evidence_ids,
+        )
+        for item in source_map.gap_records[:gap_record_limit]
+    ]
+    structured_gap_keys = {
+        " ".join(str(record.description).split()).casefold() for record in source_map.gap_records
+    }
+    all_gaps = _dedupe(
+        [
+            model_preview_text(item, replacements=context.ref_by_source_id, collapse_whitespace=False)
+            for item in [
+                *source_map.gaps,
+                *source_map.source_triage.gaps,
+                *source_map.contradictions,
+                *source_map.source_triage.contradictions,
+            ]
+            if " ".join(str(item).split()).casefold() not in structured_gap_keys
+        ]
+    )
     gaps = [_preview_fields("gap", item, 500) for item in all_gaps[:gap_limit]]
     return {
         "source_card_count": len(source_map.source_cards),
         "quote_card_count": len(source_map.quote_cards),
+        "source_assessment_count": len(source_map.source_assessments),
         "cluster_count": len(source_map.source_triage.source_clusters),
         "relationship_count": len(source_map.source_triage.source_relationships),
-        "gap_count": len(all_gaps),
+        "gap_count": len(source_map.gap_records) + len(all_gaps),
+        "legacy_gap_count": len(all_gaps),
+        "gap_record_count": len(source_map.gap_records),
         "includes_evidence_ids": include_evidence_ids,
         "source_cards": source_cards,
+        "source_assessments": assessments,
         "quote_cards": quote_cards,
         "clusters": clusters,
         "relationships": relationships,
         "gaps": gaps,
+        "gap_records": gap_records,
         "pages": {
             "source_cards": _page_metadata(len(source_map.source_cards), len(source_cards), source_card_limit),
-            "quote_cards": _page_metadata(len(source_map.quote_cards), len(quote_cards), quote_card_limit),
-            "clusters": _page_metadata(
-                len(source_map.source_triage.source_clusters), len(clusters), cluster_limit
+            "source_assessments": _page_metadata(
+                len(source_map.source_assessments), len(assessments), assessment_limit
             ),
+            "quote_cards": _page_metadata(len(source_map.quote_cards), len(quote_cards), quote_card_limit),
+            "clusters": _page_metadata(len(source_map.source_triage.source_clusters), len(clusters), cluster_limit),
             "relationships": _page_metadata(
                 len(source_map.source_triage.source_relationships), len(relationships), relationship_limit
             ),
             "gaps": _page_metadata(len(all_gaps), len(gaps), gap_limit),
+            "source_map_gap_records": _page_metadata(
+                len(source_map.gap_records), len(gap_records), gap_record_limit
+            ),
+        },
+    }
+
+
+def source_map_planner_summary(
+    source_map: SourceMap,
+    source_inventory: SourceMap | None = None,
+) -> dict[str, Any]:
+    """Compact routing index for the planner; full SourceMap items remain pageable."""
+
+    context = build_source_ref_context(source_inventory or source_map)
+    source_limit = 40
+    assessment_limit = 40
+    cluster_limit = 30
+    relationship_limit = 30
+    gap_limit = 20
+    gap_record_limit = 20
+    cards = list(source_map.source_cards)
+    assessments = list(source_map.source_assessments)
+    clusters = list(source_map.source_triage.source_clusters)
+    relationships = list(source_map.source_triage.source_relationships)
+    gaps = _dedupe_preserving_text(
+        [
+            model_preview_text(item, replacements=context.ref_by_source_id, collapse_whitespace=False)
+            for item in [
+                *source_map.gaps,
+                *source_map.source_triage.gaps,
+                *source_map.contradictions,
+                *source_map.source_triage.contradictions,
+            ]
+            if " ".join(str(item).split()).casefold()
+            not in {
+                " ".join(str(record.description).split()).casefold()
+                for record in source_map.gap_records
+            }
+        ]
+    )
+    return {
+        "source_card_count": len(cards),
+        "source_assessment_count": len(assessments),
+        "quote_card_count": len(source_map.quote_cards),
+        "cluster_count": len(clusters),
+        "relationship_count": len(relationships),
+        "gap_count": len(source_map.gap_records) + len(gaps),
+        "legacy_gap_count": len(gaps),
+        "gap_record_count": len(source_map.gap_records),
+        "source_index": [
+            {
+                "source_ref": source_ref_for_id(item.source_id, context),
+                **_preview_fields("title", item.title, 180),
+                "domain": item.domain,
+                "coverage_status": item.coverage_status,
+                "coverage_question_ids": item.coverage_question_ids,
+                "editorial_functions": item.editorial_functions,
+            }
+            for item in cards[:source_limit]
+        ],
+        "assessment_index": [
+            {
+                "source_ref": source_ref_for_id(item.source_id, context),
+                "processing_status": item.processing_status,
+                "representation_status": item.representation_status,
+                "relevance": item.relevance,
+                "authority": item.authority,
+                "uniqueness": item.uniqueness,
+                "disposition": item.disposition,
+                "coverage_question_ids": item.coverage_question_ids,
+                "editorial_functions": item.editorial_functions,
+                "limitation_count": len(item.limitations),
+            }
+            for item in assessments[:assessment_limit]
+        ],
+        "cluster_index": [
+            compact_cluster_for_prompt(_cluster_payload(item, context, include_evidence_ids=False))
+            for item in clusters[:cluster_limit]
+        ],
+        "relationship_index": [
+            {
+                "source_ref": source_ref_for_id(item.source_id, context),
+                "related_source_ref": source_ref_for_id(item.related_source_id, context),
+                "relationship": item.relationship,
+            }
+            for item in relationships[:relationship_limit]
+        ],
+        "gap_previews": [_preview_fields("gap", item, 260) for item in gaps[:gap_limit]],
+        "pages": {
+            "source_map_cards": _page_metadata(len(cards), min(len(cards), source_limit), source_limit),
+            "source_map_assessments": _page_metadata(
+                len(assessments), min(len(assessments), assessment_limit), assessment_limit
+            ),
+            "source_map_quotes": _page_metadata(len(source_map.quote_cards), 0, 1),
+            "source_map_clusters": _page_metadata(
+                len(clusters), min(len(clusters), cluster_limit), cluster_limit
+            ),
+            "source_map_relationships": _page_metadata(
+                len(relationships), min(len(relationships), relationship_limit), relationship_limit
+            ),
+            "source_map_gaps": _page_metadata(len(gaps), min(len(gaps), gap_limit), gap_limit),
+            "source_map_gap_records": _page_metadata(
+                len(source_map.gap_records),
+                min(len(source_map.gap_records), gap_record_limit),
+                gap_record_limit,
+            ),
         },
     }
 
@@ -287,7 +572,10 @@ def source_map_summary_for_job(source_map_summary: dict[str, Any], job: dict[str
     base = {
         "source_card_count": source_map_summary.get("source_card_count", 0),
         "quote_card_count": source_map_summary.get("quote_card_count", 0),
+        "source_assessment_count": source_map_summary.get("source_assessment_count", 0),
         "gap_count": source_map_summary.get("gap_count", 0),
+        "legacy_gap_count": source_map_summary.get("legacy_gap_count", 0),
+        "gap_record_count": source_map_summary.get("gap_record_count", 0),
         "cluster_count": source_map_summary.get("cluster_count", len(source_map_summary.get("clusters") or [])),
         "relationship_count": source_map_summary.get(
             "relationship_count", len(source_map_summary.get("relationships") or [])
@@ -301,10 +589,12 @@ def source_map_summary_for_job(source_map_summary: dict[str, Any], job: dict[str
         return {
             **base,
             "source_cards": [],
+            "source_assessments": [],
             "quote_cards": [],
             "clusters": [compact_cluster_for_prompt(item) for item in (source_map_summary.get("clusters") or [])[:16]],
             "relationships": [],
             "gaps": (source_map_summary.get("gaps") or [])[:10],
+            "gap_records": (source_map_summary.get("gap_records") or [])[:10],
         }
 
     def has_ref(item: dict[str, Any], keys: list[str]) -> bool:
@@ -320,14 +610,15 @@ def source_map_summary_for_job(source_map_summary: dict[str, Any], job: dict[str
     return {
         **base,
         "source_cards": [
+            item for item in source_map_summary.get("source_cards") or [] if str(item.get("source_ref") or "") in refs
+        ],
+        "source_assessments": [
             item
-            for item in source_map_summary.get("source_cards") or []
+            for item in source_map_summary.get("source_assessments") or []
             if str(item.get("source_ref") or "") in refs
         ],
         "quote_cards": [
-            item
-            for item in source_map_summary.get("quote_cards") or []
-            if str(item.get("source_ref") or "") in refs
+            item for item in source_map_summary.get("quote_cards") or [] if str(item.get("source_ref") or "") in refs
         ],
         "clusters": [
             item
@@ -340,6 +631,11 @@ def source_map_summary_for_job(source_map_summary: dict[str, Any], job: dict[str
             if has_ref(item, ["source_ref", "related_source_ref"])
         ],
         "gaps": (source_map_summary.get("gaps") or [])[:10],
+        "gap_records": [
+            item
+            for item in source_map_summary.get("gap_records") or []
+            if not (item.get("source_refs") or []) or has_ref(item, ["source_refs"])
+        ],
     }
 
 
@@ -356,6 +652,7 @@ def compact_cluster_for_prompt(cluster: dict[str, Any]) -> dict[str, Any]:
 __all__ = [
     "compact_cluster_for_prompt",
     "source_map_research_page",
+    "source_map_planner_summary",
     "source_map_research_summary",
     "source_map_summary_for_job",
 ]

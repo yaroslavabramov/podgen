@@ -28,6 +28,15 @@ from app.models.generation_v2 import SourceVersion
 
 
 class EvidenceScopeMixin:
+    def _scoped_allowed_source_refs(self) -> set[str] | None:
+        triage_refs = getattr(self, "triage_allowed_source_refs", None)
+        if triage_refs is not None:
+            return set(triage_refs)
+        research_refs = getattr(self, "research_allowed_source_refs", None)
+        if research_refs is not None:
+            return set(research_refs)
+        return None
+
     async def _source_ref_context(self) -> SourceRefContext:
         cached = getattr(self, "_source_ref_context_cache", None)
         if cached is not None:
@@ -56,23 +65,25 @@ class EvidenceScopeMixin:
         return _dedupe(resolved), invalid
 
     async def _triage_allowed_source_ids(self) -> set[str] | None:
-        allowed_refs = getattr(self, "triage_allowed_source_refs", None) or getattr(self, "research_allowed_source_refs", None)
-        if not allowed_refs:
+        allowed_refs = self._scoped_allowed_source_refs()
+        if allowed_refs is None:
             return None
         source_ids, _ = await self._source_ids_from_refs_or_ids(sorted(str(item) for item in allowed_refs))
         return set(source_ids)
 
     async def _triage_scope_error_for_refs(self, refs: list[str]) -> dict[str, Any] | None:
-        allowed_refs = getattr(self, "triage_allowed_source_refs", None) or getattr(self, "research_allowed_source_refs", None)
-        if not allowed_refs:
+        allowed_refs = self._scoped_allowed_source_refs()
+        if allowed_refs is None:
             return None
         invalid = [str(ref) for ref in refs if str(ref) not in allowed_refs]
         if not invalid:
             return None
-        is_research = bool(getattr(self, "research_allowed_source_refs", None))
+        is_research = getattr(self, "research_allowed_source_refs", None) is not None
         return {
             "accepted": False,
-            "error": "source_refs_outside_current_research_job" if is_research else "source_refs_outside_current_triage_set",
+            "error": "source_refs_outside_current_research_job"
+            if is_research
+            else "source_refs_outside_current_triage_set",
             "message": (
                 "This research job can only use source_refs from its current investigation job."
                 if is_research
@@ -82,20 +93,32 @@ class EvidenceScopeMixin:
             "allowed_source_refs": sorted(allowed_refs),
         }
 
+    async def _triage_write_scope_error_for_refs(self, refs: list[str]) -> dict[str, Any] | None:
+        repair_refs = getattr(self, "triage_write_allowed_source_refs", None)
+        if repair_refs is None:
+            return await self._triage_scope_error_for_refs(refs)
+        allowed_refs = {str(item) for item in repair_refs}
+        invalid_refs = [str(ref) for ref in refs if str(ref) not in allowed_refs]
+        if refs and not invalid_refs:
+            return None
+        return {
+            "accepted": False,
+            "error": "map_write_outside_targeted_repair_scope",
+            "message": "Targeted repair may write map records only for its explicit repair_source_refs.",
+            "invalid_source_refs": invalid_refs or [str(ref) for ref in refs],
+            "allowed_source_refs": sorted(allowed_refs),
+        }
+
     async def _triage_scope_error_for_source_ids(self, source_ids: list[str]) -> dict[str, Any] | None:
         allowed_ids = await self._triage_allowed_source_ids()
-        if not allowed_ids:
+        if allowed_ids is None:
             return None
         invalid = [str(source_id) for source_id in source_ids if str(source_id) not in allowed_ids]
         if not invalid:
             return None
         context = await self._source_ref_context()
-        invalid_refs = [
-            ref
-            for source_id in invalid
-            if (ref := source_ref_for_id(source_id, context)) != "S??"
-        ]
-        is_research = bool(getattr(self, "research_allowed_source_refs", None))
+        invalid_refs = [ref for source_id in invalid if (ref := source_ref_for_id(source_id, context)) != "S??"]
+        is_research = getattr(self, "research_allowed_source_refs", None) is not None
         return {
             "accepted": False,
             "error": "sources_outside_current_research_job" if is_research else "sources_outside_current_triage_set",
@@ -150,12 +173,13 @@ class EvidenceScopeMixin:
     async def _source_version_id_from_ref(self, version_ref: str) -> str | None:
         return await source_version_id_from_ref(self, version_ref)
 
-    async def _invalid_source_or_version_ref_error(self, *, source_ref: str = "", version_ref: str = "") -> dict[str, Any] | None:
+    async def _invalid_source_or_version_ref_error(
+        self, *, source_ref: str = "", version_ref: str = ""
+    ) -> dict[str, Any] | None:
         return await invalid_source_or_version_ref_error(self, source_ref=source_ref, version_ref=version_ref)
 
     async def _versions_for_source(self, source_id: str) -> list[SourceVersion]:
         return await versions_for_source(self, source_id)
-
 
 
 __all__ = [

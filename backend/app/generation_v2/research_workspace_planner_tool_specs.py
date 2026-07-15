@@ -8,11 +8,14 @@ from app.generation_v2.research_workspace_contracts import (
 )
 from app.generation_v2.research_workspace_tool_spec_types import ToolHandler
 from app.generation_v2.runtime import AgentTool
+from app.generation_v2.schemas import ResearchWorkflowCompletion
 
 
 def research_planner_tools(
     upsert_research_job_handler: ToolHandler,
     finalize_research_plan_handler: ToolHandler,
+    *,
+    terminal_resume_loader=None,
 ) -> list[AgentTool]:
     return [
         AgentTool(
@@ -63,6 +66,13 @@ def research_planner_tools(
                 "required": ["summary"],
             },
             handler=finalize_research_plan_handler,
+            terminal=True,
+            terminal_result_builder=lambda arguments, _output: ResearchWorkflowCompletion(
+                ready=True,
+                summary=str(arguments.get("summary") or "Research plan persisted."),
+                notes=[],
+            ),
+            terminal_resume_loader=terminal_resume_loader,
         ),
     ]
 

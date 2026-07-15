@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.generation_v2.schemas import SourceCard, SourceMap, SourceTriageCompletion
+from app.generation_v2.tools.evidence_core_utils import evidence_origin_retrieval_channel
 from app.generation_v2.tools.evidence_utils import _dedupe
 from app.models.generation_v2 import EvidenceItem, EvidenceRetrievalChannel, EvidenceStrength
 
@@ -82,7 +83,8 @@ def missing_model_read_sources(
         has_model_read = any(
             evidence_id in evidence_by_id
             and evidence_id in selected_evidence_ids
-            and getattr(evidence_by_id[evidence_id], "retrieval_channel", None) == EvidenceRetrievalChannel.MODEL_FILE_READ
+            and evidence_origin_retrieval_channel(evidence_by_id[evidence_id])
+            == EvidenceRetrievalChannel.MODEL_FILE_READ
             and str(evidence_by_id[evidence_id].source_id) == card.source_id
             and evidence_by_id[evidence_id].evidence_strength in {EvidenceStrength.EXACT, EvidenceStrength.SNIPPET}
             for evidence_id in model_read_candidate_ids
@@ -102,7 +104,9 @@ def unpersisted_completion_gap_notes(
     gap_like_notes = [note for note in notes if looks_like_gap_note(note)]
     if not gap_like_notes:
         return []
-    persisted_gaps = [str(gap).strip() for gap in [*source_map.gaps, *source_map.source_triage.gaps] if str(gap).strip()]
+    persisted_gaps = [
+        str(gap).strip() for gap in [*source_map.gaps, *source_map.source_triage.gaps] if str(gap).strip()
+    ]
     if persisted_gaps:
         return []
     return gap_like_notes

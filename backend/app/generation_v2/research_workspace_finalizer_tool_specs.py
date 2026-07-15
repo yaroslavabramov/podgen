@@ -12,6 +12,7 @@ from app.generation_v2.research_workspace_contracts import (
 )
 from app.generation_v2.research_workspace_tool_spec_types import ToolHandler
 from app.generation_v2.runtime import AgentTool
+from app.generation_v2.schemas import ResearchWorkflowCompletion
 
 
 def research_finalizer_tools(
@@ -19,6 +20,8 @@ def research_finalizer_tools(
     record_research_risk_handler: ToolHandler,
     record_research_gap_handler: ToolHandler,
     finalize_research_memo_handler: ToolHandler,
+    *,
+    terminal_resume_loader=None,
 ) -> list[AgentTool]:
     return [
         AgentTool(
@@ -39,7 +42,10 @@ def research_finalizer_tools(
                     "risk": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["risk"]},
                     "source_coverage_status": {"type": "string", "enum": ["ready", "partial", "weak"]},
                     "story_weight": {"type": "string", "enum": sorted(RESEARCH_ATOM_STORY_WEIGHTS)},
-                    "treatment_role_hint": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["treatment_role_hint"]},
+                    "treatment_role_hint": {
+                        "type": "string",
+                        "maxLength": SEMANTIC_FIELD_LIMITS["treatment_role_hint"],
+                    },
                 },
                 "required": ["primary_atom_id", "duplicate_atom_ids"],
             },
@@ -93,7 +99,8 @@ def research_finalizer_tools(
             description=(
                 "Persist internal research digest fields. The backend assembles ResearchMemo atoms and "
                 "structured risks from durable workspace drafts; thesis is a short supported answer, "
-                "research_synthesis is audit/debug context, and risk_register is optional extra cautions only."
+                "research_synthesis is audit/debug context, and risk_register is additional cautions only; "
+                "pass an empty list when there are none."
             ),
             parameters={
                 "type": "object",
@@ -117,9 +124,17 @@ def research_finalizer_tools(
                     "thesis",
                     "research_synthesis",
                     "source_coverage",
+                    "risk_register",
                 ],
             },
             handler=finalize_research_memo_handler,
+            terminal=True,
+            terminal_result_builder=lambda arguments, _output: ResearchWorkflowCompletion(
+                ready=True,
+                summary=str(arguments.get("title") or "Research memo persisted."),
+                notes=[],
+            ),
+            terminal_resume_loader=terminal_resume_loader,
         ),
     ]
 

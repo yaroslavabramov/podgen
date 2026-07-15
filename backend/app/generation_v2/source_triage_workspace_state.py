@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-WORKSPACE_SCHEMA_VERSION = "source_triage_workspace.v1"
+WORKSPACE_SCHEMA_VERSION = "source_triage_workspace.v2"
 
 
 def normalize_workspace(workspace: dict[str, Any]) -> dict[str, Any]:
@@ -12,11 +12,50 @@ def normalize_workspace(workspace: dict[str, Any]) -> dict[str, Any]:
     workspace.setdefault("source_order", [])
     workspace.setdefault("source_capsules", {})
     workspace.setdefault("source_sets", [])
+    workspace.setdefault("coverage_questions", [])
+    workspace.setdefault("source_assessments", [])
+    workspace.setdefault("coverage_outcomes", [])
+    workspace.setdefault("coverage_syntheses", [])
+    workspace.setdefault("triage_semantic_revision", 0)
     workspace.setdefault("processed_sets", [])
     workspace.setdefault("deferred_sources", [])
     workspace.setdefault("mapped_sources", [])
     workspace.setdefault("open_questions", [])
     workspace.setdefault("repair_operation", None)
+    normalized_sets: list[dict[str, Any]] = []
+    for raw_source_set in workspace.get("source_sets") or []:
+        if not isinstance(raw_source_set, dict):
+            continue
+        source_set = dict(raw_source_set)
+        current_question_ids = dedupe(
+            [str(item) for item in source_set.get("question_ids") or []]
+        )
+        stored_cross_ids = dedupe(
+            [str(item) for item in source_set.get("cross_question_ids") or []]
+        )
+        if "planned_question_ids" in source_set:
+            planned_question_ids = dedupe(
+                [str(item) for item in source_set.get("planned_question_ids") or []]
+            )
+        else:
+            # Older V2 sets predate explicit provenance for question links.
+            # A stored cross list is authoritative; otherwise preserve all
+            # existing links as planner-owned for compatibility.
+            planned_question_ids = [
+                question_id
+                for question_id in current_question_ids
+                if question_id not in set(stored_cross_ids)
+            ]
+        cross_question_ids = [
+            question_id
+            for question_id in current_question_ids
+            if question_id not in set(planned_question_ids)
+        ]
+        source_set["planned_question_ids"] = planned_question_ids
+        source_set["cross_question_ids"] = cross_question_ids
+        source_set["question_ids"] = dedupe([*planned_question_ids, *cross_question_ids])
+        normalized_sets.append(source_set)
+    workspace["source_sets"] = normalized_sets
     return workspace
 
 
@@ -52,6 +91,14 @@ def dedupe(values: list[str]) -> list[str]:
     return result
 
 
+def invalidate_coverage_syntheses(workspace: dict[str, Any]) -> None:
+    """Invalidate question synthesis whenever one of its durable inputs changes."""
+
+    workspace["triage_semantic_revision"] = int(workspace.get("triage_semantic_revision") or 0) + 1
+    workspace["coverage_syntheses"] = []
+    workspace.pop("source_map_finalization", None)
+
+
 def merge_deferred(existing: list[dict[str, Any]], new_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     by_ref = {str(item.get("source_ref")): dict(item) for item in existing if item.get("source_ref")}
     for item in new_items:
@@ -77,7 +124,7 @@ def parse_dt(value: Any) -> datetime | None:
 
 
 def source_set_covered_refs(source_set: dict[str, Any]) -> list[str]:
-    refs: list[str] = []
+    refs: list[str] = [str(ref) for ref in source_set.get("assessment_source_refs") or []]
     for item in [*(source_set.get("observations") or []), *(source_set.get("written_actions") or [])]:
         if isinstance(item, dict):
             refs.extend(str(ref) for ref in item.get("source_refs") or [])

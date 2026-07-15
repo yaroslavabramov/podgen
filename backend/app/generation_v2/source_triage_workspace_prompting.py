@@ -2,19 +2,269 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.generation_v2.model_context_text import (
+    is_generic_window_locator,
+    model_preview_text,
+    stable_unique_texts,
+)
+from app.generation_v2.schemas import SourceMap
 from app.generation_v2.source_triage_workspace_state import (
     normalize_workspace as _normalize_workspace,
     source_set_has_unresolved_refs as _source_set_has_unresolved_refs,
     workspace_set as _workspace_set,
 )
+from app.generation_v2.tools.evidence_refs import build_source_ref_context, source_ref_for_id
+
+
+PLANNER_CATALOG_TITLE_CHARS = 140
+PLANNER_CATALOG_SUMMARY_CHARS = 180
+PLANNER_CATALOG_CAUTION_CHARS = 140
+PLANNER_CATALOG_CAUTION_LIMIT = 1
+PLANNER_CATALOG_DOMAIN_CHARS = 120
+_MISSING_PUBLICATION_DATE_WARNINGS = {
+    "publication date is missing.",
+    "published date is missing.",
+}
 
 
 def _preview_fields(name: str, value: Any, limit: int) -> dict[str, Any]:
-    text = str(value or "")
+    text = model_preview_text(value, collapse_whitespace=False)
     return {
         f"{name}_preview": text[:limit],
         f"{name}_chars": len(text),
         f"{name}_truncated": len(text) > limit,
+    }
+
+
+def _checkpoint_intent_payload(workspace: dict[str, Any]) -> dict[str, Any]:
+    intent = workspace.get("intent") or {}
+    return {
+        "language": model_preview_text(intent.get("language"))[:40] or None,
+        "duration_seconds": int(intent.get("duration_seconds") or 0),
+        **_preview_fields("user_prompt", intent.get("user_prompt") or "", 800),
+    }
+
+
+def planner_resume_payload(workspace: dict[str, Any]) -> dict[str, Any]:
+    """Describe accepted planner writes and the next valid transition.
+
+    This is deliberately derived from the canonical workspace instead of the
+    previous model conversation. It therefore remains correct after both a
+    Responses-chain checkpoint and a worker restart.
+    """
+
+    workspace = _normalize_workspace(workspace)
+    source_order = [str(item) for item in workspace.get("source_order") or []]
+    questions = [item for item in workspace.get("coverage_questions") or [] if isinstance(item, dict)]
+    source_sets = [item for item in workspace.get("source_sets") or [] if isinstance(item, dict)]
+    known_question_ids = {
+        str(item.get("question_id") or "") for item in questions if str(item.get("question_id") or "")
+    }
+    assignment_counts = {
+        source_ref: sum(source_ref in (source_set.get("source_refs") or []) for source_set in source_sets)
+        for source_ref in source_order
+    }
+    assigned_question_ids = {
+        str(question_id)
+        for source_set in source_sets
+        for question_id in source_set.get("question_ids") or []
+        if str(question_id)
+    }
+    missing_source_refs = [source_ref for source_ref, count in assignment_counts.items() if count == 0]
+    duplicate_source_refs = [source_ref for source_ref, count in assignment_counts.items() if count > 1]
+    unassigned_question_ids = sorted(known_question_ids - assigned_question_ids)
+    unknown_question_ids = sorted(assigned_question_ids - known_question_ids)
+    source_set_ids_without_questions = [
+        str(item.get("set_id") or "") for item in source_sets if not (item.get("question_ids") or [])
+    ]
+    next_action = _planner_next_action(
+        status=str(workspace.get("status") or ""),
+        question_ids=sorted(known_question_ids),
+        source_set_count=len(source_sets),
+        missing_source_refs=missing_source_refs,
+        duplicate_source_refs=duplicate_source_refs,
+        unassigned_question_ids=unassigned_question_ids,
+        unknown_question_ids=unknown_question_ids,
+        source_set_ids_without_questions=source_set_ids_without_questions,
+    )
+    return {
+        "accepted_writes_are_authoritative": True,
+        "accepted_coverage_questions": [
+            {
+                "question_id": item.get("question_id"),
+                **_preview_fields("question", item.get("question") or "", 280),
+                "kind": item.get("kind"),
+                "importance": item.get("importance"),
+                **_preview_fields("rationale", item.get("rationale") or "", 400),
+                "parent_question_id": item.get("parent_question_id"),
+            }
+            for item in questions
+        ],
+        "accepted_coverage_question_count": len(questions),
+        "accepted_source_sets": [
+            {
+                "set_id": item.get("set_id"),
+                **_preview_fields("label", item.get("label") or "", 180),
+                "source_refs": [str(ref) for ref in item.get("source_refs") or []],
+                "question_ids": [str(question_id) for question_id in item.get("question_ids") or []],
+                "status": item.get("status"),
+            }
+            for item in source_sets
+        ],
+        "accepted_source_set_count": len(source_sets),
+        "assigned_source_ref_count": sum(count > 0 for count in assignment_counts.values()),
+        "missing_source_refs": missing_source_refs,
+        "duplicate_source_refs": duplicate_source_refs,
+        "unassigned_question_ids": unassigned_question_ids,
+        "unknown_question_ids": unknown_question_ids,
+        "source_set_ids_without_questions": source_set_ids_without_questions,
+        "ready_to_finalize": bool(
+            questions
+            and source_sets
+            and not missing_source_refs
+            and not duplicate_source_refs
+            and not unassigned_question_ids
+            and not unknown_question_ids
+            and not source_set_ids_without_questions
+        ),
+        "next_action": next_action,
+    }
+
+
+def _planner_next_action(
+    *,
+    status: str,
+    question_ids: list[str],
+    source_set_count: int,
+    missing_source_refs: list[str],
+    duplicate_source_refs: list[str],
+    unassigned_question_ids: list[str],
+    unknown_question_ids: list[str],
+    source_set_ids_without_questions: list[str],
+) -> dict[str, Any]:
+    if status == "planned":
+        return {
+            "tool_name": "finalize_triage_workspace_plan",
+            "reason": "The durable plan is already complete; the terminal resume loader should return it.",
+        }
+    if not question_ids:
+        return {
+            "tool_name": "upsert_coverage_question",
+            "reason": "No coverage question has been accepted yet.",
+        }
+    if duplicate_source_refs or unknown_question_ids or source_set_ids_without_questions:
+        return {
+            "tool_name": "upsert_triage_source_set",
+            "reason": "Repair the concrete invalid assignments without recreating accepted questions.",
+            "duplicate_source_refs": duplicate_source_refs,
+            "unknown_question_ids": unknown_question_ids,
+            "source_set_ids_without_questions": source_set_ids_without_questions,
+        }
+    if missing_source_refs:
+        return {
+            "tool_name": "upsert_triage_source_set",
+            "reason": "Continue source assignment using the accepted question IDs.",
+            "source_refs_to_assign": missing_source_refs,
+            "accepted_question_ids": question_ids,
+            "existing_source_set_count": source_set_count,
+        }
+    if unassigned_question_ids:
+        return {
+            "tool_name": "upsert_triage_source_set",
+            "reason": "Attach the remaining accepted questions to an appropriate existing or new source set.",
+            "question_ids_to_assign": unassigned_question_ids,
+        }
+    return {
+        "tool_name": "finalize_triage_workspace_plan",
+        "reason": "Every source and accepted question has exactly the required assignment.",
+    }
+
+
+def _stored_preview_fields(
+    name: str,
+    value: Any,
+    *,
+    chars: Any,
+    truncated: Any,
+    limit: int,
+) -> dict[str, Any]:
+    text = model_preview_text(value, collapse_whitespace=False)
+    original_chars = int(chars or len(text))
+    return {
+        f"{name}_preview": text[:limit],
+        f"{name}_chars": original_chars,
+        f"{name}_truncated": bool(truncated) or original_chars > len(text[:limit]),
+    }
+
+
+def planner_source_catalog(inventory: SourceMap) -> dict[str, Any]:
+    """Return one bounded orientation row for every source in the run."""
+
+    context = build_source_ref_context(inventory)
+    sources: list[dict[str, Any]] = []
+    source_refs_by_metadata_flag: dict[str, list[str]] = {}
+    for card in inventory.source_cards:
+        source_ref = source_ref_for_id(card.source_id, context)
+        replacements = {
+            internal_id: source_ref
+            for internal_id in [
+                str(card.source_id),
+                *(str(item) for item in (card.source_version_ids or [])),
+                *(str(item) for item in (card.representation_ids or [])),
+                str(card.source_profile_id or ""),
+            ]
+            if internal_id
+        }
+        title = model_preview_text(card.title, replacements=replacements)
+        domain = model_preview_text(card.domain, replacements=replacements)
+        summary = model_preview_text(card.summary, replacements=replacements)
+        cautions = stable_unique_texts(
+            model_preview_text(item, replacements=replacements)
+            for item in card.gaps_or_cautions
+        )
+        metadata_flags = [
+            "missing_publication_date"
+            for item in cautions
+            if item.casefold() in _MISSING_PUBLICATION_DATE_WARNINGS
+        ]
+        for flag in stable_unique_texts(metadata_flags):
+            source_refs_by_metadata_flag.setdefault(flag, []).append(source_ref)
+        content_cautions = [
+            item
+            for item in cautions
+            if item.casefold() not in _MISSING_PUBLICATION_DATE_WARNINGS
+            and not is_generic_window_locator(item)
+        ]
+        caution_previews = [
+            {
+                "preview": item[:PLANNER_CATALOG_CAUTION_CHARS],
+                "omitted_chars": max(0, len(item) - PLANNER_CATALOG_CAUTION_CHARS),
+            }
+            for item in content_cautions[:PLANNER_CATALOG_CAUTION_LIMIT]
+        ]
+        sources.append(
+            {
+                "source_ref": source_ref,
+                "title_preview": title[:PLANNER_CATALOG_TITLE_CHARS],
+                "title_omitted_chars": max(0, len(title) - PLANNER_CATALOG_TITLE_CHARS),
+                "domain": domain[:PLANNER_CATALOG_DOMAIN_CHARS],
+                "domain_omitted_chars": max(0, len(domain) - PLANNER_CATALOG_DOMAIN_CHARS),
+                "source_type": model_preview_text(card.source_type)[:40],
+                "published_at": model_preview_text(card.published_at)[:40] or None,
+                "coverage_status": model_preview_text(card.coverage_status)[:40],
+                "summary_preview": summary[:PLANNER_CATALOG_SUMMARY_CHARS],
+                "summary_omitted_chars": max(0, len(summary) - PLANNER_CATALOG_SUMMARY_CHARS),
+                "caution_previews": caution_previews,
+                "caution_omitted_count": max(0, len(content_cautions) - len(caution_previews)),
+            }
+        )
+    return {
+        "schema_version": "source_triage_planner_catalog.v1",
+        "complete_source_list": True,
+        "source_count": len(sources),
+        "preview_contract": "A positive omitted_chars value means that preview is partial.",
+        "source_refs_by_metadata_flag": source_refs_by_metadata_flag,
+        "sources": sources,
     }
 
 
@@ -28,8 +278,7 @@ def _observation_previews(source_set: dict[str, Any], *, limit: int = 12) -> lis
             "evidence_omitted_count": max(0, len(item.get("evidence_ids") or []) - 8),
             **_preview_fields("note", item.get("note") or "", 500),
             "pending_question_previews": [
-                _preview_fields("text", question, 220)
-                for question in (item.get("pending_questions") or [])[:8]
+                _preview_fields("text", question, 220) for question in (item.get("pending_questions") or [])[:8]
             ],
             "pending_question_count": len(item.get("pending_questions") or []),
         }
@@ -54,32 +303,102 @@ def _written_action_previews(source_set: dict[str, Any], *, limit: int = 16) -> 
 
 def _capsule_prompt_preview(capsule: dict[str, Any]) -> dict[str, Any]:
     outline = list(capsule.get("outline") or [])
+    outline_item_chars = list(capsule.get("outline_item_chars") or [])
     windows = [item for item in capsule.get("windows") or [] if isinstance(item, dict)]
     warnings = list(capsule.get("readability_warnings") or [])
+    warning_item_chars = list(capsule.get("readability_warning_item_chars") or [])
     return {
         "source_ref": capsule.get("source_ref"),
-        **_preview_fields("title", capsule.get("title") or "", 180),
-        "domain": capsule.get("domain"),
+        **_stored_preview_fields(
+            "title",
+            capsule.get("title") or "",
+            chars=capsule.get("title_chars"),
+            truncated=capsule.get("title_truncated"),
+            limit=180,
+        ),
+        **_stored_preview_fields(
+            "domain",
+            capsule.get("domain") or "",
+            chars=capsule.get("domain_chars"),
+            truncated=capsule.get("domain_truncated"),
+            limit=180,
+        ),
         "source_type": capsule.get("source_type"),
         "published_at": capsule.get("published_at"),
         "coverage_status": capsule.get("coverage_status"),
-        "readable": bool(capsule.get("readable")),
-        **_preview_fields("summary_hint", capsule.get("summary_hint") or "", 180),
-        "outline_previews": [_preview_fields("text", item, 100) for item in outline[:4]],
-        "outline_count": len(outline),
+        "text_available": bool(capsule.get("text_available", capsule.get("readable"))),
+        **_stored_preview_fields(
+            "summary_hint",
+            capsule.get("summary_hint") or "",
+            chars=capsule.get("summary_hint_chars"),
+            truncated=capsule.get("summary_hint_truncated"),
+            limit=180,
+        ),
+        "outline_previews": [
+            _stored_preview_fields(
+                "text",
+                item,
+                chars=outline_item_chars[index] if index < len(outline_item_chars) else None,
+                truncated=(
+                    int(outline_item_chars[index]) > len(str(item))
+                    if index < len(outline_item_chars)
+                    else None
+                ),
+                limit=100,
+            )
+            for index, item in enumerate(outline[:4])
+        ],
+        "outline_count": max(len(outline), int(capsule.get("outline_total_count") or 0)),
+        "outline_returned_count": min(len(outline), 4),
+        "outline_omitted_count": max(
+            0,
+            max(len(outline), int(capsule.get("outline_total_count") or 0)) - min(len(outline), 4),
+        ),
         "window_previews": [
             {
-                **_preview_fields("locator", item.get("locator") or "", 100),
+                **_stored_preview_fields(
+                    "locator",
+                    item.get("locator") or "",
+                    chars=item.get("locator_chars"),
+                    truncated=item.get("locator_truncated"),
+                    limit=100,
+                ),
                 "locator_type": item.get("locator_type"),
-                **_preview_fields("text", item.get("preview_text") or "", 300),
+                **_stored_preview_fields(
+                    "text",
+                    item.get("preview_text") or "",
+                    chars=item.get("preview_text_chars"),
+                    truncated=item.get("preview_text_truncated"),
+                    limit=300,
+                ),
             }
             for item in windows[:2]
         ],
         "window_count": len(windows),
         "readability_warning_previews": [
-            _preview_fields("text", item, 300) for item in warnings[:4]
+            _stored_preview_fields(
+                "text",
+                item,
+                chars=warning_item_chars[index] if index < len(warning_item_chars) else None,
+                truncated=(
+                    int(warning_item_chars[index]) > len(str(item))
+                    if index < len(warning_item_chars)
+                    else None
+                ),
+                limit=300,
+            )
+            for index, item in enumerate(warnings[:4])
         ],
-        "readability_warning_count": len(warnings),
+        "readability_warning_count": max(
+            len(warnings),
+            int(capsule.get("readability_warning_total_count") or 0),
+        ),
+        "readability_warning_returned_count": min(len(warnings), 4),
+        "readability_warning_omitted_count": max(
+            0,
+            max(len(warnings), int(capsule.get("readability_warning_total_count") or 0))
+            - min(len(warnings), 4),
+        ),
     }
 
 
@@ -90,21 +409,89 @@ def workspace_summary_for_prompt(
     set_cursor: int = 0,
     max_deferred_sources: int = 20,
     deferred_source_cursor: int = 0,
+    include_planner_resume: bool = False,
 ) -> dict[str, Any]:
     workspace = _normalize_workspace(workspace)
     source_sets = list(workspace.get("source_sets") or [])
     set_page = source_sets[set_cursor : set_cursor + max_sets]
-    deferred_sources = [
-        item for item in workspace.get("deferred_sources") or [] if isinstance(item, dict)
+    deferred_sources = [item for item in workspace.get("deferred_sources") or [] if isinstance(item, dict)]
+    deferred_page = deferred_sources[deferred_source_cursor : deferred_source_cursor + max_deferred_sources]
+    coverage_questions = [item for item in workspace.get("coverage_questions") or [] if isinstance(item, dict)]
+    source_assessments = [item for item in workspace.get("source_assessments") or [] if isinstance(item, dict)]
+    coverage_outcomes = [item for item in workspace.get("coverage_outcomes") or [] if isinstance(item, dict)]
+    coverage_syntheses = [item for item in workspace.get("coverage_syntheses") or [] if isinstance(item, dict)]
+    source_map_repair_items = [
+        item for item in workspace.get("source_map_repair_items") or [] if isinstance(item, dict)
     ]
-    deferred_page = deferred_sources[
-        deferred_source_cursor : deferred_source_cursor + max_deferred_sources
-    ]
-    return {
+    payload = {
         "status": workspace.get("status"),
+        "intent": workspace.get("intent") or {},
         **_preview_fields("plan_summary", workspace.get("plan_summary") or "", 500),
         "source_count": len(workspace.get("source_order") or []),
         "source_set_count": len(workspace.get("source_sets") or []),
+        "coverage_questions": [
+            {
+                "question_id": item.get("question_id"),
+                **_preview_fields("question", item.get("question") or "", 280),
+                "kind": item.get("kind"),
+                "importance": item.get("importance"),
+                **_preview_fields("rationale", item.get("rationale") or "", 400),
+                "parent_question_id": item.get("parent_question_id"),
+            }
+            for item in coverage_questions
+        ],
+        "coverage_question_count": len(coverage_questions),
+        "source_assessment_count": len(source_assessments),
+        "source_assessment_statuses": [
+            {
+                "source_ref": item.get("source_ref"),
+                "processing_status": item.get("processing_status"),
+                "representation_status": item.get("representation_status"),
+                "relevance": item.get("relevance"),
+                "disposition": item.get("disposition"),
+            }
+            for item in source_assessments
+        ],
+        "coverage_outcome_count": len(coverage_outcomes),
+        "coverage_outcome_statuses": [
+            {
+                "question_id": item.get("question_id"),
+                "set_id": item.get("set_id"),
+                "status": item.get("status"),
+                "next_action": item.get("next_action"),
+            }
+            for item in coverage_outcomes
+        ],
+        "coverage_synthesis_count": len(coverage_syntheses),
+        "coverage_synthesis_statuses": [
+            {
+                "question_id": item.get("question_id"),
+                "status": item.get("status"),
+                "next_action": item.get("next_action"),
+            }
+            for item in coverage_syntheses
+        ],
+        "source_map_repair_item_count": len(source_map_repair_items),
+        "source_map_repair_item_previews": [
+            {
+                "repair_ref": item.get("repair_ref"),
+                "status": item.get("status"),
+                "kind": item.get("kind"),
+                "issues": item.get("issues") or [],
+                "source_refs": item.get("source_refs") or [],
+                "relationship": item.get("relationship"),
+                "cluster_id": item.get("cluster_id"),
+                "gap_ref": item.get("gap_ref"),
+                "evidence_count": len(item.get("evidence_ids") or []),
+                **_preview_fields(
+                    "detail",
+                    item.get("rationale") or item.get("description") or item.get("label") or "",
+                    300,
+                ),
+            }
+            for item in source_map_repair_items[:10]
+        ],
+        "source_map_repair_item_omitted_count": max(0, len(source_map_repair_items) - 10),
         "current_set": workspace.get("current_set"),
         "processed_sets": [
             {
@@ -147,6 +534,7 @@ def workspace_summary_for_prompt(
                 **_preview_fields("label", item.get("label") or "", 180),
                 **_preview_fields("purpose", item.get("purpose") or "", 400),
                 "source_refs": item.get("source_refs") or [],
+                "question_ids": item.get("question_ids") or [],
                 "status": item.get("status"),
                 "priority": item.get("priority"),
                 **_preview_fields("findings_summary", item.get("findings_summary") or "", 600),
@@ -164,11 +552,12 @@ def workspace_summary_for_prompt(
             "next_cursor": str(set_cursor + len(set_page)) if set_cursor + len(set_page) < len(source_sets) else "",
         },
     }
+    if include_planner_resume:
+        payload["planner_resume"] = planner_resume_payload(workspace)
+    return payload
 
 
-def checkpoint_workspace_payload(
-    workspace: dict[str, Any], *, max_sets: int = 40
-) -> dict[str, Any]:
+def checkpoint_workspace_payload(workspace: dict[str, Any], *, max_sets: int = 40) -> dict[str, Any]:
     workspace = _normalize_workspace(workspace)
     summary = workspace_summary_for_prompt(workspace, max_sets=max_sets)
     current_set_pointer = workspace.get("current_set") or {}
@@ -195,9 +584,8 @@ def checkpoint_workspace_payload(
             **_preview_fields("label", current_set.get("label") or "", 180),
             **_preview_fields("purpose", current_set.get("purpose") or "", 400),
             **_preview_fields("rationale", current_set.get("rationale") or "", 500),
-            "question_previews": [
-                _preview_fields("text", item, 280) for item in current_set.get("questions") or []
-            ],
+            "question_ids": current_set.get("question_ids") or [],
+            "question_count": len(current_set.get("question_ids") or []),
             "observation_count": len(observations),
             "observation_preview_count": len(observation_previews),
             "observation_omitted_count": max(0, len(observations) - len(observation_previews)),
@@ -207,6 +595,8 @@ def checkpoint_workspace_payload(
         }
     return {
         "status": summary.get("status"),
+        "intent": _checkpoint_intent_payload(workspace),
+        "planner_resume": planner_resume_payload(workspace),
         "source_count": summary.get("source_count"),
         "source_set_count": summary.get("source_set_count"),
         "processed_set_count": len(workspace.get("processed_sets") or []),
@@ -240,13 +630,20 @@ def unresolved_source_set_summary(workspace: dict[str, Any], *, limit: int | Non
             "source_refs": item.get("source_refs") or [],
             "deferred_reason": item.get("deferred_reason") or "",
         }
-        for item in (unresolved_source_sets(workspace)[:limit] if limit is not None else unresolved_source_sets(workspace))
+        for item in (
+            unresolved_source_sets(workspace)[:limit] if limit is not None else unresolved_source_sets(workspace)
+        )
     ]
 
 
 def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[str, Any]:
     workspace = _normalize_workspace(workspace)
     source_set = _workspace_set(workspace, set_id) or {}
+    questions_by_id = {
+        str(item.get("question_id") or ""): item
+        for item in workspace.get("coverage_questions") or []
+        if isinstance(item, dict)
+    }
     capsules = workspace.get("source_capsules") or {}
     observations = list(source_set.get("observations") or [])
     observation_previews = _observation_previews(source_set)
@@ -264,12 +661,41 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
             **_preview_fields("purpose", source_set.get("purpose") or "", 400),
             "source_refs": source_set.get("source_refs") or [],
             **_preview_fields("rationale", source_set.get("rationale") or "", 500),
-            "question_previews": [
-                _preview_fields("text", question, 280)
-                for question in source_set.get("questions") or []
+            "question_ids": source_set.get("question_ids") or [],
+            "coverage_questions": [
+                {
+                    "question_id": question_id,
+                    **_preview_fields(
+                        "question",
+                        (questions_by_id.get(str(question_id)) or {}).get("question") or "",
+                        280,
+                    ),
+                    "kind": (questions_by_id.get(str(question_id)) or {}).get("kind"),
+                    "importance": (questions_by_id.get(str(question_id)) or {}).get("importance"),
+                    **_preview_fields(
+                        "rationale",
+                        (questions_by_id.get(str(question_id)) or {}).get("rationale") or "",
+                        400,
+                    ),
+                }
+                for question_id in source_set.get("question_ids") or []
             ],
-            "question_count": len(source_set.get("questions") or []),
+            "question_count": len(source_set.get("question_ids") or []),
             "priority": source_set.get("priority"),
+            "repair": bool(source_set.get("repair")),
+            "repair_targeted": bool(source_set.get("repair_targeted")),
+            "repair_source_refs": source_set.get("repair_source_refs") or [],
+            "repair_question_ids": source_set.get("repair_question_ids") or [],
+            "repair_targets": [
+                {
+                    "code": item.get("code"),
+                    **_preview_fields("message", item.get("message") or "", 400),
+                    "source_refs": item.get("source_refs") or [],
+                    "question_ids": item.get("question_ids") or [],
+                }
+                for item in source_set.get("repair_targets") or []
+                if isinstance(item, dict)
+            ],
             "observation_previews": observation_previews,
             "observation_count": len(observations),
             "observation_omitted_count": max(0, len(observations) - len(observation_previews)),
@@ -277,6 +703,16 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
             "written_action_count": len(written_actions),
             "written_action_omitted_count": max(0, len(written_actions) - len(written_action_previews)),
             "evidence_count": len(source_set.get("evidence_ids") or []),
+            "source_assessment_count": sum(
+                1
+                for item in workspace.get("source_assessments") or []
+                if isinstance(item, dict) and item.get("set_id") == set_id
+            ),
+            "coverage_outcome_count": sum(
+                1
+                for item in workspace.get("coverage_outcomes") or []
+                if isinstance(item, dict) and item.get("set_id") == set_id
+            ),
         },
         "capsule_previews": capsule_previews,
         "capsule_count": len(capsule_previews),
@@ -288,13 +724,14 @@ def unprocessed_source_sets(workspace: dict[str, Any]) -> list[dict[str, Any]]:
     return [
         dict(item)
         for item in _normalize_workspace(workspace).get("source_sets") or []
-        if item.get("status") in {"planned", "needs_repair"}
-        or _source_set_has_unresolved_refs(workspace, item)
+        if item.get("status") in {"planned", "needs_repair"} or _source_set_has_unresolved_refs(workspace, item)
     ]
 
 
 __all__ = [
     "checkpoint_workspace_payload",
+    "planner_resume_payload",
+    "planner_source_catalog",
     "source_set_prompt_payload",
     "unprocessed_source_sets",
     "unresolved_source_set_summary",

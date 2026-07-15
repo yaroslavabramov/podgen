@@ -13,7 +13,9 @@ from app.generation_v2.runtime_checkpoint_progress import (
     source_inventory_progress,
     source_triage_progress,
 )
+from app.generation_v2.runtime_checkpoint_paging import durable_paging_progress
 from app.models.generation_v2 import EvidenceItem, RunCorpusView, V2ToolTrace
+from app.models.generation_run import GenerationRun
 
 CHECKPOINT_STATE_ID_LIMIT = 40
 
@@ -26,9 +28,24 @@ async def build_agent_checkpoint_state(
     agent_name: str,
 ) -> dict[str, Any]:
     state: dict[str, Any] = {"phase": phase, "agent_name": agent_name}
+    await _add_run_intent_state(db, state, generation_run_id=generation_run_id)
     run_view, source_ref_by_id = await _add_corpus_state(db, state, generation_run_id=generation_run_id)
-    await _add_evidence_state(db, state, generation_run_id=generation_run_id, run_view=run_view)
+    await _add_evidence_state(
+        db,
+        state,
+        generation_run_id=generation_run_id,
+        run_view=run_view,
+        source_ref_by_id=source_ref_by_id,
+    )
     await _add_tool_call_counts(
+        db,
+        state,
+        generation_run_id=generation_run_id,
+        phase=phase,
+        agent_name=agent_name,
+        run_view=run_view,
+    )
+    await _add_durable_paging_progress(
         db,
         state,
         generation_run_id=generation_run_id,
@@ -64,12 +81,63 @@ async def build_agent_checkpoint_state(
     return state
 
 
+async def _add_run_intent_state(
+    db: AsyncSession,
+    state: dict[str, Any],
+    *,
+    generation_run_id: uuid.UUID,
+) -> None:
+    try:
+        result = await db.execute(select(GenerationRun).where(GenerationRun.id == generation_run_id).limit(1))
+        run = result.scalar_one_or_none()
+        if run is not None:
+            state["run_intent"] = checkpoint_run_intent_payload(getattr(run, "config", None) or {})
+    except Exception as exc:
+        state["run_intent_error"] = str(exc)
+
+
+def checkpoint_run_intent_payload(config: dict[str, Any]) -> dict[str, Any]:
+    user_prompt = " ".join(str(config.get("user_prompt") or "").split())
+    preview_limit = 800
+    return {
+        "language": str(config.get("language") or "")[:40] or None,
+        "duration_seconds": int(config.get("duration_target") or config.get("duration_seconds") or 0),
+        "user_prompt_preview": user_prompt[:preview_limit],
+        "user_prompt_chars": len(user_prompt),
+        "user_prompt_truncated": len(user_prompt) > preview_limit,
+    }
+
+
+async def _add_durable_paging_progress(
+    db: AsyncSession,
+    state: dict[str, Any],
+    *,
+    generation_run_id: uuid.UUID,
+    phase: str,
+    agent_name: str,
+    run_view: RunCorpusView | None,
+) -> None:
+    try:
+        progress = await durable_paging_progress(
+            db,
+            generation_run_id=generation_run_id,
+            phase=phase,
+            agent_name=agent_name,
+            run_view=run_view,
+        )
+        if progress:
+            state["durable_paging_progress"] = progress
+    except Exception as exc:
+        state["durable_paging_progress_error"] = str(exc)
+
+
 async def _add_evidence_state(
     db: AsyncSession,
     state: dict[str, Any],
     *,
     generation_run_id: uuid.UUID,
     run_view: RunCorpusView | None,
+    source_ref_by_id: dict[str, str],
 ) -> None:
     try:
         query = select(EvidenceItem).where(EvidenceItem.generation_run_id == generation_run_id)
@@ -90,9 +158,15 @@ async def _add_evidence_state(
             "observed_count": len(evidence_items),
             "selected_count": len(selected),
             "selected_evidence_ids": [str(item.id) for item in selected[:CHECKPOINT_STATE_ID_LIMIT]],
-            "covered_source_ids": sorted({str(item.source_id) for item in selected})[:CHECKPOINT_STATE_ID_LIMIT],
+            "covered_source_refs": sorted(
+                {
+                    source_ref_by_id[str(item.source_id)]
+                    for item in selected
+                    if str(item.source_id) in source_ref_by_id
+                }
+            )[:CHECKPOINT_STATE_ID_LIMIT],
             "selected_evidence_id_omitted_count": max(0, len(selected) - CHECKPOINT_STATE_ID_LIMIT),
-            "covered_source_id_count": len({str(item.source_id) for item in selected}),
+            "covered_source_count": len({str(item.source_id) for item in selected}),
         }
     except Exception as exc:
         state["evidence_error"] = str(exc)
@@ -251,4 +325,4 @@ async def _add_source_triage_workspace_state(
         state["source_triage_workspace_error"] = str(exc)
 
 
-__all__ = ["build_agent_checkpoint_state"]
+__all__ = ["build_agent_checkpoint_state", "checkpoint_run_intent_payload"]

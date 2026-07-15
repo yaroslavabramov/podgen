@@ -12,6 +12,7 @@ from app.generation_v2.tools.evidence_local_search import (
 from app.generation_v2.tools.evidence_local_windows import (
     read_source_window as _local_read_source_window,
     resolve_local_fallback_source_version as _resolve_local_fallback_source_version,
+    source_allows_timestamp_locators as _source_allows_timestamp_locators_impl,
     source_windows as _local_source_windows,
 )
 from app.generation_v2.tools.evidence_utils import (
@@ -66,10 +67,9 @@ class EvidenceLocalSourceMixin:
         )
 
     def _in_run_corpus_view(self, source_id: uuid.UUID, source_version_id: uuid.UUID) -> bool:
-        return (
-            str(source_id) in {str(item) for item in self.run_view.selected_source_ids}
-            and str(source_version_id) in {str(item) for item in self.run_view.selected_source_version_ids}
-        )
+        return str(source_id) in {str(item) for item in self.run_view.selected_source_ids} and str(
+            source_version_id
+        ) in {str(item) for item in self.run_view.selected_source_version_ids}
 
     async def _resolve_source_version(
         self,
@@ -110,8 +110,12 @@ class EvidenceLocalSourceMixin:
         versions.sort(key=lambda version: _readable_version_priority(version.kind))
         return versions[0] if versions else None
 
-    async def _resolve_local_fallback_source_version(self, *, source_id: str, source_version_id: str) -> SourceVersion | None:
-        return await _resolve_local_fallback_source_version(self, source_id=source_id, source_version_id=source_version_id)
+    async def _resolve_local_fallback_source_version(
+        self, *, source_id: str, source_version_id: str
+    ) -> SourceVersion | None:
+        return await _resolve_local_fallback_source_version(
+            self, source_id=source_id, source_version_id=source_version_id
+        )
 
     async def _read_source_window(
         self,
@@ -124,5 +128,9 @@ class EvidenceLocalSourceMixin:
 
     async def _source_windows(self, version: SourceVersion, *, max_windows: int) -> list[dict[str, Any]]:
         return await _local_source_windows(self, version, max_windows=max_windows)
+
+    async def _source_allows_timestamp_locators(self, version: SourceVersion) -> bool:
+        return await _source_allows_timestamp_locators_impl(self, version)
+
 
 __all__ = ["EvidenceLocalSourceMixin"]

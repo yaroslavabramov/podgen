@@ -6,6 +6,7 @@ import re
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.generation_v2.agent_output_policy import semantic_agent_output_limit
 from app.config import settings
 from app.generation_v2.agents.editorial_context import (
     source_inventory as _source_inventory,
@@ -55,7 +56,7 @@ async def build_source_acquisition_agent(
             vector_store_id=None,
             local_tools=phase_tools(acquisition_tools, ACQUISITION_TOOL_NAMES),
             tool_policy=ToolPolicy(file_search=False, web_search=True, local_tools=True),
-            max_output_tokens=8000,
+            max_output_tokens=semantic_agent_output_limit(),
             max_tool_rounds=candidate_budget + 2,
         )
     except V2RuntimeUnavailable as exc:
@@ -100,13 +101,31 @@ def _model_gap_report(gap_report: CorpusGapReport, source_ref_context) -> dict:
                     else _sanitize_model_text(gap.description, source_ref_context)
                 ),
                 "required_editorial_functions": gap.required_editorial_functions,
-                "related_source_refs": [
-                    source_ref_context.ref_by_source_id[source_id]
-                    for source_id in gap.related_source_ids
-                    if source_id in source_ref_context.ref_by_source_id
-                ],
+                "related_source_refs": list(
+                    dict.fromkeys(
+                        [
+                            source_ref_context.ref_by_source_id[source_id]
+                            for source_id in gap.related_source_ids
+                            if source_id in source_ref_context.ref_by_source_id
+                        ]
+                        + [
+                            source_ref
+                            for source_ref in gap.related_source_refs
+                            if source_ref in source_ref_context.source_id_by_ref
+                        ]
+                    )
+                ),
                 "severity": gap.severity,
                 "origin": gap.origin,
+                **(
+                    {
+                        "question_id": _sanitize_model_text(gap.question_id, source_ref_context),
+                        "question": _sanitize_model_text(gap.question, source_ref_context),
+                        "reason": _sanitize_model_text(gap.reason, source_ref_context),
+                    }
+                    if gap.question_id
+                    else {}
+                ),
             }
             for gap in gap_report.gaps
         ],

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.generation_v2.runtime import AgentTool
+from app.generation_v2.runtime import AgentTerminalResult, AgentTool
+from app.generation_v2.schemas import SourceTriageCompletion
 from app.generation_v2.tools.evidence_write_validation import (
     SOURCE_MAP_WRITE_LIST_LIMITS,
     SOURCE_MAP_WRITE_TEXT_LIMITS,
@@ -23,6 +24,22 @@ def _strings(tool_name: str, field: str) -> dict[str, Any]:
 
 
 def evidence_write_tools(owner: Any) -> list[AgentTool]:
+    async def source_map_resume_loader() -> AgentTerminalResult | None:
+        from app.generation_v2.source_triage_workspace_persistence import load_source_triage_workspace
+
+        workspace = await load_source_triage_workspace(owner.db, owner.run.id)
+        finalization = (workspace or {}).get("source_map_finalization") or {}
+        if finalization.get("ready") is not True:
+            return None
+        return AgentTerminalResult(
+            accepted=True,
+            completion=SourceTriageCompletion(
+                ready=True,
+                summary=str(finalization.get("summary") or "Source map already finalized."),
+                notes=[],
+            ),
+        )
+
     return [
         AgentTool(
             name="select_evidence",
@@ -39,6 +56,7 @@ def evidence_write_tools(owner: Any) -> list[AgentTool]:
                     "rationale": _text("select_evidence", "rationale"),
                 },
                 "required": ["evidence_id", "purpose", "role", "rationale"],
+                "additionalProperties": False,
             },
             handler=owner.select_evidence_tool,
         ),
@@ -58,6 +76,7 @@ def evidence_write_tools(owner: Any) -> list[AgentTool]:
                     "gaps_or_cautions": _strings("upsert_source_card", "gaps_or_cautions"),
                 },
                 "required": ["source_ref", "summary", "useful_for", "evidence_ids", "gaps_or_cautions"],
+                "additionalProperties": False,
             },
             handler=owner.upsert_source_card_tool,
         ),
@@ -65,14 +84,14 @@ def evidence_write_tools(owner: Any) -> list[AgentTool]:
             name="create_quote_card",
             description=(
                 "Triage write action: create an optional QuoteCard from an evidence_id returned by read/search tools. "
-                "Use only for an obvious quote seed; quote text must come from the evidence snippet/window."
+                "Use only for an obvious quote seed; quote text must come from the evidence snippet/window. "
+                "The locator is copied from the canonical EvidenceItem."
             ),
             parameters={
                 "type": "object",
                 "properties": {
                     "evidence_id": _text("create_quote_card", "evidence_id"),
                     "quote": _text("create_quote_card", "quote"),
-                    "locator": _text("create_quote_card", "locator"),
                     "narrative_use": _text("create_quote_card", "narrative_use"),
                     "confidence": {"type": "number", "minimum": 0, "maximum": 1},
                     "confidence_reason": _text("create_quote_card", "confidence_reason"),
@@ -80,11 +99,11 @@ def evidence_write_tools(owner: Any) -> list[AgentTool]:
                 "required": [
                     "evidence_id",
                     "quote",
-                    "locator",
                     "narrative_use",
                     "confidence",
                     "confidence_reason",
                 ],
+                "additionalProperties": False,
             },
             handler=owner.create_quote_card_tool,
         ),
@@ -99,11 +118,22 @@ def evidence_write_tools(owner: Any) -> list[AgentTool]:
                 "properties": {
                     "source_ref": _text("record_source_relationship", "source_ref"),
                     "related_source_ref": _text("record_source_relationship", "related_source_ref"),
-                    "relationship": _text("record_source_relationship", "relationship"),
+                    "relationship": {
+                        "type": "string",
+                        "enum": [
+                            "primary_to_secondary",
+                            "duplicate",
+                            "near_duplicate",
+                            "contradicts",
+                            "updates",
+                            "background_for",
+                        ],
+                    },
                     "evidence_ids": _strings("record_source_relationship", "evidence_ids"),
                     "rationale": _text("record_source_relationship", "rationale"),
                 },
                 "required": ["source_ref", "related_source_ref", "relationship", "evidence_ids", "rationale"],
+                "additionalProperties": False,
             },
             handler=owner.record_source_relationship_tool,
         ),
@@ -133,6 +163,7 @@ def evidence_write_tools(owner: Any) -> list[AgentTool]:
                     "evidence_ids",
                     "rationale",
                 ],
+                "additionalProperties": False,
             },
             handler=owner.record_source_cluster_tool,
         ),
@@ -140,7 +171,9 @@ def evidence_write_tools(owner: Any) -> list[AgentTool]:
             name="record_gap",
             description=(
                 "Triage write action: record a gap, contradiction, caution, missing coverage area, or source-quality warning. "
-                "Use evidence_ids when a read/search result grounds the gap; included evidence_ids are marked as selected."
+                "Use evidence_ids when a read/search result grounds the gap; every evidence_id must belong to one "
+                "of the declared source_refs. Attach relevant source_refs and/or persisted question_ids as durable "
+                "lineage. Included evidence_ids are marked as selected."
             ),
             parameters={
                 "type": "object",
@@ -148,11 +181,67 @@ def evidence_write_tools(owner: Any) -> list[AgentTool]:
                     "kind": _text("record_gap", "kind"),
                     "description": _text("record_gap", "description"),
                     "source_refs": _strings("record_gap", "source_refs"),
+                    "question_ids": _strings("record_gap", "question_ids"),
                     "evidence_ids": _strings("record_gap", "evidence_ids"),
                 },
-                "required": ["kind", "description", "source_refs", "evidence_ids"],
+                "required": ["kind", "description", "source_refs", "question_ids", "evidence_ids"],
+                "additionalProperties": False,
             },
             handler=owner.record_gap_tool,
+        ),
+        AgentTool(
+            name="list_source_map_gaps",
+            description=(
+                "List current unresolved SourceMap gaps as compact gap_refs. Page until next_cursor is empty "
+                "before deciding that an older gap is absent."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "cursor": {"type": "string"},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 40},
+                },
+                "required": ["cursor", "limit"],
+                "additionalProperties": False,
+            },
+            handler=owner.list_source_map_gaps_tool,
+        ),
+        AgentTool(
+            name="resolve_gap",
+            description=(
+                "Close one current SourceMap gap only when the repaired durable evidence/state makes it obsolete. "
+                "Use a stable gap_ref returned by list_source_map_gaps and cite a current assessment, outcome, or "
+                "synthesis that carries the supporting saved evidence; history is preserved."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "gap_ref": _text("resolve_gap", "gap_ref"),
+                    "basis_ref": _text("resolve_gap", "basis_ref"),
+                    "reason": _text("resolve_gap", "reason"),
+                },
+                "required": ["gap_ref", "basis_ref", "reason"],
+                "additionalProperties": False,
+            },
+            handler=owner.resolve_gap_tool,
+        ),
+        AgentTool(
+            name="resolve_source_map_repair",
+            description=(
+                "Explicitly discard one backend-identified invalid SourceMap relationship, cluster, or gap record. "
+                "Use the stable repair_ref from source_map_repairs; record a valid replacement separately only "
+                "when existing persisted evidence supports it."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "repair_ref": _text("resolve_source_map_repair", "repair_ref"),
+                    "reason": _text("resolve_source_map_repair", "reason"),
+                },
+                "required": ["repair_ref", "reason"],
+                "additionalProperties": False,
+            },
+            handler=owner.resolve_source_map_repair_tool,
         ),
         AgentTool(
             name="finalize_source_map",
@@ -166,8 +255,16 @@ def evidence_write_tools(owner: Any) -> list[AgentTool]:
                     "ready": {"type": "boolean"},
                 },
                 "required": ["summary", "ready"],
+                "additionalProperties": False,
             },
             handler=owner.finalize_source_map_tool,
+            terminal=True,
+            terminal_result_builder=lambda arguments, _output: SourceTriageCompletion(
+                ready=True,
+                summary=str(arguments.get("summary") or "Source map finalized."),
+                notes=[],
+            ),
+            terminal_resume_loader=source_map_resume_loader,
         ),
     ]
 

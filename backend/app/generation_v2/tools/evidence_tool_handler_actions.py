@@ -51,22 +51,34 @@ async def search_corpus_tool_action(owner: Any, args: dict[str, Any]) -> dict[st
     if scope not in {"all_sources", "selected_sources"}:
         return {"accepted": False, "error": "scope must be all_sources or selected_sources", "results": []}
     source_refs = [str(item) for item in args.get("source_refs") or [] if item]
-    if getattr(owner, "triage_allowed_source_refs", None) and scope == "all_sources":
+    triage_allowed_refs = getattr(owner, "triage_allowed_source_refs", None)
+    research_allowed_refs = getattr(owner, "research_allowed_source_refs", None)
+    if triage_allowed_refs is not None and scope == "all_sources":
         return {
             "accepted": False,
             "error": "all_sources_search_not_allowed_in_current_triage_set",
             "message": "Search only within source_refs from the current source set.",
-            "allowed_source_refs": sorted(getattr(owner, "triage_allowed_source_refs", set()) or []),
+            "allowed_source_refs": sorted(triage_allowed_refs),
             "results": [],
         }
-    if getattr(owner, "research_allowed_source_refs", None) and scope == "all_sources":
-        return {
-            "accepted": False,
-            "error": "all_sources_search_not_allowed_in_current_research_job",
-            "message": "Search only within source_refs from the current investigation job.",
-            "allowed_source_refs": sorted(getattr(owner, "research_allowed_source_refs", set()) or []),
-            "results": [],
-        }
+    if research_allowed_refs is not None and scope == "all_sources":
+        if not bool(getattr(owner, "research_allow_broad_search", False)):
+            return {
+                "accepted": False,
+                "error": "all_sources_search_not_allowed_in_current_research_job",
+                "message": "Search only within source_refs from the current investigation job.",
+                "allowed_source_refs": sorted(research_allowed_refs),
+                "results": [],
+            }
+        if not research_allowed_refs:
+            return {
+                "accepted": False,
+                "error": "no_eligible_sources_in_current_research_workspace",
+                "message": "Triage did not leave any source eligible for broad research search.",
+                "results": [],
+            }
+        source_refs = sorted(research_allowed_refs)
+        scope = "selected_sources"
     scope_error = await owner._triage_scope_error_for_refs(source_refs)
     if scope_error:
         return {**scope_error, "results": []}
@@ -109,6 +121,10 @@ async def read_evidence_tool_action(owner: Any, args: dict[str, Any]) -> dict[st
     payload = await owner._evidence_detail_payload(item, max_snippet_chars=2400)
     if payload.get("error"):
         return {"found": False, **payload}
+    if getattr(owner, "research_current_job_id", None):
+        read_ids = set(getattr(owner, "_research_read_evidence_ids", set()) or set())
+        read_ids.add(str(evidence_id))
+        setattr(owner, "_research_read_evidence_ids", read_ids)
     return {"found": True, "evidence": payload}
 
 
@@ -117,7 +133,11 @@ async def find_quotes_tool_action(owner: Any, args: dict[str, Any]) -> dict[str,
     if guard_error:
         return {**guard_error, "results": []}
     source_refs = [str(item) for item in args.get("source_refs") or [] if item]
-    if (getattr(owner, "triage_allowed_source_refs", None) or getattr(owner, "research_allowed_source_refs", None)) and not source_refs:
+    has_source_scope = (
+        getattr(owner, "triage_allowed_source_refs", None) is not None
+        or getattr(owner, "research_allowed_source_refs", None) is not None
+    )
+    if has_source_scope and not source_refs:
         return {
             "accepted": False,
             "error": "source_refs_required_in_current_scope",
@@ -149,7 +169,9 @@ async def find_quotes_tool_action(owner: Any, args: dict[str, Any]) -> dict[str,
 async def search_sources_tool_action(owner: Any, args: dict[str, Any]) -> dict[str, Any]:
     query = str(args.get("query") or "")
     limit = max(1, min(int(args.get("limit") or 8), 8))
-    evidence = await owner.search_corpus(query=query, purpose="source_map", source_ids=[], limit=limit, scope="all_sources")
+    evidence = await owner.search_corpus(
+        query=query, purpose="source_map", source_ids=[], limit=limit, scope="all_sources"
+    )
     sources = await _source_summaries(owner.db, owner.run_view, evidence["results"], limit=limit)
     return {
         "accepted": True,
@@ -178,7 +200,11 @@ async def compare_source_evidence_tool_action(owner: Any, args: dict[str, Any]) 
             "comparisons": [],
         }
     if len(requested_source_ids) < 2:
-        return {"accepted": False, "error": "compare_source_evidence requires at least two source_refs", "comparisons": []}
+        return {
+            "accepted": False,
+            "error": "compare_source_evidence requires at least two source_refs",
+            "comparisons": [],
+        }
     source_ids = requested_source_ids[:5]
     question = str(args.get("question") or "")
     limit_per_source = max(1, min(int(args.get("limit_per_source") or 2), 3))
@@ -191,7 +217,9 @@ async def compare_source_evidence_tool_action(owner: Any, args: dict[str, Any]) 
             limit=limit_per_source,
             scope="selected_sources",
         )
-        comparisons.append({"source_ref": await owner._source_ref_for_id(source_id), "evidence": result.get("results", [])})
+        comparisons.append(
+            {"source_ref": await owner._source_ref_for_id(source_id), "evidence": result.get("results", [])}
+        )
     await save_tool_trace(
         owner.db,
         generation_run_id=owner.run.id,
@@ -220,7 +248,11 @@ async def compare_source_evidence_tool_action(owner: Any, args: dict[str, Any]) 
 
 
 async def canonical_kinds_by_source_action(owner: Any) -> dict[str, str]:
-    canonical_ids = [uuid.UUID(item) for item in _active_filter_list(owner.run_view, "canonical_source_version_ids") if _uuid_or_none(item)]
+    canonical_ids = [
+        uuid.UUID(item)
+        for item in _active_filter_list(owner.run_view, "canonical_source_version_ids")
+        if _uuid_or_none(item)
+    ]
     if not canonical_ids:
         return {}
     result = await owner.db.execute(select(SourceVersion).where(SourceVersion.id.in_(canonical_ids)))

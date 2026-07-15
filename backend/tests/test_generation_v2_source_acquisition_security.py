@@ -9,16 +9,31 @@ import pytest
 
 from app.generation_v2.runtime_tool_output import forbidden_tool_output_keys, model_facing_tool_output
 from app.generation_v2.agents.source_acquisition_agent import _model_gap_report, _model_source_inventory
-from app.generation_v2.pipeline.source_acquisition_flow import persisted_source_acquisition_rounds_used
+from app.generation_v2.pipeline.source_acquisition_flow import (
+    _attach_acquired_sources_to_explicit_selection,
+    persisted_source_acquisition_rounds_used,
+)
 from app.generation_v2.pipeline.source_triage_gate_repair_flow import source_triage_repair_already_used
 from app.generation_v2.safe_browser import guarded_page_goto, public_browser_launch_args
-from app.generation_v2.schemas import CorpusGapReport, SourceAcquisitionCandidate, SourceCard, SourceMap
+from app.generation_v2.schemas import (
+    CorpusGapReport,
+    ResearchAudit,
+    ResearchAuditIssue,
+    SourceAcquisitionCandidate,
+    SourceCard,
+    SourceMap,
+)
 from app.generation_v2.source_acquisition import remaining_acquisition_rounds
+from app.generation_v2.source_acquisition_gaps import build_corpus_gap_report
 from app.generation_v2.source_acquisition_ingest import native_first_ingest_candidate
 from app.generation_v2.source_acquisition_limits import existing_source_for_url, validation_rejection
 from app.generation_v2.source_acquisition_toolset import SourceAcquisitionToolset
 from app.generation_v2.source_acquisition_validation import title_from_url, validate_candidate_static
 from app.generation_v2.source_acquisition_validation import validate_source_acquisition_tool_args
+from app.generation_v2.tools.evidence_model_read_utils import (
+    model_file_read_prompt,
+    parse_model_file_read_result,
+)
 from app.generation_v2.source_corpus_provider_detach import (
     detach_provider_file_from_active_index,
     retry_pending_provider_detaches,
@@ -26,6 +41,8 @@ from app.generation_v2.source_corpus_provider_detach import (
 from app.generation_v2.tools.evidence_refs import build_source_ref_context
 from app.generation_v2.tools.evidence_write_validation import validate_source_map_write_args
 from app.ingestion.router import IngestionIndexingError, _validated_source_title_for_persistence
+from app.ingestion.canonicalizer import _DATE_EXTRACTION_SYSTEM
+from app.ingestion.source_metadata import _AUTHORITY_SYSTEM
 from app.ingestion.web_quality import resolve_web_title
 from app.models.generation_v2 import ProviderCorpusFile, ProviderCorpusIndex, V2ArtifactType
 from app.models.source import IngestionStatus, Source, SourceType
@@ -37,6 +54,28 @@ def _ready_sync_summary() -> dict[str, object]:
         "provider_vector_store_id": "vs-1",
         "ready_provider_file_count": 1,
     }
+
+
+def test_acquired_source_joins_an_explicit_run_selection_before_retriage() -> None:
+    run = SimpleNamespace(config={"source_ids": ["source-original"], "language": "ru"})
+
+    _attach_acquired_sources_to_explicit_selection(
+        run,  # type: ignore[arg-type]
+        ["source-repair", "source-original"],
+    )
+
+    assert run.config == {
+        "source_ids": ["source-original", "source-repair"],
+        "language": "ru",
+    }
+
+
+def test_acquired_source_does_not_pin_an_implicit_all_sources_run() -> None:
+    run = SimpleNamespace(config={"language": "ru"})
+
+    _attach_acquired_sources_to_explicit_selection(run, ["source-repair"])  # type: ignore[arg-type]
+
+    assert run.config == {"language": "ru"}
 
 
 def _gap_report() -> CorpusGapReport:
@@ -70,6 +109,46 @@ def _source(*, temporary: bool = True, status: IngestionStatus = IngestionStatus
     )
 
 
+def test_nested_reader_prompts_treat_source_content_as_untrusted_and_hide_internal_ids() -> None:
+    prompt = model_file_read_prompt(
+        focus_question="What does the source support?",
+        claim_text="A candidate claim.",
+        purpose="research",
+        locator_hint="section 2",
+        source_kind="extracted_text",
+    )
+
+    assert "untrusted data" in prompt
+    assert "source_id:" not in prompt
+    assert "source_version_id:" not in prompt
+    assert "untrusted data" in _AUTHORITY_SYSTEM
+    assert "untrusted data" in _DATE_EXTRACTION_SYSTEM
+
+
+def test_model_file_read_parser_rejects_incomplete_or_contradictory_payloads() -> None:
+    valid = {
+        "supports_query": True,
+        "support_level": "supported",
+        "quote_text": "",
+        "snippet_text": "A grounded snippet.",
+        "support_summary": "The source supports the question.",
+        "uncertainty": "",
+        "locator_text": "section 2",
+        "locator_type": "section",
+        "confidence": 0.8,
+    }
+
+    assert parse_model_file_read_result(json.dumps(valid)) == valid
+    with pytest.raises(RuntimeError, match="invalid structured payload"):
+        parse_model_file_read_result(json.dumps({key: value for key, value in valid.items() if key != "support_summary"}))
+    with pytest.raises(RuntimeError, match="supports_query contradicts support_level"):
+        parse_model_file_read_result(json.dumps({**valid, "supports_query": False}))
+    with pytest.raises(RuntimeError, match="valid boolean"):
+        parse_model_file_read_result(json.dumps({**valid, "supports_query": "false"}))
+    with pytest.raises(RuntimeError, match="less than or equal to 1"):
+        parse_model_file_read_result(json.dumps({**valid, "confidence": 1.5}))
+
+
 def test_acquisition_title_is_rejected_instead_of_truncated() -> None:
     with pytest.raises(ValueError, match="semantic_field_too_long: field=source.title"):
         title_from_url("https://example.com/" + ("a" * 501))
@@ -94,8 +173,7 @@ def test_acquisition_url_is_rejected_instead_of_left_to_database_truncation() ->
     )
 
     assert validate_candidate_static(candidate, _gap_report()) == (
-        "semantic_field_too_long: field=source.original_url "
-        f"max_length=2048 actual_length={len(url)}"
+        f"semantic_field_too_long: field=source.original_url max_length=2048 actual_length={len(url)}"
     )
 
 
@@ -178,6 +256,82 @@ def test_oversized_model_write_fields_are_rejected_without_truncation() -> None:
     }
 
 
+def test_long_duration_does_not_create_a_source_count_quota() -> None:
+    run = SimpleNamespace(
+        id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        config={"duration_target": 3600},
+    )
+    audit = ResearchAudit(
+        passed=False,
+        score=0.4,
+        verdict="Final memo needs repair.",
+        issues=[
+            ResearchAuditIssue(
+                issue_type="duplicate_or_stale_atom",
+                severity="major",
+                target_step="research_finalizer",
+                description="Merge duplicate atom drafts.",
+            )
+        ],
+    )
+
+    report = build_corpus_gap_report(
+        run,  # type: ignore[arg-type]
+        trigger_phase="research_audit",
+        round_number=1,
+        source_map=SourceMap(evidence_ids=[str(uuid.uuid4())]),
+        research_audit=audit,
+    )
+
+    assert report.should_acquire is False
+    assert report.gaps == []
+
+
+def test_audit_acquisition_gap_preserves_related_source_lineage() -> None:
+    source_id = str(uuid.uuid4())
+    run = SimpleNamespace(
+        id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        config={"duration_target": 1800},
+    )
+    inventory = SourceMap(
+        source_cards=[
+            SourceCard(
+                source_id=source_id,
+                title="Existing source",
+                source_type="web",
+                summary="Existing source summary.",
+            )
+        ]
+    )
+    audit = ResearchAudit(
+        passed=False,
+        score=0.2,
+        verdict="Acquire a missing perspective.",
+        issues=[
+            ResearchAuditIssue(
+                severity="blocking",
+                target_step="source_acquisition",
+                description="Find an independent account of the disputed mechanism.",
+                source_refs=["S01"],
+            )
+        ],
+    )
+
+    report = build_corpus_gap_report(
+        run,  # type: ignore[arg-type]
+        trigger_phase="research_audit",
+        round_number=1,
+        source_map=inventory,
+        research_audit=audit,
+    )
+
+    assert report.gaps[0].related_source_refs == ["S01"]
+    model_payload = _model_gap_report(report, build_source_ref_context(inventory))
+    assert model_payload["gaps"][0]["related_source_refs"] == ["S01"]
+
+
 class _SourceDb:
     def __init__(self, source: Source | None = None) -> None:
         self.source = source
@@ -257,7 +411,9 @@ async def test_acquisition_failure_never_syncs_or_promotes(monkeypatch: pytest.M
 
     monkeypatch.setattr("app.generation_v2.source_acquisition_ingest.ensure_source_versions", ensure_versions)
     monkeypatch.setattr("app.generation_v2.source_acquisition_ingest.run_ingestion", fail_ingest)
-    monkeypatch.setattr("app.generation_v2.source_acquisition_ingest.sync_source_to_project_corpus_now", unexpected_sync)
+    monkeypatch.setattr(
+        "app.generation_v2.source_acquisition_ingest.sync_source_to_project_corpus_now", unexpected_sync
+    )
 
     with pytest.raises(RuntimeError, match="broken source"):
         await native_first_ingest_candidate(db, source.id)  # type: ignore[arg-type]
@@ -316,7 +472,9 @@ async def test_native_snapshot_cannot_replace_missing_index_when_provider_is_dis
 
     monkeypatch.setattr("app.generation_v2.source_acquisition_ingest.ensure_source_versions", ensure_versions)
     monkeypatch.setattr("app.generation_v2.source_acquisition_ingest.run_ingestion", fail_index)
-    monkeypatch.setattr("app.generation_v2.source_acquisition_ingest.sync_source_to_project_corpus_now", unexpected_sync)
+    monkeypatch.setattr(
+        "app.generation_v2.source_acquisition_ingest.sync_source_to_project_corpus_now", unexpected_sync
+    )
     monkeypatch.setattr("app.generation_v2.source_acquisition_ingest._provider_uploads_required", lambda: False)
 
     with pytest.raises(IngestionIndexingError, match="no searchable chunks"):
@@ -625,9 +783,7 @@ async def test_active_staged_url_blocks_parallel_duplicate() -> None:
 @pytest.mark.asyncio
 async def test_expired_staged_url_is_reclaimed_and_retryable() -> None:
     staged = _source(temporary=True, status=IngestionStatus.PROCESSING)
-    staged.metadata_ = {
-        "acquisition_lease_expires_at": (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
-    }
+    staged.metadata_ = {"acquisition_lease_expires_at": (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()}
 
     class Result:
         def scalars(self):
@@ -733,10 +889,7 @@ async def test_only_terminal_acquisition_round_consumes_budget_after_worker_rest
     run_id = uuid.uuid4()
     db = Db(uuid.uuid4())
     assert await persisted_source_acquisition_rounds_used(db, run_id) == 1  # type: ignore[arg-type]
-    assert any(
-        V2ArtifactType.SOURCE_ACQUISITION_ROUND in params.values()
-        for params in db.query_params
-    )
+    assert any(V2ArtifactType.SOURCE_ACQUISITION_ROUND in params.values() for params in db.query_params)
     assert await persisted_source_acquisition_rounds_used(Db(None), run_id) == 0  # type: ignore[arg-type]
 
 
@@ -1040,6 +1193,44 @@ async def test_rendered_browser_blocks_unsafe_subrequests(monkeypatch: pytest.Mo
     with pytest.raises(ValueError, match="unsafe request"):
         await guarded_page_goto(Page(), "https://public.example/article", wait_until="networkidle", timeout=1000)
 
+    assert route.aborted is True
+
+
+@pytest.mark.asyncio
+async def test_rendered_browser_ignores_public_cross_origin_assets_without_failing_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Route:
+        aborted = False
+
+        async def abort(self, _reason):
+            self.aborted = True
+
+        async def continue_(self):
+            raise AssertionError("cross-origin asset must not continue")
+
+    route = Route()
+
+    class Page:
+        url = "https://public.example/article"
+
+        async def route(self, _pattern, handler):
+            self.handler = handler
+
+        async def goto(self, *_args, **_kwargs):
+            await self.handler(route, SimpleNamespace(url="https://cdn.example/article.css"))
+            return "document-response"
+
+    monkeypatch.setattr("app.generation_v2.safe_browser.validate_public_browser_url", lambda _url: None)
+
+    response = await guarded_page_goto(
+        Page(),
+        "https://public.example/article",
+        wait_until="networkidle",
+        timeout=1000,
+    )
+
+    assert response == "document-response"
     assert route.aborted is True
 
 

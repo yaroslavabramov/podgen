@@ -15,7 +15,9 @@ from app.generation_v2.model_routing import (
 )
 from app.generation_v2.runtime_contracts import (
     AgentCheckpointPolicy,
+    AgentTerminalResult,
     AgentTool,
+    CheckpointResumeContext,
     ToolPolicy,
     V2RuntimeUnavailable,
     default_checkpoint_policy as _default_checkpoint_policy,
@@ -32,7 +34,6 @@ from app.generation_v2.runtime_checkpoint_state import (
     build_agent_checkpoint_state as _build_agent_checkpoint_state,
     checkpoint_restart_message as _checkpoint_restart_message,
     checkpoint_source_inventory as _checkpoint_source_inventory,
-    checkpoint_task_brief as _checkpoint_task_brief,
     checkpoint_trim as _checkpoint_trim,
 )
 from app.generation_v2.runtime_debug import (
@@ -72,7 +73,6 @@ from app.services.llm import get_openai_client
 T = TypeVar("T", bound=BaseModel)
 
 
-_CHECKPOINT_TASK_BRIEF_CHARS = 4500
 _CHECKPOINT_LAST_TOOL_RESULT_LIMIT = 12
 _CHECKPOINT_STATE_ID_LIMIT = 40
 
@@ -81,6 +81,7 @@ _CHECKPOINT_LIST_MAX_ITEMS = CHECKPOINT_LIST_MAX_ITEMS
 _MODEL_TOOL_MAX_DEPTH = MODEL_TOOL_MAX_DEPTH
 _MODEL_FACING_CONTRACT_VERSION = MODEL_FACING_CONTRACT_VERSION
 _MODEL_HIDDEN_TOOL_KEYS = MODEL_HIDDEN_TOOL_KEYS
+
 
 class V2Runtime:
     """OpenAI-first structured runtime with hosted and local tools."""
@@ -123,11 +124,13 @@ class V2Runtime:
         vector_store_id: str | None = None,
         local_tools: list[AgentTool] | None = None,
         tool_policy: ToolPolicy | None = None,
-        hosted_file_search_handler: Callable[[list[dict[str, Any]], str, str, str], Awaitable[dict[str, Any] | None]] | None = None,
-        max_output_tokens: int = 12000,
+        hosted_file_search_handler: Callable[[list[dict[str, Any]], str, str, str], Awaitable[dict[str, Any] | None]]
+        | None = None,
+        max_output_tokens: int | None = None,
         max_tool_rounds: int | None = None,
         temperature: float | None = None,
         checkpoint_policy: AgentCheckpointPolicy | None = None,
+        checkpoint_resume_context: CheckpointResumeContext | None = None,
     ) -> T:
         return await _call_structured_runtime(
             self,
@@ -146,6 +149,7 @@ class V2Runtime:
             max_tool_rounds=max_tool_rounds,
             temperature=temperature,
             checkpoint_policy=checkpoint_policy,
+            checkpoint_resume_context=checkpoint_resume_context,
         )
 
     def _tool_specs(
@@ -185,6 +189,12 @@ __all__ = [
     "_parse_structured_runtime_response",
     "_process_runtime_function_calls",
     "_strict_json_schema",
+    "AgentTerminalResult",
+    "AgentTool",
+    "AgentCheckpointPolicy",
+    "CheckpointResumeContext",
+    "ToolPolicy",
+    "V2Runtime",
     "V2RuntimeUnavailable",
     "_default_checkpoint_policy",
     "_tool_round_limit",
@@ -192,7 +202,6 @@ __all__ = [
     "_build_agent_checkpoint_state",
     "_checkpoint_restart_message",
     "_checkpoint_source_inventory",
-    "_checkpoint_task_brief",
     "_checkpoint_trim",
     "save_tool_trace",
     "openai",

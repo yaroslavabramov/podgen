@@ -14,6 +14,7 @@ from app.generation_v2.research_workspace_contracts import (
 )
 from app.generation_v2.research_workspace_tool_spec_types import ToolHandler
 from app.generation_v2.runtime import AgentTool
+from app.generation_v2.schemas import ResearchWorkflowCompletion
 
 
 def research_job_tools(
@@ -22,6 +23,8 @@ def research_job_tools(
     finish_research_job_handler: ToolHandler,
     record_research_risk_handler: ToolHandler,
     record_research_gap_handler: ToolHandler,
+    *,
+    terminal_resume_loader=None,
 ) -> list[AgentTool]:
     return [
         AgentTool(
@@ -74,7 +77,10 @@ def research_job_tools(
                     "risk": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["risk"]},
                     "source_coverage_status": {"type": "string", "enum": ["ready", "partial", "weak"]},
                     "story_weight": {"type": "string", "enum": sorted(RESEARCH_ATOM_STORY_WEIGHTS)},
-                    "treatment_role_hint": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["treatment_role_hint"]},
+                    "treatment_role_hint": {
+                        "type": "string",
+                        "maxLength": SEMANTIC_FIELD_LIMITS["treatment_role_hint"],
+                    },
                 },
                 "required": [
                     "job_id",
@@ -125,6 +131,17 @@ def research_job_tools(
                 "required": ["job_id", "status", "summary", "deferred_reason", "question_outcomes"],
             },
             handler=finish_research_job_handler,
+            terminal=True,
+            terminal_result_builder=lambda arguments, _output: ResearchWorkflowCompletion(
+                ready=True,
+                summary=str(arguments.get("summary") or "Research job persisted."),
+                notes=(
+                    [str(arguments.get("deferred_reason") or "")]
+                    if str(arguments.get("deferred_reason") or "").strip()
+                    else []
+                ),
+            ),
+            terminal_resume_loader=terminal_resume_loader,
         ),
         AgentTool(
             name="record_research_risk",

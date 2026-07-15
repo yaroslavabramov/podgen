@@ -124,6 +124,29 @@ async def list_artifacts_grouped(
     return grouped
 
 
+async def load_current_artifact(
+    db: AsyncSession,
+    generation_run_id: uuid.UUID,
+    *,
+    artifact_type: str,
+    artifact_key: str,
+    corpus_revision: int | None = None,
+    attempt: int | None = None,
+) -> V2Artifact | None:
+    query = select(V2Artifact).where(
+        V2Artifact.generation_run_id == generation_run_id,
+        V2Artifact.artifact_type == artifact_type,
+        V2Artifact.artifact_key == artifact_key,
+        V2Artifact.is_current.is_(True),
+    )
+    if corpus_revision is not None:
+        query = query.where(V2Artifact.corpus_revision == int(corpus_revision))
+    if attempt is not None:
+        query = query.where(V2Artifact.attempt == int(attempt))
+    result = await db.execute(query.limit(1))
+    return result.scalar_one_or_none()
+
+
 async def save_tool_trace(
     db: AsyncSession,
     *,
@@ -192,6 +215,8 @@ async def list_tool_traces(db: AsyncSession, generation_run_id: uuid.UUID) -> li
         )
     return traces
 
+
 __all__ = [
+    "load_current_artifact",
     "summarize_tool_trace_costs",
 ]

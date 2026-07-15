@@ -91,21 +91,43 @@ def record_research_gap_handler(
             return field_error
         if status == ResearchGapStatus.RESOLVED.value and not resolution_note:
             return {"accepted": False, "error": "resolved research gaps require resolution_note"}
-        if severity == ResearchGapSeverity.BLOCKING.value and status == ResearchGapStatus.RESOLVED.value and not evidence_ids and not atom_refs:
-            return {"accepted": False, "error": "blocking research gaps cannot be resolved without evidence_ids or atom_refs"}
-        if status == ResearchGapStatus.RESOLVED.value and evidence_toolset is not None:
-            for evidence_id in evidence_ids:
-                await evidence_toolset._mark_evidence_status(
-                    evidence_id,
-                    EVIDENCE_STATUS_SELECTED,
-                    {
-                        "selected_purpose": "research_gap_resolution",
-                        "selected_role": "research_gap_resolution",
-                        "selected_rationale": resolution_note,
-                    },
-                )
         normalized_key = _gap_key(category, question)
-        gap_id = _stable_id(str(args.get("gap_id") or ""), question, len(current.get("research_gaps") or []) + 1)
+        requested_gap_id = str(args.get("gap_id") or "").strip()
+        current_gaps = [item for item in current.get("research_gaps") or [] if isinstance(item, dict)]
+        existing_by_id = next(
+            (item for item in current_gaps if requested_gap_id and str(item.get("gap_id") or "") == requested_gap_id),
+            None,
+        )
+        existing_by_key = next(
+            (
+                item
+                for item in current_gaps
+                if str(item.get("normalized_key") or _gap_key(item.get("category") or "", item.get("question") or ""))
+                == normalized_key
+            ),
+            None,
+        )
+        if existing_by_id is not None:
+            existing_key = str(
+                existing_by_id.get("normalized_key")
+                or _gap_key(existing_by_id.get("category") or "", existing_by_id.get("question") or "")
+            )
+            if existing_key != normalized_key:
+                return {
+                    "accepted": False,
+                    "error": "gap_id must update the same category and question",
+                    "gap_id": requested_gap_id,
+                    "expected_category": existing_by_id.get("category"),
+                    "expected_question": existing_by_id.get("question"),
+                }
+        if existing_by_id is not None and existing_by_key is not None and existing_by_id is not existing_by_key:
+            return {"accepted": False, "error": "gap identity conflicts with an existing research gap"}
+        existing = existing_by_id or existing_by_key
+        gap_id = str((existing or {}).get("gap_id") or _stable_id(
+            requested_gap_id,
+            question,
+            len(current_gaps) + 1,
+        ))
         gap = {
             "gap_id": gap_id,
             "question": question,
@@ -121,9 +143,33 @@ def record_research_gap_handler(
             "created_at": _now(),
             "updated_at": _now(),
         }
-        existing = next((item for item in current.get("research_gaps") or [] if item.get("normalized_key") == normalized_key), None)
         gap = _merge_research_gap(existing, gap) if isinstance(existing, dict) else gap
-        gaps = [item for item in current.get("research_gaps") or [] if item.get("normalized_key") != normalized_key]
+        if (
+            gap.get("status") == ResearchGapStatus.RESOLVED.value
+            and gap.get("severity") == ResearchGapSeverity.BLOCKING.value
+            and not gap.get("evidence_ids")
+            and not gap.get("atom_refs")
+        ):
+            return {"accepted": False, "error": "blocking research gaps cannot be resolved without evidence_ids or atom_refs"}
+        if status == ResearchGapStatus.RESOLVED.value and evidence_toolset is not None:
+            for evidence_id in evidence_ids:
+                await evidence_toolset._mark_evidence_status(
+                    evidence_id,
+                    EVIDENCE_STATUS_SELECTED,
+                    {
+                        "selected_purpose": "research_gap_resolution",
+                        "selected_role": "research_gap_resolution",
+                        "selected_rationale": resolution_note,
+                    },
+                )
+        replaced_gap_id = str((existing or {}).get("gap_id") or "")
+        gaps = [
+            item
+            for item in current_gaps
+            if str(item.get("gap_id") or "") != replaced_gap_id
+            and str(item.get("normalized_key") or _gap_key(item.get("category") or "", item.get("question") or ""))
+            != normalized_key
+        ]
         gaps.append(gap)
         current["research_gaps"] = gaps
         _workspace._mark_research_progress(current, source_refs=source_refs, evidence_ids=evidence_ids)

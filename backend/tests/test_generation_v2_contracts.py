@@ -6,6 +6,7 @@ import inspect
 import json
 import textwrap
 import uuid
+from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
@@ -92,6 +93,10 @@ from app.generation_v2.runtime import (
     _model_facing_tool_output,
     _strict_json_schema,
 )
+from app.generation_v2.runtime_checkpoint_context import (
+    TRIAGE_SET_RESUME_CONTRACT,
+    build_checkpoint_resume_context,
+)
 from app.generation_v2.research_kinds import ATOM_KIND_GUIDANCE, ATOM_KIND_PROMPT_BLOCK
 from app.generation_v2.research_workspace import (
     build_research_workspace_tools,
@@ -131,6 +136,8 @@ from app.generation_v2.schemas import (
     SupportJudgmentBundle,
     Treatment,
     TreatmentAct,
+    TreatmentAtomAnchor,
+    TreatmentAtomDisposition,
     TreatmentPlan,
     TreatmentPlanAct,
 )
@@ -159,6 +166,7 @@ from app.generation_v2.source_corpus import (
     reconcile_project_corpus_index_now,
     reconcile_provider_corpus_files,
 )
+from app.generation_v2.source_corpus_url_read import call_openai_url_file_read, call_openai_url_recovery
 from app.generation_v2.source_corpus_provider_attribute_sync import sync_provider_file_attributes
 from app.generation_v2.source_corpus_provider_polling import poll_provider_file_until_terminal
 from app.generation_v2.source_corpus_vector_ops import ensure_vector_store_file_attached
@@ -212,7 +220,9 @@ def test_v2_native_ready_status_survives_deterministic_parser_failure() -> None:
     assert _v2_native_source_ready({"v2_native_ingest": {"ready_provider_file_count": "2"}}) is True
     assert _v2_native_source_ready({"v2_native_ingest": {"openai_url_read_status": "readable"}}) is True
     assert _v2_native_source_ready({"v2_native_ingest": {"status": "source_versions_ready"}}) is False
-    assert _v2_native_source_ready({"v2_native_ingest": {"status": "failed", "ready_provider_file_count": "2"}}) is False
+    assert (
+        _v2_native_source_ready({"v2_native_ingest": {"status": "failed", "ready_provider_file_count": "2"}}) is False
+    )
 
 
 def test_authority_heuristic_treats_academic_pdf_as_secondary_not_primary() -> None:
@@ -260,12 +270,32 @@ def test_strict_json_schema_requires_nested_properties_and_blocks_extra_fields()
     assert set(atom_schema["required"]) >= {"kind", "title", "explanation", "story_value"}
 
 
+def test_strict_json_schema_preserves_optional_fields_as_nullable() -> None:
+    schema = _strict_json_schema(
+        {
+            "type": "object",
+            "properties": {
+                "required_value": {"type": "string"},
+                "optional_value": {"type": "string"},
+            },
+            "required": ["required_value"],
+        }
+    )
+
+    assert set(schema["required"]) == {"required_value", "optional_value"}
+    assert schema["properties"]["optional_value"] == {"anyOf": [{"type": "string"}, {"type": "null"}]}
+
+
 def test_function_call_parser_accepts_sdk_objects_and_dicts() -> None:
     object_response = SimpleNamespace(
-        output=[SimpleNamespace(type="function_call", call_id="call-1", name="search_corpus", arguments='{"query":"x"}')]
+        output=[
+            SimpleNamespace(type="function_call", call_id="call-1", name="search_corpus", arguments='{"query":"x"}')
+        ]
     )
     dict_response = SimpleNamespace(
-        output=[{"type": "function_call", "call_id": "call-2", "name": "fetch_source_view", "arguments": '{"kind":null}'}]
+        output=[
+            {"type": "function_call", "call_id": "call-2", "name": "fetch_source_view", "arguments": '{"kind":null}'}
+        ]
     )
 
     assert _function_calls(object_response)[0]["call_id"] == "call-1"
@@ -357,14 +387,14 @@ def test_hosted_file_search_tool_filters_to_agent_facing_files() -> None:
 def test_runtime_model_facing_tool_output_validates_compact_contracts() -> None:
     output = {
         "results": [
-                {
-                    "evidence_id": "ev-1",
-                    "source_ref": "S01",
-                    "source_title": "Currency note issuer history",
-                    "source_domain": "hkma.gov.hk",
-                    "locator": "section 1",
-                    "short_snippet": "compact preview",
-                    "score": 0.9,
+            {
+                "evidence_id": "ev-1",
+                "source_ref": "S01",
+                "source_title": "Currency note issuer history",
+                "source_domain": "hkma.gov.hk",
+                "locator": "section 1",
+                "short_snippet": "compact preview",
+                "score": 0.9,
             }
         ],
         "cache_hit": False,
@@ -423,8 +453,13 @@ def test_v2_runtime_routes_models_per_agent(monkeypatch: pytest.MonkeyPatch) -> 
     assert runtime.model_for("v2_fact_citation", "support_judge") == "gpt-5.4-mini"
     assert runtime.model_for("v2_unknown", "unknown_agent") == "gpt-5.4-mini"
     assert runtime.model_for(V2Phase.SOURCE_TRIAGE, V2AgentName.SOURCE_TRIAGE_PLANNER) == "gpt-5.4-mini"
-    assert runtime.model_for(V2Phase.SOURCE_ACQUISITION, f"{V2AgentPrefix.SOURCE_ACQUISITION_ROUND.value}2") == "gpt-5.4-mini"
-    assert runtime.model_for(V2Phase.EDITORIAL_RESEARCH, f"{V2AgentPrefix.RESEARCH_JOB.value}mechanism") == "gpt-5.4-mini"
+    assert (
+        runtime.model_for(V2Phase.SOURCE_ACQUISITION, f"{V2AgentPrefix.SOURCE_ACQUISITION_ROUND.value}2")
+        == "gpt-5.4-mini"
+    )
+    assert (
+        runtime.model_for(V2Phase.EDITORIAL_RESEARCH, f"{V2AgentPrefix.RESEARCH_JOB.value}mechanism") == "gpt-5.4-mini"
+    )
 
 
 @pytest.mark.asyncio
@@ -496,6 +531,19 @@ async def test_runtime_checkpoint_restarts_chain_after_input_threshold(monkeypat
     monkeypatch.setattr(settings, "generation_v2_source_triage_model", "gpt-5.4-mini")
     monkeypatch.setattr(runtime_module, "get_openai_client", lambda: fake_client)
 
+    async def checkpoint_state(*_args, **_kwargs):
+        return {
+            "phase": "v2_source_triage",
+            "agent_name": "source_triage_agent",
+            "corpus": {},
+            "source_triage_workspace": {"status": "FRESH_DB_STATE_MARKER"},
+        }
+
+    monkeypatch.setattr(
+        "app.generation_v2.runtime_checkpoint_state.build_agent_checkpoint_state",
+        checkpoint_state,
+    )
+
     async def lookup(_args: dict) -> dict:
         return {"accepted": True, "result": "small result"}
 
@@ -506,7 +554,7 @@ async def test_runtime_checkpoint_restarts_chain_after_input_threshold(monkeypat
         agent_name="source_triage_agent",
         schema_model=_RuntimeOk,
         system="system",
-        prompt="Run triage for a topic with the available source tools.",
+        prompt="Run triage with OLD_INITIAL_WORKSPACE_MARKER.",
         local_tools=[
             AgentTool(
                 name="lookup",
@@ -517,6 +565,14 @@ async def test_runtime_checkpoint_restarts_chain_after_input_threshold(monkeypat
         ],
         tool_policy=ToolPolicy(file_search=False, local_tools=True),
         checkpoint_policy=AgentCheckpointPolicy(enabled=True, max_chain_input_tokens=60_000, max_chain_rounds=99),
+        checkpoint_resume_context=build_checkpoint_resume_context(
+            run_config={
+                "language": "en",
+                "duration_target": 1800,
+                "user_prompt": "Run triage for a topic.",
+            },
+            workflow_contract=TRIAGE_SET_RESUME_CONTRACT,
+        ),
         max_tool_rounds=3,
     )
 
@@ -527,15 +583,26 @@ async def test_runtime_checkpoint_restarts_chain_after_input_threshold(monkeypat
     assert fake_client.responses.calls[0]["previous_response_id"] is runtime_module.openai.NOT_GIVEN
     assert fake_client.responses.calls[1]["previous_response_id"] is runtime_module.openai.NOT_GIVEN
     assert "Responses chain checkpoint restart" in fake_client.responses.calls[1]["input"][0]["content"]
-    assert "Source triage workflow" in fake_client.responses.calls[1]["input"][0]["content"]
+    restart_content = fake_client.responses.calls[1]["input"][0]["content"]
+    assert "OLD_INITIAL_WORKSPACE_MARKER" not in restart_content
+    assert "FRESH_DB_STATE_MARKER" in restart_content
+    assert "durable source-set plan and progress" in restart_content
+    assert "Continue only with tools exposed to this agent role" in restart_content
+    assert "list_sources" not in restart_content
     assert not any(item.get("type") == "function_call_output" for item in fake_client.responses.calls[1]["input"])
-    checkpoint_traces = [item for item in fake_db.added if isinstance(item, V2ToolTrace) and item.tool_name == "runtime.checkpoint_restart"]
+    checkpoint_traces = [
+        item
+        for item in fake_db.added
+        if isinstance(item, V2ToolTrace) and item.tool_name == "runtime.checkpoint_restart"
+    ]
     assert checkpoint_traces
     tool_traces = [item for item in fake_db.added if isinstance(item, V2ToolTrace) and item.tool_name == "lookup"]
     assert tool_traces[0].output_json["_runtime"]["model_facing_tool_output_chars"] > 0
     assert tool_traces[0].output_json["_runtime"]["model_facing_schema"] == "unknown_tool_output"
     assert "model_facing_tool_output_truncated" not in tool_traces[0].output_json["_runtime"]
-    response_traces = [item for item in fake_db.added if isinstance(item, V2ToolTrace) and item.tool_name == "openai.responses.create"]
+    response_traces = [
+        item for item in fake_db.added if isinstance(item, V2ToolTrace) and item.tool_name == "openai.responses.create"
+    ]
     assert response_traces[0].input_json["requested_model"] == "gpt-5.4-mini"
     assert response_traces[0].output_json["requested_model"] == "gpt-5.4-mini"
     assert response_traces[0].output_json["billing_model"] == "gpt-5.4-mini"
@@ -724,7 +791,10 @@ async def test_cost_report_aggregates_model_usage_from_traces() -> None:
     assert report["totals"]["output_tokens"] == 150
     assert report["totals"]["reasoning_output_tokens"] == 20
     assert report["totals"]["estimated_token_cost_usd"] == 0.003
-    assert {row["tool_name"] for row in report["groups"]} == {"openai.responses.create", "openai.responses.create.input_file"}
+    assert {row["tool_name"] for row in report["groups"]} == {
+        "openai.responses.create",
+        "openai.responses.create.input_file",
+    }
 
 
 def test_tool_round_limit_zero_disables_hard_cap(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -929,8 +999,70 @@ async def test_read_source_with_model_creates_evidence_item(monkeypatch: pytest.
     assert persisted_evidence[0].evidence_strength == EvidenceStrength.SNIPPET
     assert fake_client.files.calls[0]["purpose"] == "user_data"
     assert fake_client.responses.calls[0]["model"] == "gpt-5.4-mini"
-    assert fake_client.responses.calls[0]["input"][0]["content"][1] == {"type": "input_file", "file_id": "file_model_read"}
+    assert fake_client.responses.calls[0]["input"][0]["content"][1] == {
+        "type": "input_file",
+        "file_id": "file_model_read",
+    }
     assert provider_file.attributes["model_read_file_id"] == "file_model_read"
+
+
+@pytest.mark.asyncio
+async def test_provider_model_read_rejects_incomplete_response_before_parsing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2.tools import evidence_retrieval as evidence_module
+    from app.generation_v2.tools.evidence_provider_model_read_actions import model_read_provider_file
+
+    project_id = uuid.uuid4()
+    source_id = uuid.uuid4()
+    version = SourceVersion(
+        id=uuid.uuid4(),
+        source_id=source_id,
+        project_id=project_id,
+        kind=SourceRepresentationKind.ORIGINAL_FILE,
+        storage_path="sources/report.pdf",
+        content_hash="hash",
+        status=V2RecordStatus.READY,
+        upload_status=V2RecordStatus.READY,
+        is_active=True,
+        metadata_={},
+    )
+    provider_file = ProviderCorpusFile(
+        id=uuid.uuid4(),
+        provider_index_id=uuid.uuid4(),
+        source_id=source_id,
+        source_version_id=version.id,
+        provider="openai",
+        provider_file_id="file_test",
+        provider_vector_store_file_id="vsf_test",
+        attributes={},
+        status=V2RecordStatus.READY,
+    )
+    fake_client = _FakeModelReadClient(
+        {},
+        response_status="incomplete",
+        incomplete_reason="max_output_tokens",
+        output_text="",
+    )
+
+    class Owner:
+        run = SimpleNamespace(id=uuid.uuid4(), project_id=project_id)
+        db = SimpleNamespace()
+
+        async def _ensure_model_read_file_id(self, _provider_file, _version):
+            return "file_model_read"
+
+    monkeypatch.setattr(evidence_module, "get_openai_client", lambda: fake_client)
+    with pytest.raises(RuntimeError, match="status incomplete: max_output_tokens"):
+        await model_read_provider_file(
+            Owner(),
+            provider_file=provider_file,
+            version=version,
+            focus_question="What does this source support?",
+            claim_text="",
+            purpose="source_triage",
+            locator_hint="",
+        )
 
 
 @pytest.mark.asyncio
@@ -1329,7 +1461,8 @@ def test_evidence_tool_descriptions_define_usage_and_citation_contracts() -> Non
     assert "coverage_warning" in descriptions["read_source_with_model"]
     assert "Page numbers are useful when reported, but not required" in descriptions["read_source_with_model"]
     assert "Default first-read tool" in descriptions["skim_source"]
-    assert "Skim representative windows and persist them as EvidenceItems" in descriptions["skim_source"]
+    assert "without creating or selecting EvidenceItems" in descriptions["skim_source"]
+    assert "opaque window_ref" in descriptions["skim_source"]
     assert "version_ref is optional" in descriptions["skim_source"]
     assert "not a generic source search tool" in descriptions["find_quotes"]
     assert "research atom" in descriptions["find_quotes"]
@@ -1565,9 +1698,11 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert "read_evidence, read_source_window, or search_within_source only to repair a known gap" in ACT_REWRITE_PROMPT
     assert "Plan source triage" in SOURCE_TRIAGE_PLANNER_PROMPT
     assert "list_source_capsules" in SOURCE_TRIAGE_PLANNER_PROMPT
-    assert "capsule is not an editorial decision" in SOURCE_TRIAGE_PLANNER_PROMPT
+    assert "Capsules are only orientation" in SOURCE_TRIAGE_PLANNER_PROMPT
+    assert "Do not page through every capsule" in SOURCE_TRIAGE_PLANNER_PROMPT
     assert "Map one source set" in SOURCE_TRIAGE_SET_PROMPT
-    assert "search/read/skim tools create or return evidence_id handles" in SOURCE_TRIAGE_SET_PROMPT
+    assert "skim_source and inspect_source are orientation only" in SOURCE_TRIAGE_SET_PROMPT
+    assert "Pass a window_ref to read_source_window" in SOURCE_TRIAGE_SET_PROMPT
     assert "Read enough to understand the source set" in SOURCE_TRIAGE_SET_PROMPT
     assert "compare at least two relevant sources" in SOURCE_TRIAGE_SET_PROMPT
     assert "Finalize source triage" in SOURCE_TRIAGE_FINALIZER_PROMPT
@@ -1624,7 +1759,8 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert "finalize_research_memo" in RESEARCH_FINALIZER_PROMPT
     assert "merge_editorial_atoms" in RESEARCH_FINALIZER_PROMPT
     assert "Duplicate audit comes first" in RESEARCH_FINALIZER_PROMPT
-    assert "atom_drafts are raw outputs from separate jobs" in RESEARCH_FINALIZER_PROMPT
+    assert "atom_index entries represent raw outputs from separate jobs" in RESEARCH_FINALIZER_PROMPT
+    assert "Page atom_index until its next_cursor is empty" in RESEARCH_FINALIZER_PROMPT
     assert "Same finding means" in RESEARCH_FINALIZER_PROMPT
     assert "Do not call finalize_research_memo until this duplicate audit is complete" in RESEARCH_FINALIZER_PROMPT
     assert "research_synthesis" in RESEARCH_FINALIZER_PROMPT
@@ -1651,7 +1787,10 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert "source_map_json" not in TREATMENT_PROMPT
     assert "source_id" not in TREATMENT_PROMPT
     assert "evidence_id" not in TREATMENT_PROMPT
-    assert "quote_refs" not in TREATMENT_PROMPT
+    assert "selected_quotes contains" in TREATMENT_PROMPT
+    assert "selected_quote_refs" in TREATMENT_PROMPT
+    assert "core_atom_disposition" in TREATMENT_PROMPT
+    assert "does not require forcing every core atom" in TREATMENT_PROMPT
     assert "required_quote_refs" not in TREATMENT_PROMPT
     assert "required evidence" not in TREATMENT_PROMPT.lower()
     assert "evidence_id" not in TREATMENT_SYSTEM
@@ -1662,7 +1801,10 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert 'target_step="source_acquisition"' in RESEARCH_AUDIT_PROMPT
     assert 'read_priority="required"' in RESEARCH_AUDIT_PROMPT
     assert "read_evidence takes evidence_ref values" in RESEARCH_AUDIT_PROMPT
-    assert "If passed=true, repair_targets, missing_material, and required_followups must be empty" in RESEARCH_AUDIT_PROMPT
+    assert (
+        "If passed=true, repair_targets, missing_material, and required_followups must be empty"
+        in RESEARCH_AUDIT_PROMPT
+    )
     assert "research_memo_json" not in RESEARCH_AUDIT_PROMPT
     assert "source_map_json" not in RESEARCH_AUDIT_PROMPT
     assert "prefetch_seed" not in SOURCE_TRIAGE_PLANNER_PROMPT
@@ -1677,7 +1819,8 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert "select_evidence before linking" in CLAIM_CITATION_PROMPT
     assert "coverage_warning" in CLAIM_CITATION_PROMPT
     assert "blocking=true for missing evidence" in CLAIM_CITATION_PROMPT
-    assert '{"ready": boolean, "summary": string, "notes": string[]}' in SOURCE_TRIAGE_SET_PROMPT
+    assert "finish_triage_source_set is terminal" in SOURCE_TRIAGE_SET_PROMPT
+    assert '{"ready": boolean, "summary": string, "notes": string[]}' not in SOURCE_TRIAGE_SET_PROMPT
 
 
 def test_source_triage_repair_context_scopes_to_gate_failures() -> None:
@@ -1732,9 +1875,9 @@ def test_agent_system_prompts_are_role_specific_and_product_aware() -> None:
     assert "Follow the workflow prompt for the current triage stage" in SOURCE_TRIAGE_SYSTEM
     assert "Use corpus search for broad discovery" not in SOURCE_TRIAGE_SYSTEM
     assert "Web search is only a discovery mechanism" in SOURCE_ACQUISITION_SYSTEM
-    assert "Use the SourceMap as orientation" in RESEARCH_SYSTEM
-    assert "create stronger saved evidence" in RESEARCH_SYSTEM
-    assert "Persist working conclusions as research observations or editorial atom drafts" in RESEARCH_SYSTEM
+    assert "one assigned investigation job" in RESEARCH_SYSTEM
+    assert "source reading, comparison, and durable evidence-backed findings" in RESEARCH_SYSTEM
+    assert "Persist observations, atoms, risks, and gaps as you work" in RESEARCH_SYSTEM
     assert "Each act is a listener job" in TREATMENT_SYSTEM
     assert "Before using required evidence, inspect it" in ACT_WRITER_SYSTEM
     assert "Do not search" in SUPPORT_JUDGE_SYSTEM
@@ -2078,7 +2221,7 @@ async def test_research_audit_reads_evidence_by_preview_ref_not_backend_uuid() -
                 story_value="Could affect treatment but needs audit read.",
                 story_weight="supporting",
                 source_coverage_status="partial",
-            )
+            ),
         ],
     )
     previews_by_atom, evidence_id_by_ref, required_refs = _audit_evidence_previews(
@@ -2097,7 +2240,7 @@ async def test_research_audit_reads_evidence_by_preview_ref_not_backend_uuid() -
                 "locator_text": "p. 14",
                 "snippet_text": "The consequence is asserted by one source.",
                 "metadata": {"support_summary": "Potentially supports a partial consequence."},
-            }
+            },
         ],
         context=context,
         source_titles_by_id={source_id: "Audit source"},
@@ -2124,7 +2267,11 @@ async def test_research_audit_reads_evidence_by_preview_ref_not_backend_uuid() -
             AgentTool(
                 name="read_evidence",
                 description="raw read",
-                parameters={"type": "object", "properties": {"evidence_id": {"type": "string"}}, "required": ["evidence_id"]},
+                parameters={
+                    "type": "object",
+                    "properties": {"evidence_id": {"type": "string"}},
+                    "required": ["evidence_id"],
+                },
                 handler=_read_evidence,
             )
         ],
@@ -2240,7 +2387,8 @@ async def test_treatment_prompt_uses_refs_and_normalizes_source_focus() -> None:
     prompt = _CaptureRuntime.kwargs_by_agent["story_editor"]["prompt"]
     assert "Treatment input:" in prompt
     assert "Create exactly" not in prompt
-    assert "Create 4-6 acts" in prompt
+    assert "act_count_range is rough pacing guidance, not a quota" in prompt
+    assert "Create 4-6 acts" not in prompt
     assert '"act_count_range": {"min": 4, "max": 6}' in prompt
     assert '"atom_ref"' in prompt
     assert '"source_refs"' in prompt
@@ -2248,7 +2396,7 @@ async def test_treatment_prompt_uses_refs_and_normalizes_source_focus() -> None:
     assert '"source_cautions"' in prompt
     assert '"source_notes"' not in prompt
     assert '"audit_constraints"' in prompt
-    assert '"supported_answer_preview"' in prompt
+    assert '"supported_answer"' in prompt
     assert "Minor caveat for treatment." in prompt
     assert "S01 relevant caution: use this source for institutional framing" in prompt
     assert "Global unrelated gap." not in prompt
@@ -2257,7 +2405,8 @@ async def test_treatment_prompt_uses_refs_and_normalizes_source_focus() -> None:
     assert "Research synthesis" not in prompt
     assert '"thesis"' not in prompt
     assert '"research_synthesis"' not in prompt
-    assert '"quote_refs"' not in prompt
+    assert '"selected_quote_refs": []' in prompt
+    assert '"selected_quotes": []' in prompt
     assert '"required_quote_refs"' not in prompt
     assert source_id not in prompt
     assert unused_source_id not in prompt
@@ -2289,6 +2438,7 @@ def test_treatment_plan_schema_does_not_expose_evidence_ids() -> None:
     assert "required_evidence_ids" not in TreatmentPlanAct.model_fields
     assert "required_quote_refs" not in TreatmentPlanAct.model_fields
     assert "required_atom_refs" in TreatmentPlanAct.model_fields
+    assert "core_atom_dispositions" in TreatmentPlan.model_fields
 
 
 def test_fallback_treatment_uses_atom_refs_not_anchor_refs() -> None:
@@ -2386,7 +2536,7 @@ async def test_treatment_unknown_atom_ref_survives_for_deterministic_repair_gate
     assert any("unknown editorial atoms" in issue for issue in gate.weak_sections)
 
 
-def test_treatment_act_count_range_and_gate_allow_editorial_choice() -> None:
+def test_treatment_act_count_range_is_guidance_not_a_backend_quota() -> None:
     source_id = str(uuid.uuid4())
     evidence_id = str(uuid.uuid4())
     source = _source_card(source_id=source_id)
@@ -2402,6 +2552,17 @@ def test_treatment_act_count_range_and_gate_allow_editorial_choice() -> None:
             target_minutes=9,
             required_atom_refs=[f"A{idx:02d}"],
             required_evidence_ids=[evidence_id],
+            episode_supported_answer="Supported answer.",
+            atom_anchors=[
+                TreatmentAtomAnchor(
+                    atom_ref=f"A{idx:02d}",
+                    kind="mechanism",
+                    title=f"Atom {idx}",
+                    claim=f"Claim {idx}",
+                    story_value="Moves the story.",
+                    story_weight="core",
+                )
+            ],
             source_density_target=1,
         )
         for idx in range(1, 6)
@@ -2426,9 +2587,28 @@ def test_treatment_act_count_range_and_gate_allow_editorial_choice() -> None:
         ],
     )
 
+    def treatment_for_acts(selected_acts: list[TreatmentAct]) -> Treatment:
+        used_refs = {ref for act in selected_acts for ref in act.required_atom_refs}
+        return Treatment(
+            title="Episode",
+            logline="Plan.",
+            host_dynamic="A/B.",
+            supported_answer=memo.thesis,
+            acts=selected_acts,
+            core_atom_dispositions=[
+                TreatmentAtomDisposition(
+                    atom_ref=f"A{idx:02d}",
+                    disposition="used" if f"A{idx:02d}" in used_refs else "omitted",
+                    act_number=idx if f"A{idx:02d}" in used_refs else None,
+                    reason="" if f"A{idx:02d}" in used_refs else "Not needed for this shorter treatment.",
+                )
+                for idx in range(1, 6)
+            ],
+        )
+
     assert treatment_act_count_range(2700) == (4, 6)
     gate = _validate_treatment(
-        Treatment(title="Episode", logline="Plan.", host_dynamic="A/B.", acts=acts),
+        treatment_for_acts(acts),
         [source],
         duration_seconds=2700,
         research_memo=memo,
@@ -2436,30 +2616,23 @@ def test_treatment_act_count_range_and_gate_allow_editorial_choice() -> None:
     assert gate.passed is True
 
     too_few = _validate_treatment(
-        Treatment(title="Episode", logline="Plan.", host_dynamic="A/B.", acts=acts[:3]),
+        treatment_for_acts(acts[:3]),
         [source],
         duration_seconds=2700,
         research_memo=memo,
     )
-    assert too_few.passed is False
-    assert "requires 4-6 acts" in too_few.weak_sections[0]
+    assert too_few.passed is True
 
     no_expanded_evidence = _validate_treatment(
-        Treatment(
-            title="Episode",
-            logline="Plan.",
-            host_dynamic="A/B.",
-            acts=[acts[0].model_copy(update={"required_evidence_ids": []})],
-        ),
+        treatment_for_acts([acts[0].model_copy(update={"required_evidence_ids": []})]),
         [source],
         duration_seconds=2700,
         research_memo=memo,
     )
-    assert no_expanded_evidence.passed is False
-    assert any("lacks enough required evidence ids" in issue for issue in no_expanded_evidence.weak_sections)
+    assert no_expanded_evidence.passed is True
 
 
-def test_treatment_gate_rejects_planning_gap_and_caveat_primary_anchor() -> None:
+def test_treatment_gate_rejects_explicit_planning_gap_without_grading_atom_role() -> None:
     source_id = str(uuid.uuid4())
     caveat_evidence_id = str(uuid.uuid4())
     core_evidence_id = str(uuid.uuid4())
@@ -2503,6 +2676,17 @@ def test_treatment_gate_rejects_planning_gap_and_caveat_primary_anchor() -> None
             target_minutes=12,
             required_atom_refs=["A01"],
             required_evidence_ids=[caveat_evidence_id],
+            episode_supported_answer=memo.thesis,
+            atom_anchors=[
+                TreatmentAtomAnchor(
+                    atom_ref="A01",
+                    kind="exception",
+                    title="Bounded exception",
+                    claim="A caveat to the main pattern.",
+                    story_value="Prevents overstatement.",
+                    story_weight="caveat",
+                )
+            ],
             source_density_target=1,
         ),
         *[
@@ -2517,6 +2701,17 @@ def test_treatment_gate_rejects_planning_gap_and_caveat_primary_anchor() -> None
                 target_minutes=11,
                 required_atom_refs=["A02"],
                 required_evidence_ids=[core_evidence_id],
+                episode_supported_answer=memo.thesis,
+                atom_anchors=[
+                    TreatmentAtomAnchor(
+                        atom_ref="A02",
+                        kind="mechanism",
+                        title="Core mechanism",
+                        claim="A core finding.",
+                        story_value="Explains the system.",
+                        story_weight="core",
+                    )
+                ],
                 source_density_target=1,
             )
             for idx in range(2, 5)
@@ -2528,7 +2723,11 @@ def test_treatment_gate_rejects_planning_gap_and_caveat_primary_anchor() -> None
             title="Episode",
             logline="Plan.",
             host_dynamic="A/B.",
+            supported_answer=memo.thesis,
             acts=acts,
+            core_atom_dispositions=[
+                TreatmentAtomDisposition(atom_ref="A02", disposition="used", act_number=2)
+            ],
             planning_gaps=["1997-98 needs independent corroboration before it can anchor an act."],
         ),
         [source],
@@ -2538,8 +2737,8 @@ def test_treatment_gate_rejects_planning_gap_and_caveat_primary_anchor() -> None
 
     assert gate.passed is False
     assert any("planning gap requires research repair" in issue for issue in gate.weak_sections)
-    assert any("has no core atom anchor" in issue for issue in gate.weak_sections)
-    assert any("uses a caveat atom as its primary anchor" in issue for issue in gate.weak_sections)
+    assert not any("core atom" in issue for issue in gate.weak_sections)
+    assert not any("caveat atom" in issue for issue in gate.weak_sections)
 
 
 @pytest.mark.asyncio
@@ -2589,7 +2788,9 @@ async def test_treatment_gate_research_issues_enqueue_research_repair(monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_treatment_gate_bad_atom_selection_does_not_enqueue_research_repair(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_treatment_gate_bad_atom_selection_does_not_enqueue_research_repair(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from app.generation_v2.pipeline import orchestrator_compat
 
     run = SimpleNamespace(id=uuid.uuid4())
@@ -2636,10 +2837,7 @@ async def test_research_workflow_uses_sourcemap_summary_not_full_inventory_promp
         config={"user_prompt": "Hong Kong dollar", "duration_target": 2700, "language": "ru"},
     )
     source_map_card = _source_card(title="Triaged promoted source")
-    full_cards = [source_map_card] + [
-        _source_card(title=f"Neutral inventory source {idx}")
-        for idx in range(2, 41)
-    ]
+    full_cards = [source_map_card] + [_source_card(title=f"Neutral inventory source {idx}") for idx in range(2, 41)]
 
     await build_research_memo(
         None,  # type: ignore[arg-type]
@@ -2774,21 +2972,18 @@ def test_research_finalizer_prompt_payload_contains_persisted_work_without_raw_e
 
     assert payload["selected_evidence_count"] == 1
     assert payload["jobs"][0]["job_id"] == "job-mechanism"
-    assert payload["observations"][0]["note_preview"] == "S01 gives the concrete exchange process."
-    assert payload["observations"][0]["evidence_count"] == 1
-    assert "evidence_ids" not in payload["observations"][0]
-    assert payload["atom_drafts"][0]["atom_ref"] == "A01"
-    assert payload["atom_drafts"][0]["atom_id"] == "atom-1"
-    assert payload["atom_drafts"][0]["evidence_count"] == 1
-    assert payload["atom_drafts"][0]["has_evidence"] is True
-    assert "evidence_ids" not in payload["atom_drafts"][0]
+    assert payload["observations"] == []
+    assert payload["pages"]["observations"]["total_count"] == 1
+    assert payload["atom_index"][0]["atom_ref"] == "A01"
+    assert payload["atom_index"][0]["atom_id"] == "atom-1"
+    assert payload["atom_index"][0]["claim_preview"] == "The system turns obligations into issuance capacity."
+    assert payload["atom_index"][0]["evidence_count"] == 1
+    assert "evidence_ids" not in payload["atom_index"][0]
     assert payload["risk_register"][0]["source_refs"] == ["S01"]
     assert payload["risk_register"][0]["evidence_count"] == 1
     assert "evidence_ids" not in payload["risk_register"][0]
-    assert "Use atom_drafts as the memo backbone" in payload["assembly_instruction"]
-    assert "Use atom_ref handles for risk/gap links" in payload["assembly_instruction"]
-    assert "raw outputs from independent jobs" in payload["assembly_instruction"]
-    assert "merge_editorial_atoms for duplicates" in payload["assembly_instruction"]
+    assert "compact index" in payload["assembly_instruction"]
+    assert "section=atom_drafts" in payload["assembly_instruction"]
 
 
 def test_research_workspace_summary_can_hide_global_evidence_ids_for_planner() -> None:
@@ -3012,9 +3207,7 @@ async def test_citation_validator_allows_only_nonblocking_low_issues() -> None:
         severity="low",
         blocking=True,
     )
-    nonblocking_low = blocking_low.model_copy(
-        update={"issue": "Low severity and nonblocking.", "blocking": False}
-    )
+    nonblocking_low = blocking_low.model_copy(update={"issue": "Low severity and nonblocking.", "blocking": False})
 
     blocked_report = await validate_citations(
         None,
@@ -3331,7 +3524,7 @@ def test_research_memo_evidence_gate_rejects_observed_unselected_atom_evidence()
     assert "not explicitly selected" in " ".join(gate.missing_material)
 
 
-def test_research_memo_gate_requires_major_cluster_coverage() -> None:
+def test_research_memo_objective_gate_does_not_guess_cluster_importance() -> None:
     source_id = str(uuid.uuid4())
     uncovered_source_id = str(uuid.uuid4())
     source_version_id = str(uuid.uuid4())
@@ -3377,8 +3570,8 @@ def test_research_memo_gate_requires_major_cluster_coverage() -> None:
         source_map=source_map,
     )
 
-    assert gate.passed is False
-    assert "Main explanatory cluster" in " ".join(gate.missing_material)
+    assert gate.passed is True
+    assert gate.missing_material == []
 
 
 def test_research_memo_gate_skips_low_priority_duplicate_cluster_coverage() -> None:
@@ -3580,7 +3773,12 @@ async def test_source_map_does_not_create_cards_from_rejected_write_actions() ->
     traces = [
         SimpleNamespace(
             tool_name="select_evidence",
-            input_json={"evidence_id": str(evidence_id), "purpose": "source_map", "role": "mechanism", "rationale": "ok"},
+            input_json={
+                "evidence_id": str(evidence_id),
+                "purpose": "source_map",
+                "role": "mechanism",
+                "rationale": "ok",
+            },
             output_json={"accepted": True},
         ),
         SimpleNamespace(
@@ -3594,7 +3792,11 @@ async def test_source_map_does_not_create_cards_from_rejected_write_actions() ->
             },
             output_json={"accepted": False, "error": "evidence_ids must be selected"},
         ),
-        SimpleNamespace(tool_name="finalize_source_map", input_json={"ready": True, "summary": "done"}, output_json={"accepted": True}),
+        SimpleNamespace(
+            tool_name="finalize_source_map",
+            input_json={"ready": True, "summary": "done"},
+            output_json={"accepted": True},
+        ),
     ]
     evidence = [
         SimpleNamespace(
@@ -4135,6 +4337,7 @@ async def test_source_triage_workflow_agents_have_stage_specific_tools() -> None
         run,
         _CaptureRuntime(completion),
         workspace_summary={"status": "orientation", "source_count": 3},
+        source_catalog={"complete_source_list": True, "source_count": 3, "sources": []},
         workspace_tools=all_tools,
     )
     await build_source_triage_set_agent(
@@ -4157,6 +4360,7 @@ async def test_source_triage_workflow_agents_have_stage_specific_tools() -> None
     assert set(_CaptureRuntime.calls["source_triage_planner_agent"]) == {
         "list_source_capsules",
         "list_triage_source_sets",
+        "upsert_coverage_question",
         "upsert_triage_source_set",
         "finalize_triage_workspace_plan",
     }
@@ -4174,14 +4378,27 @@ async def test_source_triage_workflow_agents_have_stage_specific_tools() -> None
         "record_source_relationship",
         "record_source_cluster",
         "record_gap",
+        "list_source_map_gaps",
+        "resolve_gap",
         "record_triage_observation",
+        "upsert_source_assessment",
+        "upsert_coverage_outcome",
         "finish_triage_source_set",
     }
     assert "list_sources" not in _CaptureRuntime.calls[set_agent_name]
     assert "select_evidence" not in _CaptureRuntime.calls[set_agent_name]
     assert set(_CaptureRuntime.calls["source_triage_finalizer_agent"]) == {
         "list_triage_source_sets",
+        "read_evidence",
         "record_gap",
+        "list_source_map_gaps",
+        "resolve_gap",
+        "resolve_source_map_repair",
+        "record_source_relationship",
+        "record_source_cluster",
+        "upsert_source_assessment",
+        "upsert_coverage_outcome",
+        "upsert_coverage_synthesis",
         "finalize_source_map",
         "finish_triage_source_set",
     }
@@ -4230,6 +4447,73 @@ async def test_scoped_research_job_rejects_empty_find_quotes_scope() -> None:
 
     assert result["accepted"] is False
     assert result["error"] == "source_refs_required_in_current_scope"
+    assert result["results"] == []
+
+
+@pytest.mark.asyncio
+async def test_broad_research_search_is_limited_to_triage_eligible_sources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    toolset = EvidenceToolset(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),
+        run_view=None,  # type: ignore[arg-type]
+        provider_index=None,
+        research_allowed_source_refs={"S01"},
+        research_allow_broad_search=True,
+        research_current_job_id="job_1",
+    )
+    captured: dict = {}
+
+    async def no_guard():
+        return None
+
+    async def resolve_refs(refs):
+        assert refs == ["S01"]
+        return ["source-eligible"], []
+
+    async def search_corpus(**kwargs):
+        captured.update(kwargs)
+        return {"accepted": True, "results": []}
+
+    monkeypatch.setattr(toolset, "_triage_read_guard_error", no_guard)
+    monkeypatch.setattr(toolset, "_source_ids_from_refs_or_ids", resolve_refs)
+    monkeypatch.setattr(toolset, "search_corpus", search_corpus)
+
+    result = await toolset.search_corpus_tool(
+        {"query": "mechanism", "purpose": "test", "scope": "all_sources", "limit": 5}
+    )
+
+    assert result["accepted"] is True
+    assert captured["source_ids"] == ["source-eligible"]
+    assert captured["scope"] == "selected_sources"
+
+
+@pytest.mark.asyncio
+async def test_broad_research_search_stops_when_triage_left_no_eligible_sources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    toolset = EvidenceToolset(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),
+        run_view=None,  # type: ignore[arg-type]
+        provider_index=None,
+        research_allowed_source_refs=set(),
+        research_allow_broad_search=True,
+        research_current_job_id="job_1",
+    )
+
+    async def no_guard():
+        return None
+
+    monkeypatch.setattr(toolset, "_triage_read_guard_error", no_guard)
+
+    result = await toolset.search_corpus_tool(
+        {"query": "mechanism", "purpose": "test", "scope": "all_sources", "limit": 5}
+    )
+
+    assert result["accepted"] is False
+    assert result["error"] == "no_eligible_sources_in_current_research_workspace"
     assert result["results"] == []
 
 
@@ -4340,7 +4624,9 @@ async def test_scope_error_returns_source_refs_instead_of_internal_ids(
 
 
 @pytest.mark.asyncio
-async def test_research_model_read_rejects_unknown_source_ref_before_provider_path(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_research_model_read_rejects_unknown_source_ref_before_provider_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     toolset = EvidenceToolset(
         db=None,  # type: ignore[arg-type]
         run=SimpleNamespace(id=uuid.uuid4()),
@@ -4372,7 +4658,9 @@ async def test_research_model_read_rejects_unknown_source_ref_before_provider_pa
 
 
 @pytest.mark.asyncio
-async def test_research_read_window_rejects_source_outside_current_job_before_resolver(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_research_read_window_rejects_source_outside_current_job_before_resolver(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     allowed_source_id = str(uuid.uuid4())
     outside_source_id = str(uuid.uuid4())
     toolset = EvidenceToolset(
@@ -4440,10 +4728,16 @@ async def test_search_within_source_does_not_return_read_advisory_error(monkeypa
 
 def test_source_triage_workflow_prompts_describe_stage_contracts() -> None:
     assert "list_source_capsules" in SOURCE_TRIAGE_PLANNER_PROMPT
-    assert "search/read/skim tools create or return evidence_id handles" in SOURCE_TRIAGE_SET_PROMPT
+    assert "skim_source and inspect_source are orientation only" in SOURCE_TRIAGE_SET_PROMPT
+    assert "Pass a window_ref to read_source_window" in SOURCE_TRIAGE_SET_PROMPT
     assert "Assembled SourceMap from persisted write actions" in SOURCE_TRIAGE_FINALIZER_PROMPT
     assert "list_sources" not in SOURCE_TRIAGE_PLANNER_PROMPT
     assert "select_evidence" not in SOURCE_TRIAGE_SET_PROMPT
+
+
+def test_source_acquisition_prompt_matches_required_ingest_fields() -> None:
+    assert "source_type_hint" in SOURCE_ACQUISITION_PROMPT
+    assert "authority_hint" in SOURCE_ACQUISITION_PROMPT
 
 
 @pytest.mark.asyncio
@@ -4712,7 +5006,9 @@ async def test_research_workspace_rejects_unknown_atom_kind(monkeypatch: pytest.
 
 
 @pytest.mark.asyncio
-async def test_research_workspace_broad_job_still_rejects_refs_outside_workspace(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_research_workspace_broad_job_still_rejects_refs_outside_workspace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from app.generation_v2 import research_workspace as research_workspace_module
 
     source_id = str(uuid.uuid4())
@@ -4818,7 +5114,7 @@ def test_research_finalizer_tool_schema_uses_research_synthesis() -> None:
     assert "narrative_spine" not in properties
     assert "narrative_spine" not in required
     assert "risk_register" in properties
-    assert "risk_register" not in required
+    assert "risk_register" in required
     assert set(merge.parameters["required"]) == {"primary_atom_id", "duplicate_atom_ids"}
     assert "Mandatory finalizer duplicate-audit tool" in merge.description
     assert "same research finding" in merge.description
@@ -5119,7 +5415,9 @@ async def test_research_finalizer_clears_stale_memo_fields_before_run(monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_research_workspace_rejects_source_quality_atom_and_exposes_risk_tools(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_research_workspace_rejects_source_quality_atom_and_exposes_risk_tools(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from app.generation_v2 import research_workspace as research_workspace_module
 
     source_id = str(uuid.uuid4())
@@ -5200,7 +5498,10 @@ async def test_research_workspace_rejects_source_quality_atom_and_exposes_risk_t
     )
 
     assert result["accepted"] is False
-    assert result["error"] == "source-quality notes are not editorial atoms; use record_research_risk or record_research_gap"
+    assert (
+        result["error"]
+        == "source-quality notes are not editorial atoms; use record_research_risk or record_research_gap"
+    )
     assert workspace["atom_drafts"] == []
 
 
@@ -5247,8 +5548,12 @@ async def test_research_risk_persists_full_text_and_rejects_oversized_text(monke
     risk_tool = next(tool for tool in tools if tool.name == "record_research_risk")
     full_risk = "This risk text is longer than forty characters and must not be silently sliced in persistence."
 
-    accepted = await risk_tool.handler({"risk": full_risk, "severity": "medium", "source_refs": ["S01"], "evidence_ids": []})
-    rejected = await risk_tool.handler({"risk": "x" * 5000, "severity": "medium", "source_refs": ["S01"], "evidence_ids": []})
+    accepted = await risk_tool.handler(
+        {"risk": full_risk, "severity": "medium", "source_refs": ["S01"], "evidence_ids": []}
+    )
+    rejected = await risk_tool.handler(
+        {"risk": "x" * 5000, "severity": "medium", "source_refs": ["S01"], "evidence_ids": []}
+    )
 
     assert accepted["accepted"] is True
     assert workspace["risk_register"][0]["risk"] == full_risk
@@ -5258,7 +5563,9 @@ async def test_research_risk_persists_full_text_and_rejects_oversized_text(monke
 
 
 @pytest.mark.asyncio
-async def test_research_planner_persists_full_questions_and_rejects_extra_items(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_research_planner_persists_full_questions_and_rejects_extra_items(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from app.generation_v2 import research_workspace as research_workspace_module
 
     run = SimpleNamespace(id=uuid.uuid4(), config={"user_prompt": "Topic"})
@@ -5347,7 +5654,9 @@ async def test_research_finalizer_risk_resolves_a_refs_to_atom_ids(monkeypatch: 
     )
     risk_tool = next(tool for tool in tools if tool.name == "record_research_risk")
 
-    result = await risk_tool.handler({"risk": "Check this atom carefully.", "severity": "medium", "source_refs": [], "atom_refs": ["A01"]})
+    result = await risk_tool.handler(
+        {"risk": "Check this atom carefully.", "severity": "medium", "source_refs": [], "atom_refs": ["A01"]}
+    )
 
     assert result["accepted"] is True
     assert workspace["risk_register"][0]["atom_refs"] == ["atom_1"]
@@ -5400,7 +5709,9 @@ async def test_research_risk_and_gap_reject_refs_outside_current_job(monkeypatch
     risk_tool = next(tool for tool in tools if tool.name == "record_research_risk")
     gap_tool = next(tool for tool in tools if tool.name == "record_research_gap")
 
-    risk_result = await risk_tool.handler({"risk": "Risk", "severity": "medium", "source_refs": ["S02"], "evidence_ids": []})
+    risk_result = await risk_tool.handler(
+        {"risk": "Risk", "severity": "medium", "source_refs": ["S02"], "evidence_ids": []}
+    )
     gap_result = await gap_tool.handler(
         {
             "question": "Gap?",
@@ -5472,7 +5783,9 @@ async def test_research_gap_merge_does_not_demote_blocking_gap(monkeypatch: pyte
     }
 
     first = await gap_tool.handler({**base_args, "severity": "blocking"})
-    second = await gap_tool.handler({**base_args, "question": "What exactly happened in 1997–98?", "severity": "non_blocking"})
+    second = await gap_tool.handler(
+        {**base_args, "question": "What exactly happened in 1997–98?", "severity": "non_blocking"}
+    )
 
     assert first["accepted"] is True
     assert second["accepted"] is True
@@ -6225,7 +6538,9 @@ async def test_research_read_advisory_is_returned_in_model_facing_output() -> No
     toolset.search_corpus_tool = _fake_search  # type: ignore[method-assign]
     tool = next(item for item in toolset.agent_tools() if item.name == "search_corpus")
 
-    result = await tool.handler({"query": "topic", "purpose": "test", "scope": "all_sources", "source_refs": [], "limit": 5})
+    result = await tool.handler(
+        {"query": "topic", "purpose": "test", "scope": "all_sources", "source_refs": [], "limit": 5}
+    )
 
     assert result["commit_advisory"]["commit_recommended"] is True
     assert result["commit_advisory"]["reads_since_commit"] == 7
@@ -6424,8 +6739,9 @@ def test_research_job_prompt_payload_filters_sourcemap_to_current_job_refs() -> 
     assert filtered["source_card_count"] == 2
     assert filtered["includes_evidence_ids"] is False
     assert filtered["filtered_for_source_refs"] == ["S01"]
-    assert payload["workspace_progress"]["atom_drafts"][0]["evidence_count"] == 1
-    assert "evidence_ids" not in payload["workspace_progress"]["atom_drafts"][0]
+    assert payload["workspace_progress"]["global_atom_count"] == 1
+    assert "atom_drafts" not in payload["workspace_progress"]
+    assert "global-ev" not in json.dumps(payload["workspace_progress"])
 
 
 def test_research_memo_from_workspace_assembles_downstream_source_ids() -> None:
@@ -6586,7 +6902,9 @@ async def test_record_triage_observation_rejects_evidence_outside_current_set(mo
 
 
 @pytest.mark.asyncio
-async def test_source_triage_planner_rejects_overlong_semantic_fields_without_persistence(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_source_triage_planner_rejects_overlong_semantic_fields_without_persistence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     workspace = {"source_order": ["S01"], "source_sets": []}
     run = SimpleNamespace(id=uuid.uuid4())
 
@@ -7321,9 +7639,15 @@ def test_url_and_original_file_versions_are_not_local_snapshots() -> None:
         "is_active": True,
     }
     url_version = SourceVersion(kind=SourceRepresentationKind.ORIGINAL_URL, storage_path="https://example.com", **base)
-    file_version = SourceVersion(kind=SourceRepresentationKind.ORIGINAL_FILE, storage_path="sources/project/report.pdf", **base)
-    html_version = SourceVersion(kind=SourceRepresentationKind.FETCHED_HTML, storage_path="snapshots/fetched.html", **base)
-    openai_read_version = SourceVersion(kind=SourceRepresentationKind.MODEL_READ_TEXT, storage_path="snapshots/openai_url_read.md", **base)
+    file_version = SourceVersion(
+        kind=SourceRepresentationKind.ORIGINAL_FILE, storage_path="sources/project/report.pdf", **base
+    )
+    html_version = SourceVersion(
+        kind=SourceRepresentationKind.FETCHED_HTML, storage_path="snapshots/fetched.html", **base
+    )
+    openai_read_version = SourceVersion(
+        kind=SourceRepresentationKind.MODEL_READ_TEXT, storage_path="snapshots/openai_url_read.md", **base
+    )
 
     assert _version_has_snapshot(url_version) is False
     assert _version_has_snapshot(file_version) is False
@@ -7583,7 +7907,9 @@ class _FakeProviderFiles:
 
 
 class _FakeVectorStoreFiles:
-    def __init__(self, *, files: dict[str, SimpleNamespace] | None = None, create_failure: Exception | None = None) -> None:
+    def __init__(
+        self, *, files: dict[str, SimpleNamespace] | None = None, create_failure: Exception | None = None
+    ) -> None:
         self.files = files or {}
         self.create_failure = create_failure
         self.create_calls: list[dict] = []
@@ -7674,7 +8000,9 @@ async def test_prepare_v2_corpus_is_read_only_and_fails_if_any_project_source_is
     source_ready = _source(project_id)
     source_skipped = _source(project_id)
     extracted = _source_version(source_ready, SourceRepresentationKind.EXTRACTED_TEXT, storage_path="sources/ready.txt")
-    rendered = _source_version(source_ready, SourceRepresentationKind.RENDERED_SNAPSHOT, storage_path="sources/rendered.txt")
+    rendered = _source_version(
+        source_ready, SourceRepresentationKind.RENDERED_SNAPSHOT, storage_path="sources/rendered.txt"
+    )
     skipped_extracted = _source_version(source_skipped, SourceRepresentationKind.EXTRACTED_TEXT)
     provider_index = ProviderCorpusIndex(
         id=uuid.uuid4(),
@@ -7939,7 +8267,9 @@ async def test_ensure_source_version_replaces_after_new_row_without_provider_det
 
 
 @pytest.mark.asyncio
-async def test_provider_upload_resume_reuses_file_created_before_attach_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_provider_upload_resume_reuses_file_created_before_attach_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(settings, "openai_api_key", "test-key")
     monkeypatch.setattr(settings, "generation_v2_enable_provider_uploads", True)
 
@@ -7999,7 +8329,9 @@ async def test_provider_upload_resume_reuses_file_created_before_attach_failure(
 
 
 @pytest.mark.asyncio
-async def test_reconcile_adopts_completed_openai_file_for_existing_canonical_version(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_reconcile_adopts_completed_openai_file_for_existing_canonical_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(settings, "openai_api_key", "test-key")
     project_id = uuid.uuid4()
     source = _source(project_id)
@@ -8038,6 +8370,55 @@ async def test_reconcile_adopts_completed_openai_file_for_existing_canonical_ver
     assert provider_file.attributes["upload_phase"] == "adopted"
     assert version.provider_file_id == "file_adopt"
     assert version.upload_status == V2RecordStatus.READY
+
+
+@pytest.mark.asyncio
+async def test_reconcile_adopts_active_replacement_instead_of_historical_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    project_id = uuid.uuid4()
+    source = _source(project_id)
+    historical = _source_version(source, SourceRepresentationKind.RENDERED_SNAPSHOT)
+    historical.is_active = False
+    historical.created_at = datetime(2025, 1, 1)
+    replacement = _source_version(source, SourceRepresentationKind.RENDERED_SNAPSHOT)
+    replacement.created_at = datetime(2025, 1, 2)
+    provider_index = ProviderCorpusIndex(
+        id=uuid.uuid4(),
+        project_id=project_id,
+        provider="openai",
+        provider_vector_store_id="vs_test",
+        scope="project",
+        status=V2RecordStatus.READY,
+        config={},
+    )
+    vector_file = SimpleNamespace(
+        id="file_replacement",
+        status="completed",
+        attributes=_provider_attributes(replacement),
+        last_error=None,
+    )
+    vector_files = _FakeVectorStoreFiles(files={"file_replacement": vector_file})
+    fake_db = _FakeCorpusDb(
+        sources=[source],
+        versions=[historical, replacement],
+        provider_index=provider_index,
+    )
+
+    summary = await reconcile_provider_corpus_files(
+        fake_db,  # type: ignore[arg-type]
+        provider_index,
+        [historical, replacement],
+        source_ids={source.id},
+        deps=_reconciliation_deps(vector_files),
+    )
+
+    assert summary["adopted_count"] == 1
+    assert summary["detached_count"] == 0
+    assert len(fake_db.provider_files) == 1
+    assert fake_db.provider_files[0].source_version_id == replacement.id
+    assert fake_db.provider_files[0].provider_file_id == "file_replacement"
 
 
 @pytest.mark.asyncio
@@ -8233,13 +8614,79 @@ async def test_openai_url_read_uses_responses_file_url(monkeypatch: pytest.Monke
         "file_url": "https://example.com/article.html",
     }
     assert call["text"]["format"]["name"] == "OpenAIUrlReadResult"
+    assert "untrusted" in call["instructions"]
+    assert "untrusted data" in call["input"][0]["content"][0]["text"]
     assert result["read_status"] == "readable"
     assert result["_response_id"] == "resp_model_read"
     assert result["_requested_model"] == "gpt-5.4-mini"
 
 
+@pytest.mark.asyncio
+async def test_openai_url_recovery_treats_metadata_and_web_results_as_untrusted() -> None:
+    fake_client = _FakeModelReadClient(
+        {
+            "recovery_status": "unclear",
+            "original_url_status": "unknown",
+            "best_alternative_url": "",
+            "alternative_urls": [],
+            "notes": "No verified alternative.",
+        }
+    )
+
+    await call_openai_url_recovery(
+        "https://example.com/missing",
+        {"v2_openai_url_read": {"status": "failed"}},
+        client=fake_client,
+    )
+
+    call = fake_client.responses.calls[0]
+    assert "untrusted data" in call["instructions"]
+    assert "untrusted data" in call["input"]
+    assert "content_preview" in call["input"]
+    assert "original_chars" in call["input"]
+    assert "omitted_chars" in call["input"]
+
+
+@pytest.mark.asyncio
+async def test_openai_url_read_does_not_turn_incomplete_or_empty_response_into_source_status() -> None:
+    incomplete_client = _FakeModelReadClient(
+        {},
+        response_status="incomplete",
+        incomplete_reason="max_output_tokens",
+        output_text="",
+    )
+    with pytest.raises(RuntimeError, match="status incomplete: max_output_tokens"):
+        await call_openai_url_file_read("https://example.com/article.html", client=incomplete_client)
+
+    empty_client = _FakeModelReadClient({}, output_text="")
+    with pytest.raises(RuntimeError, match="empty completed response"):
+        await call_openai_url_file_read("https://example.com/article.html", client=empty_client)
+
+
+@pytest.mark.asyncio
+async def test_openai_url_read_rejects_semantically_contradictory_structured_payload() -> None:
+    fake_client = _FakeModelReadClient(
+        {
+            "read_status": "readable",
+            "title": "Article",
+            "canonical_url": "https://example.com/article.html",
+            "content_type": "text/html",
+            "extracted_text_markdown": "",
+            "summary": "Claims to be readable but contains no text.",
+            "failure_reason": "",
+            "confidence": 0.9,
+        }
+    )
+
+    with pytest.raises(RuntimeError, match="readable or partial response must contain extracted text"):
+        await call_openai_url_file_read("https://example.com/article.html", client=fake_client)
+
+
 def test_filename_from_url_keeps_provider_upload_name() -> None:
-    assert _filename_from_url("https://example.com/path/Report%202025.pdf?download=1", default="fallback.pdf") == "Report 2025.pdf"
+    assert (
+        _filename_from_url("https://example.com/path/Report%202025.pdf?download=1", default="fallback.pdf")
+        == "Report 2025.pdf"
+    )
     assert _filename_from_url("https://example.com/path/", default="fallback.pdf") == "fallback.pdf"
     assert (
         _filename_from_url("https://arxiv.org/pdf/2511.10715", default="fallback.pdf", required_suffix=".pdf")
@@ -8356,7 +8803,10 @@ class _FakeModelReadDb:
         versions: dict[uuid.UUID, SourceVersion],
         execute_values: list[list[object]] | None = None,
     ) -> None:
-        self._responses = [_FakeScalarResult(values) for values in (execute_values if execute_values is not None else [provider_files, []])]
+        self._responses = [
+            _FakeScalarResult(values)
+            for values in (execute_values if execute_values is not None else [provider_files, []])
+        ]
         self._provider_files = provider_files
         self._versions = versions
         self.added: list[object] = []
@@ -8388,16 +8838,34 @@ class _FakeModelReadDb:
 
 
 class _FakeModelReadResponses:
-    def __init__(self, payload: dict, *, failures: int = 0) -> None:
+    def __init__(
+        self,
+        payload: dict,
+        *,
+        failures: int = 0,
+        status: str = "completed",
+        incomplete_reason: str | None = None,
+        output_text: str | None = None,
+    ) -> None:
         self.payload = payload
         self.failures = failures
+        self.status = status
+        self.incomplete_reason = incomplete_reason
+        self.output_text = output_text
         self.calls: list[dict] = []
 
     async def create(self, **kwargs):
         self.calls.append(kwargs)
         if len(self.calls) <= self.failures:
             raise RuntimeError("input_file too large")
-        return SimpleNamespace(id="resp_model_read", output_text=json.dumps(self.payload))
+        return SimpleNamespace(
+            id="resp_model_read",
+            status=self.status,
+            incomplete_details=(
+                SimpleNamespace(reason=self.incomplete_reason) if self.incomplete_reason else None
+            ),
+            output_text=json.dumps(self.payload) if self.output_text is None else self.output_text,
+        )
 
 
 class _FakeModelReadFiles:
@@ -8411,9 +8879,23 @@ class _FakeModelReadFiles:
 
 
 class _FakeModelReadClient:
-    def __init__(self, payload: dict, *, response_failures: int = 0) -> None:
+    def __init__(
+        self,
+        payload: dict,
+        *,
+        response_failures: int = 0,
+        response_status: str = "completed",
+        incomplete_reason: str | None = None,
+        output_text: str | None = None,
+    ) -> None:
         self.files = _FakeModelReadFiles()
-        self.responses = _FakeModelReadResponses(payload, failures=response_failures)
+        self.responses = _FakeModelReadResponses(
+            payload,
+            failures=response_failures,
+            status=response_status,
+            incomplete_reason=incomplete_reason,
+            output_text=output_text,
+        )
 
 
 class _FakeSelectEvidenceDb:
@@ -8470,6 +8952,9 @@ def _all_evidence_tools() -> list[AgentTool]:
             "record_source_relationship",
             "record_source_cluster",
             "record_gap",
+            "list_source_map_gaps",
+            "resolve_gap",
+            "resolve_source_map_repair",
             "finalize_source_map",
         )
     ]
@@ -8489,9 +8974,13 @@ def _workspace_triage_tools() -> list[AgentTool]:
         for name in (
             "list_source_capsules",
             "list_triage_source_sets",
+            "upsert_coverage_question",
             "upsert_triage_source_set",
             "finalize_triage_workspace_plan",
             "record_triage_observation",
+            "upsert_source_assessment",
+            "upsert_coverage_outcome",
+            "upsert_coverage_synthesis",
             "finish_triage_source_set",
         )
     ]
@@ -8641,14 +9130,32 @@ async def test_source_acquisition_agent_uses_web_search_and_acquisition_tools_on
             }
         ],
     )
+
     async def _handler(_args):
         return {}
 
     tools = [
-        AgentTool(name="ingest_source_candidate", description="", parameters={"type": "object", "properties": {}}, handler=_handler),
-        AgentTool(name="reject_source_candidate", description="", parameters={"type": "object", "properties": {}}, handler=_handler),
-        AgentTool(name="finalize_source_acquisition_round", description="", parameters={"type": "object", "properties": {}}, handler=_handler),
-        AgentTool(name="search_corpus", description="", parameters={"type": "object", "properties": {}}, handler=_handler),
+        AgentTool(
+            name="ingest_source_candidate",
+            description="",
+            parameters={"type": "object", "properties": {}},
+            handler=_handler,
+        ),
+        AgentTool(
+            name="reject_source_candidate",
+            description="",
+            parameters={"type": "object", "properties": {}},
+            handler=_handler,
+        ),
+        AgentTool(
+            name="finalize_source_acquisition_round",
+            description="",
+            parameters={"type": "object", "properties": {}},
+            handler=_handler,
+        ),
+        AgentTool(
+            name="search_corpus", description="", parameters={"type": "object", "properties": {}}, handler=_handler
+        ),
     ]
 
     await build_source_acquisition_agent(
@@ -8699,7 +9206,9 @@ def test_corpus_gap_report_collects_triage_gate_failures() -> None:
     assert report.source_count == 1
     assert report.evidence_count == 1
     assert any(gap.kind == "triage_not_ready" for gap in report.gaps)
-    assert any(gap.kind == "missing_function" and "mechanism" in gap.required_editorial_functions for gap in report.gaps)
+    assert any(
+        gap.kind == "missing_function" and "mechanism" in gap.required_editorial_functions for gap in report.gaps
+    )
     assert any(gap.kind == "source_map_gap" for gap in report.gaps)
 
 

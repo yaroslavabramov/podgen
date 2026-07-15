@@ -1,0 +1,758 @@
+from __future__ import annotations
+
+from copy import deepcopy
+import json
+from types import SimpleNamespace
+import uuid
+
+import pytest
+
+from app.generation_v2.model_facing_pagination import fit_model_page
+from app.generation_v2.research_workspace_tools import (
+    _full_job_question_page,
+    build_research_workspace_tools,
+)
+from app.generation_v2.research_source_map_prompting import (
+    source_map_planner_summary,
+    source_map_research_page,
+    source_map_research_summary,
+    source_map_summary_for_job,
+)
+from app.generation_v2.runtime_tool_output import model_facing_tool_output
+from app.generation_v2.schemas import (
+    SourceAssessment,
+    SourceCard,
+    SourceCluster,
+    SourceGapRecord,
+    SourceMap,
+    SourceRelationship,
+    SourceTriageReport,
+)
+from app.generation_v2.source_triage_workspace_tools import (
+    _full_canonical_item_page,
+    build_workspace_tools as build_triage_workspace_tools,
+)
+from app.generation_v2.source_triage_canonical import coverage_synthesis_input_hash
+from app.generation_v2.tools.evidence_source_map_ids import public_gap_ref
+
+
+def test_source_map_gap_context_is_structured_deduped_and_uses_public_refs() -> None:
+    source_id_1 = str(uuid.uuid4())
+    source_id_2 = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    inventory = SourceMap(
+        source_cards=[
+            SourceCard(source_id=source_id_1, title="First", source_type="web", summary="First source."),
+            SourceCard(source_id=source_id_2, title="Second", source_type="web", summary="Second source."),
+        ]
+    )
+    structured_description = f"{source_id_1} leaves one mechanism unresolved."
+    source_map = SourceMap(
+        source_cards=inventory.source_cards,
+        gaps=[structured_description],
+        contradictions=[f"{source_id_2} conflicts with the earlier account."],
+        gap_records=[
+            SourceGapRecord(
+                gap_id="gap:internal-hash",
+                kind="gap",
+                description=structured_description,
+                source_ids=[source_id_1],
+                evidence_ids=[evidence_id],
+            )
+        ],
+    )
+
+    summary = source_map_research_summary(source_map, inventory, include_evidence_ids=True)
+    planner = source_map_planner_summary(source_map, inventory)
+    page = source_map_research_page(
+        source_map,
+        inventory,
+        section="source_map_gap_records",
+        include_evidence_ids=True,
+    )
+    job_summary = source_map_summary_for_job(summary, {"source_refs": ["S01"]})
+
+    assert summary["gap_record_count"] == 1
+    assert summary["gap_count"] == 2
+    assert summary["legacy_gap_count"] == 1
+    gap_ref = public_gap_ref("gap:internal-hash")
+    assert summary["gap_records"][0] == {
+        "gap_ref": gap_ref,
+            "kind": "gap",
+            "source_refs": ["S01"],
+            "question_ids": [],
+            "evidence_ids": [evidence_id],
+        "evidence_id_count": 1,
+        "evidence_id_omitted_count": 0,
+        "description_preview": "S01 leaves one mechanism unresolved.",
+        "description_chars": len("S01 leaves one mechanism unresolved."),
+        "description_truncated": False,
+    }
+    assert summary["gaps"][0]["gap_preview"] == "S02 conflicts with the earlier account."
+    assert "gap_record_index" not in planner
+    assert planner["pages"]["source_map_gap_records"]["total_count"] == 1
+    assert page["items"][0]["gap_ref"] == gap_ref
+    assert page["items"][0]["description"] == "S01 leaves one mechanism unresolved."
+    assert job_summary["gap_records"][0]["evidence_ids"] == [evidence_id]
+    model_json = json.dumps(
+        {"summary": summary, "planner": planner, "page": page, "job": job_summary}
+    )
+    assert "gap:internal-hash" not in model_json
+    assert source_id_1 not in model_json
+    assert source_id_2 not in model_json
+
+
+def test_source_map_rejects_duplicate_structured_gap_ids() -> None:
+    record = SourceGapRecord(gap_id="gap:duplicate", description="First representation.")
+
+    with pytest.raises(ValueError, match="duplicate gap record ids"):
+        SourceMap(
+            gap_records=[
+                record,
+                record.model_copy(update={"description": "Conflicting representation."}),
+            ]
+        )
+
+
+@pytest.mark.asyncio
+async def test_corpus_brief_gap_page_hides_internal_id_and_only_job_mode_gets_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import research_workspace as workspace_api
+
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    long_description = f"The account in {source_id} remains disputed. " + ("Full detail. " * 120)
+    inventory = SourceMap(
+        source_cards=[SourceCard(source_id=source_id, title="First", source_type="web", summary="First.")]
+    )
+    workspace = {
+        "corpus_brief": {
+            "gap_records": [
+                {
+                    "gap_id": "gap:internal-hash",
+                    "kind": "contradiction",
+                    "description": long_description,
+                    "source_ids": [source_id],
+                    "evidence_ids": [evidence_id],
+                }
+            ]
+        }
+    }
+
+    async def load(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(workspace_api, "load_research_workspace", load)
+
+    async def page_for(mode: str) -> dict:
+        tools = build_research_workspace_tools(
+            db=None,  # type: ignore[arg-type]
+            run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+            workspace=workspace,
+            source_inventory=inventory,
+            mode=mode,
+        )
+        page_tool = next(tool for tool in tools if tool.name == "list_research_workspace_items")
+        return await page_tool.handler(
+            {"section": "corpus_brief_gap_records", "cursor": "0", "limit": 10}
+        )
+
+    planner_page = await page_for("planner")
+    job_page = await page_for("job")
+
+    assert planner_page["items"][0] == {
+        "kind": "contradiction",
+        "description": long_description.replace(source_id, "S01"),
+        "source_refs": ["S01"],
+        "gap_ref": public_gap_ref("gap:internal-hash"),
+        "evidence_count": 1,
+    }
+    assert job_page["items"][0]["evidence_ids"] == [evidence_id]
+    assert "gap_id" not in job_page["items"][0]
+
+
+def _payload(items: list[dict[str, str]]) -> dict:
+    return {
+        "accepted": True,
+        "section": "coverage_questions",
+        "items": items,
+        "page": {
+            "total_count": len(items),
+            "returned_count": len(items),
+            "omitted_count": 0,
+            "cursor": "0",
+            "next_cursor": "",
+        },
+    }
+
+
+def test_triage_canonical_page_honors_requested_limit() -> None:
+    workspace = {
+        "coverage_questions": [
+            {
+                "question_id": f"q-{index}",
+                "question": f"Question {index}",
+                "kind": "context",
+                "importance": "supporting",
+                "rationale": f"Rationale {index}",
+            }
+            for index in range(5)
+        ]
+    }
+
+    page = _full_canonical_item_page(
+        workspace,
+        section="coverage_questions",
+        cursor=0,
+        limit=3,
+    )
+
+    assert [item["question_id"] for item in page["items"]] == ["q-0", "q-1", "q-2"]
+    assert page["page"]["returned_count"] == 3
+    assert page["page"]["next_cursor"] == "3"
+    assert page["page"]["output_budget_limited"] is False
+
+
+def test_triage_synthesis_page_exposes_freshness_without_internal_hash_or_revision() -> None:
+    workspace = {
+        "triage_semantic_revision": 2,
+        "coverage_questions": [{"question_id": "q-main", "question": "What happened?"}],
+        "source_sets": [],
+        "source_assessments": [],
+        "coverage_outcomes": [],
+        "coverage_syntheses": [
+            {
+                "outcome_id": "synthesis:q-main",
+                "question_id": "q-main",
+                "status": "missing",
+                "missing_detail": "The corpus does not establish the answer.",
+                "next_action": "source_acquisition",
+                "input_revision": 2,
+            }
+        ],
+    }
+    workspace["coverage_syntheses"][0]["input_hash"] = coverage_synthesis_input_hash(
+        workspace,
+        "q-main",
+    )
+
+    page = _full_canonical_item_page(
+        workspace,
+        section="coverage_syntheses",
+        cursor=0,
+        limit=1,
+    )
+
+    synthesis = page["items"][0]
+    assert synthesis["input_current"] is True
+    assert "input_hash" not in synthesis
+    assert "input_revision" not in synthesis
+
+
+def test_research_workspace_page_honors_requested_limit() -> None:
+    workspace = {
+        "investigation_jobs": [
+            {"job_id": "job-main", "questions": [f"Question {index}" for index in range(5)]}
+        ]
+    }
+
+    page = _full_job_question_page(
+        workspace,
+        cursor=0,
+        job_id="job-main",
+        limit=3,
+    )
+
+    assert [item["question"] for item in page["items"]] == ["Question 0", "Question 1", "Question 2"]
+    assert page["page"]["returned_count"] == 3
+    assert page["page"]["next_cursor"] == "3"
+
+
+def test_model_page_reduces_batch_without_cutting_records() -> None:
+    records = [{"text": char * 4500} for char in "abc"]
+
+    page = fit_model_page(_payload(records), requested_limit=3)
+
+    assert page["accepted"] is True
+    assert page["items"] == records[:2]
+    assert page["page"]["returned_count"] == 2
+    assert page["page"]["next_cursor"] == "2"
+    assert page["page"]["output_budget_limited"] is True
+    assert model_facing_tool_output("list_triage_source_sets", page) is page
+
+
+def test_model_page_rejects_one_oversized_record_instead_of_truncating_it() -> None:
+    page = fit_model_page(_payload([{"text": "x" * 13000}]), requested_limit=1)
+
+    assert page["accepted"] is False
+    assert page["error"] == "workspace_item_exceeds_model_read_contract"
+    assert page["section"] == "coverage_questions"
+    assert "items" not in page
+
+
+@pytest.mark.asyncio
+async def test_triage_handler_pages_ten_whole_records_without_gaps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import source_triage_workspace as workspace_api
+
+    questions = [
+        {
+            "question_id": f"q-{index}",
+            "question": f"Question {index}: " + ("full semantic text " * 12),
+            "kind": "context",
+            "importance": "supporting",
+            "rationale": f"Rationale {index}: " + ("persisted reasoning " * 12),
+        }
+        for index in range(10)
+    ]
+    workspace = {"coverage_questions": questions}
+
+    async def load(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(workspace_api, "load_source_triage_workspace", load)
+    tools = build_triage_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(),
+        mode="planner",
+    )
+    page_tool = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+
+    pages = [
+        await page_tool.handler(
+            {"section": "coverage_questions", "cursor": str(cursor), "limit": 3}
+        )
+        for cursor in (0, 3, 6, 9)
+    ]
+
+    assert [page["page"]["returned_count"] for page in pages] == [3, 3, 3, 1]
+    assert [page["page"]["next_cursor"] for page in pages] == ["3", "6", "9", ""]
+    returned = [item for page in pages for item in page["items"]]
+    assert [item["question_id"] for item in returned] == [item["question_id"] for item in questions]
+    assert [item["question"] for item in returned] == [item["question"] for item in questions]
+    assert [item["rationale"] for item in returned] == [item["rationale"] for item in questions]
+    for page in pages:
+        model_facing_tool_output("list_triage_source_sets", page)
+
+
+@pytest.mark.asyncio
+async def test_research_handler_pages_current_job_whole_records_without_gaps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import research_workspace as workspace_api
+
+    questions = [f"Question {index}: " + ("full semantic text " * 12) for index in range(10)]
+    observations = [
+        {
+            "source_refs": ["S01"],
+            "evidence_ids": [f"evidence-{index}"],
+            "note": f"Observation {index}: " + ("full persisted note " * 12),
+            "pending_questions": [f"Pending {index}: " + ("full pending text " * 8)],
+        }
+        for index in range(10)
+    ]
+    workspace = {
+        "current_job": {"job_id": "job-main"},
+        "investigation_jobs": [
+            {
+                "job_id": "job-main",
+                "source_refs": ["S01"],
+                "questions": questions,
+                "observations": observations,
+                "status": "in_progress",
+            }
+        ],
+    }
+
+    async def load(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(workspace_api, "load_research_workspace", load)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=SourceMap(),
+        mode="job",
+        current_job_id="job-main",
+    )
+    page_tool = next(tool for tool in tools if tool.name == "list_research_workspace_items")
+
+    question_pages = [
+        await page_tool.handler(
+            {"section": "current_job_questions", "cursor": str(cursor), "limit": 3}
+        )
+        for cursor in (0, 3, 6, 9)
+    ]
+    observation_pages = [
+        await page_tool.handler(
+            {"section": "current_job_observations", "cursor": str(cursor), "limit": 3}
+        )
+        for cursor in (0, 3, 6, 9)
+    ]
+
+    assert [page["page"]["returned_count"] for page in question_pages] == [3, 3, 3, 1]
+    assert [page["page"]["next_cursor"] for page in question_pages] == ["3", "6", "9", ""]
+    returned_questions = [item for page in question_pages for item in page["items"]]
+    assert [item["question"] for item in returned_questions] == questions
+    assert all("question_preview" not in item for item in returned_questions)
+
+    assert [page["page"]["returned_count"] for page in observation_pages] == [3, 3, 3, 1]
+    assert [page["page"]["next_cursor"] for page in observation_pages] == ["3", "6", "9", ""]
+    returned_observations = [item for page in observation_pages for item in page["items"]]
+    assert [item["note"] for item in returned_observations] == [item["note"] for item in observations]
+    assert [item["pending_questions"] for item in returned_observations] == [
+        item["pending_questions"] for item in observations
+    ]
+    assert [item["evidence_ids"] for item in returned_observations] == [
+        item["evidence_ids"] for item in observations
+    ]
+    assert all("note_preview" not in item for item in returned_observations)
+    for page in [*question_pages, *observation_pages]:
+        model_facing_tool_output("list_research_workspace_items", page)
+
+
+@pytest.mark.asyncio
+async def test_full_semantic_handlers_keep_all_nested_evidence_refs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import research_workspace as research_workspace_api
+    from app.generation_v2 import source_triage_workspace as triage_workspace_api
+
+    evidence_ids = [f"evidence-{index}" for index in range(16)]
+    source_id = str(uuid.uuid4())
+    triage_workspace = {
+        "current_set": {"set_id": "set-main"},
+        "source_sets": [
+            {
+                "set_id": "set-main",
+                "label": "Main set",
+                "purpose": "Map the source.",
+                "source_refs": ["S01"],
+                "question_ids": ["q-main"],
+                "questions": ["What does the source establish?"],
+                "status": "in_progress",
+                "evidence_ids": evidence_ids,
+                "observations": [
+                    {
+                        "source_refs": ["S01"],
+                        "evidence_ids": evidence_ids,
+                        "note": "Complete persisted observation.",
+                        "pending_questions": [],
+                    }
+                ],
+            }
+        ],
+    }
+    research_workspace = {
+        "current_job": {"job_id": "job-main"},
+        "investigation_jobs": [
+            {
+                "job_id": "job-main",
+                "source_refs": ["S01"],
+                "questions": ["What changed?"],
+                "question_outcomes": [
+                    {
+                        "question": "What changed?",
+                        "status": "resolved",
+                        "note": "Resolved in full.",
+                        "evidence_ids": evidence_ids,
+                    }
+                ],
+                "observations": [
+                    {
+                        "source_refs": ["S01"],
+                        "evidence_ids": evidence_ids,
+                        "note": "Full observation.",
+                        "pending_questions": [],
+                    }
+                ],
+                "starting_evidence_ids": evidence_ids,
+                "evidence_ids": evidence_ids,
+                "status": "in_progress",
+            }
+        ],
+        "atom_drafts": [
+            {
+                "atom_id": "atom-main",
+                "job_id": "job-main",
+                "kind": "mechanism",
+                "title": "Mechanism",
+                "claim": "Complete claim.",
+                "explanation": "Complete explanation.",
+                "story_value": "Complete story value.",
+                "source_refs": ["S01"],
+                "quote_refs": evidence_ids[:2],
+                "anchor_refs": ["anchor-main"],
+                "evidence_ids": evidence_ids,
+                "confidence": 0.8,
+            }
+        ],
+        "research_gaps": [
+            {
+                "gap_id": "gap-main",
+                "question": "What remains?",
+                "source_refs": ["S01"],
+                "evidence_ids": evidence_ids,
+            }
+        ],
+        "risk_register": [
+            {
+                "risk": "Preserve this qualification.",
+                "source_refs": ["S01"],
+                "evidence_ids": evidence_ids,
+            }
+        ],
+        "audit_repair_feedback": [
+            {
+                "target_step": "editorial_research",
+                "description": "Repair this item.",
+                "evidence_ids": evidence_ids,
+            }
+        ],
+        "corpus_brief": {
+            "summary": "Complete corpus summary.",
+            "intent": {"user_prompt": "Complete user intent.", "language": "en"},
+            "cautions": ["Complete caution."],
+        },
+    }
+    source_map = SourceMap(
+        source_cards=[
+            SourceCard(
+                source_id=source_id,
+                title="Source",
+                source_type="web",
+                summary="Complete source summary.",
+                representation_summary="Complete representation summary.",
+                evidence_ids=evidence_ids,
+            )
+        ],
+        source_assessments=[
+            SourceAssessment(
+                assessment_id="assessment-main",
+                source_id=source_id,
+                evidence_ids=evidence_ids,
+            )
+        ],
+        source_triage=SourceTriageReport(
+            source_clusters=[
+                SourceCluster(
+                    cluster_id="cluster-main",
+                    label="Cluster",
+                    source_ids=[source_id],
+                    evidence_ids=evidence_ids,
+                )
+            ],
+            source_relationships=[
+                SourceRelationship(
+                    source_id=source_id,
+                    related_source_id=source_id,
+                    relationship="updates",
+                    evidence_ids=evidence_ids,
+                )
+            ],
+        ),
+    )
+
+    async def load_triage(_db, _run_id):
+        return triage_workspace
+
+    async def load_research(_db, _run_id):
+        return research_workspace
+
+    monkeypatch.setattr(triage_workspace_api, "load_source_triage_workspace", load_triage)
+    monkeypatch.setattr(research_workspace_api, "load_research_workspace", load_research)
+    triage_tools = build_triage_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=triage_workspace,
+        inventory=source_map,
+        mode="set",
+        current_set_id="set-main",
+    )
+    research_tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=research_workspace,
+        source_inventory=source_map,
+        source_map=source_map,
+        mode="job",
+        current_job_id="job-main",
+    )
+    triage_page_tool = next(tool for tool in triage_tools if tool.name == "list_triage_source_sets")
+    research_page_tool = next(tool for tool in research_tools if tool.name == "list_research_workspace_items")
+
+    triage_set = await triage_page_tool.handler(
+        {"section": "current_set", "cursor": "0", "limit": 1}
+    )
+    triage_observation = await triage_page_tool.handler(
+        {"section": "observations", "cursor": "0", "limit": 1}
+    )
+    assert triage_set["items"][0]["evidence_ids"] == evidence_ids
+    assert triage_observation["items"][0]["evidence_ids"] == evidence_ids
+    assert triage_observation["items"][0]["evidence_omitted_count"] == 0
+
+    expected_sections = {
+        "jobs": "evidence_ids",
+        "job_question_outcomes": "evidence_ids",
+        "atom_drafts": "evidence_ids",
+        "research_gaps": "evidence_ids",
+        "workspace_risks": "evidence_ids",
+        "audit_feedback": "evidence_ids",
+        "observations": "evidence_ids",
+        "source_map_cards": "evidence_ids",
+        "source_map_assessments": "evidence_ids",
+        "source_map_clusters": "evidence_ids",
+        "source_map_relationships": "evidence_ids",
+    }
+    for section, field in expected_sections.items():
+        page = await research_page_tool.handler(
+            {"section": section, "cursor": "0", "limit": 1, "job_id": "job-main"}
+        )
+        assert page["accepted"] is True, (section, page)
+        assert page["items"][0][field] == evidence_ids, section
+
+    atom = await research_page_tool.handler(
+        {"section": "atom_drafts", "cursor": "0", "limit": 1}
+    )
+    assert atom["items"][0]["quote_refs"] == evidence_ids[:2]
+    assert atom["items"][0]["anchor_refs"] == ["anchor-main"]
+    source_card = await research_page_tool.handler(
+        {"section": "source_map_cards", "cursor": "0", "limit": 1}
+    )
+    assert source_card["items"][0]["representation_summary"] == "Complete representation summary."
+    assert source_card["items"][0]["evidence_id_omitted_count"] == 0
+    source_inventory_card = await research_page_tool.handler(
+        {"section": "sources", "cursor": "0", "limit": 1}
+    )
+    assert source_inventory_card["items"][0]["summary"] == "Complete source summary."
+    assert source_inventory_card["items"][0]["evidence_ids"] == evidence_ids
+    assert "summary_preview" not in source_inventory_card["items"][0]
+    for section, expected in (
+        ("corpus_brief_summary", {"summary": "Complete corpus summary."}),
+        ("corpus_brief_intent", {"user_prompt": "Complete user intent.", "language": "en"}),
+        ("corpus_brief_cautions", {"caution": "Complete caution."}),
+    ):
+        page = await research_page_tool.handler({"section": section, "cursor": "0", "limit": 1})
+        assert page["items"][0] == expected
+
+
+@pytest.mark.asyncio
+async def test_source_map_full_page_rejects_oversized_record_without_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import research_workspace as workspace_api
+
+    source_map = SourceMap(
+        source_cards=[
+            SourceCard(
+                source_id=str(uuid.uuid4()),
+                title="Source",
+                source_type="web",
+                summary="s" * 13_000,
+            )
+        ]
+    )
+    workspace: dict = {}
+    before = deepcopy(source_map.model_dump(mode="json"))
+
+    async def load(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(workspace_api, "load_research_workspace", load)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=source_map,
+        source_map=source_map,
+        mode="job",
+        current_job_id="job-main",
+    )
+    page_tool = next(tool for tool in tools if tool.name == "list_research_workspace_items")
+
+    page = await page_tool.handler({"section": "source_map_cards", "cursor": "0", "limit": 1})
+
+    assert page["accepted"] is False
+    assert page["error"] == "workspace_item_exceeds_model_read_contract"
+    assert "items" not in page
+    assert source_map.model_dump(mode="json") == before
+
+
+@pytest.mark.asyncio
+async def test_workspace_handlers_reject_oversized_single_records_without_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import research_workspace as research_workspace_api
+    from app.generation_v2 import source_triage_workspace as triage_workspace_api
+
+    triage_workspace = {
+        "coverage_questions": [
+            {
+                "question_id": "q-oversized",
+                "question": "t" * 13_000,
+                "kind": "context",
+                "importance": "supporting",
+                "rationale": "Still persisted in full.",
+            }
+        ]
+    }
+    research_workspace = {
+        "current_job": {"job_id": "job-main"},
+        "investigation_jobs": [
+            {
+                "job_id": "job-main",
+                "questions": ["r" * 13_000],
+                "observations": [],
+                "status": "in_progress",
+            }
+        ],
+    }
+    triage_before = deepcopy(triage_workspace)
+    research_before = deepcopy(research_workspace)
+
+    async def load_triage(_db, _run_id):
+        return triage_workspace
+
+    async def load_research(_db, _run_id):
+        return research_workspace
+
+    monkeypatch.setattr(triage_workspace_api, "load_source_triage_workspace", load_triage)
+    monkeypatch.setattr(research_workspace_api, "load_research_workspace", load_research)
+    triage_tools = build_triage_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=triage_workspace,
+        inventory=SourceMap(),
+        mode="planner",
+    )
+    research_tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=research_workspace,
+        source_inventory=SourceMap(),
+        mode="job",
+        current_job_id="job-main",
+    )
+    triage_page_tool = next(tool for tool in triage_tools if tool.name == "list_triage_source_sets")
+    research_page_tool = next(tool for tool in research_tools if tool.name == "list_research_workspace_items")
+
+    triage_page = await triage_page_tool.handler(
+        {"section": "coverage_questions", "cursor": "0", "limit": 3}
+    )
+    research_page = await research_page_tool.handler(
+        {"section": "current_job_questions", "cursor": "0", "limit": 3}
+    )
+
+    assert triage_page["accepted"] is False
+    assert triage_page["error"] == "triage_workspace_item_exceeds_model_read_contract"
+    assert "items" not in triage_page
+    assert research_page["accepted"] is False
+    assert research_page["error"] == "workspace_item_exceeds_model_read_contract"
+    assert "items" not in research_page
+    assert triage_workspace == triage_before
+    assert research_workspace == research_before

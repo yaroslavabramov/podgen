@@ -15,9 +15,16 @@ from app.generation_v2.runtime_checkpoint_state import (
     model_output_stats as _model_output_stats,
     trace_output_with_runtime as _trace_output_with_runtime,
 )
-from app.generation_v2.runtime_contracts import AgentTool
+from app.generation_v2.runtime_contracts import (
+    AgentTerminalResult,
+    AgentTool,
+    terminal_result_from_tool_output,
+)
 from app.generation_v2.runtime_debug import safe_tool_dump_name as _safe_tool_dump_name
-from app.generation_v2.runtime_tool_output import ToolOutputContractViolation, model_facing_tool_output as _model_facing_tool_output
+from app.generation_v2.runtime_tool_output import (
+    ToolOutputContractViolation,
+    model_facing_tool_output as _model_facing_tool_output,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -28,6 +35,7 @@ class RuntimeToolCallResult:
     tool_outputs: list[dict[str, Any]]
     checkpoint_tool_results: list[dict[str, Any]]
     chain_model_tool_output_chars: int
+    terminal_result: AgentTerminalResult | None = None
 
 
 async def process_runtime_function_calls(
@@ -47,6 +55,7 @@ async def process_runtime_function_calls(
     local_tool_map = {tool.name: tool for tool in local_tools or []}
     tool_outputs: list[dict[str, Any]] = []
     checkpoint_tool_results: list[dict[str, Any]] = []
+    accepted_terminal_result: AgentTerminalResult | None = None
     for call_index, call in enumerate(function_calls, start=1):
         debug_base = {
             "run_id": str(generation_run_id),
@@ -60,6 +69,8 @@ async def process_runtime_function_calls(
             "tool_name": call["name"],
             "call_id": call["call_id"],
             "arguments": call["arguments"],
+            "function_call_status": call.get("status"),
+            "arguments_valid": call.get("arguments_valid", True),
         }
         dump_v2_debug(
             run_id=str(generation_run_id),
@@ -70,7 +81,21 @@ async def process_runtime_function_calls(
         )
         tool = local_tool_map.get(call["name"])
         trace_only_error: dict[str, Any] | None = None
-        if tool is None:
+        call_status = call.get("status")
+        arguments_valid = call.get("arguments_valid", True)
+        if call_status not in {None, "completed"}:
+            output = {
+                "accepted": False,
+                "error": "incomplete_function_call",
+                "message": "The provider did not complete this function call. Retry the call with complete arguments.",
+            }
+        elif not arguments_valid:
+            output = {
+                "accepted": False,
+                "error": "invalid_function_arguments",
+                "message": call.get("arguments_error") or "Function arguments were not valid JSON.",
+            }
+        elif tool is None:
             output = {"error": f"Unknown local tool: {call['name']}"}
         else:
             try:
@@ -85,7 +110,21 @@ async def process_runtime_function_calls(
                     "type": type(exc).__name__,
                     "detail": str(exc),
                 }
-        trace_output = {**output, **({"_runtime_error": trace_only_error} if trace_only_error else {})}
+        output_contract_error = None
+        if isinstance(output, dict):
+            trace_output = {**output, **({"_runtime_error": trace_only_error} if trace_only_error else {})}
+        else:
+            output_contract_error = f"{call['name']} returned non-object output"
+            trace_output = {
+                "_runtime_error": {
+                    "type": "ToolOutputContractViolation",
+                    "detail": output_contract_error,
+                },
+                "result_type": type(output).__name__,
+            }
+        is_accepted_terminal = bool(
+            isinstance(output, dict) and tool is not None and tool.terminal and output.get("accepted") is True
+        )
         raw_output_chars = len(json.dumps(trace_output, ensure_ascii=False, default=str))
         dump_v2_debug(
             run_id=str(generation_run_id),
@@ -99,10 +138,17 @@ async def process_runtime_function_calls(
             },
         )
         try:
-            model_output = _model_facing_tool_output(call["name"], output)
+            if output_contract_error is not None:
+                raise ToolOutputContractViolation(output_contract_error)
+            # An accepted terminal result is consumed by the backend and is
+            # never sent back to the model. Keep its completion payload out of
+            # the model-facing output contract while retaining it in the raw
+            # trace above.
+            contract_output = {"accepted": True, "terminal": True} if is_accepted_terminal else output
+            model_output = _model_facing_tool_output(call["name"], contract_output)
             output_stats = _model_output_stats(call["name"], model_output)
         except ToolOutputContractViolation as exc:
-            output_stats = _model_output_stats(call["name"], output, contract_violation=str(exc))
+            output_stats = _model_output_stats(call["name"], trace_output, contract_violation=str(exc))
             dump_v2_debug(
                 run_id=str(generation_run_id),
                 phase=phase,
@@ -166,8 +212,18 @@ async def process_runtime_function_calls(
                 "result": model_output,
             }
         )
+        if tool is not None and isinstance(output, dict):
+            terminal_result = terminal_result_from_tool_output(
+                tool,
+                arguments=call["arguments"],
+                output=output,
+            )
+            if terminal_result is not None and terminal_result.accepted:
+                accepted_terminal_result = terminal_result
+                break
     return RuntimeToolCallResult(
         tool_outputs=tool_outputs,
         checkpoint_tool_results=checkpoint_tool_results,
         chain_model_tool_output_chars=chain_model_tool_output_chars,
+        terminal_result=accepted_terminal_result,
     )

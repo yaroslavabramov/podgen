@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from app.generation_v2.agents.fallbacks import treatment_act_count_range
 from app.generation_v2.pipeline.research_validation import (
     dedupe_strings,
     research_cluster_is_major,
@@ -58,22 +57,19 @@ def validate_treatment(
     ):
         if not str(value or "").strip():
             issues.append(f"Treatment {field_name} must not be empty.")
-    min_acts, max_acts = treatment_act_count_range(duration_seconds)
-    if not (min_acts <= len(treatment.acts) <= max_acts):
-        issues.append(f"Treatment requires {min_acts}-{max_acts} acts for this target duration.")
+    if not treatment.acts:
+        issues.append("Treatment must contain at least one act.")
+    if research_memo is not None:
+        if treatment.supported_answer != research_memo.thesis:
+            issues.append("Treatment must preserve the research memo supported answer exactly.")
     actual_act_numbers = [act.act_number for act in treatment.acts]
     expected_act_numbers = list(range(1, len(treatment.acts) + 1))
     if actual_act_numbers != expected_act_numbers:
         issues.append("Treatment act numbers must be unique and sequential starting at 1.")
+    act_by_number = {act.act_number: act for act in treatment.acts}
     for gap in treatment.planning_gaps:
         if str(gap).strip():
             issues.append(f"Treatment planning gap requires research repair: {str(gap).strip()}")
-    target_minutes = duration_seconds / 60
-    total_minutes = sum(float(act.target_minutes or 0.0) for act in treatment.acts)
-    if treatment.acts and not (target_minutes * 0.85 <= total_minutes <= target_minutes * 1.15):
-        issues.append(
-            f"Treatment act target_minutes total {total_minutes:.1f} does not match target duration {target_minutes:.1f}."
-        )
     for act in treatment.acts:
         for field_name, value in (
             ("title", act.title),
@@ -86,16 +82,40 @@ def validate_treatment(
                 issues.append(f"Act {act.act_number} {field_name} must not be empty.")
         if float(act.target_minutes or 0.0) <= 0:
             issues.append(f"Act {act.act_number} target_minutes must be positive.")
+        if research_memo is not None and act.episode_supported_answer != research_memo.thesis:
+            issues.append(f"Act {act.act_number} lost the episode supported answer.")
         unknown_source_ids = sorted({source_id for source_id in act.source_focus if source_id not in source_ids})
         if unknown_source_ids:
             issues.append(f"Act {act.act_number} references unknown or unavailable sources: {unknown_source_ids}.")
-        if len(set(act.source_focus) & source_ids) < max(1, min(act.source_density_target, 2)):
-            issues.append(f"Act {act.act_number} does not meet source density target.")
         if not act.required_atom_refs:
             issues.append(f"Act {act.act_number} lacks required editorial atom anchors.")
+        duplicate_atom_refs = sorted(
+            {ref for ref in act.required_atom_refs if act.required_atom_refs.count(ref) > 1}
+        )
+        if duplicate_atom_refs:
+            issues.append(f"Act {act.act_number} repeats editorial atom refs: {duplicate_atom_refs}.")
         unknown_atom_refs = sorted({ref for ref in act.required_atom_refs if ref not in atom_by_ref})
         if unknown_atom_refs:
             issues.append(f"Act {act.act_number} references unknown editorial atoms: {unknown_atom_refs}.")
+        anchor_refs = [anchor.atom_ref for anchor in act.atom_anchors]
+        if anchor_refs != [ref for ref in act.required_atom_refs if ref in atom_by_ref]:
+            issues.append(f"Act {act.act_number} atom anchors do not match required_atom_refs.")
+        for anchor in act.atom_anchors:
+            atom = atom_by_ref.get(anchor.atom_ref)
+            if atom is None:
+                continue
+            expected_anchor = {
+                "atom_ref": anchor.atom_ref,
+                "kind": str(atom.kind),
+                "title": atom.title,
+                "claim": atom.claim or atom.explanation,
+                "story_value": atom.story_value,
+                "story_weight": str(atom.story_weight),
+            }
+            if anchor.model_dump(mode="json") != expected_anchor:
+                issues.append(
+                    f"Act {act.act_number} atom anchor {anchor.atom_ref} does not preserve the research atom."
+                )
         selected_atoms = [atom_by_ref[ref] for ref in act.required_atom_refs if ref in atom_by_ref]
         selected_evidence_ids = {
             evidence_id for atom in selected_atoms for evidence_id in atom.evidence_ids if evidence_id
@@ -139,20 +159,43 @@ def validate_treatment(
                 f"Act {act.act_number} references quotes that are not exact evidence in the current run: "
                 f"{stale_quote_refs}."
             )
-        if duration_seconds >= 2700 and len(act.required_evidence_ids) < max(1, min(act.source_density_target, 2)):
-            issues.append(f"Act {act.act_number} lacks enough required evidence ids for long-form drafting.")
-        if duration_seconds >= 2700 and atom_by_ref:
-            core_atoms = [atom for atom in selected_atoms if atom.story_weight == "core"]
-            weak_or_partial = [atom for atom in selected_atoms if atom.source_coverage_status in {"partial", "weak"}]
-            caveat_atoms = [atom for atom in selected_atoms if atom.story_weight == "caveat"]
-            if not core_atoms:
-                issues.append(f"Act {act.act_number} has no core atom anchor.")
-            if selected_atoms and selected_atoms[0].story_weight == "caveat":
-                issues.append(f"Act {act.act_number} uses a caveat atom as its primary anchor.")
-            if caveat_atoms and len(core_atoms) < 1:
-                issues.append(f"Act {act.act_number} builds on caveat material without a core atom.")
-            if act.target_minutes >= 6 and weak_or_partial and len(core_atoms) < 2:
-                issues.append(f"Act {act.act_number} gives major time to partial/weak material without enough core support.")
+    if research_memo is not None:
+        core_atom_refs = {
+            ref for ref, atom in atom_by_ref.items() if str(atom.story_weight) == "core"
+        }
+        disposition_refs = [item.atom_ref for item in treatment.core_atom_dispositions]
+        duplicate_dispositions = sorted(
+            {ref for ref in disposition_refs if disposition_refs.count(ref) > 1}
+        )
+        missing_dispositions = sorted(core_atom_refs - set(disposition_refs))
+        unexpected_dispositions = sorted(set(disposition_refs) - core_atom_refs)
+        if duplicate_dispositions:
+            issues.append(f"Core editorial atoms have duplicate dispositions: {duplicate_dispositions}.")
+        if missing_dispositions:
+            issues.append(f"Core editorial atoms lack an explicit disposition: {missing_dispositions}.")
+        if unexpected_dispositions:
+            issues.append(f"Non-core or unknown atoms have core dispositions: {unexpected_dispositions}.")
+        used_in_acts = {
+            ref: {act.act_number for act in treatment.acts if ref in act.required_atom_refs}
+            for ref in core_atom_refs
+        }
+        for item in treatment.core_atom_dispositions:
+            if item.atom_ref not in core_atom_refs:
+                continue
+            if item.disposition == "used":
+                if item.act_number not in used_in_acts[item.atom_ref]:
+                    issues.append(
+                        f"Core atom {item.atom_ref} is marked used in an act that does not reference it."
+                    )
+                if item.act_number not in act_by_number:
+                    issues.append(f"Core atom {item.atom_ref} references an unknown act_number.")
+            else:
+                if used_in_acts[item.atom_ref]:
+                    issues.append(f"Core atom {item.atom_ref} is marked omitted but is used by an act.")
+                if item.act_number is not None:
+                    issues.append(f"Omitted core atom {item.atom_ref} must not carry an act_number.")
+                if not str(item.reason or "").strip():
+                    issues.append(f"Omitted core atom {item.atom_ref} requires an editorial reason.")
     return EpisodeCritique(
         passed=not issues,
         summary="Treatment gate passed." if not issues else "Treatment gate failed.",
@@ -183,7 +226,9 @@ def apply_forbidden_phrase_gate(
     drafts,
     show_bible: ShowBibleContext,
 ) -> EpisodeCritique:
-    forbidden = [phrase.strip().lower() for phrase in show_bible.forbidden_phrases if isinstance(phrase, str) and phrase.strip()]
+    forbidden = [
+        phrase.strip().lower() for phrase in show_bible.forbidden_phrases if isinstance(phrase, str) and phrase.strip()
+    ]
     if not forbidden:
         return critique
     text = "\n".join(line.text for draft in drafts for line in draft.lines).lower()
@@ -196,7 +241,10 @@ def apply_forbidden_phrase_gate(
         repetition_issues=[*critique.repetition_issues, *[f"Forbidden phrase: {phrase}" for phrase in hits[:8]]],
         pacing_issues=critique.pacing_issues,
         weak_sections=critique.weak_sections,
-        rewrite_instructions=[*critique.rewrite_instructions, *[f"Remove forbidden phrase: {phrase}" for phrase in hits[:8]]],
+        rewrite_instructions=[
+            *critique.rewrite_instructions,
+            *[f"Remove forbidden phrase: {phrase}" for phrase in hits[:8]],
+        ],
     )
 
 
@@ -206,6 +254,7 @@ def blocking_fact_issues(issues: list[FactIssue]) -> list[FactIssue]:
         for issue in issues
         if issue.severity in {"medium", "high"} or (issue.severity == "low" and issue.blocking)
     ]
+
 
 __all__ = [
     "dedupe_strings",

@@ -39,7 +39,7 @@ async def create_runtime_response(
     reasoning_effort: str | None,
     vector_store_id: str | None,
     local_tools: list[Any] | None,
-    max_output_tokens: int,
+    max_output_tokens: int | None,
     temperature: float | None,
     chain_id: str,
     checkpoint_index: int,
@@ -71,7 +71,9 @@ async def create_runtime_response(
                 instructions=system,
                 input=input_payload,
                 previous_response_id=previous_response_id or openai.NOT_GIVEN,
-                max_output_tokens=max_output_tokens,
+                max_output_tokens=(
+                    max_output_tokens if max_output_tokens is not None else openai.NOT_GIVEN
+                ),
                 temperature=temperature if temperature is not None else openai.NOT_GIVEN,
                 reasoning={"effort": reasoning_effort} if reasoning_effort else openai.NOT_GIVEN,
                 tools=tools or openai.NOT_GIVEN,

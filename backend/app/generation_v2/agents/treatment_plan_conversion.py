@@ -7,6 +7,7 @@ from app.generation_v2.schemas import (
     SourceMap,
     Treatment,
     TreatmentAct,
+    TreatmentAtomAnchor,
     TreatmentPlan,
     TreatmentPlanAct,
 )
@@ -87,6 +88,22 @@ def treatment_from_plan(
                 required_atom_refs=atom_refs,
                 required_quote_refs=quote_refs,
                 required_evidence_ids=evidence_ids,
+                episode_supported_answer=research_memo.thesis,
+                atom_anchors=[
+                    TreatmentAtomAnchor(
+                        atom_ref=atom_ref,
+                        kind=atom.kind,
+                        title=atom.title,
+                        claim=atom.claim or atom.explanation,
+                        story_value=atom.story_value,
+                        story_weight=atom.story_weight,
+                    )
+                    for atom_ref, atom in zip(
+                        [ref for ref in atom_refs if ref in atom_by_ref],
+                        selected_atoms,
+                        strict=True,
+                    )
+                ],
                 source_density_target=plan_act.source_density_target,
             )
         )
@@ -94,7 +111,9 @@ def treatment_from_plan(
         title=plan.title,
         logline=plan.logline,
         host_dynamic=plan.host_dynamic,
+        supported_answer=research_memo.thesis,
         acts=acts,
+        core_atom_dispositions=plan.core_atom_dispositions,
         recurring_questions=plan.recurring_questions,
         style_constraints=plan.style_constraints,
         planning_gaps=[str(item) for item in plan.planning_gaps if str(item).strip()],

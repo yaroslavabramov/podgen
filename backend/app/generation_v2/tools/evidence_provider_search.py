@@ -123,7 +123,7 @@ class EvidenceProviderSearchMixin:
             score=float(getattr(item, "score", 0.0) or 0.0),
             snippet_text=snippet,
             normalized_quote_text=_normalize(snippet),
-            locator_text=str(getattr(item, "filename", "") or "provider snippet"),
+            locator_text="provider snippet",
             locator_type=EvidenceLocatorType.PROVIDER_SNIPPET,
             evidence_strength=EvidenceStrength.SNIPPET,
             metadata={"attributes": attrs, "filename": getattr(item, "filename", None)},

@@ -7,7 +7,9 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.generation_v2.agents.editorial import build_source_triage_finalizer_agent, build_source_triage_planner_agent
+from app.generation_v2.agents.corpus_brief_audit_agent import audit_corpus_brief_shadow
 from app.generation_v2.artifacts import save_artifact, save_tool_trace
+from app.generation_v2.corpus_brief_persistence import save_corpus_brief_audit
 from app.generation_v2.contracts.pipeline import V2Phase
 from app.generation_v2.pipeline.source_triage_artifacts import save_source_triage_artifacts
 from app.generation_v2.pipeline.source_triage_finalization_helpers import (
@@ -33,9 +35,11 @@ from app.generation_v2.source_triage_workspace import (
     unprocessed_source_sets,
     unresolved_source_sets,
     unresolved_source_refs,
+    planner_source_catalog,
     workspace_summary_for_prompt,
 )
 from app.generation_v2.source_triage_repair_state import pending_triage_repair
+from app.generation_v2.source_triage_canonical import materialize_source_map_v2
 from app.generation_v2.tools.evidence import (
     EvidenceToolset,
     build_source_inventory,
@@ -57,10 +61,18 @@ class SourceTriageStageContext:
 
 
 class SourceTriageStageRunner:
-    def __init__(self, run: GenerationRun, db: AsyncSession, runtime: V2Runtime) -> None:
+    def __init__(
+        self,
+        run: GenerationRun,
+        db: AsyncSession,
+        runtime: V2Runtime,
+        *,
+        prepared_corpus: CorpusPreparationResult | None = None,
+    ) -> None:
         self.run = run
         self.db = db
         self.runtime = runtime
+        self.prepared_corpus = prepared_corpus
 
     async def run_stage(self) -> TriageState:
         context = await self.prepare_context()
@@ -77,8 +89,12 @@ class SourceTriageStageRunner:
         )
 
     async def prepare_context(self) -> SourceTriageStageContext:
-        await start_phase(self.run, self.db, V2Phase.CORPUS_PREPARE, "Preparing evidence corpus", 4)
-        corpus = await prepare_v2_corpus(self.db, self.run)
+        if self.prepared_corpus is None:
+            await start_phase(self.run, self.db, V2Phase.CORPUS_PREPARE, "Preparing evidence corpus", 4)
+            corpus = await prepare_v2_corpus(self.db, self.run)
+        else:
+            corpus = self.prepared_corpus
+        await start_phase(self.run, self.db, V2Phase.SOURCE_TRIAGE, "Mapping the prepared source corpus", 8)
         evidence_toolset = EvidenceToolset(
             db=self.db,
             run=self.run,
@@ -127,7 +143,8 @@ class SourceTriageStageRunner:
             self.db,
             self.run,
             self.runtime,
-            workspace_summary=workspace_summary_for_prompt(context.workspace),
+            workspace_summary=workspace_summary_for_prompt(context.workspace, include_planner_resume=True),
+            source_catalog=planner_source_catalog(context.source_inventory),
             workspace_tools=planner_tools,
         )
         workspace = await load_source_triage_workspace(self.db, self.run.id) or context.workspace
@@ -181,6 +198,11 @@ class SourceTriageStageRunner:
             inventory=context.source_inventory,
             run_view=context.corpus.run_view,
         )
+        source_map = materialize_source_map_v2(
+            source_map,
+            workspace=workspace,
+            inventory=context.source_inventory,
+        )
         finalizer_tools = [
             *context.evidence_toolset.agent_tools(),
             *build_workspace_tools(
@@ -205,7 +227,9 @@ class SourceTriageStageRunner:
             )
         unresolved_sets = unresolved_source_sets(workspace)
         if unresolved_sets or unresolved_source_refs(workspace):
-            finalizer_completion = await source_triage_unresolved_completion(db=self.db, run=self.run, workspace=workspace)
+            finalizer_completion = await source_triage_unresolved_completion(
+                db=self.db, run=self.run, workspace=workspace
+            )
         else:
             finalizer_completion = await build_source_triage_finalizer_agent(
                 self.db,
@@ -216,11 +240,17 @@ class SourceTriageStageRunner:
                 source_inventory=context.source_inventory,
                 finalizer_tools=finalizer_tools,
             )
+        workspace = await load_source_triage_workspace(self.db, self.run.id) or workspace
         source_map = await build_source_map_from_write_actions(
             self.db,
             generation_run_id=self.run.id,
             inventory=context.source_inventory,
             run_view=context.corpus.run_view,
+        )
+        source_map = materialize_source_map_v2(
+            source_map,
+            workspace=workspace,
+            inventory=context.source_inventory,
         )
         return source_map, finalizer_tools, finalizer_completion, workspace
 
@@ -236,6 +266,7 @@ class SourceTriageStageRunner:
         finalizer_completion: SourceTriageCompletion,
     ) -> TriageState:
         triage_completion = combined_triage_completion(planner_completion, set_completions, finalizer_completion)
+        initial_completion_payload = triage_completion.model_dump(mode="json")
         triage_completion_artifact = await save_artifact(
             self.db,
             generation_run_id=self.run.id,
@@ -279,6 +310,27 @@ class SourceTriageStageRunner:
             triage_completion.notes.append(
                 "Targeted source-triage repair budget was already consumed; the gate remains failed."
             )
+        final_completion_payload = triage_completion.model_dump(mode="json")
+        if final_completion_payload != initial_completion_payload:
+            triage_completion_artifact = await save_artifact(
+                self.db,
+                generation_run_id=self.run.id,
+                artifact_type=V2ArtifactType.SOURCE_TRIAGE,
+                artifact_key="completion",
+                payload=triage_completion,
+                provider="openai" if context.corpus.vector_store_id else None,
+                model=self.runtime.model_for(V2Phase.SOURCE_TRIAGE, "source_triage_finalizer_agent"),
+                status=V2ArtifactStatus.PASSED if triage_completion.ready else V2ArtifactStatus.FAILED,
+                prompt_hash=self.runtime.prompt_hash_for(
+                    V2Phase.SOURCE_TRIAGE,
+                    "source_triage_finalizer_agent",
+                ),
+                metadata=self.runtime.fallback_metadata_for(
+                    V2Phase.SOURCE_TRIAGE,
+                    "source_triage_finalizer_agent",
+                ),
+                parent_artifact_ids=[str(triage_completion_artifact.id)],
+            )
         workspace = await load_source_triage_workspace(self.db, self.run.id) or workspace
         workspace_artifact = await save_source_triage_workspace(
             self.db,
@@ -294,6 +346,27 @@ class SourceTriageStageRunner:
             triage_gate,
             triage_completion_artifact_id=str(triage_completion_artifact.id),
             has_vector_store=bool(context.corpus.vector_store_id),
+            workspace=workspace,
+            run_view=context.corpus.run_view,
+        )
+        shadow_audit = await audit_corpus_brief_shadow(
+            self.db,
+            self.run,
+            self.runtime,
+            corpus_brief=artifact_set.corpus_brief,
+            corpus_brief_artifact_id=artifact_set.corpus_brief_artifact_id,
+            source_map=source_map,
+            source_inventory=context.source_inventory,
+            evidence_tools=context.evidence_tools,
+        )
+        shadow_audit_artifact = await save_corpus_brief_audit(
+            self.db,
+            generation_run_id=self.run.id,
+            report=shadow_audit,
+            corpus_revision=int(context.corpus.run_view.revision or 1),
+            attempt=int(context.corpus.run_view.attempt or 1),
+            parent_artifact_ids=[artifact_set.corpus_brief_audit_artifact_id],
+            artifact_key="semantic_shadow",
         )
         return TriageState(
             corpus=context.corpus,
@@ -312,6 +385,10 @@ class SourceTriageStageRunner:
             workspace_artifact_id=str(workspace_artifact.id),
             triage_artifact_id=artifact_set.triage_artifact_id,
             triage_gate_artifact_id=artifact_set.triage_gate_artifact_id,
+            corpus_brief=artifact_set.corpus_brief,
+            corpus_brief_artifact_id=artifact_set.corpus_brief_artifact_id,
+            corpus_brief_audit_artifact_id=artifact_set.corpus_brief_audit_artifact_id,
+            corpus_brief_shadow_audit_artifact_id=str(shadow_audit_artifact.id),
         )
 
 

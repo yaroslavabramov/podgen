@@ -20,7 +20,9 @@ def workspace_job(workspace: dict[str, Any], job_id: str) -> dict[str, Any] | No
 
 def replace_workspace_job(workspace: dict[str, Any], job: dict[str, Any]) -> None:
     job_id = job.get("job_id")
-    workspace["investigation_jobs"] = [job if item.get("job_id") == job_id else item for item in workspace.get("investigation_jobs") or []]
+    workspace["investigation_jobs"] = [
+        job if item.get("job_id") == job_id else item for item in workspace.get("investigation_jobs") or []
+    ]
 
 
 def refs_outside_job(job: dict[str, Any], source_refs: list[str]) -> list[str]:
@@ -70,7 +72,12 @@ async def invalid_job_evidence_ids(
         return []
     allowed_refs = set(str(item) for item in (source_refs or job.get("source_refs") or []))
     invalid: list[str] = []
+    starting_evidence_ids = set(str(item) for item in job.get("starting_evidence_ids") or [])
+    read_evidence_ids = set(getattr(evidence_toolset, "_research_read_evidence_ids", set()) or set())
     for evidence_id in evidence_ids:
+        if evidence_id in starting_evidence_ids and evidence_id not in read_evidence_ids:
+            invalid.append(evidence_id)
+            continue
         evidence = await evidence_toolset._evidence_in_run(evidence_id)
         if evidence is None:
             invalid.append(evidence_id)
@@ -157,9 +164,14 @@ def _outcomes_cover_questions(questions: list[str], outcomes: list[dict[str, Any
 
     expected = {key(question) for question in questions}
     actual = [key(outcome.get("question")) for outcome in outcomes]
-    return bool(expected) and set(actual) == expected and len(actual) == len(set(actual)) and all(
-        str(outcome.get("status") or "") in {"answered", "deferred"} and str(outcome.get("note") or "").strip()
-        for outcome in outcomes
+    return (
+        bool(expected)
+        and set(actual) == expected
+        and len(actual) == len(set(actual))
+        and all(
+            str(outcome.get("status") or "") in {"answered", "deferred"} and str(outcome.get("note") or "").strip()
+            for outcome in outcomes
+        )
     )
 
 

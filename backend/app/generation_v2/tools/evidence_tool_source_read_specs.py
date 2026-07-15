@@ -29,7 +29,8 @@ def evidence_source_read_tools(owner: Any) -> list[AgentTool]:
             name="read_source_window",
             description=(
                 "Read one concrete local text window from a selected source and persist that window as an EvidenceItem. "
-                "This does not read the whole source; it opens an exact page, page range, heading, timestamp, section, beginning, or around-phrase window when local text/chunks are available. "
+                "This does not read the whole source; pass either a window_ref returned by inspect_source/skim_source, or a concrete locator such as page, heading, timestamp, beginning, or exact phrase. "
+                "Timestamps are locators only for transcript/audio/video sources. An unresolved locator returns locator_not_found and never substitutes the beginning of the source. "
                 "If skim_source is available and the source is unfamiliar, skim first; use read_source_window as a follow-up for exact support, quote seeds, relationship evidence, or an editorial atom. "
                 "Pass source_ref; version_ref is optional and should usually be omitted so the tool chooses the best readable surface. "
                 "For PDF/document sources this uses extracted/page-marked text; use read_source_with_model when an important claim needs direct file-level support. "
@@ -40,10 +41,12 @@ def evidence_source_read_tools(owner: Any) -> list[AgentTool]:
                 "properties": {
                     "source_ref": {"type": "string"},
                     "version_ref": {"type": "string"},
+                    "window_ref": {"type": "string"},
                     "locator": {"type": "string"},
                     "max_chars": {"type": "integer", "minimum": 200, "maximum": 3000},
                 },
-                "required": ["source_ref", "locator", "max_chars"],
+                "required": ["source_ref", "max_chars"],
+                "additionalProperties": False,
             },
             handler=lambda args: owner._call_with_research_commit_advisory(owner.read_source_window_tool, args),
         ),
@@ -94,9 +97,10 @@ def evidence_source_read_tools(owner: Any) -> list[AgentTool]:
         AgentTool(
             name="skim_source",
             description=(
-                "Default first-read tool for one selected source. Skim representative windows and persist them as EvidenceItems. "
+                "Default first-read tool for one selected source. Skim representative windows without creating or selecting EvidenceItems. "
                 "Use this before judging a source's role, scope, structure, duplicate status, editorial usefulness, or whether it can support a research atom. "
                 "Pass source_ref; version_ref is optional and should usually be omitted so the tool chooses the best readable surface. "
+                "Each result has an opaque window_ref; pass it to read_source_window to persist exact follow-up evidence. "
                 "For normal triage or research orientation, request 3-5 windows, then use read_source_window or read_source_with_model for exact follow-up."
             ),
             parameters={

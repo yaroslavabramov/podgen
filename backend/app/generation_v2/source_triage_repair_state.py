@@ -111,9 +111,7 @@ def prepare_pending_triage_repair(workspace: dict[str, Any]) -> dict[str, Any]:
         source_sets.append(source_set)
     present = {str(item.get("set_id") or "") for item in source_sets}
     source_sets.extend(
-        existing_by_id[set_id]
-        for set_id in repair_set_id_list
-        if set_id not in present and set_id in existing_by_id
+        existing_by_id[set_id] for set_id in repair_set_id_list if set_id not in present and set_id in existing_by_id
     )
     current["source_sets"] = source_sets
     current["current_set"] = None
@@ -130,25 +128,264 @@ def carry_pending_triage_repair(
     operation = pending_triage_repair(existing)
     if operation is None:
         return workspace
+    if int(existing.get("corpus_revision") or 1) != int(workspace.get("corpus_revision") or 1):
+        # A repair is scoped to the corpus revision that produced it. A new
+        # revision needs a new plan, not a repair of stale source assignments.
+        return workspace
+    existing_source_order = [str(item) for item in existing.get("source_order") or []]
+    if existing_source_order and existing_source_order != source_order:
+        # Source refs are positional opaque handles. Reusing them after an
+        # order change could attach an assessment to a different source.
+        return workspace
+
     payload = operation.get("payload") if isinstance(operation.get("payload"), dict) else {}
-    raw_sets = payload.get("repair_sets") or [
+    raw_repair_sets = payload.get("repair_sets") or [
         item for item in existing.get("source_sets") or [] if isinstance(item, dict) and item.get("repair")
     ]
-    repair_sets = [
-        _repair_set_for_new_attempt(item, source_order=source_order)
-        for item in raw_sets
-        if isinstance(item, dict)
-    ]
+    repair_set_id_list: list[str] = []
+    for set_id in [
+        *[str(item) for item in payload.get("repair_set_ids") or []],
+        *[str(item.get("set_id") or "") for item in raw_repair_sets if isinstance(item, dict)],
+    ]:
+        if set_id.strip() and set_id not in repair_set_id_list:
+            repair_set_id_list.append(set_id)
+    repair_set_ids = set(repair_set_id_list)
+    repair_sets_by_id = {
+        str(item.get("set_id") or ""): deepcopy(item)
+        for item in raw_repair_sets
+        if isinstance(item, dict) and item.get("set_id")
+    }
+    existing_sets_by_id = {
+        str(item.get("set_id") or ""): deepcopy(item)
+        for item in existing.get("source_sets") or []
+        if isinstance(item, dict) and item.get("set_id")
+    }
+
+    carried_sets: list[dict[str, Any]] = []
+    seen_set_ids: set[str] = set()
+    for item in existing.get("source_sets") or []:
+        if not isinstance(item, dict) or not item.get("set_id"):
+            continue
+        set_id = str(item["set_id"])
+        source_set = deepcopy(item)
+        if set_id in repair_set_ids:
+            # The top-level workspace is newer than the reservation payload
+            # when a repair already started. Preserve that durable work.
+            source_set = _repair_set_for_new_attempt(source_set, source_order=source_order)
+        carried_sets.append(source_set)
+        seen_set_ids.add(set_id)
+    for set_id in repair_set_id_list:
+        if set_id in seen_set_ids:
+            continue
+        source_set = existing_sets_by_id.get(set_id) or repair_sets_by_id.get(set_id)
+        if source_set is None:
+            continue
+        carried_sets.append(_repair_set_for_new_attempt(source_set, source_order=source_order))
+        seen_set_ids.add(set_id)
+
+    repair_sets = [deepcopy(item) for item in carried_sets if str(item.get("set_id") or "") in repair_set_ids]
     carried_payload = dict(payload)
     carried_payload["repair_sets"] = deepcopy(repair_sets)
-    carried_payload["repair_set_ids"] = [
-        str(item.get("set_id") or "") for item in repair_sets if item.get("set_id")
-    ]
+    carried_payload["repair_set_ids"] = [str(item.get("set_id") or "") for item in repair_sets if item.get("set_id")]
     operation["payload"] = carried_payload
+
+    # Keep the complete canonical context. Only the targeted sets are reopened;
+    # unaffected assessments and question outcomes remain authoritative.
+    for field in (
+        "intent",
+        "source_capsules",
+        "coverage_questions",
+        "source_assessments",
+        "coverage_outcomes",
+        "deferred_sources",
+        "mapped_sources",
+        "open_questions",
+        "plan_summary",
+        "source_map_repair_items",
+        "source_map_repair_targets",
+    ):
+        if field in existing:
+            workspace[field] = deepcopy(existing[field])
+    workspace["source_sets"] = carried_sets
+    workspace["processed_sets"] = [
+        deepcopy(item)
+        for item in existing.get("processed_sets") or []
+        if isinstance(item, dict) and str(item.get("set_id") or "") not in repair_set_ids
+    ]
     workspace["repair_operation"] = operation
-    workspace["source_sets"] = repair_sets
+    workspace["current_set"] = None
+    # Finalization and materialized gap traces belong to the previous attempt.
+    workspace.pop("source_map_finalization", None)
+    workspace.pop("materialized_deferred_source_refs", None)
     workspace["status"] = "repair_planned"
     return workspace
+
+
+def triage_workspace_evidence_ids(workspace: dict[str, Any]) -> list[str]:
+    """Return evidence referenced by current semantic triage state, not audit history."""
+    values: list[str] = []
+    for field in ("source_assessments", "coverage_outcomes", "source_sets", "processed_sets"):
+        values.extend(_nested_evidence_ids(workspace.get(field)))
+    return _dedupe(values)
+
+
+def reconcile_carried_triage_evidence(
+    workspace: dict[str, Any],
+    *,
+    evidence_id_map: dict[str, str],
+    invalid_evidence_ids: set[str],
+) -> dict[str, Any]:
+    """Remap immutable evidence and reopen semantic records whose evidence cannot be carried."""
+    current = deepcopy(workspace)
+    invalid = {str(item) for item in invalid_evidence_ids if str(item).strip()}
+    mapping = {str(old): str(new) for old, new in evidence_id_map.items() if str(old).strip() and str(new).strip()}
+    affected_sets: dict[str, dict[str, set[str]]] = {}
+    assessment_refs: set[str] = set()
+
+    def affect(
+        set_id: str,
+        *,
+        source_refs: list[str] | None = None,
+        question_ids: list[str] | None = None,
+    ) -> None:
+        if not set_id:
+            return
+        target = affected_sets.setdefault(set_id, {"source_refs": set(), "question_ids": set()})
+        target["source_refs"].update(str(item) for item in source_refs or [] if str(item).strip())
+        target["question_ids"].update(str(item) for item in question_ids or [] if str(item).strip())
+
+    assessments: list[dict[str, Any]] = []
+    for raw in current.get("source_assessments") or []:
+        if not isinstance(raw, dict):
+            continue
+        stale_ids = invalid.intersection(_nested_evidence_ids(raw))
+        if stale_ids:
+            source_ref = str(raw.get("source_ref") or "")
+            assessment_refs.add(source_ref)
+            affect(str(raw.get("set_id") or ""), source_refs=[source_ref])
+            continue
+        assessments.append(_remap_nested_evidence(raw, mapping, invalid))
+    current["source_assessments"] = assessments
+
+    outcomes: list[dict[str, Any]] = []
+    for raw in current.get("coverage_outcomes") or []:
+        if not isinstance(raw, dict):
+            continue
+        stale_ids = invalid.intersection(_nested_evidence_ids(raw))
+        if stale_ids:
+            affect(
+                str(raw.get("set_id") or ""),
+                source_refs=[str(item) for item in raw.get("source_refs") or []],
+                question_ids=[str(raw.get("question_id") or "")],
+            )
+            continue
+        outcomes.append(_remap_nested_evidence(raw, mapping, invalid))
+    current["coverage_outcomes"] = outcomes
+
+    source_sets: list[dict[str, Any]] = []
+    for raw in current.get("source_sets") or []:
+        if not isinstance(raw, dict):
+            continue
+        source_set = deepcopy(raw)
+        set_id = str(source_set.get("set_id") or "")
+        stale_set_ids = invalid.intersection(_nested_evidence_ids(source_set))
+        for field in ("observations", "written_actions"):
+            retained: list[Any] = []
+            for item in source_set.get(field) or []:
+                if isinstance(item, dict) and invalid.intersection(_nested_evidence_ids(item)):
+                    affect(
+                        set_id,
+                        source_refs=[str(ref) for ref in item.get("source_refs") or []],
+                    )
+                    continue
+                retained.append(_remap_nested_evidence(item, mapping, invalid))
+            source_set[field] = retained
+        source_set = _remap_nested_evidence(source_set, mapping, invalid)
+        target = affected_sets.get(set_id)
+        if stale_set_ids and target is None:
+            # Aggregate-only evidence cannot be attributed more narrowly.
+            affect(
+                set_id,
+                source_refs=[str(item) for item in source_set.get("source_refs") or []],
+                question_ids=[str(item) for item in source_set.get("question_ids") or []],
+            )
+        elif stale_set_ids and target is not None and not target["source_refs"] and not target["question_ids"]:
+            # A nested record without ownership metadata still belongs to this
+            # set; reopen its assigned sources instead of inventing attribution.
+            affect(
+                set_id,
+                source_refs=[str(item) for item in source_set.get("source_refs") or []],
+            )
+        target = affected_sets.get(set_id)
+        if target is not None:
+            source_set["status"] = "planned"
+            source_set["repair"] = True
+            source_set["repair_targeted"] = True
+            source_set["repair_source_refs"] = _dedupe(
+                [
+                    *[str(item) for item in source_set.get("repair_source_refs") or []],
+                    *sorted(target["source_refs"]),
+                ]
+            )
+            source_set["repair_question_ids"] = _dedupe(
+                [
+                    *[str(item) for item in source_set.get("repair_question_ids") or []],
+                    *sorted(target["question_ids"]),
+                ]
+            )
+            repair_target = {
+                "code": "carried_evidence_unavailable",
+                "message": "Re-read this item because its prior evidence is not valid in the current corpus attempt.",
+                "source_refs": sorted(target["source_refs"]),
+                "question_ids": sorted(target["question_ids"]),
+            }
+            targets = [dict(item) for item in source_set.get("repair_targets") or [] if isinstance(item, dict)]
+            if repair_target not in targets:
+                targets.append(repair_target)
+            source_set["repair_targets"] = targets
+            source_set["resume_reason"] = "Prior evidence could not be safely carried into this attempt."
+            source_set["updated_at"] = _now()
+            source_set.pop("started_at", None)
+        source_sets.append(source_set)
+    current["source_sets"] = source_sets
+
+    _recompute_set_evidence(current)
+    affected_set_ids = set(affected_sets)
+    current["processed_sets"] = [
+        _remap_nested_evidence(item, mapping, invalid)
+        for item in current.get("processed_sets") or []
+        if not isinstance(item, dict) or str(item.get("set_id") or "") not in affected_set_ids
+    ]
+    if assessment_refs:
+        current["mapped_sources"] = [
+            str(item) for item in current.get("mapped_sources") or [] if str(item) not in assessment_refs
+        ]
+        current["deferred_sources"] = [
+            item
+            for item in current.get("deferred_sources") or []
+            if not isinstance(item, dict) or str(item.get("source_ref") or "") not in assessment_refs
+        ]
+
+    operation = current.get("repair_operation")
+    if isinstance(operation, dict):
+        payload = dict(operation.get("payload") or {})
+        repair_ids = _dedupe(
+            [
+                *[str(item) for item in payload.get("repair_set_ids") or []],
+                *[
+                    str(item.get("set_id") or "")
+                    for item in source_sets
+                    if str(item.get("set_id") or "") in affected_set_ids
+                ],
+            ]
+        )
+        sets_by_id = {str(item.get("set_id") or ""): item for item in source_sets}
+        payload["repair_set_ids"] = [set_id for set_id in repair_ids if set_id in sets_by_id]
+        payload["repair_sets"] = [deepcopy(sets_by_id[set_id]) for set_id in payload["repair_set_ids"]]
+        operation["payload"] = payload
+        operation["updated_at"] = _now()
+        current["repair_operation"] = operation
+    return current
 
 
 def _repair_set_for_new_attempt(source_set: dict[str, Any], *, source_order: list[str]) -> dict[str, Any]:
@@ -158,11 +395,6 @@ def _repair_set_for_new_attempt(source_set: dict[str, Any], *, source_order: lis
     current.update(
         {
             "status": "planned",
-            "findings_summary": "",
-            "evidence_ids": [],
-            "written_actions": [],
-            "observations": [],
-            "deferred_reason": "",
             "repair": True,
             "resume_reason": "Targeted triage repair resumed in a new corpus attempt.",
             "updated_at": _now(),
@@ -170,6 +402,67 @@ def _repair_set_for_new_attempt(source_set: dict[str, Any], *, source_order: lis
     )
     current.pop("started_at", None)
     return current
+
+
+def _nested_evidence_ids(value: Any) -> list[str]:
+    if isinstance(value, dict):
+        result: list[str] = []
+        for key, item in value.items():
+            if key == "evidence_ids" and isinstance(item, list):
+                result.extend(str(evidence_id) for evidence_id in item if str(evidence_id).strip())
+            else:
+                result.extend(_nested_evidence_ids(item))
+        return result
+    if isinstance(value, list):
+        result: list[str] = []
+        for item in value:
+            result.extend(_nested_evidence_ids(item))
+        return result
+    return []
+
+
+def _remap_nested_evidence(value: Any, mapping: dict[str, str], invalid: set[str]) -> Any:
+    if isinstance(value, dict):
+        remapped: dict[str, Any] = {}
+        for key, item in value.items():
+            if key == "evidence_ids" and isinstance(item, list):
+                remapped[key] = _dedupe(
+                    [
+                        mapping.get(str(evidence_id), str(evidence_id))
+                        for evidence_id in item
+                        if str(evidence_id) not in invalid
+                    ]
+                )
+            else:
+                remapped[key] = _remap_nested_evidence(item, mapping, invalid)
+        return remapped
+    if isinstance(value, list):
+        return [_remap_nested_evidence(item, mapping, invalid) for item in value]
+    return deepcopy(value)
+
+
+def _recompute_set_evidence(workspace: dict[str, Any]) -> None:
+    by_set: dict[str, list[str]] = {}
+    for field in ("source_assessments", "coverage_outcomes"):
+        for item in workspace.get(field) or []:
+            if isinstance(item, dict) and item.get("set_id"):
+                by_set.setdefault(str(item["set_id"]), []).extend(_nested_evidence_ids(item))
+    for source_set in workspace.get("source_sets") or []:
+        if not isinstance(source_set, dict):
+            continue
+        evidence_ids = list(by_set.get(str(source_set.get("set_id") or ""), []))
+        for field in ("observations", "written_actions"):
+            evidence_ids.extend(_nested_evidence_ids(source_set.get(field)))
+        source_set["evidence_ids"] = _dedupe(evidence_ids)
+
+
+def _dedupe(values: list[str]) -> list[str]:
+    result: list[str] = []
+    for value in values:
+        text = str(value or "").strip()
+        if text and text not in result:
+            result.append(text)
+    return result
 
 
 def _now() -> str:
@@ -184,7 +477,9 @@ __all__ = [
     "complete_triage_repair",
     "pending_triage_repair",
     "prepare_pending_triage_repair",
+    "reconcile_carried_triage_evidence",
     "reserve_triage_repair",
     "start_triage_repair",
     "triage_repair_operation",
+    "triage_workspace_evidence_ids",
 ]

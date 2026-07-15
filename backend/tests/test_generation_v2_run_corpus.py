@@ -5,6 +5,7 @@ from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
+from fastapi import HTTPException
 
 from app.api.generations import start_generation
 from app.generation_v2.artifacts import save_tool_trace
@@ -107,6 +108,125 @@ async def test_start_generation_commits_run_before_enqueue(monkeypatch: pytest.M
     assert events == ["commit", "enqueue"]
 
 
+@pytest.mark.asyncio
+async def test_start_generation_fails_explicitly_when_enqueue_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.workers import generation_tasks
+
+    events: list[str] = []
+    user = SimpleNamespace(id=uuid.uuid4())
+    project = Project(id=uuid.uuid4(), user_id=user.id, title="Test", language="en")
+    bible = ShowBible(id=uuid.uuid4(), project_id=project.id, is_preset=False)
+    db = _StartGenerationDb(project=project, bible=bible, events=events)
+
+    def fail_enqueue(*_args, **_kwargs):
+        raise RuntimeError("broker unavailable")
+
+    monkeypatch.setattr(generation_tasks.run_generation_v2, "delay", fail_enqueue)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await start_generation(
+            project.id,
+            GenerationCreate(
+                duration_target=1800,
+                user_prompt="Test topic",
+                show_bible_id=bible.id,
+                generation_mode="v2",
+            ),
+            user,  # type: ignore[arg-type]
+            db,  # type: ignore[arg-type]
+        )
+
+    run = next(item for item in db.added if isinstance(item, GenerationRun))
+    assert exc_info.value.status_code == 503
+    assert run.status == GenerationStatus.FAILED
+    assert run.error_message == "Generation task could not be queued."
+    assert events == ["commit", "commit"]
+
+
+@pytest.mark.asyncio
+async def test_failed_step_enqueue_is_retryable() -> None:
+    from app.api.generations import _enqueue_saved_generation_run
+
+    run = SimpleNamespace(
+        id=uuid.uuid4(),
+        status=GenerationStatus.QUEUED,
+        error_message=None,
+        completed_at=None,
+        config={
+            "execution_mode": "step",
+            "step_control": {
+                "requested_action": "next",
+                "requested_target_node": "source_triage",
+                "requested_at": "now",
+                "last_node": "corpus_prepare",
+            },
+        },
+    )
+
+    class Db:
+        commits = 0
+
+        async def commit(self):
+            self.commits += 1
+
+    db = Db()
+
+    def fail_enqueue(*_args, **_kwargs):
+        raise RuntimeError("broker unavailable")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await _enqueue_saved_generation_run(db, run, fail_enqueue)  # type: ignore[arg-type]
+
+    assert exc_info.value.status_code == 503
+    assert run.status == GenerationStatus.FAILED
+    assert run.config["step_control"]["requested_action"] is None
+    assert run.config["step_control"]["requested_target_node"] is None
+    assert run.config["step_control"]["last_node"] == "corpus_prepare"
+    assert db.commits == 1
+
+
+@pytest.mark.asyncio
+async def test_explicit_source_selection_does_not_include_other_project_sources() -> None:
+    from app.generation_v2.source_corpus_selection import load_run_sources
+
+    project_id = uuid.uuid4()
+    selected = Source(
+        id=uuid.uuid4(),
+        project_id=project_id,
+        source_type=SourceType.WEB,
+        ingestion_status="completed",
+        is_temporary=False,
+    )
+
+    class Rows:
+        def scalars(self):
+            return self
+
+        def __iter__(self):
+            return iter([selected])
+
+    class Db:
+        statement = None
+
+        async def execute(self, statement):
+            self.statement = statement
+            return Rows()
+
+    db = Db()
+    run = SimpleNamespace(
+        project_id=project_id,
+        config={"source_ids": [str(selected.id)]},
+    )
+
+    sources = await load_run_sources(db, run)  # type: ignore[arg-type]
+    query = str(db.statement)
+
+    assert sources == [selected]
+    assert "CAST(sources.id AS VARCHAR) IN" in query
+    assert "sources.is_temporary IS false" not in query
+    assert " OR " not in query
+
+
 def test_v2_worker_retries_when_run_is_not_visible(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.workers import generation_tasks
 
@@ -132,6 +252,33 @@ def test_v2_worker_retries_when_run_is_not_visible(monkeypatch: pytest.MonkeyPat
     assert captured["countdown"] == 1
     assert captured["max_retries"] == 5
     assert "not committed yet" in str(captured["exc"])
+
+
+def test_source_corpus_sync_retries_when_source_transaction_is_not_visible(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.workers import ingestion_tasks
+
+    class RetryRequested(Exception):
+        pass
+
+    captured: dict[str, object] = {}
+
+    async def missing_source(_source_id: str):
+        return None
+
+    def retry(**kwargs):
+        captured.update(kwargs)
+        raise RetryRequested
+
+    monkeypatch.setattr(ingestion_tasks, "_sync_source_to_v2_corpus_async", missing_source)
+    monkeypatch.setattr(ingestion_tasks.sync_source_to_v2_corpus, "retry", retry)
+
+    with pytest.raises(RetryRequested):
+        ingestion_tasks.sync_source_to_v2_corpus.run(str(uuid.uuid4()))
+
+    assert ingestion_tasks.sync_source_to_v2_corpus.max_retries == 5
+    assert captured["countdown"] == 1
 
 
 @pytest.mark.asyncio
@@ -167,6 +314,236 @@ async def test_traces_and_evidence_inherit_current_corpus_scope() -> None:
 
     assert (trace.corpus_revision, trace.attempt) == (3, 2)
     assert (evidence.corpus_revision, evidence.attempt) == (3, 2)
+
+
+@pytest.mark.asyncio
+async def test_evidence_reads_resolve_current_scope_instead_of_failing_open() -> None:
+    from app.generation_v2.source_corpus import list_evidence_dicts
+    from app.models.generation_v2 import EvidenceItem, RunCorpusView
+
+    run_id = uuid.uuid4()
+    current_view = SimpleNamespace(revision=4, attempt=3)
+
+    class Result:
+        def __init__(self, *, scalar=None, rows=None):
+            self.scalar = scalar
+            self.rows = rows or []
+
+        def scalar_one_or_none(self):
+            return self.scalar
+
+        def scalars(self):
+            return self.rows
+
+    class Db:
+        def __init__(self):
+            self.info: dict = {}
+            self.statements = []
+
+        async def execute(self, statement):
+            self.statements.append(statement)
+            entity = statement.column_descriptions[0].get("entity")
+            if entity is RunCorpusView:
+                return Result(scalar=current_view)
+            assert entity is EvidenceItem
+            return Result(rows=[])
+
+    db = Db()
+    assert await list_evidence_dicts(db, run_id) == []  # type: ignore[arg-type]
+
+    evidence_query = str(db.statements[-1])
+    assert "evidence_items.corpus_revision" in evidence_query
+    assert "evidence_items.attempt" in evidence_query
+    assert db.info["v2_corpus_scopes"][str(run_id)].revision == 4
+    assert db.info["v2_corpus_scopes"][str(run_id)].attempt == 3
+
+
+def test_run_corpus_keeps_last_searchable_version_until_replacement_is_ready(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import source_corpus_selection as selection
+    from app.models.generation_v2 import (
+        ProviderCorpusFile,
+        ProviderCorpusIndex,
+        SourceRepresentationKind,
+        SourceVersion,
+        V2RecordStatus,
+    )
+
+    project_id = uuid.uuid4()
+    source = Source(
+        id=uuid.uuid4(),
+        project_id=project_id,
+        source_type=SourceType.WEB,
+        ingestion_status="completed",
+        is_temporary=False,
+    )
+    old_version = SourceVersion(
+        id=uuid.uuid4(),
+        source_id=source.id,
+        project_id=project_id,
+        kind=SourceRepresentationKind.RENDERED_SNAPSHOT,
+        storage_path="versions/old.txt",
+        content_hash="old",
+        status=V2RecordStatus.READY,
+        upload_status=V2RecordStatus.READY,
+        is_active=False,
+        metadata_={},
+    )
+    replacement = SourceVersion(
+        id=uuid.uuid4(),
+        source_id=source.id,
+        project_id=project_id,
+        kind=SourceRepresentationKind.RENDERED_SNAPSHOT,
+        storage_path="versions/replacement.txt",
+        content_hash="replacement",
+        status=V2RecordStatus.READY,
+        upload_status=V2RecordStatus.PENDING,
+        is_active=True,
+        metadata_={},
+    )
+    provider_index = ProviderCorpusIndex(
+        id=uuid.uuid4(),
+        project_id=project_id,
+        provider="openai",
+        provider_vector_store_id="vs-ready",
+        scope="project",
+        status=V2RecordStatus.READY,
+        config={},
+    )
+    old_provider_file = ProviderCorpusFile(
+        id=uuid.uuid4(),
+        provider_index_id=provider_index.id,
+        source_id=source.id,
+        source_version_id=old_version.id,
+        provider="openai",
+        provider_file_id="file-old",
+        provider_vector_store_file_id="vsf-old",
+        status=V2RecordStatus.READY,
+        attributes={
+            "is_active": True,
+            "agent_facing": True,
+            "canonical_retrieval_surface": True,
+        },
+    )
+    monkeypatch.setattr(selection, "_provider_uploads_required", lambda: True)
+
+    usable_sources, usable_versions, provider_files, skipped, canonical_ids = selection.select_ready_run_corpus(
+        [source],
+        [old_version, replacement],
+        [old_provider_file],
+        provider_index,
+    )
+
+    assert usable_sources == [source]
+    assert usable_versions == [old_version]
+    assert provider_files == [old_provider_file]
+    assert skipped == []
+    assert canonical_ids == [str(old_version.id)]
+
+
+@pytest.mark.asyncio
+async def test_failed_source_version_does_not_replace_last_ready_version() -> None:
+    from app.generation_v2.source_corpus_version_persistence import ensure_source_version
+    from app.models.generation_v2 import SourceRepresentationKind, SourceVersion, V2RecordStatus
+
+    source = Source(
+        id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        source_type=SourceType.WEB,
+        ingestion_status="completed",
+        is_temporary=False,
+    )
+    previous = SourceVersion(
+        id=uuid.uuid4(),
+        source_id=source.id,
+        project_id=source.project_id,
+        kind=SourceRepresentationKind.RENDERED_SNAPSHOT,
+        storage_path="versions/ready.txt",
+        content_hash="ready",
+        status=V2RecordStatus.READY,
+        upload_status=V2RecordStatus.READY,
+        is_active=True,
+        metadata_={},
+    )
+
+    class Db:
+        def __init__(self):
+            self.results = [_Result(None), _Result(previous)]
+            self.added: list[object] = []
+
+        async def execute(self, _statement):
+            return self.results.pop(0)
+
+        def add(self, item):
+            self.added.append(item)
+
+        async def flush(self):
+            for item in self.added:
+                if getattr(item, "id", None) is None:
+                    item.id = uuid.uuid4()
+
+    db = Db()
+    failed = await ensure_source_version(
+        db,  # type: ignore[arg-type]
+        source,
+        kind=SourceRepresentationKind.RENDERED_SNAPSHOT,
+        storage_path="versions/failed.txt",
+        content_hash="failed",
+        metadata={},
+        status=V2RecordStatus.FAILED,
+    )
+
+    assert failed.is_active is False
+    assert failed.supersedes_source_version_id is None
+    assert previous.is_active is True
+
+
+@pytest.mark.asyncio
+async def test_source_version_replacement_locks_the_source_row_on_postgres() -> None:
+    from app.generation_v2.source_corpus_version_persistence import ensure_source_version
+    from app.models.generation_v2 import SourceRepresentationKind
+
+    source = Source(
+        id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        source_type=SourceType.WEB,
+        ingestion_status="completed",
+        is_temporary=False,
+    )
+
+    class Db:
+        def __init__(self):
+            self.results = [_Result(source.id), _Result(None), _Result(None)]
+            self.statements = []
+            self.added = []
+
+        def get_bind(self):
+            return SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
+
+        async def execute(self, statement):
+            self.statements.append(statement)
+            return self.results.pop(0)
+
+        def add(self, item):
+            self.added.append(item)
+
+        async def flush(self):
+            for item in self.added:
+                if getattr(item, "id", None) is None:
+                    item.id = uuid.uuid4()
+
+    db = Db()
+    await ensure_source_version(
+        db,  # type: ignore[arg-type]
+        source,
+        kind=SourceRepresentationKind.RENDERED_SNAPSHOT,
+        storage_path="versions/current.txt",
+        content_hash="current",
+        metadata={},
+    )
+
+    assert "FOR UPDATE" in str(db.statements[0])
 
 
 @pytest.mark.asyncio

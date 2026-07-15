@@ -2,10 +2,14 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.generation_v2.corpus_brief_actions import (
+    acquisition_editorial_functions,
+    corpus_brief_acquisition_requests,
+)
 from app.generation_v2.contracts.research import ResearchAuditSeverity, ResearchAuditTargetStep
 from app.generation_v2.contracts.source import CorpusGapKind, SeverityLevel
 from app.generation_v2.source_acquisition_gap_helpers import add_corpus_gap, functions_from_text as _functions_from_text
-from app.generation_v2.schemas import CorpusGap, CorpusGapReport, ResearchAudit, SourceMap, SourceTriageGate
+from app.generation_v2.schemas import CorpusBrief, CorpusGap, CorpusGapReport, ResearchAudit, SourceMap, SourceTriageGate
 from app.models.generation_run import GenerationRun
 
 
@@ -18,6 +22,7 @@ def build_corpus_gap_report(
     triage_completion_summary: str | None = None,
     triage_ready: bool | None = None,
     triage_gate: SourceTriageGate | None = None,
+    corpus_brief: CorpusBrief | None = None,
     research_audit: ResearchAudit | None = None,
     treatment_gate: Any | None = None,
 ) -> CorpusGapReport:
@@ -25,6 +30,7 @@ def build_corpus_gap_report(
     duration = int(config.get("duration_target") or 1800)
     gaps: list[CorpusGap] = []
     research_audit_non_acquisition_only = False
+    canonical_triage_routing = corpus_brief is not None
 
     def add_gap(
         kind: CorpusGapKind,
@@ -32,8 +38,12 @@ def build_corpus_gap_report(
         *,
         functions: list[str] | None = None,
         source_ids: list[str] | None = None,
+        source_refs: list[str] | None = None,
         severity: SeverityLevel = SeverityLevel.MEDIUM,
         origin: str = "",
+        question_id: str = "",
+        question: str = "",
+        reason: str = "",
     ) -> None:
         add_corpus_gap(
             gaps,
@@ -42,19 +52,58 @@ def build_corpus_gap_report(
             description=description,
             functions=functions,
             source_ids=source_ids,
+            source_refs=source_refs,
             severity=severity,
             origin=origin,
+            question_id=question_id,
+            question=question,
+            reason=reason,
         )
 
-    if triage_ready is False:
+    for request in corpus_brief_acquisition_requests(corpus_brief):
+        add_gap(
+            CorpusGapKind.TRIAGE_ACQUISITION,
+            request.reason or request.question,
+            functions=acquisition_editorial_functions(request.question_kind),
+            source_ids=list(request.related_source_ids),
+            severity=(
+                SeverityLevel.HIGH
+                if request.importance == "critical"
+                else SeverityLevel.MEDIUM
+            ),
+            origin="corpus_brief_next_action",
+            question_id=request.question_id,
+            question=request.question,
+            reason=request.reason,
+        )
+
+    # A canonical CorpusBrief owns the semantic route out of triage. Its
+    # SourceMap gaps remain context for research unless an outcome explicitly
+    # requests source acquisition. Legacy runs without a CorpusBrief keep the
+    # older gate-derived fallback below.
+    if not canonical_triage_routing and triage_ready is False:
         add_gap(
             CorpusGapKind.TRIAGE_NOT_READY,
             triage_completion_summary or "Source triage reported that the corpus is not ready.",
             severity=SeverityLevel.HIGH,
             origin="source_triage_completion",
         )
-    if source_map:
+    if not canonical_triage_routing and source_map:
+        structured_gap_descriptions = {
+            _gap_description_key(record.description) for record in source_map.gap_records
+        }
+        for record in source_map.gap_records:
+            add_gap(
+                CorpusGapKind.SOURCE_MAP_GAP,
+                record.description,
+                functions=_functions_from_text(f"{record.kind} {record.description}"),
+                source_ids=list(record.source_ids),
+                severity=SeverityLevel.MEDIUM,
+                origin=f"source_map_gap_record:{record.kind}",
+            )
         for gap in source_map.gaps:
+            if _gap_description_key(gap) in structured_gap_descriptions:
+                continue
             add_gap(
                 CorpusGapKind.SOURCE_MAP_GAP,
                 gap,
@@ -63,6 +112,8 @@ def build_corpus_gap_report(
                 origin="source_map",
             )
         for contradiction in source_map.contradictions:
+            if _gap_description_key(contradiction) in structured_gap_descriptions:
+                continue
             add_gap(
                 CorpusGapKind.SOURCE_MAP_GAP,
                 f"Contradiction needs better coverage: {contradiction}",
@@ -70,7 +121,7 @@ def build_corpus_gap_report(
                 severity=SeverityLevel.MEDIUM,
                 origin="source_map",
             )
-    if triage_gate and not triage_gate.passed:
+    if not canonical_triage_routing and triage_gate and not triage_gate.passed:
         for function in triage_gate.missing_function_evidence:
             add_gap(
                 CorpusGapKind.MISSING_FUNCTION,
@@ -108,6 +159,7 @@ def build_corpus_gap_report(
                     CorpusGapKind.RESEARCH_AUDIT,
                     description,
                     functions=_functions_from_text(description),
+                    source_refs=list(issue.source_refs),
                     severity=(
                         SeverityLevel.HIGH
                         if issue.severity in {ResearchAuditSeverity.BLOCKING, ResearchAuditSeverity.MAJOR}
@@ -133,15 +185,7 @@ def build_corpus_gap_report(
                 severity=SeverityLevel.HIGH,
                 origin="treatment_gate",
             )
-    if duration >= 3600 and source_map and len(source_map.evidence_ids) < 12:
-        add_gap(
-            CorpusGapKind.DURATION,
-            "Long-form target needs broader source density before drafting.",
-            functions=["tension", "mechanism", "change", "impact"],
-            severity=SeverityLevel.HIGH,
-            origin="duration_gate",
-        )
-    if not gaps and not research_audit_non_acquisition_only:
+    if not gaps and not research_audit_non_acquisition_only and not canonical_triage_routing:
         add_gap(
             CorpusGapKind.COVERAGE,
             "Corpus coverage is weak or unspecified; acquire stronger primary and source-backed material.",
@@ -169,3 +213,7 @@ def build_corpus_gap_report(
         evidence_count=evidence_count,
         should_acquire=should_acquire,
     )
+
+
+def _gap_description_key(value: object) -> str:
+    return " ".join(str(value or "").split()).casefold()

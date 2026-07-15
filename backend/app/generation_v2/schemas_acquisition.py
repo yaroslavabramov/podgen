@@ -11,8 +11,12 @@ class CorpusGap(BaseModel):
     description: str
     required_editorial_functions: list[str] = Field(default_factory=list)
     related_source_ids: list[str] = Field(default_factory=list)
+    related_source_refs: list[str] = Field(default_factory=list)
     severity: SeverityLevel = SeverityLevel.MEDIUM
     origin: str = ""
+    question_id: str = ""
+    question: str = ""
+    reason: str = ""
 
 
 class CorpusGapReport(BaseModel):

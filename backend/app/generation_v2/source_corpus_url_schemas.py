@@ -18,7 +18,7 @@ OPENAI_URL_READ_SCHEMA: dict[str, Any] = {
         "extracted_text_markdown": {"type": "string"},
         "summary": {"type": "string"},
         "failure_reason": {"type": "string"},
-        "confidence": {"type": "number"},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
     },
     "required": [
         "read_status",
@@ -51,7 +51,7 @@ OPENAI_URL_RECOVERY_SCHEMA: dict[str, Any] = {
                     "url": {"type": "string"},
                     "title": {"type": "string"},
                     "reason": {"type": "string"},
-                    "confidence": {"type": "number"},
+                    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
                 },
                 "required": ["url", "title", "reason", "confidence"],
             },

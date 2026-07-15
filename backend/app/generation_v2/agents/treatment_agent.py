@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.generation_v2.contracts import V2AgentName, V2Phase
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.generation_v2.agent_output_policy import semantic_agent_output_limit
 from app.generation_v2.agents.fallbacks import (
     allow_runtime_fallback as _allow_runtime_fallback,
     fallback_act_count as _fallback_act_count,
@@ -16,6 +17,7 @@ from app.generation_v2.agents.treatment_context import (
 )
 from app.generation_v2.prompting import TREATMENT_PROMPT, TREATMENT_SYSTEM
 from app.generation_v2.runtime import AgentTool, ToolPolicy, V2Runtime, V2RuntimeUnavailable
+from app.generation_v2.source_corpus import list_evidence_dicts
 from app.generation_v2.schemas import ResearchAudit, ResearchMemo, ShowBibleContext, SourceMap, Treatment, TreatmentPlan
 from app.models.generation_run import GenerationRun
 
@@ -38,6 +40,7 @@ async def build_treatment(
     source_map = source_map or SourceMap()
     full_source_inventory = source_inventory or source_map
     act_count_range = treatment_act_count_range(int((run.config or {}).get("duration_target", 1800)))
+    evidence_records = await list_evidence_dicts(db, run.id) if db is not None else []
     prompt = TREATMENT_PROMPT.format(
         show_bible_json=(show_bible or ShowBibleContext()).model_dump_json(),
         min_act_count=act_count_range[0],
@@ -51,6 +54,7 @@ async def build_treatment(
                 research_audit=research_audit,
                 act_count_range=act_count_range,
                 repair_instructions=repair_instructions,
+                evidence_records=evidence_records,
             )
         ),
     )
@@ -66,7 +70,7 @@ async def build_treatment(
             vector_store_id=None,
             local_tools=[],
             tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=False),
-            max_output_tokens=12000,
+            max_output_tokens=semantic_agent_output_limit(),
         )
         return _treatment_from_plan(
             treatment_plan,

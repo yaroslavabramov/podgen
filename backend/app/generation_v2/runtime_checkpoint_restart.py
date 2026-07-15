@@ -4,14 +4,15 @@ import json
 from typing import Any
 
 from app.generation_v2.runtime_checkpoint import compact_checkpoint_value
+from app.generation_v2.runtime_checkpoint_context import validate_checkpoint_resume_context
+from app.generation_v2.runtime_contracts import CheckpointResumeContext
 
-CHECKPOINT_TASK_BRIEF_CHARS = 4500
 CHECKPOINT_LAST_TOOL_RESULT_LIMIT = 12
 
 
 def checkpoint_restart_message(
     *,
-    prompt: str,
+    resume_context: CheckpointResumeContext,
     reason: str,
     previous_chain_id: str,
     next_chain_id: str,
@@ -19,33 +20,38 @@ def checkpoint_restart_message(
     state: dict[str, Any],
     last_tool_results: list[dict[str, Any]],
 ) -> dict[str, str]:
-    task_brief = checkpoint_task_brief(prompt)
-    task_brief_truncated = len(" ".join((prompt or "").split())) > CHECKPOINT_TASK_BRIEF_CHARS
+    validate_checkpoint_resume_context(resume_context)
     tool_result_previews = last_tool_results[:CHECKPOINT_LAST_TOOL_RESULT_LIMIT]
-    payload = {
-        "checkpoint_reason": reason,
-        "previous_chain_id": previous_chain_id,
-        "next_chain_id": next_chain_id,
-        "checkpoint_index": checkpoint_index,
-        "task_brief_preview": task_brief,
-        "task_brief_chars": len(" ".join((prompt or "").split())),
-        "task_brief_truncated": task_brief_truncated,
-        "compact_state_from_db": state,
-        "last_tool_result_previews": tool_result_previews,
-        "last_tool_result_count": len(last_tool_results),
-        "last_tool_result_omitted_count": max(0, len(last_tool_results) - len(tool_result_previews)),
-        "instructions": checkpoint_restart_instructions(state),
-    }
-    compact, _ = _runtime_compact_checkpoint_value()(
-        payload,
+    compact_state, _ = _runtime_compact_checkpoint_value()(
+        state,
         max_string_chars=1800,
         max_list_items=90,
         max_depth=6,
     )
+    compact_tool_results, _ = _runtime_compact_checkpoint_value()(
+        tool_result_previews,
+        max_string_chars=1800,
+        max_list_items=CHECKPOINT_LAST_TOOL_RESULT_LIMIT,
+        max_depth=5,
+    )
+    payload = {
+        "resume_contract_version": resume_context.contract_version,
+        "checkpoint_reason": reason,
+        "previous_chain_id": previous_chain_id,
+        "next_chain_id": next_chain_id,
+        "checkpoint_index": checkpoint_index,
+        "workflow_contract": resume_context.workflow_contract,
+        "stable_task_context": resume_context.task_context,
+        "compact_state_from_db": compact_state,
+        "last_tool_result_previews": compact_tool_results,
+        "last_tool_result_count": len(last_tool_results),
+        "last_tool_result_omitted_count": max(0, len(last_tool_results) - len(tool_result_previews)),
+        "instructions": checkpoint_restart_instructions(state),
+    }
     return {
         "role": "user",
         "content": "Responses chain checkpoint restart. Continue from compact state:\n"
-        + json.dumps(compact, ensure_ascii=False),
+        + json.dumps(payload, ensure_ascii=False),
     }
 
 
@@ -53,17 +59,53 @@ def checkpoint_restart_instructions(state: dict[str, Any]) -> str:
     base = (
         "Continue the same agent task from this compact checkpoint. "
         "Do not restart from scratch. Treat DB state and write actions as authoritative. "
+        "The workflow_contract and stable_task_context are immutable; compact_state_from_db is the only "
+        "authoritative mutable workflow state. Last tool result previews are non-authoritative reading aids. "
+        "Continue semantic work in the requested language recorded in compact_state_from_db.run_intent "
+        "(or the durable workspace intent); do not switch languages. "
+        "For any paginated read, use compact_state_from_db.durable_paging_progress: do not reread completed pages, "
+        "and resume an incomplete page sequence from its next_cursor instead of cursor 0. "
     )
     if state.get("phase") == "v2_source_triage":
-        return base + (
+        agent_name = str(state.get("agent_name") or "")
+        instructions = base + (
             "Use compact_state_from_db.corpus.source_inventory as the source list already seen. "
-            "Use compact_state_from_db.source_triage_workspace as the durable source-set plan and current-set progress. "
-            "Use list_triage_source_sets section=current_set to restore full current-set fields, then page section=observations from cursor 0; page omitted source-set listings with section=sets. "
-            "Do not repeat list_sources pages already shown in source_inventory_progress; continue from next_cursor only when all_sources_listed is false. "
-            "Source triage workflow: work in small source sets. "
-            "If compact_state_from_db.source_triage_progress.read_without_map_write_refs is non-empty, prefer writing the appropriate upsert_source_card, record_source_cluster, record_source_relationship, or record_gap entries before reading more. "
-            "For a cluster or relationship, read/compare the relevant 2-5 sources, then write that map entry immediately."
+            "Use compact_state_from_db.source_triage_workspace as the durable source-set plan and progress. "
         )
+        if agent_name == "source_triage_planner_agent":
+            inventory_page = ((state.get("corpus") or {}).get("source_inventory_page") or {})
+            inventory_instruction = (
+                "The compact source inventory is the complete catalog; do not restart full-corpus capsule paging. "
+                if inventory_page.get("complete") is True
+                else (
+                    "The compact source inventory is only the first durable catalog page. Continue catalog reading "
+                    f"with list_source_capsules from cursor {inventory_page.get('next_cursor')!r}; do not reread "
+                    "the inventory entries already present in the checkpoint. "
+                )
+            )
+            return instructions + inventory_instruction + (
+                "compact_state_from_db.source_triage_workspace.planner_resume lists every accepted coverage question, "
+                "accepted source-set assignment, concrete violation, and the backend-computed next_action. "
+                "Never recreate, translate, or paraphrase an accepted question or source set as a new write. "
+                "Execute that next_action, inspecting only a specifically ambiguous source_ref if it is necessary, "
+                "then call finalize_triage_workspace_plan when ready."
+            )
+        if agent_name.startswith("source_triage_set_agent_"):
+            return instructions + (
+                "Continue only the current source set. Use list_triage_source_sets with section=current_set to restore its full fields, "
+                "and page section=observations from cursor 0 when observation previews were omitted. "
+                "Use skim_source, inspect_source, read_source_window, read_evidence, search_corpus, or compare_source_evidence only as needed. "
+                "Persist missing assessments and outcomes with upsert_source_assessment and upsert_coverage_outcome; persist useful map entries with "
+                "upsert_source_card, create_quote_card, record_source_cluster, record_source_relationship, record_gap, resolve_gap, or record_triage_observation. "
+                "Then call finish_triage_source_set."
+            )
+        if agent_name == "source_triage_finalizer_agent":
+            return instructions + (
+                "Review only persisted triage state. Page omitted sets, assessments, outcomes, syntheses, source_map_repairs, plan summary, or deferred sources with list_triage_source_sets. "
+                "Preserve current accepted syntheses and upsert every missing or invalidated run-wide question synthesis. "
+                "Resolve every open source_map repair with resolve_source_map_repair, repair concrete assessment/outcome inconsistencies, record a known gap when needed, then call finalize_source_map. Do not start broad new reading."
+            )
+        return instructions + "Continue only with tools exposed to this agent role."
     if state.get("phase") == "v2_editorial_research":
         agent_name = str(state.get("agent_name") or "")
         instructions = base + (
@@ -86,13 +128,6 @@ def checkpoint_restart_instructions(state: dict[str, Any]) -> str:
     return base
 
 
-def checkpoint_task_brief(prompt: str) -> str:
-    text = " ".join((prompt or "").split())
-    if len(text) <= CHECKPOINT_TASK_BRIEF_CHARS:
-        return text
-    return text[:CHECKPOINT_TASK_BRIEF_CHARS].rstrip() + "..."
-
-
 def _runtime_compact_checkpoint_value() -> Any:
     from app.generation_v2 import runtime
 
@@ -101,8 +136,6 @@ def _runtime_compact_checkpoint_value() -> Any:
 
 __all__ = [
     "CHECKPOINT_LAST_TOOL_RESULT_LIMIT",
-    "CHECKPOINT_TASK_BRIEF_CHARS",
     "checkpoint_restart_instructions",
     "checkpoint_restart_message",
-    "checkpoint_task_brief",
 ]

@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.generation_v2.tools.evidence_core_utils import (
     chunk_version_priority as _chunk_version_priority,
     dedupe as _dedupe,
+    exact_quote_source_span as _exact_quote_source_span,
     exact_quote_text_matches as _exact_quote_text_matches,
     hosted_result_file_id as _hosted_result_file_id,
     hosted_result_text as _hosted_result_text,
@@ -66,6 +67,7 @@ __all__ = [
     "_chunk_version_priority",
     "_confidence",
     "_dedupe",
+    "_exact_quote_source_span",
     "_exact_quote_text_matches",
     "_heading_markers",
     "_heading_window",

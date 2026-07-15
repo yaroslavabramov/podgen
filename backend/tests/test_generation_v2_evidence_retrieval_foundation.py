@@ -1,0 +1,405 @@
+from __future__ import annotations
+
+import uuid
+from types import SimpleNamespace
+
+import pytest
+
+from app.generation_v2.tools.evidence_local_windows import (
+    read_source_window,
+    source_allows_timestamp_locators,
+    source_windows,
+)
+from app.generation_v2.tools.evidence_store import canonical_evidence_hash, persist_evidence_item
+from app.generation_v2.tools.evidence_text_windows import (
+    representative_text_windows,
+    resolve_window_for_locator,
+    source_outline,
+)
+from app.generation_v2.tools.evidence_window_refs import WindowRefError, create_window_ref, parse_window_ref
+from app.models.generation_v2 import (
+    EvidenceItem,
+    EvidenceLocatorType,
+    EvidenceRetrievalEvent,
+    EvidenceStrength,
+    SourceRepresentationKind,
+    SourceVersion,
+    V2RecordStatus,
+)
+
+
+class _ScalarResult:
+    def __init__(self, values: list[object]) -> None:
+        self.values = values
+
+    def scalar_one_or_none(self):
+        return self.values[0] if self.values else None
+
+
+class _PersistenceDb:
+    def __init__(self) -> None:
+        self.info: dict = {}
+        self.added: list[object] = []
+
+    async def get(self, _model, _item_id):
+        return None
+
+    async def execute(self, _statement):
+        return _ScalarResult([item for item in self.added if isinstance(item, EvidenceItem)])
+
+    def add(self, item: object) -> None:
+        self.added.append(item)
+
+    async def flush(self) -> None:
+        for item in self.added:
+            if getattr(item, "id", None) is None:
+                item.id = uuid.uuid4()
+
+
+class _SourceDb:
+    async def get(self, _model, _item_id):
+        return None
+
+
+class _TypedSourceDb:
+    def __init__(self, source_type: str) -> None:
+        self.source_type = source_type
+
+    async def get(self, _model, _item_id):
+        return SimpleNamespace(source_type=self.source_type)
+
+
+def _version(*, kind: str) -> SourceVersion:
+    return SourceVersion(
+        id=uuid.uuid4(),
+        source_id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        kind=kind,
+        storage_path="source.txt",
+        status=V2RecordStatus.READY,
+        upload_status=V2RecordStatus.READY,
+        metadata_={},
+    )
+
+
+def test_source_outline_treats_timestamps_as_structure_only_when_enabled() -> None:
+    text = "Article title\n\nAt 11:30 the market moved\n\nWhat happened next\n\nThe result."
+
+    document_outline = source_outline(text, max_items=4, allow_timestamps=False)
+    transcript_outline = source_outline(text, max_items=4, allow_timestamps=True)
+
+    assert all(item["locator_type"] != EvidenceLocatorType.TIMESTAMP for item in document_outline)
+    assert transcript_outline[0]["locator_type"] == EvidenceLocatorType.TIMESTAMP
+    assert resolve_window_for_locator(text, locator="11:30", max_chars=500, allow_timestamps=False) is None
+    timed_heading = resolve_window_for_locator(
+        text,
+        locator="At 11:30 the market moved",
+        max_chars=500,
+        allow_timestamps=False,
+    )
+    assert timed_heading is not None
+    assert timed_heading.locator_type == EvidenceLocatorType.SECTION
+
+
+@pytest.mark.asyncio
+async def test_audio_and_video_sources_enable_timestamp_locators_for_text_representations() -> None:
+    version = _version(kind=SourceRepresentationKind.EXTRACTED_TEXT)
+
+    assert await source_allows_timestamp_locators(SimpleNamespace(db=_TypedSourceDb("audio")), version) is True
+    assert await source_allows_timestamp_locators(SimpleNamespace(db=_TypedSourceDb("video")), version) is True
+    assert await source_allows_timestamp_locators(SimpleNamespace(db=_TypedSourceDb("web")), version) is False
+
+
+def test_unresolved_locator_never_falls_back_to_source_beginning() -> None:
+    text = "Heading\n\nActual source content."
+
+    assert resolve_window_for_locator(text, locator="missing section", max_chars=500) is None
+    beginning = resolve_window_for_locator(text, locator="source beginning", max_chars=500)
+    assert beginning is not None
+    assert beginning.locator_type == EvidenceLocatorType.SOURCE_LEVEL
+
+
+def test_unstructured_skim_samples_across_a_long_single_paragraph() -> None:
+    text = " ".join(f"token-{idx}" for idx in range(1200))
+
+    windows = representative_text_windows(text, max_windows=4, max_chars=1200)
+
+    assert len(windows) == 4
+    assert windows[0].start_offset == 0
+    assert windows[-1].end_offset == len(text)
+    assert len({window.start_offset for window in windows}) == 4
+
+
+@pytest.mark.asyncio
+async def test_window_ref_round_trips_the_same_transcript_window(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2.tools import evidence_local_windows as windows_module
+
+    text = "[00:00] Intro\nThe opening.\n\n[12:30] Mechanism\nThe exact mechanism.\n\n[25:00] Ending\nThe end."
+    version = _version(kind=SourceRepresentationKind.TRANSCRIPT)
+    owner = SimpleNamespace(db=_SourceDb())
+    monkeypatch.setattr(windows_module, "_source_version_text", lambda _version: text)
+
+    skimmed = await source_windows(owner, version, max_windows=3)
+    selected = skimmed[1]
+    snippet, locator_text, locator_type, _channel = await read_source_window(
+        owner,
+        version,
+        locator=selected["window_ref"],
+        max_chars=3000,
+    )
+
+    assert snippet == selected["snippet_text"]
+    assert locator_text == selected["locator_text"]
+    assert locator_type == EvidenceLocatorType.TIMESTAMP
+
+
+def test_window_ref_rejects_tampering() -> None:
+    version_id = uuid.uuid4()
+    text = "A concrete source window."
+    window_ref = create_window_ref(
+        source_version_id=version_id,
+        text=text,
+        start_offset=0,
+        end_offset=len(text),
+    )
+
+    assert parse_window_ref(window_ref).source_version_id == version_id
+    with pytest.raises(WindowRefError, match="invalid_window_ref"):
+        parse_window_ref(f"{window_ref[:-1]}x")
+
+
+def test_exact_evidence_hash_distinguishes_repeated_text_by_verified_window() -> None:
+    version_id = uuid.uuid4()
+    text = "Repeated statement. Middle. Repeated statement."
+    first_start = text.index("Repeated statement.")
+    second_start = text.rindex("Repeated statement.")
+    first_ref = create_window_ref(
+        source_version_id=version_id,
+        text=text,
+        start_offset=first_start,
+        end_offset=first_start + len("Repeated statement."),
+    )
+    second_ref = create_window_ref(
+        source_version_id=version_id,
+        text=text,
+        start_offset=second_start,
+        end_offset=second_start + len("Repeated statement."),
+    )
+    common = {
+        "snippet_text": "Repeated statement.",
+        "normalized_quote_text": "repeated statement.",
+        "locator_text": "same section",
+        "locator_type": EvidenceLocatorType.SECTION,
+        "evidence_strength": EvidenceStrength.EXACT,
+    }
+
+    first_hash = canonical_evidence_hash(**common, metadata={"window_ref": first_ref})
+    second_hash = canonical_evidence_hash(**common, metadata={"window_ref": second_ref})
+    snippet_hash = canonical_evidence_hash(
+        **{**common, "evidence_strength": EvidenceStrength.SNIPPET},
+        metadata={"window_ref": first_ref},
+    )
+    same_snippet_hash = canonical_evidence_hash(
+        **{**common, "evidence_strength": EvidenceStrength.SNIPPET},
+        metadata={"window_ref": second_ref},
+    )
+
+    assert first_hash != second_hash
+    assert snippet_hash == same_snippet_hash
+
+
+@pytest.mark.asyncio
+async def test_same_canonical_evidence_has_separate_retrieval_events() -> None:
+    db = _PersistenceDb()
+    run_id = uuid.uuid4()
+    project_id = uuid.uuid4()
+    source_id = uuid.uuid4()
+    source_version_id = uuid.uuid4()
+    common = {
+        "generation_run_id": run_id,
+        "project_id": project_id,
+        "source_id": source_id,
+        "source_version_id": source_version_id,
+        "locator_text": "section 1",
+    }
+
+    first = await persist_evidence_item(
+        db,  # type: ignore[arg-type]
+        **common,
+        retrieval_channel="provider_vector_search",
+        query_text="first query",
+        purpose="mechanism",
+        snippet_text="Same   canonical evidence.",
+    )
+    second = await persist_evidence_item(
+        db,  # type: ignore[arg-type]
+        **common,
+        retrieval_channel="local_chunk_search",
+        query_text="different query",
+        purpose="timeline",
+        snippet_text="Same canonical evidence.",
+    )
+
+    evidence = [item for item in db.added if isinstance(item, EvidenceItem)]
+    events = [item for item in db.added if isinstance(item, EvidenceRetrievalEvent)]
+    assert first is second
+    assert len(evidence) == 1
+    assert len(events) == 2
+    assert {event.query_text for event in events} == {"first query", "different query"}
+    assert {event.purpose for event in events} == {"mechanism", "timeline"}
+    assert {event.retrieval_channel for event in events} == {"provider_vector_search", "local_chunk_search"}
+
+
+@pytest.mark.asyncio
+async def test_skim_returns_window_refs_without_persisting_evidence(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2.tools import evidence_source_tool_actions as actions
+
+    version = _version(kind=SourceRepresentationKind.EXTRACTED_TEXT)
+
+    async def no_error(*_args, **_kwargs):
+        return None
+
+    async def resolve(**_kwargs):
+        return version
+
+    async def windows(_version, *, max_windows: int):
+        return [
+            {
+                "window_ref": f"w1.test-{idx}",
+                "locator_text": f"section {idx}",
+                "locator_type": EvidenceLocatorType.SECTION,
+                "snippet_text": f"Preview {idx}",
+                "channel": "local_chunk_search",
+            }
+            for idx in range(max_windows)
+        ]
+
+    async def source_ref(_source_id):
+        return "S01"
+
+    async def version_ref(_version):
+        return "S01:v1"
+
+    async def save_trace(*_args, **_kwargs):
+        return None
+
+    async def fail_persist(*_args, **_kwargs):
+        raise AssertionError("skim must not create EvidenceItems")
+
+    owner = SimpleNamespace(
+        db=SimpleNamespace(),
+        run=SimpleNamespace(id=uuid.uuid4(), project_id=version.project_id),
+        _triage_read_guard_error=no_error,
+        _invalid_source_or_version_ref_error=no_error,
+        _resolve_source_version=resolve,
+        _source_windows=windows,
+        _source_ref_for_id=source_ref,
+        _version_ref_for_version=version_ref,
+    )
+    monkeypatch.setattr(actions, "save_tool_trace", save_trace)
+    monkeypatch.setattr(actions, "persist_evidence_item", fail_persist)
+
+    result = await actions.skim_source(owner, {"source_ref": "S01", "max_windows": 3})
+
+    assert result["found"] is True
+    assert len(result["windows"]) == 3
+    assert all("window_ref" in item for item in result["windows"])
+    assert all("evidence" not in item for item in result["windows"])
+    from app.generation_v2.runtime_tool_output import model_facing_tool_output
+
+    assert model_facing_tool_output("skim_source", result) == result
+
+
+@pytest.mark.asyncio
+async def test_read_source_window_reports_locator_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2.tools.evidence import EvidenceToolset
+
+    version = _version(kind=SourceRepresentationKind.EXTRACTED_TEXT)
+    toolset = EvidenceToolset(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4(), project_id=version.project_id),
+        run_view=SimpleNamespace(
+            selected_source_ids=[str(version.source_id)], selected_source_version_ids=[str(version.id)]
+        ),
+        provider_index=None,
+    )
+
+    async def no_error(*_args, **_kwargs):
+        return None
+
+    async def resolve(**_kwargs):
+        return version
+
+    async def source_id(_value: str):
+        return str(version.source_id)
+
+    async def no_window(*_args, **_kwargs):
+        return "", "", EvidenceLocatorType.UNKNOWN, "local_chunk_search"
+
+    monkeypatch.setattr(toolset, "_triage_read_guard_error", no_error)
+    monkeypatch.setattr(toolset, "_invalid_source_or_version_ref_error", no_error)
+    monkeypatch.setattr(toolset, "_resolve_source_version", resolve)
+    monkeypatch.setattr(toolset, "_source_id_from_ref_or_id", source_id)
+    monkeypatch.setattr(toolset, "_read_source_window", no_window)
+
+    result = await toolset.read_source_window_tool(
+        {"source_ref": "S01", "locator": "missing section", "max_chars": 1000}
+    )
+
+    assert result["found"] is False
+    assert result["error"] == "locator_not_found"
+
+
+@pytest.mark.asyncio
+async def test_source_beginning_is_not_marked_exact(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2.tools import evidence_source_tools as source_tools_module
+    from app.generation_v2.tools.evidence import EvidenceToolset
+
+    version = _version(kind=SourceRepresentationKind.EXTRACTED_TEXT)
+    captured: dict[str, object] = {}
+    toolset = EvidenceToolset(
+        db=SimpleNamespace(),  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4(), project_id=version.project_id),
+        run_view=SimpleNamespace(
+            selected_source_ids=[str(version.source_id)], selected_source_version_ids=[str(version.id)]
+        ),
+        provider_index=None,
+    )
+
+    async def no_error(*_args, **_kwargs):
+        return None
+
+    async def resolve(**_kwargs):
+        return version
+
+    async def source_id(_value: str):
+        return str(version.source_id)
+
+    async def beginning(*_args, **_kwargs):
+        return "Beginning text.", "source beginning", EvidenceLocatorType.SOURCE_LEVEL, "local_chunk_search"
+
+    async def persist(_db, **kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(id=uuid.uuid4())
+
+    async def detail(_evidence, **_kwargs):
+        return {"evidence_id": "E01", "locator_text": "source beginning"}
+
+    async def save_trace(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(toolset, "_triage_read_guard_error", no_error)
+    monkeypatch.setattr(toolset, "_invalid_source_or_version_ref_error", no_error)
+    monkeypatch.setattr(toolset, "_resolve_source_version", resolve)
+    monkeypatch.setattr(toolset, "_source_id_from_ref_or_id", source_id)
+    monkeypatch.setattr(toolset, "_read_source_window", beginning)
+    monkeypatch.setattr(toolset, "_evidence_detail_payload", detail)
+    monkeypatch.setattr(source_tools_module, "persist_evidence_item", persist)
+    monkeypatch.setattr(source_tools_module, "save_tool_trace", save_trace)
+
+    result = await toolset.read_source_window_tool(
+        {"source_ref": "S01", "locator": "beginning", "max_chars": 1000}
+    )
+
+    assert result["found"] is True
+    assert captured["evidence_strength"] == EvidenceStrength.SNIPPET

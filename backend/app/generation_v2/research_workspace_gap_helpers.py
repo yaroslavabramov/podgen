@@ -55,18 +55,30 @@ def dedupe_gaps(values: list[Any]) -> list[dict[str, Any]]:
         key = gap["normalized_key"]
         if key not in merged_by_key:
             order.append(key)
-            merged_by_key[key] = gap
+            merged_by_key[key] = _fail_closed_invalid_resolution(gap)
             continue
-        merged_by_key[key] = merge_research_gap(merged_by_key[key], gap)
+        merged_by_key[key] = _fail_closed_invalid_resolution(
+            merge_research_gap(merged_by_key[key], gap)
+        )
     return [merged_by_key[key] for key in order]
+
+
+def _fail_closed_invalid_resolution(gap: dict[str, Any]) -> dict[str, Any]:
+    if (
+        gap.get("status") == ResearchGapStatus.RESOLVED.value
+        and gap.get("severity") == ResearchGapSeverity.BLOCKING.value
+        and not gap.get("evidence_ids")
+        and not gap.get("atom_refs")
+    ):
+        gap = dict(gap)
+        gap["status"] = ResearchGapStatus.OPEN.value
+    return gap
 
 
 def merge_research_gap(existing: dict[str, Any] | None, incoming: dict[str, Any]) -> dict[str, Any]:
     if not existing:
         return incoming
     merged = dict(existing)
-    incoming_status = str(incoming.get("status") or "open")
-    incoming_resolution = str(incoming.get("resolution_note") or "").strip()
     severity_rank = {
         ResearchGapSeverity.OPTIONAL.value: 0,
         ResearchGapSeverity.NON_BLOCKING.value: 1,
@@ -91,19 +103,10 @@ def merge_research_gap(existing: dict[str, Any] | None, incoming: dict[str, Any]
     source_refs = dedupe([*(existing.get("source_refs") or []), *(incoming.get("source_refs") or [])])
     evidence_ids = dedupe([*(existing.get("evidence_ids") or []), *(incoming.get("evidence_ids") or [])])
     atom_refs = dedupe([*(existing.get("atom_refs") or []), *(incoming.get("atom_refs") or [])])
-    if incoming_status == "resolved" and incoming_resolution:
-        merged.update(incoming)
-        merged["gap_id"] = existing.get("gap_id") or incoming.get("gap_id")
-        merged["created_at"] = existing.get("created_at") or incoming.get("created_at")
-        merged["severity"] = strongest_severity
-        merged["treatment_relevance"] = strongest_relevance
-        merged["source_refs"] = source_refs
-        merged["evidence_ids"] = evidence_ids
-        merged["atom_refs"] = atom_refs
-        if existing_question:
-            merged["question"] = existing_question
-        return merged
-
+    # The newest explicit status is authoritative. Resolution is not sticky:
+    # later research must be able to reopen or defer a gap when new evidence
+    # invalidates the previous conclusion. Severity and relevance remain
+    # monotonic so an update cannot hide the original importance.
     merged.update(incoming)
     merged["gap_id"] = existing.get("gap_id") or incoming.get("gap_id")
     merged["created_at"] = existing.get("created_at") or incoming.get("created_at")
@@ -114,9 +117,6 @@ def merge_research_gap(existing: dict[str, Any] | None, incoming: dict[str, Any]
     merged["atom_refs"] = atom_refs
     if existing_question:
         merged["question"] = existing_question
-    if existing.get("status") == "resolved" and incoming_status != "resolved":
-        merged["status"] = "resolved"
-        merged["resolution_note"] = existing.get("resolution_note") or incoming.get("resolution_note") or ""
     return merged
 
 

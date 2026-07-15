@@ -58,7 +58,9 @@ async def load_provider_rows(
 def canonical_versions_by_source(source_versions: list[SourceVersion]) -> dict[uuid.UUID, SourceVersion]:
     return {
         source_id: canonical
-        for source_id, versions in versions_by_source(source_versions).items()
+        for source_id, versions in versions_by_source(
+            [version for version in source_versions if version.is_active]
+        ).items()
         if (canonical := canonical_provider_version(versions)) is not None
     }
 

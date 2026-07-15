@@ -17,6 +17,7 @@ from app.generation_v2.source_triage_workspace_persistence import (
 )
 from app.generation_v2.source_triage_workspace_state import (
     dedupe as _dedupe,
+    invalidate_coverage_syntheses as _invalidate_coverage_syntheses,
     now as _now,
     parse_dt as _parse_dt,
     replace_workspace_set as _replace_workspace_set,
@@ -36,10 +37,12 @@ async def mark_workspace_write_action(
     workspace = await load_source_triage_workspace(db, generation_run_id)
     if not workspace:
         return
+    _invalidate_coverage_syntheses(workspace)
     current_set = workspace.get("current_set") or {}
     set_id = str(current_set.get("set_id") or "")
     source_set = _workspace_set(workspace, set_id) if set_id else None
     if source_set is None:
+        await save_source_triage_workspace(db, generation_run_id=generation_run_id, workspace=workspace)
         return
     action = {
         "tool_name": tool_name,
@@ -86,8 +89,7 @@ async def triage_workflow_guard_error(
     last_commit = commit_result.scalar_one_or_none()
     since = last_commit.created_at if last_commit is not None else started_at
     read_result = await db.execute(
-        select(V2ToolTrace)
-        .where(
+        select(V2ToolTrace).where(
             V2ToolTrace.generation_run_id == generation_run_id,
             V2ToolTrace.corpus_revision == revision,
             V2ToolTrace.attempt == attempt,
@@ -102,15 +104,18 @@ async def triage_workflow_guard_error(
     return {
         "accepted": False,
         "error": "source_set_requires_state_commit",
-        "message": "You have read/searched enough in this source set. Call record_triage_observation, a SourceMap write tool, or finish_triage_source_set before more reading/searching.",
+        "message": "You have read/searched enough in this source set. Persist an assessment, coverage outcome, observation, SourceMap write, or finish the set before more reading/searching.",
         "set_id": current_set_id,
         "read_calls_since_commit": read_count,
         "expected_next_actions": [
             "record_triage_observation",
+            "upsert_source_assessment",
+            "upsert_coverage_outcome",
             "upsert_source_card",
             "record_source_cluster",
             "record_source_relationship",
             "record_gap",
+            "resolve_gap",
             "finish_triage_source_set",
         ],
     }

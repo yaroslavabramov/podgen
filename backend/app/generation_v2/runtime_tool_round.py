@@ -7,7 +7,13 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.generation_v2.debug_dump import dump_v2_debug
-from app.generation_v2.runtime_contracts import AgentCheckpointPolicy, AgentTool, ToolPolicy
+from app.generation_v2.runtime_contracts import (
+    AgentCheckpointPolicy,
+    AgentTerminalResult,
+    AgentTool,
+    CheckpointResumeContext,
+    ToolPolicy,
+)
 from app.generation_v2.runtime_checkpoint_state import (
     checkpoint_reason as _checkpoint_reason,
     checkpoint_restart as _checkpoint_restart,
@@ -27,6 +33,7 @@ class RuntimeToolAdvance:
     chain_id: str
     chain_round: int
     chain_model_tool_output_chars: int
+    terminal_result: AgentTerminalResult | None = None
 
 
 class RuntimeToolRoundProcessor:
@@ -47,6 +54,7 @@ class RuntimeToolRoundProcessor:
         policy: ToolPolicy,
         local_tools: list[AgentTool] | None,
         checkpoint: AgentCheckpointPolicy,
+        checkpoint_resume_context: CheckpointResumeContext | None,
     ) -> None:
         self.runtime = runtime
         self.db = db
@@ -62,6 +70,7 @@ class RuntimeToolRoundProcessor:
         self.policy = policy
         self.local_tools = local_tools
         self.checkpoint = checkpoint
+        self.checkpoint_resume_context = checkpoint_resume_context
 
     async def process(
         self,
@@ -97,6 +106,18 @@ class RuntimeToolRoundProcessor:
                 chain_model_tool_output_chars=chain_model_tool_output_chars,
             )
         self._dump_tool_outputs(round_state, input_payload, tool_outputs)
+        if tool_call_result.terminal_result is not None:
+            # A successful terminal tool is authoritative. Do not checkpoint
+            # or create another Responses round after it.
+            return RuntimeToolAdvance(
+                input_payload=tool_outputs,
+                previous_response_id=round_state.response.id,
+                checkpoint_index=checkpoint_index,
+                chain_id=chain_id,
+                chain_round=chain_round,
+                chain_model_tool_output_chars=chain_model_tool_output_chars,
+                terminal_result=tool_call_result.terminal_result,
+            )
         checkpoint_reason = _checkpoint_reason(
             self.checkpoint,
             chain_round=chain_round,
@@ -109,7 +130,7 @@ class RuntimeToolRoundProcessor:
                 generation_run_id=self.generation_run_id,
                 phase=self.phase,
                 agent_name=self.agent_name,
-                prompt=self.prompt,
+                resume_context=self.checkpoint_resume_context,
                 previous_chain_id=chain_id,
                 next_checkpoint_index=checkpoint_index + 1,
                 reason=checkpoint_reason,

@@ -12,12 +12,55 @@ class V2RuntimeUnavailable(RuntimeError):
     pass
 
 
+@dataclass(frozen=True)
+class AgentTerminalResult:
+    """Authoritative result produced by an accepted terminal tool."""
+
+    accepted: bool
+    completion: Any | None = None
+
+
+TerminalResultBuilder = Callable[[dict[str, Any], dict[str, Any]], Any]
+TerminalResumeLoader = Callable[[], Awaitable[AgentTerminalResult | None]]
+
+
 @dataclass
 class AgentTool:
     name: str
     description: str
     parameters: dict[str, Any]
     handler: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
+    terminal: bool = False
+    terminal_result_builder: TerminalResultBuilder | None = None
+    terminal_resume_loader: TerminalResumeLoader | None = None
+
+
+def terminal_result_from_tool_output(
+    tool: AgentTool,
+    *,
+    arguments: dict[str, Any],
+    output: dict[str, Any],
+) -> AgentTerminalResult | None:
+    """Resolve the terminal contract without making another model call.
+
+    Terminal handlers must explicitly return ``accepted=True``. The completion
+    payload either comes from ``terminal_result_builder`` or from the reserved
+    ``terminal_result`` output field. Rejected terminal calls remain ordinary
+    tool calls so the agent can repair their arguments and retry.
+    """
+
+    if not tool.terminal:
+        return None
+    if output.get("accepted") is not True:
+        return AgentTerminalResult(accepted=False)
+    completion = (
+        tool.terminal_result_builder(arguments, output)
+        if tool.terminal_result_builder is not None
+        else output.get("terminal_result")
+    )
+    if completion is None:
+        raise RuntimeError(f"Terminal tool {tool.name!r} was accepted without a terminal completion payload")
+    return AgentTerminalResult(accepted=True, completion=completion)
 
 
 @dataclass(frozen=True)
@@ -31,9 +74,22 @@ class ToolPolicy:
 @dataclass(frozen=True)
 class AgentCheckpointPolicy:
     enabled: bool = False
-    max_chain_rounds: int = 8
+    # A fixed round count is not a context-pressure signal. Restarting a healthy
+    # Responses chain after an arbitrary number of tool calls discards useful
+    # model state and can make an agent repeat durable work. Keep the knob for
+    # explicit tests/overrides, but do not enable it by default.
+    max_chain_rounds: int | None = None
     max_chain_input_tokens: int = 60_000
     max_chain_model_tool_output_chars: int = 80_000
+
+
+@dataclass(frozen=True)
+class CheckpointResumeContext:
+    """Immutable task contract supplied independently of rendered prompt state."""
+
+    workflow_contract: str
+    task_context: dict[str, Any]
+    contract_version: str = "v2.checkpoint_resume.v1"
 
 
 def tool_round_limit(max_tool_rounds: int | None) -> int | None:

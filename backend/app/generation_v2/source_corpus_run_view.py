@@ -20,6 +20,7 @@ from app.models.generation_v2 import (
     RunCorpusView,
     SourceVersion,
     V2Artifact,
+    V2ArtifactType,
     V2RecordStatus,
     V2ToolTrace,
 )
@@ -161,3 +162,30 @@ async def _legacy_v2_history_exists(db: AsyncSession, generation_run_id: Any) ->
         if result.scalar_one_or_none() is not None:
             return True
     return False
+
+
+async def current_attempt_has_triage_history(
+    db: AsyncSession,
+    run_view: RunCorpusView,
+) -> bool:
+    """Return whether triage already wrote durable state in this corpus attempt."""
+    result = await db.execute(
+        select(V2Artifact.id)
+        .where(
+            V2Artifact.generation_run_id == run_view.generation_run_id,
+            V2Artifact.corpus_revision == int(run_view.revision or 1),
+            V2Artifact.attempt == int(run_view.attempt or 1),
+            V2Artifact.artifact_type.in_(
+                [
+                    V2ArtifactType.SOURCE_TRIAGE_WORKSPACE,
+                    V2ArtifactType.SOURCE_TRIAGE,
+                    V2ArtifactType.SOURCE_MAP,
+                ]
+            ),
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+__all__ = ["create_run_corpus_view", "current_attempt_has_triage_history"]

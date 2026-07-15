@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 from app.generation_v2.contracts import V2AgentName, V2Phase, V2ToolName
-from app.generation_v2.corpus_scope import scope_for_run_view, session_corpus_scope_or_none
+from app.generation_v2.corpus_scope import (
+    CorpusScope,
+    scope_for_run_view,
+    session_corpus_scope_or_none,
+    set_session_corpus_scope,
+)
 import logging
 import uuid
 from dataclasses import dataclass
@@ -110,15 +115,12 @@ class CorpusPreparationResult:
 
 async def prepare_v2_corpus(db: AsyncSession, run: GenerationRun) -> CorpusPreparationResult:
     sources = await _load_run_sources(db, run)
-    explicitly_selected_source_ids = {
-        str(value) for value in (run.config or {}).get("source_ids", []) if value
-    }
+    explicitly_selected_source_ids = {str(value) for value in (run.config or {}).get("source_ids", []) if value}
     loaded_source_ids = {str(source.id) for source in sources}
     missing_selected_source_ids = sorted(explicitly_selected_source_ids - loaded_source_ids)
     if missing_selected_source_ids:
         raise RuntimeError(
-            "V2 selected sources are missing or outside the project: "
-            + ", ".join(missing_selected_source_ids)
+            "V2 selected sources are missing or outside the project: " + ", ".join(missing_selected_source_ids)
         )
     selected_source_ids = explicitly_selected_source_ids or loaded_source_ids
     invalid_selected_sources = [
@@ -129,8 +131,7 @@ async def prepare_v2_corpus(db: AsyncSession, run: GenerationRun) -> CorpusPrepa
     ]
     if invalid_selected_sources:
         details = ", ".join(
-            f"{source.id} ({'staged' if source.is_temporary else 'failed'})"
-            for source in invalid_selected_sources
+            f"{source.id} ({'staged' if source.is_temporary else 'failed'})" for source in invalid_selected_sources
         )
         raise RuntimeError(f"V2 selected sources are not ready: {details}")
     if not sources:
@@ -139,19 +140,20 @@ async def prepare_v2_corpus(db: AsyncSession, run: GenerationRun) -> CorpusPrepa
     provider_index = await _load_project_provider_index(db, run.project_id)
     all_versions = await _load_active_ready_source_versions(db, run.project_id, [source.id for source in sources])
     provider_files = await _load_ready_provider_files(db, provider_index, [version.id for version in all_versions])
-    usable_sources, usable_versions, canonical_provider_files, skipped_sources, canonical_version_ids = _select_ready_run_corpus(
-        sources,
-        all_versions,
-        provider_files,
-        provider_index,
+    usable_sources, usable_versions, canonical_provider_files, skipped_sources, canonical_version_ids = (
+        _select_ready_run_corpus(
+            sources,
+            all_versions,
+            provider_files,
+            provider_index,
+        )
     )
     unready_selected_sources = [
         item for item in skipped_sources if str(item.get("source_id") or "") in selected_source_ids
     ]
     if unready_selected_sources:
         details = ", ".join(
-            f"{item['source_id']} ({item.get('reason') or 'not_ready'})"
-            for item in unready_selected_sources
+            f"{item['source_id']} ({item.get('reason') or 'not_ready'})" for item in unready_selected_sources
         )
         raise RuntimeError(f"V2 selected sources are not ready: {details}")
     run_view = await create_run_corpus_view(
@@ -195,6 +197,55 @@ async def prepare_v2_corpus(db: AsyncSession, run: GenerationRun) -> CorpusPrepa
     )
 
 
+async def load_current_v2_corpus(db: AsyncSession, run: GenerationRun) -> CorpusPreparationResult:
+    """Hydrate the pinned corpus without creating a new revision or attempt."""
+    view_result = await db.execute(
+        select(RunCorpusView)
+        .where(
+            RunCorpusView.generation_run_id == run.id,
+            RunCorpusView.is_current.is_(True),
+        )
+        .order_by(RunCorpusView.revision.desc(), RunCorpusView.attempt.desc())
+        .limit(1)
+    )
+    run_view = view_result.scalar_one_or_none()
+    if run_view is None:
+        raise RuntimeError("V2 run has no prepared corpus view")
+    if str(run_view.status) != "ready":
+        raise RuntimeError("V2 current corpus view is not ready")
+
+    source_ids = [uuid.UUID(str(value)) for value in run_view.selected_source_ids]
+    version_ids = [uuid.UUID(str(value)) for value in run_view.selected_source_version_ids]
+    source_result = await db.execute(select(Source).where(Source.id.in_(source_ids)).order_by(Source.created_at.asc()))
+    version_result = await db.execute(
+        select(SourceVersion).where(SourceVersion.id.in_(version_ids)).order_by(SourceVersion.created_at.asc())
+    )
+    provider_index = (
+        await db.get(ProviderCorpusIndex, run_view.provider_index_id) if run_view.provider_index_id else None
+    )
+    provider_files: list[ProviderCorpusFile] = []
+    if provider_index is not None and version_ids:
+        provider_result = await db.execute(
+            select(ProviderCorpusFile).where(
+                ProviderCorpusFile.provider_index_id == provider_index.id,
+                ProviderCorpusFile.source_version_id.in_(version_ids),
+                ProviderCorpusFile.status == "ready",
+            )
+        )
+        provider_files = list(provider_result.scalars())
+
+    set_session_corpus_scope(db, run.id, run_view)
+    return CorpusPreparationResult(
+        run_view=run_view,
+        provider_index=provider_index,
+        sources=list(source_result.scalars()),
+        source_versions=list(version_result.scalars()),
+        provider_files=provider_files,
+        vector_store_id=provider_index.provider_vector_store_id if provider_index else None,
+        readiness_summary=dict(run_view.readiness_summary or {}),
+    )
+
+
 _OPENAI_URL_READ_SCHEMA = OPENAI_URL_READ_SCHEMA
 _OPENAI_URL_RECOVERY_SCHEMA = OPENAI_URL_RECOVERY_SCHEMA
 
@@ -208,18 +259,47 @@ async def list_evidence_dicts(
     run_id: uuid.UUID,
     *,
     run_view: RunCorpusView | None = None,
+    include_all_scopes: bool = False,
 ) -> list[dict[str, Any]]:
     from app.models.generation_v2 import EvidenceItem
 
     query = select(EvidenceItem).where(EvidenceItem.generation_run_id == run_id)
-    scope = scope_for_run_view(run_view) if run_view is not None else session_corpus_scope_or_none(db, run_id)
-    if scope is not None:
+    if not include_all_scopes:
+        scope = await _evidence_read_scope(db, run_id, run_view=run_view)
         query = query.where(
             EvidenceItem.corpus_revision == scope.revision,
             EvidenceItem.attempt == scope.attempt,
         )
     result = await db.execute(query.order_by(EvidenceItem.created_at.asc()))
     return [_evidence_to_dict(item) for item in result.scalars()]
+
+
+async def _evidence_read_scope(
+    db: AsyncSession,
+    run_id: uuid.UUID,
+    *,
+    run_view: RunCorpusView | None,
+) -> CorpusScope:
+    if run_view is not None:
+        return scope_for_run_view(run_view)
+    session_scope = session_corpus_scope_or_none(db, run_id)
+    if session_scope is not None:
+        return session_scope
+    result = await db.execute(
+        select(RunCorpusView)
+        .where(
+            RunCorpusView.generation_run_id == run_id,
+            RunCorpusView.is_current.is_(True),
+        )
+        .order_by(RunCorpusView.revision.desc(), RunCorpusView.attempt.desc())
+        .limit(1)
+    )
+    current_view = result.scalar_one_or_none()
+    if current_view is None:
+        # Legacy completed runs predate RunCorpusView and were backfilled into
+        # revision 1 / attempt 1. Never fail open to every later attempt.
+        return CorpusScope()
+    return set_session_corpus_scope(db, run_id, current_view)
 
 
 async def get_evidence_dict(db: AsyncSession, run_id: uuid.UUID, evidence_id: uuid.UUID) -> dict[str, Any] | None:
@@ -230,6 +310,7 @@ async def get_evidence_dict(db: AsyncSession, run_id: uuid.UUID, evidence_id: uu
     )
     item = result.scalar_one_or_none()
     return _evidence_to_dict(item) if item else None
+
 
 __all__ = [
     "_agent_facing_provider_versions",
@@ -260,6 +341,8 @@ __all__ = [
     "default_source_corpus_project_sync_deps",
     "ensure_project_provider_index",
     "ensure_source_versions",
+    "load_current_v2_corpus",
+    "prepare_v2_corpus",
     "download_file",
     "get_minio_client",
     "get_openai_client",

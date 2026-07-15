@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.generation_v2.research_source_map_prompting import (
     compact_cluster_for_prompt,
+    source_map_planner_summary,
     source_map_research_summary,
     source_map_summary_for_job,
 )
@@ -17,5 +18,6 @@ __all__ = [
     "research_job_prompt_payload",
     "research_workspace_summary_for_prompt",
     "source_map_research_summary",
+    "source_map_planner_summary",
     "source_map_summary_for_job",
 ]

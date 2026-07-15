@@ -20,6 +20,9 @@ _TRIAGE_READING_TOOL_NAMES = {
     "record_source_relationship",
     "record_source_cluster",
     "record_gap",
+    "list_source_map_gaps",
+    "resolve_gap",
+    "resolve_source_map_repair",
     "finalize_source_map",
     "openai.file_search.observed",
 }
@@ -30,6 +33,8 @@ _WRITE_TOOL_NAMES = {
     "record_source_relationship",
     "record_source_cluster",
     "record_gap",
+    "resolve_gap",
+    "resolve_source_map_repair",
     "finalize_source_map",
 }
 EVIDENCE_STATUS_OBSERVED = "observed"

@@ -53,7 +53,7 @@ class RuntimeRoundRunner:
         local_tools: list[AgentTool] | None,
         hosted_file_search_handler: Callable[[list[dict[str, Any]], str, str, str], Awaitable[dict[str, Any] | None]]
         | None,
-        max_output_tokens: int,
+        max_output_tokens: int | None,
         temperature: float | None,
     ) -> None:
         self.runtime = runtime
@@ -142,6 +142,7 @@ class RuntimeRoundRunner:
             checkpoint_index=checkpoint_index,
             chain_round=chain_round,
             previous_response_id=previous_response_id,
+            max_output_tokens=self.max_output_tokens,
         )
         await _commit_runtime_side_effects(self.db)
         round_state = RuntimeRoundState(

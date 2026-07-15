@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from sqlalchemy import String, or_, select
+from sqlalchemy import String, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.generation_v2.source_corpus_contracts import CorpusProvider
@@ -47,7 +47,6 @@ async def load_active_ready_source_versions(
         .where(
             SourceVersion.project_id == project_id,
             SourceVersion.source_id.in_(source_ids),
-            SourceVersion.is_active.is_(True),
             SourceVersion.status == V2RecordStatus.READY,
         )
         .order_by(SourceVersion.created_at.asc())
@@ -81,7 +80,9 @@ def select_ready_run_corpus(
     versions_by_source = _versions_by_source(source_versions)
     provider_by_version = {file.source_version_id: file for file in provider_files if _provider_file_search_ready(file)}
     provider_required = _provider_uploads_required()
-    provider_index_ready = bool(provider_index and provider_index.provider_vector_store_id and provider_index.status == V2RecordStatus.READY)
+    provider_index_ready = bool(
+        provider_index and provider_index.provider_vector_store_id and provider_index.status == V2RecordStatus.READY
+    )
     usable_sources: list[Source] = []
     usable_versions: list[SourceVersion] = []
     canonical_provider_files: list[ProviderCorpusFile] = []
@@ -92,23 +93,43 @@ def select_ready_run_corpus(
         if not versions:
             skipped_sources.append(skipped_source(source, "no_ready_source_versions"))
             continue
-        canonical = _canonical_provider_version(versions)
+        active_versions = [version for version in versions if version.is_active]
+        canonical = _canonical_provider_version(active_versions)
         if canonical is None:
-            skipped_sources.append(skipped_source(source, "no_canonical_source_version"))
-            continue
-        provider_file = provider_by_version.get(canonical.id)
+            provider_file = None
+        else:
+            provider_file = provider_by_version.get(canonical.id)
+        selected_versions = active_versions
         if provider_required:
             if not provider_index_ready:
-                skipped_sources.append(skipped_source(source, "provider_index_not_ready", canonical_version_id=str(canonical.id)))
+                skipped_sources.append(skipped_source(source, "provider_index_not_ready"))
                 continue
             if provider_file is None:
-                skipped_sources.append(skipped_source(source, "canonical_provider_file_not_ready", canonical_version_id=str(canonical.id)))
-                continue
+                # A replacement version becomes active before its external
+                # upload is committed. Keep the last provider-ready immutable
+                # version usable until that replacement is actually searchable.
+                fallback_versions = [version for version in versions if version.id in provider_by_version]
+                fallback = _canonical_provider_version(fallback_versions)
+                if fallback is None:
+                    skipped_sources.append(
+                        skipped_source(
+                            source,
+                            "canonical_provider_file_not_ready",
+                            canonical_version_id=str(canonical.id) if canonical else None,
+                        )
+                    )
+                    continue
+                canonical = fallback
+                provider_file = provider_by_version[fallback.id]
+                selected_versions = [fallback]
             canonical_provider_files.append(provider_file)
         elif provider_file is not None:
             canonical_provider_files.append(provider_file)
+        if canonical is None:
+            skipped_sources.append(skipped_source(source, "no_canonical_source_version"))
+            continue
         usable_sources.append(source)
-        usable_versions.extend(versions)
+        usable_versions.extend(selected_versions)
         canonical_version_ids.append(str(canonical.id))
     return usable_sources, usable_versions, canonical_provider_files, skipped_sources, canonical_version_ids
 
@@ -126,17 +147,12 @@ def skipped_source(source: Source, reason: str, *, canonical_version_id: str | N
 
 async def load_run_sources(db: AsyncSession, run: GenerationRun) -> list[Source]:
     attached_source_ids = set(str(value) for value in (run.config or {}).get("source_ids", []) if value)
-    query = (
-        select(Source)
-        .where(
-            Source.project_id == run.project_id,
-            or_(
-                Source.id.cast(String).in_(attached_source_ids),
-                Source.is_temporary.is_(False),
-            ),
-        )
-        .order_by(Source.created_at.asc())
-    )
+    query = select(Source).where(Source.project_id == run.project_id)
+    if attached_source_ids:
+        query = query.where(Source.id.cast(String).in_(sorted(attached_source_ids)))
+    else:
+        query = query.where(Source.is_temporary.is_(False))
+    query = query.order_by(Source.created_at.asc())
     result = await db.execute(query)
     return list(result.scalars())
 

@@ -13,6 +13,7 @@ from app.generation_v2.research_workspace_contracts import (
     SEMANTIC_FIELD_LIMITS,
 )
 from app.generation_v2.research_workspace_helpers import dedupe as _dedupe
+from app.generation_v2.research_workspace_helpers import dedupe_normalized as _dedupe_normalized
 from app.generation_v2.research_workspace_helpers import now as _now
 from app.generation_v2.research_workspace_helpers import stable_id as _stable_id
 from app.models.generation_run import GenerationRun
@@ -27,17 +28,6 @@ def research_planner_tool_handlers(
     async def upsert_research_job_tool(args: dict[str, Any]) -> dict[str, Any]:
         current = await _workspace.load_research_workspace(db, run.id) or workspace
         source_order = set(str(item) for item in current.get("source_order") or [])
-        source_refs = _dedupe([str(item) for item in args.get("source_refs") or [] if str(item).strip()])
-        invalid = [ref for ref in source_refs if ref not in source_order]
-        if invalid:
-            return {
-                "accepted": False,
-                "error": "source_refs must exist in this research workspace",
-                "invalid_source_refs": invalid,
-            }
-        allow_broad_search = bool(args.get("allow_broad_search"))
-        if not source_refs and not allow_broad_search:
-            return {"accepted": False, "error": "research job requires source_refs unless allow_broad_search=true"}
         label = str(args.get("label") or "").strip()
         purpose = str(args.get("purpose") or "").strip()
         if not label or not purpose:
@@ -50,7 +40,53 @@ def research_planner_tool_handlers(
         )
         if field_error:
             return field_error
-        questions = [str(item).strip() for item in args.get("questions") or [] if str(item).strip()]
+        job_id = _stable_id(str(args.get("job_id") or ""), label, len(current.get("investigation_jobs") or []) + 1)
+        existing_job = next(
+            (dict(item) for item in current.get("investigation_jobs") or [] if str(item.get("job_id") or "") == job_id),
+            {},
+        )
+        required_source_refs = (
+            [str(item) for item in existing_job.get("source_refs") or []]
+            if str(existing_job.get("corpus_handoff_id") or "").strip()
+            else []
+        )
+        source_refs = _dedupe(
+            [
+                *required_source_refs,
+                *[str(item) for item in args.get("source_refs") or [] if str(item).strip()],
+            ]
+        )
+        invalid = [ref for ref in source_refs if ref not in source_order]
+        if invalid:
+            return {
+                "accepted": False,
+                "error": "source_refs must exist in this research workspace",
+                "invalid_source_refs": invalid,
+            }
+        allow_broad_search = bool(args.get("allow_broad_search"))
+        if not source_refs and not allow_broad_search:
+            return {
+                "accepted": False,
+                "error": "research job requires source_refs unless allow_broad_search=true",
+            }
+        coverage_question_ids = [
+            str(item) for item in existing_job.get("coverage_question_ids") or [] if str(item).strip()
+        ]
+        brief = current.get("corpus_brief") if isinstance(current.get("corpus_brief"), dict) else {}
+        brief_questions = {
+            str(item.get("question_id") or ""): str(item.get("question") or "").strip()
+            for item in brief.get("coverage_questions") or []
+            if isinstance(item, dict) and str(item.get("question_id") or "").strip()
+        }
+        required_handoff_questions = [
+            brief_questions[question_id] for question_id in coverage_question_ids if brief_questions.get(question_id)
+        ]
+        questions = _dedupe_normalized(
+            [
+                *required_handoff_questions,
+                *[str(item).strip() for item in args.get("questions") or [] if str(item).strip()],
+            ]
+        )
         list_error = semantic_list_error(
             field="questions",
             values=questions,
@@ -85,9 +121,19 @@ def research_planner_tool_handlers(
         )
         if list_error:
             return list_error
-        job_id = _stable_id(str(args.get("job_id") or ""), label, len(current.get("investigation_jobs") or []) + 1)
         job = {
             "job_id": job_id,
+            **(
+                {"corpus_handoff_id": str(existing_job.get("corpus_handoff_id") or "")}
+                if str(existing_job.get("corpus_handoff_id") or "").strip()
+                else {}
+            ),
+            **({"coverage_question_ids": coverage_question_ids} if coverage_question_ids else {}),
+            **(
+                {"corpus_brief_outcomes": list(existing_job.get("corpus_brief_outcomes") or [])}
+                if existing_job.get("corpus_brief_outcomes")
+                else {}
+            ),
             "label": label,
             "story_job": story_job,
             "purpose": purpose,
@@ -99,7 +145,12 @@ def research_planner_tool_handlers(
             "status": "planned",
             "observations": [],
             "atom_ids": [],
-            "evidence_ids": [],
+            "starting_evidence_ids": _dedupe(
+                [str(item) for item in existing_job.get("starting_evidence_ids") or [] if str(item).strip()]
+            ),
+            "evidence_ids": _dedupe(
+                [str(item) for item in existing_job.get("evidence_ids") or [] if str(item).strip()]
+            ),
             "summary": "",
             "deferred_reason": "",
             "question_outcomes": [],
@@ -124,6 +175,9 @@ def research_planner_tool_handlers(
         jobs = [dict(item) for item in current.get("investigation_jobs") or []]
         if not jobs:
             return {"accepted": False, "error": "Cannot finalize research plan without investigation jobs"}
+        handoff_error = _corpus_brief_handoff_error(current, jobs)
+        if handoff_error:
+            return handoff_error
         summary = str(args.get("summary") or "").strip()
         field_error = _workspace._semantic_field_error({"plan_summary": summary}, ["plan_summary"])
         if field_error:
@@ -134,3 +188,45 @@ def research_planner_tool_handlers(
         return {"accepted": True, "status": "planned", "job_count": len(jobs)}
 
     return upsert_research_job_tool, finalize_research_plan_tool
+
+
+def _corpus_brief_handoff_error(
+    workspace: dict[str, Any],
+    jobs: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    brief = workspace.get("corpus_brief") if isinstance(workspace.get("corpus_brief"), dict) else {}
+    question_by_id = {
+        str(item.get("question_id") or ""): str(item.get("question") or "").strip()
+        for item in brief.get("coverage_questions") or []
+        if isinstance(item, dict) and str(item.get("question_id") or "").strip()
+    }
+    expected_question_ids = _dedupe(
+        [
+            str(question_id)
+            for item in brief.get("research_handoff") or []
+            if isinstance(item, dict)
+            for question_id in item.get("question_ids") or []
+            if str(question_id).strip()
+        ]
+    )
+    if not expected_question_ids:
+        return None
+
+    represented: set[str] = set()
+    for job in jobs:
+        linked_ids = {
+            str(question_id) for question_id in job.get("coverage_question_ids") or [] if str(question_id).strip()
+        }
+        represented.update(linked_ids.intersection(expected_question_ids))
+
+    missing_question_ids = [question_id for question_id in expected_question_ids if question_id not in represented]
+    if not missing_question_ids:
+        return None
+    return {
+        "accepted": False,
+        "error": "Every CorpusBrief handoff question must remain assigned to a research job",
+        "missing_coverage_question_ids": missing_question_ids,
+        "missing_questions": [
+            question_by_id[question_id] for question_id in missing_question_ids if question_by_id.get(question_id)
+        ],
+    }

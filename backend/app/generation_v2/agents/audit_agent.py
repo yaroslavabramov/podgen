@@ -3,11 +3,13 @@ from __future__ import annotations
 from app.generation_v2.contracts import V2AgentName, V2Phase
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.generation_v2.agent_output_policy import semantic_agent_output_limit
 from app.generation_v2.agents.audit_context import (
     audit_evidence_catalog as _audit_evidence_catalog,
     audit_tools_with_evidence_refs as _audit_tools_with_evidence_refs,
     audit_workspace_page_tool as _audit_workspace_page_tool,
     normalize_research_audit as _normalize_research_audit,
+    normalize_research_audit_references as _normalize_research_audit_references,
     research_audit_input as _research_audit_input,
 )
 from app.generation_v2.agents.editorial_context import source_ref_context as _source_ref_context
@@ -51,7 +53,11 @@ async def audit_research_memo(
         evidence_records=evidence_records,
         context=context,
         source_titles_by_id=source_titles_by_id,
+        workspace=workspace,
     )
+    evidence_ref_by_id: dict[str, str] = {}
+    for evidence_ref, evidence_id in evidence_id_by_ref.items():
+        evidence_ref_by_id.setdefault(evidence_id, evidence_ref)
     audit_read_refs: set[str] = set()
     audit_tools = _audit_tools_with_evidence_refs(
         evidence_tools,
@@ -66,6 +72,8 @@ async def audit_research_memo(
             source_inventory=inventory,
             workspace=workspace,
             evidence_previews_by_atom_ref=evidence_catalog_by_atom_ref,
+            evidence_ref_by_id=evidence_ref_by_id,
+            required_evidence_refs=required_evidence_refs,
         )
     )
     prompt = RESEARCH_AUDIT_PROMPT.format(
@@ -94,11 +102,16 @@ async def audit_research_memo(
             vector_store_id=None,
             local_tools=audit_tools,
             tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
-            max_output_tokens=5000,
+            max_output_tokens=semantic_agent_output_limit(),
+            max_tool_rounds=len(required_evidence_refs) + 12,
+        )
+        audit = _normalize_research_audit_references(
+            audit,
+            context=context,
+            evidence_id_by_ref=evidence_id_by_ref,
         )
         audit = _normalize_research_audit(audit)
-        duration_seconds = int((run.config or {}).get("duration_target", 1800))
-        missing_required_reads = sorted(required_evidence_refs - audit_read_refs) if duration_seconds >= 2700 else []
+        missing_required_reads = sorted(required_evidence_refs - audit_read_refs)
         if audit.passed and missing_required_reads:
             return ResearchAudit(
                 passed=False,
@@ -122,26 +135,23 @@ async def audit_research_memo(
         return audit
     except V2RuntimeUnavailable as exc:
         _allow_runtime_fallback(runtime, "v2_research_audit", "research_auditor", exc)
-        atom_count = len(research_memo.editorial_atoms)
         return ResearchAudit(
-            passed=atom_count >= 3,
-            score=0.8 if atom_count >= 3 else 0.45,
-            verdict="Fallback audit: enough editorial atoms for drafting." if atom_count >= 3 else "Not enough editorial atoms.",
-            missing_material=[] if atom_count >= 3 else ["More concrete source material is needed."],
-            required_followups=[],
-            blocking=atom_count < 3,
-            issues=[]
-            if atom_count >= 3
-            else [
+            passed=False,
+            score=0.0,
+            verdict="Research audit did not run; treatment cannot safely inherit an unaudited memo.",
+            missing_material=["A completed semantic research audit is required before treatment."],
+            required_followups=["Rerun the research audit when the configured model runtime is available."],
+            blocking=True,
+            issues=[
                 ResearchAuditIssue(
-                    issue_type="insufficient_material",
+                    issue_type="tool_contract",
                     severity="blocking",
-                    target_step="editorial_research",
-                    description="More concrete source material is needed.",
-                    suggested_repair="Run targeted editorial research before treatment.",
+                    target_step="research_audit",
+                    description="The semantic research audit was not executed.",
+                    suggested_repair="Rerun this audit with the configured model runtime.",
                 )
             ],
-            repair_targets=[] if atom_count >= 3 else ["editorial_research"],
+            repair_targets=["research_audit"],
         )
 
 

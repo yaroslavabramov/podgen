@@ -13,6 +13,8 @@ from app.generation_v2.schemas import (
     ResearchMemo,
     Treatment,
     TreatmentAct,
+    TreatmentAtomAnchor,
+    TreatmentAtomDisposition,
 )
 from app.models.generation_run import GenerationRun
 
@@ -42,14 +44,44 @@ def fallback_treatment(run: GenerationRun, memo: ResearchMemo, act_count: int) -
                 required_atom_refs=[f"A{((idx - 1) % len(memo.editorial_atoms)) + 1:02d}"],
                 required_quote_refs=list(dict.fromkeys(ref for ref in atom.quote_refs if ref)),
                 required_evidence_ids=atom.evidence_ids,
+                episode_supported_answer=memo.thesis,
+                atom_anchors=[
+                    TreatmentAtomAnchor(
+                        atom_ref=f"A{((idx - 1) % len(memo.editorial_atoms)) + 1:02d}",
+                        kind=atom.kind,
+                        title=atom.title,
+                        claim=atom.claim or atom.explanation,
+                        story_value=atom.story_value,
+                        story_weight=atom.story_weight,
+                    )
+                ],
                 source_density_target=max(1, min(3, len(atom.source_ids) or 1)),
             )
         )
+    used_act_by_atom_ref = {
+        atom_ref: act.act_number for act in acts for atom_ref in act.required_atom_refs
+    }
+    core_dispositions = [
+        TreatmentAtomDisposition(
+            atom_ref=f"A{idx:02d}",
+            disposition="used" if f"A{idx:02d}" in used_act_by_atom_ref else "omitted",
+            act_number=used_act_by_atom_ref.get(f"A{idx:02d}"),
+            reason=(
+                "Used by the generated fallback act."
+                if f"A{idx:02d}" in used_act_by_atom_ref
+                else "Fallback act count did not provide a distinct place for this core atom."
+            ),
+        )
+        for idx, atom in enumerate(memo.editorial_atoms, start=1)
+        if atom.story_weight == "core"
+    ]
     return Treatment(
         title=memo.title,
         logline=memo.thesis,
         host_dynamic="Host A drives the narrative; Host B challenges assumptions and asks mechanism questions.",
+        supported_answer=memo.thesis,
         acts=acts,
+        core_atom_dispositions=core_dispositions,
         recurring_questions=["What is the mechanism?", "Who pays the price?", "What changes after the turn?"],
         style_constraints=["Avoid generic podcast filler.", "Keep claims source-grounded."],
     )

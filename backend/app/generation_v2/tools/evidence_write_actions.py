@@ -5,9 +5,12 @@ from typing import Any
 from app.generation_v2.tools.evidence_source_map_write_actions import (
     create_quote_card as _create_quote_card_action,
     finalize_source_map as _finalize_source_map_action,
+    list_source_map_gaps as _list_source_map_gaps_action,
     record_gap as _record_gap_action,
     record_source_cluster as _record_source_cluster_action,
     record_source_relationship as _record_source_relationship_action,
+    resolve_gap as _resolve_gap_action,
+    resolve_source_map_repair as _resolve_source_map_repair_action,
     upsert_source_card as _upsert_source_card_action,
 )
 from app.generation_v2.tools.evidence_types import EVIDENCE_STATUS_SELECTED
@@ -69,6 +72,15 @@ class EvidenceWriteActionMixin:
     async def record_gap_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         return await _record_gap_action(self, args)
 
+    async def list_source_map_gaps_tool(self, args: dict[str, Any]) -> dict[str, Any]:
+        return await _list_source_map_gaps_action(self, args)
+
+    async def resolve_gap_tool(self, args: dict[str, Any]) -> dict[str, Any]:
+        return await _resolve_gap_action(self, args)
+
+    async def resolve_source_map_repair_tool(self, args: dict[str, Any]) -> dict[str, Any]:
+        return await _resolve_source_map_repair_action(self, args)
+
     async def finalize_source_map_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         return await _finalize_source_map_action(self, args)
 
@@ -76,7 +88,10 @@ __all__ = [
     "_create_quote_card_action",
     "_finalize_source_map_action",
     "_record_gap_action",
+    "_list_source_map_gaps_action",
     "_record_source_cluster_action",
     "_record_source_relationship_action",
+    "_resolve_gap_action",
+    "_resolve_source_map_repair_action",
     "_upsert_source_card_action",
 ]

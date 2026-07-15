@@ -10,16 +10,18 @@ Product context:
 The treatment is the contract for writing. It turns research atoms into a listener-facing act sequence: what each act earns, why it belongs there, which sources it leans on, and how the listener's understanding changes.
 
 Task:
-Create {min_act_count}-{max_act_count} acts from the research_atoms. Choose the count from the research shape: use fewer acts for a clean linear argument, more acts when the listener needs separate turns for context, mechanism, change, tension, impact, and unresolved risks. Each act must have a clear editorial job, turn, source focus, and atom anchors.
+Create a coherent act sequence from the research_atoms. episode_brief.act_count_range is rough pacing guidance, not a quota: choose the count from the research shape and do not split or pad material merely to hit the range. Use fewer acts for a clean linear argument, more acts when the listener genuinely needs separate turns. Each act must have a clear editorial job, turn, source focus, and atom anchors.
 Write every human-readable output field in episode_brief.output_language.
 
-The treatment creates its own title, logline, and act sequence from the atoms. Preserve episode_brief.supported_answer_preview as the episode-level supported answer while deciding the sequence; do not invent a different answer or a separate synthesis.
+The treatment creates its own title, logline, and act sequence from the atoms. Preserve episode_brief.supported_answer as the episode-level supported answer while deciding the sequence; do not invent a different answer or a separate synthesis.
 
 Use the handles from treatment_input_json:
 - source_focus: use source_ref values like S01.
 - required_atom_refs: use atom_ref values like A01.
+- selected_quotes contains the complete exact quotes chosen during research. Each research atom lists its related Q refs in selected_quote_refs; use the quote text and locator when it improves the act's opening, turn, or payoff. Q refs are orientation only and are attached to the final treatment by the backend.
 - Keys ending in _preview contain text plus completeness metadata. Use only their text as editorial material; complete=false means the full persisted field is longer, not that you may invent the missing part.
-- research_atoms, source_cautions, audit_constraints, and repair_instructions are complete validated fields/lists. Respect every supplied caution, constraint, and repair instruction.
+- research_atoms, source_coverage, source_cautions, audit_constraints, and repair_instructions are complete validated fields/lists. Respect every supplied caution, constraint, and repair instruction.
+- source_coverage is the research-status handoff: use supported entries to judge confidence, and preserve every partial/deferred finding or gap as a bound on the plan. Do not silently turn it into a resolved fact; use a caution or planning_gap when it affects the episode structure.
 
 Use atom weights:
 - core atoms can anchor acts.
@@ -32,9 +34,10 @@ Do not say "the research is incomplete" in the episode. Either use uncertainty a
 Allocate target_minutes from editorial difficulty and listener work, not equal blocks.
 Avoid generic act labels. The title/story_role/opening_question/main_turn/ending_turn should make clear what changes in that act.
 Every act must contain at least one required_atom_ref. Number acts exactly 1..N with no duplicates, use only supplied source_ref/atom_ref handles, keep every required text field non-empty, and make every target_minutes positive.
+For every research atom with story_weight="core", add exactly one core_atom_disposition. Use disposition="used" with the act_number of an act whose required_atom_refs contains that atom. Use disposition="omitted" with act_number=null and a concrete editorial reason. This makes omission explicit; it does not require forcing every core atom into the episode.
 If repair_instructions is present, correct every listed contract error while preserving supported material.
 If planning_gaps is non-empty, still return your best TreatmentPlan draft, but the backend gate will route the gaps back to research before writing.
-Invalid output examples: duplicate act numbers; blank turns; an act without required_atom_refs; an unknown S/A handle; zero or negative target_minutes.
+Invalid output examples: duplicate act numbers; blank turns; an act without required_atom_refs; an unknown S/A handle; zero or negative target_minutes; a used core atom pointing to an act that does not contain it; an omitted core atom that still appears in an act.
 Return only TreatmentPlan JSON with exactly the schema fields. Do not write dialogue, scenes, transcript, commentary, or act prose."""
 
 

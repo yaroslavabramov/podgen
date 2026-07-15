@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.generation_v2.runtime import AgentTool
@@ -31,6 +33,7 @@ from app.generation_v2.source_triage_workspace_persistence import (
     save_source_triage_workspace,
 )
 from app.generation_v2.source_triage_workspace_prompting import (
+    planner_source_catalog,
     source_set_prompt_payload,
     unprocessed_source_sets,
     unresolved_source_set_summary,
@@ -38,14 +41,25 @@ from app.generation_v2.source_triage_workspace_prompting import (
     workspace_summary_for_prompt,
 )
 from app.generation_v2.source_triage_workspace_repair import create_repair_sets_from_gate
-from app.generation_v2.source_triage_repair_state import carry_pending_triage_repair
+from app.generation_v2.source_triage_repair_state import (
+    carry_pending_triage_repair,
+    reconcile_carried_triage_evidence,
+    triage_workspace_evidence_ids,
+)
+from app.generation_v2.tools.evidence_store import persist_evidence_item
+from app.generation_v2.tools.evidence_types import EVIDENCE_STATUS_CITED, EVIDENCE_STATUS_SELECTED
 from app.generation_v2.source_triage_workspace_tracking import (
     mark_workspace_write_action,
     triage_workflow_guard_error,
 )
 from app.generation_v2.tools.evidence_refs import build_source_ref_context, source_ref_for_id
 from app.models.generation_run import GenerationRun
-from app.models.generation_v2 import RunCorpusView
+from app.models.generation_v2 import (
+    EvidenceItem,
+    EvidenceRetrievalChannel,
+    RunCorpusView,
+    SourceVersion,
+)
 
 
 async def ensure_source_triage_workspace(
@@ -69,6 +83,7 @@ async def ensure_source_triage_workspace(
         workspace = _normalize_workspace(existing)
         if workspace.get("source_order") == source_order:
             return workspace
+    run_config = getattr(run, "config", None) or {}
     workspace = {
         "schema_version": WORKSPACE_SCHEMA_VERSION,
         "manifest_hash": manifest_hash,
@@ -77,6 +92,16 @@ async def ensure_source_triage_workspace(
         "status": "orientation",
         "source_order": source_order,
         "source_capsules": {},
+        "intent": {
+            "user_prompt": str(run_config.get("user_prompt") or ""),
+            "language": str(run_config.get("language") or ""),
+            "duration_seconds": int(run_config.get("duration_target") or 0),
+        },
+        "coverage_questions": [],
+        "source_assessments": [],
+        "coverage_outcomes": [],
+        "coverage_syntheses": [],
+        "triage_semantic_revision": 0,
         "source_sets": [],
         "current_set": None,
         "processed_sets": [],
@@ -87,8 +112,128 @@ async def ensure_source_triage_workspace(
         "updated_at": _now(),
     }
     workspace = carry_pending_triage_repair(existing or {}, workspace, source_order=source_order)
+    if workspace.get("repair_operation") and int((existing or {}).get("attempt") or 1) != scope.attempt:
+        evidence_id_map, invalid_evidence_ids = await _carry_evidence_to_current_attempt(
+            db,
+            run=run,
+            run_view=run_view,
+            workspace=workspace,
+            source_attempt=int((existing or {}).get("attempt") or 1),
+        )
+        workspace = reconcile_carried_triage_evidence(
+            workspace,
+            evidence_id_map=evidence_id_map,
+            invalid_evidence_ids=invalid_evidence_ids,
+        )
     await save_source_triage_workspace(db, generation_run_id=run.id, workspace=workspace)
     return workspace
+
+
+async def _carry_evidence_to_current_attempt(
+    db: AsyncSession,
+    *,
+    run: GenerationRun,
+    run_view: RunCorpusView,
+    workspace: dict[str, Any],
+    source_attempt: int,
+) -> tuple[dict[str, str], set[str]]:
+    evidence_ids = triage_workspace_evidence_ids(workspace)
+    parsed_ids: dict[str, uuid.UUID] = {}
+    invalid = set(evidence_ids)
+    for evidence_id in evidence_ids:
+        try:
+            parsed_ids[evidence_id] = uuid.UUID(evidence_id)
+        except (TypeError, ValueError):
+            continue
+    if not parsed_ids:
+        return {}, invalid
+
+    result = await db.execute(select(EvidenceItem).where(EvidenceItem.id.in_(list(parsed_ids.values()))))
+    evidence_by_id = {str(item.id): item for item in result.scalars()}
+    version_ids = {item.source_version_id for item in evidence_by_id.values()}
+    version_result = await db.execute(select(SourceVersion).where(SourceVersion.id.in_(version_ids)))
+    versions_by_id = {str(item.id): item for item in version_result.scalars()}
+    scope = scope_for_run_view(run_view)
+    selected_source_ids = {str(item) for item in run_view.selected_source_ids}
+    selected_version_ids = {str(item) for item in run_view.selected_source_version_ids}
+    evidence_id_map: dict[str, str] = {}
+
+    for evidence_id in evidence_ids:
+        item = evidence_by_id.get(evidence_id)
+        version = versions_by_id.get(str(item.source_version_id)) if item is not None else None
+        usage_status = str((item.metadata_ or {}).get("usage_status") or "") if item is not None else ""
+        if (
+            item is None
+            or version is None
+            or item.generation_run_id != run.id
+            or item.project_id != run.project_id
+            or int(item.corpus_revision or 1) != scope.revision
+            or int(item.attempt or 1) != source_attempt
+            or source_attempt >= scope.attempt
+            or str(item.source_id) not in selected_source_ids
+            or str(item.source_version_id) not in selected_version_ids
+            or version.source_id != item.source_id
+            or version.project_id != run.project_id
+            or usage_status not in {EVIDENCE_STATUS_SELECTED, EVIDENCE_STATUS_CITED}
+            or not str(item.snippet_text or "").strip()
+        ):
+            continue
+
+        previous_metadata = dict(item.metadata_ or {})
+        previous_metadata.pop("cited", None)
+        previous_lineage = previous_metadata.get("attempt_lineage")
+        root_evidence_id = (
+            str(previous_lineage.get("root_evidence_id") or "") if isinstance(previous_lineage, dict) else ""
+        ) or evidence_id
+        origin_retrieval_channel = str(previous_metadata.get("origin_retrieval_channel") or item.retrieval_channel)
+        lineage = {
+            "kind": "immutable_source_version_carry",
+            "root_evidence_id": root_evidence_id,
+            "parent_evidence_id": evidence_id,
+            "from_attempt": source_attempt,
+            "to_attempt": scope.attempt,
+            "corpus_revision": scope.revision,
+            "source_version_id": str(item.source_version_id),
+            "selected_source_version_verified": True,
+            "retrieval_performed": False,
+        }
+        carried = await persist_evidence_item(
+            db,
+            generation_run_id=run.id,
+            project_id=run.project_id,
+            source_id=item.source_id,
+            source_version_id=item.source_version_id,
+            provider=item.provider,
+            provider_vector_store_id=item.provider_vector_store_id,
+            provider_file_id=item.provider_file_id,
+            provider_vector_store_file_id=item.provider_vector_store_file_id,
+            retrieval_channel=EvidenceRetrievalChannel.ATTEMPT_LINEAGE,
+            query_text=None,
+            purpose="triage_attempt_lineage",
+            search_result_index=None,
+            score=item.score,
+            snippet_text=item.snippet_text,
+            normalized_quote_text=item.normalized_quote_text,
+            locator_text=item.locator_text,
+            locator_type=item.locator_type,
+            evidence_strength=item.evidence_strength,
+            metadata={
+                **previous_metadata,
+                "usage_status": EVIDENCE_STATUS_SELECTED,
+                "origin_retrieval_channel": origin_retrieval_channel,
+                "attempt_lineage": lineage,
+            },
+        )
+        carried.metadata_ = {
+            **(carried.metadata_ or {}),
+            "usage_status": EVIDENCE_STATUS_SELECTED,
+            "origin_retrieval_channel": origin_retrieval_channel,
+            "attempt_lineage": lineage,
+        }
+        evidence_id_map[evidence_id] = str(carried.id)
+        invalid.discard(evidence_id)
+    await db.flush()
+    return evidence_id_map, invalid
 
 
 def build_workspace_tools(
@@ -168,7 +313,11 @@ async def start_triage_source_set(
     source_set["started_at"] = _now()
     source_set["updated_at"] = _now()
     _replace_workspace_set(current, source_set)
-    current["current_set"] = {"set_id": set_id, "started_at": source_set["started_at"], "source_refs": source_set.get("source_refs") or []}
+    current["current_set"] = {
+        "set_id": set_id,
+        "started_at": source_set["started_at"],
+        "source_refs": source_set.get("source_refs") or [],
+    }
     await save_source_triage_workspace(db, generation_run_id=run.id, workspace=current)
     return current
 
@@ -182,6 +331,7 @@ __all__ = [
     "_dedupe",
     "load_source_triage_workspace",
     "mark_workspace_write_action",
+    "planner_source_catalog",
     "_merge_deferred",
     "_metadata_only_capsule",
     "_now",
