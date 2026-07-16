@@ -14,11 +14,45 @@ from app.generation_v2.source_triage_workspace_contracts import (
     TRIAGE_PENDING_QUESTION_LIMIT,
     TRIAGE_SEMANTIC_FIELD_LIMITS,
 )
+from app.generation_v2.source_triage_lineage import coverage_synthesis_lineage
 from app.generation_v2.source_triage_workspace_planning_handlers import SourceTriageWorkspacePlanningHandlersMixin
-from app.generation_v2.source_triage_workspace_state import invalidate_coverage_syntheses
+from app.generation_v2.source_triage_workspace_state import (
+    SOURCE_SET_KIND_COVERAGE,
+    SOURCE_SET_KIND_ORIENTATION,
+    invalidate_coverage_syntheses,
+)
 from app.generation_v2.tools.evidence_refs import build_source_ref_context, resolve_source_ref
 from app.generation_v2.tools.evidence_utils import _unsupported_model_read_selected_as_support
+from app.ingestion.web_quality import assess_web_fetch_health
 from app.models.generation_run import GenerationRun
+
+
+def _pending_set_work(workspace: dict[str, Any], source_set: dict[str, Any]) -> dict[str, list[str]]:
+    set_id = str(source_set.get("set_id") or "")
+    assessed_refs = {
+        str(item.get("source_ref") or "")
+        for item in workspace.get("source_assessments") or []
+        if isinstance(item, dict)
+        and str(item.get("set_id") or "") == set_id
+        and str(item.get("processing_status") or "resolved") == "resolved"
+    }
+    completed_question_ids = {
+        str(item.get("question_id") or "")
+        for item in workspace.get("coverage_outcomes") or []
+        if isinstance(item, dict)
+        and str(item.get("set_id") or "") == set_id
+        and str(item.get("status") or "") in {"covered", "partial", "missing", "conflicted", "deferred"}
+    }
+    required_question_ids = [str(item) for item in source_set.get("question_ids") or []]
+    return {
+        "pending_source_refs": [
+            str(item) for item in source_set.get("source_refs") or [] if str(item) not in assessed_refs
+        ],
+        "required_question_ids": required_question_ids,
+        "missing_outcome_question_ids": [
+            question_id for question_id in required_question_ids if question_id not in completed_question_ids
+        ],
+    }
 
 
 @dataclass
@@ -61,7 +95,13 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
 
         enum_fields = {
             "processing_status": {"pending", "in_progress", "resolved", "needs_repair"},
-            "representation_status": {"unchecked", "readable", "partial", "unreadable"},
+            "representation_status": {
+                "unchecked",
+                "readable",
+                "partial",
+                "not_target_content",
+                "unreadable",
+            },
             "relevance": {"core", "supporting", "contextual", "out_of_scope", "unknown"},
             "authority": {"primary", "official", "expert", "secondary", "tertiary", "weak", "unknown"},
             "uniqueness": {"unique", "complementary", "derivative", "duplicate", "unknown"},
@@ -109,10 +149,16 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
         )
         if reason_error:
             return reason_error
-        if values["representation_status"] in {"partial", "unreadable"} and not reason_fields["representation_reason"]:
+        if values["representation_status"] in {
+            "partial",
+            "not_target_content",
+            "unreadable",
+        } and not reason_fields["representation_reason"]:
             return {
                 "accepted": False,
-                "error": "partial/unreadable representation requires representation_reason",
+                "error": (
+                    "partial/not_target_content/unreadable representation requires representation_reason"
+                ),
             }
         if values["disposition"] in {"weak", "unusable", "deferred"} and not reason_fields[
             "disposition_reason"
@@ -121,25 +167,74 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
                 "accepted": False,
                 "error": "weak/unusable/deferred disposition requires disposition_reason",
             }
-        if values["representation_status"] == "unreadable" and values["disposition"] != "deferred":
+        if values["representation_status"] in {
+            "not_target_content",
+            "unreadable",
+        } and values["disposition"] != "deferred":
             return {
                 "accepted": False,
-                "error": "An unreadable representation must use disposition=deferred; it does not prove source value",
+                "error": (
+                    "A not_target_content or unreadable representation must use disposition=deferred; "
+                    "it does not prove source value"
+                ),
             }
         if values["disposition"] == "deferred" and values["representation_status"] not in {
             "partial",
+            "not_target_content",
             "unreadable",
         }:
             return {
                 "accepted": False,
-                "error": "disposition=deferred requires a checked partial or unreadable representation",
+                "error": (
+                    "disposition=deferred requires a checked partial, not_target_content, or unreadable "
+                    "representation"
+                ),
             }
+        if values["representation_status"] == "not_target_content":
+            if values["processing_status"] != "resolved":
+                return {
+                    "accepted": False,
+                    "error": (
+                        "not_target_content is a completed representation diagnosis and requires "
+                        "processing_status=resolved"
+                    ),
+                }
+            non_unknown_axes = [
+                field
+                for field in ("relevance", "authority", "uniqueness")
+                if values[field] != "unknown"
+            ]
+            if non_unknown_axes:
+                return {
+                    "accepted": False,
+                    "error": (
+                        "not_target_content cannot establish relevance, authority, or uniqueness; "
+                        "all three judgments must be unknown"
+                    ),
+                    "invalid_fields": non_unknown_axes,
+                }
+            asserted_reason_fields = [
+                field
+                for field in ("relevance_reason", "authority_reason", "uniqueness_reason")
+                if reason_fields[field]
+            ]
+            if asserted_reason_fields:
+                return {
+                    "accepted": False,
+                    "error": (
+                        "not_target_content source judgments are unknown; their semantic reason fields must be empty"
+                    ),
+                    "invalid_fields": asserted_reason_fields,
+                }
         if values["disposition"] in {"anchor", "supporting"} and (
-            values["representation_status"] == "unreadable" or values["relevance"] == "out_of_scope"
+            values["representation_status"] in {"not_target_content", "unreadable"}
+            or values["relevance"] == "out_of_scope"
         ):
             return {
                 "accepted": False,
-                "error": "An unreadable or out-of-scope source cannot be an active research input",
+                "error": (
+                    "A not-target-content, unreadable, or out-of-scope source cannot be an active research input"
+                ),
             }
 
         question_ids = public_api._dedupe(
@@ -178,6 +273,17 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
         )
         if list_error:
             return list_error
+        if values["representation_status"] == "not_target_content" and (
+            question_ids or editorial_functions
+        ):
+            return {
+                "accepted": False,
+                "error": (
+                    "not_target_content cannot establish coverage-question or editorial-function links"
+                ),
+                "coverage_question_ids": question_ids,
+                "editorial_functions": editorial_functions,
+            }
         limitations = [str(item).strip() for item in args.get("limitations") or [] if str(item).strip()]
         list_error = semantic_list_error(
             field="limitations",
@@ -188,17 +294,27 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
         if list_error:
             return list_error
         evidence_ids = public_api._dedupe([str(item) for item in args.get("evidence_ids") or [] if str(item).strip()])
-        requires_grounded_evidence = values["processing_status"] == "resolved" and values["representation_status"] in {
-            "readable",
-            "partial",
-        }
+        requires_grounded_evidence = (
+            values["representation_status"] == "not_target_content"
+            or (
+                values["processing_status"] == "resolved"
+                and values["representation_status"] in {"readable", "partial"}
+            )
+        )
         if requires_grounded_evidence and not evidence_ids:
             return {
                 "accepted": False,
-                "error": "A resolved readable/partial source assessment requires grounded evidence from that source",
+                "error": (
+                    "A resolved readable/partial/not_target_content source assessment requires grounded evidence "
+                    "from that source"
+                ),
             }
-        selection_purpose = "source_assessment" if requires_grounded_evidence else "caution"
-        selection_role = "triage_source_assessment" if requires_grounded_evidence else "caution"
+        supports_content_judgment = (
+            values["processing_status"] == "resolved"
+            and values["representation_status"] in {"readable", "partial"}
+        )
+        selection_purpose = "source_assessment" if supports_content_judgment else "caution"
+        selection_role = "triage_source_assessment" if supports_content_judgment else "caution"
         evidence_error = await self._validate_set_evidence_ids(
             source_set=source_set,
             evidence_ids=evidence_ids,
@@ -208,6 +324,19 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
         )
         if evidence_error:
             return evidence_error
+        if supports_content_judgment:
+            blocked_evidence_ids = await self._blocked_shell_evidence_ids(evidence_ids)
+            if evidence_ids and len(blocked_evidence_ids) == len(evidence_ids):
+                return {
+                    "accepted": False,
+                    "error": (
+                        "Shell/error/access-page evidence cannot establish readable or partial target content; "
+                        "use representation_status=not_target_content with unknown judgments and "
+                        "disposition=deferred"
+                    ),
+                    "invalid_evidence_ids": blocked_evidence_ids,
+                    "required_representation_status": "not_target_content",
+                }
 
         selection_error = await self._select_validated_evidence_ids(
             evidence_ids=evidence_ids,
@@ -260,7 +389,21 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
             "processing_status": values["processing_status"],
             "representation_status": values["representation_status"],
             "disposition": values["disposition"],
+            **_pending_set_work(current, source_set),
         }
+
+    async def _blocked_shell_evidence_ids(self, evidence_ids: list[str]) -> list[str]:
+        if not evidence_ids or self.evidence_toolset is None:
+            return []
+        blocked: list[str] = []
+        for evidence_id in evidence_ids:
+            evidence = await self.evidence_toolset._evidence_in_run(evidence_id)
+            if evidence is None:
+                continue
+            snippet = str(getattr(evidence, "snippet_text", "") or "")
+            if assess_web_fetch_health(snippet, min_chars=1).state == "blocked":
+                blocked.append(evidence_id)
+        return blocked
 
     async def upsert_coverage_outcome_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         public_api = workspace_api
@@ -290,9 +433,17 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
         status = str(args.get("status") or "unknown").strip()
         if status not in {"covered", "partial", "missing", "conflicted", "deferred"}:
             return {"accepted": False, "error": "coverage outcome status is not final", "status": status}
-        next_action = str(args.get("next_action") or "research").strip()
-        if next_action not in {"research", "source_acquisition", "omit", "none"}:
-            return {"accepted": False, "error": "invalid next_action"}
+        requested_next_action = str(args.get("next_action") or "research").strip()
+        if requested_next_action != "research":
+            return {
+                "accepted": False,
+                "error": "per_set_outcome_cannot_route_run",
+                "message": (
+                    "A source-set outcome is local. Only the run-wide coverage synthesis may request "
+                    "source acquisition, omission, or completion."
+                ),
+            }
+        next_action = "research"
 
         source_refs = public_api._dedupe([str(item) for item in args.get("source_refs") or [] if str(item).strip()])
         invalid_refs = sorted(set(source_refs) - set(source_set.get("source_refs") or []))
@@ -376,14 +527,14 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
             relevant_refs = source_refs or [str(item) for item in source_set.get("source_refs") or []]
             has_representation_blocker = any(
                 str((assessments_by_ref.get(source_ref) or {}).get("representation_status") or "")
-                in {"partial", "unreadable"}
+                in {"partial", "not_target_content", "unreadable"}
                 for source_ref in relevant_refs
             )
             if not has_representation_blocker:
                 return {
                     "accepted": False,
                     "error": (
-                        "deferred outcome requires a checked partial/unreadable representation; "
+                        "deferred outcome requires a checked partial/not_target_content/unreadable representation; "
                         "use missing for checked absence or needs_repair for unfinished work"
                     ),
                 }
@@ -446,7 +597,13 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
         self._recompute_all_set_evidence_ids(current)
         invalidate_coverage_syntheses(current)
         await public_api.save_source_triage_workspace(self.db, generation_run_id=self.run.id, workspace=current)
-        return {"accepted": True, "outcome_id": outcome_id, "question_id": question_id, "status": status}
+        return {
+            "accepted": True,
+            "outcome_id": outcome_id,
+            "question_id": question_id,
+            "status": status,
+            **_pending_set_work(current, source_set),
+        }
 
     async def upsert_coverage_synthesis_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         """Persist one question-level synthesis across all completed source sets."""
@@ -471,12 +628,87 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
         status = str(args.get("status") or "").strip()
         if status not in {"covered", "partial", "missing", "conflicted", "deferred"}:
             return {"accepted": False, "error": "coverage synthesis status is not final", "status": status}
+        question_outcomes = [
+            item
+            for item in current.get("coverage_outcomes") or []
+            if isinstance(item, dict) and str(item.get("question_id") or "") == question_id
+        ]
+        outcome_statuses = {str(item.get("status") or "") for item in question_outcomes}
+        if status == "missing" and outcome_statuses != {"missing"}:
+            return {
+                "accepted": False,
+                "error": "missing_synthesis_requires_all_set_outcomes_missing",
+                "outcome_statuses": sorted(outcome_statuses),
+            }
+        if status == "deferred" and (
+            "deferred" not in outcome_statuses
+            or not outcome_statuses.issubset({"missing", "deferred"})
+        ):
+            return {
+                "accepted": False,
+                "error": "deferred_synthesis_cannot_discard_active_set_outcomes",
+                "outcome_statuses": sorted(outcome_statuses),
+            }
         next_action = str(args.get("next_action") or "research").strip()
         if next_action not in {"research", "source_acquisition", "omit", "none"}:
             return {"accepted": False, "error": "invalid next_action"}
+        if next_action == "source_acquisition":
+            if status == "covered":
+                return {
+                    "accepted": False,
+                    "error": "covered_synthesis_cannot_request_source_acquisition",
+                }
+            assigned_sets = [
+                item
+                for item in current.get("source_sets") or []
+                if isinstance(item, dict)
+                and question_id in {str(value) for value in item.get("question_ids") or []}
+            ]
+            assigned_set_ids = {str(item.get("set_id") or "") for item in assigned_sets}
+            outcome_set_ids = {
+                str(item.get("set_id") or "")
+                for item in current.get("coverage_outcomes") or []
+                if isinstance(item, dict) and str(item.get("question_id") or "") == question_id
+            }
+            unfinished_set_ids = sorted(
+                str(item.get("set_id") or "")
+                for item in assigned_sets
+                if str(item.get("status") or "") not in {"mapped", "deferred"}
+            )
+            missing_outcome_set_ids = sorted(assigned_set_ids - outcome_set_ids)
+            if not assigned_set_ids or unfinished_set_ids or missing_outcome_set_ids:
+                return {
+                    "accepted": False,
+                    "error": "source_acquisition_requires_all_assigned_set_outcomes",
+                    "unfinished_set_ids": unfinished_set_ids,
+                    "missing_outcome_set_ids": missing_outcome_set_ids,
+                }
 
+        active_outcomes = [
+            item
+            for item in question_outcomes
+            if str(item.get("status") or "") in {"covered", "partial", "conflicted"}
+        ]
+        source_ref_by_id = {
+            str(item.get("source_id") or ""): str(item.get("source_ref") or "")
+            for item in current.get("source_assessments") or []
+            if isinstance(item, dict) and item.get("source_id") and item.get("source_ref")
+        }
+        derived_source_refs, derived_evidence_ids, outcome_refs = coverage_synthesis_lineage(
+            question_outcomes,
+            status=status,
+            source_ref_by_id=source_ref_by_id,
+        )
+        manual_lineage = "source_refs" in args or "evidence_ids" in args
         source_refs = public_api._dedupe(
-            [str(item) for item in args.get("source_refs") or [] if str(item).strip()]
+            [
+                str(item)
+                for item in (
+                    args.get("source_refs") if manual_lineage else derived_source_refs
+                )
+                or []
+                if str(item).strip()
+            ]
         )
         unknown_source_refs = sorted(set(source_refs) - {str(item) for item in current.get("source_order") or []})
         if unknown_source_refs:
@@ -497,9 +729,24 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
         source_ids = [source_id for source_id in source_ids if source_id]
 
         material_lineage = coverage_question_material_lineage(current, question_id)
-        unlinked_source_refs = sorted(
-            set(source_refs) - set(material_lineage["source_refs"])
+        active_outcome_source_refs = {
+            *[
+                str(source_ref)
+                for outcome in active_outcomes
+                for source_ref in outcome.get("source_refs") or []
+            ],
+            *[
+                source_ref_by_id.get(str(source_id), "")
+                for outcome in active_outcomes
+                for source_id in outcome.get("source_ids") or []
+            ],
+        } - {""}
+        allowed_source_refs = (
+            active_outcome_source_refs
+            if status in {"covered", "partial", "conflicted"}
+            else set(material_lineage["source_refs"])
         )
+        unlinked_source_refs = sorted(set(source_refs) - allowed_source_refs)
         if unlinked_source_refs:
             return {
                 "accepted": False,
@@ -524,10 +771,28 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
                 }
 
         evidence_ids = public_api._dedupe(
-            [str(item) for item in args.get("evidence_ids") or [] if str(item).strip()]
+            [
+                str(item)
+                for item in (
+                    args.get("evidence_ids") if manual_lineage else derived_evidence_ids
+                )
+                or []
+                if str(item).strip()
+            ]
+        )
+        active_outcome_evidence_ids = {
+            str(evidence_id)
+            for outcome in active_outcomes
+            for evidence_id in outcome.get("evidence_ids") or []
+            if str(evidence_id).strip()
+        }
+        allowed_evidence_ids = (
+            active_outcome_evidence_ids
+            if status in {"covered", "partial", "conflicted"}
+            else set(material_lineage["evidence_ids"])
         )
         unreviewed_evidence_ids = sorted(
-            set(evidence_ids) - set(material_lineage["evidence_ids"])
+            set(evidence_ids) - allowed_evidence_ids
         )
         if unreviewed_evidence_ids:
             return {
@@ -535,6 +800,28 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
                 "error": "coverage synthesis may use only evidence attached to this question by an assessment or per-set outcome",
                 "invalid_evidence_ids": unreviewed_evidence_ids,
             }
+
+        if status in {"covered", "partial", "conflicted"}:
+            if self.evidence_toolset is None:
+                return {
+                    "accepted": False,
+                    "error": "Evidence validation is unavailable; evidence-backed triage state was not persisted",
+                }
+            evidence_source_refs: set[str] = set()
+            for evidence_id in evidence_ids:
+                evidence = await self.evidence_toolset._evidence_in_run(evidence_id)
+                if evidence is None:
+                    continue
+                evidence_source_ref = await self.evidence_toolset._source_ref_for_id(evidence.source_id)
+                if evidence_source_ref:
+                    evidence_source_refs.add(str(evidence_source_ref))
+            unbacked_source_refs = sorted(set(source_refs) - evidence_source_refs)
+            if unbacked_source_refs:
+                return {
+                    "accepted": False,
+                    "error": "coverage_synthesis_source_refs_require_selected_evidence",
+                    "invalid_source_refs": unbacked_source_refs,
+                }
 
         semantic_fields = {
             "coverage_summary": str(args.get("orientation_summary") or "").strip(),
@@ -639,6 +926,7 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
             "source_refs": source_refs,
             "source_ids": source_ids,
             "evidence_ids": evidence_ids,
+            "outcome_refs": outcome_refs,
             "orientation_summary": semantic_fields["coverage_summary"],
             "missing_detail": semantic_fields["missing_detail"],
             "conflict_summary": semantic_fields["conflict_summary"],
@@ -661,6 +949,9 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
             "synthesis_ref": synthesis_id,
             "question_id": question_id,
             "status": status,
+            "lineage_derived_from_outcomes": not manual_lineage,
+            "source_ref_count": len(source_refs),
+            "evidence_count": len(evidence_ids),
         }
 
     async def _validate_set_evidence_ids(
@@ -918,6 +1209,20 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
                 "error": "Observation source_refs must belong to the current source set",
                 "invalid_source_refs": invalid,
             }
+        if (
+            str(source_set.get("set_kind") or SOURCE_SET_KIND_COVERAGE)
+            == SOURCE_SET_KIND_ORIENTATION
+            and len(source_refs) > 1
+        ):
+            return {
+                "accepted": False,
+                "error": "orientation_observation_requires_one_source",
+                "message": (
+                    "A neutral orientation queue is not semantic lineage. Persist one observation per source; "
+                    "use an evidence-backed relationship or cluster only after a real relationship is established."
+                ),
+                "source_refs": source_refs,
+            }
         if source_set.get("repair_targeted"):
             allowed_repair_refs = {
                 str(item) for item in source_set.get("repair_source_refs") or []
@@ -994,6 +1299,23 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
         source_set = public_api._workspace_set(current, set_id)
         if source_set is None:
             return {"accepted": False, "error": "Unknown source triage set", "set_id": set_id}
+        set_kind = str(source_set.get("set_kind") or SOURCE_SET_KIND_COVERAGE)
+        if set_kind not in {SOURCE_SET_KIND_COVERAGE, SOURCE_SET_KIND_ORIENTATION}:
+            return {"accepted": False, "error": "Unknown source set kind", "set_kind": set_kind}
+        planned_question_ids = [
+            str(item) for item in source_set.get("planned_question_ids", source_set.get("question_ids") or [])
+        ]
+        if set_kind == SOURCE_SET_KIND_COVERAGE and not planned_question_ids and not source_set.get("repair"):
+            return {
+                "accepted": False,
+                "error": "A coverage source set requires at least one planned coverage question",
+            }
+        if set_kind == SOURCE_SET_KIND_ORIENTATION and planned_question_ids:
+            return {
+                "accepted": False,
+                "error": "An initial-reading source set cannot have planner-assigned coverage questions",
+                "question_ids": planned_question_ids,
+            }
         status = str(args.get("status") or "").strip()
         if status not in {"mapped", "deferred", "needs_repair"}:
             return {"accepted": False, "error": "status must be mapped, deferred, or needs_repair"}
@@ -1147,7 +1469,7 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
             return {
                 "accepted": False,
                 "error": (
-                    "Covered, partial, or conflicted outcomes cannot use unreadable, "
+                    "Covered, partial, or conflicted outcomes cannot use not-target-content, unreadable, "
                     "out-of-scope, unusable, or deferred sources"
                 ),
                 "question_ids": sorted(active_outcomes_using_ineligible),
@@ -1197,6 +1519,17 @@ class SourceTriageWorkspaceToolHandlers(SourceTriageWorkspacePlanningHandlersMix
         )
         current["processed_sets"] = processed
         current["current_set"] = None
+        if status in {"mapped", "deferred"}:
+            for field in (
+                "repair_baseline_source_assessments",
+                "repair_baseline_coverage_outcomes",
+            ):
+                if field in current:
+                    current[field] = [
+                        item
+                        for item in current.get(field) or []
+                        if not isinstance(item, dict) or str(item.get("set_id") or "") != set_id
+                    ]
         deferral_reason_overrides = dict(requested_deferred_reasons)
         if status == "deferred":
             deferral_reason_overrides.update(

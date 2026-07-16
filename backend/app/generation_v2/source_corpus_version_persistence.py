@@ -27,17 +27,29 @@ async def ensure_source_version(
     if getattr(getattr(bind, "dialect", None), "name", None) == "postgresql":
         await db.execute(select(Source.id).where(Source.id == source.id).with_for_update())
     result = await db.execute(
-        select(SourceVersion).where(
+        select(SourceVersion)
+        .where(
             SourceVersion.source_id == source.id,
             SourceVersion.kind == kind,
             SourceVersion.content_hash == content_hash,
             SourceVersion.storage_path == storage_path,
-            SourceVersion.is_active.is_(True),
         )
+        .order_by(SourceVersion.created_at.desc())
+        .limit(1)
     )
     existing = result.scalar_one_or_none()
     if existing:
-        return existing
+        existing.metadata_ = {**(existing.metadata_ or {}), **metadata}
+        if status != V2RecordStatus.READY:
+            # Content assessment is derived metadata. Keep the immutable
+            # historical row/status readable for pinned completed runs, but
+            # remove a newly-disqualified surface from every future corpus.
+            existing.is_active = False
+            await db.flush()
+            return existing
+        if existing.status == V2RecordStatus.READY and existing.is_active:
+            await db.flush()
+            return existing
     previous_result = await db.execute(
         select(SourceVersion)
         .where(SourceVersion.source_id == source.id, SourceVersion.kind == kind, SourceVersion.is_active.is_(True))

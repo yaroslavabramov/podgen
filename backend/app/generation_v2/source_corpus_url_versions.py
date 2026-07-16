@@ -9,6 +9,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.generation_v2.source_content_readiness import (
+    assess_web_source_content,
+    apply_redirect_target_guard,
+    content_assessment_metadata,
+)
 from app.generation_v2.source_corpus_contracts import (
     OpenAIUrlReadStatus,
     OpenAIUrlRecoveryStatus,
@@ -71,7 +76,11 @@ async def ensure_openai_url_read_versions(
     if read_result:
         versions.extend(await _persist_openai_url_read_version(db, source, read_result, deps))
 
-    should_recover = not read_result or str(read_result.get("read_status") or "") not in OPENAI_URL_READ_SUCCESS_STATUSES
+    should_recover = (
+        not read_result
+        or str(read_result.get("read_status") or "") not in OPENAI_URL_READ_SUCCESS_STATUSES
+        or not versions
+    )
     if should_recover and settings.generation_v2_enable_openai_url_recovery:
         await _try_openai_url_recovery(source, deps)
     await db.flush()
@@ -126,6 +135,19 @@ async def _persist_openai_url_read_version(
     text = str(read_result.get("extracted_text_markdown") or "").strip()
     read_status = str(read_result.get("read_status") or OpenAIUrlReadStatus.ERROR)
     candidate_title = str(read_result.get("title") or "")
+    assessment = assess_web_source_content(
+        text,
+        surface="openai_url_read",
+        content_type=str(read_result.get("content_type") or ""),
+        min_chars=settings.generation_v2_openai_url_read_min_chars,
+        title=candidate_title,
+        input_is_markup=False,
+    )
+    assessment = apply_redirect_target_guard(
+        assessment,
+        requested_url=source.original_url,
+        final_url=str(read_result.get("canonical_url") or source.original_url),
+    )
     if not source.title and len(candidate_title) > 500:
         raise ValueError(
             "semantic_field_too_long: field=source.title max_length=500 "
@@ -142,14 +164,15 @@ async def _persist_openai_url_read_version(
             "failure_reason": str(read_result.get("failure_reason") or ""),
             "confidence": float(read_result.get("confidence") or 0),
             "response_id": str(read_result.get("_response_id") or ""),
+            "content_assessment": content_assessment_metadata(assessment),
             "synced_at": datetime.utcnow().isoformat(),
         },
     }
-    if not source.title and candidate_title:
+    if assessment.confirmed and not source.title and candidate_title:
         source.title = candidate_title
-    if text and not source.text_preview:
+    if assessment.confirmed and text and not source.text_preview:
         source.text_preview = text[:500]
-    if len(text) < settings.generation_v2_openai_url_read_min_chars or read_status not in OPENAI_URL_READ_SUCCESS_STATUSES:
+    if not assessment.confirmed or read_status not in OPENAI_URL_READ_SUCCESS_STATUSES:
         return versions
     document = deps.format_openai_url_read_document(source.original_url, read_result, text)
     content_hash = _hash_text(document)
@@ -173,6 +196,7 @@ async def _persist_openai_url_read_version(
                 "read_status": read_status,
                 "response_id": str(read_result.get("_response_id") or ""),
                 "confidence": float(read_result.get("confidence") or 0),
+                "content_assessment": content_assessment_metadata(assessment),
                 "note": "Model-extracted URL/file view; use original/snapshot/evidence locators for final citations when available.",
             },
         )

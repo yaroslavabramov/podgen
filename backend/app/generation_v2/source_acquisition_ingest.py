@@ -7,13 +7,14 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.generation_v2.source_content_readiness import native_ingest_has_confirmed_provider_content
 from app.generation_v2.source_corpus import sync_source_to_project_corpus_now
 from app.generation_v2.source_corpus_provider import _provider_uploads_required
 from app.generation_v2.source_corpus_versions import ensure_source_versions
 from app.generation_v2.source_acquisition_limits import acquire_candidate_url_lock
 from app.generation_v2.source_acquisition_validation import normalize_candidate_url
 from app.ingestion.router import WebQualityIngestionError, _deactivate_native_ingest_for_web_failure, run_ingestion
-from app.models.generation_v2 import SourceVersion, V2RecordStatus
+from app.models.generation_v2 import SourceVersion
 from app.models.source import IngestionStatus, Source
 
 
@@ -25,8 +26,7 @@ async def native_first_ingest_candidate(db: AsyncSession, source_id: uuid.UUID) 
     source.metadata_ = {**(source.metadata_ or {}), "acquisition_claim_token": claim_token}
     # Materialize native representations while the source is still staged. Do
     # not attach it to the project provider corpus until ingest has succeeded.
-    versions = await ensure_source_versions(db, source)
-    sync_summary = _native_representation_summary(source, versions)
+    await ensure_source_versions(db, source)
     await db.commit()
     source = await db.get(Source, source_id)
     if source is None:
@@ -61,7 +61,7 @@ async def native_first_ingest_candidate(db: AsyncSession, source_id: uuid.UUID) 
             source.fully_ingested = False
             await db.commit()
             raise
-        if native_ready(source.metadata_, sync_summary) and _provider_uploads_required():
+        if native_ready(source.metadata_) and _provider_uploads_required():
             metadata = dict(source.metadata_ or {})
             metadata.pop("error", None)
             metadata["deterministic_ingest_error"] = str(exc)
@@ -166,39 +166,8 @@ def _datetime_order_value(value: Any) -> float:
     return parsed.timestamp()
 
 
-def _native_representation_summary(source: Source, versions: list[SourceVersion]) -> dict[str, Any]:
-    ready_versions = [version for version in versions if version.status == V2RecordStatus.READY and version.is_active]
-    metadata = source.metadata_ or {}
-    return {
-        "source_version_count": len(ready_versions),
-        "native_content_ready": any(
-            str(getattr(version, "kind", ""))
-            in {"fetched_html", "rendered_snapshot", "model_read_text", "extracted_text", "page_marked_text"}
-            for version in ready_versions
-        ),
-        "ready_provider_file_count": 0,
-        "openai_url_read_status": (metadata.get("v2_openai_url_read") or {}).get("status"),
-    }
-
-
-def native_ready(metadata: dict | None, sync_summary: dict[str, Any] | None = None) -> bool:
-    native = (metadata or {}).get("v2_native_ingest") if isinstance(metadata, dict) else {}
-    if not isinstance(native, dict):
-        native = {}
-    try:
-        ready_provider_count = int(native.get("ready_provider_file_count") or (sync_summary or {}).get("ready_provider_file_count") or 0)
-    except (TypeError, ValueError):
-        ready_provider_count = 0
-    read_status = (
-        native.get("openai_url_read_status")
-        or (sync_summary or {}).get("openai_url_read_status")
-        or ((metadata or {}).get("v2_openai_url_read") or {}).get("status")
-    )
-    return bool(
-        ready_provider_count > 0
-        or (sync_summary or {}).get("native_content_ready")
-        or read_status in {"readable", "partial"}
-    )
+def native_ready(metadata: dict | None) -> bool:
+    return native_ingest_has_confirmed_provider_content(metadata)
 
 
 async def source_versions(db: AsyncSession, source_id: uuid.UUID) -> list[SourceVersion]:

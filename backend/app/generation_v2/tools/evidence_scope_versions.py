@@ -5,6 +5,7 @@ from typing import Any
 
 from sqlalchemy import select
 
+from app.generation_v2.source_content_readiness import source_version_model_eligible
 from app.generation_v2.tools.evidence_refs import version_ref_for_index
 from app.generation_v2.tools.evidence_tool_payloads import active_filter_list
 from app.generation_v2.tools.evidence_utils import _readable_version_priority, _uuid_list, _uuid_or_none
@@ -94,7 +95,10 @@ async def versions_for_source(owner: Any, source_id: str) -> list[SourceVersion]
             SourceVersion.id.in_(_uuid_list([str(item) for item in owner.run_view.selected_source_version_ids])),
         )
     )
-    return sorted(list(result.scalars()), key=lambda version: _readable_version_priority(version.kind))
+    return sorted(
+        [version for version in result.scalars() if source_version_model_eligible(version)],
+        key=lambda version: _readable_version_priority(version.kind),
+    )
 
 
 __all__ = [

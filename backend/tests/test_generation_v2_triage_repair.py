@@ -87,6 +87,22 @@ def test_new_attempt_carries_complete_context_and_reopens_only_reserved_set() ->
         {"set_id": "set_1", "question_id": "q_main", "status": "covered", "evidence_ids": ["evidence-1"]},
         {"set_id": "set_2", "question_id": "q_main", "status": "partial", "evidence_ids": ["evidence-2"]},
     ]
+    baseline_assessments = [
+        {
+            "set_id": "set_2",
+            "source_ref": "S02",
+            "evidence_ids": ["evidence-2"],
+            "repair_baseline": True,
+        }
+    ]
+    baseline_outcomes = [
+        {
+            "set_id": "set_2",
+            "question_id": "q_main",
+            "evidence_ids": ["evidence-2"],
+            "repair_baseline": True,
+        }
+    ]
     existing = {
         "schema_version": "source_triage_workspace.v2",
         "manifest_hash": "same-corpus",
@@ -97,6 +113,8 @@ def test_new_attempt_carries_complete_context_and_reopens_only_reserved_set() ->
         "source_sets": [first_set, repair_set],
         "source_assessments": assessments,
         "coverage_outcomes": outcomes,
+        "repair_baseline_source_assessments": baseline_assessments,
+        "repair_baseline_coverage_outcomes": baseline_outcomes,
         "processed_sets": [
             {"set_id": "set_1", "status": "mapped"},
             {"set_id": "set_2", "status": "mapped"},
@@ -131,6 +149,8 @@ def test_new_attempt_carries_complete_context_and_reopens_only_reserved_set() ->
     assert carried["coverage_questions"] == existing["coverage_questions"]
     assert carried["source_assessments"] == assessments
     assert carried["coverage_outcomes"] == outcomes
+    assert carried["repair_baseline_source_assessments"] == baseline_assessments
+    assert carried["repair_baseline_coverage_outcomes"] == baseline_outcomes
     assert [item["set_id"] for item in carried["source_sets"]] == ["set_1", "set_2"]
     assert carried["source_sets"][0] == first_set
     reopened = carried["source_sets"][1]
@@ -223,6 +243,66 @@ def test_carried_evidence_is_remapped_or_reopened_without_stale_references() -> 
     assert reconciled["deferred_sources"] == []
     assert reconciled["processed_sets"] == [{"set_id": "set_1"}]
     assert reconciled["repair_operation"]["payload"]["repair_set_ids"] == ["set_1", "set_2"]
+
+
+def test_carried_repair_baselines_keep_semantics_and_remap_only_valid_evidence() -> None:
+    valid_old = str(uuid.uuid4())
+    valid_new = str(uuid.uuid4())
+    invalid_old = str(uuid.uuid4())
+    workspace = {
+        "source_order": ["S01"],
+        "source_sets": [
+            {
+                **_set(1, status="planned"),
+                "repair": True,
+                "repair_targeted": True,
+                "repair_source_refs": ["S01"],
+                "repair_question_ids": ["q_main"],
+            }
+        ],
+        "source_assessments": [],
+        "coverage_outcomes": [],
+        "repair_baseline_source_assessments": [
+            {
+                "set_id": "set_1",
+                "source_ref": "S01",
+                "representation_reason": "Keep this old assessment detail.",
+                "evidence_ids": [valid_old, invalid_old],
+                "repair_baseline": True,
+            }
+        ],
+        "repair_baseline_coverage_outcomes": [
+            {
+                "set_id": "set_1",
+                "question_id": "q_main",
+                "orientation_summary": "Keep this old outcome detail.",
+                "source_refs": ["S01"],
+                "evidence_ids": [valid_old, invalid_old],
+                "repair_baseline": True,
+            }
+        ],
+        "repair_operation": {
+            "status": "in_progress",
+            "payload": {"repair_set_ids": ["set_1"], "repair_sets": []},
+        },
+    }
+
+    reconciled = reconcile_carried_triage_evidence(
+        workspace,
+        evidence_id_map={valid_old: valid_new},
+        invalid_evidence_ids={invalid_old},
+    )
+
+    assessment = reconciled["repair_baseline_source_assessments"][0]
+    outcome = reconciled["repair_baseline_coverage_outcomes"][0]
+    assert assessment["representation_reason"] == "Keep this old assessment detail."
+    assert outcome["orientation_summary"] == "Keep this old outcome detail."
+    assert assessment["evidence_ids"] == [valid_new]
+    assert outcome["evidence_ids"] == [valid_new]
+    assert assessment["repair_baseline_evidence_unavailable"] is True
+    assert outcome["repair_baseline_evidence_unavailable"] is True
+    assert invalid_old not in triage_workspace_evidence_ids(reconciled)
+    assert triage_workspace_evidence_ids(reconciled) == [valid_new]
 
 
 @pytest.mark.asyncio
@@ -444,12 +524,23 @@ def test_v2_repair_does_not_guess_when_source_assignment_needs_replanning() -> N
 
 def test_v2_duplicate_assessments_are_rebuilt_in_their_existing_set() -> None:
     inventory = _inventory(1)
-    duplicate = {"source_ref": "S01", "source_id": "source-1", "processing_status": "resolved"}
+    first = {
+        "source_ref": "S01",
+        "source_id": "source-1",
+        "processing_status": "resolved",
+        "representation_reason": "First version.",
+        "evidence_ids": ["evidence-first"],
+    }
+    second = {
+        **first,
+        "representation_reason": "Second version.",
+        "evidence_ids": ["evidence-second"],
+    }
     workspace = {
         "schema_version": "source_triage_workspace.v2",
         "source_order": ["S01"],
         "source_sets": [_set(1)],
-        "source_assessments": [duplicate, dict(duplicate)],
+        "source_assessments": [first, second],
         "coverage_outcomes": [],
     }
     gate = SourceTriageGate(
@@ -472,6 +563,21 @@ def test_v2_duplicate_assessments_are_rebuilt_in_their_existing_set() -> None:
     )
 
     assert repaired["source_assessments"] == []
+    assert [
+        item["source_ref"] for item in repaired["repair_baseline_source_assessments"]
+    ] == ["S01", "S01"]
+    assert [
+        item["representation_reason"]
+        for item in repaired["repair_baseline_source_assessments"]
+    ] == ["First version.", "Second version."]
+    assert [
+        item["evidence_ids"] for item in repaired["repair_baseline_source_assessments"]
+    ] == [["evidence-first"], ["evidence-second"]]
+    assert [
+        item["repair_baseline_version"]
+        for item in repaired["repair_baseline_source_assessments"]
+    ] == [1, 2]
+    assert repaired["repair_baseline_source_assessments"][0]["repair_baseline"] is True
     assert repaired["source_sets"][0]["status"] == "planned"
     assert repaired["source_sets"][0]["repair_source_refs"] == ["S01"]
 
@@ -841,6 +947,8 @@ def test_v2_deferral_consistency_failure_repairs_only_its_existing_set() -> None
 
     assert repaired["source_assessments"] == workspace["source_assessments"]
     assert repaired["coverage_outcomes"] == []
+    assert repaired["repair_baseline_coverage_outcomes"][0]["question_id"] == "q_main"
+    assert repaired["repair_baseline_coverage_outcomes"][0]["repair_baseline"] is True
     assert repaired["source_sets"][0]["status"] == "planned"
     assert repaired["source_sets"][0]["repair_source_refs"] == ["S01"]
     assert repaired["source_sets"][0]["repair_question_ids"] == ["q_main"]
@@ -919,6 +1027,23 @@ def test_v2_repair_targets_new_assessment_outcome_and_deferral_violations() -> N
     assert targets["set_2"]["repair_question_ids"] == ["q_main"]
     assert repaired["source_assessments"] == [workspace["source_assessments"][0]]
     assert repaired["coverage_outcomes"] == []
+    assert [
+        item["source_ref"] for item in repaired["repair_baseline_source_assessments"]
+    ] == ["S02"]
+    assessment_baseline = repaired["repair_baseline_source_assessments"][0]
+    assert assessment_baseline["set_id"] == "set_2"
+    assert assessment_baseline["original_set_id"] == "set_1"
+    assert {
+        (item["set_id"], item["question_id"])
+        for item in repaired["repair_baseline_coverage_outcomes"]
+    } == {("set_1", "q_main"), ("set_2", "q_main")}
+    set_1_baselines = [
+        item
+        for item in repaired["repair_baseline_coverage_outcomes"]
+        if item["set_id"] == "set_1"
+    ]
+    assert len(set_1_baselines) == 2
+    assert [item["repair_baseline_version"] for item in set_1_baselines] == [1, 2]
     assert repaired["repair_unaddressable_violations"] == []
 
 

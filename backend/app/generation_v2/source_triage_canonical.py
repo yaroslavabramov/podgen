@@ -6,6 +6,10 @@ from collections import defaultdict
 from typing import Any
 
 from app.generation_v2.corpus_brief_actions import outcome_routes_to_research
+from app.generation_v2.source_triage_workspace_state import (
+    SOURCE_SET_KIND_COVERAGE,
+    SOURCE_SET_KIND_ORIENTATION,
+)
 from app.generation_v2.contracts import SourceCardCoverageStatus
 from app.generation_v2.schemas import (
     CorpusBrief,
@@ -26,6 +30,8 @@ from app.generation_v2.tools.evidence_source_map_ids import source_map_evidence_
 
 FINAL_OUTCOME_STATUSES = {"covered", "partial", "missing", "conflicted", "deferred"}
 FINAL_SET_STATUSES = {"mapped", "deferred"}
+REPRESENTATION_DEFER_BLOCKERS = {"partial", "not_target_content", "unreadable"}
+TARGET_CONTENT_ABSENT_STATUSES = {"not_target_content", "unreadable"}
 
 _DISPOSITION_PRIORITY = {
     "anchor": 4,
@@ -259,6 +265,33 @@ def canonical_workspace_violations(
                 "question_ids": unknown_parent_ids,
             }
         )
+    hierarchy_cycle = _question_parent_cycle(questions)
+    if hierarchy_cycle:
+        violations.append(
+            {
+                "code": "cyclic_coverage_question_hierarchy",
+                "message": "Coverage question parent links cannot contain a cycle.",
+                "question_ids": hierarchy_cycle,
+            }
+        )
+    central_question_id = str(workspace.get("central_question_id") or "").strip()
+    if central_question_id:
+        central_question = next(
+            (item for item in questions if str(item.get("question_id") or "") == central_question_id),
+            None,
+        )
+        if (
+            central_question is None
+            or str(central_question.get("parent_question_id") or "").strip()
+            or str(central_question.get("importance") or "") != "critical"
+        ):
+            violations.append(
+                {
+                    "code": "invalid_central_coverage_question",
+                    "message": "The declared central question must be a persisted critical root question.",
+                    "question_ids": [central_question_id],
+                }
+            )
 
     set_ids = [str(item.get("set_id") or "") for item in source_sets]
     if any(not set_id for set_id in set_ids):
@@ -280,12 +313,28 @@ def canonical_workspace_violations(
     set_ref_counts: dict[str, int] = defaultdict(int)
     assigned_question_ids: set[str] = set()
     unknown_set_question_ids: set[str] = set()
+    invalid_set_kind_ids: list[str] = []
+    coverage_sets_without_questions: list[str] = []
+    orientation_sets_with_planned_questions: list[str] = []
     for source_set in source_sets:
+        set_id = str(source_set.get("set_id") or "")
+        set_kind = str(source_set.get("set_kind") or SOURCE_SET_KIND_COVERAGE)
+        planned_question_ids = [
+            str(item)
+            for item in source_set.get("planned_question_ids", source_set.get("question_ids") or [])
+        ]
+        if set_kind not in {SOURCE_SET_KIND_COVERAGE, SOURCE_SET_KIND_ORIENTATION}:
+            invalid_set_kind_ids.append(set_id)
+        elif set_kind == SOURCE_SET_KIND_COVERAGE:
+            if not planned_question_ids and not source_set.get("repair"):
+                coverage_sets_without_questions.append(set_id)
+            assigned_question_ids.update(planned_question_ids)
+        elif planned_question_ids:
+            orientation_sets_with_planned_questions.append(set_id)
         for source_ref in source_set.get("source_refs") or []:
             set_ref_counts[str(source_ref)] += 1
         for question_id in source_set.get("question_ids") or []:
             question_id = str(question_id)
-            assigned_question_ids.add(question_id)
             if question_id not in known_question_ids:
                 unknown_set_question_ids.add(question_id)
         if str(source_set.get("status") or "") not in FINAL_SET_STATUSES:
@@ -318,6 +367,48 @@ def canonical_workspace_violations(
                     "set_id": str(source_set.get("set_id") or ""),
                 }
             )
+    if invalid_set_kind_ids:
+        violations.append(
+            {
+                "code": "invalid_source_set_kind",
+                "message": "A source set has an unknown structural kind.",
+                "set_ids": sorted(invalid_set_kind_ids),
+            }
+        )
+    if coverage_sets_without_questions:
+        violations.append(
+            {
+                "code": "coverage_source_set_without_questions",
+                "message": "A coverage source set needs at least one planner-assigned coverage question.",
+                "set_ids": sorted(coverage_sets_without_questions),
+            }
+        )
+    if orientation_sets_with_planned_questions:
+        violations.append(
+            {
+                "code": "orientation_source_set_has_planned_questions",
+                "message": "An initial-reading set cannot contain planner-assigned coverage questions.",
+                "set_ids": sorted(orientation_sets_with_planned_questions),
+            }
+        )
+    inspected_refs = {str(item) for item in workspace.get("planner_inspected_source_refs") or []}
+    uninspected_orientation_refs = sorted(
+        {
+            str(source_ref)
+            for source_set in source_sets
+            if str(source_set.get("set_kind") or SOURCE_SET_KIND_COVERAGE) == SOURCE_SET_KIND_ORIENTATION
+            for source_ref in source_set.get("source_refs") or []
+            if str(source_ref) not in inspected_refs
+        }
+    )
+    if uninspected_orientation_refs:
+        violations.append(
+            {
+                "code": "uninspected_orientation_sources",
+                "message": "Initial-reading routing requires an explicit planner capsule inspection.",
+                "source_refs": uninspected_orientation_refs,
+            }
+        )
     if unknown_set_question_ids:
         violations.append(
             {
@@ -457,12 +548,29 @@ def canonical_workspace_violations(
             and str(assessment.get("relevance") or "unknown") == "out_of_scope"
         )
         or (
-            str(assessment.get("representation_status") or "unchecked") == "unreadable"
+            str(assessment.get("representation_status") or "unchecked")
+            in TARGET_CONTENT_ABSENT_STATUSES
             and str(assessment.get("disposition") or "") != "deferred"
         )
         or (
             str(assessment.get("disposition") or "") == "deferred"
-            and str(assessment.get("representation_status") or "unchecked") not in {"partial", "unreadable"}
+            and str(assessment.get("representation_status") or "unchecked")
+            not in REPRESENTATION_DEFER_BLOCKERS
+        )
+        or (
+            str(assessment.get("representation_status") or "unchecked") == "not_target_content"
+            and (
+                str(assessment.get("processing_status") or "") != "resolved"
+                or str(assessment.get("relevance") or "unknown") != "unknown"
+                or str(assessment.get("authority") or "unknown") != "unknown"
+                or str(assessment.get("uniqueness") or "unknown") != "unknown"
+                or bool(str(assessment.get("relevance_reason") or "").strip())
+                or bool(str(assessment.get("authority_reason") or "").strip())
+                or bool(str(assessment.get("uniqueness_reason") or "").strip())
+                or bool(assessment.get("coverage_question_ids"))
+                or bool(assessment.get("editorial_functions"))
+                or not bool(assessment.get("evidence_ids"))
+            )
         )
         or (
             str(assessment.get("disposition") or "") in {"weak", "unusable", "deferred"}
@@ -622,7 +730,8 @@ def canonical_workspace_violations(
             {
                 "code": "ineligible_source_active_outcome",
                 "message": (
-                    "Covered, partial, or conflicted outcomes cannot use unreadable, out-of-scope, or unusable sources."
+                    "Covered, partial, or conflicted outcomes cannot use not-target-content, unreadable, "
+                    "out-of-scope, or unusable sources."
                 ),
                 "source_refs": sorted(active_outcome_ineligible_refs),
                 "set_question_pairs": active_outcomes_using_ineligible,
@@ -685,7 +794,7 @@ def canonical_workspace_violations(
             )
             has_representation_blocker = any(
                 str((current_assessment_by_ref.get(source_ref) or {}).get("representation_status") or "")
-                in {"partial", "unreadable"}
+                in REPRESENTATION_DEFER_BLOCKERS
                 for source_ref in relevant_refs
             )
             valid = (
@@ -831,7 +940,7 @@ def _coverage_synthesis_violations(workspace: dict[str, Any]) -> list[dict[str, 
         )
         if any(
             str((assessments_by_ref.get(source_ref) or {}).get("representation_status") or "")
-            in {"partial", "unreadable"}
+            in REPRESENTATION_DEFER_BLOCKERS
             for source_ref in relevant_refs
         ):
             deferred_outcome_question_ids.add(str(outcome.get("question_id") or ""))
@@ -873,6 +982,8 @@ def _coverage_synthesis_violations(workspace: dict[str, Any]) -> list[dict[str, 
             )
         if str(item.get("next_action") or "") not in {"research", "source_acquisition", "omit", "none"}:
             valid = False
+        if status == "covered" and str(item.get("next_action") or "") == "source_acquisition":
+            valid = False
         if int(item.get("input_revision") or 0) != current_input_revision:
             valid = False
         if str(item.get("input_hash") or "") != coverage_synthesis_input_hash(workspace, question_id):
@@ -880,8 +991,49 @@ def _coverage_synthesis_violations(workspace: dict[str, Any]) -> list[dict[str, 
         if source_ids != _dedupe([source_id_by_ref.get(ref, "") for ref in source_refs]):
             valid = False
         material_lineage = coverage_question_material_lineage(workspace, question_id)
+        question_outcomes = [
+            outcome
+            for outcome in workspace.get("coverage_outcomes") or []
+            if isinstance(outcome, dict) and str(outcome.get("question_id") or "") == question_id
+        ]
+        outcome_statuses = {str(outcome.get("status") or "") for outcome in question_outcomes}
+        active_outcomes = [
+            outcome
+            for outcome in question_outcomes
+            if str(outcome.get("status") or "") in {"covered", "partial", "conflicted"}
+        ]
+        active_outcome_refs = {
+            *[
+                str(source_ref)
+                for outcome in active_outcomes
+                for source_ref in outcome.get("source_refs") or []
+            ],
+            *[
+                source_ref_by_id.get(str(source_id), "")
+                for outcome in active_outcomes
+                for source_id in outcome.get("source_ids") or []
+            ],
+        } - {""}
+        active_outcome_evidence_ids = {
+            str(evidence_id)
+            for outcome in active_outcomes
+            for evidence_id in outcome.get("evidence_ids") or []
+            if str(evidence_id).strip()
+        }
+        if status == "missing" and outcome_statuses != {"missing"}:
+            valid = False
+        if status == "deferred" and (
+            "deferred" not in outcome_statuses
+            or not outcome_statuses.issubset({"missing", "deferred"})
+        ):
+            valid = False
         unknown_refs = set(source_refs) - known_source_refs
-        unlinked_refs = set(source_refs) - set(material_lineage["source_refs"])
+        allowed_refs = (
+            active_outcome_refs
+            if status in {"covered", "partial", "conflicted"}
+            else set(material_lineage["source_refs"])
+        )
+        unlinked_refs = set(source_refs) - allowed_refs
         ineligible_refs = {
             ref
             for ref in source_refs
@@ -889,20 +1041,32 @@ def _coverage_synthesis_violations(workspace: dict[str, Any]) -> list[dict[str, 
             and (ref not in assessments_by_ref or not research_eligible(assessments_by_ref[ref]))
         }
         stale_evidence = set(evidence_ids) - persisted_evidence_ids
-        unlinked_evidence = set(evidence_ids) - set(material_lineage["evidence_ids"])
+        allowed_evidence = (
+            active_outcome_evidence_ids
+            if status in {"covered", "partial", "conflicted"}
+            else set(material_lineage["evidence_ids"])
+        )
+        unlinked_evidence = set(evidence_ids) - allowed_evidence
         misbound_evidence = {
             evidence_id
             for evidence_id in evidence_ids
             if evidence_id in persisted_evidence_refs
             and not persisted_evidence_refs[evidence_id].intersection(source_refs)
         }
-        invalid_source_refs.update(unknown_refs | unlinked_refs | ineligible_refs)
+        unbacked_refs = {
+            source_ref
+            for source_ref in source_refs
+            if status in {"covered", "partial", "conflicted"}
+            and not any(source_ref in persisted_evidence_refs.get(evidence_id, set()) for evidence_id in evidence_ids)
+        }
+        invalid_source_refs.update(unknown_refs | unlinked_refs | ineligible_refs | unbacked_refs)
         invalid_evidence_ids.update(stale_evidence | unlinked_evidence | misbound_evidence)
         if (
             not valid
             or unknown_refs
             or unlinked_refs
             or ineligible_refs
+            or unbacked_refs
             or stale_evidence
             or unlinked_evidence
             or misbound_evidence
@@ -931,6 +1095,90 @@ def research_eligible(assessment: dict[str, Any] | SourceAssessment) -> bool:
         and str(value.get("relevance") or "unknown") != "out_of_scope"
         and str(value.get("disposition") or "background") not in {"unusable", "deferred"}
     )
+
+
+def _canonical_workspace_evidence_ids(workspace: dict[str, Any]) -> list[str]:
+    """Evidence promoted by durable final triage records, never raw observations."""
+
+    evidence_ids = [
+        str(evidence_id)
+        for item in workspace.get("source_assessments") or []
+        if isinstance(item, dict) and str(item.get("processing_status") or "resolved") == "resolved"
+        for evidence_id in item.get("evidence_ids") or []
+    ]
+    evidence_ids.extend(
+        str(evidence_id)
+        for item in workspace.get("coverage_outcomes") or []
+        if isinstance(item, dict) and str(item.get("status") or "") in FINAL_OUTCOME_STATUSES
+        for evidence_id in item.get("evidence_ids") or []
+    )
+    current_revision = int(workspace.get("triage_semantic_revision") or 0)
+    for item in workspace.get("coverage_syntheses") or []:
+        if not isinstance(item, dict):
+            continue
+        question_id = str(item.get("question_id") or "")
+        if (
+            not question_id
+            or str(item.get("status") or "") not in FINAL_OUTCOME_STATUSES
+            or int(item.get("input_revision") or 0) != current_revision
+            or str(item.get("input_hash") or "") != coverage_synthesis_input_hash(workspace, question_id)
+        ):
+            continue
+        evidence_ids.extend(str(value) for value in item.get("evidence_ids") or [])
+    return _dedupe(evidence_ids)
+
+
+def canonical_triage_evidence_ids(
+    source_map: SourceMap,
+    *,
+    workspace: dict[str, Any],
+) -> list[str]:
+    """One evidence selection shared by SourceMap and CorpusBrief materialization."""
+
+    return _dedupe(
+        [
+            *source_map_evidence_ids(source_map),
+            *_canonical_workspace_evidence_ids(workspace),
+        ]
+    )
+
+
+def _canonical_source_set_evidence_ids(
+    source_set: dict[str, Any],
+    *,
+    workspace: dict[str, Any],
+    canonical_evidence_ids: set[str],
+) -> list[str]:
+    set_id = str(source_set.get("set_id") or "")
+    candidates = [
+        str(evidence_id)
+        for action in source_set.get("written_actions") or []
+        if isinstance(action, dict)
+        for evidence_id in action.get("evidence_ids") or []
+    ]
+    if str(workspace.get("schema_version") or "") != "source_triage_workspace.v2":
+        candidates.extend(str(value) for value in source_set.get("evidence_ids") or [])
+    candidates.extend(
+        str(evidence_id)
+        for item in workspace.get("source_assessments") or []
+        if isinstance(item, dict)
+        and str(item.get("set_id") or "") == set_id
+        and str(item.get("processing_status") or "resolved") == "resolved"
+        for evidence_id in item.get("evidence_ids") or []
+    )
+    candidates.extend(
+        str(evidence_id)
+        for item in workspace.get("coverage_outcomes") or []
+        if isinstance(item, dict)
+        and str(item.get("set_id") or "") == set_id
+        and str(item.get("status") or "") in FINAL_OUTCOME_STATUSES
+        for evidence_id in item.get("evidence_ids") or []
+    )
+    return [
+        evidence_id
+        for evidence_id in _dedupe(candidates)
+        if evidence_id in canonical_evidence_ids
+    ]
 
 
 def handoff_evidence_ids(
@@ -1003,7 +1251,7 @@ def materialize_source_map_v2(
     ranked_candidates: list[tuple[int, SourceAssessment, SourceTriageItem]] = []
     top_sources_by_function: dict[str, list[str]] = defaultdict(list)
     top_evidence_by_function: dict[str, list[str]] = defaultdict(list)
-    all_evidence_ids = list(source_map.evidence_ids)
+    all_evidence_ids = canonical_triage_evidence_ids(source_map, workspace=workspace)
 
     for corpus_index, source_id in enumerate(ordered_source_ids):
         assessment = assessment_by_source.get(source_id)
@@ -1029,7 +1277,7 @@ def materialize_source_map_v2(
         )
         representation_status = str(raw_assessment.get("representation_status") or "unchecked")
         disposition = str(assessment.disposition)
-        if representation_status == "unreadable" or disposition == "unusable":
+        if representation_status in TARGET_CONTENT_ABSENT_STATUSES or disposition == "unusable":
             card.coverage_status = SourceCardCoverageStatus.FAILED
         elif representation_status == "partial" or disposition in {"weak", "deferred"}:
             card.coverage_status = SourceCardCoverageStatus.PARTIAL
@@ -1155,15 +1403,21 @@ def aggregate_coverage_outcomes(workspace: dict[str, Any]) -> list[CoverageOutco
             status = "partial"
         else:
             status = "unknown"
-        next_actions = {str(item.get("next_action") or "research") for item in values}
-        next_action = next(
-            (
-                candidate
-                for candidate in ["source_acquisition", "research", "omit", "none"]
-                if candidate in next_actions
-            ),
-            "research",
-        )
+        if str(workspace.get("schema_version") or "") == "source_triage_workspace.v2":
+            # New V2 per-set outcomes are local observations and never route
+            # the run. Only an explicit run-wide synthesis may request source
+            # acquisition or omission.
+            next_action = "research"
+        else:
+            next_actions = {str(item.get("next_action") or "research") for item in values}
+            next_action = next(
+                (
+                    candidate
+                    for candidate in ["source_acquisition", "research", "omit", "none"]
+                    if candidate in next_actions
+                ),
+                "research",
+            )
         results.append(
             CoverageOutcome(
                 outcome_id=f"outcome:{question_id}",
@@ -1207,6 +1461,20 @@ def materialize_corpus_brief(
         if isinstance(item, dict)
     ]
     outcomes = aggregate_coverage_outcomes(workspace)
+    canonical_evidence_ids = set(source_map_evidence_ids(source_map))
+    missing_final_evidence_ids = sorted(
+        {
+            evidence_id
+            for outcome in outcomes
+            for evidence_id in outcome.evidence_ids
+            if evidence_id not in canonical_evidence_ids
+        }
+    )
+    if missing_final_evidence_ids:
+        raise ValueError(
+            "Final coverage outcomes reference evidence outside the canonical SourceMap selection: "
+            + ", ".join(missing_final_evidence_ids)
+        )
     assessment_by_source = {item.source_id: item for item in source_map.source_assessments}
     evidence_ids_by_source = {card.source_id: set(card.evidence_ids) for card in source_map.source_cards}
     source_id_by_ref = {
@@ -1236,6 +1504,7 @@ def materialize_corpus_brief(
         source_sets.append(
             CorpusBriefSourceSet(
                 set_id=str(item.get("set_id") or ""),
+                set_kind=str(item.get("set_kind") or SOURCE_SET_KIND_COVERAGE),
                 label=str(item.get("label") or ""),
                 purpose=str(item.get("purpose") or ""),
                 rationale=str(item.get("rationale") or ""),
@@ -1244,7 +1513,11 @@ def materialize_corpus_brief(
                 priority=str(item.get("priority") or "normal"),
                 status=str(item.get("status") or "mapped"),
                 findings_summary=str(item.get("findings_summary") or ""),
-                evidence_ids=[str(value) for value in item.get("evidence_ids") or []],
+                evidence_ids=_canonical_source_set_evidence_ids(
+                    item,
+                    workspace=workspace,
+                    canonical_evidence_ids=canonical_evidence_ids,
+                ),
                 deferred_reason=str(item.get("deferred_reason") or ""),
             )
         )
@@ -1299,9 +1572,13 @@ def materialize_corpus_brief(
         )
 
     intent_payload = dict(workspace.get("intent") or {})
+    declared_central_question_id = str(workspace.get("central_question_id") or "")
     central_question = next(
-        (item.question for item in questions if str(item.importance) == "critical"),
-        questions[0].question if questions else str(intent_payload.get("user_prompt") or ""),
+        (item.question for item in questions if item.question_id == declared_central_question_id),
+        next(
+            (item.question for item in questions if str(item.importance) == "critical"),
+            questions[0].question if questions else str(intent_payload.get("user_prompt") or ""),
+        ),
     )
     cautions = _dedupe(
         [
@@ -1602,6 +1879,25 @@ def _duplicates(values: list[str]) -> list[str]:
     return sorted(duplicate)
 
 
+def _question_parent_cycle(questions: list[dict[str, Any]]) -> list[str]:
+    parent_by_id = {
+        str(item.get("question_id") or ""): str(item.get("parent_question_id") or "")
+        for item in questions
+        if isinstance(item, dict) and str(item.get("question_id") or "")
+    }
+    for start in parent_by_id:
+        path: list[str] = []
+        positions: dict[str, int] = {}
+        current = start
+        while current and current in parent_by_id:
+            if current in positions:
+                return path[positions[current] :] + [current]
+            positions[current] = len(path)
+            path.append(current)
+            current = parent_by_id.get(current, "")
+    return []
+
+
 def _counts(values: list[tuple[str, str]]) -> dict[tuple[str, str], int]:
     counts: dict[tuple[str, str], int] = defaultdict(int)
     for value in values:
@@ -1629,6 +1925,7 @@ def _join_semantic(values: list[dict[str, Any]], field: str) -> str:
 __all__ = [
     "aggregate_coverage_outcomes",
     "audit_corpus_brief",
+    "canonical_triage_evidence_ids",
     "canonical_workspace_violations",
     "materialize_corpus_brief",
     "materialize_source_map_v2",

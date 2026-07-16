@@ -31,7 +31,9 @@ def corpus_brief_preview(
     text_limit: int = 400,
 ) -> dict[str, Any]:
     questions = brief.coverage_questions[:item_limit]
-    source_sets = brief.source_sets[:item_limit]
+    # Initial-reading groups are operational provenance, not research branches.
+    content_source_sets = [item for item in brief.source_sets if str(item.set_kind) != "orientation"]
+    source_sets = content_source_sets[:item_limit]
     outcomes = brief.coverage_outcomes[:item_limit]
     handoff = brief.research_handoff[:item_limit]
     source_ref_context = build_source_ref_context(source_inventory) if source_inventory is not None else None
@@ -78,6 +80,7 @@ def corpus_brief_preview(
         "source_sets": [
             {
                 "set_id": item.set_id,
+                "set_kind": item.set_kind,
                 "status": item.status,
                 "priority": item.priority,
                 "source_count": len(item.source_ids),
@@ -149,7 +152,7 @@ def corpus_brief_preview(
             ),
             "corpus_brief_cautions": _page(len(model_cautions), len(cautions)),
             "corpus_brief_questions": _page(len(brief.coverage_questions), len(questions)),
-            "corpus_brief_source_sets": _page(len(brief.source_sets), len(source_sets)),
+            "corpus_brief_source_sets": _page(len(content_source_sets), len(source_sets)),
             "corpus_brief_outcomes": _page(len(brief.coverage_outcomes), len(outcomes)),
             "corpus_brief_handoff": _page(len(brief.research_handoff), len(handoff)),
             "corpus_brief_gap_records": _page(len(brief.gap_records), len(gap_records)),

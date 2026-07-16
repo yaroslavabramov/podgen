@@ -6,12 +6,12 @@ from typing import Any
 
 from app.generation_v2.tools.evidence_locator_parsing import query_tokens as _query_tokens
 from app.generation_v2.tools.evidence_source_text import looks_text_readable_path as _looks_text_readable_path
+from app.generation_v2.source_content_readiness import source_version_model_eligible
 from app.models.generation_v2 import (
     EvidenceItem,
     EvidenceRetrievalChannel,
     SourceRepresentationKind,
     SourceVersion,
-    V2RecordStatus,
 )
 
 
@@ -129,7 +129,7 @@ def chunk_version_priority(kind: str) -> int:
 
 
 def version_can_back_local_window(version: SourceVersion) -> bool:
-    if version.status != V2RecordStatus.READY or not version.storage_path:
+    if not source_version_model_eligible(version):
         return False
     if version.kind == SourceRepresentationKind.ORIGINAL_FILE:
         return _looks_text_readable_path(version.storage_path)

@@ -280,8 +280,9 @@ def test_finalizer_checkpoint_requires_missing_or_invalidated_syntheses_before_f
         }
     )
 
-    assert "outcomes, syntheses" in instructions
+    assert "coverage_question_packets" in instructions
     assert "upsert every missing or invalidated run-wide question synthesis" in instructions
+    assert "backend derives lineage" in instructions
     assert instructions.index("question synthesis") < instructions.index("finalize_source_map")
 
 

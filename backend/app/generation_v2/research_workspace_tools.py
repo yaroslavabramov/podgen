@@ -279,6 +279,8 @@ def _full_corpus_brief_page(
         ]
     else:
         values = [item for item in brief.get(field_by_section[section]) or [] if isinstance(item, dict)]
+        if section == "corpus_brief_source_sets":
+            values = [item for item in values if str(item.get("set_kind") or "coverage") != "orientation"]
     page = values[cursor : cursor + limit]
     items: list[dict[str, Any]] = []
     for item in page:

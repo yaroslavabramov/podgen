@@ -188,4 +188,24 @@ async def current_attempt_has_triage_history(
     return result.scalar_one_or_none() is not None
 
 
-__all__ = ["create_run_corpus_view", "current_attempt_has_triage_history"]
+async def load_current_run_corpus_view(
+    db: AsyncSession,
+    generation_run_id: Any,
+) -> RunCorpusView | None:
+    result = await db.execute(
+        select(RunCorpusView)
+        .where(
+            RunCorpusView.generation_run_id == generation_run_id,
+            RunCorpusView.is_current.is_(True),
+        )
+        .order_by(RunCorpusView.revision.desc(), RunCorpusView.attempt.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+__all__ = [
+    "create_run_corpus_view",
+    "current_attempt_has_triage_history",
+    "load_current_run_corpus_view",
+]

@@ -17,6 +17,10 @@ from app.generation_v2.schemas import (
     SourceTriageReport,
 )
 from app.generation_v2.source_triage_workspace_tool_handlers import SourceTriageWorkspaceToolHandlers
+from app.generation_v2.source_triage_workspace_tracking import (
+    _successful_commit_trace,
+    _successful_read_trace,
+)
 from app.generation_v2.tools import evidence_source_map_write_actions as write_actions
 from app.generation_v2.tools.evidence_source_map_actions import build_source_map_from_write_actions
 from app.generation_v2.tools.evidence_source_map_gate import validate_source_map_gate
@@ -60,6 +64,186 @@ class _WriteActionDb:
 
     async def execute(self, _query):
         return self.responses.pop(0)
+
+
+class _ActionLineageDb:
+    def __init__(self, responses: list[list[object]]) -> None:
+        self.responses = [_ScalarResult(items) for items in responses]
+        self.added: list[object] = []
+
+    async def execute(self, _query):
+        return self.responses.pop(0)
+
+    def add(self, item: object) -> None:
+        self.added.append(item)
+
+    async def flush(self) -> None:
+        return None
+
+
+def test_triage_commit_guard_counts_only_successful_reads() -> None:
+    assert _successful_read_trace(SimpleNamespace(output_json={"found": True})) is True
+    assert _successful_read_trace(SimpleNamespace(output_json={"accepted": True, "results": []})) is False
+    assert _successful_read_trace(SimpleNamespace(output_json={"found": False, "error": "invalid_window_ref"})) is False
+    assert _successful_read_trace(SimpleNamespace(output_json={"accepted": False})) is False
+    assert _successful_read_trace(SimpleNamespace(output_json={"error": "tool_execution_failed"})) is False
+    assert _successful_commit_trace(SimpleNamespace(output_json={"accepted": True})) is True
+    assert _successful_commit_trace(SimpleNamespace(output_json={"accepted": False})) is False
+    assert _successful_commit_trace(SimpleNamespace(output_json={"error": "tool_execution_failed"})) is False
+    assert _successful_commit_trace(
+        SimpleNamespace(output_json={"accepted": True, "_runtime_error": {"type": "RuntimeError"}})
+    ) is False
+
+
+@pytest.mark.asyncio
+async def test_new_attempt_carries_full_source_map_actions_and_remaps_evidence() -> None:
+    source_1 = str(uuid.uuid4())
+    source_2 = str(uuid.uuid4())
+    old_evidence_id = str(uuid.uuid4())
+    new_evidence_id = str(uuid.uuid4())
+    invalid_evidence_id = str(uuid.uuid4())
+    traces = [
+        SimpleNamespace(
+            id=uuid.uuid4(),
+            tool_name="record_source_relationship",
+            input_json={
+                "source_ref": "S01",
+                "related_source_ref": "S02",
+                "relationship": "background_for",
+                "evidence_ids": [old_evidence_id],
+                "rationale": "Preserve the full relationship rationale.",
+            },
+            output_json={"accepted": True},
+            created_at=None,
+        ),
+        SimpleNamespace(
+            id=uuid.uuid4(),
+            tool_name="record_source_cluster",
+            input_json={
+                "cluster_id": "cluster-history",
+                "label": "Historical context",
+                "source_refs": ["S01", "S02"],
+                "primary_source_refs": ["S01"],
+                "secondary_source_refs": ["S02"],
+                "duplicate_source_refs": [],
+                "evidence_ids": [old_evidence_id],
+                "rationale": "Preserve the full cluster rationale.",
+            },
+            output_json={"accepted": True},
+            created_at=None,
+        ),
+        SimpleNamespace(
+            id=uuid.uuid4(),
+            tool_name="record_source_relationship",
+            input_json={
+                "source_ref": "S02",
+                "related_source_ref": "S01",
+                "relationship": "updates",
+                "evidence_ids": [old_evidence_id],
+                "rationale": "This relationship was later removed.",
+            },
+            output_json={"accepted": True},
+            created_at=None,
+        ),
+        SimpleNamespace(
+            id=uuid.uuid4(),
+            tool_name="resolve_source_map_repair",
+            input_json={
+                "target_kind": "relationship",
+                "source_id": source_2,
+                "related_source_id": source_1,
+                "relationship": "updates",
+                "target_fingerprint": "fingerprint-before-evidence-remap",
+            },
+            output_json={"accepted": True},
+            created_at=None,
+        ),
+        SimpleNamespace(
+            id=uuid.uuid4(),
+            tool_name="create_quote_card",
+            input_json={"evidence_id": invalid_evidence_id, "quote": "Unavailable quote."},
+            output_json={"accepted": True},
+            created_at=None,
+        ),
+        SimpleNamespace(
+            id=uuid.uuid4(),
+            tool_name="finalize_source_map",
+            input_json={"ready": True, "summary": "Old finalization."},
+            output_json={"accepted": True},
+            created_at=None,
+        ),
+        SimpleNamespace(
+            id=uuid.uuid4(),
+            tool_name="record_gap",
+            input_json={"description": "Rejected gap."},
+            output_json={"accepted": False},
+            created_at=None,
+        ),
+    ]
+    db = _ActionLineageDb([traces, []])
+    run_id = uuid.uuid4()
+
+    carried_count = await workspace_api._carry_source_map_write_actions_to_current_attempt(
+        db,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=run_id),
+        run_view=SimpleNamespace(revision=1, attempt=2),
+        source_attempt=1,
+        evidence_id_map={old_evidence_id: new_evidence_id},
+    )
+
+    assert carried_count == 4
+    assert len(db.added) == 4
+    relationship = next(
+        item
+        for item in db.added
+        if item.tool_name == "record_source_relationship"
+        and item.input_json["relationship"] == "background_for"
+    )
+    carried_by_tool = {item.tool_name: item for item in db.added}
+    cluster = carried_by_tool["record_source_cluster"]
+    resolution = carried_by_tool["resolve_source_map_repair"]
+    assert relationship.input_json["evidence_ids"] == [new_evidence_id]
+    assert relationship.input_json["rationale"] == "Preserve the full relationship rationale."
+    assert cluster.input_json["label"] == "Historical context"
+    assert cluster.input_json["rationale"] == "Preserve the full cluster rationale."
+    assert resolution.input_json["target_fingerprint"] == ""
+    assert all(item.attempt == 2 for item in db.added)
+    assert all(item.output_json["_attempt_lineage"]["from_attempt"] == 1 for item in db.added)
+
+    source_map = await build_source_map_from_write_actions(
+        _WriteActionDb(
+            db.added,
+            [_evidence(new_evidence_id, source_1)],
+        ),  # type: ignore[arg-type]
+        generation_run_id=run_id,
+        inventory=SourceMap(
+            source_cards=[
+                _card(source_1, "First"),
+                _card(source_2, "Second"),
+            ]
+        ),
+        run_view=SimpleNamespace(revision=1, attempt=2),
+    )
+
+    assert source_map.source_triage.source_relationships[0].rationale == (
+        "Preserve the full relationship rationale."
+    )
+    assert len(source_map.source_triage.source_relationships) == 1
+    assert source_map.source_triage.source_clusters[0].label == "Historical context"
+
+    replacement_evidence_id = str(uuid.uuid4())
+    db.responses = [_ScalarResult(traces), _ScalarResult(db.added)]
+    repeated_count = await workspace_api._carry_source_map_write_actions_to_current_attempt(
+        db,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=run_id),
+        run_view=SimpleNamespace(revision=1, attempt=2),
+        source_attempt=1,
+        evidence_id_map={old_evidence_id: replacement_evidence_id},
+    )
+
+    assert repeated_count == 4
+    assert len(db.added) == 4
+    assert relationship.input_json["evidence_ids"] == [replacement_evidence_id]
 
 
 def _card(source_id: str, title: str) -> SourceCard:
@@ -254,6 +438,9 @@ async def test_assessment_attaches_cross_question_relevance_and_invalidates_old_
     stored = state["workspace"]
     assert stored["source_sets"][0]["question_ids"] == ["q1", "q2"]
     assert stored["source_sets"][0]["cross_question_ids"] == ["q2"]
+    assert result["required_question_ids"] == ["q1", "q2"]
+    assert result["missing_outcome_question_ids"] == ["q1", "q2"]
+    assert result["pending_source_refs"] == []
     assert stored["source_assessments"][0]["confidence"] == 0
     assert stored["coverage_syntheses"] == []
     assert "source_map_finalization" not in stored
@@ -384,7 +571,200 @@ async def test_unreadable_assessment_requires_explicit_deferred_disposition_reas
         "Source value is unknown"
     )
     assert invalid_readable["accepted"] is False
-    assert "partial or unreadable" in invalid_readable["error"]
+    assert "partial, not_target_content, or unreadable" in invalid_readable["error"]
+
+
+@pytest.mark.asyncio
+async def test_not_target_content_persists_only_unknown_deferred_judgments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    workspace = _workspace(source_refs=["S01"])
+    state = _patch_workspace(monkeypatch, workspace)
+    toolset = _EvidenceToolset(
+        {
+            evidence_id: _evidence(
+                evidence_id,
+                source_id,
+                snippet="Cookie settings. Accept only necessary cookies. Accept all cookies.",
+            )
+        },
+        {source_id: "S01"},
+    )
+    handler = SourceTriageWorkspaceToolHandlers(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(source_cards=[_card(source_id, "First")]),
+        evidence_toolset=toolset,
+        current_set_id="set_1",
+    )
+    args = {
+        **_assessment_args([evidence_id]),
+        "representation_status": "not_target_content",
+        "representation_reason": "Only a consent page was obtained; the requested document is absent.",
+        "relevance": "unknown",
+        "relevance_reason": "",
+        "authority": "unknown",
+        "authority_reason": "",
+        "uniqueness": "unknown",
+        "uniqueness_reason": "",
+        "disposition": "deferred",
+        "disposition_reason": "The unseen source cannot be evaluated from this service page.",
+        "coverage_question_ids": [],
+        "editorial_functions": [],
+    }
+
+    result = await handler.upsert_source_assessment_tool(args)
+
+    assert result["accepted"] is True
+    stored = state["workspace"]["source_assessments"][0]
+    assert stored["representation_status"] == "not_target_content"
+    assert stored["relevance"] == stored["authority"] == stored["uniqueness"] == "unknown"
+    assert stored["disposition"] == "deferred"
+    assert stored["coverage_question_ids"] == []
+    assert stored["editorial_functions"] == []
+    assert toolset.selection_calls[0]["purpose"] == "caution"
+
+
+@pytest.mark.asyncio
+async def test_not_target_content_rejects_source_judgments_links_and_missing_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    workspace = _workspace(source_refs=["S01"])
+    _patch_workspace(monkeypatch, workspace)
+    toolset = _EvidenceToolset(
+        {evidence_id: _evidence(evidence_id, source_id)},
+        {source_id: "S01"},
+    )
+    handler = SourceTriageWorkspaceToolHandlers(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(source_cards=[_card(source_id, "First")]),
+        evidence_toolset=toolset,
+        current_set_id="set_1",
+    )
+    safe = {
+        **_assessment_args([evidence_id]),
+        "representation_status": "not_target_content",
+        "representation_reason": "The target document was not obtained.",
+        "relevance": "unknown",
+        "relevance_reason": "",
+        "authority": "unknown",
+        "authority_reason": "",
+        "uniqueness": "unknown",
+        "uniqueness_reason": "",
+        "disposition": "deferred",
+        "disposition_reason": "Source value remains unknown.",
+        "coverage_question_ids": [],
+        "editorial_functions": [],
+    }
+
+    source_judgment = await handler.upsert_source_assessment_tool(
+        {**safe, "uniqueness": "unique"}
+    )
+    semantic_reason = await handler.upsert_source_assessment_tool(
+        {**safe, "authority_reason": "The service page itself appears weak."}
+    )
+    unfinished = await handler.upsert_source_assessment_tool(
+        {**safe, "processing_status": "needs_repair"}
+    )
+    semantic_links = await handler.upsert_source_assessment_tool(
+        {**safe, "coverage_question_ids": ["q1"], "editorial_functions": ["mechanism"]}
+    )
+    missing_evidence = await handler.upsert_source_assessment_tool(
+        {**safe, "evidence_ids": []}
+    )
+
+    assert source_judgment["accepted"] is False
+    assert source_judgment["invalid_fields"] == ["uniqueness"]
+    assert semantic_reason["accepted"] is False
+    assert semantic_reason["invalid_fields"] == ["authority_reason"]
+    assert unfinished["accepted"] is False
+    assert "processing_status=resolved" in unfinished["error"]
+    assert semantic_links["accepted"] is False
+    assert "cannot establish coverage-question" in semantic_links["error"]
+    assert missing_evidence["accepted"] is False
+    assert "requires grounded evidence" in missing_evidence["error"]
+
+
+@pytest.mark.asyncio
+async def test_shell_only_evidence_cannot_be_submitted_as_readable_target_content(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    workspace = _workspace(source_refs=["S01"])
+    _patch_workspace(monkeypatch, workspace)
+    handler = SourceTriageWorkspaceToolHandlers(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(source_cards=[_card(source_id, "First")]),
+        evidence_toolset=_EvidenceToolset(
+            {
+                evidence_id: _evidence(
+                    evidence_id,
+                    source_id,
+                    snippet="Cookie settings. Accept only necessary cookies. Accept all cookies.",
+                )
+            },
+            {source_id: "S01"},
+        ),
+        current_set_id="set_1",
+    )
+
+    result = await handler.upsert_source_assessment_tool(_assessment_args([evidence_id]))
+
+    assert result["accepted"] is False
+    assert result["required_representation_status"] == "not_target_content"
+    assert result["invalid_evidence_ids"] == [evidence_id]
+
+
+@pytest.mark.asyncio
+async def test_shell_warning_does_not_reject_separately_grounded_target_content(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_id = str(uuid.uuid4())
+    shell_evidence_id = str(uuid.uuid4())
+    content_evidence_id = str(uuid.uuid4())
+    workspace = _workspace(source_refs=["S01"])
+    _patch_workspace(monkeypatch, workspace)
+    handler = SourceTriageWorkspaceToolHandlers(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(source_cards=[_card(source_id, "First")]),
+        evidence_toolset=_EvidenceToolset(
+            {
+                shell_evidence_id: _evidence(
+                    shell_evidence_id,
+                    source_id,
+                    snippet="Cookie settings. Accept only necessary cookies. Accept all cookies.",
+                ),
+                content_evidence_id: _evidence(
+                    content_evidence_id,
+                    source_id,
+                    snippet=(
+                        "The requested report explains the monetary mechanism, identifies the responsible "
+                        "institutions, and describes the sequence of operations in substantive detail."
+                    ),
+                ),
+            },
+            {source_id: "S01"},
+        ),
+        current_set_id="set_1",
+    )
+
+    result = await handler.upsert_source_assessment_tool(
+        _assessment_args([shell_evidence_id, content_evidence_id])
+    )
+
+    assert result["accepted"] is True
 
 
 @pytest.mark.asyncio
@@ -495,6 +875,144 @@ async def test_partial_outcome_requires_evidence_from_its_declared_sources(
 
 
 @pytest.mark.asyncio
+async def test_per_set_outcome_cannot_request_run_wide_source_acquisition(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_id = str(uuid.uuid4())
+    workspace = _workspace(source_refs=["S01"])
+    _patch_workspace(monkeypatch, workspace)
+    handler = SourceTriageWorkspaceToolHandlers(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(source_cards=[_card(source_id, "First")]),
+        evidence_toolset=_EvidenceToolset({}, {source_id: "S01"}),
+        current_set_id="set_1",
+    )
+
+    result = await handler.upsert_coverage_outcome_tool(
+        {
+            **_outcome_args(status="missing", source_refs=[], evidence_ids=[]),
+            "orientation_summary": "",
+            "missing_detail": "This source set does not establish the answer.",
+            "next_action": "source_acquisition",
+        }
+    )
+
+    assert result["accepted"] is False
+    assert result["error"] == "per_set_outcome_cannot_route_run"
+
+
+@pytest.mark.asyncio
+async def test_source_acquisition_synthesis_waits_for_every_assigned_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_1 = str(uuid.uuid4())
+    source_2 = str(uuid.uuid4())
+    workspace = _workspace(source_refs=["S01"])
+    workspace.update(
+        {
+            "source_order": ["S01", "S02"],
+            "source_sets": [
+                {
+                    "set_id": "set_1",
+                    "status": "mapped",
+                    "source_refs": ["S01"],
+                    "question_ids": ["q1"],
+                },
+                {
+                    "set_id": "set_2",
+                    "status": "planned",
+                    "source_refs": ["S02"],
+                    "question_ids": ["q1"],
+                },
+            ],
+            "coverage_outcomes": [
+                {
+                    "outcome_id": "outcome:q1:set_1",
+                    "set_id": "set_1",
+                    "question_id": "q1",
+                    "status": "missing",
+                    "source_refs": [],
+                    "source_ids": [],
+                    "evidence_ids": [],
+                    "orientation_summary": "",
+                    "missing_detail": "The first set does not contain the answer.",
+                    "conflict_summary": "",
+                    "deferred_reason": "",
+                    "confidence": 0.8,
+                    "next_action": "research",
+                }
+            ],
+            "coverage_syntheses": [],
+        }
+    )
+    state = _patch_workspace(monkeypatch, workspace)
+    handler = SourceTriageWorkspaceToolHandlers(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(
+            source_cards=[_card(source_1, "First"), _card(source_2, "Second")]
+        ),
+        evidence_toolset=_EvidenceToolset({}, {source_1: "S01", source_2: "S02"}),
+    )
+    args = {
+        "question_id": "q1",
+        "status": "missing",
+        "source_refs": [],
+        "evidence_ids": [],
+        "orientation_summary": "",
+        "missing_detail": "The completed corpus triage does not establish the answer.",
+        "conflict_summary": "",
+        "deferred_reason": "",
+        "confidence": 0.8,
+        "next_action": "source_acquisition",
+    }
+
+    rejected = await handler.upsert_coverage_synthesis_tool(args)
+    covered_rejected = await handler.upsert_coverage_synthesis_tool(
+        {
+            **args,
+            "status": "covered",
+            "orientation_summary": "The corpus already answers the question.",
+            "missing_detail": "",
+        }
+    )
+    state["workspace"]["source_sets"][1]["status"] = "mapped"
+    state["workspace"]["coverage_outcomes"].append(
+        {
+            "outcome_id": "outcome:q1:set_2",
+            "set_id": "set_2",
+            "question_id": "q1",
+            "status": "missing",
+            "source_refs": [],
+            "source_ids": [],
+            "evidence_ids": [],
+            "orientation_summary": "",
+            "missing_detail": "The second set does not contain the answer.",
+            "conflict_summary": "",
+            "deferred_reason": "",
+            "confidence": 0.8,
+            "next_action": "research",
+        }
+    )
+    accepted = await handler.upsert_coverage_synthesis_tool(args)
+    state["workspace"]["coverage_outcomes"][1]["status"] = "covered"
+    inconsistent_missing = await handler.upsert_coverage_synthesis_tool(args)
+
+    assert rejected["accepted"] is False
+    assert rejected["error"] == "source_acquisition_requires_all_assigned_set_outcomes"
+    assert rejected["unfinished_set_ids"] == ["set_2"]
+    assert rejected["missing_outcome_set_ids"] == ["set_2"]
+    assert covered_rejected["accepted"] is False
+    assert covered_rejected["error"] == "covered_synthesis_cannot_request_source_acquisition"
+    assert accepted["accepted"] is True
+    assert inconsistent_missing["accepted"] is False
+    assert inconsistent_missing["error"] == "missing_synthesis_requires_all_set_outcomes_missing"
+
+
+@pytest.mark.asyncio
 async def test_question_synthesis_reconciles_sets_and_rejects_contradictory_status_fields(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -563,10 +1081,16 @@ async def test_question_synthesis_reconciles_sets_and_rejects_contradictory_stat
     contradictory = await handler.upsert_coverage_synthesis_tool(
         {**base_args, "missing_detail": "The same answer is still absent."}
     )
+    unbacked_source = await handler.upsert_coverage_synthesis_tool(
+        {**base_args, "evidence_ids": [evidence_1]}
+    )
     accepted = await handler.upsert_coverage_synthesis_tool(base_args)
 
     assert contradictory["accepted"] is False
     assert "contradict" in contradictory["error"]
+    assert unbacked_source["accepted"] is False
+    assert unbacked_source["error"] == "coverage_synthesis_source_refs_require_selected_evidence"
+    assert unbacked_source["invalid_source_refs"] == ["S02"]
     assert accepted["accepted"] is True
     stored = state["workspace"]["coverage_syntheses"]
     assert len(stored) == 1
@@ -575,6 +1099,82 @@ async def test_question_synthesis_reconciles_sets_and_rejects_contradictory_stat
     assert stored[0]["confidence"] == 0
     assert stored[0]["input_hash"]
     assert stored[0]["input_revision"] == 0
+
+
+@pytest.mark.asyncio
+async def test_question_synthesis_derives_lineage_from_current_per_set_outcomes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_1 = str(uuid.uuid4())
+    source_2 = str(uuid.uuid4())
+    evidence_1 = str(uuid.uuid4())
+    evidence_2 = str(uuid.uuid4())
+    workspace = _workspace(source_refs=["S01", "S02"])
+    second_assessment = {
+        **_assessment_args([evidence_2]),
+        "source_id": source_2,
+        "source_ref": "S02",
+    }
+    workspace.update(
+        {
+            "source_order": ["S01", "S02"],
+            "source_assessments": [
+                {
+                    **_assessment_args([evidence_1]),
+                    "source_id": source_1,
+                    "source_ref": "S01",
+                },
+                second_assessment,
+            ],
+            "coverage_outcomes": [
+                {
+                    **_outcome_args(
+                        status="covered",
+                        source_refs=["S01", "S02"],
+                        evidence_ids=[evidence_1, evidence_2],
+                    ),
+                    "outcome_id": "outcome:q1:set_1",
+                    "source_ids": [source_1, source_2],
+                }
+            ],
+            "coverage_syntheses": [],
+        }
+    )
+    state = _patch_workspace(monkeypatch, workspace)
+    toolset = _EvidenceToolset(
+        {
+            evidence_1: _evidence(evidence_1, source_1),
+            evidence_2: _evidence(evidence_2, source_2),
+        },
+        {source_1: "S01", source_2: "S02"},
+    )
+    handler = SourceTriageWorkspaceToolHandlers(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(source_cards=[_card(source_1, "First"), _card(source_2, "Second")]),
+        evidence_toolset=toolset,
+    )
+
+    result = await handler.upsert_coverage_synthesis_tool(
+        {
+            "question_id": "q1",
+            "status": "covered",
+            "orientation_summary": "Together the accepted outcomes establish the answer.",
+            "missing_detail": "",
+            "conflict_summary": "",
+            "deferred_reason": "",
+            "confidence": 0.9,
+            "next_action": "research",
+        }
+    )
+
+    assert result["accepted"] is True
+    assert result["lineage_derived_from_outcomes"] is True
+    stored = state["workspace"]["coverage_syntheses"][0]
+    assert stored["source_refs"] == ["S01", "S02"]
+    assert stored["evidence_ids"] == [evidence_1, evidence_2]
+    assert stored["outcome_refs"] == ["outcome:q1:set_1"]
 
 
 @pytest.mark.asyncio
@@ -1466,7 +2066,8 @@ def test_read_window_and_relationship_tool_contracts_use_canonical_inputs() -> N
     )
 
     assert "window_ref" in read_tool.parameters["properties"]
-    assert "locator" not in read_tool.parameters["required"]
+    assert "version_ref" not in read_tool.parameters["properties"]
+    assert {"window_ref", "locator"}.issubset(read_tool.parameters["required"])
     assert relationship_tool.parameters["properties"]["relationship"]["enum"] == [
         "primary_to_secondary",
         "duplicate",

@@ -19,6 +19,7 @@ ToolHandler = Callable[[dict[str, Any]], Any]
 
 def source_triage_planner_tools(
     list_source_capsules_handler: ToolHandler,
+    route_sources_for_initial_reading_handler: ToolHandler,
     upsert_coverage_question_handler: ToolHandler,
     upsert_triage_source_set_handler: ToolHandler,
     finalize_triage_workspace_plan_handler: ToolHandler,
@@ -47,6 +48,26 @@ def source_triage_planner_tools(
                 "additionalProperties": False,
             },
             handler=list_source_capsules_handler,
+        ),
+        AgentTool(
+            name="route_sources_for_initial_reading",
+            description=(
+                "Route explicitly inspected sources that still cannot be responsibly attached to a substantive "
+                "coverage question. This is a neutral reading queue, not a topic, quality, or deferral judgment."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "source_refs": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {"type": "string"},
+                    },
+                },
+                "required": ["source_refs"],
+                "additionalProperties": False,
+            },
+            handler=route_sources_for_initial_reading_handler,
         ),
         AgentTool(
             name="upsert_coverage_question",
@@ -114,14 +135,16 @@ def source_triage_planner_tools(
             name="finalize_triage_workspace_plan",
             description=(
                 "Mark the source-set plan complete. Every source_ref must belong to exactly one set, "
-                "and every coverage question must be assigned. Source deferral is decided only after reading."
+                "every substantive coverage question must be assigned to a coverage set, and the central root "
+                "question must be declared. Source deferral is decided only after reading."
             ),
             parameters={
                 "type": "object",
                 "properties": {
                     "summary": {"type": "string", "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["plan_summary"]},
+                    "central_question_id": {"type": "string"},
                 },
-                "required": ["summary"],
+                "required": ["summary", "central_question_id"],
                 "additionalProperties": False,
             },
             handler=finalize_triage_workspace_plan_handler,
@@ -147,7 +170,11 @@ def source_triage_set_tools(
     return [
         AgentTool(
             name="record_triage_observation",
-            description="Persist a compact intermediate finding for the current source set before reading more or crossing a checkpoint boundary.",
+            description=(
+                "Persist a compact intermediate finding before reading more or crossing a checkpoint boundary. "
+                "In a neutral orientation set, keep observations source-specific: queue membership is not evidence "
+                "for a shared finding."
+            ),
             parameters={
                 "type": "object",
                 "properties": {
@@ -193,7 +220,7 @@ def source_triage_finalizer_tools(
             finish_triage_source_set_handler,
             description=(
                 "Use needs_repair for unfinished repair work; deferred is only for a completed evaluation blocked "
-                "by checked partial/unreadable representations."
+                "by checked partial/not_target_content/unreadable representations."
             ),
             terminal=False,
         ),
@@ -216,14 +243,21 @@ def source_assessment_tool(handler: ToolHandler) -> AgentTool:
                     "type": "string",
                     "enum": ["resolved", "needs_repair"],
                     "description": (
-                        "Use resolved when this assessment is complete, even if representation_status is unreadable "
-                        "and disposition is deferred. Use needs_repair only when triage work is unfinished and must "
-                        "be redone."
+                        "Use resolved when this assessment is complete, including not_target_content or unreadable "
+                        "with disposition=deferred. Use needs_repair only when triage work is unfinished and must be "
+                        "redone."
                     ),
                 },
                 "representation_status": {
                     "type": "string",
-                    "enum": ["unchecked", "readable", "partial", "unreadable"],
+                    "enum": ["unchecked", "readable", "partial", "not_target_content", "unreadable"],
+                    "description": (
+                        "readable/partial mean the requested source content itself is present. "
+                        "not_target_content means readable text was obtained, but it is only a service, consent, "
+                        "access, error, or wrong-target page rather than the requested content. unreadable means no "
+                        "inspectable text was obtained. not_target_content requires unknown source-judgment axes, "
+                        "empty judgment reasons/links, and disposition=deferred."
+                    ),
                 },
                 "representation_reason": {
                     "type": "string",
@@ -261,7 +295,8 @@ def source_assessment_tool(handler: ToolHandler) -> AgentTool:
                     "type": "string",
                     "enum": ["anchor", "supporting", "background", "weak", "unusable", "deferred"],
                     "description": (
-                        "deferred=value remains unknown because the checked representation is partial/unreadable; "
+                        "deferred=value remains unknown because the checked representation is partial, "
+                        "not_target_content, or unreadable; "
                         "unusable=completed reading showed usable text cannot support downstream work; "
                         "weak=usable only with an explicit caveat. Unfinished work is processing_status=needs_repair."
                     ),
@@ -276,7 +311,8 @@ def source_assessment_tool(handler: ToolHandler) -> AgentTool:
                     "items": {"type": "string"},
                     "description": (
                         "May include any persisted run question. A newly discovered question is attached to this set "
-                        "and then requires a coverage outcome before the set can finish."
+                        "and then requires a coverage outcome before the set can finish. Must be empty for "
+                        "not_target_content or unreadable because target-source relevance is unknown."
                     ),
                 },
                 "editorial_functions": {
@@ -331,7 +367,8 @@ def coverage_outcome_tool(handler: ToolHandler) -> AgentTool:
         name="upsert_coverage_outcome",
         description=(
             "Persist the outcome for one assigned coverage question: covered, partial, missing, conflicted, "
-            "or explicitly deferred. This is orientation for research, not the final research answer."
+            "or explicitly deferred. This is local orientation from one source set, not the final research answer "
+            "or a run-wide routing decision."
         ),
         parameters={
             "type": "object",
@@ -343,7 +380,8 @@ def coverage_outcome_tool(handler: ToolHandler) -> AgentTool:
                     "enum": ["covered", "partial", "missing", "conflicted", "deferred"],
                     "description": (
                         "partial requires both established orientation and a concrete remainder; missing means checked "
-                        "but unsupported; deferred means checked partial/unreadable representations prevent evaluation."
+                        "but unsupported; deferred means checked partial/not_target_content/unreadable representations "
+                        "prevent evaluation."
                     ),
                 },
                 "source_refs": {"type": "array", "items": {"type": "string"}},
@@ -372,14 +410,6 @@ def coverage_outcome_tool(handler: ToolHandler) -> AgentTool:
                     "maximum": 1,
                     "description": "Confidence that the cited persisted evidence supports this local outcome.",
                 },
-                "next_action": {
-                    "type": "string",
-                    "enum": ["research", "source_acquisition", "omit", "none"],
-                    "description": (
-                        "research=read/compare current corpus; source_acquisition=needed material is absent from it; "
-                        "omit=do not carry forward; none=no further work."
-                    ),
-                },
             },
             "required": [
                 "set_id",
@@ -392,7 +422,6 @@ def coverage_outcome_tool(handler: ToolHandler) -> AgentTool:
                 "conflict_summary",
                 "deferred_reason",
                 "confidence",
-                "next_action",
             ],
             "additionalProperties": False,
         },
@@ -406,7 +435,8 @@ def coverage_synthesis_tool(handler: ToolHandler) -> AgentTool:
         description=(
             "Persist the run-wide synthesis for one coverage question after reconciling all of its per-set "
             "outcomes. This is the authoritative triage handoff to research; do not concatenate mutually "
-            "obsolete missing-detail statements."
+            "obsolete missing-detail statements. The backend derives source_refs and evidence_ids from the "
+            "question's current per-set outcomes, so do not copy lineage identifiers into this call."
         ),
         parameters={
             "type": "object",
@@ -417,11 +447,10 @@ def coverage_synthesis_tool(handler: ToolHandler) -> AgentTool:
                     "enum": ["covered", "partial", "missing", "conflicted", "deferred"],
                     "description": (
                         "partial requires both established orientation and a concrete remainder; missing means checked "
-                        "but unsupported; deferred means checked partial/unreadable representations prevent evaluation."
+                        "but unsupported; deferred means checked partial/not_target_content/unreadable representations "
+                        "prevent evaluation."
                     ),
                 },
-                "source_refs": {"type": "array", "items": {"type": "string"}},
-                "evidence_ids": {"type": "array", "items": {"type": "string"}},
                 "orientation_summary": {
                     "type": "string",
                     "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["coverage_synthesis_summary"],
@@ -458,8 +487,6 @@ def coverage_synthesis_tool(handler: ToolHandler) -> AgentTool:
             "required": [
                 "question_id",
                 "status",
-                "source_refs",
-                "evidence_ids",
                 "orientation_summary",
                 "missing_detail",
                 "conflict_summary",

@@ -47,8 +47,10 @@ async def build_source_triage_planner_agent(
     source_catalog: dict,
     workspace_tools: list[AgentTool] | None = None,
 ) -> SourceTriageCompletion:
+    output_language = _output_language(run, workspace_summary)
     prompt = SOURCE_TRIAGE_PLANNER_PROMPT.format(
         user_prompt=(run.config or {}).get("user_prompt", ""),
+        output_language=_json(output_language),
         workspace_json=_json(workspace_summary),
         source_catalog_json=_json(source_catalog),
     )
@@ -68,7 +70,7 @@ async def build_source_triage_planner_agent(
             max_output_tokens=semantic_agent_output_limit(),
             max_tool_rounds=settings.generation_v2_triage_max_tool_rounds,
             checkpoint_resume_context=build_checkpoint_resume_context(
-                run_config=run.config or {},
+                run_config=_run_config_with_language(run, output_language),
                 workflow_contract=TRIAGE_PLANNER_RESUME_CONTRACT,
             ),
         )
@@ -90,9 +92,12 @@ async def build_source_triage_set_agent(
     set_tools: list[AgentTool] | None = None,
     vector_store_id: str | None = None,
     hosted_file_search_handler=None,
+    output_language: str | None = None,
 ) -> SourceTriageCompletion:
+    resolved_output_language = _output_language(run, explicit=output_language)
     prompt = SOURCE_TRIAGE_SET_PROMPT.format(
         user_prompt=(run.config or {}).get("user_prompt", ""),
+        output_language=_json(resolved_output_language),
         source_set_json=_json(source_set_payload),
     )
     set_id = ((source_set_payload or {}).get("set") or {}).get("set_id") or "unknown"
@@ -108,12 +113,17 @@ async def build_source_triage_set_agent(
             prompt=prompt,
             vector_store_id=vector_store_id,
             local_tools=phase_tools(set_tools, TRIAGE_SET_TOOL_NAMES),
-            tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
+            tool_policy=ToolPolicy(
+                file_search=False,
+                web_search=False,
+                local_tools=True,
+                parallel_local_tool_calls=True,
+            ),
             hosted_file_search_handler=hosted_file_search_handler,
             max_output_tokens=semantic_agent_output_limit(),
             max_tool_rounds=settings.generation_v2_triage_max_tool_rounds,
             checkpoint_resume_context=build_checkpoint_resume_context(
-                run_config=run.config or {},
+                run_config=_run_config_with_language(run, resolved_output_language),
                 workflow_contract=TRIAGE_SET_RESUME_CONTRACT,
             ),
         )
@@ -136,6 +146,7 @@ async def build_source_triage_finalizer_agent(
     source_inventory: SourceMap | None = None,
     finalizer_tools: list[AgentTool] | None = None,
 ) -> SourceTriageCompletion:
+    output_language = _output_language(run, workspace_summary)
     compact_source_map = source_map_research_summary(
         source_map,
         source_inventory or source_map,
@@ -167,6 +178,7 @@ async def build_source_triage_finalizer_agent(
         payload["evidence_id_omitted_count"] = 0
     prompt = SOURCE_TRIAGE_FINALIZER_PROMPT.format(
         user_prompt=(run.config or {}).get("user_prompt", ""),
+        output_language=_json(output_language),
         workspace_json=_json(workspace_summary),
         source_map_json=_json(compact_source_map),
     )
@@ -186,7 +198,7 @@ async def build_source_triage_finalizer_agent(
             max_output_tokens=semantic_agent_output_limit(),
             max_tool_rounds=settings.generation_v2_triage_max_tool_rounds,
             checkpoint_resume_context=build_checkpoint_resume_context(
-                run_config=run.config or {},
+                run_config=_run_config_with_language(run, output_language),
                 workflow_contract=TRIAGE_FINALIZER_RESUME_CONTRACT,
             ),
         )
@@ -208,6 +220,20 @@ def _json(value: object) -> str:
     if hasattr(value, "model_dump"):
         return json.dumps(value.model_dump(mode="json"), ensure_ascii=False)
     return json.dumps(value, ensure_ascii=False)
+
+
+def _output_language(
+    run: GenerationRun,
+    durable_context: dict | None = None,
+    *,
+    explicit: str | None = None,
+) -> str:
+    durable_language = str(((durable_context or {}).get("intent") or {}).get("language") or "").strip()
+    return str(explicit or durable_language or (run.config or {}).get("language") or "en").strip() or "en"
+
+
+def _run_config_with_language(run: GenerationRun, language: str) -> dict:
+    return {**(run.config or {}), "language": language}
 
 __all__ = [
     "build_source_acquisition_agent",

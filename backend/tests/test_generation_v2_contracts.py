@@ -97,6 +97,7 @@ from app.generation_v2.runtime_checkpoint_context import (
     TRIAGE_SET_RESUME_CONTRACT,
     build_checkpoint_resume_context,
 )
+from app.generation_v2.source_triage_workspace_tool_specs import coverage_synthesis_tool
 from app.generation_v2.research_kinds import ATOM_KIND_GUIDANCE, ATOM_KIND_PROMPT_BLOCK
 from app.generation_v2.research_workspace import (
     build_research_workspace_tools,
@@ -167,6 +168,7 @@ from app.generation_v2.source_corpus import (
     reconcile_provider_corpus_files,
 )
 from app.generation_v2.source_corpus_url_read import call_openai_url_file_read, call_openai_url_recovery
+from app.generation_v2.source_content_readiness import CONTENT_ASSESSMENT_SCHEMA_VERSION
 from app.generation_v2.source_corpus_provider_attribute_sync import sync_provider_file_attributes
 from app.generation_v2.source_corpus_provider_polling import poll_provider_file_until_terminal
 from app.generation_v2.source_corpus_vector_ops import ensure_vector_store_file_attached
@@ -216,13 +218,21 @@ def test_generation_create_defaults_to_v1_full_mode() -> None:
 def test_v2_native_ready_status_survives_deterministic_parser_failure() -> None:
     from app.workers.ingestion_tasks import _v2_native_source_ready
 
-    assert _v2_native_source_ready({"v2_native_ingest": {"status": "provider_ready"}}) is True
-    assert _v2_native_source_ready({"v2_native_ingest": {"ready_provider_file_count": "2"}}) is True
-    assert _v2_native_source_ready({"v2_native_ingest": {"openai_url_read_status": "readable"}}) is True
-    assert _v2_native_source_ready({"v2_native_ingest": {"status": "source_versions_ready"}}) is False
-    assert (
-        _v2_native_source_ready({"v2_native_ingest": {"status": "failed", "ready_provider_file_count": "2"}}) is False
-    )
+    confirmed = {
+        "status": "provider_ready",
+        "native_content_ready": True,
+        "canonical_source_version_id": "version-1",
+        "ready_provider_file_count": 1,
+    }
+
+    assert _v2_native_source_ready({"v2_native_ingest": confirmed}) is True
+    assert _v2_native_source_ready({"v2_native_ingest": {**confirmed, "status": "source_versions_ready"}}) is False
+    assert _v2_native_source_ready({"v2_native_ingest": {**confirmed, "native_content_ready": False}}) is False
+    assert _v2_native_source_ready({"v2_native_ingest": {**confirmed, "canonical_source_version_id": ""}}) is False
+    assert _v2_native_source_ready({"v2_native_ingest": {**confirmed, "ready_provider_file_count": 0}}) is False
+    assert _v2_native_source_ready({"v2_native_ingest": {"status": "provider_ready"}}) is False
+    assert _v2_native_source_ready({"v2_native_ingest": {"ready_provider_file_count": "2"}}) is False
+    assert _v2_native_source_ready({"v2_native_ingest": {"openai_url_read_status": "readable"}}) is False
 
 
 def test_authority_heuristic_treats_academic_pdf_as_secondary_not_primary() -> None:
@@ -365,11 +375,17 @@ def test_hosted_file_search_followup_exposes_observed_evidence_ids() -> None:
 
 def test_hosted_file_search_tool_filters_to_agent_facing_files() -> None:
     runtime = V2Runtime()
+    source_version_id = str(uuid.uuid4())
 
     tools = runtime._tool_specs(
         vector_store_id="vs_123",
         local_tools=[],
-        policy=ToolPolicy(file_search=True, web_search=False, local_tools=False),
+        policy=ToolPolicy(
+            file_search=True,
+            web_search=False,
+            local_tools=False,
+            file_search_source_version_ids=(source_version_id,),
+        ),
     )
 
     file_search_tool = tools[0]
@@ -380,6 +396,8 @@ def test_hosted_file_search_tool_filters_to_agent_facing_files() -> None:
             {"type": "eq", "key": "is_active", "value": True},
             {"type": "eq", "key": "agent_facing", "value": True},
             {"type": "eq", "key": "canonical_retrieval_surface", "value": True},
+            {"type": "eq", "key": "content_confirmed", "value": True},
+            {"type": "in", "key": "source_version_id", "value": [source_version_id]},
         ],
     }
 
@@ -1419,7 +1437,12 @@ def test_writer_tool_policy_excludes_web_search() -> None:
                 handler=None,  # type: ignore[arg-type]
             )
         ],
-        policy=ToolPolicy(file_search=True, web_search=False, local_tools=True),
+        policy=ToolPolicy(
+            file_search=True,
+            web_search=False,
+            local_tools=True,
+            file_search_source_version_ids=(str(uuid.uuid4()),),
+        ),
     )
 
     assert "web_search" not in [tool.get("type") for tool in tools]
@@ -1451,19 +1474,38 @@ def test_evidence_tool_descriptions_define_usage_and_citation_contracts() -> Non
     assert "persist" in descriptions["search_corpus"].lower()
     assert "discovery preview" in descriptions["search_corpus"]
     assert "source-map" not in descriptions["search_corpus"]
+    assert tools_by_name["search_corpus"].parameters["properties"]["purpose"]["maxLength"] == 120
     assert "source_ref/title" in descriptions["read_evidence"]
     assert "does not read the whole source" in descriptions["read_source_window"]
     assert "persist that window as an EvidenceItem" in descriptions["read_source_window"]
     assert "If skim_source is available and the source is unfamiliar, skim first" in descriptions["read_source_window"]
     assert "Use the returned evidence_id in durable write actions" in descriptions["read_source_window"]
+    read_window_schema = _strict_json_schema(tools_by_name["read_source_window"].parameters)
+    assert "version_ref" not in read_window_schema["properties"]
+    assert read_window_schema["properties"]["window_ref"]["type"] == "string"
+    assert read_window_schema["properties"]["locator"]["type"] == "string"
+    assert set(read_window_schema["required"]) == {
+        "source_ref",
+        "window_ref",
+        "locator",
+        "max_chars",
+    }
     assert "input_file" in descriptions["read_source_with_model"]
-    assert "version_ref is optional" in descriptions["read_source_with_model"]
+    assert "pinned to this run" in descriptions["read_source_with_model"]
     assert "coverage_warning" in descriptions["read_source_with_model"]
     assert "Page numbers are useful when reported, but not required" in descriptions["read_source_with_model"]
+    assert (
+        tools_by_name["read_source_with_model"].parameters["properties"]["purpose"]["maxLength"]
+        == 120
+    )
     assert "Default first-read tool" in descriptions["skim_source"]
     assert "without creating or selecting EvidenceItems" in descriptions["skim_source"]
     assert "opaque window_ref" in descriptions["skim_source"]
-    assert "version_ref is optional" in descriptions["skim_source"]
+    assert "pinned run corpus" in descriptions["skim_source"]
+    for tool_name in ("inspect_source", "read_source_with_model", "search_within_source", "skim_source"):
+        provider_schema = _strict_json_schema(tools_by_name[tool_name].parameters)
+        assert "version_ref" not in provider_schema["properties"]
+        assert "version_ref" not in provider_schema["required"]
     assert "not a generic source search tool" in descriptions["find_quotes"]
     assert "research atom" in descriptions["find_quotes"]
     assert "corpus/source triage only" in descriptions["search_sources"]
@@ -1868,7 +1910,7 @@ def test_agent_system_prompts_are_role_specific_and_product_aware() -> None:
         assert "long-form podcast production system" in system, name
         assert "source_ref values" in system, name
         if name != "treatment":
-            assert "version_ref is optional" in system, name
+            assert "corpus revision pinned to this run" in system, name
         assert "Generation V2" not in system, name
         assert "Podgen Generation" not in system, name
 
@@ -4323,7 +4365,11 @@ async def test_source_triage_gate_requires_selected_evidence_on_each_source_card
 async def test_source_triage_workflow_agents_have_stage_specific_tools() -> None:
     _CaptureRuntime.calls = {}
     _CaptureRuntime.kwargs_by_agent = {}
-    run = SimpleNamespace(id=uuid.uuid4(), project_id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    run = SimpleNamespace(
+        id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        config={"user_prompt": "Topic", "language": "en"},
+    )
     completion = SourceTriageCompletion(ready=True, summary="ok", notes=[])
     workspace_tools = _workspace_triage_tools()
     all_tools = [*_all_evidence_tools(), *workspace_tools]
@@ -4336,7 +4382,7 @@ async def test_source_triage_workflow_agents_have_stage_specific_tools() -> None
         None,  # type: ignore[arg-type]
         run,
         _CaptureRuntime(completion),
-        workspace_summary={"status": "orientation", "source_count": 3},
+        workspace_summary={"status": "orientation", "source_count": 3, "intent": {"language": "ru"}},
         source_catalog={"complete_source_list": True, "source_count": 3, "sources": []},
         workspace_tools=all_tools,
     )
@@ -4346,12 +4392,13 @@ async def test_source_triage_workflow_agents_have_stage_specific_tools() -> None
         _CaptureRuntime(completion),
         source_set_payload={"set": {"set_id": "set_1", "source_refs": ["S01", "S02"]}, "capsules": []},
         set_tools=all_tools,
+        output_language="ru",
     )
     await build_source_triage_finalizer_agent(
         None,  # type: ignore[arg-type]
         run,
         _CaptureRuntime(completion),
-        workspace_summary={"status": "mapped"},
+        workspace_summary={"status": "mapped", "intent": {"language": "ru"}},
         source_map=SourceMap(source_cards=[source_map_card]),
         source_inventory=source_inventory,
         finalizer_tools=all_tools,
@@ -4359,6 +4406,7 @@ async def test_source_triage_workflow_agents_have_stage_specific_tools() -> None
 
     assert set(_CaptureRuntime.calls["source_triage_planner_agent"]) == {
         "list_source_capsules",
+        "route_sources_for_initial_reading",
         "list_triage_source_sets",
         "upsert_coverage_question",
         "upsert_triage_source_set",
@@ -4387,6 +4435,14 @@ async def test_source_triage_workflow_agents_have_stage_specific_tools() -> None
     }
     assert "list_sources" not in _CaptureRuntime.calls[set_agent_name]
     assert "select_evidence" not in _CaptureRuntime.calls[set_agent_name]
+    set_agent_kwargs = _CaptureRuntime.kwargs_by_agent[set_agent_name]
+    assert 'Output language: "ru"' in set_agent_kwargs["prompt"]
+    assert "summaries, reasons, notes, pending questions" in set_agent_kwargs["prompt"]
+    assert set_agent_kwargs["tool_policy"].parallel_local_tool_calls is True
+    outcome_tool = next(
+        tool for tool in set_agent_kwargs["local_tools"] if tool.name == "upsert_coverage_outcome"
+    )
+    assert "next_action" not in outcome_tool.parameters["properties"]
     assert set(_CaptureRuntime.calls["source_triage_finalizer_agent"]) == {
         "list_triage_source_sets",
         "read_evidence",
@@ -4403,9 +4459,39 @@ async def test_source_triage_workflow_agents_have_stage_specific_tools() -> None
         "finish_triage_source_set",
     }
     finalizer_prompt = _CaptureRuntime.kwargs_by_agent["source_triage_finalizer_agent"]["prompt"]
+    planner_prompt = _CaptureRuntime.kwargs_by_agent["source_triage_planner_agent"]["prompt"]
+    assert 'Output language: "ru"' in planner_prompt
+    assert 'Output language: "ru"' in finalizer_prompt
     assert "Mapped source" in finalizer_prompt
     assert '"source_ref": "S02"' in finalizer_prompt
     assert "triage-finalizer-ev" not in finalizer_prompt
+
+
+def test_source_triage_prompts_keep_causal_claims_inside_the_saved_evidence_boundary() -> None:
+    assert "Do not infer causation from chronology" in SOURCE_TRIAGE_SYSTEM
+    assert "connecting mechanism" in SOURCE_TRIAGE_SYSTEM
+    assert "one actor's action succeeded" in SOURCE_TRIAGE_SYSTEM
+    assert "never use covered unless the causal link satisfies" in SOURCE_TRIAGE_SET_PROMPT
+    assert "unsupported link or mechanism in missing_detail" in SOURCE_TRIAGE_SET_PROMPT
+    assert "Call finish_triage_source_set alone" in SOURCE_TRIAGE_SET_PROMPT
+    assert "Never state an unsupported cause" in SOURCE_TRIAGE_SET_PROMPT
+    assert "Do not scale an actor-level explanation into a system-level cause" in SOURCE_TRIAGE_SET_PROMPT
+
+
+def test_triage_finalizer_synthesis_tool_derives_lineage_in_backend() -> None:
+    async def handler(_args):
+        return {"accepted": True}
+
+    tool = coverage_synthesis_tool(handler)
+    properties = tool.parameters["properties"]
+
+    assert "source_refs" not in properties
+    assert "evidence_ids" not in properties
+    assert "source_refs" not in tool.parameters["required"]
+    assert "evidence_ids" not in tool.parameters["required"]
+    assert "backend derives" in tool.description.lower()
+    assert 'section="coverage_question_packets"' in SOURCE_TRIAGE_FINALIZER_PROMPT
+    assert "Never copy lineage identifiers" in SOURCE_TRIAGE_FINALIZER_PROMPT
 
 
 @pytest.mark.asyncio
@@ -7887,7 +7973,17 @@ def _source_version(
         kind=kind,
         storage_path=storage_path,
         content_hash=f"hash-{kind}",
-        metadata_={"source_type": str(source.source_type)},
+        metadata_={
+            "source_type": str(source.source_type),
+            "content_assessment": {
+                "schema_version": CONTENT_ASSESSMENT_SCHEMA_VERSION,
+                "state": "confirmed",
+                "reasons": [],
+                "surface": str(kind),
+                "char_count": 1000,
+                "non_whitespace_chars": 800,
+            },
+        },
         status=V2RecordStatus.READY,
         upload_status=V2RecordStatus.READY,
         is_active=True,
@@ -8069,6 +8165,10 @@ async def test_run_corpus_views_are_immutable_and_versioned_by_manifest(monkeypa
         return None
 
     monkeypatch.setattr(source_corpus_module, "save_tool_trace", noop_save_tool_trace)
+    monkeypatch.setattr(
+        "app.generation_v2.source_corpus_content_preflight._stored_object_exists",
+        lambda *_args: True,
+    )
     monkeypatch.setattr(settings, "generation_v2_enable_provider_uploads", False)
 
     project_id = uuid.uuid4()
@@ -8109,6 +8209,10 @@ async def test_legacy_v2_history_without_corpus_view_resumes_in_fresh_attempt(
         return None
 
     monkeypatch.setattr(source_corpus_module, "save_tool_trace", noop_save_tool_trace)
+    monkeypatch.setattr(
+        "app.generation_v2.source_corpus_content_preflight._stored_object_exists",
+        lambda *_args: True,
+    )
     monkeypatch.setattr(settings, "generation_v2_enable_provider_uploads", False)
 
     project_id = uuid.uuid4()
@@ -8973,6 +9077,7 @@ def _workspace_triage_tools() -> list[AgentTool]:
         )
         for name in (
             "list_source_capsules",
+            "route_sources_for_initial_reading",
             "list_triage_source_sets",
             "upsert_coverage_question",
             "upsert_triage_source_set",

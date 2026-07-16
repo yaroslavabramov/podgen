@@ -17,13 +17,14 @@ from app.models.generation_v2 import (
     EvidenceStrength,
     SourceVersion,
 )
-from app.generation_v2.tools.evidence_types import EVIDENCE_STATUS_CITED, EVIDENCE_STATUS_OBSERVED
+from app.generation_v2.tools.evidence_types import (
+    EVIDENCE_PURPOSE_MAX_CHARS,
+    EVIDENCE_STATUS_CITED,
+    EVIDENCE_STATUS_OBSERVED,
+)
 from app.generation_v2.tools.evidence_store_payloads import compact_model_read_result, evidence_payload
 from app.generation_v2.tools.evidence_utils import _dedupe, _uuid_or_none
 from app.generation_v2.tools.evidence_window_refs import WindowRefError, parse_window_ref
-
-
-_EVIDENCE_PURPOSE_MAX_CHARS = 120
 
 
 async def mark_cited_evidence(db: AsyncSession, *, generation_run_id: uuid.UUID, evidence_ids: list[str]) -> None:
@@ -85,10 +86,10 @@ async def persist_evidence_item(
     )
     metadata = {"usage_status": EVIDENCE_STATUS_OBSERVED, **retrieval_metadata}
     stored_purpose = str(purpose) if purpose is not None else None
-    if stored_purpose is not None and len(stored_purpose) > _EVIDENCE_PURPOSE_MAX_CHARS:
+    if stored_purpose is not None and len(stored_purpose) > EVIDENCE_PURPOSE_MAX_CHARS:
         raise ValueError(
             "semantic_field_too_long: field=evidence.purpose "
-            f"max_length={_EVIDENCE_PURPOSE_MAX_CHARS} actual_length={len(stored_purpose)}"
+            f"max_length={EVIDENCE_PURPOSE_MAX_CHARS} actual_length={len(stored_purpose)}"
         )
     if "representation_kind" not in metadata:
         source_version = await db.get(SourceVersion, source_version_id)

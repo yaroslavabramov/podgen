@@ -4,6 +4,7 @@ from typing import Any
 
 from app.generation_v2.runtime import AgentTool
 from app.generation_v2.tools.evidence_tool_source_read_specs import evidence_source_read_tools
+from app.generation_v2.tools.evidence_types import EVIDENCE_PURPOSE_MAX_CHARS
 
 
 def evidence_read_tools(owner: Any) -> list[AgentTool]:
@@ -39,7 +40,7 @@ def evidence_read_tools(owner: Any) -> list[AgentTool]:
                 "type": "object",
                 "properties": {
                     "query": {"type": "string", "minLength": 3},
-                    "purpose": {"type": "string"},
+                    "purpose": {"type": "string", "maxLength": EVIDENCE_PURPOSE_MAX_CHARS},
                     "scope": {"type": "string", "enum": ["all_sources", "selected_sources"]},
                     "source_refs": {"type": "array", "items": {"type": "string"}},
                     "limit": {"type": "integer", "minimum": 1, "maximum": 8},

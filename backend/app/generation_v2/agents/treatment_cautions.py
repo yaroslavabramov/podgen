@@ -115,7 +115,11 @@ def treatment_source_cautions(
                 source_refs=[source_ref],
                 note=str(limitation),
             )
-        if assessment.representation_status in {"partial", "unreadable"} and assessment.representation_reason:
+        if assessment.representation_status in {
+            "partial",
+            "unreadable",
+            "not_target_content",
+        } and assessment.representation_reason:
             add_source_caution(
                 cautions,
                 seen,

@@ -7,6 +7,8 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.generation_v2.artifacts import save_tool_trace
+from app.generation_v2.source_content_readiness import source_version_model_eligible
+from app.generation_v2.source_corpus_provider_attributes import provider_file_search_ready
 from app.generation_v2.tools.evidence_store import persist_evidence_item
 from app.generation_v2.tools.evidence_utils import _normalize, _provider_filters, _provider_snippet, _uuid_or_none
 from app.models.generation_v2 import (
@@ -15,6 +17,7 @@ from app.models.generation_v2 import (
     EvidenceRetrievalChannel,
     EvidenceStrength,
     ProviderCorpusFile,
+    SourceVersion,
     V2RecordStatus,
 )
 
@@ -104,7 +107,10 @@ class EvidenceProviderSearchMixin:
             )
         )
         provider_file = file_result.scalar_one_or_none()
-        if provider_file is None:
+        if provider_file is None or not provider_file_search_ready(provider_file):
+            return None
+        version = await self.db.get(SourceVersion, source_version_id)
+        if version is None or not source_version_model_eligible(version):
             return None
         return await persist_evidence_item(
             self.db,

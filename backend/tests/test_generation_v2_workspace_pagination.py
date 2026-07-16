@@ -18,7 +18,10 @@ from app.generation_v2.research_source_map_prompting import (
     source_map_research_summary,
     source_map_summary_for_job,
 )
-from app.generation_v2.runtime_tool_output import model_facing_tool_output
+from app.generation_v2.runtime_tool_output import (
+    MODEL_TOOL_OUTPUT_MAX_CHARS,
+    model_facing_tool_output,
+)
 from app.generation_v2.schemas import (
     SourceAssessment,
     SourceCard,
@@ -337,6 +340,461 @@ async def test_triage_handler_pages_ten_whole_records_without_gaps(
     assert [item["rationale"] for item in returned] == [item["rationale"] for item in questions]
     for page in pages:
         model_facing_tool_output("list_triage_source_sets", page)
+
+
+@pytest.mark.asyncio
+async def test_triage_handler_pages_33_assessments_with_a_real_requested_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import source_triage_workspace as workspace_api
+
+    assessments = [
+        {
+            "set_id": "set-main",
+            "source_ref": f"S{index + 1:02d}",
+            "processing_status": "resolved",
+            "representation_status": "usable",
+            "representation_reason": f"Source {index + 1} contains readable primary text.",
+            "relevance": "high",
+            "relevance_reason": f"Source {index + 1} directly addresses the coverage question.",
+            "authority": "primary",
+            "authority_reason": "Published by the institution responsible for the policy.",
+            "uniqueness": "distinct",
+            "uniqueness_reason": f"Source {index + 1} contributes a distinct dated record.",
+            "disposition": "keep",
+            "disposition_reason": "Keep for final synthesis.",
+            "coverage_question_ids": ["q-main"],
+            "editorial_functions": ["causal_evidence"],
+            "evidence_ids": [f"evidence-{index + 1}"],
+            "limitations": [],
+            "confidence": "high",
+        }
+        for index in range(33)
+    ]
+    workspace = {"source_assessments": assessments}
+
+    async def load(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(workspace_api, "load_source_triage_workspace", load)
+    tools = build_triage_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(),
+        mode="finalizer",
+    )
+    page_tool = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+
+    limit_schema = page_tool.parameters["properties"]["limit"]
+    assert limit_schema["default"] == 20
+    assert limit_schema["maximum"] == 25
+
+    pages = []
+    cursor = "0"
+    while True:
+        page = await page_tool.handler(
+            {"section": "source_assessments", "cursor": cursor, "limit": 25}
+        )
+        model_facing_tool_output("list_triage_source_sets", page)
+        pages.append(page)
+        cursor = page["page"]["next_cursor"]
+        if not cursor:
+            break
+
+    assert pages[0]["page"]["returned_count"] > 3
+    returned = [item for page in pages for item in page["items"]]
+    assert [item["source_ref"] for item in returned] == [
+        item["source_ref"] for item in assessments
+    ]
+    assert [item["relevance_reason"] for item in returned] == [
+        item["relevance_reason"] for item in assessments
+    ]
+
+
+@pytest.mark.asyncio
+async def test_triage_finalizer_pages_complete_question_packets_with_derived_lineage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import source_triage_workspace as workspace_api
+
+    source_1 = str(uuid.uuid4())
+    source_2 = str(uuid.uuid4())
+    workspace = {
+        "triage_semantic_revision": 1,
+        "coverage_questions": [
+            {
+                "question_id": "q-main",
+                "question": "Why did the system persist?",
+                "kind": "cause",
+                "importance": "critical",
+                "rationale": "This is the user's central question.",
+            }
+        ],
+        "source_assessments": [
+            {"source_id": source_1, "source_ref": "S01"},
+            {"source_id": source_2, "source_ref": "S02"},
+        ],
+        "coverage_outcomes": [
+            {
+                "outcome_id": "outcome:q-main:set-1",
+                "question_id": "q-main",
+                "set_id": "set-1",
+                "status": "partial",
+                "source_refs": ["S01"],
+                "evidence_ids": ["evidence-1"],
+                "orientation_summary": "The first source establishes the initial mechanism.",
+                "missing_detail": "Persistence is not yet explained.",
+                "conflict_summary": "",
+                "deferred_reason": "",
+                "confidence": 0.8,
+            },
+            {
+                "outcome_id": "outcome:q-main:set-2",
+                "question_id": "q-main",
+                "set_id": "set-2",
+                "status": "covered",
+                "source_ids": [source_2],
+                "evidence_ids": ["evidence-2"],
+                "orientation_summary": "The second source explains persistence.",
+                "missing_detail": "",
+                "conflict_summary": "",
+                "deferred_reason": "",
+                "confidence": 0.9,
+            },
+        ],
+        "coverage_syntheses": [],
+    }
+
+    async def load(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(workspace_api, "load_source_triage_workspace", load)
+    tools = build_triage_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(
+            source_cards=[
+                SourceCard(source_id=source_1, title="First", source_type="web", summary="First."),
+                SourceCard(source_id=source_2, title="Second", source_type="web", summary="Second."),
+            ]
+        ),
+        mode="finalizer",
+    )
+    page_tool = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+
+    page = await page_tool.handler(
+        {"section": "coverage_question_packets", "cursor": "0", "limit": 20}
+    )
+
+    assert page["accepted"] is True
+    assert page["packet_contract"] == "ordered_parts_v1"
+    assert page["page"]["returned_count"] == 4
+    question_part = page["items"][0]
+    assert question_part["part_kind"] == "question"
+    assert question_part["question"]["question_id"] == "q-main"
+    assert question_part["derived_lineage"]["for_covered_partial_or_conflicted"] == {
+        "outcome_count": 2,
+        "source_count": 2,
+        "evidence_count": 2,
+    }
+    synthesis_part = page["items"][1]
+    assert synthesis_part["part_kind"] == "existing_synthesis"
+    assert synthesis_part["existing_synthesis"] is None
+    outcome_parts = [item for item in page["items"] if item["part_kind"] == "per_set_outcome"]
+    assert [item["per_set_outcome"]["set_id"] for item in outcome_parts] == ["set-1", "set-2"]
+    assert [item["per_set_outcome"]["evidence_ids"] for item in outcome_parts] == [
+        ["evidence-1"],
+        ["evidence-2"],
+    ]
+    assert "coverage_question_packets" in page_tool.parameters["properties"]["section"]["enum"]
+
+
+@pytest.mark.asyncio
+async def test_large_question_packet_continues_without_cutting_semantic_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import source_triage_workspace as workspace_api
+
+    outcome_summary = "O" * 1600
+    outcome_missing = "M" * 1200
+    synthesis_summary = "S" * 2400
+    synthesis_missing = "G" * 1600
+    outcomes = [
+        {
+            "outcome_id": f"outcome:q-main:set-{index}",
+            "question_id": "q-main",
+            "set_id": f"set-{index}",
+            "status": "partial",
+            "source_refs": [f"S{index:02d}"],
+            "evidence_ids": [f"evidence-{index}"],
+            "orientation_summary": outcome_summary,
+            "missing_detail": outcome_missing,
+            "conflict_summary": "",
+            "deferred_reason": "",
+            "confidence": 0.8,
+        }
+        for index in range(5)
+    ]
+    workspace = {
+        "triage_semantic_revision": 1,
+        "coverage_questions": [
+            {
+                "question_id": "q-main",
+                "question": "Q" * 280,
+                "kind": "cause",
+                "importance": "critical",
+                "rationale": "R" * 800,
+            }
+        ],
+        "source_assessments": [],
+        "source_sets": [],
+        "coverage_outcomes": outcomes,
+        "coverage_syntheses": [
+            {
+                "outcome_id": "synthesis:q-main",
+                "question_id": "q-main",
+                "status": "partial",
+                "source_refs": [f"S{index:02d}" for index in range(5)],
+                "evidence_ids": [f"evidence-{index}" for index in range(5)],
+                "orientation_summary": synthesis_summary,
+                "missing_detail": synthesis_missing,
+                "conflict_summary": "",
+                "deferred_reason": "",
+                "confidence": 0.8,
+                "next_action": "research",
+                "input_revision": 1,
+            }
+        ],
+    }
+    workspace["coverage_syntheses"][0]["input_hash"] = coverage_synthesis_input_hash(
+        workspace,
+        "q-main",
+    )
+
+    async def load(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(workspace_api, "load_source_triage_workspace", load)
+    tools = build_triage_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(),
+        mode="finalizer",
+    )
+    page_tool = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+
+    pages = []
+    cursor = "0"
+    while True:
+        page = await page_tool.handler(
+            {"section": "coverage_question_packets", "cursor": cursor, "limit": 20}
+        )
+        assert page["accepted"] is True
+        assert len(json.dumps(page, ensure_ascii=False, default=str)) <= MODEL_TOOL_OUTPUT_MAX_CHARS
+        pages.append(page)
+        cursor = page["page"]["next_cursor"]
+        if not cursor:
+            break
+
+    assert len(pages) > 1
+    parts = [item for page in pages for item in page["items"]]
+    assert parts[0]["part_kind"] == "question"
+    assert parts[0]["question"]["question"] == "Q" * 280
+    synthesis_parts = [item for item in parts if item["part_kind"] == "existing_synthesis"]
+    assert synthesis_parts[0]["existing_synthesis"]["orientation_summary"] == synthesis_summary
+    assert synthesis_parts[0]["existing_synthesis"]["missing_detail"] == synthesis_missing
+    outcome_parts = [item for item in parts if item["part_kind"] == "per_set_outcome"]
+    assert len(outcome_parts) == 5
+    assert all(item["per_set_outcome"]["orientation_summary"] == outcome_summary for item in outcome_parts)
+    assert all(item["per_set_outcome"]["missing_detail"] == outcome_missing for item in outcome_parts)
+    assert parts[0]["derived_lineage"]["for_covered_partial_or_conflicted"] == {
+        "outcome_count": 5,
+        "source_count": 5,
+        "evidence_count": 5,
+    }
+
+
+@pytest.mark.asyncio
+async def test_question_packet_large_lineage_parts_use_the_real_page_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import source_triage_workspace as workspace_api
+
+    source_refs = [f"S{index:03d}" for index in range(100)]
+    evidence_ids = [f"evidence-{index:04d}-{'x' * 24}" for index in range(700)]
+    workspace = {
+        "triage_semantic_revision": 1,
+        "coverage_questions": [
+            {
+                "question_id": "q-main",
+                "question": "Q" * 280,
+                "kind": "cause",
+                "importance": "critical",
+                "rationale": "R" * 800,
+            }
+        ],
+        "source_assessments": [],
+        "source_sets": [],
+        "coverage_outcomes": [
+            {
+                "outcome_id": "outcome:q-main:set-main",
+                "question_id": "q-main",
+                "set_id": "set-main",
+                "status": "partial",
+                "source_refs": source_refs,
+                "evidence_ids": evidence_ids,
+                "orientation_summary": "O" * 1600,
+                "missing_detail": "M" * 1200,
+                "conflict_summary": "",
+                "deferred_reason": "",
+                "confidence": 0.8,
+            }
+        ],
+        "coverage_syntheses": [],
+    }
+
+    async def load(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(workspace_api, "load_source_triage_workspace", load)
+    tools = build_triage_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(),
+        mode="finalizer",
+    )
+    page_tool = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+
+    cursor_three = await page_tool.handler(
+        {"section": "coverage_question_packets", "cursor": "3", "limit": 20}
+    )
+    assert cursor_three["accepted"] is True
+    assert len(json.dumps(cursor_three, ensure_ascii=False, default=str)) <= MODEL_TOOL_OUTPUT_MAX_CHARS
+
+    pages = []
+    cursor = "0"
+    while True:
+        page = await page_tool.handler(
+            {"section": "coverage_question_packets", "cursor": cursor, "limit": 20}
+        )
+        assert page["accepted"] is True
+        assert len(json.dumps(page, ensure_ascii=False, default=str)) <= MODEL_TOOL_OUTPUT_MAX_CHARS
+        pages.append(page)
+        cursor = page["page"]["next_cursor"]
+        if not cursor:
+            break
+
+    parts = [item for page in pages for item in page["items"]]
+    outcome_part = next(item for item in parts if item["part_kind"] == "per_set_outcome")
+    assert outcome_part["per_set_outcome"]["orientation_summary"] == "O" * 1600
+    assert outcome_part["per_set_outcome"]["missing_detail"] == "M" * 1200
+    lineage_parts = [item for item in parts if item["part_kind"] == "lineage"]
+    assert [value for item in lineage_parts for value in item["source_refs"]] == source_refs
+    assert [value for item in lineage_parts for value in item["evidence_ids"]] == evidence_ids
+
+
+@pytest.mark.parametrize("section", ["source_assessments", "coverage_outcomes"])
+def test_mutable_canonical_pages_keep_identity_order_after_upsert(section: str) -> None:
+    def records(order: list[str]) -> list[dict[str, object]]:
+        if section == "source_assessments":
+            return [
+                {
+                    "assessment_id": f"assessment:{identity}",
+                    "source_ref": identity,
+                    "relevance_reason": f"record {identity}",
+                }
+                for identity in order
+            ]
+        return [
+            {
+                "outcome_id": f"outcome:q-main:{identity}",
+                "question_id": "q-main",
+                "set_id": identity,
+                "status": "missing",
+                "missing_detail": f"record {identity}",
+            }
+            for identity in order
+        ]
+
+    workspace = {section: records(["A", "B", "C", "D"])}
+    first = _full_canonical_item_page(workspace, section=section, cursor=0, limit=2)
+    workspace[section] = records(["B", "C", "D", "A"])
+    second = _full_canonical_item_page(workspace, section=section, cursor=2, limit=2)
+
+    identity_field = "source_ref" if section == "source_assessments" else "set_id"
+    assert [item[identity_field] for item in first["items"]] == ["A", "B"]
+    assert [item[identity_field] for item in second["items"]] == ["C", "D"]
+
+
+@pytest.mark.asyncio
+async def test_triage_handler_reduces_large_assessment_pages_without_cutting_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import source_triage_workspace as workspace_api
+
+    assessments = [
+        {
+            "set_id": "set-main",
+            "source_ref": f"S{index + 1:02d}",
+            "processing_status": "resolved",
+            "representation_status": "usable",
+            "representation_reason": "Readable source.",
+            "relevance": "high",
+            "relevance_reason": f"Source {index + 1}: " + ("full semantic detail " * 140),
+            "authority": "primary",
+            "authority_reason": "Primary record.",
+            "uniqueness": "distinct",
+            "uniqueness_reason": "Distinct contribution.",
+            "disposition": "keep",
+            "disposition_reason": "Keep.",
+            "coverage_question_ids": ["q-main"],
+            "editorial_functions": ["causal_evidence"],
+            "evidence_ids": [f"evidence-{index + 1}"],
+            "limitations": [],
+            "confidence": "high",
+        }
+        for index in range(7)
+    ]
+    workspace = {"source_assessments": assessments}
+
+    async def load(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(workspace_api, "load_source_triage_workspace", load)
+    tools = build_triage_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(),
+        mode="finalizer",
+    )
+    page_tool = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+
+    pages = []
+    cursor = "0"
+    while True:
+        page = await page_tool.handler(
+            {"section": "source_assessments", "cursor": cursor, "limit": 25}
+        )
+        model_facing_tool_output("list_triage_source_sets", page)
+        pages.append(page)
+        cursor = page["page"]["next_cursor"]
+        if not cursor:
+            break
+
+    assert pages[0]["page"]["returned_count"] < len(assessments)
+    assert pages[0]["page"]["output_budget_limited"] is True
+    returned = [item for page in pages for item in page["items"]]
+    assert [item["source_ref"] for item in returned] == [
+        item["source_ref"] for item in assessments
+    ]
+    assert [item["relevance_reason"] for item in returned] == [
+        item["relevance_reason"] for item in assessments
+    ]
 
 
 @pytest.mark.asyncio

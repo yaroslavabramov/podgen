@@ -7,7 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.generation_v2.model_context_text import stable_unique_texts
 from app.generation_v2.schemas import SourceCard, SourceMap, SourceProfile
+from app.generation_v2.source_content_readiness import extract_web_document_text, source_version_model_eligible
 from app.generation_v2.source_profiles import ensure_legacy_source_profile, semantic_source_kind
+from app.generation_v2.tools.evidence_source_text import source_version_text
 from app.generation_v2.tools.evidence_utils import (
     _inventory_cautions,
     _neutral_preview,
@@ -19,7 +21,13 @@ from app.generation_v2.tools.evidence_utils import (
     _version_readable,
 )
 from app.ingestion.source_metadata import audited_authority_type
-from app.models.generation_v2 import ProviderCorpusFile, RunCorpusView, SourceVersion, V2RecordStatus
+from app.models.generation_v2 import (
+    ProviderCorpusFile,
+    RunCorpusView,
+    SourceRepresentationKind,
+    SourceVersion,
+    V2RecordStatus,
+)
 from app.models.source import Source
 
 
@@ -65,7 +73,7 @@ async def build_source_inventory(db: AsyncSession, run_view: RunCorpusView) -> S
             for version in versions
             if str(version.id) in provider_by_version
         ]
-        preview = _neutral_preview(source, versions)
+        preview = _selected_version_preview(versions) or _neutral_preview(source, versions)
         profile_record = await ensure_legacy_source_profile(db, versions[0]) if versions else None
         profile = SourceProfile.model_validate(profile_record.payload) if profile_record is not None else None
         source_kind = semantic_source_kind(source.source_type)
@@ -108,3 +116,21 @@ async def build_source_inventory(db: AsyncSession, run_view: RunCorpusView) -> S
         gaps=[] if cards else ["No selected source could be loaded into inventory."],
         retrieval_notes=["Deterministic neutral inventory only; no editorial source-map search has been applied."],
     )
+
+
+def _selected_version_preview(versions: list[SourceVersion], *, max_chars: int = 900) -> str:
+    for version in versions:
+        if not source_version_model_eligible(version):
+            continue
+        text = source_version_text(version)
+        if version.kind == SourceRepresentationKind.FETCHED_HTML and text:
+            text = extract_web_document_text(text)
+        text = text.strip()
+        if not text:
+            continue
+        preview = text[:max_chars]
+        omitted = max(0, len(text) - len(preview))
+        if omitted:
+            return f"{preview}\n\n[Selected-version preview; {omitted} characters omitted.]"
+        return preview
+    return ""

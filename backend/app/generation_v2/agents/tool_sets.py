@@ -10,6 +10,7 @@ def _tool_values(*tools: V2ToolName) -> set[str]:
 
 TRIAGE_PLANNER_TOOL_NAMES = _tool_values(
     V2ToolName.LIST_SOURCE_CAPSULES,
+    V2ToolName.ROUTE_SOURCES_FOR_INITIAL_READING,
     V2ToolName.LIST_TRIAGE_SOURCE_SETS,
     V2ToolName.UPSERT_COVERAGE_QUESTION,
     V2ToolName.UPSERT_TRIAGE_SOURCE_SET,

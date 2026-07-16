@@ -3,11 +3,15 @@ from __future__ import annotations
 
 TRIAGE_READ_TOOLS = {
     "search_corpus",
+    "find_quotes",
     "read_evidence",
     "read_source_window",
+    "read_source_with_model",
+    "search_within_source",
     "skim_source",
     "inspect_source",
     "compare_source_evidence",
+    "compare_evidence_for_question",
 }
 TRIAGE_SEMANTIC_COMMIT_TOOLS = {
     "record_triage_observation",

@@ -339,13 +339,40 @@ async def record_gap(owner: Any, args: dict[str, Any]) -> dict[str, Any]:
         }
     if not str(args.get("description") or "").strip():
         return {"accepted": False, "error": "description is required"}
+    current_set_id = str(getattr(owner, "triage_current_set_id", None) or "")
+    workspace: dict[str, Any] | None = None
+    current_set: dict[str, Any] = {}
+    if current_set_id:
+        from app.generation_v2.source_triage_workspace_persistence import load_source_triage_workspace
+
+        workspace = await load_source_triage_workspace(owner.db, owner.run.id)
+        current_set = next(
+            (
+                item
+                for item in (workspace or {}).get("source_sets") or []
+                if isinstance(item, dict) and str(item.get("set_id") or "") == current_set_id
+            ),
+            {},
+        )
+        if str(current_set.get("set_kind") or "coverage") == "orientation" and len(
+            _dedupe(source_refs)
+        ) != 1:
+            return {
+                "accepted": False,
+                "error": "orientation_gap_requires_one_source",
+                "message": (
+                    "A neutral orientation queue is not semantic lineage. Persist one source-specific gap per call."
+                ),
+                "source_refs": _dedupe(source_refs),
+            }
     question_ids = _dedupe(
         [str(question_id) for question_id in args.get("question_ids") or [] if str(question_id).strip()]
     )
     if question_ids:
-        from app.generation_v2.source_triage_workspace_persistence import load_source_triage_workspace
+        if workspace is None:
+            from app.generation_v2.source_triage_workspace_persistence import load_source_triage_workspace
 
-        workspace = await load_source_triage_workspace(owner.db, owner.run.id)
+            workspace = await load_source_triage_workspace(owner.db, owner.run.id)
         known_question_ids = {
             str(item.get("question_id") or "")
             for item in (workspace or {}).get("coverage_questions") or []
@@ -358,16 +385,7 @@ async def record_gap(owner: Any, args: dict[str, Any]) -> dict[str, Any]:
                 "error": "gap question_ids must identify persisted questions in the current run",
                 "invalid_question_ids": invalid_question_ids,
             }
-        current_set_id = str(getattr(owner, "triage_current_set_id", None) or "")
         if current_set_id:
-            current_set = next(
-                (
-                    item
-                    for item in (workspace or {}).get("source_sets") or []
-                    if isinstance(item, dict) and str(item.get("set_id") or "") == current_set_id
-                ),
-                {},
-            )
             invalid_question_ids = sorted(
                 set(question_ids) - {str(item) for item in current_set.get("question_ids") or []}
             )

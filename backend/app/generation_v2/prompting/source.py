@@ -3,41 +3,34 @@ SOURCE_TRIAGE_PLANNER_PROMPT = """Plan source triage for this generation run.
 Topic/user prompt:
 {user_prompt}
 
+Output language: {output_language}
+Persist generated semantic prose in this language. Keep only exact quotations and source titles in their original language.
+
 Initial durable triage workspace snapshot:
 {workspace_json}
 
-The workspace may already contain accepted work from an earlier worker attempt. Its planner_resume block is backend-derived and authoritative. Preserve every accepted coverage question and source-set assignment, and continue from planner_resume.next_action. Never recreate, translate, or paraphrase an accepted question or set as a new write. Continue in the requested language from workspace intent.
+planner_resume is authoritative. Preserve accepted questions and sets; continue from next_action without recreating or rephrasing them.
 
 Complete compact source catalog:
 {source_catalog_json}
 
 Your job:
-Turn the user's intent into coverage questions, then create a persisted plan that breaks the corpus into source sets. A source set is a small group that should be read or compared together. This stage prepares orientation for research; it does not invent the episode thesis or causal chain.
-The user prompt is the governing editorial request. The catalog may refine vocabulary and reveal supporting branches, but it may not replace the requested explanatory task. Identify the prompt's central question type—cause, mechanism, change, impact, comparison, or factual verification—and persist a critical question that directly preserves its subject and scope. Context, chronology, and origin may support that question, but may not substitute for it.
+Persist substantive coverage questions and small source sets for later reading. The user prompt governs: the catalog may refine vocabulary but cannot replace the requested explanatory task. Preserve its central question type—cause, mechanism, change, impact, comparison, or verification—and full scope in a critical root. This stage does not invent the thesis or causal answer.
 
 Available information:
-The compact catalog contains every source_ref in this run and is enough to create the initial plan. It is orientation, not evidence. Do not page through every capsule. Use list_source_capsules only for specific ambiguous source_refs whose catalog preview is insufficient for a sensible grouping. Detailed reading and source judgments belong to the source-set agents.
+The compact catalog contains every source_ref and is orientation, not evidence. Do not page through every capsule. Use list_source_capsules only for a specific ambiguous source_ref; detailed reading belongs to set agents.
 
 What to do:
-1. If planner_resume has no accepted questions, persist the questions that the corpus should help orient with upsert_coverage_question. Derive them from the user intent and compact catalog; do not satisfy a fixed checklist or quota. If it already has accepted questions, keep them and move to its next_action instead of writing replacements.
-   Use importance=critical when the question is necessary to answer the user's intent directly; supporting when it
-   strengthens that explanation; exploratory when it is an optional branch. These are meanings, not quotas.
-   A coverage question must be a substantive question about the topic whose answer could become downstream research content. Source ranking, representation readability, and triage procedure belong in source assessment or set rationale, not in coverage questions, unless evaluating source accounts is itself the user's subject.
-   Use parent_question_id only for a genuine child of an already persisted question; pass null for a root question.
-2. If a catalog item is genuinely ambiguous, inspect only that source_ref with list_source_capsules. Do not read the full corpus here.
-3. Create source sets with upsert_triage_source_set and attach at least one persisted question_id to every set. A one-source set is valid when comparison is unnecessary.
-   A set may serve several questions. Attach every question whose orientation materially depends on that set; do not force an artificial one-question-per-set split.
-   Question-to-set assignment is an execution contract: at least one catalog item in the set must plausibly advance the exact assigned question. If a question spans distinct actors, cases, periods, or sides of a comparison, attach all materially relevant sets or split it into honestly narrower questions instead of assigning its full scope to one-sided material.
-4. Put every source_ref in exactly one set. Capsules are only orientation, so the planner may not discard or defer a source before it has been read by a set agent.
-5. Call finalize_triage_workspace_plan after all sources and questions are assigned.
+1. When no questions are accepted, derive them from user intent and catalog with no checklist or quota. Create one critical root that directly states the central request. For causal or mechanism requests, materially distinct origin, persistence, operation, actor, case, chronology, or exception questions are children, never substitutes for the full-scope root. importance means necessary, supporting, or optional—not a quota. A coverage question must be a substantive question about the topic whose answer could become content. Source ranking, readability, and triage procedure are not in coverage questions unless they are the user's subject. parent_question_id is only for a genuine child; use null for roots.
+2. Inspect a genuinely ambiguous item with list_source_capsules for that one ref. If it still cannot be assigned honestly, call route_sources_for_initial_reading. This neutral queue asserts no shared topic, quality, relevance, defect, or coverage question.
+3. Create coverage sets with upsert_triage_source_set; each needs a persisted question_id. A set may serve several questions, but at least one catalog item must plausibly advance each assigned question. Keep distinct actors, cases, periods, comparison sides, roles, and exceptions separate when scope requires it. One-source sets are valid.
+4. Put every source_ref in exactly one coverage set or in the neutral initial-reading queue. Capsules are only orientation, so the planner may not discard or defer a source before it has been read by a set agent.
+5. Finalize after all assignments, passing the critical root's exact question_id as central_question_id.
 
 Planning quality:
-- Use summary previews as orientation; do not infer source quality from title/domain or a caution preview.
-- Sparse, truncated, boilerplate, cautionary, or mechanically weak previews do not establish shared content or a need for repair, and are not a reason to group sources together. If a source remains ambiguous after one capsule read, give it a neutral topical or one-source exploratory set without judging its quality. Initial planner sets are always first-pass work; repair scope is backend-derived from durable validation.
-- Prefer sets that will let the next agent compare sources directly.
-- For small and medium corpora, plan broad coverage.
-- Group sources by the comparison or question the next agent actually needs to resolve, not by a superficial title similarity.
-- Keep distinct actors, roles, periods, and material exceptions visible when the catalog distinguishes them; do not collapse them into a generic actor or rule.
+- Previews orient; title, domain, cautions, sparse or mechanical previews establish neither quality, shared content, nor need for repair.
+- Never invent a topical bucket or procedural question for weak previews. Use neutral initial reading only after one explicit capsule read.
+- Prefer broad, comparison-ready coverage grouped by the question to resolve, not superficial title similarity.
 
 finalize_triage_workspace_plan is terminal: once it is accepted, the backend completes this agent. If a call is rejected, repair the plan and call it again."""
 
@@ -47,35 +40,58 @@ SOURCE_TRIAGE_SET_PROMPT = """Map one source set for this generation run.
 Topic/user prompt:
 {user_prompt}
 
+Output language: {output_language}
+Write all generated semantic prose persisted through tools—including summaries, reasons, notes, pending questions,
+limitations, gaps, coverage outcomes, and the terminal summary—in this language. Source material may be in another
+language; paraphrase it into the output language. Preserve only exact quotations and exact source titles in their
+original language.
+
 Initial source-set and durable workspace snapshot:
 {source_set_json}
 
 Your job:
 Understand this source set well enough to orient downstream research. The backend will assemble SourceMap and CorpusBrief from your persisted tools; notes kept only in the conversation are not durable. Do not decide the final thesis or assemble the episode's causal chain here.
-Write every human-readable persisted field in workspace intent.language; keep enum literals, IDs, refs, locators, tool
-names, exact titles, and quotations unchanged.
+Keep enum literals, IDs, refs, locators, tool names, exact titles, and quotations unchanged.
 
 How evidence works here:
 - skim_source and inspect_source are orientation only. They return opaque window_ref handles and do not create evidence.
 - Pass a window_ref to read_source_window when you need to persist that exact window and receive an evidence_id.
+- Copy window_ref exactly as returned. Never decode, edit, shorten, or synthesize it. read_source_window requires
+  both selector fields: when using window_ref, pass locator=""; when using a concrete locator, pass window_ref="".
 - Search and read tools return evidence_id handles for persisted passages or model-read results.
 - Use those evidence_id handles when writing source cards, clusters, relationships, quote cards, observations, or gaps.
 - Search previews are leads. Use read_evidence or read_source_window when the exact text matters.
+- Read/search results may include read_control. When must_persist_before_more_reads=true, persist one meaningful
+  assessment, outcome, observation, or SourceMap write before another read. A control-only response contains no new
+  source material and is not a failed read.
 - If a requested locator cannot be resolved, read_source_window returns locator_not_found; choose a returned window_ref or record the limitation instead of inventing a locator.
 - Timestamp locators apply only to transcript, audio, or video sources. Use page/section/window locators for text, web, and PDF sources.
 
 How to work:
-1. Start from the capsules in this set. Decide what needs to be verified by reading or searching. If a compact field is truncated, or this agent resumed after a checkpoint, call list_triage_source_sets with section="current_set" first, then page section="observations" from cursor "0" until next_cursor is empty. Those pages restore full validated purpose, rationale, findings, questions, and observation text. Use section="plan_summary" or section="deferred_sources" when those workspace previews are truncated or omitted.
+1. Start from set.set_kind and the capsules in this set. For set_kind=orientation, the membership is only an operational queue and does not assert that the sources share a topic: read and judge every source independently. Do not create a cluster, relationship, common finding, or coverage outcome merely because the sources arrived in that queue. The pending_source_refs and missing_outcome_question_ids in the set payload
+   are backend-derived and identify unfinished required work. The compact other_coverage_question_index is only for
+   noticing genuine cross-question relevance; it is not an instruction to answer every question. If that index has
+   omitted items, page section="coverage_questions" only when current reading reveals a plausible cross-question
+   link. If assigned coverage_question_omitted_count is positive, a compact field is truncated, or this agent resumed
+   after a checkpoint, call list_triage_source_sets with section="current_set" first, then page
+   section="assigned_questions" and section="observations" from cursor "0"
+   until each next_cursor is empty. Those pages restore full validated purpose, rationale, findings, assigned
+   questions, and observation text. Use section="plan_summary" or section="deferred_sources" when those workspace
+   previews are truncated or omitted.
 2. Use skim_source for source-level orientation when a capsule is not enough.
 3. Use read_source_window or read_evidence for exact support, quote seeds, source limits, or relationship evidence.
 4. Use search_corpus only inside the current set for targeted questions. Use compare_source_evidence when several sources need comparable evidence for a cluster or relationship.
-5. Follow set.execution_mode. On first_pass, call upsert_source_assessment for every source. On resume, page accepted
+5. Follow set.execution_mode. On first_pass, call upsert_source_assessment for every source. For an orientation set, link coverage_question_ids only when the reading itself establishes genuine relevance to an existing substantive question; an empty list is the honest result when none does. On resume, page accepted
    assessments/outcomes, preserve them, and fill only what is missing or unfinished. On targeted_repair, use repair_source_refs,
    repair_question_ids, and repair_targets as the exact scope: page the existing full assessment before replacing it,
-   preserve every still-valid field and evidence_id, and do not rewrite accepted records outside that scope. Keep
+   preserve every still-valid field and evidence_id, and do not rewrite accepted records outside that scope. A paged
+   record with repair_baseline=true is a pre-repair reference, not accepted current state; page every baseline version,
+   preserve the still-valid details across them, and write one coherent replacement. If baseline evidence is marked
+   unavailable, keep any useful lead or limitation but re-read before using it as support.
+   Keep
    these judgments independent:
    - processing status: whether this agent finished the work;
-   - representation status: whether the available text is readable, partial, or unreadable;
+   - representation status: whether the requested source content itself was obtained;
    - topic relevance;
    - evidentiary authority;
    - uniqueness versus derivation/duplication;
@@ -83,32 +99,52 @@ How to work:
    For authority, use primary for an original record or direct source, including an official original record;
    official for an institutional account that is not itself the underlying original record; then expert, secondary,
    tertiary, weak, or unknown. This precedence keeps agents consistent; no single label resolves a factual conflict.
-   For disposition, deferred means the source's value remains unknown because a checked representation is partial or
-   unreadable. Unfinished triage work is processing_status=needs_repair, not deferred. Unusable means completed
+   Representation decision contract:
+   - readable: the requested source content itself is substantially present and readable;
+   - partial: identifiable requested source content is present but incomplete;
+   - not_target_content: readable text was obtained, but it is only a service, consent, access, error, or wrong-target
+     page rather than the requested source content;
+   - unreadable: no inspectable text was obtained.
+   A readable service page is not a readable source. For not_target_content, persist relevance=unknown,
+   authority=unknown, uniqueness=unknown, disposition=deferred, empty relevance_reason/authority_reason/
+   uniqueness_reason, empty coverage_question_ids, and empty editorial_functions. Cite saved evidence showing the
+   non-target page. Do not assess the unseen source's relevance, authority, uniqueness, duplication, or usefulness
+   from that page.
+   For disposition, deferred means the source's value remains unknown because a checked representation is partial,
+   not_target_content, or unreadable. Unfinished triage work is processing_status=needs_repair, not deferred. Unusable means completed
    reading of usable text showed that the content cannot support downstream work; weak means usable only with an
    explicit caveat; background, supporting, and anchor are actual downstream roles. Give weak, unusable, or deferred
    its own disposition_reason; do not reuse topic relevance as the explanation.
    processing_status=resolved means the assessment work is complete, including when the available
-   representation is unreadable and the source is explicitly deferred. Use needs_repair only when
+   representation is not_target_content or unreadable and the source is explicitly deferred. Use needs_repair only when
    the assessment itself is unfinished and another triage attempt must redo it.
-   A resolved readable or partial assessment must cite saved evidence from that exact source. skim_source alone is
-   orientation and cannot satisfy this requirement; persist an exact window/evidence item first.
-   A weak extraction does not prove that the underlying source is weak. Mark partial or unreadable representation with a concrete reason.
-6. On a first pass, call upsert_coverage_outcome for every assigned question_id. On an ordinary resume, preserve
+   A resolved readable, partial, or not_target_content assessment must cite saved evidence from that exact source.
+   skim_source alone is orientation and cannot satisfy this requirement; persist an exact window/evidence item first.
+   A weak or non-target extraction does not prove that the underlying source is weak, irrelevant, unique, or unusable.
+   Mark partial, not_target_content, or unreadable representation with a concrete reason.
+6. On a first pass, call upsert_coverage_outcome for every assigned question_id. An orientation set initially has none and must not invent one. If an assessment discovers a genuine link, the backend adds that existing question to missing_outcome_question_ids and then a normal grounded outcome is required. On an ordinary resume, preserve
    accepted outcomes and fill only missing/unfinished ones. On a targeted repair, replace only missing or listed
    repair_question_ids after paging their existing full outcomes; preserve accepted outcomes outside that scope.
-   This is a research starting point, not a final answer. Preserve uncertainty and the next action.
+   This is a research starting point, not a final answer. Preserve uncertainty and the exact local evidence boundary.
    Active covered, partial, or conflicted outcomes may use only readable or partial, in-scope sources that are not unusable or deferred.
    - covered: state the supported orientation and attach its saved evidence;
    - partial: state both the concrete part established by evidence and the concrete remainder still missing;
    - missing: the assigned material was actually checked but contains no usable support for the question;
    - conflicted: saved evidence preserves incompatible accounts that cannot yet be reconciled;
-   - deferred: completed checking found that partial/unreadable representations prevent an honest evaluation.
+   - deferred: completed checking found that partial/not_target_content/unreadable representations prevent an honest evaluation.
      It does not mean that the material is absent. Unfinished work belongs to a needs_repair set.
-   next_action is the real downstream operation: research means read/compare the current corpus further;
-   source_acquisition marks a candidate acquisition gap from this set, which the run-wide finalizer must confirm
-   against all other sets; omit means intentionally do not carry the question forward; none means no further work is
-   required for this local orientation.
+   A per-set outcome is local evidence state, not a run-wide routing decision. Missing material in this set does not
+   mean it is absent from the corpus, even when no other assigned set is guaranteed to contain it. Only the run-wide
+   finalizer may request source acquisition after every assigned set has reported. Do not encode acquisition or
+   omission decisions in a local outcome.
+   For a causal question, never use covered unless the causal link satisfies the system evidence rule. When relevant
+   facts or attributed explanations are established but the link or mechanism is not, use partial: keep those
+   established facts in orientation_summary and name the unsupported link or mechanism in missing_detail. If support
+   is absent, conflicted, or representation-blocked, use missing, conflicted, or deferred under the definitions above.
+   Do not scale an actor-level explanation into a system-level cause. For example, evidence explaining why one
+   product, policy, or participant succeeded may be useful orientation, but it does not establish why the wider
+   system emerged or persisted. Attribute the narrower explanation and keep the broader causal link missing.
+   Never state an unsupported cause and then merely disclaim it in missing_detail.
    If reading reveals material relevant to another persisted coverage question, page section="coverage_questions",
    include that question_id in the source assessment, and write its outcome. The backend will attach the discovered
    cross-question relevance to this set; do not hide it merely because the planner missed it.
@@ -120,18 +156,25 @@ How to work:
      background for related_source_ref for background_for; duplicate and near_duplicate are symmetric;
    - create_quote_card when a passage is an obvious reusable quote seed;
    - record_gap when support is weak, missing, noisy, incomplete, or deferred; attach the relevant question_ids and/or
-     source_refs so a later repair can prove that new material belongs to the same gap;
+     source_refs so a later repair can prove that new material belongs to the same gap. Describe only the limitation
+     observed in this set; do not encode acquisition or omission. The run-wide finalizer decides whether the gap
+     remains corpus-wide and how to route it. In an orientation set, one gap call may name exactly one source_ref;
+     the neutral queue is not shared semantic lineage;
    - list_source_map_gaps plus resolve_gap when a current evidence-bearing assessment/outcome/synthesis makes an
      existing gap obsolete; pass that durable record's basis_ref and do not hide the old gap with an opposite note;
    - record_triage_observation when the finding is useful but not yet a final SourceMap entry.
-8. Finish with mapped or deferred only after every source has an assessment and every assigned question has an
+8. Finish with mapped or deferred only after every source has an assessment and every currently assigned question has an
    outcome. If that cannot be completed in this pass, finish with needs_repair and a concrete reason so partial work
    is durable but cannot be finalized. Use mapped when at least one source was mapped and every deferred source is explicit; deferred only when checking
-   is complete and every source assessment and question outcome is deferred because representations are insufficient;
-   needs_repair only when work is genuinely unfinished.
+   is complete and every source assessment and any required question outcome is deferred because representations are insufficient;
+   needs_repair only when work is genuinely unfinished. In the terminal summary, describe not_target_content as a
+   representation failure only; never call the unseen underlying source irrelevant, weak, duplicate, unique, or unusable.
 
 Quality bar:
 - Read enough to understand the source set. The goal is not to minimize reading; the goal is to avoid unpersisted wandering.
+- When several independent tool calls already have known arguments, issue them in one response. Do not batch a call
+  whose arguments depend on another call's result.
+- Call finish_triage_source_set alone, after all writes it depends on have been accepted.
 - If a set contains multiple sources, compare at least two relevant sources before writing a cluster or relationship.
 - If a source covers multiple roles, multiple reads may be appropriate.
 - Do not rank sources by how many snippets happened to be retrieved. A source role comes from the explicit assessment axes.
@@ -147,6 +190,11 @@ SOURCE_TRIAGE_FINALIZER_PROMPT = """Finalize source triage for this generation r
 Topic/user prompt:
 {user_prompt}
 
+Output language: {output_language}
+Write all generated semantic prose persisted through tools in this language. Source material may be in another
+language; paraphrase it into the output language. Preserve only exact quotations and exact source titles in their
+original language.
+
 Initial durable triage workspace snapshot:
 {workspace_json}
 
@@ -155,14 +203,19 @@ Assembled SourceMap from persisted write actions:
 
 Your job:
 Check whether the persisted SourceMap and question-centered coverage state are internally coherent enough for downstream research. You are not doing broad new reading and you are not judging whether the future episode is deep or dramatic enough. Repair only concrete inconsistencies using the provided tools.
-Write every human-readable persisted field in workspace intent.language; keep enum literals, IDs, refs, locators, tool
-names, exact titles, and quotations unchanged.
+Keep enum literals, IDs, refs, locators, tool names, exact titles, and quotations unchanged.
 
-The per-set coverage outcomes are local observations, not the final question answers. Page every coverage question,
-per-set outcome, and existing synthesis. Preserve an existing synthesis only when the pager reports input_current=true
-and its content remains coherent; upsert missing or invalidated syntheses so there is exactly one per question. Reconcile
-complementary results across sets: do not concatenate a set's "missing here" statement when another set actually
-supplies that material. A synthesis may use eligible sources and accepted evidence from any set in this run.
+The per-set coverage outcomes are local observations, not final question answers. Before writing repairs or
+syntheses, page section="coverage_question_packets" until next_cursor is empty. It is one ordered stream of packet
+parts: question, existing_synthesis, per_set_outcome, and optional lineage continuations. Assemble parts by
+packet_ref; semantic records are always complete, and a large question continues in this same section.
+Preserve an existing synthesis only when input_current=true and its content remains coherent; upsert missing or
+invalidated syntheses so there is exactly one per question. Reconcile complementary results across sets:
+do not concatenate a set's "missing here" statement when another set actually supplies that material.
+upsert_coverage_synthesis accepts
+only the semantic reconciliation; the backend derives source_refs and evidence_ids from current per-set outcomes.
+Never copy lineage identifiers into that call. If useful material exists only in an assessment, repair the owning
+per-set outcome rather than silently upgrading it in the synthesis.
 If sources disagree, distinguish an unresolved conflict from one already resolved by persisted evidence, provenance,
 and directness. Do not resolve it from an authority enum, label, or summary alone: read the exact saved evidence cited
 by the relevant outcomes or a visible relationship. If relationship evidence_ids are not visible, do not use that
@@ -171,7 +224,7 @@ Keep a resolved disagreement visible in conflict_summary; use status=conflicted 
 for research.
 
 Finalize criteria:
-- Every source has a resolved assessment that distinguishes representation health from editorial value.
+- Every source has a resolved assessment that distinguishes target-content availability from editorial value.
 - Every coverage question has a covered, partial, missing, conflicted, or deferred outcome.
 - Every coverage question has exactly one run-wide synthesis that is coherent across all of its per-set outcomes.
 - Assessments and outcomes are the required source state. Add cards, clusters, relationships, quote seeds, or gaps
@@ -182,10 +235,12 @@ Finalize criteria:
 Run-wide status contract:
 - covered: the corpus establishes a usable orientation; missing_detail and deferred_reason are empty;
 - partial: evidence establishes a concrete part and missing_detail names the concrete remainder;
-- missing: the relevant corpus material was checked and contains no usable support; orientation/conflict/deferred fields are empty;
+- missing: every assigned per-set outcome is missing; orientation/conflict/deferred fields are empty;
 - conflicted: saved evidence preserves incompatible accounts that cannot be safely reconciled;
-- deferred: completed triage could not honestly evaluate the question because checked representations remain partial
-  or unreadable; it is not a claim that the corpus lacks the material. Unfinished work must return to needs_repair.
+- deferred: there is no active per-set support, at least one per-set outcome is deferred, and the others (if any) are
+  missing; completed triage could not honestly evaluate the question because checked representations remain partial,
+  not_target_content, or unreadable. It is not a claim that the corpus lacks the material. Unfinished work must return
+  to needs_repair.
 For next_action, research means deeper reading/comparison in the current corpus; source_acquisition means all set
 outcomes together show the needed material is absent; omit means intentionally do not carry it forward; none means
 the orientation needs no further work. confidence is confidence that the cited persisted evidence supports this
@@ -196,6 +251,8 @@ replace evidence only when it is actually invalid. You may correct a mechanical 
 persisted assessment is already complete. If reading is genuinely unfinished, return its owning set to needs_repair;
 do not turn unfinished work into processing_status=resolved. If a concrete source-to-source disagreement is visible
 but absent from the map, record the relationship using already accepted evidence; do not begin broad new reading.
+For not_target_content, preserve only the evidenced representation failure and unknown/deferred state; remove any
+claim about the unseen source's relevance, authority, uniqueness, duplication, or usefulness.
 If source_map_repair_item_count is non-zero, page source_map_repairs before synthesis. The backend has excluded the
 invalid structure from downstream use but keeps it visible for this repair. Close every open repair_ref with
 resolve_source_map_repair. Recreate a relationship or cluster only when the persisted evidence already supports a
@@ -207,10 +264,10 @@ adding a new opposite statement does not remove stale state. Leave unresolved ga
 Complete every required map repair before writing run-wide syntheses. Write syntheses last: a later map write changes
 their durable input and invalidates them.
 
-Use list_triage_source_sets with section="coverage_questions", "source_assessments", "coverage_outcomes", "coverage_syntheses", or "source_map_repairs" and
-follow next_cursor until every record needed for synthesis is visible. If plan_summary or deferred-source previews
-are truncated or omitted, use section="plan_summary" or section="deferred_sources". Use finalize_source_map only
-after every synthesis is accepted. If a known gap is not yet represented, use record_gap first, then finalize_source_map.
+Use section="source_map_repairs" before synthesis when repairs exist. Page an individual assessment or outcome only
+when a packet exposes a concrete inconsistency requiring repair. If plan_summary or deferred-source previews are
+truncated or omitted, use section="plan_summary" or section="deferred_sources". Use finalize_source_map only after
+every synthesis is accepted. If a known gap is not yet represented, use record_gap first, then finalize_source_map.
 
 finalize_source_map is terminal: once accepted, the backend completes this agent. If it is rejected, fix only the listed violations and retry."""
 
@@ -232,7 +289,8 @@ Artifact identities:
 - source_map_artifact_id: {source_map_artifact_id}
 
 Audit only facts that are knowable from the supplied previews:
-- a visible assessment has an internally contradictory state, such as unreadable or out-of-scope plus anchor disposition;
+- a visible assessment has an internally contradictory state, such as not_target_content with non-unknown source
+  judgments, or unreadable/out-of-scope plus anchor disposition;
 - a visible duplicate, update, contradiction, covered outcome, or cluster that explicitly assigns
   primary/secondary/duplicate roles claims support but reports zero saved evidence. A purely thematic or origin
   cluster may be evidence-free;

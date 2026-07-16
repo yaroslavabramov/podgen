@@ -10,6 +10,10 @@ from app.generation_v2.tools.evidence_local_windows import (
     source_allows_timestamp_locators,
     source_windows,
 )
+from app.generation_v2.tools.evidence_model_window_refs import (
+    register_model_window_ref,
+    resolve_model_window_ref,
+)
 from app.generation_v2.tools.evidence_store import canonical_evidence_hash, persist_evidence_item
 from app.generation_v2.tools.evidence_text_windows import (
     representative_text_windows,
@@ -304,10 +308,113 @@ async def test_skim_returns_window_refs_without_persisting_evidence(monkeypatch:
     assert result["found"] is True
     assert len(result["windows"]) == 3
     assert all("window_ref" in item for item in result["windows"])
+    assert [item["window_ref"] for item in result["windows"]] == [
+        "W:S01:1",
+        "W:S01:2",
+        "W:S01:3",
+    ]
+    assert "version_ref" not in result
     assert all("evidence" not in item for item in result["windows"])
     from app.generation_v2.runtime_tool_output import model_facing_tool_output
 
     assert model_facing_tool_output("skim_source", result) == result
+
+
+def test_short_model_window_refs_are_stable_and_reject_invented_handles() -> None:
+    owner = SimpleNamespace()
+    canonical = "w1.signed-canonical-window"
+
+    first = register_model_window_ref(owner, source_ref="S07", canonical_ref=canonical)
+    second = register_model_window_ref(owner, source_ref="S07", canonical_ref=canonical)
+
+    assert first == second == "W:S07:1"
+    assert resolve_model_window_ref(owner, first) == canonical
+    assert resolve_model_window_ref(owner, "W:S07:2") is None
+
+
+@pytest.mark.asyncio
+async def test_short_model_window_ref_round_trips_without_model_visible_version_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2.tools import evidence_source_tools as source_tools_module
+    from app.generation_v2.tools.evidence import EvidenceToolset
+
+    version = _version(kind=SourceRepresentationKind.EXTRACTED_TEXT)
+    text = "Exact source window for the model handle."
+    canonical_ref = create_window_ref(
+        source_version_id=version.id,
+        text=text,
+        start_offset=0,
+        end_offset=len(text),
+    )
+    toolset = EvidenceToolset(
+        db=SimpleNamespace(),  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4(), project_id=version.project_id),
+        run_view=SimpleNamespace(
+            selected_source_ids=[str(version.source_id)],
+            selected_source_version_ids=[str(version.id)],
+        ),
+        provider_index=None,
+    )
+    handle = register_model_window_ref(toolset, source_ref="S01", canonical_ref=canonical_ref)
+    captured: dict[str, object] = {}
+
+    async def no_guard(*_args, **_kwargs):
+        return None
+
+    async def validate_refs(**kwargs):
+        captured["validated_version_ref"] = kwargs["version_ref"]
+        return None
+
+    async def resolve_version(**kwargs):
+        captured["resolved_version_ref"] = kwargs["version_ref"]
+        captured["resolved_source_version_id"] = kwargs["source_version_id"]
+        return version
+
+    async def source_id(_value: str):
+        return str(version.source_id)
+
+    async def read_window(_version, *, locator: str, max_chars: int):
+        captured["canonical_locator"] = locator
+        return text, "section 1", EvidenceLocatorType.SECTION, "local_chunk_search"
+
+    async def persist(_db, **kwargs):
+        captured["persist"] = kwargs
+        return SimpleNamespace(id=uuid.uuid4())
+
+    async def detail(_evidence, **_kwargs):
+        return {"evidence_id": "E01", "locator_text": "section 1"}
+
+    async def save_trace(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(toolset, "_triage_read_guard_error", no_guard)
+    monkeypatch.setattr(toolset, "_invalid_source_or_version_ref_error", validate_refs)
+    monkeypatch.setattr(toolset, "_resolve_source_version", resolve_version)
+    monkeypatch.setattr(toolset, "_source_id_from_ref_or_id", source_id)
+    monkeypatch.setattr(toolset, "_read_source_window", read_window)
+    monkeypatch.setattr(toolset, "_evidence_detail_payload", detail)
+    monkeypatch.setattr(source_tools_module, "persist_evidence_item", persist)
+    monkeypatch.setattr(source_tools_module, "save_tool_trace", save_trace)
+
+    result = await toolset.read_source_window_tool(
+        {
+            "source_ref": "S01",
+            "window_ref": handle,
+            "locator": "",
+            "max_chars": 1000,
+        }
+    )
+
+    assert result["found"] is True
+    assert result["window_ref"] == handle
+    assert captured["validated_version_ref"] == ""
+    assert captured["resolved_version_ref"] == ""
+    assert captured["resolved_source_version_id"] == str(version.id)
+    assert captured["canonical_locator"] == canonical_ref
+    persisted = captured["persist"]
+    assert isinstance(persisted, dict)
+    assert persisted["metadata"]["window_ref"] == canonical_ref
 
 
 @pytest.mark.asyncio

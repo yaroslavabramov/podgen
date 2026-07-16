@@ -77,7 +77,9 @@ async def create_runtime_response(
                 temperature=temperature if temperature is not None else openai.NOT_GIVEN,
                 reasoning={"effort": reasoning_effort} if reasoning_effort else openai.NOT_GIVEN,
                 tools=tools or openai.NOT_GIVEN,
-                parallel_tool_calls=False if local_tools else openai.NOT_GIVEN,
+                parallel_tool_calls=(
+                    policy.parallel_local_tool_calls if local_tools else openai.NOT_GIVEN
+                ),
                 include=["file_search_call.results"] if vector_store_id else openai.NOT_GIVEN,
                 text={
                     "format": {

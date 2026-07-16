@@ -306,11 +306,42 @@ def test_deferred_outcome_and_synthesis_require_a_checked_representation_blocker
     partial_codes = {
         item["code"] for item in canonical_workspace_violations(workspace, require_syntheses=True)
     }
+    workspace["source_assessments"][0].update(
+        {
+            "representation_status": "not_target_content",
+            "representation_reason": "Only a service page was obtained.",
+            "relevance": "unknown",
+            "relevance_reason": "",
+            "authority": "unknown",
+            "authority_reason": "",
+            "uniqueness": "unknown",
+            "uniqueness_reason": "",
+            "disposition": "deferred",
+            "disposition_reason": "The requested source content was not obtained.",
+            "coverage_question_ids": [],
+            "editorial_functions": [],
+        }
+    )
+    workspace["deferred_sources"] = [
+        {"source_ref": "S01", "reason": "The requested source content was not obtained."}
+    ]
+    synthesis["input_hash"] = coverage_synthesis_input_hash(workspace, "q_main")
+    not_target_codes = {
+        item["code"] for item in canonical_workspace_violations(workspace, require_syntheses=True)
+    }
+    workspace["source_assessments"][0]["uniqueness"] = "unique"
+    synthesis["input_hash"] = coverage_synthesis_input_hash(workspace, "q_main")
+    contradictory_codes = {
+        item["code"] for item in canonical_workspace_violations(workspace, require_syntheses=True)
+    }
 
     assert "incomplete_coverage_outcome" in readable_codes
     assert "invalid_coverage_synthesis" in readable_codes
     assert "invalid_coverage_synthesis" not in partial_codes
     assert "incomplete_coverage_outcome" not in partial_codes
+    assert "incomplete_coverage_outcome" not in not_target_codes
+    assert "invalid_coverage_synthesis" not in not_target_codes
+    assert "inconsistent_source_assessment" in contradictory_codes
 
 
 def test_coverage_synthesis_rejects_source_and_evidence_without_question_lineage() -> None:
@@ -760,7 +791,7 @@ def test_run_wide_synthesis_from_another_mapped_set_reaches_research_handoff() -
             "label": "Other mapped material",
             "purpose": "Map another part of the corpus.",
             "source_refs": ["S02"],
-            "question_ids": [],
+            "question_ids": ["q_main"],
             "status": "mapped",
             "findings_summary": "This set contains the answer.",
             "evidence_ids": ["evidence-2"],
@@ -776,7 +807,21 @@ def test_run_wide_synthesis_from_another_mapped_set_reaches_research_handoff() -
             "evidence_ids": [],
             "deferred_reason": "The assigned source cannot answer the question.",
             "next_action": "none",
-        }
+        },
+        {
+            "outcome_id": "outcome:q_main:set_other",
+            "set_id": "set_other",
+            "question_id": "q_main",
+            "status": "covered",
+            "source_refs": ["S02"],
+            "source_ids": ["source-2"],
+            "evidence_ids": ["evidence-2"],
+            "orientation_summary": "The other mapped set establishes the answer.",
+            "missing_detail": "",
+            "conflict_summary": "",
+            "deferred_reason": "",
+            "next_action": "research",
+        },
     ]
     workspace = _workspace([deferred, active], source_sets=source_sets, outcomes=outcomes)
     workspace["deferred_sources"] = [
@@ -1034,7 +1079,7 @@ def test_corpus_brief_keeps_outcome_evidence_without_requiring_assessment_duplic
     card = _card("source-1", [])
     inventory = SourceMap(source_cards=[card])
     source_map = materialize_source_map_v2(
-        SourceMap(source_cards=[card], evidence_ids=["evidence-outcome"]),
+        SourceMap(source_cards=[card]),
         workspace=workspace,
         inventory=inventory,
     )
@@ -1053,8 +1098,49 @@ def test_corpus_brief_keeps_outcome_evidence_without_requiring_assessment_duplic
         expected_source_map_artifact_id=brief.source_map_artifact_id,
     )
 
+    assert "evidence-outcome" in source_map.evidence_ids
     assert brief.research_handoff[0].starting_evidence_ids == ["evidence-outcome"]
     assert report.passed is True
+
+
+def test_corpus_brief_excludes_three_observation_only_ids_from_fifty_eight_set_evidence_ids() -> None:
+    selected_evidence_ids = [f"evidence-selected-{index:02d}" for index in range(55)]
+    observation_only_ids = [f"evidence-observed-{index:02d}" for index in range(3)]
+    assessment = _assessment("S01", "source-1", selected_evidence_ids)
+    workspace = _workspace([assessment])
+    workspace["source_sets"][0]["evidence_ids"] = [
+        *selected_evidence_ids,
+        *observation_only_ids,
+    ]
+    workspace["source_sets"][0]["observations"] = [
+        {
+            "source_refs": ["S01"],
+            "evidence_ids": observation_only_ids,
+            "note": "Read during triage but never promoted into a final record.",
+        }
+    ]
+
+    source_map = _materialized_map(workspace)
+    brief = _materialized_brief(workspace, source_map)
+    report = audit_corpus_brief(
+        corpus_brief_artifact_id=str(uuid.uuid4()),
+        brief=brief,
+        source_map=source_map,
+        selected_source_ids={"source-1"},
+        expected_generation_run_id=brief.generation_run_id,
+        expected_project_id=brief.project_id,
+        expected_run_corpus_view_id=brief.run_corpus_view_id,
+        expected_corpus_revision=brief.corpus_revision,
+        expected_attempt=brief.attempt,
+        expected_source_map_artifact_id=brief.source_map_artifact_id,
+    )
+
+    assert len(workspace["source_sets"][0]["evidence_ids"]) == 58
+    assert len(source_map.evidence_ids) == 55
+    assert brief.source_sets[0].evidence_ids == selected_evidence_ids
+    assert not set(observation_only_ids) & set(brief.source_sets[0].evidence_ids)
+    assert report.passed is True
+    assert report.checked_evidence_count == 55
 
 
 def test_materialize_corpus_brief_never_activates_a_deferred_set() -> None:

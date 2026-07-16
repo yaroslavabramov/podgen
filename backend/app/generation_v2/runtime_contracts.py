@@ -69,6 +69,11 @@ class ToolPolicy:
     web_search: bool = False
     local_tools: bool = True
     max_file_search_results: int = 8
+    parallel_local_tool_calls: bool = False
+    # Hosted file search is model-visible before backend evidence validation.
+    # It must therefore be pinned at request time, not filtered only after the
+    # model has already seen a result from another corpus revision.
+    file_search_source_version_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

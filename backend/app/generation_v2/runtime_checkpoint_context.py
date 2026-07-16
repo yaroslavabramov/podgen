@@ -15,9 +15,11 @@ Use the fresh durable workspace and compact source inventory page in the checkpo
 next_cursor only when the page metadata says the catalog is incomplete.
 Preserve every accepted coverage question and source-set assignment. Never recreate, translate, or paraphrase
 accepted writes. If there are no accepted questions, preserve the central question type and scope of the user intent
-in a critical substantive question; source ranking and triage procedure are not coverage questions.
-Assign every source_ref to exactly one small comparison-oriented source set, attach every accepted question to a
-set, and inspect only a specifically ambiguous source capsule when necessary. Sparse or mechanical previews do not
+in one critical root substantive question; source ranking and triage procedure are not coverage questions. Keep
+materially distinct explanatory subquestions as children rather than substitutes for that root.
+Assign every source_ref to exactly one coverage set, or after explicitly inspecting its capsule route it through
+route_sources_for_initial_reading when no honest substantive assignment is supported. Attach every accepted question
+to a coverage set. Sparse or mechanical previews do not
 establish shared content, source quality, or repair scope. Do not read the whole corpus, invent a thesis, or assemble
 the episode's causal chain. Follow planner_resume.next_action and finish only through
 finalize_triage_workspace_plan."""
@@ -25,7 +27,11 @@ finalize_triage_workspace_plan."""
 
 TRIAGE_SET_RESUME_CONTRACT = """Continue mapping only the current source set from the fresh durable workspace.
 Restore omitted full fields with list_triage_source_sets and use source/evidence reads only as needed. Persist one
-assessment for every assigned source and one outcome for every assigned coverage question. Keep processing,
+assessment for every assigned source and one outcome for every currently assigned coverage question. A neutral
+orientation set starts with no question and must not invent one; genuine relevance discovered by reading is linked to
+an existing substantive question and then receives a normal outcome. If saved evidence contains only an access,
+error, consent, or navigation shell rather than the requested material, record not_target_content, keep semantic
+judgments unknown, defer it, and add no coverage or editorial links. Keep processing,
 representation health, relevance, authority, uniqueness, and downstream disposition separate. Persist useful cards,
 relationships, clusters, quote seeds, observations, and gaps only when grounded in saved evidence. Do not decide the
 episode thesis or story structure. Follow current_set.execution_mode; when it is targeted_repair, preserve accepted
@@ -35,9 +41,11 @@ cannot be finalized."""
 
 
 TRIAGE_FINALIZER_RESUME_CONTRACT = """Continue source-triage finalization from fresh persisted state only.
-Review assessments, per-set question outcomes, deferred sources, and the assembled SourceMap for concrete omissions
-or contradictions. Page omitted durable records and source_map_repairs through list_triage_source_sets. Persist one run-wide coverage
-synthesis for every question, reconciling complementary set results instead of concatenating them. Repair only
+Review coverage_question_packets, deferred sources, and the assembled SourceMap for concrete omissions or
+contradictions. Read the complete ordered packet-parts stream before writing: assemble question, existing_synthesis,
+per_set_outcome, and optional lineage parts by packet_ref. Page source_map_repairs and only the specific assessment/outcome records needed
+for a concrete repair. Persist one run-wide coverage synthesis for every question, reconciling complementary set
+results instead of concatenating them. Do not pass source_refs or evidence_ids to upsert_coverage_synthesis. Repair only
 traceable inconsistencies; do not begin broad reading, invent source roles, grade creative depth, or decide the
 episode thesis. Resolve every open source_map_repairs item explicitly with resolve_source_map_repair; use
 list_source_map_gaps and resolve_gap when durable evidence makes an ordinary old gap obsolete. Finish only

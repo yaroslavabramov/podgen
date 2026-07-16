@@ -27,6 +27,7 @@ def tool_policy_payload(policy: Any) -> dict[str, Any]:
         "web_search": policy.web_search,
         "local_tools": policy.local_tools,
         "max_file_search_results": policy.max_file_search_results,
+        "parallel_local_tool_calls": policy.parallel_local_tool_calls,
     }
 
 

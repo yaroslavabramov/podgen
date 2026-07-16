@@ -12,6 +12,13 @@ from app.generation_v2.source_triage_workspace_contracts import (
     TRIAGE_CAPSULE_PAGE_MAX_LIMIT,
     TRIAGE_SEMANTIC_FIELD_LIMITS,
 )
+from app.generation_v2.source_triage_workspace_state import (
+    SOURCE_SET_KIND_COVERAGE,
+    SOURCE_SET_KIND_ORIENTATION,
+)
+
+
+ORIENTATION_SET_ID = "orientation_initial_reading"
 
 
 class SourceTriageWorkspacePlanningHandlersMixin:
@@ -73,12 +80,20 @@ class SourceTriageWorkspacePlanningHandlersMixin:
             "parent_question_id": parent_question_id,
             "origin": "planned",
         }
-        current["coverage_questions"] = [
+        updated_questions = [
             item if existing.get("question_id") == question_id else existing
             for existing in current.get("coverage_questions") or []
         ]
         if question_id not in existing_ids:
-            current["coverage_questions"].append(item)
+            updated_questions.append(item)
+        cycle = _question_parent_cycle(updated_questions)
+        if cycle:
+            return {
+                "accepted": False,
+                "error": "coverage question hierarchy cannot contain a cycle",
+                "question_ids": cycle,
+            }
+        current["coverage_questions"] = updated_questions
         current["status"] = "planning"
         await public_api.save_source_triage_workspace(self.db, generation_run_id=self.run.id, workspace=current)
         return {
@@ -143,6 +158,22 @@ class SourceTriageWorkspacePlanningHandlersMixin:
             if requested_refs
             else str(offset + returned_count) if offset + returned_count < len(source_order) else ""
         )
+        if requested_refs and returned_count:
+            current["planner_inspected_source_refs"] = public_api._dedupe(
+                [
+                    *[str(item) for item in current.get("planner_inspected_source_refs") or []],
+                    *[
+                        str(item.get("source_ref") or "")
+                        for item in page_capsules
+                        if isinstance(item, dict)
+                    ],
+                ]
+            )
+            await public_api.save_source_triage_workspace(
+                self.db,
+                generation_run_id=self.run.id,
+                workspace=current,
+            )
         return {
             **public_api._capsule_page_payload(
                 source_count=len(source_order),
@@ -152,6 +183,114 @@ class SourceTriageWorkspacePlanningHandlersMixin:
             "returned_count": returned_count,
             "page_limit": limit,
             "requested_source_refs": requested_refs,
+        }
+
+    async def route_sources_for_initial_reading_tool(self, args: dict[str, Any]) -> dict[str, Any]:
+        """Persist a non-editorial work queue for sources the planner could not classify."""
+
+        public_api = workspace_api
+        current = await public_api.load_source_triage_workspace(self.db, self.run.id) or self.workspace
+        source_order = {str(item) for item in current.get("source_order") or []}
+        source_refs = public_api._dedupe(
+            [str(item) for item in args.get("source_refs") or [] if str(item).strip()]
+        )
+        if not source_refs:
+            return {
+                "accepted": False,
+                "error": "route_sources_for_initial_reading requires at least one source_ref",
+            }
+        invalid_refs = sorted(set(source_refs) - source_order)
+        if invalid_refs:
+            return {
+                "accepted": False,
+                "error": "source_refs must exist in the triage workspace",
+                "invalid_source_refs": invalid_refs,
+            }
+        inspected_refs = {
+            str(item) for item in current.get("planner_inspected_source_refs") or []
+        }
+        uninspected_refs = [ref for ref in source_refs if ref not in inspected_refs]
+        if uninspected_refs:
+            return {
+                "accepted": False,
+                "error": (
+                    "Each source_ref must first be explicitly inspected with "
+                    "list_source_capsules(source_refs=[...])"
+                ),
+                "uninspected_source_refs": uninspected_refs,
+            }
+
+        existing_orientation = next(
+            (
+                dict(item)
+                for item in current.get("source_sets") or []
+                if isinstance(item, dict) and str(item.get("set_id") or "") == ORIENTATION_SET_ID
+            ),
+            None,
+        )
+        if existing_orientation and str(existing_orientation.get("set_kind") or SOURCE_SET_KIND_COVERAGE) != SOURCE_SET_KIND_ORIENTATION:
+            return {
+                "accepted": False,
+                "error": "The reserved initial-reading set_id is already used by a coverage set",
+            }
+        conflicting_assignments = sorted(
+            {
+                ref
+                for item in current.get("source_sets") or []
+                if isinstance(item, dict) and str(item.get("set_id") or "") != ORIENTATION_SET_ID
+                for ref in source_refs
+                if ref in {str(value) for value in item.get("source_refs") or []}
+            }
+        )
+        if conflicting_assignments:
+            return {
+                "accepted": False,
+                "error": "A source already assigned to a coverage set cannot also enter initial reading",
+                "source_refs": conflicting_assignments,
+            }
+
+        source_set = existing_orientation or {
+            "set_id": ORIENTATION_SET_ID,
+            "label": "Initial reading",
+            "purpose": "Read each source before assigning topical relevance.",
+            "source_refs": [],
+            "status": "planned",
+            "rationale": "Backend-routed after explicit capsule inspection.",
+            "question_ids": [],
+            "planned_question_ids": [],
+            "cross_question_ids": [],
+            "priority": "normal",
+            "findings_summary": "",
+            "evidence_ids": [],
+            "written_actions": [],
+            "observations": [],
+            "deferred_reason": "",
+            "repair": False,
+            "updated_at": public_api._now(),
+        }
+        source_set["set_kind"] = SOURCE_SET_KIND_ORIENTATION
+        source_set["source_refs"] = public_api._dedupe(
+            [*[str(item) for item in source_set.get("source_refs") or []], *source_refs]
+        )
+        source_set["planned_question_ids"] = []
+        source_set["cross_question_ids"] = []
+        source_set["question_ids"] = []
+        source_set["updated_at"] = public_api._now()
+        sets = [
+            item
+            for item in current.get("source_sets") or []
+            if not isinstance(item, dict) or str(item.get("set_id") or "") != ORIENTATION_SET_ID
+        ]
+        sets.append(source_set)
+        current["source_sets"] = sets
+        current["status"] = "planning"
+        await public_api.save_source_triage_workspace(self.db, generation_run_id=self.run.id, workspace=current)
+        return {
+            "accepted": True,
+            "set_id": ORIENTATION_SET_ID,
+            "source_count": len(source_set["source_refs"]),
+            "routed_source_refs": source_refs,
+            "planned_set_count": len(sets),
         }
 
     async def upsert_triage_source_set_tool(self, args: dict[str, Any]) -> dict[str, Any]:
@@ -173,6 +312,20 @@ class SourceTriageWorkspacePlanningHandlersMixin:
             }
         if not source_refs:
             return {"accepted": False, "error": "upsert_triage_source_set requires at least one source_ref"}
+        orientation_refs = {
+            str(ref)
+            for item in current.get("source_sets") or []
+            if isinstance(item, dict)
+            and str(item.get("set_kind") or SOURCE_SET_KIND_COVERAGE) == SOURCE_SET_KIND_ORIENTATION
+            for ref in item.get("source_refs") or []
+        }
+        already_routed_refs = sorted(set(source_refs).intersection(orientation_refs))
+        if already_routed_refs:
+            return {
+                "accepted": False,
+                "error": "A source routed for initial reading cannot also enter a coverage set",
+                "source_refs": already_routed_refs,
+            }
         label = str(args.get("label") or "").strip()
         purpose = str(args.get("purpose") or "").strip()
         if not label or not purpose:
@@ -209,6 +362,7 @@ class SourceTriageWorkspacePlanningHandlersMixin:
         )
         source_set = {
             "set_id": set_id,
+            "set_kind": SOURCE_SET_KIND_COVERAGE,
             "label": label,
             "purpose": purpose,
             "source_refs": source_refs,
@@ -227,6 +381,19 @@ class SourceTriageWorkspacePlanningHandlersMixin:
             "updated_at": public_api._now(),
         }
         sets = [item for item in current.get("source_sets") or [] if item.get("set_id") != set_id]
+        existing_same_id = next(
+            (
+                item
+                for item in current.get("source_sets") or []
+                if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
+            ),
+            None,
+        )
+        if existing_same_id and str(existing_same_id.get("set_kind") or SOURCE_SET_KIND_COVERAGE) == SOURCE_SET_KIND_ORIENTATION:
+            return {
+                "accepted": False,
+                "error": "Initial-reading sets cannot be replaced with upsert_triage_source_set",
+            }
         sets.append(source_set)
         current["source_sets"] = sets
         current["status"] = "planning"
@@ -263,28 +430,107 @@ class SourceTriageWorkspacePlanningHandlersMixin:
         questions = [item for item in current.get("coverage_questions") or [] if isinstance(item, dict)]
         if not questions:
             return {"accepted": False, "error": "Persist at least one coverage question before finalizing"}
+        hierarchy_cycle = _question_parent_cycle(questions)
+        if hierarchy_cycle:
+            return {
+                "accepted": False,
+                "error": "coverage question hierarchy cannot contain a cycle",
+                "question_ids": hierarchy_cycle,
+            }
         known_question_ids = {str(item.get("question_id") or "") for item in questions}
+        central_question_id = str(args.get("central_question_id") or "").strip()
+        central_question = next(
+            (
+                item
+                for item in questions
+                if str(item.get("question_id") or "") == central_question_id
+            ),
+            None,
+        )
+        if central_question is None:
+            return {
+                "accepted": False,
+                "error": "central_question_id must reference a persisted coverage question",
+                "central_question_id": central_question_id,
+            }
+        if str(central_question.get("parent_question_id") or "").strip():
+            return {
+                "accepted": False,
+                "error": "central_question_id must reference a root question",
+                "central_question_id": central_question_id,
+            }
+        if str(central_question.get("importance") or "") != "critical":
+            return {
+                "accepted": False,
+                "error": "central_question_id must reference a critical question",
+                "central_question_id": central_question_id,
+            }
+        invalid_set_kinds = [
+            str(item.get("set_id") or "")
+            for item in source_sets
+            if str(item.get("set_kind") or SOURCE_SET_KIND_COVERAGE)
+            not in {SOURCE_SET_KIND_COVERAGE, SOURCE_SET_KIND_ORIENTATION}
+        ]
+        coverage_sets = [
+            item
+            for item in source_sets
+            if str(item.get("set_kind") or SOURCE_SET_KIND_COVERAGE) == SOURCE_SET_KIND_COVERAGE
+        ]
+        orientation_sets = [
+            item
+            for item in source_sets
+            if str(item.get("set_kind") or SOURCE_SET_KIND_COVERAGE) == SOURCE_SET_KIND_ORIENTATION
+        ]
         referenced_question_ids = {
-            str(question_id) for item in source_sets for question_id in item.get("question_ids") or []
+            str(question_id)
+            for item in coverage_sets
+            for question_id in item.get("planned_question_ids", item.get("question_ids") or [])
         }
         unknown_question_ids = sorted(referenced_question_ids - known_question_ids)
         unassigned_question_ids = sorted(known_question_ids - referenced_question_ids)
-        sets_without_questions = [
-            str(item.get("set_id") or "") for item in source_sets if not (item.get("question_ids") or [])
+        coverage_sets_without_questions = [
+            str(item.get("set_id") or "")
+            for item in coverage_sets
+            if not (item.get("planned_question_ids", item.get("question_ids") or []))
         ]
-        if unknown_question_ids or unassigned_question_ids or sets_without_questions:
+        orientation_sets_with_planned_questions = [
+            str(item.get("set_id") or "")
+            for item in orientation_sets
+            if item.get("planned_question_ids") or item.get("question_ids")
+        ]
+        inspected_refs = {str(item) for item in current.get("planner_inspected_source_refs") or []}
+        uninspected_orientation_refs = sorted(
+            {
+                str(ref)
+                for item in orientation_sets
+                for ref in item.get("source_refs") or []
+                if str(ref) not in inspected_refs
+            }
+        )
+        if (
+            invalid_set_kinds
+            or unknown_question_ids
+            or unassigned_question_ids
+            or coverage_sets_without_questions
+            or orientation_sets_with_planned_questions
+            or uninspected_orientation_refs
+        ):
             return {
                 "accepted": False,
-                "error": "Every coverage question and every source set must be connected",
+                "error": "The source-set plan has invalid question or initial-reading assignments",
+                "invalid_source_set_ids": invalid_set_kinds,
                 "unknown_question_ids": unknown_question_ids,
                 "unassigned_question_ids": unassigned_question_ids,
-                "source_sets_without_question_ids": sets_without_questions,
+                "coverage_source_sets_without_question_ids": coverage_sets_without_questions,
+                "orientation_source_sets_with_question_ids": orientation_sets_with_planned_questions,
+                "uninspected_orientation_source_refs": uninspected_orientation_refs,
             }
         summary = str(args.get("summary") or "").strip()
         field_error = semantic_field_error({"plan_summary": summary}, TRIAGE_SEMANTIC_FIELD_LIMITS, ["plan_summary"])
         if field_error:
             return field_error
         current["status"] = "planned"
+        current["central_question_id"] = central_question_id
         current["plan_summary"] = summary
         await public_api.save_source_triage_workspace(self.db, generation_run_id=self.run.id, workspace=current)
         return {
@@ -296,3 +542,22 @@ class SourceTriageWorkspacePlanningHandlersMixin:
 
 
 __all__ = ["SourceTriageWorkspacePlanningHandlersMixin"]
+
+
+def _question_parent_cycle(questions: list[dict[str, Any]]) -> list[str]:
+    parent_by_id = {
+        str(item.get("question_id") or ""): str(item.get("parent_question_id") or "")
+        for item in questions
+        if isinstance(item, dict) and str(item.get("question_id") or "")
+    }
+    for start in parent_by_id:
+        path: list[str] = []
+        positions: dict[str, int] = {}
+        current = start
+        while current and current in parent_by_id:
+            if current in positions:
+                return path[positions[current] :] + [current]
+            positions[current] = len(path)
+            path.append(current)
+            current = parent_by_id.get(current, "")
+    return []

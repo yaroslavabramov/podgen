@@ -4,6 +4,8 @@ from datetime import datetime
 from typing import Any
 
 WORKSPACE_SCHEMA_VERSION = "source_triage_workspace.v2"
+SOURCE_SET_KIND_COVERAGE = "coverage"
+SOURCE_SET_KIND_ORIENTATION = "orientation"
 
 
 def normalize_workspace(workspace: dict[str, Any]) -> dict[str, Any]:
@@ -11,6 +13,7 @@ def normalize_workspace(workspace: dict[str, Any]) -> dict[str, Any]:
     workspace.setdefault("schema_version", WORKSPACE_SCHEMA_VERSION)
     workspace.setdefault("source_order", [])
     workspace.setdefault("source_capsules", {})
+    workspace.setdefault("planner_inspected_source_refs", [])
     workspace.setdefault("source_sets", [])
     workspace.setdefault("coverage_questions", [])
     workspace.setdefault("source_assessments", [])
@@ -27,6 +30,9 @@ def normalize_workspace(workspace: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(raw_source_set, dict):
             continue
         source_set = dict(raw_source_set)
+        # Source sets written before this additive contract were all planned as
+        # question-bearing content sets.
+        source_set.setdefault("set_kind", SOURCE_SET_KIND_COVERAGE)
         current_question_ids = dedupe(
             [str(item) for item in source_set.get("question_ids") or []]
         )

@@ -25,6 +25,7 @@ from app.generation_v2.schemas import (
     Treatment,
 )
 from app.generation_v2.source_corpus import list_evidence_dicts
+from app.generation_v2.source_corpus_hosted_search import prepare_run_hosted_file_search
 from app.models.generation_run import GenerationRun
 
 
@@ -222,6 +223,9 @@ async def extract_validate_claim_bundle(
     pass_key: str,
 ) -> Any:
     await start_phase(run, db, V2Phase.FACT_CITATION, "Extracting claims and linking citations", 80)
+    provider_index = getattr(evidence_toolset, "provider_index", None)
+    hosted_source_version_ids = await prepare_run_hosted_file_search(db, provider_index, run_view)
+    hosted_vector_store_id = vector_store_id if hosted_source_version_ids else None
     bundle = await extract_and_link_claims(
         db,
         run,
@@ -233,7 +237,8 @@ async def extract_validate_claim_bundle(
         dossiers=dossiers,
         drafts=drafts,
         critique=critique,
-        vector_store_id=vector_store_id,
+        vector_store_id=hosted_vector_store_id,
+        hosted_source_version_ids=hosted_source_version_ids,
         hosted_file_search_handler=evidence_toolset.persist_hosted_file_search_calls,
         show_bible=show_bible,
     )

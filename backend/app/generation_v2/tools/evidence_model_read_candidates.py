@@ -4,6 +4,8 @@ import uuid
 
 from sqlalchemy import select
 
+from app.generation_v2.source_content_readiness import source_version_model_eligible
+from app.generation_v2.source_corpus_provider_attributes import provider_file_search_ready
 from app.generation_v2.tools.evidence_utils import _model_read_version_priority, _uuid_list, _uuid_or_none
 from app.models.generation_v2 import ProviderCorpusFile, SourceVersion, V2RecordStatus
 
@@ -23,7 +25,11 @@ async def resolve_provider_file_candidates_for_model_read(
         if source_version_id not in selected_version_ids:
             return []
         version = await toolset.db.get(SourceVersion, uuid.UUID(source_version_id))
-        if version is None or str(version.source_id) not in selected_source_ids:
+        if (
+            version is None
+            or str(version.source_id) not in selected_source_ids
+            or not source_version_model_eligible(version)
+        ):
             return []
         target_source_id = str(version.source_id)
     elif source_id and _uuid_or_none(source_id):
@@ -43,7 +49,12 @@ async def resolve_provider_file_candidates_for_model_read(
     candidates: list[tuple[ProviderCorpusFile, SourceVersion]] = []
     for provider_file in result.scalars():
         version = await toolset.db.get(SourceVersion, provider_file.source_version_id)
-        if not version or not toolset._in_run_corpus_view(provider_file.source_id, provider_file.source_version_id):
+        if (
+            not version
+            or not source_version_model_eligible(version)
+            or not provider_file_search_ready(provider_file)
+            or not toolset._in_run_corpus_view(provider_file.source_id, provider_file.source_version_id)
+        ):
             continue
         candidates.append((provider_file, version))
     candidates.sort(key=lambda item: _model_read_version_priority(item[1].kind))

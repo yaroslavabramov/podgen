@@ -5,6 +5,7 @@ from typing import Any
 
 from sqlalchemy import select
 
+from app.generation_v2.source_content_readiness import source_version_model_eligible
 from app.generation_v2.tools.evidence_local_search import (
     local_fallback_search as _local_fallback_search_impl,
     source_version_fallback as _source_version_fallback_impl,
@@ -94,7 +95,12 @@ class EvidenceLocalSourceMixin:
                 scope_error = await self._triage_scope_error_for_source_ids([str(version.source_id)])
                 if scope_error:
                     return None
-            if version and str(version.id) in selected_version_ids and str(version.source_id) in selected_source_ids:
+            if (
+                version
+                and str(version.id) in selected_version_ids
+                and str(version.source_id) in selected_source_ids
+                and source_version_model_eligible(version)
+            ):
                 return version
             return None
         if not source_id or not _uuid_or_none(source_id) or source_id not in selected_source_ids:
@@ -106,7 +112,7 @@ class EvidenceLocalSourceMixin:
                 SourceVersion.status == V2RecordStatus.READY,
             )
         )
-        versions = list(result.scalars())
+        versions = [version for version in result.scalars() if source_version_model_eligible(version)]
         versions.sort(key=lambda version: _readable_version_priority(version.kind))
         return versions[0] if versions else None
 

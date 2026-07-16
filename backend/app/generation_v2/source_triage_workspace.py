@@ -47,7 +47,12 @@ from app.generation_v2.source_triage_repair_state import (
     triage_workspace_evidence_ids,
 )
 from app.generation_v2.tools.evidence_store import persist_evidence_item
-from app.generation_v2.tools.evidence_types import EVIDENCE_STATUS_CITED, EVIDENCE_STATUS_SELECTED
+from app.generation_v2.tools.evidence_source_map_action_helpers import trace_accepted
+from app.generation_v2.tools.evidence_types import (
+    EVIDENCE_STATUS_CITED,
+    EVIDENCE_STATUS_SELECTED,
+    _WRITE_TOOL_NAMES,
+)
 from app.generation_v2.source_triage_workspace_tracking import (
     mark_workspace_write_action,
     triage_workflow_guard_error,
@@ -59,6 +64,7 @@ from app.models.generation_v2 import (
     EvidenceRetrievalChannel,
     RunCorpusView,
     SourceVersion,
+    V2ToolTrace,
 )
 
 
@@ -92,6 +98,7 @@ async def ensure_source_triage_workspace(
         "status": "orientation",
         "source_order": source_order,
         "source_capsules": {},
+        "planner_inspected_source_refs": [],
         "intent": {
             "user_prompt": str(run_config.get("user_prompt") or ""),
             "language": str(run_config.get("language") or ""),
@@ -124,6 +131,13 @@ async def ensure_source_triage_workspace(
             workspace,
             evidence_id_map=evidence_id_map,
             invalid_evidence_ids=invalid_evidence_ids,
+        )
+        await _carry_source_map_write_actions_to_current_attempt(
+            db,
+            run=run,
+            run_view=run_view,
+            source_attempt=int((existing or {}).get("attempt") or 1),
+            evidence_id_map=evidence_id_map,
         )
     await save_source_triage_workspace(db, generation_run_id=run.id, workspace=workspace)
     return workspace
@@ -234,6 +248,167 @@ async def _carry_evidence_to_current_attempt(
         invalid.discard(evidence_id)
     await db.flush()
     return evidence_id_map, invalid
+
+
+async def _carry_source_map_write_actions_to_current_attempt(
+    db: AsyncSession,
+    *,
+    run: GenerationRun,
+    run_view: RunCorpusView,
+    source_attempt: int,
+    evidence_id_map: dict[str, str],
+) -> int:
+    """Copy accepted semantic SourceMap writes into a repair attempt.
+
+    Tool traces are the authoritative payload for cards, quotes, clusters,
+    relationships, and gaps. Workspace write summaries are intentionally too
+    small to reconstruct them.
+    """
+
+    scope = scope_for_run_view(run_view)
+    if source_attempt >= scope.attempt:
+        return 0
+    result = await db.execute(
+        select(V2ToolTrace)
+        .where(
+            V2ToolTrace.generation_run_id == run.id,
+            V2ToolTrace.corpus_revision == scope.revision,
+            V2ToolTrace.attempt == source_attempt,
+            V2ToolTrace.phase == "v2_source_triage",
+            V2ToolTrace.tool_name.in_(list(_WRITE_TOOL_NAMES)),
+        )
+        .order_by(V2ToolTrace.created_at.asc(), V2ToolTrace.id.asc())
+    )
+    source_traces = [
+        trace
+        for trace in result.scalars()
+        if trace_accepted(trace) and str(trace.tool_name or "") != "finalize_source_map"
+    ]
+    if not source_traces:
+        return 0
+
+    marker_by_source_id = {
+        str(trace.id): f"triage-action-lineage:{source_attempt}:{trace.id}"
+        for trace in source_traces
+    }
+    existing_result = await db.execute(
+        select(V2ToolTrace).where(
+            V2ToolTrace.generation_run_id == run.id,
+            V2ToolTrace.corpus_revision == scope.revision,
+            V2ToolTrace.attempt == scope.attempt,
+            V2ToolTrace.phase == "v2_source_triage",
+            V2ToolTrace.provider_call_id.in_(list(marker_by_source_id.values())),
+        )
+    )
+    existing_by_marker = {
+        str(trace.provider_call_id or ""): trace
+        for trace in existing_result.scalars()
+        if str(trace.provider_call_id or "")
+    }
+
+    carried_count = 0
+    for source_trace in source_traces:
+        source_trace_id = str(source_trace.id)
+        marker = marker_by_source_id[source_trace_id]
+        existing_trace = existing_by_marker.get(marker)
+        action = dict(source_trace.input_json or {})
+        action_evidence_ids = set(_source_map_action_evidence_ids(action))
+        unavailable_evidence_ids = sorted(action_evidence_ids - set(evidence_id_map))
+        lineage = {
+            "kind": "source_map_action_carry",
+            "source_trace_id": source_trace_id,
+            "from_attempt": source_attempt,
+            "to_attempt": scope.attempt,
+            "corpus_revision": scope.revision,
+        }
+        if unavailable_evidence_ids:
+            if existing_trace is not None:
+                existing_trace.output_json = {
+                    "accepted": False,
+                    "error": "carried_action_evidence_unavailable",
+                    "unavailable_evidence_count": len(unavailable_evidence_ids),
+                    "_attempt_lineage": lineage,
+                }
+            continue
+
+        carried_input = _remap_source_map_action_evidence(action, evidence_id_map)
+        if str(source_trace.tool_name or "") == "resolve_source_map_repair":
+            # The accepted repair target is still the same record, but its
+            # fingerprint can change when evidence ids are remapped.
+            carried_input["target_fingerprint"] = ""
+        carried_output = _remap_source_map_action_evidence(
+            dict(source_trace.output_json or {}),
+            evidence_id_map,
+        )
+        carried_output = {
+            **carried_output,
+            "accepted": True,
+            "_attempt_lineage": lineage,
+        }
+        if existing_trace is not None:
+            existing_trace.tool_name = source_trace.tool_name
+            existing_trace.input_json = carried_input
+            existing_trace.output_json = carried_output
+            existing_trace.created_at = source_trace.created_at
+        else:
+            db.add(
+                V2ToolTrace(
+                    generation_run_id=run.id,
+                    corpus_revision=scope.revision,
+                    attempt=scope.attempt,
+                    phase="v2_source_triage",
+                    agent_name="triage_attempt_lineage",
+                    tool_name=source_trace.tool_name,
+                    input_json=carried_input,
+                    output_json=carried_output,
+                    provider_call_id=marker,
+                    created_at=source_trace.created_at,
+                )
+            )
+        carried_count += 1
+    await db.flush()
+    return carried_count
+
+
+def _source_map_action_evidence_ids(value: Any) -> list[str]:
+    if isinstance(value, dict):
+        result: list[str] = []
+        for key, item in value.items():
+            if key == "evidence_id":
+                if str(item or "").strip():
+                    result.append(str(item))
+            elif key == "evidence_ids" and isinstance(item, list):
+                result.extend(str(value) for value in item if str(value).strip())
+            else:
+                result.extend(_source_map_action_evidence_ids(item))
+        return list(dict.fromkeys(result))
+    if isinstance(value, list):
+        return list(
+            dict.fromkeys(
+                evidence_id
+                for item in value
+                for evidence_id in _source_map_action_evidence_ids(item)
+            )
+        )
+    return []
+
+
+def _remap_source_map_action_evidence(value: Any, mapping: dict[str, str]) -> Any:
+    if isinstance(value, dict):
+        remapped: dict[str, Any] = {}
+        for key, item in value.items():
+            if key == "evidence_id" and str(item or "").strip():
+                remapped[key] = mapping.get(str(item), str(item))
+            elif key == "evidence_ids" and isinstance(item, list):
+                remapped[key] = list(
+                    dict.fromkeys(mapping.get(str(evidence_id), str(evidence_id)) for evidence_id in item)
+                )
+            else:
+                remapped[key] = _remap_source_map_action_evidence(item, mapping)
+        return remapped
+    if isinstance(value, list):
+        return [_remap_source_map_action_evidence(item, mapping) for item in value]
+    return value
 
 
 def build_workspace_tools(

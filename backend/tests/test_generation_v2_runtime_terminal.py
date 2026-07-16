@@ -112,7 +112,7 @@ def _incomplete_response(
 
 
 @pytest.mark.asyncio
-async def test_accepted_terminal_stops_immediately_skips_later_calls_and_beats_checkpoint(
+async def test_terminal_in_mixed_batch_is_rejected_without_dropping_other_calls(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.generation_v2 import runtime as runtime_module
@@ -137,8 +137,8 @@ async def test_accepted_terminal_stops_immediately_skips_later_calls_and_beats_c
             _tool_response(
                 ("finish", "call_finish", {"summary": "finished durably"}),
                 ("later", "call_later", {}),
-                input_tokens=70_000,
-            )
+            ),
+            _tool_response(("finish", "call_finish_alone", {"summary": "finished durably"})),
         ]
     )
     fake_db = _FakeDb()
@@ -176,23 +176,152 @@ async def test_accepted_terminal_stops_immediately_skips_later_calls_and_beats_c
                 handler=later,
             ),
         ],
-        tool_policy=ToolPolicy(file_search=False, local_tools=True),
+        tool_policy=ToolPolicy(
+            file_search=False,
+            local_tools=True,
+            parallel_local_tool_calls=True,
+        ),
+        checkpoint_policy=AgentCheckpointPolicy(enabled=False),
+        max_tool_rounds=3,
+    )
+
+    assert result == _Completion(ok=True, summary="finished durably")
+    assert calls == {"finish": 1, "later": 1}
+    assert len(fake_client.responses.calls) == 2
+    assert fake_client.responses.calls[0]["parallel_tool_calls"] is True
+    finish_traces = [item for item in fake_db.added if isinstance(item, V2ToolTrace) and item.tool_name == "finish"]
+    assert finish_traces[0].output_json["error"] == "terminal_tool_must_be_called_alone"
+    assert finish_traces[1].output_json["accepted"] is True
+    assert any(isinstance(item, V2ToolTrace) and item.tool_name == "later" for item in fake_db.added)
+
+
+@pytest.mark.asyncio
+async def test_single_accepted_terminal_finishes_before_checkpoint_restart(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import runtime as runtime_module
+
+    async def finish(_args: dict) -> dict:
+        return {"accepted": True}
+
+    fake_client = _FakeClient(
+        [_tool_response(("finish", "call_finish", {"summary": "done"}), input_tokens=70_000)]
+    )
+    fake_db = _FakeDb()
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(runtime_module, "get_openai_client", lambda: fake_client)
+
+    result = await V2Runtime().call_structured(
+        db=fake_db,  # type: ignore[arg-type]
+        generation_run_id=uuid.uuid4(),
+        phase="v2_source_triage",
+        agent_name="source_triage_set_agent_terminal_test",
+        schema_model=_Completion,
+        system="system",
+        prompt="prompt",
+        local_tools=[
+            AgentTool(
+                name="finish",
+                description="Finish",
+                parameters={
+                    "type": "object",
+                    "properties": {"summary": {"type": "string"}},
+                    "required": ["summary"],
+                },
+                handler=finish,
+                terminal=True,
+                terminal_result_builder=lambda arguments, _output: {
+                    "ok": True,
+                    "summary": arguments["summary"],
+                },
+            )
+        ],
+        tool_policy=ToolPolicy(file_search=False, local_tools=True, parallel_local_tool_calls=True),
         checkpoint_policy=AgentCheckpointPolicy(
             enabled=True,
             max_chain_input_tokens=1,
             max_chain_rounds=1,
             max_chain_model_tool_output_chars=1,
         ),
+        max_tool_rounds=2,
+    )
+
+    assert result == _Completion(ok=True, summary="done")
+    assert len(fake_client.responses.calls) == 1
+    assert not any(
+        isinstance(item, V2ToolTrace) and item.tool_name == "runtime.checkpoint_restart"
+        for item in fake_db.added
+    )
+
+
+@pytest.mark.asyncio
+async def test_opted_in_local_tools_persist_multiple_independent_calls_in_one_provider_round(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import runtime as runtime_module
+
+    written: list[str] = []
+
+    async def write(args: dict) -> dict:
+        written.append(str(args["value"]))
+        return {"accepted": True, "value": args["value"]}
+
+    async def finish(_args: dict) -> dict:
+        return {"accepted": True}
+
+    fake_client = _FakeClient(
+        [
+            _tool_response(
+                ("write", "call_write_1", {"value": "one"}),
+                ("write", "call_write_2", {"value": "two"}),
+            ),
+            _tool_response(("finish", "call_finish", {})),
+        ]
+    )
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(runtime_module, "get_openai_client", lambda: fake_client)
+
+    result = await V2Runtime().call_structured(
+        db=_FakeDb(),  # type: ignore[arg-type]
+        generation_run_id=uuid.uuid4(),
+        phase="v2_source_triage",
+        agent_name="source_triage_set_agent_batch_test",
+        schema_model=_Completion,
+        system="system",
+        prompt="prompt",
+        local_tools=[
+            AgentTool(
+                name="write",
+                description="Write one independent item",
+                parameters={
+                    "type": "object",
+                    "properties": {"value": {"type": "string"}},
+                    "required": ["value"],
+                },
+                handler=write,
+            ),
+            AgentTool(
+                name="finish",
+                description="Finish",
+                parameters={"type": "object", "properties": {}},
+                handler=finish,
+                terminal=True,
+                terminal_result_builder=lambda _arguments, _output: {"ok": True},
+            ),
+        ],
+        tool_policy=ToolPolicy(
+            file_search=False,
+            local_tools=True,
+            parallel_local_tool_calls=True,
+        ),
+        checkpoint_policy=AgentCheckpointPolicy(enabled=False),
         max_tool_rounds=3,
     )
 
-    assert result == _Completion(ok=True, summary="finished durably")
-    assert calls == {"finish": 1, "later": 0}
-    assert len(fake_client.responses.calls) == 1
-    assert not any(
-        isinstance(item, V2ToolTrace) and item.tool_name == "runtime.checkpoint_restart" for item in fake_db.added
-    )
-    assert not any(isinstance(item, V2ToolTrace) and item.tool_name == "later" for item in fake_db.added)
+    assert result == _Completion(ok=True)
+    assert written == ["one", "two"]
+    assert len(fake_client.responses.calls) == 2
+    assert all(call["parallel_tool_calls"] is True for call in fake_client.responses.calls)
 
 
 @pytest.mark.asyncio
@@ -253,6 +382,7 @@ async def test_rejected_terminal_continues_until_terminal_is_accepted(
     assert handler_calls == 2
     assert builder_calls == 1
     assert len(fake_client.responses.calls) == 2
+    assert all(call["parallel_tool_calls"] is False for call in fake_client.responses.calls)
     assert fake_client.responses.calls[1]["previous_response_id"] is not runtime_module.openai.NOT_GIVEN
     assert fake_client.responses.calls[1]["input"][0]["type"] == "function_call_output"
 
@@ -460,7 +590,11 @@ async def test_output_continuation_preserves_persisted_hosted_evidence_handoff(
                 handler=select_evidence,
             )
         ],
-        tool_policy=ToolPolicy(file_search=True, local_tools=True),
+        tool_policy=ToolPolicy(
+            file_search=True,
+            local_tools=True,
+            file_search_source_version_ids=(str(uuid.uuid4()),),
+        ),
         hosted_file_search_handler=persist_hosted,
         checkpoint_policy=AgentCheckpointPolicy(enabled=False),
         max_output_tokens=100,

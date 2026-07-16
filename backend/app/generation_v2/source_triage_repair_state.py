@@ -197,6 +197,8 @@ def carry_pending_triage_repair(
         "coverage_questions",
         "source_assessments",
         "coverage_outcomes",
+        "repair_baseline_source_assessments",
+        "repair_baseline_coverage_outcomes",
         "deferred_sources",
         "mapped_sources",
         "open_questions",
@@ -222,9 +224,16 @@ def carry_pending_triage_repair(
 
 
 def triage_workspace_evidence_ids(workspace: dict[str, Any]) -> list[str]:
-    """Return evidence referenced by current semantic triage state, not audit history."""
+    """Return evidence needed to restore current and pre-repair semantic context."""
     values: list[str] = []
-    for field in ("source_assessments", "coverage_outcomes", "source_sets", "processed_sets"):
+    for field in (
+        "source_assessments",
+        "coverage_outcomes",
+        "repair_baseline_source_assessments",
+        "repair_baseline_coverage_outcomes",
+        "source_sets",
+        "processed_sets",
+    ):
         values.extend(_nested_evidence_ids(workspace.get(field)))
     return _dedupe(values)
 
@@ -281,6 +290,40 @@ def reconcile_carried_triage_evidence(
             continue
         outcomes.append(_remap_nested_evidence(raw, mapping, invalid))
     current["coverage_outcomes"] = outcomes
+
+    baseline_assessments: list[dict[str, Any]] = []
+    for raw in current.get("repair_baseline_source_assessments") or []:
+        if not isinstance(raw, dict):
+            continue
+        stale_ids = invalid.intersection(_nested_evidence_ids(raw))
+        baseline = _remap_nested_evidence(raw, mapping, invalid)
+        if stale_ids:
+            source_ref = str(raw.get("source_ref") or "")
+            assessment_refs.add(source_ref)
+            affect(str(raw.get("set_id") or ""), source_refs=[source_ref])
+            baseline["repair_baseline_evidence_unavailable"] = True
+            baseline["repair_baseline_unavailable_evidence_count"] = len(stale_ids)
+        baseline_assessments.append(baseline)
+    if "repair_baseline_source_assessments" in current:
+        current["repair_baseline_source_assessments"] = baseline_assessments
+
+    baseline_outcomes: list[dict[str, Any]] = []
+    for raw in current.get("repair_baseline_coverage_outcomes") or []:
+        if not isinstance(raw, dict):
+            continue
+        stale_ids = invalid.intersection(_nested_evidence_ids(raw))
+        baseline = _remap_nested_evidence(raw, mapping, invalid)
+        if stale_ids:
+            affect(
+                str(raw.get("set_id") or ""),
+                source_refs=[str(item) for item in raw.get("source_refs") or []],
+                question_ids=[str(raw.get("question_id") or "")],
+            )
+            baseline["repair_baseline_evidence_unavailable"] = True
+            baseline["repair_baseline_unavailable_evidence_count"] = len(stale_ids)
+        baseline_outcomes.append(baseline)
+    if "repair_baseline_coverage_outcomes" in current:
+        current["repair_baseline_coverage_outcomes"] = baseline_outcomes
 
     source_sets: list[dict[str, Any]] = []
     for raw in current.get("source_sets") or []:

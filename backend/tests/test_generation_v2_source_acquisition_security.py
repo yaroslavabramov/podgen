@@ -423,8 +423,16 @@ async def test_acquisition_failure_never_syncs_or_promotes(monkeypatch: pytest.M
 
 
 @pytest.mark.asyncio
-async def test_ready_native_snapshot_can_promote_after_parser_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_confirmed_provider_content_can_promote_after_parser_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     source = _source()
+    source.metadata_ = {
+        "v2_native_ingest": {
+            "status": "provider_ready",
+            "native_content_ready": True,
+            "canonical_source_version_id": "version-1",
+            "ready_provider_file_count": 1,
+        }
+    }
     db = _SourceDb(source)
     synced = False
 
@@ -451,6 +459,35 @@ async def test_ready_native_snapshot_can_promote_after_parser_failure(monkeypatc
     assert source.is_temporary is False
     assert source.fully_ingested is False
     assert source.metadata_["ingest_status"] == "completed_v2_native_parser_failed"
+
+
+@pytest.mark.asyncio
+async def test_local_snapshot_alone_cannot_hide_parser_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    source = _source()
+    db = _SourceDb(source)
+
+    async def ensure_versions(_db, _source):
+        return [SimpleNamespace(status="ready", is_active=True, kind="fetched_html")]
+
+    async def fail_parser(_source, _db, **_kwargs):
+        raise RuntimeError("parser unavailable")
+
+    async def unexpected_sync(*_args, **_kwargs):  # pragma: no cover - defensive
+        raise AssertionError("an unconfirmed local snapshot must not be promoted")
+
+    monkeypatch.setattr("app.generation_v2.source_acquisition_ingest.ensure_source_versions", ensure_versions)
+    monkeypatch.setattr("app.generation_v2.source_acquisition_ingest.run_ingestion", fail_parser)
+    monkeypatch.setattr(
+        "app.generation_v2.source_acquisition_ingest.sync_source_to_project_corpus_now", unexpected_sync
+    )
+    monkeypatch.setattr("app.generation_v2.source_acquisition_ingest._provider_uploads_required", lambda: True)
+
+    with pytest.raises(RuntimeError, match="parser unavailable"):
+        await native_first_ingest_candidate(db, source.id)  # type: ignore[arg-type]
+
+    assert source.is_temporary is True
+    assert source.ingestion_status == IngestionStatus.FAILED
+    assert source.fully_ingested is False
 
 
 @pytest.mark.asyncio

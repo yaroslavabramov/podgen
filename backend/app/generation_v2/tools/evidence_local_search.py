@@ -4,6 +4,7 @@ from typing import Any
 
 from sqlalchemy import select
 
+from app.generation_v2.source_content_readiness import source_version_model_eligible
 from app.generation_v2.tools.evidence_store import persist_evidence_item
 from app.generation_v2.tools.evidence_utils import (
     _normalize,
@@ -68,6 +69,8 @@ async def source_version_fallback(
     )
     candidates: list[tuple[float, int, str, SourceVersion, dict[str, Any]]] = []
     for version in result.scalars():
+        if not source_version_model_eligible(version):
+            continue
         text = _source_version_text(version)
         if not text.strip():
             continue

@@ -97,6 +97,7 @@ async def test_full_36_source_planner_preflight_needs_no_capsule_sweep() -> None
 
     tools = [
         _tool("list_source_capsules"),
+        _tool("route_sources_for_initial_reading"),
         _tool("list_triage_source_sets"),
         _tool("upsert_coverage_question"),
         _tool("upsert_triage_source_set"),
@@ -136,7 +137,7 @@ async def test_full_36_source_planner_preflight_needs_no_capsule_sweep() -> None
                     }
                 )
             await by_name["finalize_triage_workspace_plan"].handler(
-                {"summary": "Every source is assigned once."}
+                {"summary": "Every source is assigned once.", "central_question_id": "q-main"}
             )
             return SourceTriageCompletion(ready=True, summary="planned", notes=[])
 

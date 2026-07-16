@@ -10,7 +10,15 @@ from app.generation_v2.corpus_scope import session_corpus_scope_or_none
 from app.generation_v2.pipeline.status import V2StepExecutionStopped
 from app.generation_v2.schemas import SourceMap, SourceTriageCompletion, SourceTriageGate
 from app.generation_v2.source_corpus import load_current_v2_corpus
-from app.models.generation_v2 import V2ArtifactStatus, V2ArtifactType, V2RecordStatus
+from app.generation_v2.source_content_readiness import CONTENT_ASSESSMENT_SCHEMA_VERSION
+from app.models.generation_v2 import (
+    SourceRepresentationKind,
+    SourceVersion,
+    V2ArtifactStatus,
+    V2ArtifactType,
+    V2RecordStatus,
+)
+from app.models.source import Source, SourceType
 
 
 class _ReachedEditorial(RuntimeError):
@@ -80,6 +88,16 @@ async def test_source_triage_step_reuses_prepared_corpus_without_new_attempt(
         calls.append("load_current_corpus")
         return corpus
 
+    async def load_current_view(actual_db, run_id):
+        assert (actual_db, run_id) == (db, run.id)
+        calls.append("load_current_view")
+        return corpus.run_view
+
+    async def has_history(actual_db, run_view):
+        assert (actual_db, run_view) == (db, corpus.run_view)
+        calls.append("detect_partial_triage")
+        return False
+
     async def triage(actual_run, actual_db, actual_runtime, *, corpus: object):
         assert (actual_run, actual_db, actual_runtime) == (run, db, deps.runtime)
         assert corpus is globals_corpus
@@ -95,8 +113,9 @@ async def test_source_triage_step_reuses_prepared_corpus_without_new_attempt(
 
     globals_corpus = corpus
     monkeypatch.setattr(orchestrator, "prepare_v2_corpus", prepare_must_not_run)
+    monkeypatch.setattr(orchestrator, "load_current_run_corpus_view", load_current_view)
     monkeypatch.setattr(orchestrator, "load_current_v2_corpus", load_current)
-    monkeypatch.setattr(orchestrator, "current_attempt_has_triage_history", lambda *_args: _async_false())
+    monkeypatch.setattr(orchestrator, "current_attempt_has_triage_history", has_history)
     monkeypatch.setattr(orchestrator, "_triage_prepared_corpus", triage)
     monkeypatch.setattr(orchestrator, "commit_step", commit)
     monkeypatch.setattr(orchestrator, "run_editorial_research_until_treatment", research_must_not_run)
@@ -106,11 +125,13 @@ async def test_source_triage_step_reuses_prepared_corpus_without_new_attempt(
 
     assert exc_info.value.executed_step == V2PipelineStep.SOURCE_TRIAGE
     assert exc_info.value.next_step == V2PipelineStep.EDITORIAL_RESEARCH
-    assert calls == ["load_current_corpus", "triage", "commit:source_triage"]
-
-
-async def _async_false() -> bool:
-    return False
+    assert calls == [
+        "load_current_view",
+        "detect_partial_triage",
+        "load_current_corpus",
+        "triage",
+        "commit:source_triage",
+    ]
 
 
 @pytest.mark.asyncio
@@ -123,15 +144,19 @@ async def test_source_triage_retry_starts_a_clean_attempt(
     deps = _patch_orchestrator_basics(monkeypatch, orchestrator, calls)
     run = _run(stop_after=V2PipelineStep.SOURCE_TRIAGE)
     db = object()
-    old_corpus = SimpleNamespace(run_view=object())
+    old_view = SimpleNamespace(selected_source_ids=[])
     fresh_corpus = SimpleNamespace(run_view=object())
 
-    async def load_current(_db, _run):
-        calls.append("load_current_corpus")
-        return old_corpus
+    async def load_current_view(_db, run_id):
+        assert run_id == run.id
+        calls.append("load_current_view")
+        return old_view
+
+    async def load_current_must_not_run(*_args, **_kwargs):
+        raise AssertionError("retry history must be checked before hydrating rejected pinned versions")
 
     async def has_history(_db, run_view):
-        assert run_view is old_corpus.run_view
+        assert run_view is old_view
         calls.append("detect_partial_triage")
         return True
 
@@ -152,7 +177,8 @@ async def test_source_triage_retry_starts_a_clean_attempt(
     async def research_must_not_run(*_args, **_kwargs):
         raise AssertionError("step execution must stop after source_triage")
 
-    monkeypatch.setattr(orchestrator, "load_current_v2_corpus", load_current)
+    monkeypatch.setattr(orchestrator, "load_current_run_corpus_view", load_current_view)
+    monkeypatch.setattr(orchestrator, "load_current_v2_corpus", load_current_must_not_run)
     monkeypatch.setattr(orchestrator, "current_attempt_has_triage_history", has_history)
     monkeypatch.setattr(orchestrator, "prepare_v2_corpus", prepare)
     monkeypatch.setattr(orchestrator, "_triage_prepared_corpus", triage)
@@ -163,9 +189,70 @@ async def test_source_triage_retry_starts_a_clean_attempt(
         await orchestrator.execute_generation_v2(run, db)  # type: ignore[arg-type]
 
     assert calls == [
-        "load_current_corpus",
+        "load_current_view",
         "detect_partial_triage",
         "prepare_fresh_attempt",
+        "triage",
+        "commit:source_triage",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_source_triage_refreshes_corpus_when_explicit_selection_changed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import orchestrator
+
+    calls: list[str] = []
+    deps = _patch_orchestrator_basics(monkeypatch, orchestrator, calls)
+    run = _run(stop_after=V2PipelineStep.SOURCE_TRIAGE)
+    run.config["source_ids"] = [str(uuid.uuid4())]
+    db = object()
+    old_view = SimpleNamespace(selected_source_ids=[str(uuid.uuid4())])
+    fresh_corpus = SimpleNamespace(run_view=object())
+
+    async def load_current_view(_db, run_id):
+        assert run_id == run.id
+        calls.append("load_current_view")
+        return old_view
+
+    async def has_history(_db, run_view):
+        assert run_view is old_view
+        calls.append("detect_partial_triage")
+        return False
+
+    async def prepare(_db, _run):
+        calls.append("prepare_fresh_revision")
+        return fresh_corpus
+
+    async def triage(_run, _db, actual_runtime, *, corpus):
+        assert actual_runtime is deps.runtime
+        assert corpus is fresh_corpus
+        calls.append("triage")
+        return _passed_triage(corpus)
+
+    async def commit(_run, _db, step, _pct, *, next_step):
+        calls.append(f"commit:{step}")
+        raise V2StepExecutionStopped(str(step), str(next_step))
+
+    async def must_not_run(*_args, **_kwargs):
+        raise AssertionError("stale explicit selection must not be hydrated or researched")
+
+    monkeypatch.setattr(orchestrator, "load_current_run_corpus_view", load_current_view)
+    monkeypatch.setattr(orchestrator, "current_attempt_has_triage_history", has_history)
+    monkeypatch.setattr(orchestrator, "load_current_v2_corpus", must_not_run)
+    monkeypatch.setattr(orchestrator, "prepare_v2_corpus", prepare)
+    monkeypatch.setattr(orchestrator, "_triage_prepared_corpus", triage)
+    monkeypatch.setattr(orchestrator, "commit_step", commit)
+    monkeypatch.setattr(orchestrator, "run_editorial_research_until_treatment", must_not_run)
+
+    with pytest.raises(V2StepExecutionStopped):
+        await orchestrator.execute_generation_v2(run, db)  # type: ignore[arg-type]
+
+    assert calls == [
+        "load_current_view",
+        "detect_partial_triage",
+        "prepare_fresh_revision",
         "triage",
         "commit:source_triage",
     ]
@@ -388,6 +475,7 @@ class _ReadOnlyCorpusDb:
 @pytest.mark.asyncio
 async def test_load_current_v2_corpus_is_read_only_and_restores_attempt_scope() -> None:
     run = _run()
+    run.status = "completed"
     source_id = uuid.uuid4()
     version_id = uuid.uuid4()
     run_view = SimpleNamespace(
@@ -416,6 +504,83 @@ async def test_load_current_v2_corpus_is_read_only_and_restores_attempt_scope() 
     scope = session_corpus_scope_or_none(db, run.id)
     assert scope is not None
     assert (scope.revision, scope.attempt) == (7, 3)
+
+
+@pytest.mark.asyncio
+async def test_unfinished_resume_rejects_failed_pinned_version() -> None:
+    run = _run()
+    run.status = "running"
+    source = Source(id=uuid.uuid4(), project_id=run.project_id, source_type=SourceType.WEB)
+    version = SourceVersion(
+        id=uuid.uuid4(),
+        source_id=source.id,
+        project_id=run.project_id,
+        kind=SourceRepresentationKind.RENDERED_SNAPSHOT,
+        storage_path="legacy/shell.txt",
+        status=V2RecordStatus.FAILED,
+        is_active=False,
+        metadata_={},
+    )
+    run_view = _pinned_run_view(run, source.id, version.id)
+    db = _ReadOnlyCorpusDb([[run_view], [source], [version]])
+
+    with pytest.raises(RuntimeError, match="unavailable target content"):
+        await load_current_v2_corpus(db, run)  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_unfinished_resume_rejects_unavailable_pinned_pdf() -> None:
+    run = _run()
+    run.status = "running"
+    source = Source(id=uuid.uuid4(), project_id=run.project_id, source_type=SourceType.PDF)
+    version = SourceVersion(
+        id=uuid.uuid4(),
+        source_id=source.id,
+        project_id=run.project_id,
+        kind=SourceRepresentationKind.ORIGINAL_FILE,
+        storage_path="legacy/report.pdf",
+        status=V2RecordStatus.READY,
+        is_active=False,
+        metadata_={
+            "content_assessment": {
+                "schema_version": CONTENT_ASSESSMENT_SCHEMA_VERSION,
+                "state": "unavailable",
+                "reasons": ["invalid_pdf_structure"],
+            }
+        },
+    )
+    run_view = _pinned_run_view(run, source.id, version.id)
+    db = _ReadOnlyCorpusDb([[run_view], [source], [version]])
+
+    with pytest.raises(RuntimeError, match="unavailable target content"):
+        await load_current_v2_corpus(db, run)  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_unfinished_resume_rejects_missing_pinned_version_row() -> None:
+    run = _run()
+    run.status = "running"
+    source = Source(id=uuid.uuid4(), project_id=run.project_id, source_type=SourceType.WEB)
+    missing_version_id = uuid.uuid4()
+    run_view = _pinned_run_view(run, source.id, missing_version_id)
+    db = _ReadOnlyCorpusDb([[run_view], [source], []])
+
+    with pytest.raises(RuntimeError, match="pinned corpus rows are missing"):
+        await load_current_v2_corpus(db, run)  # type: ignore[arg-type]
+
+
+def _pinned_run_view(run: SimpleNamespace, source_id: uuid.UUID, version_id: uuid.UUID) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=uuid.uuid4(),
+        generation_run_id=run.id,
+        revision=1,
+        attempt=1,
+        status=V2RecordStatus.READY,
+        provider_index_id=None,
+        selected_source_ids=[str(source_id)],
+        selected_source_version_ids=[str(version_id)],
+        readiness_summary={"ready": True},
+    )
 
 
 @pytest.mark.asyncio

@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from celery.exceptions import MaxRetriesExceededError
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.generation_v2.source_content_readiness import native_ingest_has_confirmed_provider_content
 from app.workers.celery_app import celery_app
 from app.config import settings
 from app.ingestion.web import DNSResolutionError
@@ -525,21 +526,7 @@ async def _ingest_source_async(source_id: str, *, reset_existing: bool = False) 
 
 
 def _v2_native_source_ready(metadata: dict | None) -> bool:
-    native = (metadata or {}).get("v2_native_ingest")
-    if not isinstance(native, dict):
-        return False
-    status = native.get("status")
-    if status == "failed":
-        return False
-    try:
-        ready_provider_file_count = int(native.get("ready_provider_file_count") or 0)
-    except (TypeError, ValueError):
-        ready_provider_file_count = 0
-    return bool(
-        status == "provider_ready"
-        or ready_provider_file_count > 0
-        or native.get("openai_url_read_status") in {"readable", "partial"}
-    )
+    return native_ingest_has_confirmed_provider_content(metadata)
 
 
 async def _reset_source_for_reingestion(source, db) -> None:

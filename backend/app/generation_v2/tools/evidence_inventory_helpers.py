@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from urllib.parse import urlparse
 
+from app.generation_v2.source_content_readiness import source_version_model_eligible
 from app.models.generation_v2 import SourceRepresentationKind, SourceVersion, V2RecordStatus
 from app.models.source import Source
 
@@ -31,8 +32,14 @@ def source_length_hint(source: Source, versions: list[SourceVersion]) -> str:
     for key in ("char_count", "token_count", "page_count", "duration_seconds"):
         if metadata.get(key) is not None:
             return f"{key}={metadata[key]}"
-    if source.text_preview:
-        return f"preview_chars={len(source.text_preview)}"
+    assessed_lengths = [
+        count
+        for version in versions
+        for count in [_assessment_char_count((version.metadata_ or {}).get("content_assessment"))]
+        if count > 0
+    ]
+    if assessed_lengths:
+        return f"selected_representation_chars={max(assessed_lengths)}"
     readable = [version for version in versions if version_readable(version)]
     return f"readable_versions={len(readable)}"
 
@@ -50,9 +57,7 @@ def provider_status(statuses: list[str]) -> str:
 
 
 def neutral_preview(source: Source, versions: list[SourceVersion]) -> str:
-    preview = (source.text_preview or "").strip()
-    if preview:
-        return preview
+    del source
     version_labels = ", ".join(f"{version.kind}:{version.status}" for version in versions[:6])
     return f"Neutral source metadata only. Available versions: {version_labels or 'none'}."
 
@@ -69,7 +74,16 @@ def inventory_cautions(source: Source, versions: list[SourceVersion], provider_s
 
 
 def version_readable(version: SourceVersion) -> bool:
-    return bool(version.status == V2RecordStatus.READY and version.kind != SourceRepresentationKind.ORIGINAL_URL)
+    return source_version_model_eligible(version)
+
+
+def _assessment_char_count(value: object) -> int:
+    if not isinstance(value, dict):
+        return 0
+    try:
+        return max(0, int(value.get("char_count") or 0))
+    except (TypeError, ValueError):
+        return 0
 
 
 __all__ = [

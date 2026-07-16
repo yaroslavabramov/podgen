@@ -6,6 +6,7 @@ from app.generation_v2.contracts.source import (
     CorpusBriefAuditIssueCode,
     CorpusBriefAuditSeverity,
     CorpusBriefSourceSetStatus,
+    CorpusBriefSourceSetKind,
     CoverageNextAction,
     CoverageOutcomeStatus,
     CoverageQuestionImportance,
@@ -103,6 +104,7 @@ class CorpusBriefIntent(BaseModel):
 
 class CorpusBriefSourceSet(BaseModel):
     set_id: str
+    set_kind: CorpusBriefSourceSetKind = CorpusBriefSourceSetKind.COVERAGE
     label: str
     purpose: str
     rationale: str = ""

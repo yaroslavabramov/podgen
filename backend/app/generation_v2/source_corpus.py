@@ -31,8 +31,11 @@ from app.generation_v2.source_corpus_helpers import (
     filename_from_url as _filename_from_url,
     is_pdf_response as _is_pdf_response,
     provider_attributes as _provider_attributes,
+    provider_file_search_ready as _provider_file_search_ready,
     version_has_snapshot as _version_has_snapshot,
 )
+from app.generation_v2.source_content_readiness import source_version_model_eligible
+from app.generation_v2.source_corpus_content_preflight import assess_run_content_rejections
 from app.generation_v2.source_corpus_selection import (
     load_active_ready_source_versions as _load_active_ready_source_versions,
     load_project_provider_index as _load_project_provider_index,
@@ -87,7 +90,7 @@ from app.generation_v2.source_corpus_reconciliation import (
     SourceCorpusReconciliationDeps,
     default_source_corpus_reconciliation_deps,
 )
-from app.generation_v2.source_corpus_run_view import create_run_corpus_view
+from app.generation_v2.source_corpus_run_view import create_run_corpus_view, load_current_run_corpus_view
 from app.generation_v2.source_corpus_summary import project_corpus_index_summary as project_corpus_index_summary
 from app.generation_v2.source_corpus_url_read import (
     OPENAI_URL_READ_SCHEMA,
@@ -127,11 +130,15 @@ async def prepare_v2_corpus(db: AsyncSession, run: GenerationRun) -> CorpusPrepa
         source
         for source in sources
         if str(source.id) in selected_source_ids
-        and (bool(source.is_temporary) or str(source.ingestion_status) == str(IngestionStatus.FAILED))
+        and (
+            bool(source.is_temporary)
+            or str(source.ingestion_status).casefold() != str(IngestionStatus.COMPLETED).casefold()
+        )
     ]
     if invalid_selected_sources:
         details = ", ".join(
-            f"{source.id} ({'staged' if source.is_temporary else 'failed'})" for source in invalid_selected_sources
+            f"{source.id} ({'staged' if source.is_temporary else str(source.ingestion_status).casefold()})"
+            for source in invalid_selected_sources
         )
         raise RuntimeError(f"V2 selected sources are not ready: {details}")
     if not sources:
@@ -140,21 +147,25 @@ async def prepare_v2_corpus(db: AsyncSession, run: GenerationRun) -> CorpusPrepa
     provider_index = await _load_project_provider_index(db, run.project_id)
     all_versions = await _load_active_ready_source_versions(db, run.project_id, [source.id for source in sources])
     provider_files = await _load_ready_provider_files(db, provider_index, [version.id for version in all_versions])
+    content_rejections = assess_run_content_rejections(
+        sources,
+        all_versions,
+        provider_ready_version_ids=_ready_provider_version_ids(provider_files),
+    )
     usable_sources, usable_versions, canonical_provider_files, skipped_sources, canonical_version_ids = (
         _select_ready_run_corpus(
             sources,
             all_versions,
             provider_files,
             provider_index,
+            content_rejections=content_rejections,
         )
     )
     unready_selected_sources = [
         item for item in skipped_sources if str(item.get("source_id") or "") in selected_source_ids
     ]
     if unready_selected_sources:
-        details = ", ".join(
-            f"{item['source_id']} ({item.get('reason') or 'not_ready'})" for item in unready_selected_sources
-        )
+        details = ", ".join(_unready_source_detail(item) for item in unready_selected_sources)
         raise RuntimeError(f"V2 selected sources are not ready: {details}")
     run_view = await create_run_corpus_view(
         db,
@@ -199,16 +210,7 @@ async def prepare_v2_corpus(db: AsyncSession, run: GenerationRun) -> CorpusPrepa
 
 async def load_current_v2_corpus(db: AsyncSession, run: GenerationRun) -> CorpusPreparationResult:
     """Hydrate the pinned corpus without creating a new revision or attempt."""
-    view_result = await db.execute(
-        select(RunCorpusView)
-        .where(
-            RunCorpusView.generation_run_id == run.id,
-            RunCorpusView.is_current.is_(True),
-        )
-        .order_by(RunCorpusView.revision.desc(), RunCorpusView.attempt.desc())
-        .limit(1)
-    )
-    run_view = view_result.scalar_one_or_none()
+    run_view = await load_current_run_corpus_view(db, run.id)
     if run_view is None:
         raise RuntimeError("V2 run has no prepared corpus view")
     if str(run_view.status) != "ready":
@@ -220,6 +222,13 @@ async def load_current_v2_corpus(db: AsyncSession, run: GenerationRun) -> Corpus
     version_result = await db.execute(
         select(SourceVersion).where(SourceVersion.id.in_(version_ids)).order_by(SourceVersion.created_at.asc())
     )
+    sources = list(source_result.scalars())
+    source_versions = list(version_result.scalars())
+    missing_source_ids = sorted({str(value) for value in source_ids} - {str(source.id) for source in sources})
+    missing_version_ids = sorted({str(value) for value in version_ids} - {str(version.id) for version in source_versions})
+    if missing_source_ids or missing_version_ids:
+        details = [*(f"source:{value}" for value in missing_source_ids), *(f"version:{value}" for value in missing_version_ids)]
+        raise RuntimeError("V2 pinned corpus rows are missing: " + ", ".join(details))
     provider_index = (
         await db.get(ProviderCorpusIndex, run_view.provider_index_id) if run_view.provider_index_id else None
     )
@@ -234,16 +243,50 @@ async def load_current_v2_corpus(db: AsyncSession, run: GenerationRun) -> Corpus
         )
         provider_files = list(provider_result.scalars())
 
+    if str(getattr(run, "status", "")) != "completed":
+        content_rejections = assess_run_content_rejections(
+            sources,
+            source_versions,
+            provider_ready_version_ids=_ready_provider_version_ids(provider_files),
+        )
+        pinned_ids = {str(value) for value in version_ids}
+        rejected_pinned_ids = set(content_rejections).intersection(pinned_ids)
+        rejected_pinned_ids.update(
+            str(version.id)
+            for version in source_versions
+            if str(version.id) in pinned_ids and not source_version_model_eligible(version)
+        )
+        if rejected_pinned_ids:
+            raise RuntimeError(
+                "V2 pinned corpus contains unavailable target content; restart from corpus_prepare: "
+                + ", ".join(sorted(rejected_pinned_ids))
+            )
+
     set_session_corpus_scope(db, run.id, run_view)
     return CorpusPreparationResult(
         run_view=run_view,
         provider_index=provider_index,
-        sources=list(source_result.scalars()),
-        source_versions=list(version_result.scalars()),
+        sources=sources,
+        source_versions=source_versions,
         provider_files=provider_files,
         vector_store_id=provider_index.provider_vector_store_id if provider_index else None,
         readiness_summary=dict(run_view.readiness_summary or {}),
     )
+
+
+def _unready_source_detail(item: dict[str, Any]) -> str:
+    reason = str(item.get("reason") or "not_ready")
+    reason_codes = [str(value) for value in item.get("reason_codes") or [] if str(value)]
+    suffix = f":{'|'.join(reason_codes)}" if reason_codes else ""
+    return f"{item['source_id']} ({reason}{suffix})"
+
+
+def _ready_provider_version_ids(provider_files: list[ProviderCorpusFile]) -> set[str]:
+    return {
+        str(provider_file.source_version_id)
+        for provider_file in provider_files
+        if _provider_file_search_ready(provider_file)
+    }
 
 
 _OPENAI_URL_READ_SCHEMA = OPENAI_URL_READ_SCHEMA

@@ -768,9 +768,20 @@ async def test_in_progress_triage_repair_survives_new_corpus_attempt(
     async def carry_evidence(*_args, **_kwargs):
         return {old_evidence_id: new_evidence_id}, set()
 
+    carried_actions: list[dict] = []
+
+    async def carry_actions(*_args, **kwargs):
+        carried_actions.append(kwargs)
+        return 0
+
     monkeypatch.setattr(workspace_module, "load_source_triage_workspace", load_workspace)
     monkeypatch.setattr(workspace_module, "save_source_triage_workspace", save_workspace)
     monkeypatch.setattr(workspace_module, "_carry_evidence_to_current_attempt", carry_evidence)
+    monkeypatch.setattr(
+        workspace_module,
+        "_carry_source_map_write_actions_to_current_attempt",
+        carry_actions,
+    )
 
     workspace = await workspace_module.ensure_source_triage_workspace(
         None,  # type: ignore[arg-type]
@@ -787,6 +798,8 @@ async def test_in_progress_triage_repair_survives_new_corpus_attempt(
     assert workspace["source_sets"][0]["evidence_ids"] == [new_evidence_id]
     assert workspace["source_sets"][0]["written_actions"] == [{"evidence_ids": [new_evidence_id]}]
     assert workspace["source_sets"][0]["observations"] == [{"evidence_ids": [new_evidence_id]}]
+    assert carried_actions[0]["source_attempt"] == 1
+    assert carried_actions[0]["evidence_id_map"] == {old_evidence_id: new_evidence_id}
     assert saved == workspace
 
 
@@ -1168,6 +1181,14 @@ async def test_mapped_triage_set_requires_one_resolved_assessment_per_source(
             }
         ],
         "coverage_outcomes": [{"set_id": "set_1", "question_id": "q1", "status": "covered"}],
+        "repair_baseline_source_assessments": [
+            {"set_id": "set_1", "source_ref": "S01", "repair_baseline": True},
+            {"set_id": "set_other", "source_ref": "S99", "repair_baseline": True},
+        ],
+        "repair_baseline_coverage_outcomes": [
+            {"set_id": "set_1", "question_id": "q1", "repair_baseline": True},
+            {"set_id": "set_other", "question_id": "q99", "repair_baseline": True},
+        ],
         "processed_sets": [],
         "mapped_sources": [],
         "deferred_sources": [],
@@ -1194,6 +1215,20 @@ async def test_mapped_triage_set_requires_one_resolved_assessment_per_source(
     rejected = await finish.handler(
         {"set_id": "set_1", "status": "mapped", "summary": "Partial.", "deferred_reason": "", "deferred_sources": []}
     )
+    assert len(workspace["repair_baseline_source_assessments"]) == 2
+    assert len(workspace["repair_baseline_coverage_outcomes"]) == 2
+    paused_for_repair = await finish.handler(
+        {
+            "set_id": "set_1",
+            "status": "needs_repair",
+            "summary": "The second source still needs work.",
+            "deferred_reason": "The set is not complete.",
+            "deferred_sources": [],
+        }
+    )
+    assert paused_for_repair["accepted"] is True
+    assert len(workspace["repair_baseline_source_assessments"]) == 2
+    assert len(workspace["repair_baseline_coverage_outcomes"]) == 2
     workspace["source_assessments"].append(
         {
             "set_id": "set_1",
@@ -1241,7 +1276,15 @@ async def test_mapped_triage_set_requires_one_resolved_assessment_per_source(
     assert workspace["deferred_sources"] == [{"source_ref": "S02", "reason": "The source is explicitly deferred."}]
     assert workspace["source_sets"][0]["assessment_source_refs"] == ["S01"]
     assert workspace["source_sets"][0]["deferred_source_refs"] == ["S02"]
+    assert workspace["repair_baseline_source_assessments"] == [
+        {"set_id": "set_other", "source_ref": "S99", "repair_baseline": True}
+    ]
+    assert workspace["repair_baseline_coverage_outcomes"] == [
+        {"set_id": "set_other", "question_id": "q99", "repair_baseline": True}
+    ]
 
+    workspace.pop("repair_baseline_source_assessments")
+    workspace.pop("repair_baseline_coverage_outcomes")
     workspace["source_assessments"][0]["disposition"] = "deferred"
     workspace["source_assessments"][0]["relevance_reason"] = "The whole set is now deferred."
     workspace["coverage_outcomes"][0].update({"status": "deferred", "deferred_reason": "The question is deferred."})
@@ -1261,6 +1304,8 @@ async def test_mapped_triage_set_requires_one_resolved_assessment_per_source(
         {"source_ref": "S01", "reason": "The full set cannot be used in this run."},
         {"source_ref": "S02", "reason": "The full set cannot be used in this run."},
     ]
+    assert "repair_baseline_source_assessments" not in workspace
+    assert "repair_baseline_coverage_outcomes" not in workspace
 
 
 @pytest.mark.asyncio
@@ -1981,16 +2026,23 @@ async def test_triage_set_agent_can_restore_full_current_set_and_observations(
     observation_page = await page_tool.handler(
         {"section": "observations", "set_id": "set_1", "cursor": "0", "limit": 1}
     )
+    question_page = await page_tool.handler(
+        {"section": "assigned_questions", "set_id": "set_1", "cursor": "0", "limit": 1}
+    )
 
     assert current_page["items"][0]["purpose"] == purpose
     assert current_page["items"][0]["rationale"] == rationale
     assert current_page["items"][0]["findings_summary"] == findings
-    assert current_page["items"][0]["questions"] == ["q" * 280]
+    assert "questions" not in current_page["items"][0]
+    assert current_page["items"][0]["legacy_question_count"] == 1
+    assert question_page["items"][0]["question"] == "q" * 280
+    assert question_page["items"][0]["origin"] == "legacy_source_set"
     assert observation_page["items"][0]["note"] == note
     assert observation_page["items"][0]["pending_questions"] == ["pending " * 30]
     assert observation_page["items"][0]["evidence_ids"] == evidence_ids
     assert observation_page["items"][0]["evidence_omitted_count"] == 0
     model_facing_tool_output("list_triage_source_sets", current_page)
+    model_facing_tool_output("list_triage_source_sets", question_page)
     model_facing_tool_output("list_triage_source_sets", observation_page)
 
     finalizer_tools = build_workspace_tools(
@@ -2006,6 +2058,338 @@ async def test_triage_set_agent_can_restore_full_current_set_and_observations(
     )
     assert "evidence_ids" not in hidden_page["items"][0]
     assert hidden_page["items"][0]["evidence_count"] == 12
+
+
+@pytest.mark.asyncio
+async def test_triage_set_resume_pages_restore_assigned_questions_and_only_own_records(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import source_triage_workspace as workspace_api
+
+    workspace = {
+        "source_order": ["S01", "S02"],
+        "current_set": {"set_id": "set_2"},
+        "coverage_questions": [
+            {"question_id": "q1", "question": "First full question", "kind": "context"},
+            {"question_id": "q2", "question": "Second full question", "kind": "cause"},
+        ],
+        "source_sets": [
+            {"set_id": "set_1", "source_refs": ["S01"], "question_ids": ["q1"], "status": "mapped"},
+            {"set_id": "set_2", "source_refs": ["S02"], "question_ids": ["q2"], "status": "in_progress"},
+        ],
+        "source_assessments": [
+            {"set_id": "set_1", "source_ref": "S01", "processing_status": "resolved"},
+            {"set_id": "set_2", "source_ref": "S02", "processing_status": "resolved"},
+        ],
+        "coverage_outcomes": [
+            {"set_id": "set_1", "question_id": "q1", "status": "missing"},
+            {"set_id": "set_2", "question_id": "q2", "status": "partial"},
+        ],
+    }
+
+    async def load(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(workspace_api, "load_source_triage_workspace", load)
+    tools = build_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(),
+        mode="set",
+        current_set_id="set_2",
+    )
+    pager = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+
+    current = await pager.handler({"section": "current_set", "cursor": "0", "limit": 1})
+    assigned_questions = await pager.handler(
+        {"section": "assigned_questions", "cursor": "0", "limit": 1}
+    )
+    assessments = await pager.handler({"section": "source_assessments", "cursor": "0", "limit": 3})
+    outcomes = await pager.handler({"section": "coverage_outcomes", "cursor": "0", "limit": 3})
+    foreign_set = await pager.handler(
+        {"section": "assigned_questions", "set_id": "set_1", "cursor": "0", "limit": 1}
+    )
+
+    assert "coverage_questions" not in current["items"][0]
+    assert assigned_questions["items"][0]["question"] == "Second full question"
+    assert [item["set_id"] for item in assessments["items"]] == ["set_2"]
+    assert [item["set_id"] for item in outcomes["items"]] == ["set_2"]
+    assert assessments["page"]["total_count"] == 1
+    assert outcomes["page"]["total_count"] == 1
+    assert foreign_set["accepted"] is False
+    assert foreign_set["error"] == "triage_source_set_scope_mismatch"
+
+
+@pytest.mark.asyncio
+async def test_targeted_repair_pages_old_records_until_replacements_exist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import source_triage_workspace as workspace_api
+
+    source_id = str(uuid.uuid4())
+    workspace = {
+        "source_order": ["S01"],
+        "current_set": {"set_id": "set_1"},
+        "source_sets": [
+            {
+                "set_id": "set_1",
+                "source_refs": ["S01"],
+                "question_ids": ["q1"],
+                "status": "in_progress",
+                "repair_targeted": True,
+            }
+        ],
+        "source_assessments": [],
+        "coverage_outcomes": [],
+        "repair_baseline_source_assessments": [
+            {
+                "set_id": "set_1",
+                "original_set_id": "wrong_set",
+                "source_ref": "S01",
+                "source_id": source_id,
+                "processing_status": "resolved",
+                "representation_reason": "Old useful assessment detail.",
+                "repair_baseline": True,
+                "repair_baseline_version": 1,
+            },
+            {
+                "set_id": "set_1",
+                "source_ref": "S01",
+                "source_id": source_id,
+                "processing_status": "resolved",
+                "representation_reason": "Second old assessment detail.",
+                "repair_baseline": True,
+                "repair_baseline_version": 2,
+            },
+        ],
+        "repair_baseline_coverage_outcomes": [
+            {
+                "set_id": "set_1",
+                "question_id": "q1",
+                "status": "partial",
+                "source_ids": [source_id],
+                "orientation_summary": "Old useful outcome detail.",
+                "repair_baseline": True,
+                "repair_baseline_version": 1,
+            },
+            {
+                "set_id": "set_1",
+                "question_id": "q1",
+                "status": "partial",
+                "source_ids": [source_id],
+                "orientation_summary": "Second old outcome detail.",
+                "repair_baseline": True,
+                "repair_baseline_version": 2,
+            },
+        ],
+    }
+
+    async def load(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(workspace_api, "load_source_triage_workspace", load)
+    tools = build_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(),
+        mode="set",
+        current_set_id="set_1",
+    )
+    pager = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+
+    old_assessment = await pager.handler(
+        {"section": "source_assessments", "cursor": "0", "limit": 3}
+    )
+    old_outcome = await pager.handler(
+        {"section": "coverage_outcomes", "cursor": "0", "limit": 3}
+    )
+
+    assert old_assessment["items"][0]["repair_baseline"] is True
+    assert old_assessment["items"][0]["original_set_id"] == "wrong_set"
+    assert old_assessment["items"][0]["representation_reason"] == "Old useful assessment detail."
+    assert old_assessment["items"][1]["representation_reason"] == "Second old assessment detail."
+    assert [item["repair_baseline_version"] for item in old_assessment["items"]] == [1, 2]
+    assert old_outcome["items"][0]["repair_baseline"] is True
+    assert old_outcome["items"][0]["orientation_summary"] == "Old useful outcome detail."
+    assert old_outcome["items"][1]["orientation_summary"] == "Second old outcome detail."
+    assert [item["repair_baseline_version"] for item in old_outcome["items"]] == [1, 2]
+    assert old_outcome["items"][0]["source_refs"] == ["S01"]
+
+    workspace["source_assessments"] = [
+        {
+            "set_id": "set_1",
+            "source_ref": "S01",
+            "source_id": source_id,
+            "processing_status": "needs_repair",
+            "representation_reason": "Unfinished replacement.",
+        }
+    ]
+    workspace["coverage_outcomes"] = [
+        {
+            "set_id": "set_1",
+            "question_id": "q1",
+            "status": "needs_repair",
+            "orientation_summary": "Unfinished replacement.",
+        }
+    ]
+    unfinished_assessments = await pager.handler(
+        {"section": "source_assessments", "cursor": "0", "limit": 3}
+    )
+    unfinished_outcomes = await pager.handler(
+        {"section": "coverage_outcomes", "cursor": "0", "limit": 3}
+    )
+
+    assert unfinished_assessments["items"][0]["processing_status"] == "needs_repair"
+    assert [
+        item["repair_baseline_version"]
+        for item in unfinished_assessments["items"][1:]
+    ] == [1, 2]
+    assert unfinished_outcomes["items"][0]["status"] == "needs_repair"
+    assert [
+        item["repair_baseline_version"]
+        for item in unfinished_outcomes["items"][1:]
+    ] == [1, 2]
+
+    workspace["source_assessments"] = [
+        {
+            "set_id": "set_1",
+            "source_ref": "S01",
+            "source_id": source_id,
+            "processing_status": "resolved",
+            "representation_reason": "Replacement assessment.",
+        }
+    ]
+    workspace["coverage_outcomes"] = [
+        {
+            "set_id": "set_1",
+            "question_id": "q1",
+            "status": "partial",
+            "source_refs": ["S01"],
+            "orientation_summary": "Replacement outcome.",
+        }
+    ]
+
+    new_assessment = await pager.handler(
+        {"section": "source_assessments", "cursor": "0", "limit": 1}
+    )
+    new_outcome = await pager.handler(
+        {"section": "coverage_outcomes", "cursor": "0", "limit": 1}
+    )
+
+    assert new_assessment["items"][0]["representation_reason"] == "Replacement assessment."
+    assert "repair_baseline" not in new_assessment["items"][0]
+    assert new_outcome["items"][0]["orientation_summary"] == "Replacement outcome."
+    assert "repair_baseline" not in new_outcome["items"][0]
+
+
+@pytest.mark.asyncio
+async def test_large_legacy_question_list_is_read_only_through_pages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import source_triage_workspace as workspace_api
+
+    questions = [f"Legacy question {index}: " + "q" * 500 for index in range(30)]
+    workspace = {
+        "source_order": ["S01"],
+        "current_set": {"set_id": "set_1"},
+        "source_sets": [
+            {
+                "set_id": "set_1",
+                "source_refs": ["S01"],
+                "questions": questions,
+                "status": "in_progress",
+            }
+        ],
+    }
+
+    async def load(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(workspace_api, "load_source_triage_workspace", load)
+    tools = build_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(),
+        mode="set",
+        current_set_id="set_1",
+    )
+    pager = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+
+    current = await pager.handler({"section": "current_set", "cursor": "0", "limit": 1})
+    first_page = await pager.handler(
+        {"section": "assigned_questions", "cursor": "0", "limit": 3}
+    )
+
+    assert current["accepted"] is True
+    assert current["items"][0]["question_count"] == 30
+    assert "questions" not in current["items"][0]
+    assert first_page["accepted"] is True
+    assert first_page["items"][0]["question"] == questions[0]
+    assert first_page["page"]["total_count"] == 30
+    assert first_page["page"]["next_cursor"] == "3"
+
+
+@pytest.mark.asyncio
+async def test_many_assigned_questions_never_make_current_set_page_unreadable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import source_triage_workspace as workspace_api
+
+    questions = [
+        {
+            "question_id": f"q{index}",
+            "question": "q" * 280,
+            "kind": "cause",
+            "importance": "critical",
+            "rationale": "r" * 800,
+        }
+        for index in range(10)
+    ]
+    workspace = {
+        "source_order": ["S01"],
+        "current_set": {"set_id": "set_1"},
+        "coverage_questions": questions,
+        "source_sets": [
+            {
+                "set_id": "set_1",
+                "label": "Set",
+                "purpose": "p" * 600,
+                "rationale": "r" * 1200,
+                "source_refs": ["S01"],
+                "question_ids": [item["question_id"] for item in questions],
+                "status": "in_progress",
+            }
+        ],
+    }
+
+    async def load(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(workspace_api, "load_source_triage_workspace", load)
+    tools = build_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(),
+        mode="set",
+        current_set_id="set_1",
+    )
+    pager = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+
+    current = await pager.handler({"section": "current_set", "cursor": "0", "limit": 1})
+    first_questions = await pager.handler(
+        {"section": "assigned_questions", "cursor": "0", "limit": 3}
+    )
+
+    assert current["accepted"] is True
+    assert current["items"][0]["question_count"] == 10
+    assert first_questions["accepted"] is True
+    assert first_questions["page"]["total_count"] == 10
+    assert first_questions["page"]["returned_count"] == 3
+    assert first_questions["page"]["next_cursor"] == "3"
 
 
 @pytest.mark.asyncio

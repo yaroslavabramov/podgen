@@ -7,6 +7,7 @@ from sqlalchemy import String, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.generation_v2.source_corpus_contracts import CorpusProvider
+from app.generation_v2.source_content_readiness import source_version_model_eligible
 from app.generation_v2.source_corpus_helpers import (
     canonical_provider_version as _canonical_provider_version,
     provider_file_search_ready as _provider_file_search_ready,
@@ -76,7 +77,10 @@ def select_ready_run_corpus(
     source_versions: list[SourceVersion],
     provider_files: list[ProviderCorpusFile],
     provider_index: ProviderCorpusIndex | None,
+    *,
+    content_rejections: dict[str, list[str]] | None = None,
 ) -> tuple[list[Source], list[SourceVersion], list[ProviderCorpusFile], list[dict[str, Any]], list[str]]:
+    content_rejections = content_rejections or {}
     versions_by_source = _versions_by_source(source_versions)
     provider_by_version = {file.source_version_id: file for file in provider_files if _provider_file_search_ready(file)}
     provider_required = _provider_uploads_required()
@@ -93,7 +97,30 @@ def select_ready_run_corpus(
         if not versions:
             skipped_sources.append(skipped_source(source, "no_ready_source_versions"))
             continue
-        active_versions = [version for version in versions if version.is_active]
+        active_versions = [
+            version
+            for version in versions
+            if version.is_active
+            and source_version_model_eligible(version)
+            and str(version.id) not in content_rejections
+        ]
+        if not active_versions:
+            reasons = sorted(
+                {
+                    reason
+                    for version in versions
+                    for reason in content_rejections.get(str(version.id), [])
+                    if reason
+                }
+            )
+            skipped_sources.append(
+                skipped_source(
+                    source,
+                    "target_content_unavailable",
+                    reason_codes=reasons,
+                )
+            )
+            continue
         canonical = _canonical_provider_version(active_versions)
         if canonical is None:
             provider_file = None
@@ -108,7 +135,13 @@ def select_ready_run_corpus(
                 # A replacement version becomes active before its external
                 # upload is committed. Keep the last provider-ready immutable
                 # version usable until that replacement is actually searchable.
-                fallback_versions = [version for version in versions if version.id in provider_by_version]
+                fallback_versions = [
+                    version
+                    for version in versions
+                    if version.id in provider_by_version
+                    and source_version_model_eligible(version)
+                    and str(version.id) not in content_rejections
+                ]
                 fallback = _canonical_provider_version(fallback_versions)
                 if fallback is None:
                     skipped_sources.append(
@@ -134,7 +167,13 @@ def select_ready_run_corpus(
     return usable_sources, usable_versions, canonical_provider_files, skipped_sources, canonical_version_ids
 
 
-def skipped_source(source: Source, reason: str, *, canonical_version_id: str | None = None) -> dict[str, Any]:
+def skipped_source(
+    source: Source,
+    reason: str,
+    *,
+    canonical_version_id: str | None = None,
+    reason_codes: list[str] | None = None,
+) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "source_id": str(source.id),
         "reason": reason,
@@ -142,6 +181,8 @@ def skipped_source(source: Source, reason: str, *, canonical_version_id: str | N
     }
     if canonical_version_id:
         payload["canonical_version_id"] = canonical_version_id
+    if reason_codes:
+        payload["reason_codes"] = list(reason_codes)
     return payload
 
 

@@ -5,6 +5,7 @@ from typing import Any
 
 from app.generation_v2.model_context_text import model_preview_text
 from app.generation_v2.artifacts import save_tool_trace
+from app.generation_v2.tools.evidence_model_window_refs import register_model_window_ref
 from app.generation_v2.tools.evidence_store import persist_evidence_item
 from app.generation_v2.tools.evidence_utils import _normalize, _retrieval_channel_for_version, _search_text_windows
 from app.models.generation_v2 import EvidenceLocatorType, EvidenceStrength
@@ -81,11 +82,16 @@ async def skim_source(owner: Any, args: dict[str, Any]) -> dict[str, Any]:
         return {"found": False, "error": "No readable source version in this run corpus view."}
     max_windows = max(1, min(int(args.get("max_windows") or 6), 8))
     windows = await owner._source_windows(version, max_windows=max_windows)
+    source_ref = await owner._source_ref_for_id(version.source_id)
     results = []
     for window in windows:
         results.append(
             {
-                "window_ref": window["window_ref"],
+                "window_ref": register_model_window_ref(
+                    owner,
+                    source_ref=source_ref,
+                    canonical_ref=window["window_ref"],
+                ),
                 "locator_text": window["locator_text"],
                 "locator_type": window["locator_type"],
                 "preview_text": model_preview_text(window.get("snippet_text") or "")[:240],
@@ -106,8 +112,7 @@ async def skim_source(owner: Any, args: dict[str, Any]) -> dict[str, Any]:
     )
     return {
         "found": bool(results),
-        "source_ref": await owner._source_ref_for_id(version.source_id),
-        "version_ref": await owner._version_ref_for_version(version),
+        "source_ref": source_ref,
         "outline": [item["locator_text"] for item in results],
         "windows": results,
     }

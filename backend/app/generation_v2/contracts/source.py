@@ -101,6 +101,7 @@ class SourceRepresentationStatus(StrEnum):
     UNCHECKED = "unchecked"
     READABLE = "readable"
     PARTIAL = "partial"
+    NOT_TARGET_CONTENT = "not_target_content"
     UNREADABLE = "unreadable"
 
 
@@ -118,6 +119,11 @@ class CorpusBriefSourceSetStatus(StrEnum):
     PARTIAL = "partial"
     DEFERRED = "deferred"
     NEEDS_REPAIR = "needs_repair"
+
+
+class CorpusBriefSourceSetKind(StrEnum):
+    COVERAGE = "coverage"
+    ORIENTATION = "orientation"
 
 
 class ResearchHandoffAction(StrEnum):
@@ -173,6 +179,7 @@ __all__ = [
     "CorpusBriefAuditIssueCode",
     "CorpusBriefAuditSeverity",
     "CorpusBriefSourceSetStatus",
+    "CorpusBriefSourceSetKind",
     "CorpusGapKind",
     "CoverageNextAction",
     "CoverageOutcomeStatus",

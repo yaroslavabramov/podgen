@@ -34,6 +34,7 @@ class V2AgentPrefix(StrEnum):
 
 class V2ToolName(StrEnum):
     LIST_SOURCE_CAPSULES = "list_source_capsules"
+    ROUTE_SOURCES_FOR_INITIAL_READING = "route_sources_for_initial_reading"
     LIST_TRIAGE_SOURCE_SETS = "list_triage_source_sets"
     UPSERT_COVERAGE_QUESTION = "upsert_coverage_question"
     UPSERT_TRIAGE_SOURCE_SET = "upsert_triage_source_set"

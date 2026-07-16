@@ -17,6 +17,7 @@ from app.generation_v2.source_corpus_contracts import (
     OpenAIProviderFileStatus,
     ProviderUploadPhase,
 )
+from app.generation_v2.source_content_readiness import source_version_model_eligible
 from app.generation_v2.source_corpus_helpers import (
     provider_attributes as _provider_attributes,
     provider_db_attributes as _provider_db_attributes,
@@ -59,6 +60,8 @@ async def ensure_provider_file(
     *,
     deps: SourceCorpusProviderUploadDeps | None = None,
 ) -> ProviderCorpusFile:
+    if not version.is_active or not source_version_model_eligible(version):
+        raise RuntimeError("Source version target content is not confirmed; provider upload refused")
     deps = deps or default_source_corpus_provider_upload_deps()
     provider_attributes = _provider_attributes(version)
     existing_result = await db.execute(

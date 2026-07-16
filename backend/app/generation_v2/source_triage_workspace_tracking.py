@@ -23,7 +23,22 @@ from app.generation_v2.source_triage_workspace_state import (
     replace_workspace_set as _replace_workspace_set,
     workspace_set as _workspace_set,
 )
+from app.generation_v2.runtime_tool_outcomes import TOOL_OUTCOME_CONTROL, successful_read_output
 from app.models.generation_v2 import V2ToolTrace
+
+
+SOURCE_SET_COMMIT_CONTROL_CODE = "source_set_state_commit_required"
+SOURCE_SET_COMMIT_ACTIONS = [
+    "record_triage_observation",
+    "upsert_source_assessment",
+    "upsert_coverage_outcome",
+    "upsert_source_card",
+    "record_source_cluster",
+    "record_source_relationship",
+    "record_gap",
+    "resolve_gap",
+    "finish_triage_source_set",
+]
 
 
 async def mark_workspace_write_action(
@@ -64,6 +79,22 @@ async def triage_workflow_guard_error(
     generation_run_id: uuid.UUID,
     current_set_id: str | None,
 ) -> dict[str, Any] | None:
+    control = await triage_workflow_read_control(
+        db,
+        generation_run_id=generation_run_id,
+        current_set_id=current_set_id,
+    )
+    if control is None or not control["must_persist_before_more_reads"]:
+        return None
+    return blocked_read_control(control)
+
+
+async def triage_workflow_read_control(
+    db: AsyncSession,
+    *,
+    generation_run_id: uuid.UUID,
+    current_set_id: str | None,
+) -> dict[str, Any] | None:
     if not current_set_id:
         return None
     workspace = await load_source_triage_workspace(db, generation_run_id)
@@ -84,9 +115,11 @@ async def triage_workflow_guard_error(
             V2ToolTrace.tool_name.in_(list(TRIAGE_SEMANTIC_COMMIT_TOOLS)),
         )
         .order_by(V2ToolTrace.created_at.desc())
-        .limit(1)
     )
-    last_commit = commit_result.scalar_one_or_none()
+    last_commit = next(
+        (trace for trace in commit_result.scalars() if _successful_commit_trace(trace)),
+        None,
+    )
     since = last_commit.created_at if last_commit is not None else started_at
     read_result = await db.execute(
         select(V2ToolTrace).where(
@@ -98,27 +131,67 @@ async def triage_workflow_guard_error(
             V2ToolTrace.tool_name.in_(list(TRIAGE_READ_TOOLS)),
         )
     )
-    read_count = len(list(read_result.scalars()))
-    if read_count < TRIAGE_READS_PER_COMMIT:
-        return None
+    read_count = sum(1 for trace in read_result.scalars() if _successful_read_trace(trace))
     return {
-        "accepted": False,
-        "error": "source_set_requires_state_commit",
-        "message": "You have read/searched enough in this source set. Persist an assessment, coverage outcome, observation, SourceMap write, or finish the set before more reading/searching.",
         "set_id": current_set_id,
         "read_calls_since_commit": read_count,
-        "expected_next_actions": [
-            "record_triage_observation",
-            "upsert_source_assessment",
-            "upsert_coverage_outcome",
-            "upsert_source_card",
-            "record_source_cluster",
-            "record_source_relationship",
-            "record_gap",
-            "resolve_gap",
-            "finish_triage_source_set",
-        ],
+        "remaining_reads": max(TRIAGE_READS_PER_COMMIT - read_count, 0),
+        "must_persist_before_more_reads": read_count >= TRIAGE_READS_PER_COMMIT,
+        "expected_next_actions": list(SOURCE_SET_COMMIT_ACTIONS),
     }
 
 
-__all__ = ["mark_workspace_write_action", "triage_workflow_guard_error"]
+def completed_read_control(control: dict[str, Any]) -> dict[str, Any]:
+    read_count = int(control.get("read_calls_since_commit") or 0) + 1
+    remaining_reads = max(TRIAGE_READS_PER_COMMIT - read_count, 0)
+    must_persist = remaining_reads == 0
+    return {
+        "control_code": SOURCE_SET_COMMIT_CONTROL_CODE,
+        "set_id": str(control.get("set_id") or ""),
+        "read_calls_since_commit": read_count,
+        "remaining_reads": remaining_reads,
+        "must_persist_before_more_reads": must_persist,
+        "message": (
+            "Persist a source assessment, coverage outcome, observation, SourceMap write, or finish the set "
+            "before another read/search call."
+            if must_persist
+            else f"{remaining_reads} read/search calls remain before progress must be persisted."
+        ),
+        "expected_next_actions": list(control.get("expected_next_actions") or SOURCE_SET_COMMIT_ACTIONS),
+    }
+
+
+def blocked_read_control(control: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "outcome_kind": TOOL_OUTCOME_CONTROL,
+        "control_code": SOURCE_SET_COMMIT_CONTROL_CODE,
+        "read_performed": False,
+        "set_id": str(control.get("set_id") or ""),
+        "read_calls_since_commit": int(control.get("read_calls_since_commit") or 0),
+        "remaining_reads": 0,
+        "must_persist_before_more_reads": True,
+        "message": (
+            "No read was performed. Persist a source assessment, coverage outcome, observation, SourceMap write, "
+            "or finish the set, then continue reading."
+        ),
+        "expected_next_actions": list(control.get("expected_next_actions") or SOURCE_SET_COMMIT_ACTIONS),
+    }
+
+
+def _successful_read_trace(trace: V2ToolTrace) -> bool:
+    output = trace.output_json if isinstance(trace.output_json, dict) else {}
+    return successful_read_output(output)
+
+
+def _successful_commit_trace(trace: V2ToolTrace) -> bool:
+    output = trace.output_json if isinstance(trace.output_json, dict) else {}
+    return output.get("accepted") is True and not output.get("error") and not output.get("_runtime_error")
+
+
+__all__ = [
+    "blocked_read_control",
+    "completed_read_control",
+    "mark_workspace_write_action",
+    "triage_workflow_guard_error",
+    "triage_workflow_read_control",
+]

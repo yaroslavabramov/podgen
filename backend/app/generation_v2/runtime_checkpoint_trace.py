@@ -4,6 +4,7 @@ import json
 from typing import Any
 
 from app.generation_v2.runtime_checkpoint import compact_checkpoint_value
+from app.generation_v2.runtime_tool_outcomes import tool_output_outcome_kind
 from app.generation_v2.runtime_tool_output import MODEL_FACING_CONTRACT_VERSION, tool_model_facing_schema
 
 _MODEL_FACING_CONTRACT_VERSION = MODEL_FACING_CONTRACT_VERSION
@@ -79,6 +80,7 @@ def trace_output_with_runtime(
         "model_facing_tool_output_chars": stats["chars"],
         "model_facing_schema": stats["model_facing_schema"],
         "contract_version": stats["contract_version"],
+        "tool_outcome_kind": tool_output_outcome_kind(output),
     }
     if stats.get("contract_violation"):
         trace_output["_runtime"]["contract_violation"] = stats["contract_violation"]

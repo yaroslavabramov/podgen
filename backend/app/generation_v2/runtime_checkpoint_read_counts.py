@@ -7,15 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.generation_v2 import V2ToolTrace
 from app.generation_v2.corpus_scope import scope_for_run_view
+from app.generation_v2.runtime_tool_outcomes import successful_read_output
+from app.generation_v2.source_triage_workspace_contracts import TRIAGE_READ_TOOLS
 
-CHECKPOINT_READ_TOOL_NAMES = (
-    "skim_source",
-    "read_source_window",
-    "inspect_source",
-    "compare_source_evidence",
-    "search_corpus",
-    "read_evidence",
-)
+CHECKPOINT_READ_TOOL_NAMES = tuple(sorted(TRIAGE_READ_TOOLS))
 
 
 async def read_counts_by_source_ref(
@@ -41,6 +36,8 @@ async def read_counts_by_source_ref(
     read_result = await db.execute(query.order_by(V2ToolTrace.created_at.asc()))
     read_counts: dict[str, int] = {}
     for trace in read_result.scalars():
+        if not successful_read_output(trace.output_json if isinstance(trace.output_json, dict) else {}):
+            continue
         for ref in source_refs_from_trace(trace):
             read_counts[ref] = read_counts.get(ref, 0) + 1
     return read_counts

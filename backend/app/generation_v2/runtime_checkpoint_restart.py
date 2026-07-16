@@ -87,7 +87,9 @@ def checkpoint_restart_instructions(state: dict[str, Any]) -> str:
                 "compact_state_from_db.source_triage_workspace.planner_resume lists every accepted coverage question, "
                 "accepted source-set assignment, concrete violation, and the backend-computed next_action. "
                 "Never recreate, translate, or paraphrase an accepted question or source set as a new write. "
-                "Execute that next_action, inspecting only a specifically ambiguous source_ref if it is necessary, "
+                "Execute that next_action, inspecting only a specifically ambiguous source_ref if it is necessary; "
+                "if it still cannot be assigned honestly, use route_sources_for_initial_reading instead of inventing "
+                "a procedural coverage question. "
                 "then call finalize_triage_workspace_plan when ready."
             )
         if agent_name.startswith("source_triage_set_agent_"):
@@ -101,8 +103,8 @@ def checkpoint_restart_instructions(state: dict[str, Any]) -> str:
             )
         if agent_name == "source_triage_finalizer_agent":
             return instructions + (
-                "Review only persisted triage state. Page omitted sets, assessments, outcomes, syntheses, source_map_repairs, plan summary, or deferred sources with list_triage_source_sets. "
-                "Preserve current accepted syntheses and upsert every missing or invalidated run-wide question synthesis. "
+                "Review only persisted triage state. Read every ordered coverage_question_packets part before writing, assemble them by packet_ref, and page source_map_repairs with list_triage_source_sets; page a specific assessment or outcome only for a concrete repair. "
+                "Preserve current accepted syntheses and upsert every missing or invalidated run-wide question synthesis without passing source_refs or evidence_ids; the backend derives lineage from per-set outcomes. "
                 "Resolve every open source_map repair with resolve_source_map_repair, repair concrete assessment/outcome inconsistencies, record a known gap when needed, then call finalize_source_map. Do not start broad new reading."
             )
         return instructions + "Continue only with tools exposed to this agent role."

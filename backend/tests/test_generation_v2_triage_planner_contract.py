@@ -13,6 +13,7 @@ from app.generation_v2.source_triage_workspace_tool_specs import source_triage_p
 from app.generation_v2.source_triage_workspace_prompting import (
     checkpoint_workspace_payload,
     source_set_prompt_payload,
+    unprocessed_source_sets,
 )
 from app.generation_v2.source_triage_workspace_tools import build_workspace_tools
 
@@ -25,6 +26,7 @@ def _planner_specs():
     return {
         tool.name: tool
         for tool in source_triage_planner_tools(
+            _noop_handler,
             _noop_handler,
             _noop_handler,
             _noop_handler,
@@ -48,6 +50,7 @@ def _json_schema_types(schema: dict) -> set[str]:
 
 def _set_mode_workspace() -> dict:
     return {
+        "intent": {"user_prompt": "Почему возникла система?", "language": "ru"},
         "source_order": ["S01"],
         "coverage_questions": [
             {
@@ -85,6 +88,17 @@ def _nested_dict_keys(value) -> set[str]:
     if isinstance(value, list):
         return {key for item in value for key in _nested_dict_keys(item)}
     return set()
+
+
+def test_interrupted_in_progress_set_is_selected_for_resume() -> None:
+    workspace = _set_mode_workspace()
+    workspace["source_sets"][0]["status"] = "in_progress"
+    workspace["source_assessments"] = [{"set_id": "set_1", "source_ref": "S01"}]
+
+    pending = unprocessed_source_sets(workspace)
+
+    assert [item["set_id"] for item in pending] == ["set_1"]
+    assert source_set_prompt_payload(workspace, "set_1")["set"]["execution_mode"] == "resume"
 
 
 def test_planner_question_parent_schema_accepts_null_and_empty_string() -> None:
@@ -297,6 +311,115 @@ def test_legacy_repair_flag_without_saved_set_work_is_first_pass() -> None:
     payload = source_set_prompt_payload(_set_mode_workspace(), "set_1")
 
     assert payload["set"]["execution_mode"] == "first_pass"
+    assert "output_language" not in payload
+
+
+def test_set_payload_keeps_only_compact_index_for_other_questions() -> None:
+    workspace = _set_mode_workspace()
+    workspace["coverage_questions"].append(
+        {
+            "question_id": "q_unrelated",
+            "question": "UNRELATED QUESTION TEXT",
+            "kind": "context",
+            "importance": "exploratory",
+            "rationale": "UNRELATED RATIONALE",
+        }
+    )
+    workspace["source_sets"].append(
+        {
+            "set_id": "set_unrelated",
+            "label": "UNRELATED SET LABEL",
+            "purpose": "UNRELATED SET PURPOSE",
+            "source_refs": [],
+            "question_ids": ["q_unrelated"],
+            "status": "planned",
+        }
+    )
+
+    payload = source_set_prompt_payload(workspace, "set_1")
+    encoded = str(payload)
+
+    assert "UNRELATED QUESTION TEXT" in encoded
+    assert "UNRELATED RATIONALE" not in encoded
+    assert "UNRELATED SET LABEL" not in encoded
+    assert "UNRELATED SET PURPOSE" not in encoded
+    assert "source_sets" not in payload["workspace_progress"]
+    assert "coverage_questions" not in payload["workspace_progress"]
+    assert payload["other_coverage_question_index"] == [
+        {
+            "question_id": "q_unrelated",
+            "question_preview": "UNRELATED QUESTION TEXT",
+            "question_chars": len("UNRELATED QUESTION TEXT"),
+            "question_truncated": False,
+            "kind": "context",
+            "importance": "exploratory",
+        }
+    ]
+
+
+def test_set_payload_exposes_backend_derived_pending_work() -> None:
+    workspace = _set_mode_workspace()
+    workspace["source_assessments"] = [
+        {
+            "set_id": "set_1",
+            "source_ref": "S01",
+            "processing_status": "needs_repair",
+        }
+    ]
+    workspace["coverage_outcomes"] = [
+        {"set_id": "set_1", "question_id": "q_main", "status": "needs_repair"}
+    ]
+
+    source_set = source_set_prompt_payload(workspace, "set_1")["set"]
+
+    assert source_set["pending_source_refs"] == ["S01"]
+    assert source_set["required_question_ids"] == ["q_main"]
+    assert source_set["missing_outcome_question_ids"] == ["q_main"]
+
+
+def test_other_question_index_is_bounded_and_reports_omitted_items() -> None:
+    workspace = _set_mode_workspace()
+    workspace["coverage_questions"].extend(
+        {
+            "question_id": f"q_other_{index}",
+            "question": f"Other question {index} " + "x" * 260,
+            "kind": "context",
+            "importance": "exploratory",
+            "rationale": "Full rationale stays out of the compact index.",
+        }
+        for index in range(100)
+    )
+
+    payload = source_set_prompt_payload(workspace, "set_1")
+
+    assert len(payload["other_coverage_question_index"]) == 12
+    assert payload["other_coverage_question_count"] == 100
+    assert payload["other_coverage_question_returned_count"] == 12
+    assert payload["other_coverage_question_omitted_count"] == 88
+
+
+def test_assigned_question_previews_are_one_page_and_full_questions_remain_pageable() -> None:
+    workspace = _set_mode_workspace()
+    workspace["coverage_questions"] = [
+        {
+            "question_id": f"q_{index}",
+            "question": f"Assigned question {index}",
+            "kind": "context",
+            "importance": "supporting",
+            "rationale": "r" * 800,
+        }
+        for index in range(20)
+    ]
+    workspace["source_sets"][0]["question_ids"] = [
+        item["question_id"] for item in workspace["coverage_questions"]
+    ]
+
+    source_set = source_set_prompt_payload(workspace, "set_1")["set"]
+
+    assert len(source_set["coverage_questions"]) == 3
+    assert source_set["question_count"] == 20
+    assert source_set["coverage_question_returned_count"] == 3
+    assert source_set["coverage_question_omitted_count"] == 17
 
 
 @pytest.mark.parametrize("saved_work", ["assessment", "outcome", "observation"])

@@ -82,6 +82,7 @@ async def run_source_triage_set(
         set_tools=set_tools,
         vector_store_id=corpus.vector_store_id,
         hosted_file_search_handler=scoped_toolset.persist_hosted_file_search_calls,
+        output_language=str((workspace.get("intent") or {}).get("language") or "").strip() or None,
     )
     latest = await load_source_triage_workspace(db, run.id) or workspace
     finished_set = next((item for item in latest.get("source_sets") or [] if item.get("set_id") == set_id), None)

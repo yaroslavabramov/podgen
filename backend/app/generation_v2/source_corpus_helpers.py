@@ -18,7 +18,8 @@ from app.generation_v2.source_corpus_provider_attributes import (
     validate_reconciliation_candidate,
     version_uploadable,
 )
-from app.models.generation_v2 import SourceRepresentationKind, SourceVersion, V2RecordStatus
+from app.generation_v2.source_content_readiness import source_version_model_eligible
+from app.models.generation_v2 import SourceRepresentationKind, SourceVersion
 from app.models.source import Source
 
 CANONICAL_RETRIEVAL_PRIORITY = {
@@ -99,8 +100,7 @@ def version_kind_counts(source_versions) -> dict[str, int]:
 
 def version_has_snapshot(version: SourceVersion) -> bool:
     return bool(
-        version.storage_path
-        and version.status == V2RecordStatus.READY
+        source_version_model_eligible(version)
         and version.kind
         in {
             SourceRepresentationKind.FETCHED_HTML,

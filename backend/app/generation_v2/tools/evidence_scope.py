@@ -6,7 +6,12 @@ from typing import Any
 from sqlalchemy import select
 
 from app.generation_v2.research_workspace import research_workflow_commit_advisory
-from app.generation_v2.source_triage_workspace import triage_workflow_guard_error
+from app.generation_v2.runtime_tool_outcomes import is_control_tool_output, successful_read_output
+from app.generation_v2.source_triage_workspace_tracking import (
+    blocked_read_control,
+    completed_read_control,
+    triage_workflow_read_control,
+)
 from app.generation_v2.tools.evidence_refs import (
     SourceRefContext,
     build_source_ref_context,
@@ -140,16 +145,30 @@ class EvidenceScopeMixin:
             )
             setattr(self, "_research_commit_advisory", advisory)
             return None
-        return await triage_workflow_guard_error(
+        control = await triage_workflow_read_control(
             self.db,
             generation_run_id=self.run.id,
             current_set_id=getattr(self, "triage_current_set_id", None),
         )
+        setattr(self, "_triage_read_control", control)
+        if control and control.get("must_persist_before_more_reads"):
+            return blocked_read_control(control)
+        return None
 
     async def _call_with_research_commit_advisory(self, handler, args: dict[str, Any]) -> dict[str, Any]:
         setattr(self, "_research_commit_advisory", None)
+        setattr(self, "_triage_read_control", None)
         output = await handler(args)
-        return self._with_research_commit_advisory(output)
+        output = self._with_research_commit_advisory(output)
+        return self._with_triage_read_control(output)
+
+    def _with_triage_read_control(self, output: dict[str, Any]) -> dict[str, Any]:
+        control = getattr(self, "_triage_read_control", None)
+        if not control or not isinstance(output, dict) or is_control_tool_output(output):
+            return output
+        if not successful_read_output(output):
+            return output
+        return {**output, "read_control": completed_read_control(control)}
 
     def _with_research_commit_advisory(self, output: dict[str, Any]) -> dict[str, Any]:
         advisory = getattr(self, "_research_commit_advisory", None)

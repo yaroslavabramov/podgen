@@ -49,6 +49,7 @@ async def extract_and_link_claims(
     drafts: list[ActDraft],
     critique: EpisodeCritique,
     vector_store_id: str | None = None,
+    hosted_source_version_ids: list[str] | None = None,
     show_bible: ShowBibleContext | None = None,
     hosted_file_search_handler=None,
 ) -> ClaimCitationBundle:
@@ -85,6 +86,7 @@ async def extract_and_link_claims(
                 web_search=False,
                 local_tools=True,
                 max_file_search_results=10,
+                file_search_source_version_ids=tuple(hosted_source_version_ids or ()),
             ),
             hosted_file_search_handler=hosted_file_search_handler,
             max_output_tokens=14000,

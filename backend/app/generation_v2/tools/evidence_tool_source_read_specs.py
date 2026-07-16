@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.generation_v2.runtime import AgentTool
+from app.generation_v2.tools.evidence_types import EVIDENCE_PURPOSE_MAX_CHARS
 
 
 def evidence_source_read_tools(owner: Any) -> list[AgentTool]:
@@ -11,14 +12,13 @@ def evidence_source_read_tools(owner: Any) -> list[AgentTool]:
             name="inspect_source",
             description=(
                 "Inspect one source's readable structure: headings, chunk labels, page/window hints, and timestamp/section-like locators. "
-                "Pass source_ref; version_ref is optional and should usually be omitted so the tool chooses the best readable surface. "
+                "Pass source_ref; the backend selects the readable version from the pinned run corpus. "
                 "Use this when you need locators before exact reads; it does not create evidence."
             ),
             parameters={
                 "type": "object",
                 "properties": {
                     "source_ref": {"type": "string"},
-                    "version_ref": {"type": "string"},
                     "max_items": {"type": "integer", "minimum": 1, "maximum": 40},
                 },
                 "required": ["source_ref", "max_items"],
@@ -30,9 +30,10 @@ def evidence_source_read_tools(owner: Any) -> list[AgentTool]:
             description=(
                 "Read one concrete local text window from a selected source and persist that window as an EvidenceItem. "
                 "This does not read the whole source; pass either a window_ref returned by inspect_source/skim_source, or a concrete locator such as page, heading, timestamp, beginning, or exact phrase. "
+                "Exactly one selector must be non-empty: for a returned handle, copy window_ref exactly and pass locator as an empty string; for a concrete locator, pass window_ref as an empty string. "
                 "Timestamps are locators only for transcript/audio/video sources. An unresolved locator returns locator_not_found and never substitutes the beginning of the source. "
                 "If skim_source is available and the source is unfamiliar, skim first; use read_source_window as a follow-up for exact support, quote seeds, relationship evidence, or an editorial atom. "
-                "Pass source_ref; version_ref is optional and should usually be omitted so the tool chooses the best readable surface. "
+                "Pass source_ref; the backend selects the readable version from the pinned run corpus. "
                 "For PDF/document sources this uses extracted/page-marked text; use read_source_with_model when an important claim needs direct file-level support. "
                 "Use the returned evidence_id in durable write actions after you verify the readable detail."
             ),
@@ -40,12 +41,11 @@ def evidence_source_read_tools(owner: Any) -> list[AgentTool]:
                 "type": "object",
                 "properties": {
                     "source_ref": {"type": "string"},
-                    "version_ref": {"type": "string"},
                     "window_ref": {"type": "string"},
                     "locator": {"type": "string"},
                     "max_chars": {"type": "integer", "minimum": 200, "maximum": 3000},
                 },
-                "required": ["source_ref", "max_chars"],
+                "required": ["source_ref", "window_ref", "locator", "max_chars"],
                 "additionalProperties": False,
             },
             handler=lambda args: owner._call_with_research_commit_advisory(owner.read_source_window_tool, args),
@@ -55,7 +55,7 @@ def evidence_source_read_tools(owner: Any) -> list[AgentTool]:
             description=(
                 "Deep-read an uploaded source file with OpenAI input_file and persist the model-read result as an EvidenceItem. "
                 "Use this when an important PDF/document/source claim requires reading the actual file rather than relying on local parser chunks or search previews. "
-                "Provide source_ref, a focused question/claim, and optional locator_hint; version_ref is optional and should usually be omitted so the tool chooses the best provider-backed readable file. "
+                "Provide source_ref, a focused question/claim, and locator_hint; the backend chooses the provider-backed file pinned to this run. "
                 "The tool asks the model for strongest support, quote/snippet, support_summary, uncertainty, and optional locator, then returns an evidence_id. "
                 "If direct file reading is unavailable, the tool returns a human-readable coverage_warning. "
                 "Research atoms select included evidence automatically through upsert_editorial_atom. Citation linking may still select evidence explicitly. "
@@ -65,10 +65,9 @@ def evidence_source_read_tools(owner: Any) -> list[AgentTool]:
                 "type": "object",
                 "properties": {
                     "source_ref": {"type": "string"},
-                    "version_ref": {"type": "string"},
                     "focus_question": {"type": "string"},
                     "claim_text": {"type": "string"},
-                    "purpose": {"type": "string"},
+                    "purpose": {"type": "string", "maxLength": EVIDENCE_PURPOSE_MAX_CHARS},
                     "locator_hint": {"type": "string"},
                 },
                 "required": ["source_ref", "focus_question", "claim_text", "purpose", "locator_hint"],
@@ -80,13 +79,12 @@ def evidence_source_read_tools(owner: Any) -> list[AgentTool]:
             description=(
                 "Search for a phrase/topic inside exactly one selected source, persist matching windows as observed EvidenceItems, and return evidence ids. "
                 "Use this for targeted follow-up after skim_source, inspect_source, or corpus search finds a promising source. "
-                "Pass source_ref; version_ref is optional and should usually be omitted so the tool chooses the best readable surface."
+                "Pass source_ref; the backend selects the readable version from the pinned run corpus."
             ),
             parameters={
                 "type": "object",
                 "properties": {
                     "source_ref": {"type": "string"},
-                    "version_ref": {"type": "string"},
                     "query": {"type": "string"},
                     "limit": {"type": "integer", "minimum": 1, "maximum": 8},
                 },
@@ -99,15 +97,15 @@ def evidence_source_read_tools(owner: Any) -> list[AgentTool]:
             description=(
                 "Default first-read tool for one selected source. Skim representative windows without creating or selecting EvidenceItems. "
                 "Use this before judging a source's role, scope, structure, duplicate status, editorial usefulness, or whether it can support a research atom. "
-                "Pass source_ref; version_ref is optional and should usually be omitted so the tool chooses the best readable surface. "
+                "Pass source_ref; the backend selects the readable version from the pinned run corpus. "
                 "Each result has an opaque window_ref; pass it to read_source_window to persist exact follow-up evidence. "
+                "The handle is intentionally short: copy it exactly and never edit or synthesize it. "
                 "For normal triage or research orientation, request 3-5 windows, then use read_source_window or read_source_with_model for exact follow-up."
             ),
             parameters={
                 "type": "object",
                 "properties": {
                     "source_ref": {"type": "string"},
-                    "version_ref": {"type": "string"},
                     "max_windows": {"type": "integer", "minimum": 1, "maximum": 8},
                 },
                 "required": ["source_ref", "max_windows"],

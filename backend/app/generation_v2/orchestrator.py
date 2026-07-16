@@ -27,9 +27,13 @@ from app.generation_v2.schemas import (
     ShowBibleContext,
 )
 from app.models.generation_run import GenerationRun
+from app.models.generation_v2 import RunCorpusView
 from app.models.show_bible import ShowBible
 from app.generation_v2.source_corpus import load_current_v2_corpus, prepare_v2_corpus
-from app.generation_v2.source_corpus_run_view import current_attempt_has_triage_history
+from app.generation_v2.source_corpus_run_view import (
+    current_attempt_has_triage_history,
+    load_current_run_corpus_view,
+)
 
 
 __all__ = ["V2StepExecutionStopped", "execute_generation_v2"]
@@ -65,15 +69,25 @@ async def execute_generation_v2(
             next_step=V2PipelineStep.SOURCE_TRIAGE,
         )
     else:
-        corpus = await load_current_v2_corpus(db, run)
-        if requested_step == V2PipelineStep.SOURCE_TRIAGE and await current_attempt_has_triage_history(
-            db,
-            corpus.run_view,
-        ):
-            # A fresh transition from corpus_prepare has no triage artifacts.
-            # Durable triage state here means this is a retry of an interrupted
-            # attempt; preserve it as history and start triage in a clean scope.
+        current_view = (
+            await load_current_run_corpus_view(db, run.id)
+            if requested_step == V2PipelineStep.SOURCE_TRIAGE
+            else None
+        )
+        restart_triage = bool(
+            current_view is not None
+            and (
+                await current_attempt_has_triage_history(db, current_view)
+                or _explicit_source_selection_changed(run, current_view)
+            )
+        )
+        if restart_triage:
+            # Inspect the lightweight view before hydrating its pinned versions.
+            # A retry can legitimately replace versions that made the old view
+            # unreadable; that history must not prevent creation of a clean scope.
             corpus = await prepare_v2_corpus(db, run)
+        else:
+            corpus = await load_current_v2_corpus(db, run)
 
     if not step_mode or requested_step == V2PipelineStep.SOURCE_TRIAGE:
         triage_state = await _triage_prepared_corpus(run, db, runtime, corpus=corpus)
@@ -178,6 +192,18 @@ async def execute_generation_v2(
         show_bible=show_bible,
         generate_audio=generate_audio,
     )
+
+
+def _explicit_source_selection_changed(run: GenerationRun, run_view: RunCorpusView) -> bool:
+    configured_ids = {
+        str(value)
+        for value in (run.config or {}).get("source_ids", [])
+        if str(value).strip()
+    }
+    if not configured_ids:
+        return False
+    pinned_ids = {str(value) for value in (run_view.selected_source_ids or []) if str(value).strip()}
+    return configured_ids != pinned_ids
 
 
 async def _load_show_bible_context(db: AsyncSession, run: GenerationRun) -> ShowBibleContext:

@@ -15,13 +15,19 @@ from app.generation_v2.tools.evidence_source_map_ids import public_gap_ref, sour
 
 _V2_WORKSPACE_SCHEMA = "source_triage_workspace.v2"
 _REPLAN_REQUIRED_CODES = {
+    "coverage_source_set_without_questions",
+    "cyclic_coverage_question_hierarchy",
     "duplicate_coverage_questions",
     "duplicate_source_sets",
     "invalid_coverage_question_id",
+    "invalid_central_coverage_question",
+    "invalid_source_set_kind",
     "invalid_source_set_id",
     "missing_coverage_questions",
     "multiply_assigned_sources",
+    "orientation_source_set_has_planned_questions",
     "unassigned_sources",
+    "uninspected_orientation_sources",
     "unassigned_coverage_questions",
     "unknown_coverage_questions",
     "unknown_parent_coverage_questions",
@@ -257,12 +263,71 @@ def _target_existing_v2_sets(
             )
 
     if assessments_to_rebuild:
+        baselines: list[dict[str, Any]] = []
+        versions_by_ref: dict[str, int] = {}
+        for raw in [
+            *(workspace.get("repair_baseline_source_assessments") or []),
+            *[
+                item
+                for item in workspace.get("source_assessments") or []
+                if isinstance(item, dict)
+                and str(item.get("source_ref") or "") in assessments_to_rebuild
+            ],
+        ]:
+            if not isinstance(raw, dict):
+                continue
+            baseline = dict(raw)
+            source_ref = str(baseline.get("source_ref") or "")
+            if not source_ref:
+                continue
+            assigned_set_ids = _dedupe(set_ids_by_ref.get(source_ref, []))
+            if len(assigned_set_ids) == 1:
+                assigned_set_id = assigned_set_ids[0]
+                stored_set_id = str(baseline.get("set_id") or "")
+                if stored_set_id != assigned_set_id and "original_set_id" not in baseline:
+                    baseline["original_set_id"] = stored_set_id or None
+                baseline["set_id"] = assigned_set_id
+            baseline["repair_baseline"] = True
+            requested_version = _non_negative_int(baseline.get("repair_baseline_version"))
+            next_version = max(versions_by_ref.get(source_ref, 0) + 1, requested_version)
+            versions_by_ref[source_ref] = next_version
+            baseline["repair_baseline_version"] = next_version
+            baselines.append(baseline)
+        workspace["repair_baseline_source_assessments"] = baselines
         workspace["source_assessments"] = [
             item
             for item in workspace.get("source_assessments") or []
             if not isinstance(item, dict) or str(item.get("source_ref") or "") not in assessments_to_rebuild
         ]
     if outcomes_to_rebuild:
+        baselines = []
+        versions_by_pair: dict[tuple[str, str], int] = {}
+        for raw in [
+            *(workspace.get("repair_baseline_coverage_outcomes") or []),
+            *[
+                item
+                for item in workspace.get("coverage_outcomes") or []
+                if isinstance(item, dict)
+                and (str(item.get("set_id") or ""), str(item.get("question_id") or ""))
+                in outcomes_to_rebuild
+            ],
+        ]:
+            if not isinstance(raw, dict):
+                continue
+            baseline = dict(raw)
+            pair = (
+                str(baseline.get("set_id") or ""),
+                str(baseline.get("question_id") or ""),
+            )
+            if not all(pair):
+                continue
+            baseline["repair_baseline"] = True
+            requested_version = _non_negative_int(baseline.get("repair_baseline_version"))
+            next_version = max(versions_by_pair.get(pair, 0) + 1, requested_version)
+            versions_by_pair[pair] = next_version
+            baseline["repair_baseline_version"] = next_version
+            baselines.append(baseline)
+        workspace["repair_baseline_coverage_outcomes"] = baselines
         workspace["coverage_outcomes"] = [
             item
             for item in workspace.get("coverage_outcomes") or []
@@ -294,6 +359,13 @@ def _target_existing_v2_sets(
     invalidate_coverage_syntheses(workspace)
     workspace["repair_unaddressable_violations"] = _dedupe_issue_dicts(unaddressable)
     return workspace
+
+
+def _non_negative_int(value: Any) -> int:
+    try:
+        return max(0, int(str(value or "0")))
+    except ValueError:
+        return 0
 
 
 def _unaddressable(
@@ -383,6 +455,7 @@ def _create_legacy_repair_set(
     )
     repair_set = {
         "set_id": f"repair_{repair_idx}",
+        "set_kind": "coverage",
         "label": f"Repair source triage gate issues {repair_idx}",
         "purpose": safe_gate_summary,
         "source_refs": refs,

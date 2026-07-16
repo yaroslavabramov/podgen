@@ -56,6 +56,11 @@ async def process_runtime_function_calls(
     tool_outputs: list[dict[str, Any]] = []
     checkpoint_tool_results: list[dict[str, Any]] = []
     accepted_terminal_result: AgentTerminalResult | None = None
+    terminal_calls_in_batch = {
+        call["call_id"]
+        for call in function_calls
+        if (tool := local_tool_map.get(call["name"])) is not None and tool.terminal
+    }
     for call_index, call in enumerate(function_calls, start=1):
         debug_base = {
             "run_id": str(generation_run_id),
@@ -83,7 +88,13 @@ async def process_runtime_function_calls(
         trace_only_error: dict[str, Any] | None = None
         call_status = call.get("status")
         arguments_valid = call.get("arguments_valid", True)
-        if call_status not in {None, "completed"}:
+        if call["call_id"] in terminal_calls_in_batch and len(function_calls) > 1:
+            output = {
+                "accepted": False,
+                "error": "terminal_tool_must_be_called_alone",
+                "message": "Persist independent writes first, then call the terminal tool alone in a new response.",
+            }
+        elif call_status not in {None, "completed"}:
             output = {
                 "accepted": False,
                 "error": "incomplete_function_call",

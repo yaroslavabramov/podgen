@@ -9,6 +9,10 @@ from app.generation_v2.source_corpus_contracts import (
     PROVIDER_READY_PHASES,
     ProviderUploadPhase,
 )
+from app.generation_v2.source_content_readiness import (
+    source_version_content_state,
+    source_version_model_eligible,
+)
 from app.models.generation_v2 import ProviderCorpusFile, ProviderCorpusIndex, SourceRepresentationKind, SourceVersion, V2RecordStatus
 
 
@@ -20,6 +24,7 @@ def provider_file_search_ready(provider_file: ProviderCorpusFile) -> bool:
         and attributes.get("is_active", True) is True
         and attributes.get("agent_facing", True) is True
         and attributes.get("canonical_retrieval_surface", True) is True
+        and attributes.get("content_confirmed", True) is True
     )
 
 
@@ -131,6 +136,8 @@ def provider_attributes(version: SourceVersion) -> dict[str, str | bool | float]
         "source_type": str(metadata.get("source_type") or "unknown"),
         "representation_kind": version.kind,
         "content_hash": version.content_hash or "",
+        "content_state": source_version_content_state(version),
+        "content_confirmed": source_version_model_eligible(version),
         "authority": str(metadata.get("authority") or "unknown"),
         "is_active": bool(version.is_active),
         "agent_facing": True,
@@ -141,7 +148,7 @@ def provider_attributes(version: SourceVersion) -> dict[str, str | bool | float]
 
 
 def version_uploadable(version: SourceVersion) -> bool:
-    return bool(version.storage_path and version.kind != SourceRepresentationKind.ORIGINAL_URL and version.status == V2RecordStatus.READY)
+    return source_version_model_eligible(version)
 
 
 __all__ = [

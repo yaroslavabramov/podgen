@@ -13,7 +13,15 @@ def runtime_tool_specs(
     policy: ToolPolicy,
 ) -> list[dict[str, Any]]:
     tools: list[dict[str, Any]] = []
-    if vector_store_id and policy.file_search:
+    pinned_version_ids = tuple(
+        dict.fromkeys(str(value).strip() for value in policy.file_search_source_version_ids if str(value).strip())
+    )
+    if vector_store_id and policy.file_search and pinned_version_ids:
+        pinned_filter = {
+            "type": "in",
+            "key": "source_version_id",
+            "value": list(pinned_version_ids),
+        }
         tools.append(
             {
                 "type": "file_search",
@@ -24,6 +32,8 @@ def runtime_tool_specs(
                         {"type": "eq", "key": "is_active", "value": True},
                         {"type": "eq", "key": "agent_facing", "value": True},
                         {"type": "eq", "key": "canonical_retrieval_surface", "value": True},
+                        {"type": "eq", "key": "content_confirmed", "value": True},
+                        pinned_filter,
                     ],
                 },
                 "max_num_results": policy.max_file_search_results,
