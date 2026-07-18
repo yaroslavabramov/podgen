@@ -58,12 +58,12 @@ async def _patch_workspace(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_last_allowed_read_returns_persist_control_before_next_call(
+async def test_more_than_ten_reads_remain_unblocked(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     await _patch_workspace(monkeypatch)
     toolset = EvidenceToolset(
-        db=_GuardDb([_read_trace({"found": True}) for _ in range(9)]),  # type: ignore[arg-type]
+        db=_GuardDb([_read_trace({"found": True}) for _ in range(25)]),  # type: ignore[arg-type]
         run=SimpleNamespace(id=uuid.uuid4()),
         run_view=SimpleNamespace(),  # type: ignore[arg-type]
         provider_index=None,
@@ -77,13 +77,11 @@ async def test_last_allowed_read_returns_persist_control_before_next_call(
     output = await toolset._call_with_research_commit_advisory(_successful_read, {})
 
     assert output["found"] is True
-    assert output["read_control"]["read_calls_since_commit"] == 10
-    assert output["read_control"]["remaining_reads"] == 0
-    assert output["read_control"]["must_persist_before_more_reads"] is True
+    assert "read_control" not in output
 
 
 @pytest.mark.asyncio
-async def test_read_after_limit_is_control_outcome_not_rejection(
+async def test_triage_read_guard_never_blocks_on_a_read_count(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     await _patch_workspace(monkeypatch)
@@ -95,19 +93,16 @@ async def test_read_after_limit_is_control_outcome_not_rejection(
         triage_current_set_id="set_1",
     )
 
-    async def _blocked_read(_args):
+    async def _unblocked_read(_args):
         blocked = await toolset._triage_read_guard_error()
-        assert blocked is not None
-        return blocked
+        assert blocked is None
+        return {"found": True, "items": [{"window_ref": "W01"}]}
 
-    output = await toolset._call_with_research_commit_advisory(_blocked_read, {})
+    output = await toolset._call_with_research_commit_advisory(_unblocked_read, {})
 
-    assert output["outcome_kind"] == TOOL_OUTCOME_CONTROL
-    assert output["read_performed"] is False
-    assert output["remaining_reads"] == 0
-    assert output["must_persist_before_more_reads"] is True
-    assert "accepted" not in output
-    assert "error" not in output
+    assert output["found"] is True
+    assert "read_control" not in output
+    assert "outcome_kind" not in output
 
 
 @pytest.mark.asyncio

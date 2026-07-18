@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import json
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.generation_v2.agent_output_policy import semantic_agent_output_limit
 from app.generation_v2.agents.source_acquisition_agent import build_source_acquisition_agent
 from app.generation_v2.agents.fallbacks import allow_runtime_fallback as _allow_runtime_fallback
 from app.generation_v2.agents.tool_sets import (
@@ -22,9 +22,15 @@ from app.generation_v2.prompting import (
     SOURCE_TRIAGE_SET_PROMPT,
     SOURCE_TRIAGE_SET_SYSTEM,
 )
-from app.generation_v2.contracts import V2Phase
+from app.generation_v2.contracts import V2Phase, V2ToolName
 from app.generation_v2.research_workspace import source_map_research_summary
-from app.generation_v2.runtime import AgentTool, ToolPolicy, V2Runtime, V2RuntimeUnavailable
+from app.generation_v2.runtime import (
+    AgentCheckpointPolicy,
+    AgentTool,
+    ToolPolicy,
+    V2Runtime,
+    V2RuntimeUnavailable,
+)
 from app.generation_v2.runtime_checkpoint_context import (
     TRIAGE_FINALIZER_RESUME_CONTRACT,
     TRIAGE_PLANNER_RESUME_CONTRACT,
@@ -65,10 +71,12 @@ async def build_source_triage_planner_agent(
             system=SOURCE_TRIAGE_PLANNER_SYSTEM,
             prompt=prompt,
             vector_store_id=None,
-            local_tools=phase_tools(workspace_tools, TRIAGE_PLANNER_TOOL_NAMES),
+            local_tools=_triage_phase_tools(workspace_tools, TRIAGE_PLANNER_TOOL_NAMES),
             tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
-            max_output_tokens=semantic_agent_output_limit(),
-            max_tool_rounds=settings.generation_v2_triage_max_tool_rounds,
+            max_output_tokens=None,
+            max_tool_rounds=0,
+            server_compaction_threshold=settings.generation_v2_triage_compaction_threshold,
+            checkpoint_policy=AgentCheckpointPolicy(enabled=False),
             checkpoint_resume_context=build_checkpoint_resume_context(
                 run_config=_run_config_with_language(run, output_language),
                 workflow_contract=TRIAGE_PLANNER_RESUME_CONTRACT,
@@ -93,6 +101,7 @@ async def build_source_triage_set_agent(
     vector_store_id: str | None = None,
     hosted_file_search_handler=None,
     output_language: str | None = None,
+    terminal_progress_loader=None,
 ) -> SourceTriageCompletion:
     resolved_output_language = _output_language(run, explicit=output_language)
     prompt = SOURCE_TRIAGE_SET_PROMPT.format(
@@ -112,7 +121,7 @@ async def build_source_triage_set_agent(
             system=SOURCE_TRIAGE_SET_SYSTEM,
             prompt=prompt,
             vector_store_id=vector_store_id,
-            local_tools=phase_tools(set_tools, TRIAGE_SET_TOOL_NAMES),
+            local_tools=_triage_phase_tools(set_tools, TRIAGE_SET_TOOL_NAMES),
             tool_policy=ToolPolicy(
                 file_search=False,
                 web_search=False,
@@ -120,12 +129,15 @@ async def build_source_triage_set_agent(
                 parallel_local_tool_calls=True,
             ),
             hosted_file_search_handler=hosted_file_search_handler,
-            max_output_tokens=semantic_agent_output_limit(),
-            max_tool_rounds=settings.generation_v2_triage_max_tool_rounds,
+            max_output_tokens=None,
+            max_tool_rounds=0,
+            server_compaction_threshold=settings.generation_v2_triage_compaction_threshold,
+            checkpoint_policy=AgentCheckpointPolicy(enabled=False),
             checkpoint_resume_context=build_checkpoint_resume_context(
                 run_config=_run_config_with_language(run, resolved_output_language),
                 workflow_contract=TRIAGE_SET_RESUME_CONTRACT,
             ),
+            terminal_progress_loader=terminal_progress_loader,
         )
     except V2RuntimeUnavailable as exc:
         _allow_runtime_fallback(runtime, "v2_source_triage", agent_name, exc)
@@ -193,10 +205,12 @@ async def build_source_triage_finalizer_agent(
             system=SOURCE_TRIAGE_FINALIZER_SYSTEM,
             prompt=prompt,
             vector_store_id=None,
-            local_tools=phase_tools(finalizer_tools, TRIAGE_FINALIZER_TOOL_NAMES),
+            local_tools=_triage_phase_tools(finalizer_tools, TRIAGE_FINALIZER_TOOL_NAMES),
             tool_policy=ToolPolicy(file_search=False, web_search=False, local_tools=True),
-            max_output_tokens=semantic_agent_output_limit(),
-            max_tool_rounds=settings.generation_v2_triage_max_tool_rounds,
+            max_output_tokens=None,
+            max_tool_rounds=0,
+            server_compaction_threshold=settings.generation_v2_triage_compaction_threshold,
+            checkpoint_policy=AgentCheckpointPolicy(enabled=False),
             checkpoint_resume_context=build_checkpoint_resume_context(
                 run_config=_run_config_with_language(run, output_language),
                 workflow_contract=TRIAGE_FINALIZER_RESUME_CONTRACT,
@@ -220,6 +234,72 @@ def _json(value: object) -> str:
     if hasattr(value, "model_dump"):
         return json.dumps(value.model_dump(mode="json"), ensure_ascii=False)
     return json.dumps(value, ensure_ascii=False)
+
+
+def _triage_phase_tools(
+    tools: list[AgentTool] | None,
+    allowed_names: set[str],
+) -> list[AgentTool]:
+    """Ensure every model-visible triage rejection names a valid recovery action."""
+
+    guided: list[AgentTool] = []
+    for tool in phase_tools(tools, allowed_names):
+        original_handler = tool.handler
+
+        async def handler(args: dict, *, _handler=original_handler, _name=tool.name) -> dict:
+            output = await _handler(args)
+            if not isinstance(output, dict) or not output.get("error") or output.get("next_action"):
+                return output
+            return {
+                **output,
+                "next_action": _triage_error_next_action(
+                    _name,
+                    available_tool_names=allowed_names,
+                ),
+            }
+
+        guided.append(replace(tool, handler=handler))
+    return guided
+
+
+def _triage_error_next_action(
+    tool_name: str,
+    *,
+    available_tool_names: set[str],
+) -> str:
+    if tool_name in {
+        "list_source_capsules",
+        "list_triage_source_sets",
+    }:
+        return f"Correct the returned ref, section, or cursor and retry {tool_name}."
+    if tool_name in {
+        V2ToolName.READ_SOURCE,
+        V2ToolName.SEARCH_SOURCE,
+        V2ToolName.OPEN_SOURCE_FILE,
+        V2ToolName.READ_EVIDENCE,
+        V2ToolName.READ_SOURCE_WINDOW,
+    }:
+        if V2ToolName.SAVE_SOURCE_ANALYSIS in available_tool_names:
+            return (
+                f"Correct the returned source handle, cursor, or locator and retry {tool_name}; if the checked "
+                "representation is genuinely unavailable, preserve that exact limitation with save_source_analysis."
+            )
+        return (
+            f"Correct the returned evidence handle or locator and retry {tool_name}; if exact material remains "
+            "unavailable, preserve that limitation in the affected finding, outcome, relationship, or gap."
+        )
+    if tool_name == V2ToolName.COMPARE_SOURCE_EVIDENCE:
+        return (
+            "Correct the source refs or comparison question and retry compare_source_evidence, then update only "
+            "the finding links, relations, outcomes, relationships, clusters, or gaps supported by the result."
+        )
+    if tool_name == "finish_triage_source_set":
+        return "Complete the listed source analyses or outcomes, then retry finish_triage_source_set."
+    if tool_name == "finalize_triage_workspace_plan":
+        return "Correct the listed questions or source sets, then retry finalize_triage_workspace_plan."
+    if tool_name == "finalize_source_map":
+        return "Correct the listed finding links, outcomes, syntheses, or map records, then retry finalize_source_map."
+    return f"Correct the returned defect and retry {tool_name}."
 
 
 def _output_language(

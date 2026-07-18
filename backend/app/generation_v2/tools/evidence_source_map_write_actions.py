@@ -559,7 +559,7 @@ async def resolve_source_map_repair(owner: Any, args: dict[str, Any]) -> dict[st
         load_source_triage_workspace,
         save_source_triage_workspace,
     )
-    from app.generation_v2.source_triage_workspace_state import invalidate_coverage_syntheses, now
+    from app.generation_v2.source_triage_workspace_state import now
 
     workspace = await load_source_triage_workspace(owner.db, owner.run.id)
     if not workspace:
@@ -584,7 +584,6 @@ async def resolve_source_map_repair(owner: Any, args: dict[str, Any]) -> dict[st
     repair_item["resolution_reason"] = reason
     repair_item["resolved_at"] = now()
     workspace["source_map_repair_items"] = repair_items
-    invalidate_coverage_syntheses(workspace)
     await save_source_triage_workspace(
         owner.db,
         generation_run_id=owner.run.id,
@@ -702,9 +701,16 @@ async def finalize_source_map(owner: Any, args: dict[str, Any]) -> dict[str, Any
         load_source_triage_workspace,
         save_source_triage_workspace,
     )
+    from app.generation_v2.source_triage_workspace_state import (
+        WORKSPACE_SCHEMA_VERSION,
+        is_structured_triage_workspace,
+    )
+    from app.generation_v2.source_triage_workspace_tools import (
+        finalizer_review_stream_violations,
+    )
 
     workspace = await load_source_triage_workspace(owner.db, owner.run.id)
-    if workspace and str(workspace.get("schema_version") or "") == "source_triage_workspace.v2":
+    if workspace and is_structured_triage_workspace(workspace):
         open_repairs = [
             str(item.get("repair_ref") or "")
             for item in workspace.get("source_map_repair_items") or []
@@ -716,7 +722,15 @@ async def finalize_source_map(owner: Any, args: dict[str, Any]) -> dict[str, Any
                 "error": "source_map_repairs_open",
                 "repair_refs": open_repairs,
             }
-        violations = canonical_workspace_violations(workspace, require_syntheses=True)
+        review_violations = (
+            finalizer_review_stream_violations(workspace)
+            if str(workspace.get("schema_version") or "") == WORKSPACE_SCHEMA_VERSION
+            else []
+        )
+        violations = [
+            *review_violations,
+            *canonical_workspace_violations(workspace, require_syntheses=True),
+        ]
         if violations:
             return {
                 "accepted": False,
@@ -726,11 +740,38 @@ async def finalize_source_map(owner: Any, args: dict[str, Any]) -> dict[str, Any
     selected = await owner._selected_evidence_ids()
     if not selected and not workspace:
         return {"accepted": False, "error": "cannot finalize legacy source map without selected evidence"}
+    terminal_completion: dict[str, Any] | None = None
+    finalization: dict[str, Any] | None = None
     if workspace:
-        workspace["source_map_finalization"] = {
-            "ready": True,
-            "summary": str(args.get("summary") or ""),
-        }
+        if is_structured_triage_workspace(workspace):
+            from app.generation_v2.source_triage_lineage import (
+                coverage_finalization_payload,
+                coverage_terminal_completion_payload,
+            )
+
+            try:
+                finalization = coverage_finalization_payload(
+                    workspace,
+                    model_summary=str(args.get("summary") or ""),
+                )
+            except ValueError as exc:
+                return {
+                    "accepted": False,
+                    "error": "source_map_workspace_not_ready",
+                    "violations": [
+                        {
+                            "code": "coverage_gap_ledger_not_ready",
+                            "message": str(exc),
+                        }
+                    ],
+                }
+            terminal_completion = coverage_terminal_completion_payload(finalization)
+        else:
+            finalization = {
+                "ready": True,
+                "summary": str(args.get("summary") or ""),
+            }
+        workspace["source_map_finalization"] = finalization
         workspace.pop("source_map_repair_items", None)
         workspace.pop("source_map_repair_targets", None)
         await save_source_triage_workspace(
@@ -738,11 +779,21 @@ async def finalize_source_map(owner: Any, args: dict[str, Any]) -> dict[str, Any
             generation_run_id=owner.run.id,
             workspace=workspace,
         )
-    return {
+    result = {
         "accepted": True,
         "selected_evidence_count": len(selected),
         "workspace_validated": bool(workspace),
     }
+    if finalization and "coverage_gap_count" in finalization:
+        result.update(
+            {
+                "coverage_question_count": finalization["coverage_question_count"],
+                "coverage_status_counts": finalization["coverage_status_counts"],
+                "coverage_gap_count": finalization["coverage_gap_count"],
+                "terminal_completion": terminal_completion,
+            }
+        )
+    return result
 
 
 __all__ = [

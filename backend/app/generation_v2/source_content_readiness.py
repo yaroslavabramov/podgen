@@ -214,21 +214,59 @@ def content_assessment_metadata(assessment: SourceContentAssessment) -> dict[str
 
 
 def extract_web_document_text(html: str) -> str:
-    """Extract the main stored document without executing untrusted page code."""
+    """Extract a coverage-first document view without executing untrusted page code.
+
+    Triage needs the complete article, not only the extractor's highest-confidence
+    section.  ``favor_precision`` can silently reduce a long page to an appendix or
+    another isolated block, so recall is the primary immutable read view.  A
+    candidate that is itself an access/error surface is never promoted over a
+    healthier fallback extraction.
+    """
     value = str(html or "")
     try:
         import trafilatura
-
-        extracted = trafilatura.extract(
-            value,
-            output_format="markdown",
-            include_comments=False,
-            include_tables=True,
-            favor_precision=True,
-        )
     except Exception:
-        extracted = None
-    return str(extracted or "").strip() or visible_web_text(
+        trafilatura = None
+
+    candidates: list[str] = []
+    if trafilatura is not None:
+        # Keep the attempts ordered by the product's goal: preserve document
+        # coverage first, then fall back to balanced/precision extraction when
+        # the recall candidate is empty or recognisably a transport/UI surface.
+        for preference in ("recall", "balanced", "precision"):
+            options: dict[str, Any] = {
+                "output_format": "markdown",
+                "include_comments": False,
+                "include_tables": True,
+                "include_links": False,
+            }
+            if preference == "recall":
+                options["favor_recall"] = True
+            elif preference == "precision":
+                options["favor_precision"] = True
+            try:
+                extracted = trafilatura.extract(value, **options)
+            except Exception:
+                continue
+            candidate = str(extracted or "").strip()
+            if not candidate or candidate in candidates:
+                continue
+            candidates.append(candidate)
+            assessment = assess_web_source_content(
+                candidate,
+                surface=f"document_extraction_{preference}",
+                content_type="text/markdown",
+                input_is_markup=False,
+            )
+            if assessment.confirmed:
+                return candidate
+
+    # Preserve the best non-empty extractor result even when the document is too
+    # short for the readiness threshold.  The caller owns readiness; extraction
+    # must not discard or truncate semantic content.
+    if candidates:
+        return max(candidates, key=len)
+    return visible_web_text(
         value,
         content_type="text/html",
         input_is_markup=True,

@@ -8,6 +8,7 @@ from app.generation_v2.tools.evidence_model_read import EvidenceModelReadMixin
 from app.generation_v2.tools.evidence_payloads import EvidencePayloadMixin
 from app.generation_v2.tools.evidence_scope import EvidenceScopeMixin
 from app.generation_v2.tools.evidence_selection import EvidenceSelectionMixin
+from app.generation_v2.tools.evidence_source_file_open import EvidenceSourceFileOpenMixin
 from app.generation_v2.tools.evidence_source_tools import EvidenceSourceToolsMixin
 from app.generation_v2.tools.evidence_tool_handler_actions import (
     canonical_kinds_by_source_action,
@@ -29,6 +30,7 @@ class EvidenceToolHandlersMixin(
     EvidenceModelReadMixin,
     EvidencePayloadMixin,
     EvidenceHostedSearchMixin,
+    EvidenceSourceFileOpenMixin,
     EvidenceSourceToolsMixin,
 ):
     async def list_sources_tool(self, args: dict[str, Any]) -> dict[str, Any]:

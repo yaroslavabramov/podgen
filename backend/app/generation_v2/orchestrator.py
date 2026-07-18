@@ -29,11 +29,19 @@ from app.generation_v2.schemas import (
 from app.models.generation_run import GenerationRun
 from app.models.generation_v2 import RunCorpusView
 from app.models.show_bible import ShowBible
-from app.generation_v2.source_corpus import load_current_v2_corpus, prepare_v2_corpus
+from app.generation_v2.source_corpus import (
+    CorpusPreparationResult,
+    load_current_v2_corpus,
+    prepare_v2_corpus,
+)
 from app.generation_v2.source_corpus_run_view import (
     current_attempt_has_triage_history,
     load_current_run_corpus_view,
 )
+from app.generation_v2.source_triage_workspace_persistence import (
+    load_source_triage_workspace,
+)
+from app.generation_v2.source_triage_workspace_state import WORKSPACE_SCHEMA_VERSION
 
 
 __all__ = ["V2StepExecutionStopped", "execute_generation_v2"]
@@ -59,7 +67,16 @@ async def execute_generation_v2(
     step_mode = config.get("execution_mode") == "step"
     requested_step = str(config.get("v2_stop_after_step") or "") if step_mode else ""
 
-    if not step_mode or requested_step == V2PipelineStep.CORPUS_PREPARE:
+    if not step_mode:
+        corpus = await _load_or_prepare_triage_corpus(db, run)
+        await commit_step(
+            run,
+            db,
+            V2PipelineStep.CORPUS_PREPARE,
+            6,
+            next_step=V2PipelineStep.SOURCE_TRIAGE,
+        )
+    elif requested_step == V2PipelineStep.CORPUS_PREPARE:
         corpus = await prepare_v2_corpus(db, run)
         await commit_step(
             run,
@@ -77,8 +94,8 @@ async def execute_generation_v2(
         restart_triage = bool(
             current_view is not None
             and (
-                await current_attempt_has_triage_history(db, current_view)
-                or _explicit_source_selection_changed(run, current_view)
+                _explicit_source_selection_changed(run, current_view)
+                or await _current_triage_scope_requires_new_attempt(db, run, current_view)
             )
         )
         if restart_triage:
@@ -204,6 +221,40 @@ def _explicit_source_selection_changed(run: GenerationRun, run_view: RunCorpusVi
         return False
     pinned_ids = {str(value) for value in (run_view.selected_source_ids or []) if str(value).strip()}
     return configured_ids != pinned_ids
+
+
+async def _load_or_prepare_triage_corpus(
+    db: AsyncSession,
+    run: GenerationRun,
+) -> CorpusPreparationResult:
+    current_view = await load_current_run_corpus_view(db, run.id)
+    if current_view is None:
+        return await prepare_v2_corpus(db, run)
+    if _explicit_source_selection_changed(run, current_view):
+        return await prepare_v2_corpus(db, run)
+    if await _current_triage_scope_requires_new_attempt(db, run, current_view):
+        return await prepare_v2_corpus(db, run)
+    return await load_current_v2_corpus(db, run)
+
+
+async def _current_triage_scope_requires_new_attempt(
+    db: AsyncSession,
+    run: GenerationRun,
+    run_view: RunCorpusView,
+) -> bool:
+    if not await current_attempt_has_triage_history(db, run_view):
+        return False
+    workspace = await load_source_triage_workspace(db, run.id)
+    if not workspace:
+        return True
+    same_scope = (
+        int(workspace.get("corpus_revision") or 1) == int(run_view.revision or 1)
+        and int(workspace.get("attempt") or 1) == int(run_view.attempt or 1)
+    )
+    return not (
+        same_scope
+        and str(workspace.get("schema_version") or "") == WORKSPACE_SCHEMA_VERSION
+    )
 
 
 async def _load_show_bible_context(db: AsyncSession, run: GenerationRun) -> ShowBibleContext:

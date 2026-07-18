@@ -7,8 +7,11 @@ import uuid
 
 import pytest
 
+from app.generation_v2.corpus_brief_preview import _page as corpus_brief_preview_page
 from app.generation_v2.model_facing_pagination import fit_model_page
+from app.generation_v2.research_workspace_prompt_payloads import current_job_prompt_payload
 from app.generation_v2.research_workspace_tools import (
+    _full_corpus_brief_page,
     _full_job_question_page,
     build_research_workspace_tools,
 )
@@ -32,11 +35,31 @@ from app.generation_v2.schemas import (
     SourceTriageReport,
 )
 from app.generation_v2.source_triage_workspace_tools import (
+    _coverage_question_packet_page,
     _full_canonical_item_page,
+    _model_safe_source_finding,
     build_workspace_tools as build_triage_workspace_tools,
+    finalizer_review_stream_violations,
 )
 from app.generation_v2.source_triage_canonical import coverage_synthesis_input_hash
 from app.generation_v2.tools.evidence_source_map_ids import public_gap_ref
+
+
+def test_legacy_internal_relation_id_is_not_exposed_as_source_ref() -> None:
+    internal_id = str(uuid.uuid4())
+
+    payload = _model_safe_source_finding(
+        {
+            "finding_id": "finding:one",
+            "source_ref": "S01",
+            "source_relations": [
+                {"related_source_id": internal_id, "relationship": "duplicate"}
+            ],
+        }
+    )
+
+    assert payload["source_relations"] == []
+    assert internal_id not in json.dumps(payload)
 
 
 def test_source_map_gap_context_is_structured_deduped_and_uses_public_refs() -> None:
@@ -343,6 +366,163 @@ async def test_triage_handler_pages_ten_whole_records_without_gaps(
 
 
 @pytest.mark.asyncio
+async def test_only_finalizer_reads_current_question_and_finding_parts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import source_triage_workspace as workspace_api
+
+    workspace = {
+        "schema_version": "source_triage_workspace.v3",
+        "coverage_questions": [
+            {
+                "question_id": "q-main",
+                "question": "Why did it happen?",
+                "kind": "cause",
+                "importance": "critical",
+                "rationale": "The request asks for a cause.",
+                "answer_requirements": [
+                    {
+                        "requirement_id": "q-main:mechanism",
+                        "description": "Explain the mechanism.",
+                        "rationale": "A cause needs a connecting mechanism.",
+                    }
+                ],
+            }
+        ],
+        "source_findings": [
+            {
+                "finding_id": "finding:S01:one",
+                "set_id": "set-main",
+                "source_ref": "S01",
+                "source_id": "source-1",
+                "statement": "The source establishes the first mechanism.",
+                "evidence_ids": ["evidence-1"],
+                "scope": {"actor": "Actor", "period": "Period", "qualifiers": []},
+                "limitations": [],
+                "question_links": [
+                    {
+                        "question_id": "q-main",
+                        "requirement_ids": ["q-main:mechanism"],
+                    }
+                ],
+                "source_relations": [],
+                "semantic_revision": 1,
+            }
+        ],
+        "source_sets": [
+            {
+                "set_id": "set-main",
+                "source_refs": ["S01"],
+                "question_ids": ["q-main"],
+                "planned_question_ids": ["q-main"],
+                "cross_question_ids": [],
+                "evidence_ids": ["evidence-1"],
+            }
+        ],
+        "source_assessments": [],
+        "coverage_outcomes": [],
+        "coverage_syntheses": [],
+        "triage_semantic_revision": 1,
+    }
+    save_calls = 0
+
+    async def load(_db, _run_id):
+        return workspace
+
+    async def save(_db, **_kwargs):
+        nonlocal save_calls
+        save_calls += 1
+        return SimpleNamespace(payload=workspace)
+
+    monkeypatch.setattr(workspace_api, "load_source_triage_workspace", load)
+    monkeypatch.setattr(workspace_api, "save_source_triage_workspace", save)
+
+    async def page_all(mode: str, section: str) -> None:
+        tools = build_triage_workspace_tools(
+            db=None,  # type: ignore[arg-type]
+            run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+            workspace=workspace,
+            inventory=SourceMap(),
+            mode=mode,
+            current_set_id="set-main" if mode == "set" else None,
+        )
+        page_tool = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+        cursor = "0"
+        while True:
+            page = await page_tool.handler(
+                {"section": section, "cursor": cursor, "limit": 1}
+            )
+            assert page["accepted"] is True
+            cursor = page["page"]["next_cursor"]
+            if not cursor:
+                return
+
+    await page_all("planner", "coverage_questions")
+    await page_all("set", "source_findings")
+    assert save_calls == 0
+    assert "source_triage_finalizer_reads" not in workspace
+    assert finalizer_review_stream_violations(workspace)
+
+    finalizer_tools = build_triage_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(),
+        mode="finalizer",
+    )
+    update_links = next(
+        tool for tool in finalizer_tools if tool.name == "update_source_finding_links"
+    )
+    update_before_read = await update_links.handler(
+        {
+            "finding_id": "finding:S01:one",
+            "question_links": [
+                {
+                    "question_id": "q-main",
+                    "requirement_ids": ["q-main:mechanism"],
+                    "rationale": "The finding directly supports the mechanism.",
+                }
+            ],
+        }
+    )
+    assert update_before_read["accepted"] is True
+    assert update_before_read["changed"] is True
+    assert finalizer_review_stream_violations(workspace)
+
+    await page_all("finalizer", "coverage_questions")
+    missing_findings = finalizer_review_stream_violations(workspace)[0]["sections"]
+    assert [item["section"] for item in missing_findings] == ["source_findings"]
+    assert missing_findings[0]["missing_part_count"] > 0
+    assert missing_findings[0]["missing_owner_refs"] == ["finding:S01:one"]
+    await page_all("finalizer", "source_findings")
+    assert finalizer_review_stream_violations(workspace) == []
+    assert save_calls > 0
+
+    update_after_read = await update_links.handler(
+        {
+            "finding_id": "finding:S01:one",
+            "question_links": [
+                {
+                    "question_id": "q-main",
+                    "requirement_ids": ["q-main:mechanism"],
+                    "rationale": "The reviewed finding directly establishes the mechanism.",
+                }
+            ],
+        }
+    )
+    assert update_after_read["accepted"] is True
+    assert update_after_read["changed"] is True
+    assert finalizer_review_stream_violations(workspace) == []
+
+    workspace["source_findings"][0]["statement"] = "The current finding changed after review."
+    violations = finalizer_review_stream_violations(workspace)
+    assert violations[0]["sections"][0]["section"] == "source_findings"
+
+    await page_all("finalizer", "source_findings")
+    assert finalizer_review_stream_violations(workspace) == []
+
+
+@pytest.mark.asyncio
 async def test_triage_handler_pages_33_assessments_with_a_real_requested_limit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -490,9 +670,12 @@ async def test_triage_finalizer_pages_complete_question_packets_with_derived_lin
 
     assert page["accepted"] is True
     assert page["packet_contract"] == "ordered_parts_v1"
+    assert page["page"]["unit"] == "packet_part"
     assert page["page"]["returned_count"] == 4
+    assert all(item["owner_ref"] for item in page["items"])
     question_part = page["items"][0]
     assert question_part["part_kind"] == "question"
+    assert question_part["owner_ref"] == "coverage_question:q-main"
     assert question_part["question"]["question_id"] == "q-main"
     assert question_part["derived_lineage"]["for_covered_partial_or_conflicted"] == {
         "outcome_count": 2,
@@ -501,14 +684,380 @@ async def test_triage_finalizer_pages_complete_question_packets_with_derived_lin
     }
     synthesis_part = page["items"][1]
     assert synthesis_part["part_kind"] == "existing_synthesis"
+    assert synthesis_part["owner_ref"] == "coverage_question:q-main:existing_synthesis"
     assert synthesis_part["existing_synthesis"] is None
     outcome_parts = [item for item in page["items"] if item["part_kind"] == "per_set_outcome"]
+    assert [item["owner_ref"] for item in outcome_parts] == [
+        "outcome:q-main:set-1",
+        "outcome:q-main:set-2",
+    ]
     assert [item["per_set_outcome"]["set_id"] for item in outcome_parts] == ["set-1", "set-2"]
     assert [item["per_set_outcome"]["evidence_ids"] for item in outcome_parts] == [
         ["evidence-1"],
         ["evidence-2"],
     ]
     assert "coverage_question_packets" in page_tool.parameters["properties"]["section"]["enum"]
+
+
+@pytest.mark.asyncio
+async def test_question_packets_expose_factual_cross_question_overlap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import source_triage_workspace as workspace_api
+
+    workspace = {
+        "triage_semantic_revision": 1,
+        "coverage_questions": [
+            {
+                "question_id": "q-b",
+                "question": "What mechanism was established?",
+                "kind": "mechanism",
+                "importance": "critical",
+                "rationale": "A sibling question may contain relevant established material.",
+            },
+            {
+                "question_id": "q-a",
+                "question": "Why did the arrangement persist?",
+                "kind": "cause",
+                "importance": "critical",
+                "rationale": "The causal account currently has a specific gap.",
+            },
+        ],
+        "source_assessments": [],
+        "source_sets": [],
+        # Deliberately reversed: packet and overlap ordering must not follow mutation order.
+        "coverage_outcomes": [
+            {
+                "question_id": "q-b",
+                "set_id": "set-shared",
+                "status": "covered",
+                "source_refs": ["S02", "S01"],
+                "evidence_ids": ["evidence-b", "evidence-shared"],
+                "orientation_summary": "The source establishes the operating mechanism.",
+                "missing_detail": "",
+                "confidence": 0.9,
+            },
+            {
+                "question_id": "q-a",
+                "set_id": "set-shared",
+                "status": "partial",
+                "source_refs": ["S01", "S03"],
+                "evidence_ids": ["evidence-shared", "evidence-a"],
+                "orientation_summary": "The source establishes the initial arrangement.",
+                "missing_detail": "The persistence mechanism is not reconciled here.",
+                "confidence": 0.7,
+            },
+        ],
+        "coverage_syntheses": [],
+    }
+
+    async def load(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(workspace_api, "load_source_triage_workspace", load)
+    tools = build_triage_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(),
+        mode="finalizer",
+    )
+    page_tool = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+
+    page = await page_tool.handler(
+        {"section": "coverage_question_packets", "cursor": "0", "limit": 20}
+    )
+
+    parts = page["items"]
+    assert [part["packet_ref"] for part in parts if part["part_kind"] == "question"] == [
+        "coverage_question:q-a",
+        "coverage_question:q-b",
+    ]
+    overlap_index = next(
+        index for index, part in enumerate(parts) if part["part_kind"] == "cross_question_overlap"
+    )
+    referenced_outcome_indexes = {
+        part["per_set_outcome"]["outcome_ref"]: index
+        for index, part in enumerate(parts)
+        if part["part_kind"] == "per_set_outcome"
+    }
+    overlap = parts[overlap_index]["cross_question_overlap"]
+    assert overlap == {
+        "overlap_ref": overlap["overlap_ref"],
+        "question_refs": ["coverage_question:q-a", "coverage_question:q-b"],
+        "outcome_refs": ["outcome:q-a:set-shared", "outcome:q-b:set-shared"],
+        "shared_set_ids": ["set-shared"],
+        "source_refs": ["S01"],
+        "evidence_ids": ["evidence-shared"],
+    }
+    assert overlap["overlap_ref"].startswith("cross_overlap:")
+    assert sum(part["part_kind"] == "cross_question_overlap" for part in parts) == 1
+    assert all(referenced_outcome_indexes[ref] < overlap_index for ref in overlap["outcome_refs"])
+    established = next(
+        part["per_set_outcome"]
+        for part in parts
+        if part["part_kind"] == "per_set_outcome"
+        and part["per_set_outcome"]["outcome_ref"] == "outcome:q-b:set-shared"
+    )
+    assert established["orientation_summary"] == "The source establishes the operating mechanism."
+
+
+@pytest.mark.asyncio
+async def test_cross_question_overlap_groups_shared_membership_instead_of_pairwise_expansion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import source_triage_workspace as workspace_api
+
+    question_ids = [f"q-{index:02d}" for index in range(40)]
+    workspace = {
+        "triage_semantic_revision": 1,
+        "coverage_questions": [
+            {"question_id": question_id, "question": f"Question {question_id}"}
+            for question_id in reversed(question_ids)
+        ],
+        "source_assessments": [],
+        "source_sets": [],
+        "coverage_outcomes": [
+            {
+                "question_id": question_id,
+                "set_id": "set-shared",
+                "status": "missing",
+                "source_refs": [],
+                "evidence_ids": [],
+                "missing_detail": f"No answer for {question_id} in this local outcome.",
+                "confidence": 0.7,
+            }
+            for question_id in reversed(question_ids)
+        ],
+        "coverage_syntheses": [],
+    }
+
+    async def load(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(workspace_api, "load_source_triage_workspace", load)
+    tools = build_triage_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(),
+        mode="finalizer",
+    )
+    page_tool = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+
+    pages = []
+    cursor = "0"
+    while True:
+        page = await page_tool.handler(
+            {"section": "coverage_question_packets", "cursor": cursor, "limit": 25}
+        )
+        assert page["accepted"] is True
+        pages.append(page)
+        cursor = page["page"]["next_cursor"]
+        if not cursor:
+            break
+
+    parts = [item for page in pages for item in page["items"]]
+    overlaps = [item for item in parts if item["part_kind"] == "cross_question_overlap"]
+    assert len(overlaps) == 1
+    overlap = overlaps[0]
+    assert overlap["packet_ref"] == "coverage_question:q-39"
+    assert overlap["cross_question_overlap"]["question_refs"] == [
+        f"coverage_question:{question_id}" for question_id in question_ids
+    ]
+    assert overlap["cross_question_overlap"]["outcome_refs"] == [
+        f"outcome:{question_id}:set-shared" for question_id in question_ids
+    ]
+    assert overlap["cross_question_overlap"]["shared_set_ids"] == ["set-shared"]
+    assert overlap["cross_question_overlap"]["source_refs"] == []
+    assert overlap["cross_question_overlap"]["evidence_ids"] == []
+
+
+@pytest.mark.asyncio
+async def test_cross_question_overlap_keeps_distinct_memberships_in_distinct_groups(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import source_triage_workspace as workspace_api
+
+    workspace = {
+        "triage_semantic_revision": 1,
+        "coverage_questions": [
+            {"question_id": question_id, "question": f"Question {question_id}"}
+            for question_id in ("q-3", "q-1", "q-2")
+        ],
+        "source_assessments": [],
+        "source_sets": [],
+        "coverage_outcomes": [
+            {
+                "question_id": "q-1",
+                "set_id": "set-common",
+                "status": "partial",
+                "source_refs": ["S12"],
+                "evidence_ids": [],
+                "missing_detail": "Local gap one.",
+            },
+            {
+                "question_id": "q-2",
+                "set_id": "set-common",
+                "status": "partial",
+                "source_refs": ["S12"],
+                "evidence_ids": ["evidence-23"],
+                "missing_detail": "Local gap two.",
+            },
+            {
+                "question_id": "q-3",
+                "set_id": "set-common",
+                "status": "partial",
+                "source_refs": [],
+                "evidence_ids": ["evidence-23"],
+                "missing_detail": "Local gap three.",
+            },
+        ],
+        "coverage_syntheses": [],
+    }
+
+    async def load(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(workspace_api, "load_source_triage_workspace", load)
+    tools = build_triage_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(),
+        mode="finalizer",
+    )
+    page_tool = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+
+    page = await page_tool.handler(
+        {"section": "coverage_question_packets", "cursor": "0", "limit": 20}
+    )
+
+    overlaps = [
+        item
+        for item in page["items"]
+        if item["part_kind"] == "cross_question_overlap"
+    ]
+    assert len(overlaps) == 3
+    records = [item["cross_question_overlap"] for item in overlaps]
+    common_set = next(record for record in records if record["shared_set_ids"])
+    shared_source = next(record for record in records if record["source_refs"])
+    shared_evidence = next(record for record in records if record["evidence_ids"])
+    assert common_set["outcome_refs"] == [
+        "outcome:q-1:set-common",
+        "outcome:q-2:set-common",
+        "outcome:q-3:set-common",
+    ]
+    assert shared_source["outcome_refs"] == [
+        "outcome:q-1:set-common",
+        "outcome:q-2:set-common",
+    ]
+    assert shared_evidence["outcome_refs"] == [
+        "outcome:q-2:set-common",
+        "outcome:q-3:set-common",
+    ]
+    assert [value for record in records for value in record["shared_set_ids"]] == [
+        "set-common"
+    ]
+    assert [value for record in records for value in record["source_refs"]] == ["S12"]
+    assert [value for record in records for value in record["evidence_ids"]] == [
+        "evidence-23"
+    ]
+    item_by_overlap_ref = {
+        item["cross_question_overlap"]["overlap_ref"]: item for item in overlaps
+    }
+    assert item_by_overlap_ref[common_set["overlap_ref"]]["packet_ref"] == "coverage_question:q-3"
+    assert item_by_overlap_ref[shared_source["overlap_ref"]]["packet_ref"] == "coverage_question:q-2"
+    assert item_by_overlap_ref[shared_evidence["overlap_ref"]]["packet_ref"] == "coverage_question:q-3"
+
+
+@pytest.mark.asyncio
+async def test_cross_question_overlap_splits_long_shared_lineage_without_loss(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import source_triage_workspace as workspace_api
+
+    source_refs = [f"S{index:03d}" for index in range(100)]
+    evidence_ids = [f"evidence-{index:04d}-{'x' * 24}" for index in range(700)]
+    workspace = {
+        "triage_semantic_revision": 1,
+        "coverage_questions": [
+            {"question_id": "q-a", "question": "Question A"},
+            {"question_id": "q-b", "question": "Question B"},
+        ],
+        "source_assessments": [],
+        "source_sets": [],
+        "coverage_outcomes": [
+            {
+                "question_id": question_id,
+                "set_id": "set-shared",
+                "status": "partial",
+                "source_refs": source_refs,
+                "evidence_ids": evidence_ids,
+                "orientation_summary": f"Established material for {question_id}.",
+                "missing_detail": f"Remaining gap for {question_id}.",
+                "confidence": 0.8,
+            }
+            for question_id in ("q-b", "q-a")
+        ],
+        "coverage_syntheses": [],
+    }
+
+    async def load(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(workspace_api, "load_source_triage_workspace", load)
+    tools = build_triage_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(),
+        mode="finalizer",
+    )
+    page_tool = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+
+    pages = []
+    cursor = "0"
+    while True:
+        page = await page_tool.handler(
+            {"section": "coverage_question_packets", "cursor": cursor, "limit": 25}
+        )
+        assert page["accepted"] is True
+        assert len(json.dumps(page, ensure_ascii=False, default=str)) <= MODEL_TOOL_OUTPUT_MAX_CHARS
+        pages.append(page)
+        cursor = page["page"]["next_cursor"]
+        if not cursor:
+            break
+
+    parts = [item for page in pages for item in page["items"]]
+    overlap = next(item for item in parts if item["part_kind"] == "cross_question_overlap")
+    overlap_ref = overlap["cross_question_overlap"]["overlap_ref"]
+    assert overlap["question_ref_count"] == 2
+    assert overlap["outcome_ref_count"] == 2
+    assert overlap["shared_set_id_count"] == 1
+    assert overlap["source_ref_count"] == len(source_refs)
+    assert overlap["evidence_id_count"] == len(evidence_ids)
+    overlap_lineage = [
+        item
+        for item in parts
+        if item["part_kind"] == "lineage"
+        and item["owner_kind"] == "cross_question_overlap"
+    ]
+    assert len(overlap_lineage) > 1
+    assert [value for item in overlap_lineage for value in item["question_refs"]] == [
+        "coverage_question:q-a",
+        "coverage_question:q-b",
+    ]
+    assert [value for item in overlap_lineage for value in item["outcome_refs"]] == [
+        "outcome:q-a:set-shared",
+        "outcome:q-b:set-shared",
+    ]
+    assert [value for item in overlap_lineage for value in item["shared_set_ids"]] == [
+        "set-shared"
+    ]
+    assert [value for item in overlap_lineage for value in item["source_refs"]] == source_refs
+    assert [value for item in overlap_lineage for value in item["evidence_ids"]] == evidence_ids
+    assert all(item["owner_ref"] == overlap_ref for item in overlap_lineage)
 
 
 @pytest.mark.asyncio
@@ -1214,3 +1763,261 @@ async def test_workspace_handlers_reject_oversized_single_records_without_mutati
     assert "items" not in research_page
     assert triage_workspace == triage_before
     assert research_workspace == research_before
+
+
+def _collect_part_pages(fetch_page) -> list[dict]:
+    items: list[dict] = []
+    cursor = "0"
+    while True:
+        page = fetch_page(cursor)
+        assert page["accepted"] is True
+        assert len(json.dumps(page, ensure_ascii=False, default=str)) <= MODEL_TOOL_OUTPUT_MAX_CHARS
+        items.extend(page["items"])
+        cursor = page["page"]["next_cursor"]
+        if not cursor:
+            return items
+
+
+def test_composite_preview_metadata_separates_preview_and_full_page_cursors() -> None:
+    brief_page = corpus_brief_preview_page(30, 20, full_page_unit="record_part")
+    assert brief_page["next_cursor"] == "20"
+    assert brief_page["cursor_unit"] == "preview_record"
+    assert brief_page["full_page_start_cursor"] == "0"
+    assert brief_page["full_page_unit"] == "record_part"
+
+    job_payload = current_job_prompt_payload(
+        {
+            "coverage_requirements": [
+                {"question_id": "q", "requirement_id": f"r-{index}"}
+                for index in range(13)
+            ],
+            "source_findings": [
+                {"finding_id": f"finding-{index}"} for index in range(13)
+            ],
+        }
+    )
+    for section in ("coverage_requirements", "source_findings"):
+        page = job_payload["pages"][section]
+        assert page["next_cursor"] == "12"
+        assert page["cursor_unit"] == "job_preview_record"
+        assert page["full_page_start_cursor"] == "0"
+        assert page["full_page_unit"] == "record_part"
+
+
+def test_valid_large_question_is_fully_readable_as_stable_parts() -> None:
+    requirements = [
+        {
+            "requirement_id": f"r-{index}",
+            "description": f"description-{index}:" + "d" * 780,
+            "rationale": f"rationale-{index}:" + "r" * 980,
+        }
+        for index in range(8)
+    ]
+    question = {
+        "question_id": "q-large",
+        "question": "Whole question",
+        "kind": "mechanism",
+        "importance": "critical",
+        "rationale": "Whole rationale",
+        "answer_requirements": requirements,
+    }
+    triage_workspace = {
+        "coverage_questions": [question],
+        "coverage_outcomes": [],
+        "coverage_syntheses": [],
+        "source_assessments": [],
+        "triage_semantic_revision": 0,
+    }
+    research_workspace = {"corpus_brief": {"coverage_questions": [question]}}
+
+    triage_parts = _collect_part_pages(
+        lambda cursor: _full_canonical_item_page(
+            triage_workspace,
+            section="coverage_questions",
+            cursor=int(cursor),
+            limit=20,
+        )
+    )
+    research_parts = _collect_part_pages(
+        lambda cursor: _full_corpus_brief_page(
+            research_workspace,
+            SourceMap(),
+            section="corpus_brief_questions",
+            cursor=int(cursor),
+            limit=20,
+            include_evidence_ids=True,
+        )
+    )
+    packet_parts = _collect_part_pages(
+        lambda cursor: _coverage_question_packet_page(
+            triage_workspace,
+            cursor=int(cursor),
+            limit=20,
+        )
+    )
+
+    for parts in (triage_parts, research_parts):
+        assert {item["owner_ref"] for item in parts} == {
+            "coverage_question:q-large"
+        }
+        restored = [
+            requirement
+            for item in parts
+            if item["part_kind"] == "answer_requirements"
+            for requirement in item["items"]
+        ]
+        assert restored == requirements
+        assert next(item for item in parts if item["part_kind"] == "core")["question"] == (
+            "Whole question"
+        )
+    packet_question_parts = [item["question"] for item in packet_parts if item["part_kind"] == "question"]
+    assert [
+        requirement
+        for item in packet_question_parts
+        if item["part_kind"] == "answer_requirements"
+        for requirement in item["items"]
+    ] == requirements
+
+
+def test_valid_large_finding_is_fully_readable_as_stable_parts() -> None:
+    qualifiers = [f"qualifier-{index}:" + "q" * 780 for index in range(16)]
+    limitations = [f"limitation-{index}:" + "l" * 780 for index in range(12)]
+    finding = {
+        "finding_id": "finding:S01:large",
+        "set_id": "set-main",
+        "source_ref": "S01",
+        "source_id": "source-1",
+        "statement": "A whole supported statement.",
+        "evidence_ids": ["evidence-1"],
+        "scope": {
+            "actor": "Actor",
+            "period": "Period",
+            "geography": "Place",
+            "qualifiers": qualifiers,
+        },
+        "limitations": limitations,
+        "question_links": [],
+        "source_relations": [],
+        "semantic_revision": 3,
+    }
+    inventory = SourceMap(
+        source_cards=[
+            SourceCard(
+                source_id="source-1",
+                title="Source",
+                source_type="web",
+                summary="Source summary",
+            )
+        ]
+    )
+    triage_workspace = {"source_findings": [finding]}
+    research_workspace = {"corpus_brief": {"source_findings": [finding]}}
+
+    triage_parts = _collect_part_pages(
+        lambda cursor: _full_canonical_item_page(
+            triage_workspace,
+            section="source_findings",
+            cursor=int(cursor),
+            limit=20,
+        )
+    )
+    research_parts = _collect_part_pages(
+        lambda cursor: _full_corpus_brief_page(
+            research_workspace,
+            inventory,
+            section="corpus_brief_findings",
+            cursor=int(cursor),
+            limit=20,
+            include_evidence_ids=True,
+        )
+    )
+
+    for parts in (triage_parts, research_parts):
+        assert {item["owner_ref"] for item in parts} == {"finding:S01:large"}
+        assert [
+            value
+            for item in parts
+            if item["part_kind"] == "finding_scope_qualifiers"
+            for value in item["items"]
+        ] == qualifiers
+        assert [
+            value
+            for item in parts
+            if item["part_kind"] == "finding_limitations"
+            for value in item["items"]
+        ] == limitations
+        assert next(item for item in parts if item["part_kind"] == "core")["statement"] == (
+            finding["statement"]
+        )
+
+
+def test_valid_large_outcome_requirement_results_are_fully_readable() -> None:
+    requirement_results = [
+        {
+            "requirement_id": f"r-{index}",
+            "status": "covered",
+            "finding_ids": [f"finding-{index}"],
+            "summary": f"summary-{index}:" + "s" * 1_560,
+            "missing_detail": "",
+            "conflict_summary": "",
+            "deferred_reason": "",
+            "confidence": 0.8,
+            "next_action": "research",
+        }
+        for index in range(8)
+    ]
+    outcome = {
+        "outcome_id": "outcome:q-large",
+        "question_id": "q-large",
+        "status": "covered",
+        "source_ids": [],
+        "evidence_ids": [f"evidence-{index}" for index in range(8)],
+        "finding_ids": [f"finding-{index}" for index in range(8)],
+        "requirement_results": requirement_results,
+        "orientation_summary": "Whole orientation summary.",
+        "missing_detail": "",
+        "conflict_summary": "",
+        "deferred_reason": "",
+        "confidence": 0.8,
+        "next_action": "research",
+    }
+    triage_workspace = {"coverage_outcomes": [{**outcome, "set_id": "set-main"}]}
+    research_workspace = {"corpus_brief": {"coverage_outcomes": [outcome]}}
+
+    triage_parts = _collect_part_pages(
+        lambda cursor: _full_canonical_item_page(
+            triage_workspace,
+            section="coverage_outcomes",
+            cursor=int(cursor),
+            limit=20,
+        )
+    )
+    research_parts = _collect_part_pages(
+        lambda cursor: _full_corpus_brief_page(
+            research_workspace,
+            SourceMap(),
+            section="corpus_brief_outcomes",
+            cursor=int(cursor),
+            limit=20,
+            include_evidence_ids=True,
+        )
+    )
+
+    for parts in (triage_parts, research_parts):
+        restored_results = [
+            result
+            for item in parts
+            if item["part_kind"] == "outcome_requirement_results"
+            for result in item["items"]
+        ]
+        assert [item["summary"] for item in restored_results] == [
+            item["summary"] for item in requirement_results
+        ]
+        restored_finding_ids = {
+            item["requirement_id"]: [str(value) for value in item["items"]]
+            for item in parts
+            if item["part_kind"] == "outcome_requirement_result_finding_ids"
+        }
+        assert restored_finding_ids == {
+            item["requirement_id"]: item["finding_ids"] for item in requirement_results
+        }

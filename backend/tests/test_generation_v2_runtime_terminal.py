@@ -10,6 +10,8 @@ from pydantic import BaseModel
 from app.config import settings
 from app.generation_v2.runtime import (
     AgentCheckpointPolicy,
+    AgentOperationalStall,
+    AgentTerminalNotReached,
     AgentTerminalResult,
     AgentTool,
     ToolPolicy,
@@ -325,6 +327,104 @@ async def test_opted_in_local_tools_persist_multiple_independent_calls_in_one_pr
 
 
 @pytest.mark.asyncio
+async def test_server_compaction_stays_enabled_across_continuous_tool_rounds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import runtime as runtime_module
+
+    async def write(_args: dict) -> dict:
+        return {"accepted": True}
+
+    async def finish(_args: dict) -> dict:
+        return {"accepted": True}
+
+    first = _tool_response(("write", "call_write", {"value": "saved"}))
+    first.output.insert(
+        0,
+        {
+            "type": "compaction",
+            "id": "cmp_1",
+            "encrypted_content": "opaque-provider-state",
+        },
+    )
+    fake_client = _FakeClient(
+        [
+            first,
+            _tool_response(("finish", "call_finish", {})),
+        ]
+    )
+    fake_db = _FakeDb()
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(runtime_module, "get_openai_client", lambda: fake_client)
+
+    result = await V2Runtime().call_structured(
+        db=fake_db,  # type: ignore[arg-type]
+        generation_run_id=uuid.uuid4(),
+        phase="v2_source_triage",
+        agent_name="source_triage_set_agent_compaction_test",
+        schema_model=_Completion,
+        system="system",
+        prompt="prompt",
+        local_tools=[
+            AgentTool(
+                name="write",
+                description="Persist progress",
+                parameters={
+                    "type": "object",
+                    "properties": {"value": {"type": "string"}},
+                    "required": ["value"],
+                },
+                handler=write,
+            ),
+            AgentTool(
+                name="finish",
+                description="Finish",
+                parameters={"type": "object", "properties": {}},
+                handler=finish,
+                terminal=True,
+                terminal_result_builder=lambda _arguments, _output: {"ok": True},
+            ),
+        ],
+        tool_policy=ToolPolicy(file_search=False, local_tools=True),
+        checkpoint_policy=AgentCheckpointPolicy(enabled=False),
+        max_output_tokens=None,
+        max_tool_rounds=0,
+        server_compaction_threshold=200_000,
+    )
+
+    assert result == _Completion(ok=True)
+    assert len(fake_client.responses.calls) == 2
+    assert all(
+        call["context_management"]
+        == [{"type": "compaction", "compact_threshold": 200_000}]
+        for call in fake_client.responses.calls
+    )
+    assert fake_client.responses.calls[1]["previous_response_id"] == first.id
+    response_traces = [
+        item
+        for item in fake_db.added
+        if isinstance(item, V2ToolTrace) and item.tool_name == "openai.responses.create"
+    ]
+    assert response_traces[0].input_json["server_compaction_threshold"] == 200_000
+    assert response_traces[0].output_json["output_item_statuses"][0]["type"] == "compaction"
+
+
+@pytest.mark.asyncio
+async def test_server_compaction_requires_a_positive_threshold() -> None:
+    with pytest.raises(ValueError, match="server_compaction_threshold must be positive"):
+        await V2Runtime().call_structured(
+            db=_FakeDb(),  # type: ignore[arg-type]
+            generation_run_id=uuid.uuid4(),
+            phase="v2_source_triage",
+            agent_name="source_triage_set_agent_compaction_test",
+            schema_model=_Completion,
+            system="system",
+            prompt="prompt",
+            server_compaction_threshold=0,
+        )
+
+
+@pytest.mark.asyncio
 async def test_rejected_terminal_continues_until_terminal_is_accepted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -428,6 +528,238 @@ async def test_terminal_workflow_rejects_plain_structured_bypass(
             checkpoint_policy=AgentCheckpointPolicy(enabled=False),
             max_tool_rounds=3,
         )
+
+
+@pytest.mark.asyncio
+async def test_terminal_structured_return_continues_same_response_chain_until_finish(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import runtime as runtime_module
+
+    async def finish(_args: dict) -> dict:
+        return {"accepted": True}
+
+    async def terminal_progress() -> dict:
+        return {"saved_source_count": 1, "finished": False}
+
+    first = _structured_response('{"ok":false,"summary":"not finished"}')
+    fake_client = _FakeClient(
+        [
+            first,
+            _tool_response(("finish", "call_finish", {"summary": "done"})),
+        ]
+    )
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(runtime_module, "get_openai_client", lambda: fake_client)
+
+    result = await V2Runtime().call_structured(
+        db=_FakeDb(),  # type: ignore[arg-type]
+        generation_run_id=uuid.uuid4(),
+        phase="v2_source_triage",
+        agent_name="source_triage_set_agent_continuous_test",
+        schema_model=_Completion,
+        system="system",
+        prompt="prompt",
+        local_tools=[
+            AgentTool(
+                name="finish",
+                description="Finish",
+                parameters={
+                    "type": "object",
+                    "properties": {"summary": {"type": "string"}},
+                    "required": ["summary"],
+                },
+                handler=finish,
+                terminal=True,
+                terminal_result_builder=lambda arguments, _output: {
+                    "ok": True,
+                    "summary": arguments["summary"],
+                },
+            )
+        ],
+        tool_policy=ToolPolicy(file_search=False, local_tools=True),
+        checkpoint_policy=AgentCheckpointPolicy(enabled=False),
+        max_tool_rounds=0,
+        terminal_progress_loader=terminal_progress,
+    )
+
+    assert result == _Completion(ok=True, summary="done")
+    assert len(fake_client.responses.calls) == 2
+    continuation = fake_client.responses.calls[1]
+    assert continuation["previous_response_id"] == first.id
+    assert continuation["input"] == [
+        {
+            "role": "user",
+            "content": (
+                "The workflow is not complete because no terminal tool was accepted. Continue in this same "
+                "response chain from durable state. Do not repeat saved work. Inspect current state if needed, "
+                "persist the next unfinished semantic record, or call the terminal tool when all work is current."
+            ),
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_second_structured_return_without_progress_fails_as_operational_stall(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import runtime as runtime_module
+
+    async def finish(_args: dict) -> dict:
+        raise AssertionError("The model never called the terminal tool")
+
+    progress_reads = 0
+
+    async def terminal_progress() -> dict:
+        nonlocal progress_reads
+        progress_reads += 1
+        return {"saved_source_count": 1, "finished": False}
+
+    first = _structured_response('{"ok":false,"summary":"not finished"}')
+    second = _structured_response('{"ok":false,"summary":"still not finished"}')
+    fake_client = _FakeClient([first, second])
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(runtime_module, "get_openai_client", lambda: fake_client)
+
+    with pytest.raises(AgentTerminalNotReached, match="without terminal completion or saved semantic progress") as exc_info:
+        await V2Runtime().call_structured(
+            db=_FakeDb(),  # type: ignore[arg-type]
+            generation_run_id=uuid.uuid4(),
+            phase="v2_source_triage",
+            agent_name="source_triage_set_agent_stalled_test",
+            schema_model=_Completion,
+            system="system",
+            prompt="prompt",
+            local_tools=[
+                AgentTool(
+                    name="finish",
+                    description="Finish",
+                    parameters={"type": "object", "properties": {}},
+                    handler=finish,
+                    terminal=True,
+                    terminal_result_builder=lambda _arguments, _output: {"ok": True},
+                )
+            ],
+            tool_policy=ToolPolicy(file_search=False, local_tools=True),
+            checkpoint_policy=AgentCheckpointPolicy(enabled=False),
+            max_tool_rounds=0,
+            terminal_progress_loader=terminal_progress,
+        )
+
+    assert exc_info.value.repeated_without_progress is True
+    assert progress_reads == 3
+    assert len(fake_client.responses.calls) == 2
+    assert fake_client.responses.calls[1]["previous_response_id"] == first.id
+
+
+@pytest.mark.asyncio
+async def test_identical_rejected_tool_cycle_fails_without_a_round_quota(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import runtime as runtime_module
+
+    async def reject(_args: dict) -> dict:
+        return {
+            "accepted": False,
+            "error": "invalid_cursor",
+            "next_action": "Use the returned cursor and retry.",
+        }
+
+    fake_client = _FakeClient(
+        [
+            _tool_response(("read", "call_read_1", {"cursor": "bad"})),
+            _tool_response(("read", "call_read_2", {"cursor": "bad"})),
+        ]
+    )
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(runtime_module, "get_openai_client", lambda: fake_client)
+
+    with pytest.raises(AgentOperationalStall, match="same non-terminal tool calls"):
+        await V2Runtime().call_structured(
+            db=_FakeDb(),  # type: ignore[arg-type]
+            generation_run_id=uuid.uuid4(),
+            phase="v2_source_triage",
+            agent_name="source_triage_set_agent_cycle_test",
+            schema_model=_Completion,
+            system="system",
+            prompt="prompt",
+            local_tools=[
+                AgentTool(
+                    name="read",
+                    description="Read",
+                    parameters={
+                        "type": "object",
+                        "properties": {"cursor": {"type": "string"}},
+                        "required": ["cursor"],
+                    },
+                    handler=reject,
+                )
+            ],
+            tool_policy=ToolPolicy(file_search=False, local_tools=True),
+            checkpoint_policy=AgentCheckpointPolicy(enabled=False),
+            max_tool_rounds=0,
+        )
+
+    assert len(fake_client.responses.calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_distinct_tool_progress_is_not_stopped_by_operational_cycle_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import runtime as runtime_module
+
+    async def read(args: dict) -> dict:
+        return {"accepted": True, "next_cursor": str(int(args["cursor"]) + 1)}
+
+    async def finish(_args: dict) -> dict:
+        return {"accepted": True}
+
+    fake_client = _FakeClient(
+        [
+            _tool_response(("read", "call_read_1", {"cursor": "0"})),
+            _tool_response(("read", "call_read_2", {"cursor": "1"})),
+            _tool_response(("finish", "call_finish", {})),
+        ]
+    )
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(runtime_module, "get_openai_client", lambda: fake_client)
+
+    result = await V2Runtime().call_structured(
+        db=_FakeDb(),  # type: ignore[arg-type]
+        generation_run_id=uuid.uuid4(),
+        phase="v2_source_triage",
+        agent_name="source_triage_set_agent_progress_test",
+        schema_model=_Completion,
+        system="system",
+        prompt="prompt",
+        local_tools=[
+            AgentTool(
+                name="read",
+                description="Read",
+                parameters={
+                    "type": "object",
+                    "properties": {"cursor": {"type": "string"}},
+                    "required": ["cursor"],
+                },
+                handler=read,
+            ),
+            AgentTool(
+                name="finish",
+                description="Finish",
+                parameters={"type": "object", "properties": {}},
+                handler=finish,
+                terminal=True,
+                terminal_result_builder=lambda _arguments, _output: {"ok": True},
+            ),
+        ],
+        tool_policy=ToolPolicy(file_search=False, local_tools=True),
+        checkpoint_policy=AgentCheckpointPolicy(enabled=False),
+        max_tool_rounds=0,
+    )
+
+    assert result == _Completion(ok=True)
+    assert len(fake_client.responses.calls) == 3
 
 
 @pytest.mark.asyncio

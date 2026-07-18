@@ -11,6 +11,10 @@ from app.generation_v2.schemas import SourceMap
 from app.generation_v2.source_triage_workspace_state import (
     SOURCE_SET_KIND_COVERAGE,
     SOURCE_SET_KIND_ORIENTATION,
+    latest_source_read_receipts,
+    source_read_receipt_delivery_status,
+    source_read_receipt_is_delivered,
+    uncheckpointed_source_read_replays,
     normalize_workspace as _normalize_workspace,
     source_set_has_unresolved_refs as _source_set_has_unresolved_refs,
     workspace_set as _workspace_set,
@@ -23,8 +27,6 @@ PLANNER_CATALOG_SUMMARY_CHARS = 180
 PLANNER_CATALOG_CAUTION_CHARS = 140
 PLANNER_CATALOG_CAUTION_LIMIT = 1
 PLANNER_CATALOG_DOMAIN_CHARS = 120
-SOURCE_SET_ASSIGNED_QUESTION_PREVIEW_LIMIT = 3
-SOURCE_SET_OTHER_QUESTION_PREVIEW_LIMIT = 12
 _MISSING_PUBLICATION_DATE_WARNINGS = {
     "publication date is missing.",
     "published date is missing.",
@@ -448,6 +450,7 @@ def workspace_summary_for_prompt(
     deferred_page = deferred_sources[deferred_source_cursor : deferred_source_cursor + max_deferred_sources]
     coverage_questions = [item for item in workspace.get("coverage_questions") or [] if isinstance(item, dict)]
     source_assessments = [item for item in workspace.get("source_assessments") or [] if isinstance(item, dict)]
+    source_findings = [item for item in workspace.get("source_findings") or [] if isinstance(item, dict)]
     coverage_outcomes = [item for item in workspace.get("coverage_outcomes") or [] if isinstance(item, dict)]
     coverage_syntheses = [item for item in workspace.get("coverage_syntheses") or [] if isinstance(item, dict)]
     source_map_repair_items = [
@@ -467,11 +470,39 @@ def workspace_summary_for_prompt(
                 "importance": item.get("importance"),
                 **_preview_fields("rationale", item.get("rationale") or "", 400),
                 "parent_question_id": item.get("parent_question_id"),
+                "answer_requirement_count": len(item.get("answer_requirements") or []),
+                "answer_requirement_previews": [
+                    {
+                        "requirement_id": requirement.get("requirement_id"),
+                        **_preview_fields(
+                            "description",
+                            requirement.get("description") or "",
+                            220,
+                        ),
+                    }
+                    for requirement in item.get("answer_requirements") or []
+                    if isinstance(requirement, dict)
+                ],
             }
             for item in coverage_questions
         ],
         "coverage_question_count": len(coverage_questions),
         "source_assessment_count": len(source_assessments),
+        "source_finding_count": len(source_findings),
+        "source_finding_previews": [
+            {
+                "finding_id": item.get("finding_id"),
+                **_preview_fields("statement", item.get("statement") or "", 300),
+                "question_ids": [
+                    link.get("question_id")
+                    for link in item.get("question_links") or []
+                    if isinstance(link, dict)
+                ],
+                "evidence_count": len(item.get("evidence_ids") or []),
+            }
+            for item in source_findings[:20]
+        ],
+        "source_finding_omitted_count": max(0, len(source_findings) - 20),
         "source_assessment_statuses": [
             {
                 "source_ref": item.get("source_ref"),
@@ -565,6 +596,7 @@ def workspace_summary_for_prompt(
                 **_preview_fields("purpose", item.get("purpose") or "", 400),
                 "source_refs": item.get("source_refs") or [],
                 "question_ids": item.get("question_ids") or [],
+                "question_assignments": item.get("question_assignments") or [],
                 "status": item.get("status"),
                 "priority": item.get("priority"),
                 **_preview_fields("findings_summary", item.get("findings_summary") or "", 600),
@@ -700,6 +732,18 @@ def _source_set_execution_mode(
         )
         or any(
             isinstance(item, dict) and item.get("set_id") == set_id
+            for item in workspace.get("source_findings") or []
+        )
+        or any(
+            isinstance(item, dict) and item.get("set_id") == set_id
+            for item in workspace.get("reading_notes") or []
+        )
+        or any(
+            isinstance(item, dict) and item.get("set_id") == set_id
+            for item in workspace.get("source_read_receipts") or []
+        )
+        or any(
+            isinstance(item, dict) and item.get("set_id") == set_id
             for item in workspace.get("coverage_outcomes") or []
         )
     )
@@ -715,18 +759,48 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
         if isinstance(item, dict)
     }
     capsules = workspace.get("source_capsules") or {}
-    observations = list(source_set.get("observations") or [])
-    observation_previews = _observation_previews(source_set)
-    written_actions = list(source_set.get("written_actions") or [])
-    written_action_previews = _written_action_previews(source_set)
     execution_mode = _source_set_execution_mode(workspace, source_set, set_id)
     targeted_repair = execution_mode == "targeted_repair"
+    set_assessments = [
+        item
+        for item in workspace.get("source_assessments") or []
+        if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
+    ]
+    set_findings = [
+        item
+        for item in workspace.get("source_findings") or []
+        if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
+    ]
+    set_reading_notes = [
+        item
+        for item in workspace.get("reading_notes") or []
+        if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
+    ]
+    set_read_receipts = [
+        item
+        for item in workspace.get("source_read_receipts") or []
+        if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
+    ]
+    latest_set_read_receipts = latest_source_read_receipts(set_read_receipts)
+    pending_set_read_receipts = [
+        item for item in set_read_receipts if not source_read_receipt_is_delivered(item)
+    ]
+    uncheckpointed_replays = uncheckpointed_source_read_replays(
+        workspace,
+        set_id=set_id,
+    )
+    set_outcomes = [
+        item
+        for item in workspace.get("coverage_outcomes") or []
+        if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
+    ]
     assessed_refs = {
         str(item.get("source_ref") or "")
         for item in workspace.get("source_assessments") or []
         if isinstance(item, dict)
         and str(item.get("set_id") or "") == set_id
         and str(item.get("processing_status") or "resolved") == "resolved"
+        and (item.get("finding_ids") or str(item.get("no_findings_reason") or "").strip())
     }
     completed_question_ids = {
         str(item.get("question_id") or "")
@@ -734,32 +808,19 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
         if isinstance(item, dict)
         and str(item.get("set_id") or "") == set_id
         and str(item.get("status") or "") in {"covered", "partial", "missing", "conflicted", "deferred"}
+        and not bool(item.get("is_stale"))
     }
     required_question_ids = [str(item) for item in source_set.get("question_ids") or []]
     assigned_question_previews = [
-        {
-            "question_id": question_id,
-            **_preview_fields(
-                "question",
-                (questions_by_id.get(question_id) or {}).get("question") or "",
-                280,
-            ),
-            "kind": (questions_by_id.get(question_id) or {}).get("kind"),
-            "importance": (questions_by_id.get(question_id) or {}).get("importance"),
-            **_preview_fields(
-                "rationale",
-                (questions_by_id.get(question_id) or {}).get("rationale") or "",
-                400,
-            ),
-        }
-        for question_id in required_question_ids[:SOURCE_SET_ASSIGNED_QUESTION_PREVIEW_LIMIT]
+        _compact_question_prompt_item(questions_by_id[question_id])
+        for question_id in required_question_ids
+        if question_id in questions_by_id
     ]
-    other_questions = [
-        item
-        for question_id, item in questions_by_id.items()
-        if question_id not in set(required_question_ids)
+    all_question_index = [
+        _compact_question_prompt_item(item)
+        for item in workspace.get("coverage_questions") or []
+        if isinstance(item, dict)
     ]
-    other_question_previews = other_questions[:SOURCE_SET_OTHER_QUESTION_PREVIEW_LIMIT]
     capsule_previews = [
         _capsule_prompt_preview(capsule)
         for ref in source_set.get("source_refs") or []
@@ -779,19 +840,42 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
             "source_refs": source_set.get("source_refs") or [],
             **_preview_fields("rationale", source_set.get("rationale") or "", 500),
             "question_ids": source_set.get("question_ids") or [],
+            "question_assignments": source_set.get("question_assignments") or [],
             "coverage_questions": assigned_question_previews,
             "question_count": len(required_question_ids),
             "coverage_question_returned_count": len(assigned_question_previews),
-            "coverage_question_omitted_count": max(
-                0,
-                len(required_question_ids) - len(assigned_question_previews),
-            ),
+            "coverage_question_omitted_count": 0,
             "pending_source_refs": [
                 str(item) for item in source_set.get("source_refs") or [] if str(item) not in assessed_refs
+            ],
+            "pending_exact_read_source_refs": [
+                str(item.get("source_ref") or "")
+                for item in source_set.get("pending_exact_reads") or []
+                if isinstance(item, dict)
+                and str(item.get("source_ref") or "")
+                and str(item.get("source_ref") or "") not in assessed_refs
+            ],
+            "pending_discovered_question_attempts": [
+                {
+                    "question_id": str(item.get("question_id") or ""),
+                    "requirement_ids": [str(value) for value in item.get("requirement_ids") or []],
+                    "finding_ids": [str(value) for value in item.get("finding_ids") or []],
+                    "source_refs": [str(value) for value in item.get("source_refs") or []],
+                    "reviewed_source_refs": [
+                        str(value) for value in item.get("reviewed_source_refs") or []
+                    ],
+                }
+                for item in source_set.get("pending_discovered_question_attempts") or []
+                if isinstance(item, dict)
             ],
             "required_question_ids": required_question_ids,
             "missing_outcome_question_ids": [
                 question_id for question_id in required_question_ids if question_id not in completed_question_ids
+            ],
+            "stale_outcome_question_ids": [
+                str(item.get("question_id") or "")
+                for item in set_outcomes
+                if bool(item.get("is_stale"))
             ],
             "priority": source_set.get("priority"),
             "execution_mode": execution_mode,
@@ -807,38 +891,182 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
                 for item in source_set.get("repair_targets") or []
                 if targeted_repair and isinstance(item, dict)
             ],
-            "observation_previews": observation_previews,
-            "observation_count": len(observations),
-            "observation_omitted_count": max(0, len(observations) - len(observation_previews)),
-            "written_action_previews": written_action_previews,
-            "written_action_count": len(written_actions),
-            "written_action_omitted_count": max(0, len(written_actions) - len(written_action_previews)),
             "evidence_count": len(source_set.get("evidence_ids") or []),
-            "source_assessment_count": sum(
-                1
-                for item in workspace.get("source_assessments") or []
-                if isinstance(item, dict) and item.get("set_id") == set_id
-            ),
-            "coverage_outcome_count": sum(
-                1
-                for item in workspace.get("coverage_outcomes") or []
-                if isinstance(item, dict) and item.get("set_id") == set_id
-            ),
+            "source_assessment_count": len(set_assessments),
+            "source_read_receipt_count": len(set_read_receipts),
+            "reading_note_count": len(set_reading_notes),
+            "source_finding_count": len(set_findings),
+            "coverage_outcome_count": len(set_outcomes),
         },
         "capsule_previews": capsule_previews,
         "capsule_count": len(capsule_previews),
-        "other_coverage_question_index": [
-            {
-                "question_id": item.get("question_id"),
-                **_preview_fields("question", item.get("question") or "", 180),
-                "kind": item.get("kind"),
-                "importance": item.get("importance"),
-            }
-            for item in other_question_previews
-        ],
-        "other_coverage_question_count": len(other_questions),
-        "other_coverage_question_returned_count": len(other_question_previews),
-        "other_coverage_question_omitted_count": max(0, len(other_questions) - len(other_question_previews)),
+        "all_coverage_question_index": all_question_index,
+        "all_coverage_question_count": len(all_question_index),
+        "saved_state_previews": {
+            "latest_source_read_receipts": [
+                {
+                    "receipt_ref": item.get("receipt_ref"),
+                    "source_ref": item.get("source_ref"),
+                    "start_offset": item.get("start_offset"),
+                    "end_offset": item.get("end_offset"),
+                    "total_chars": item.get("total_chars"),
+                    "read_kind": item.get("read_kind"),
+                    "delivery_status": source_read_receipt_delivery_status(item),
+                    "next_cursor": item.get("next_cursor") or "",
+                    "eof": bool(item.get("eof")),
+                }
+                for item in latest_set_read_receipts
+            ],
+            "source_read_receipt_count": len(set_read_receipts),
+            "source_read_receipt_preview_count": len(latest_set_read_receipts),
+            "source_read_receipt_omitted_count": max(
+                0, len(set_read_receipts) - len(latest_set_read_receipts)
+            ),
+            "pending_native_attachments": [
+                {
+                    "receipt_ref": item.get("receipt_ref"),
+                    "source_ref": item.get("source_ref"),
+                }
+                for item in set_read_receipts
+                if str(item.get("read_kind") or "") == "native_file_attachment"
+                and str(item.get("delivery_status") or "pending") != "delivered"
+            ],
+            "pending_text_reads": [
+                {
+                    "receipt_ref": item.get("receipt_ref"),
+                    "source_ref": item.get("source_ref"),
+                    "read_kind": item.get("read_kind"),
+                    "start_offset": item.get("start_offset"),
+                    "end_offset": item.get("end_offset"),
+                    "retry": (
+                        {
+                            "tool": "read_source",
+                            "source_ref": item.get("source_ref"),
+                            "cursor": next(
+                                (
+                                    str(delivered.get("receipt_ref") or "")
+                                    for delivered in reversed(latest_set_read_receipts)
+                                    if str(delivered.get("source_ref") or "")
+                                    == str(item.get("source_ref") or "")
+                                    and str(delivered.get("read_kind") or "") == "sequential"
+                                ),
+                                "",
+                            ),
+                            "max_chars": (item.get("request") or {}).get("max_chars"),
+                        }
+                        if str(item.get("read_kind") or "") == "sequential"
+                        else {
+                            "tool": "search_source",
+                            "source_ref": item.get("source_ref"),
+                            "query": (item.get("request") or {}).get("query"),
+                            "max_results": (item.get("request") or {}).get("max_results"),
+                            "max_chars": (item.get("request") or {}).get("max_chars"),
+                        }
+                    ),
+                }
+                for item in pending_set_read_receipts
+                if str(item.get("read_kind") or "") in {"sequential", "search"}
+            ],
+            "replay_required_after_activation": uncheckpointed_replays,
+            "reading_notes": [
+                {
+                    "note_id": item.get("note_id"),
+                    "source_ref": item.get("source_ref"),
+                    "receipt_refs": item.get("receipt_refs") or [],
+                    **_preview_fields(
+                        "what_was_read",
+                        item.get("what_was_read") or "",
+                        320,
+                    ),
+                    **_preview_fields(
+                        "what_was_established",
+                        item.get("what_was_established") or "",
+                        420,
+                    ),
+                    **_preview_fields(
+                        "unread_regions",
+                        item.get("unread_regions") or "",
+                        260,
+                    ),
+                    **_preview_fields(
+                        "why_unread_is_safe",
+                        item.get("why_unread_is_safe") or "",
+                        260,
+                    ),
+                    "question_ids": [
+                        link.get("question_id")
+                        for link in item.get("question_links") or []
+                        if isinstance(link, dict)
+                    ],
+                    "doubt_count": len(item.get("doubts") or []),
+                    "next_check_count": len(item.get("next_checks") or []),
+                }
+                for item in set_reading_notes[:12]
+            ],
+            "reading_note_preview_count": min(len(set_reading_notes), 12),
+            "reading_note_omitted_count": max(0, len(set_reading_notes) - 12),
+            "source_analyses": [
+                {
+                    "source_ref": item.get("source_ref"),
+                    "representation_status": item.get("representation_status"),
+                    "disposition": item.get("disposition"),
+                    "finding_ids": item.get("finding_ids") or [],
+                    **_preview_fields(
+                        "no_findings_reason",
+                        item.get("no_findings_reason") or "",
+                        260,
+                    ),
+                }
+                for item in set_assessments
+            ],
+            "findings": [
+                {
+                    "finding_id": item.get("finding_id"),
+                    "source_ref": item.get("source_ref"),
+                    **_preview_fields("statement", item.get("statement") or "", 320),
+                    "question_links": [
+                        {
+                            "question_id": link.get("question_id"),
+                            "requirement_ids": link.get("requirement_ids") or [],
+                            **_preview_fields("rationale", link.get("rationale") or "", 180),
+                        }
+                        for link in item.get("question_links") or []
+                        if isinstance(link, dict)
+                    ],
+                    "evidence_count": len(item.get("evidence_ids") or []),
+                    "semantic_revision": item.get("semantic_revision"),
+                }
+                for item in set_findings[:20]
+            ],
+            "finding_preview_count": min(len(set_findings), 20),
+            "finding_omitted_count": max(0, len(set_findings) - 20),
+            "question_outcomes": [
+                {
+                    "question_id": item.get("question_id"),
+                    "status": item.get("status"),
+                    "is_stale": bool(item.get("is_stale")),
+                    "finding_ids": item.get("finding_ids") or [],
+                    "requirement_statuses": [
+                        {
+                            "requirement_id": result.get("requirement_id"),
+                            "status": result.get("status"),
+                        }
+                        for result in item.get("requirement_results") or []
+                        if isinstance(result, dict)
+                    ],
+                    **_preview_fields(
+                        "orientation_summary",
+                        item.get("orientation_summary") or "",
+                        320,
+                    ),
+                }
+                for item in set_outcomes
+            ],
+            "full_records": (
+                "Use list_triage_source_sets with current_set_state, source_read_receipts, reading_notes, "
+                "source_assessments, source_findings, or coverage_outcomes; follow page.next_cursor."
+            ),
+        },
         "workspace_progress": {
             "status": workspace.get("status"),
             "source_count": len(workspace.get("source_order") or []),
@@ -847,8 +1075,33 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
             "pending_set_count": len(unresolved_source_sets(workspace)),
             "coverage_question_count": len(workspace.get("coverage_questions") or []),
             "source_assessment_count": len(workspace.get("source_assessments") or []),
+            "source_read_receipt_count": len(workspace.get("source_read_receipts") or []),
+            "reading_note_count": len(workspace.get("reading_notes") or []),
+            "source_finding_count": len(workspace.get("source_findings") or []),
             "coverage_outcome_count": len(workspace.get("coverage_outcomes") or []),
         },
+    }
+
+
+def _compact_question_prompt_item(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "question_id": item.get("question_id"),
+        **_preview_fields("question", item.get("question") or "", 280),
+        "kind": item.get("kind"),
+        "importance": item.get("importance"),
+        "answer_requirements": [
+            {
+                "requirement_id": requirement.get("requirement_id"),
+                **_preview_fields(
+                    "description",
+                    requirement.get("description") or "",
+                    240,
+                ),
+                **_preview_fields("rationale", requirement.get("rationale") or "", 220),
+            }
+            for requirement in item.get("answer_requirements") or []
+            if isinstance(requirement, dict)
+        ],
     }
 
 

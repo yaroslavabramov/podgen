@@ -135,7 +135,7 @@ async def test_source_triage_step_reuses_prepared_corpus_without_new_attempt(
 
 
 @pytest.mark.asyncio
-async def test_source_triage_retry_starts_a_clean_attempt(
+async def test_legacy_source_triage_retry_starts_a_clean_attempt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.generation_v2 import orchestrator
@@ -144,7 +144,7 @@ async def test_source_triage_retry_starts_a_clean_attempt(
     deps = _patch_orchestrator_basics(monkeypatch, orchestrator, calls)
     run = _run(stop_after=V2PipelineStep.SOURCE_TRIAGE)
     db = object()
-    old_view = SimpleNamespace(selected_source_ids=[])
+    old_view = SimpleNamespace(revision=1, attempt=1, selected_source_ids=[])
     fresh_corpus = SimpleNamespace(run_view=object())
 
     async def load_current_view(_db, run_id):
@@ -159,6 +159,16 @@ async def test_source_triage_retry_starts_a_clean_attempt(
         assert run_view is old_view
         calls.append("detect_partial_triage")
         return True
+
+    async def load_legacy_workspace(_db, run_id):
+        assert run_id == run.id
+        calls.append("load_legacy_workspace")
+        return {
+            "schema_version": "source_triage_workspace.v2",
+            "corpus_revision": 1,
+            "attempt": 1,
+            "status": "in_progress",
+        }
 
     async def prepare(_db, _run):
         calls.append("prepare_fresh_attempt")
@@ -180,6 +190,7 @@ async def test_source_triage_retry_starts_a_clean_attempt(
     monkeypatch.setattr(orchestrator, "load_current_run_corpus_view", load_current_view)
     monkeypatch.setattr(orchestrator, "load_current_v2_corpus", load_current_must_not_run)
     monkeypatch.setattr(orchestrator, "current_attempt_has_triage_history", has_history)
+    monkeypatch.setattr(orchestrator, "load_source_triage_workspace", load_legacy_workspace)
     monkeypatch.setattr(orchestrator, "prepare_v2_corpus", prepare)
     monkeypatch.setattr(orchestrator, "_triage_prepared_corpus", triage)
     monkeypatch.setattr(orchestrator, "commit_step", commit)
@@ -191,6 +202,7 @@ async def test_source_triage_retry_starts_a_clean_attempt(
     assert calls == [
         "load_current_view",
         "detect_partial_triage",
+        "load_legacy_workspace",
         "prepare_fresh_attempt",
         "triage",
         "commit:source_triage",
@@ -216,10 +228,8 @@ async def test_source_triage_refreshes_corpus_when_explicit_selection_changed(
         calls.append("load_current_view")
         return old_view
 
-    async def has_history(_db, run_view):
-        assert run_view is old_view
-        calls.append("detect_partial_triage")
-        return False
+    async def history_must_not_run(*_args, **_kwargs):
+        raise AssertionError("Changed explicit selection must short-circuit history loading")
 
     async def prepare(_db, _run):
         calls.append("prepare_fresh_revision")
@@ -239,7 +249,11 @@ async def test_source_triage_refreshes_corpus_when_explicit_selection_changed(
         raise AssertionError("stale explicit selection must not be hydrated or researched")
 
     monkeypatch.setattr(orchestrator, "load_current_run_corpus_view", load_current_view)
-    monkeypatch.setattr(orchestrator, "current_attempt_has_triage_history", has_history)
+    monkeypatch.setattr(
+        orchestrator,
+        "current_attempt_has_triage_history",
+        history_must_not_run,
+    )
     monkeypatch.setattr(orchestrator, "load_current_v2_corpus", must_not_run)
     monkeypatch.setattr(orchestrator, "prepare_v2_corpus", prepare)
     monkeypatch.setattr(orchestrator, "_triage_prepared_corpus", triage)
@@ -251,7 +265,6 @@ async def test_source_triage_refreshes_corpus_when_explicit_selection_changed(
 
     assert calls == [
         "load_current_view",
-        "detect_partial_triage",
         "prepare_fresh_revision",
         "triage",
         "commit:source_triage",
@@ -330,6 +343,11 @@ async def test_full_mode_runs_prepare_then_triage_on_same_corpus(
         calls.append("prepare")
         return corpus
 
+    async def no_current_view(actual_db, run_id):
+        assert (actual_db, run_id) == (db, run.id)
+        calls.append("load_current_view")
+        return None
+
     async def load_must_not_run(*_args, **_kwargs):
         raise AssertionError("full mode must use the corpus it just prepared")
 
@@ -350,6 +368,7 @@ async def test_full_mode_runs_prepare_then_triage_on_same_corpus(
     globals_corpus = corpus
     globals_triage_state = triage_state
     monkeypatch.setattr(orchestrator, "prepare_v2_corpus", prepare)
+    monkeypatch.setattr(orchestrator, "load_current_run_corpus_view", no_current_view)
     monkeypatch.setattr(orchestrator, "load_current_v2_corpus", load_must_not_run)
     monkeypatch.setattr(orchestrator, "load_passed_triage_state", load_must_not_run)
     monkeypatch.setattr(orchestrator, "_triage_prepared_corpus", triage)
@@ -360,7 +379,174 @@ async def test_full_mode_runs_prepare_then_triage_on_same_corpus(
         await orchestrator.execute_generation_v2(run, db)  # type: ignore[arg-type]
 
     assert calls == [
+        "load_current_view",
         "prepare",
+        "commit:corpus_prepare->source_triage",
+        "triage",
+        "commit:source_triage->editorial_research",
+        "editorial_research",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_full_mode_resumes_current_v3_triage_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import orchestrator
+
+    calls: list[str] = []
+    deps = _patch_orchestrator_basics(monkeypatch, orchestrator, calls)
+    run = _run()
+    db = object()
+    current_view = SimpleNamespace(
+        revision=2,
+        attempt=3,
+        selected_source_ids=[],
+    )
+    corpus = SimpleNamespace(run_view=current_view)
+    triage_state = _passed_triage(corpus)
+
+    async def current_view_for_run(actual_db, run_id):
+        assert (actual_db, run_id) == (db, run.id)
+        calls.append("load_current_view")
+        return current_view
+
+    async def has_triage_history(actual_db, actual_view):
+        assert (actual_db, actual_view) == (db, current_view)
+        calls.append("detect_triage_history")
+        return True
+
+    async def load_workspace(actual_db, run_id):
+        assert (actual_db, run_id) == (db, run.id)
+        calls.append("load_v3_workspace")
+        return {
+            "schema_version": "source_triage_workspace.v3",
+            "corpus_revision": 2,
+            "attempt": 3,
+            "status": "in_progress",
+            "current_set": {"set_id": "set_1"},
+        }
+
+    async def load_current(actual_db, actual_run):
+        assert (actual_db, actual_run) == (db, run)
+        calls.append("load_current_corpus")
+        return corpus
+
+    async def prepare_must_not_run(*_args, **_kwargs):
+        raise AssertionError("A current V3 set must resume without a new corpus attempt")
+
+    async def triage(actual_run, actual_db, actual_runtime, *, corpus: object):
+        assert (actual_run, actual_db, actual_runtime) == (run, db, deps.runtime)
+        assert corpus is globals_corpus
+        calls.append("triage")
+        return triage_state
+
+    async def commit(_run, _db, step, _pct, *, next_step):
+        calls.append(f"commit:{step}->{next_step}")
+
+    async def enter_research(_db, _run, _runtime, *, triage_state: object, **_kwargs):
+        assert triage_state is globals_triage_state
+        calls.append("editorial_research")
+        raise _ReachedEditorial
+
+    globals_corpus = corpus
+    globals_triage_state = triage_state
+    monkeypatch.setattr(orchestrator, "load_current_run_corpus_view", current_view_for_run)
+    monkeypatch.setattr(orchestrator, "current_attempt_has_triage_history", has_triage_history)
+    monkeypatch.setattr(orchestrator, "load_source_triage_workspace", load_workspace)
+    monkeypatch.setattr(orchestrator, "load_current_v2_corpus", load_current)
+    monkeypatch.setattr(orchestrator, "prepare_v2_corpus", prepare_must_not_run)
+    monkeypatch.setattr(orchestrator, "_triage_prepared_corpus", triage)
+    monkeypatch.setattr(orchestrator, "commit_step", commit)
+    monkeypatch.setattr(orchestrator, "run_editorial_research_until_treatment", enter_research)
+
+    with pytest.raises(_ReachedEditorial):
+        await orchestrator.execute_generation_v2(run, db)  # type: ignore[arg-type]
+
+    assert calls == [
+        "load_current_view",
+        "detect_triage_history",
+        "load_v3_workspace",
+        "load_current_corpus",
+        "commit:corpus_prepare->source_triage",
+        "triage",
+        "commit:source_triage->editorial_research",
+        "editorial_research",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_full_mode_restarts_legacy_v2_triage_in_a_fresh_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import orchestrator
+
+    calls: list[str] = []
+    deps = _patch_orchestrator_basics(monkeypatch, orchestrator, calls)
+    run = _run()
+    db = object()
+    legacy_view = SimpleNamespace(
+        revision=1,
+        attempt=1,
+        selected_source_ids=[],
+    )
+    fresh_corpus = SimpleNamespace(run_view=SimpleNamespace(revision=1, attempt=2))
+    triage_state = _passed_triage(fresh_corpus)
+
+    async def current_view_for_run(_db, _run_id):
+        calls.append("load_current_view")
+        return legacy_view
+
+    async def has_triage_history(_db, _run_view):
+        calls.append("detect_triage_history")
+        return True
+
+    async def load_workspace(_db, _run_id):
+        calls.append("load_legacy_workspace")
+        return {
+            "schema_version": "source_triage_workspace.v2",
+            "corpus_revision": 1,
+            "attempt": 1,
+            "status": "in_progress",
+        }
+
+    async def prepare(_db, _run):
+        calls.append("prepare_fresh_attempt")
+        return fresh_corpus
+
+    async def load_current_must_not_run(*_args, **_kwargs):
+        raise AssertionError("Legacy V2 triage must not reuse its contaminated attempt")
+
+    async def triage(_run, _db, actual_runtime, *, corpus):
+        assert actual_runtime is deps.runtime
+        assert corpus is fresh_corpus
+        calls.append("triage")
+        return triage_state
+
+    async def commit(_run, _db, step, _pct, *, next_step):
+        calls.append(f"commit:{step}->{next_step}")
+
+    async def enter_research(*_args, **_kwargs):
+        calls.append("editorial_research")
+        raise _ReachedEditorial
+
+    monkeypatch.setattr(orchestrator, "load_current_run_corpus_view", current_view_for_run)
+    monkeypatch.setattr(orchestrator, "current_attempt_has_triage_history", has_triage_history)
+    monkeypatch.setattr(orchestrator, "load_source_triage_workspace", load_workspace)
+    monkeypatch.setattr(orchestrator, "prepare_v2_corpus", prepare)
+    monkeypatch.setattr(orchestrator, "load_current_v2_corpus", load_current_must_not_run)
+    monkeypatch.setattr(orchestrator, "_triage_prepared_corpus", triage)
+    monkeypatch.setattr(orchestrator, "commit_step", commit)
+    monkeypatch.setattr(orchestrator, "run_editorial_research_until_treatment", enter_research)
+
+    with pytest.raises(_ReachedEditorial):
+        await orchestrator.execute_generation_v2(run, db)  # type: ignore[arg-type]
+
+    assert calls == [
+        "load_current_view",
+        "detect_triage_history",
+        "load_legacy_workspace",
+        "prepare_fresh_attempt",
         "commit:corpus_prepare->source_triage",
         "triage",
         "commit:source_triage->editorial_research",

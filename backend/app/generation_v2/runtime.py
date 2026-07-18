@@ -15,6 +15,8 @@ from app.generation_v2.model_routing import (
 )
 from app.generation_v2.runtime_contracts import (
     AgentCheckpointPolicy,
+    AgentOperationalStall,
+    AgentTerminalNotReached,
     AgentTerminalResult,
     AgentTool,
     CheckpointResumeContext,
@@ -128,9 +130,11 @@ class V2Runtime:
         | None = None,
         max_output_tokens: int | None = None,
         max_tool_rounds: int | None = None,
+        server_compaction_threshold: int | None = None,
         temperature: float | None = None,
         checkpoint_policy: AgentCheckpointPolicy | None = None,
         checkpoint_resume_context: CheckpointResumeContext | None = None,
+        terminal_progress_loader: Callable[[], Awaitable[Any]] | None = None,
     ) -> T:
         return await _call_structured_runtime(
             self,
@@ -147,9 +151,11 @@ class V2Runtime:
             hosted_file_search_handler=hosted_file_search_handler,
             max_output_tokens=max_output_tokens,
             max_tool_rounds=max_tool_rounds,
+            server_compaction_threshold=server_compaction_threshold,
             temperature=temperature,
             checkpoint_policy=checkpoint_policy,
             checkpoint_resume_context=checkpoint_resume_context,
+            terminal_progress_loader=terminal_progress_loader,
         )
 
     def _tool_specs(
@@ -190,6 +196,8 @@ __all__ = [
     "_process_runtime_function_calls",
     "_strict_json_schema",
     "AgentTerminalResult",
+    "AgentTerminalNotReached",
+    "AgentOperationalStall",
     "AgentTool",
     "AgentCheckpointPolicy",
     "CheckpointResumeContext",

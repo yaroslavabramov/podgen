@@ -101,6 +101,7 @@ async def save_response_create_trace(
     trace_payload: RuntimeResponseTrace,
     latency_ms: float,
     max_output_tokens: int | None,
+    server_compaction_threshold: int | None,
 ) -> None:
     await save_tool_trace(
         db,
@@ -121,6 +122,7 @@ async def save_response_create_trace(
             "has_previous_response_id": bool(previous_response_id),
             "requested_model": requested_model,
             "max_output_tokens": max_output_tokens,
+            "server_compaction_threshold": server_compaction_threshold,
         },
         output_json={
             "response_id": response.id,
@@ -140,6 +142,7 @@ async def save_response_create_trace(
             "checkpoint_index": checkpoint_index,
             "chain_round": chain_round,
             "max_output_tokens": max_output_tokens,
+            "server_compaction_threshold": server_compaction_threshold,
             "usage": trace_payload.trace_usage_payload,
             **trace_payload.token_cost_payload,
             **trace_payload.trace_usage_payload,

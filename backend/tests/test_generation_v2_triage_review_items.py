@@ -168,22 +168,25 @@ def test_ranked_sources_include_only_research_eligible_assessments() -> None:
     assert coverage_by_source["source-not-target-content"] == "failed"
 
 
-def test_new_canonical_writes_reset_triage_read_checkpoint() -> None:
-    assert "upsert_source_assessment" in TRIAGE_SEMANTIC_COMMIT_TOOLS
+def test_new_canonical_writes_are_trace_classifications_without_read_limits() -> None:
+    assert "save_source_analysis" in TRIAGE_SEMANTIC_COMMIT_TOOLS
     assert "upsert_coverage_outcome" in TRIAGE_SEMANTIC_COMMIT_TOOLS
+    assert "update_source_finding_links" in TRIAGE_SEMANTIC_COMMIT_TOOLS
+    assert "update_source_finding_relations" in TRIAGE_SEMANTIC_COMMIT_TOOLS
+    assert "upsert_source_assessment" not in TRIAGE_SEMANTIC_COMMIT_TOOLS
 
 
 def test_triage_prompts_define_completed_unreadable_sources_and_scoped_evidence() -> None:
-    assert "including when the available\n   representation is not_target_content or unreadable" in SOURCE_TRIAGE_SET_PROMPT
-    assert "A readable service page is not a readable source" in SOURCE_TRIAGE_SET_PROMPT
-    assert "Use needs_repair only when\n   the assessment itself is unfinished" in SOURCE_TRIAGE_SET_PROMPT
+    assert "error, or wrong-target page establishes only a representation problem" in SOURCE_TRIAGE_SET_PROMPT
+    assert "A partial representation is not automatically a useless source" in SOURCE_TRIAGE_SET_PROMPT
+    assert "There is no needs_repair" in SOURCE_TRIAGE_SET_PROMPT
     assert "Evidence attachments are scoped to the map item that cites them" in CORPUS_BRIEF_SHADOW_AUDIT_PROMPT
     assert "does not also have to appear on every related" in CORPUS_BRIEF_SHADOW_AUDIT_PROMPT
     assert "never guess, abbreviate, or synthesize an evidence_id" in CORPUS_BRIEF_SHADOW_AUDIT_PROMPT
     assert "every generated semantic field" in BASE_PODCAST_SYSTEM
     assert "every\npersisted prose argument" in BASE_PODCAST_SYSTEM
-    assert "exactly one per question" in SOURCE_TRIAGE_FINALIZER_PROMPT
-    assert "do not concatenate a set's \"missing here\" statement" in SOURCE_TRIAGE_FINALIZER_PROMPT
+    assert "reconcile a result for each semantic requirement" in SOURCE_TRIAGE_FINALIZER_PROMPT
+    assert "A local absence is not corpus-wide absence" in SOURCE_TRIAGE_FINALIZER_PROMPT
 
 
 class _Result:
@@ -394,8 +397,8 @@ def test_shadow_audit_prompt_forbids_guesses_from_omitted_preview() -> None:
     assert "Never guess about omitted or truncated content" in CORPUS_BRIEF_AUDIT_SYSTEM
 
 
-def test_triage_set_prompt_matches_window_ref_locator_contract() -> None:
-    assert "do not create evidence" in SOURCE_TRIAGE_SET_PROMPT
-    assert "Pass a window_ref to read_source_window" in SOURCE_TRIAGE_SET_PROMPT
-    assert "returns locator_not_found" in SOURCE_TRIAGE_SET_PROMPT
-    assert "Timestamp locators apply only to transcript, audio, or video sources" in SOURCE_TRIAGE_SET_PROMPT
+def test_triage_set_prompt_separates_reading_navigation_and_final_evidence() -> None:
+    assert "Use read_source for the actual source text" in SOURCE_TRIAGE_SET_PROMPT
+    assert "search_source is navigation only" in SOURCE_TRIAGE_SET_PROMPT
+    assert "read_source and save_reading_note support understanding" in SOURCE_TRIAGE_SET_PROMPT
+    assert "use read_source_window only for the exact passage or passages" in SOURCE_TRIAGE_SET_PROMPT

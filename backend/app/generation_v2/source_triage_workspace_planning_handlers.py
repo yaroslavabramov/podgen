@@ -71,6 +71,75 @@ class SourceTriageWorkspacePlanningHandlersMixin:
             return {"accepted": False, "error": "parent_question_id cannot reference the question itself"}
         if parent_question_id and parent_question_id not in existing_ids:
             return {"accepted": False, "error": "parent_question_id must reference an existing question"}
+        raw_requirements = args.get("answer_requirements") or []
+        if not isinstance(raw_requirements, list) or not raw_requirements:
+            return {
+                "accepted": False,
+                "error": "answer_requirements must contain the semantic parts of a complete answer",
+            }
+        answer_requirements: list[dict[str, str]] = []
+        seen_requirement_ids: set[str] = set()
+        for index, raw_requirement in enumerate(raw_requirements, start=1):
+            if not isinstance(raw_requirement, dict):
+                return {"accepted": False, "error": "answer_requirements items must be objects"}
+            description = str(raw_requirement.get("description") or "").strip()
+            rationale = str(raw_requirement.get("rationale") or "").strip()
+            if not description:
+                return {
+                    "accepted": False,
+                    "error": "Each answer requirement needs a description",
+                    "requirement_index": index - 1,
+                }
+            requirement_error = semantic_field_error(
+                {
+                    "requirement_description": description,
+                    "requirement_rationale": rationale,
+                },
+                TRIAGE_SEMANTIC_FIELD_LIMITS,
+                ["requirement_description", "requirement_rationale"],
+            )
+            if requirement_error:
+                return requirement_error
+            requested_requirement_id = str(raw_requirement.get("requirement_id") or "").strip()
+            requirement_prefix = f"{question_id}:"
+            if ":" in requested_requirement_id:
+                if not requested_requirement_id.startswith(requirement_prefix):
+                    return {
+                        "accepted": False,
+                        "error": "requirement_id belongs to another question",
+                        "requirement_id": requested_requirement_id,
+                        "question_id": question_id,
+                    }
+                if requested_requirement_id == requirement_prefix:
+                    return {
+                        "accepted": False,
+                        "error": "requirement_id suffix is empty",
+                        "next_action": "Omit requirement_id to create a stable one.",
+                    }
+                requirement_id = requested_requirement_id
+            elif requested_requirement_id:
+                requirement_id = public_api._stable_set_id(
+                    requested_requirement_id, description, index
+                )
+            else:
+                requirement_id = (
+                    f"{question_id}:r_"
+                    f"{hashlib.sha256(description.casefold().encode('utf-8')).hexdigest()[:10]}"
+                )
+            if requirement_id in seen_requirement_ids:
+                return {
+                    "accepted": False,
+                    "error": "answer requirement ids must be unique within a question",
+                    "requirement_id": requirement_id,
+                }
+            seen_requirement_ids.add(requirement_id)
+            answer_requirements.append(
+                {
+                    "requirement_id": requirement_id,
+                    "description": description,
+                    "rationale": rationale,
+                }
+            )
         item = {
             "question_id": question_id,
             "question": question,
@@ -79,6 +148,7 @@ class SourceTriageWorkspacePlanningHandlersMixin:
             "rationale": str(args.get("rationale") or "").strip(),
             "parent_question_id": parent_question_id,
             "origin": "planned",
+            "answer_requirements": answer_requirements,
         }
         updated_questions = [
             item if existing.get("question_id") == question_id else existing
@@ -94,12 +164,16 @@ class SourceTriageWorkspacePlanningHandlersMixin:
                 "question_ids": cycle,
             }
         current["coverage_questions"] = updated_questions
+        # A planner rewrite changes the authoritative question stream. Any
+        # previous finalizer read ledger belongs to the older stream.
+        current.pop("source_triage_finalizer_reads", None)
         current["status"] = "planning"
         await public_api.save_source_triage_workspace(self.db, generation_run_id=self.run.id, workspace=current)
         return {
             "accepted": True,
             "question_id": question_id,
             "coverage_question_count": len(current["coverage_questions"]),
+            "answer_requirement_count": len(answer_requirements),
         }
 
     async def list_source_capsules_tool(self, args: dict[str, Any]) -> dict[str, Any]:
@@ -257,6 +331,7 @@ class SourceTriageWorkspacePlanningHandlersMixin:
             "status": "planned",
             "rationale": "Backend-routed after explicit capsule inspection.",
             "question_ids": [],
+            "question_assignments": [],
             "planned_question_ids": [],
             "cross_question_ids": [],
             "priority": "normal",
@@ -339,7 +414,74 @@ class SourceTriageWorkspacePlanningHandlersMixin:
         )
         if field_error:
             return field_error
-        question_ids = public_api._dedupe([str(item) for item in args.get("question_ids") or [] if str(item).strip()])
+        raw_assignments = args.get("question_assignments")
+        if raw_assignments is None:
+            raw_assignments = [
+                {"question_id": str(item), "requirement_ids": []}
+                for item in args.get("question_ids") or []
+            ]
+        if not isinstance(raw_assignments, list):
+            return {"accepted": False, "error": "question_assignments must be an array"}
+        question_by_id = {
+            str(item.get("question_id") or ""): item
+            for item in current.get("coverage_questions") or []
+            if isinstance(item, dict)
+        }
+        question_assignments: list[dict[str, Any]] = []
+        seen_assignment_question_ids: set[str] = set()
+        for raw_assignment in raw_assignments:
+            if not isinstance(raw_assignment, dict):
+                return {"accepted": False, "error": "question_assignments items must be objects"}
+            question_id = str(raw_assignment.get("question_id") or "").strip()
+            question = question_by_id.get(question_id)
+            if question is None:
+                return {
+                    "accepted": False,
+                    "error": "question_assignments must reference persisted coverage questions",
+                    "unknown_question_ids": [question_id],
+                }
+            if question_id in seen_assignment_question_ids:
+                return {
+                    "accepted": False,
+                    "error": "Use exactly one question_assignment per question_id in a source set",
+                    "question_id": question_id,
+                    "next_action": (
+                        "Merge that question's requirement_ids into one assignment and retry "
+                        "upsert_triage_source_set."
+                    ),
+                }
+            seen_assignment_question_ids.add(question_id)
+            known_requirement_ids = {
+                str(item.get("requirement_id") or "")
+                for item in question.get("answer_requirements") or []
+                if isinstance(item, dict)
+            }
+            requested_requirement_ids = public_api._dedupe(
+                [str(item) for item in raw_assignment.get("requirement_ids") or [] if str(item).strip()]
+            )
+            # Compatibility for old internal callers: question_ids means all
+            # requirements of the question. New model calls are explicit.
+            requirement_ids = requested_requirement_ids or sorted(known_requirement_ids)
+            unknown_requirement_ids = sorted(set(requirement_ids) - known_requirement_ids)
+            if unknown_requirement_ids:
+                return {
+                    "accepted": False,
+                    "error": "requirement_ids must belong to their assigned question",
+                    "question_id": question_id,
+                    "unknown_requirement_ids": unknown_requirement_ids,
+                }
+            if not requirement_ids and known_requirement_ids:
+                return {
+                    "accepted": False,
+                    "error": "Each question assignment must include at least one answer requirement",
+                    "question_id": question_id,
+                }
+            question_assignments.append(
+                {"question_id": question_id, "requirement_ids": requirement_ids}
+            )
+        question_ids = public_api._dedupe(
+            [str(item.get("question_id") or "") for item in question_assignments]
+        )
         known_question_ids = {
             str(item.get("question_id") or "")
             for item in current.get("coverage_questions") or []
@@ -369,6 +511,7 @@ class SourceTriageWorkspacePlanningHandlersMixin:
             "status": "planned",
             "rationale": rationale,
             "question_ids": question_ids,
+            "question_assignments": question_assignments,
             "planned_question_ids": question_ids,
             "cross_question_ids": [],
             "priority": priority,
@@ -481,6 +624,21 @@ class SourceTriageWorkspacePlanningHandlersMixin:
             for item in source_sets
             if str(item.get("set_kind") or SOURCE_SET_KIND_COVERAGE) == SOURCE_SET_KIND_ORIENTATION
         ]
+        duplicate_assignment_pairs: list[dict[str, str]] = []
+        for source_set in coverage_sets:
+            seen_question_ids: set[str] = set()
+            for assignment in source_set.get("question_assignments") or []:
+                if not isinstance(assignment, dict):
+                    continue
+                question_id = str(assignment.get("question_id") or "")
+                if question_id in seen_question_ids:
+                    duplicate_assignment_pairs.append(
+                        {
+                            "set_id": str(source_set.get("set_id") or ""),
+                            "question_id": question_id,
+                        }
+                    )
+                seen_question_ids.add(question_id)
         referenced_question_ids = {
             str(question_id)
             for item in coverage_sets
@@ -488,6 +646,32 @@ class SourceTriageWorkspacePlanningHandlersMixin:
         }
         unknown_question_ids = sorted(referenced_question_ids - known_question_ids)
         unassigned_question_ids = sorted(known_question_ids - referenced_question_ids)
+        required_assignment_pairs = {
+            (str(question.get("question_id") or ""), str(requirement.get("requirement_id") or ""))
+            for question in questions
+            for requirement in question.get("answer_requirements") or []
+            if isinstance(requirement, dict)
+        }
+        assigned_requirement_pairs = {
+            (str(assignment.get("question_id") or ""), str(requirement_id))
+            for item in coverage_sets
+            for assignment in item.get("question_assignments") or []
+            if isinstance(assignment, dict)
+            for requirement_id in assignment.get("requirement_ids") or []
+        }
+        unassigned_requirements = sorted(required_assignment_pairs - assigned_requirement_pairs)
+        unknown_assigned_requirements = sorted(
+            assigned_requirement_pairs - required_assignment_pairs
+        )
+        known_source_refs = set(source_order)
+        unknown_source_refs = sorted(
+            {
+                str(source_ref)
+                for item in source_sets
+                for source_ref in item.get("source_refs") or []
+                if str(source_ref) not in known_source_refs
+            }
+        )
         coverage_sets_without_questions = [
             str(item.get("set_id") or "")
             for item in coverage_sets
@@ -511,9 +695,13 @@ class SourceTriageWorkspacePlanningHandlersMixin:
             invalid_set_kinds
             or unknown_question_ids
             or unassigned_question_ids
+            or unassigned_requirements
+            or unknown_assigned_requirements
+            or unknown_source_refs
             or coverage_sets_without_questions
             or orientation_sets_with_planned_questions
             or uninspected_orientation_refs
+            or duplicate_assignment_pairs
         ):
             return {
                 "accepted": False,
@@ -521,9 +709,19 @@ class SourceTriageWorkspacePlanningHandlersMixin:
                 "invalid_source_set_ids": invalid_set_kinds,
                 "unknown_question_ids": unknown_question_ids,
                 "unassigned_question_ids": unassigned_question_ids,
+                "unassigned_question_requirements": [
+                    {"question_id": question_id, "requirement_id": requirement_id}
+                    for question_id, requirement_id in unassigned_requirements
+                ],
+                "unknown_assigned_question_requirements": [
+                    {"question_id": question_id, "requirement_id": requirement_id}
+                    for question_id, requirement_id in unknown_assigned_requirements
+                ],
+                "unknown_source_refs": unknown_source_refs,
                 "coverage_source_sets_without_question_ids": coverage_sets_without_questions,
                 "orientation_source_sets_with_question_ids": orientation_sets_with_planned_questions,
                 "uninspected_orientation_source_refs": uninspected_orientation_refs,
+                "duplicate_question_assignments": duplicate_assignment_pairs,
             }
         summary = str(args.get("summary") or "").strip()
         field_error = semantic_field_error({"plan_summary": summary}, TRIAGE_SEMANTIC_FIELD_LIMITS, ["plan_summary"])

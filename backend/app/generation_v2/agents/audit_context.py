@@ -106,6 +106,7 @@ def _investigation_job_preview(
 
 def _corpus_brief_preview_for_audit(brief: dict[str, Any], context: Any, *, limit: int) -> dict[str, Any]:
     questions = [item for item in brief.get("coverage_questions") or [] if isinstance(item, dict)]
+    findings = [item for item in brief.get("source_findings") or [] if isinstance(item, dict)]
     outcomes = [item for item in brief.get("coverage_outcomes") or [] if isinstance(item, dict)]
     handoff = [item for item in brief.get("research_handoff") or [] if isinstance(item, dict)]
     gap_records = [item for item in brief.get("gap_records") or [] if isinstance(item, dict)]
@@ -133,6 +134,16 @@ def _corpus_brief_preview_for_audit(brief: dict[str, Any], context: Any, *, limi
                 **_preview_fields("deferred_reason", item.get("deferred_reason") or "", 400),
             }
             for item in outcomes[:limit]
+        ],
+        "source_findings": [
+            {
+                "finding_id": item.get("finding_id"),
+                "source_refs": _source_refs_for_ids([item.get("source_id")], context),
+                "question_links": item.get("question_links") or [],
+                "evidence_count": len(item.get("evidence_ids") or []),
+                **_preview_fields("statement", item.get("statement") or "", 600),
+            }
+            for item in findings[:limit]
         ],
         "research_handoff": [
             {
@@ -170,6 +181,9 @@ def _corpus_brief_preview_for_audit(brief: dict[str, Any], context: Any, *, limi
             ),
             "corpus_brief_outcomes": _page_metadata(
                 total=len(outcomes), cursor=0, returned=min(len(outcomes), limit)
+            ),
+            "corpus_brief_findings": _page_metadata(
+                total=len(findings), cursor=0, returned=min(len(findings), limit)
             ),
             "corpus_brief_handoff": _page_metadata(
                 total=len(handoff), cursor=0, returned=min(len(handoff), limit)
@@ -387,6 +401,16 @@ def _audit_corpus_brief_page_item(
             "deferred_reason": str(item.get("deferred_reason") or ""),
             "next_action": item.get("next_action"),
         }
+    if section == "corpus_brief_findings":
+        return {
+            "finding_id": item.get("finding_id"),
+            "source_refs": _source_refs_for_ids([item.get("source_id")], context),
+            "statement": str(item.get("statement") or ""),
+            "question_links": list(item.get("question_links") or []),
+            "scope": dict(item.get("scope") or {}),
+            "limitations": list(item.get("limitations") or []),
+            "evidence_count": len(item.get("evidence_ids") or []),
+        }
     if section == "corpus_brief_handoff":
         return {
             "handoff_id": item.get("handoff_id"),
@@ -454,6 +478,7 @@ def audit_workspace_page_tool(
         brief = workspace.get("corpus_brief") if isinstance(workspace.get("corpus_brief"), dict) else {}
         brief_field_by_section = {
             "corpus_brief_questions": "coverage_questions",
+            "corpus_brief_findings": "source_findings",
             "corpus_brief_outcomes": "coverage_outcomes",
             "corpus_brief_handoff": "research_handoff",
             "corpus_brief_gap_records": "gap_records",
@@ -598,6 +623,7 @@ def audit_workspace_page_tool(
                         "job_questions",
                         "job_question_outcomes",
                         "corpus_brief_questions",
+                        "corpus_brief_findings",
                         "corpus_brief_outcomes",
                         "corpus_brief_handoff",
                         "corpus_brief_gap_records",

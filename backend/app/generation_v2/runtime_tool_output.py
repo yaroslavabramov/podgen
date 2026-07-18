@@ -5,6 +5,17 @@ from typing import Any
 
 
 MODEL_TOOL_OUTPUT_MAX_CHARS = 12000
+MODEL_TOOL_OUTPUT_MAX_CHARS_BY_TOOL = {
+    # These tools return explicitly requested, contiguous source text. Their
+    # schemas already bound the requested ranges, so a smaller generic preview
+    # budget would turn an honest read into a hidden truncation/failure.
+    # JSON escaping can expand valid source text by up to 6x. Keep the
+    # transport contract comfortably above the semantic limits exposed by the
+    # tools instead of rejecting an otherwise valid 20k read after it was
+    # persisted.
+    "read_source": 256_000,
+    "search_source": 256_000,
+}
 MODEL_FACING_CONTRACT_VERSION = "v2.tool-output-contract.1"
 MODEL_HIDDEN_TOOL_KEYS = {
     "provider",
@@ -43,9 +54,13 @@ def model_facing_tool_output(tool_name: str, output: dict[str, Any]) -> dict[str
         keys = ", ".join(sorted(forbidden_keys)[:12])
         raise ToolOutputContractViolation(f"{tool_name} returned forbidden model-facing keys: {keys}")
     encoded = json.dumps(output, ensure_ascii=False, default=str)
-    if len(encoded) > MODEL_TOOL_OUTPUT_MAX_CHARS:
+    max_chars = MODEL_TOOL_OUTPUT_MAX_CHARS_BY_TOOL.get(
+        tool_name,
+        MODEL_TOOL_OUTPUT_MAX_CHARS,
+    )
+    if len(encoded) > max_chars:
         raise ToolOutputContractViolation(
-            f"{tool_name} model-facing output exceeded {MODEL_TOOL_OUTPUT_MAX_CHARS} chars: {len(encoded)}"
+            f"{tool_name} model-facing output exceeded {max_chars} chars: {len(encoded)}"
         )
     return output
 
@@ -61,10 +76,14 @@ def tool_model_facing_schema(tool_name: str) -> str:
         "list_research_workspace_items": "research_workspace_page",
         "list_triage_source_sets": "triage_workspace_page",
         "read_source_window": "evidence_read",
+        "read_source": "source_text_page",
+        "search_source": "source_text_matches",
+        "open_source_file": "source_file_attachment_ack",
         "read_source_with_model": "model_read_evidence_read",
         "skim_source": "source_skim_windows",
         "inspect_source": "source_outline",
         "search_within_source": "evidence_preview_results",
+        "save_reading_note": "write_ack",
         "compare_source_evidence": "source_comparison_evidence",
         "compare_evidence_for_question": "research_comparison_evidence",
         "select_evidence": "write_ack",
@@ -79,6 +98,7 @@ def tool_model_facing_schema(tool_name: str) -> str:
         "upsert_source_card": "write_ack",
         "create_quote_card": "write_ack",
         "record_source_relationship": "write_ack",
+        "update_source_finding_relations": "write_ack",
         "record_source_cluster": "write_ack",
         "record_gap": "write_ack",
         "list_source_map_gaps": "source_map_gap_page",

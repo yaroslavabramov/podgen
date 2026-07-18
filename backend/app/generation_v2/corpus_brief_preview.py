@@ -31,6 +31,7 @@ def corpus_brief_preview(
     text_limit: int = 400,
 ) -> dict[str, Any]:
     questions = brief.coverage_questions[:item_limit]
+    findings = brief.source_findings[:item_limit]
     # Initial-reading groups are operational provenance, not research branches.
     content_source_sets = [item for item in brief.source_sets if str(item.set_kind) != "orientation"]
     source_sets = content_source_sets[:item_limit]
@@ -53,7 +54,7 @@ def corpus_brief_preview(
         return semantic_preview(value, limit=text_limit, replacements=replacements)
 
     return {
-        "schema_version": "corpus_brief_preview.v1",
+        "schema_version": "corpus_brief_preview.v2",
         "corpus_brief_schema_version": brief.schema_version,
         "summary": preview(brief.summary),
         "intent": {
@@ -74,8 +75,57 @@ def corpus_brief_preview(
                 "importance": item.importance,
                 "question": preview(item.question),
                 "rationale": preview(item.rationale),
+                "answer_requirements": [
+                    {
+                        "requirement_id": requirement.requirement_id,
+                        "description": preview(requirement.description),
+                        "rationale": preview(requirement.rationale),
+                    }
+                    for requirement in item.answer_requirements[:item_limit]
+                ],
+                "answer_requirement_count": len(item.answer_requirements),
+                "answer_requirement_omitted_count": max(
+                    0, len(item.answer_requirements) - item_limit
+                ),
             }
             for item in questions
+        ],
+        "source_findings": [
+            {
+                "finding_id": item.finding_id,
+                **(
+                    {"source_ref": source_ref_for_id(item.source_id, source_ref_context)}
+                    if source_ref_context is not None
+                    else {}
+                ),
+                "evidence_count": len(item.evidence_ids),
+                "semantic_revision": item.semantic_revision,
+                "statement": preview(item.statement),
+                "scope": {
+                    "actor": preview(item.scope.actor),
+                    "period": preview(item.scope.period),
+                    "geography": preview(item.scope.geography),
+                    "qualifier_previews": [
+                        preview(value) for value in item.scope.qualifiers[:item_limit]
+                    ],
+                    "qualifier_count": len(item.scope.qualifiers),
+                },
+                "question_links": [
+                    {
+                        "question_id": link.question_id,
+                        "requirement_ids": list(link.requirement_ids),
+                        "rationale": preview(link.rationale),
+                    }
+                    for link in item.question_links[:item_limit]
+                ],
+                "question_link_count": len(item.question_links),
+                "limitation_previews": [
+                    preview(value) for value in item.limitations[:item_limit]
+                ],
+                "limitation_count": len(item.limitations),
+                "source_relation_count": len(item.source_relations),
+            }
+            for item in findings
         ],
         "source_sets": [
             {
@@ -101,6 +151,24 @@ def corpus_brief_preview(
                 "status": item.status,
                 "source_count": len(item.source_ids),
                 "evidence_count": len(item.evidence_ids),
+                "finding_ids": list(item.finding_ids[:item_limit]),
+                "finding_count": len(item.finding_ids),
+                "requirement_results": [
+                    {
+                        "requirement_id": result.requirement_id,
+                        "status": result.status,
+                        "finding_ids": list(result.finding_ids[:item_limit]),
+                        "finding_count": len(result.finding_ids),
+                        "summary": preview(result.summary),
+                        "missing_detail": preview(result.missing_detail),
+                        "conflict_summary": preview(result.conflict_summary),
+                        "deferred_reason": preview(result.deferred_reason),
+                    }
+                    for result in item.requirement_results[:item_limit]
+                ],
+                "requirement_result_count": len(item.requirement_results),
+                "semantic_revision": item.semantic_revision,
+                "is_stale": item.is_stale,
                 "orientation_summary": preview(item.orientation_summary),
                 "missing_detail": preview(item.missing_detail),
                 "conflict_summary": preview(item.conflict_summary),
@@ -114,6 +182,12 @@ def corpus_brief_preview(
                 "priority": item.priority,
                 "action": item.action,
                 "question_ids": item.question_ids,
+                "question_assignments": [
+                    assignment.model_dump(mode="json")
+                    for assignment in item.question_assignments
+                ],
+                "finding_ids": list(item.finding_ids[:item_limit]),
+                "finding_count": len(item.finding_ids),
                 "preferred_source_count": len(item.preferred_source_ids),
                 "starting_evidence_count": len(item.starting_evidence_ids),
                 "objective": preview(item.objective),
@@ -151,22 +225,43 @@ def corpus_brief_preview(
                 else 1,
             ),
             "corpus_brief_cautions": _page(len(model_cautions), len(cautions)),
-            "corpus_brief_questions": _page(len(brief.coverage_questions), len(questions)),
+            "corpus_brief_questions": _page(
+                len(brief.coverage_questions),
+                len(questions),
+                full_page_unit="record_part",
+            ),
+            "corpus_brief_findings": _page(
+                len(brief.source_findings),
+                len(findings),
+                full_page_unit="record_part",
+            ),
             "corpus_brief_source_sets": _page(len(content_source_sets), len(source_sets)),
-            "corpus_brief_outcomes": _page(len(brief.coverage_outcomes), len(outcomes)),
+            "corpus_brief_outcomes": _page(
+                len(brief.coverage_outcomes),
+                len(outcomes),
+                full_page_unit="record_part",
+            ),
             "corpus_brief_handoff": _page(len(brief.research_handoff), len(handoff)),
             "corpus_brief_gap_records": _page(len(brief.gap_records), len(gap_records)),
         },
     }
 
 
-def _page(total: int, returned: int) -> dict[str, Any]:
+def _page(
+    total: int,
+    returned: int,
+    *,
+    full_page_unit: str = "record",
+) -> dict[str, Any]:
     return {
         "total_count": total,
         "returned_count": returned,
         "omitted_count": max(0, total - returned),
         "cursor": "0",
         "next_cursor": str(returned) if returned < total else "",
+        "cursor_unit": "preview_record",
+        "full_page_start_cursor": "0",
+        "full_page_unit": full_page_unit,
     }
 
 

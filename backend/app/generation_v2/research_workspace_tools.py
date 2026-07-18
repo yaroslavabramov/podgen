@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.generation_v2 import research_workspace as _workspace
 from app.generation_v2.model_context_text import model_preview_text
 from app.generation_v2.model_facing_pagination import fit_model_page
+from app.generation_v2.model_facing_record_parts import composite_record_parts
 from app.generation_v2.research_workspace_tool_specs import (
     research_finalizer_tools,
     research_job_tools,
@@ -251,11 +252,13 @@ def _full_corpus_brief_page(
     cursor: int,
     limit: int,
     include_evidence_ids: bool,
+    job: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     brief = workspace.get("corpus_brief") if isinstance(workspace.get("corpus_brief"), dict) else {}
     context = build_source_ref_context(source_inventory)
     field_by_section = {
         "corpus_brief_questions": "coverage_questions",
+        "corpus_brief_findings": "source_findings",
         "corpus_brief_outcomes": "coverage_outcomes",
         "corpus_brief_handoff": "research_handoff",
         "corpus_brief_source_sets": "source_sets",
@@ -279,37 +282,113 @@ def _full_corpus_brief_page(
         ]
     else:
         values = [item for item in brief.get(field_by_section[section]) or [] if isinstance(item, dict)]
+        if job is not None and section == "corpus_brief_findings":
+            values = [item for item in job.get("source_findings") or [] if isinstance(item, dict)]
+        elif job is not None and section == "corpus_brief_outcomes":
+            values = [item for item in job.get("corpus_brief_outcomes") or [] if isinstance(item, dict)]
         if section == "corpus_brief_source_sets":
             values = [item for item in values if str(item.get("set_kind") or "coverage") != "orientation"]
-    page = values[cursor : cursor + limit]
-    items: list[dict[str, Any]] = []
-    for item in page:
-        payload = dict(item)
-        if section == "corpus_brief_gap_records":
-            payload["gap_ref"] = public_gap_ref_for_record(payload)
-            payload.pop("gap_id", None)
-            evidence_ids = [str(value) for value in payload.pop("evidence_ids", []) if str(value).strip()]
-            payload["evidence_count"] = len(evidence_ids)
-            if include_evidence_ids:
-                payload["evidence_ids"] = evidence_ids
-        source_ids = payload.pop("source_ids", [])
-        preferred_source_ids = payload.pop("preferred_source_ids", [])
-        if source_ids:
-            payload["source_refs"] = [source_ref_for_id(source_id, context) for source_id in source_ids]
-        if preferred_source_ids:
-            payload["preferred_source_refs"] = [
-                source_ref_for_id(source_id, context) for source_id in preferred_source_ids
-            ]
-        items.append(_model_safe_value(payload, replacements=context.ref_by_source_id))
+    rendered_values = [
+        _model_safe_corpus_brief_item(
+            item,
+            section=section,
+            context=context,
+            include_evidence_ids=include_evidence_ids,
+        )
+        for item in values
+    ]
+    record_kind_by_section = {
+        "corpus_brief_questions": "coverage_question",
+        "corpus_brief_findings": "source_finding",
+        "corpus_brief_outcomes": "coverage_outcome",
+    }
+    if section in record_kind_by_section:
+        model_items = [
+            part
+            for item in rendered_values
+            for part in composite_record_parts(
+                item,
+                record_kind=record_kind_by_section[section],
+            )
+        ]
+        page_unit = "record_part"
+    else:
+        model_items = rendered_values
+        page_unit = "record"
+    items = model_items[cursor : cursor + limit]
     return fit_model_page(
         {
             "accepted": True,
             "section": section,
+            "record_count": len(values),
             "items": items,
-            "page": _page_metadata(total=len(values), cursor=cursor, returned=len(items)),
+            "page": {
+                **_page_metadata(total=len(model_items), cursor=cursor, returned=len(items)),
+                "unit": page_unit,
+            },
         },
         requested_limit=limit,
     )
+
+
+def _model_safe_corpus_brief_item(
+    item: dict[str, Any],
+    *,
+    section: str,
+    context: Any,
+    include_evidence_ids: bool,
+) -> dict[str, Any]:
+    payload = dict(item)
+    if section == "corpus_brief_gap_records":
+        payload["gap_ref"] = public_gap_ref_for_record(payload)
+        payload.pop("gap_id", None)
+        evidence_ids = [
+            str(value) for value in payload.pop("evidence_ids", []) if str(value).strip()
+        ]
+        payload["evidence_count"] = len(evidence_ids)
+        if include_evidence_ids:
+            payload["evidence_ids"] = evidence_ids
+    if section == "corpus_brief_findings":
+        source_id = str(payload.pop("source_id", "") or "")
+        payload.pop("source_version_ids", None)
+        payload.pop("assessment_id", None)
+        if source_id:
+            payload["source_ref"] = source_ref_for_id(source_id, context)
+        evidence_ids = [
+            str(value) for value in payload.pop("evidence_ids", []) if str(value).strip()
+        ]
+        payload["evidence_count"] = len(evidence_ids)
+        if include_evidence_ids:
+            payload["evidence_ids"] = evidence_ids
+        relations: list[dict[str, Any]] = []
+        for relation in payload.get("source_relations") or []:
+            if not isinstance(relation, dict):
+                continue
+            model_relation = dict(relation)
+            related_source_id = str(model_relation.pop("related_source_id", "") or "")
+            if related_source_id:
+                model_relation["related_source_ref"] = source_ref_for_id(
+                    related_source_id, context
+                )
+            relation_evidence_ids = [
+                str(value)
+                for value in model_relation.pop("evidence_ids", [])
+                if str(value).strip()
+            ]
+            model_relation["evidence_count"] = len(relation_evidence_ids)
+            if include_evidence_ids:
+                model_relation["evidence_ids"] = relation_evidence_ids
+            relations.append(model_relation)
+        payload["source_relations"] = relations
+    source_ids = payload.pop("source_ids", [])
+    preferred_source_ids = payload.pop("preferred_source_ids", [])
+    if source_ids:
+        payload["source_refs"] = [source_ref_for_id(source_id, context) for source_id in source_ids]
+    if preferred_source_ids:
+        payload["preferred_source_refs"] = [
+            source_ref_for_id(source_id, context) for source_id in preferred_source_ids
+        ]
+    return _model_safe_value(payload, replacements=context.ref_by_source_id)
 
 
 def _model_safe_value(value: Any, *, replacements: dict[str, str]) -> Any:
@@ -464,6 +543,15 @@ def _research_workspace_page_tool(
         cursor = max(0, cursor)
         limit = max(1, min(int(args.get("limit") or 20), 40))
         job_id = str(args.get("job_id") or "")
+        resolved_job_id = str(current_job_id or ((current.get("current_job") or {}).get("job_id")) or "")
+        scoped_job = next(
+            (
+                item
+                for item in current.get("investigation_jobs") or []
+                if isinstance(item, dict) and str(item.get("job_id") or "") == resolved_job_id
+            ),
+            None,
+        )
         if section.startswith("source_map_"):
             try:
                 payload = source_map_research_page(
@@ -482,6 +570,7 @@ def _research_workspace_page_tool(
             "corpus_brief_intent",
             "corpus_brief_cautions",
             "corpus_brief_questions",
+            "corpus_brief_findings",
             "corpus_brief_outcomes",
             "corpus_brief_handoff",
             "corpus_brief_source_sets",
@@ -494,13 +583,13 @@ def _research_workspace_page_tool(
                 cursor=cursor,
                 limit=limit,
                 include_evidence_ids=include_source_map_evidence_ids,
+                job=scoped_job,
             )
         if section in {
             "current_job_questions",
             "current_job_observations",
             "current_job_starting_evidence",
         }:
-            resolved_job_id = str(current_job_id or ((current.get("current_job") or {}).get("job_id")) or "")
             job = next(
                 (
                     item
@@ -597,8 +686,9 @@ def _research_workspace_page_tool(
         name="list_research_workspace_items",
         description=(
             "Page persisted research/source-map items when initial context is truncated or omitted. "
-            "Pages honor limit while returning only whole validated semantic items; a page may contain "
-            "fewer items when the model-output budget cannot fit the next complete item."
+            "Validated composite CorpusBrief questions, findings, and outcomes may be returned as ordered "
+            "record parts keyed by owner_ref and part_kind. Semantic scalars remain whole; an individually "
+            "oversized scalar returns an explicit validation error. Follow page.next_cursor."
         ),
         parameters={
             "type": "object",
@@ -623,6 +713,7 @@ def _research_workspace_page_tool(
                         "corpus_brief_intent",
                         "corpus_brief_cautions",
                         "corpus_brief_questions",
+                        "corpus_brief_findings",
                         "corpus_brief_outcomes",
                         "corpus_brief_handoff",
                         "corpus_brief_source_sets",

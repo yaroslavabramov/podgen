@@ -38,10 +38,13 @@ async def validate_source_map_gate(
     triage_completion: SourceTriageCompletion | None = None,
     triage_workspace: dict[str, Any] | None = None,
 ) -> SourceTriageGate:
-    from app.generation_v2.source_triage_workspace_state import unresolved_source_refs
+    from app.generation_v2.source_triage_workspace_state import (
+        is_structured_triage_workspace,
+        unresolved_source_refs,
+    )
 
     scope = scope_for_run_view(run_view)
-    is_v2_workspace = str((triage_workspace or {}).get("schema_version") or "") == "source_triage_workspace.v2"
+    is_v2_workspace = is_structured_triage_workspace(triage_workspace)
     workspace_violations = (
         canonical_workspace_violations(triage_workspace or {}, require_syntheses=True)
         if is_v2_workspace

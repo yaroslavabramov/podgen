@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from hashlib import sha256
 import json
 from typing import Any
 
@@ -7,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.generation_v2 import source_triage_workspace as _workspace
 from app.generation_v2.model_facing_pagination import fit_model_page
+from app.generation_v2.model_facing_record_parts import composite_record_parts
 from app.generation_v2.runtime import AgentTerminalResult, AgentTool
 from app.generation_v2.schemas import SourceTriageCompletion
 from app.generation_v2.runtime_tool_output import MODEL_TOOL_OUTPUT_MAX_CHARS
@@ -18,11 +20,19 @@ from app.generation_v2.source_triage_workspace_tool_specs import (
     source_triage_planner_tools,
     source_triage_set_tools,
 )
+from app.generation_v2.source_triage_workspace_state import (
+    latest_source_read_receipts,
+    source_read_receipt_delivery_status,
+    source_read_receipt_is_delivered,
+    uncheckpointed_source_read_replays,
+)
 from app.models.generation_run import GenerationRun
 
 
 TRIAGE_WORKSPACE_DEFAULT_PAGE_LIMIT = 20
 TRIAGE_WORKSPACE_MAX_PAGE_LIMIT = 25
+FINALIZER_REVIEW_SECTIONS = ("coverage_questions", "source_findings")
+FINALIZER_READ_LEDGER_FIELD = "source_triage_finalizer_reads"
 
 
 def _checked_page_output(payload: dict[str, Any]) -> dict[str, Any]:
@@ -145,25 +155,65 @@ def _full_canonical_item_page(
     limit: int = 1,
     current_set_id: str | None = None,
 ) -> dict[str, Any]:
+    values, parts = _canonical_section_record_parts(
+        workspace,
+        section=section,
+        current_set_id=current_set_id,
+    )
+    page = parts[cursor : cursor + limit]
+    return fit_model_page(
+        {
+            "accepted": True,
+            "section": section,
+            "record_count": len(values),
+            "items": page,
+            "page": {
+                **_page_metadata(total=len(parts), cursor=cursor, returned=len(page)),
+                "unit": "record_part",
+            },
+        },
+        requested_limit=limit,
+        error_code="triage_workspace_item_exceeds_model_read_contract",
+    )
+
+
+def _canonical_section_record_parts(
+    workspace: dict[str, Any],
+    *,
+    section: str,
+    current_set_id: str | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     from app.generation_v2.source_triage_canonical import coverage_synthesis_input_hash
 
     field_by_section = {
         "coverage_questions": "coverage_questions",
+        "source_read_receipts": "source_read_receipts",
+        "reading_notes": "reading_notes",
         "source_assessments": "source_assessments",
+        "source_findings": "source_findings",
         "coverage_outcomes": "coverage_outcomes",
         "coverage_syntheses": "coverage_syntheses",
     }
     field = field_by_section[section]
     values = [item for item in workspace.get(field) or [] if isinstance(item, dict)]
-    if current_set_id and section in {"source_assessments", "coverage_outcomes"}:
+    if current_set_id and section in {
+        "source_read_receipts",
+        "reading_notes",
+        "source_assessments",
+        "source_findings",
+        "coverage_outcomes",
+    }:
         values = [item for item in values if str(item.get("set_id") or "") == current_set_id]
         baseline_field = {
+            "source_read_receipts": "",
+            "reading_notes": "",
             "source_assessments": "repair_baseline_source_assessments",
+            "source_findings": "repair_baseline_source_findings",
             "coverage_outcomes": "repair_baseline_coverage_outcomes",
         }[section]
         baselines = [
             item
-            for item in workspace.get(baseline_field) or []
+            for item in (workspace.get(baseline_field) or []) if baseline_field
             if isinstance(item, dict) and str(item.get("set_id") or "") == current_set_id
         ]
         if section == "source_assessments":
@@ -175,7 +225,7 @@ def _full_canonical_item_page(
             values.extend(
                 item for item in baselines if str(item.get("source_ref") or "") not in current_keys
             )
-        else:
+        elif section == "coverage_outcomes":
             current_keys = {
                 (str(item.get("set_id") or ""), str(item.get("question_id") or ""))
                 for item in values
@@ -188,7 +238,6 @@ def _full_canonical_item_page(
                 if (str(item.get("set_id") or ""), str(item.get("question_id") or "")) not in current_keys
             )
     values.sort(key=lambda item: _canonical_item_identity(section, item))
-    page = values[cursor : cursor + limit]
     source_ref_by_id = {
         str(item.get("source_id") or ""): str(item.get("source_ref") or "")
         for item in [
@@ -199,7 +248,10 @@ def _full_canonical_item_page(
     }
     serializers = {
         "coverage_questions": _model_safe_coverage_question,
+        "source_read_receipts": _model_safe_source_read_receipt,
+        "reading_notes": _model_safe_reading_note,
         "source_assessments": _model_safe_source_assessment,
+        "source_findings": _model_safe_source_finding,
         "coverage_outcomes": lambda item: _model_safe_coverage_outcome(
             item,
             source_ref_by_id=source_ref_by_id,
@@ -214,16 +266,34 @@ def _full_canonical_item_page(
             ),
         ),
     }
-    return fit_model_page(
-        {
-            "accepted": True,
-            "section": section,
-            "items": [serializers[section](item) for item in page],
-            "page": _page_metadata(total=len(values), cursor=cursor, returned=len(page)),
-        },
-        requested_limit=limit,
-        error_code="triage_workspace_item_exceeds_model_read_contract",
-    )
+    serialized = [serializers[section](item) for item in values]
+    record_kind_by_section = {
+        "coverage_questions": "coverage_question",
+        "source_read_receipts": "source_read_receipt",
+        "reading_notes": "reading_note",
+        "source_assessments": "source_assessment",
+        "source_findings": "source_finding",
+        "coverage_outcomes": "coverage_outcome",
+        "coverage_syntheses": "coverage_synthesis",
+    }
+    parts = [
+        part
+        for item in serialized
+        for part in (
+            _reading_note_record_parts(item)
+            if section == "reading_notes"
+            else composite_record_parts(
+                item,
+                record_kind=record_kind_by_section[section],
+                owner_ref=(
+                    str(item.get("receipt_ref") or "source_read_receipt:unknown")
+                    if section == "source_read_receipts"
+                    else None
+                ),
+            )
+        )
+    ]
+    return values, parts
 
 
 def _canonical_item_identity(section: str, item: dict[str, Any]) -> tuple[str, ...]:
@@ -231,12 +301,18 @@ def _canonical_item_identity(section: str, item: dict[str, Any]) -> tuple[str, .
 
     if section == "coverage_questions":
         return (str(item.get("question_id") or ""),)
+    if section == "source_read_receipts":
+        return (str(item.get("receipt_ref") or ""),)
+    if section == "reading_notes":
+        return (str(item.get("note_id") or ""),)
     if section == "source_assessments":
         return (
             str(item.get("source_ref") or ""),
             str(item.get("set_id") or ""),
             "1" if item.get("repair_baseline") else "0",
         )
+    if section == "source_findings":
+        return (str(item.get("finding_id") or ""),)
     if section == "coverage_outcomes":
         return (
             str(item.get("question_id") or ""),
@@ -246,6 +322,142 @@ def _canonical_item_identity(section: str, item: dict[str, Any]) -> tuple[str, .
     if section == "coverage_syntheses":
         return (str(item.get("question_id") or ""),)
     return (json.dumps(item, ensure_ascii=False, sort_keys=True, default=str),)
+
+
+def _record_part_review_key(part: dict[str, Any]) -> str:
+    return sha256(
+        json.dumps(part, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str).encode(
+            "utf-8"
+        )
+    ).hexdigest()
+
+
+def _record_finalizer_review_page(
+    workspace: dict[str, Any],
+    *,
+    section: str,
+    page_payload: dict[str, Any],
+) -> None:
+    if section not in FINALIZER_REVIEW_SECTIONS or page_payload.get("accepted") is not True:
+        return
+    _, expected_parts = _canonical_section_record_parts(workspace, section=section)
+    expected_keys = {_record_part_review_key(part) for part in expected_parts}
+    returned_keys = {
+        _record_part_review_key(part)
+        for part in page_payload.get("items") or []
+        if isinstance(part, dict)
+    }
+    ledger = dict(workspace.get(FINALIZER_READ_LEDGER_FIELD) or {})
+    previous = ledger.get(section) if isinstance(ledger.get(section), dict) else {}
+    read_keys = {
+        str(value)
+        for value in previous.get("read_part_keys") or []
+        if str(value) in expected_keys
+    }
+    read_keys.update(returned_keys & expected_keys)
+    ledger[section] = {
+        "read_part_keys": sorted(read_keys),
+        "read_part_count": len(read_keys),
+        "expected_part_count": len(expected_keys),
+        "complete": expected_keys.issubset(read_keys),
+        "updated_at": _workspace._now(),
+    }
+    workspace[FINALIZER_READ_LEDGER_FIELD] = ledger
+
+
+def finalizer_review_stream_violations(workspace: dict[str, Any]) -> list[dict[str, Any]]:
+    ledger = workspace.get(FINALIZER_READ_LEDGER_FIELD)
+    ledger = ledger if isinstance(ledger, dict) else {}
+    incomplete_sections: list[dict[str, Any]] = []
+    for section in FINALIZER_REVIEW_SECTIONS:
+        _, expected_parts = _canonical_section_record_parts(workspace, section=section)
+        expected_by_key = {
+            _record_part_review_key(part): str(part.get("owner_ref") or "")
+            for part in expected_parts
+        }
+        section_ledger = ledger.get(section) if isinstance(ledger.get(section), dict) else {}
+        read_keys = {str(value) for value in section_ledger.get("read_part_keys") or []}
+        missing_keys = set(expected_by_key) - read_keys
+        if not missing_keys:
+            continue
+        incomplete_sections.append(
+            {
+                "section": section,
+                "missing_part_count": len(missing_keys),
+                "missing_owner_refs": sorted(
+                    {
+                        expected_by_key[key]
+                        for key in missing_keys
+                        if expected_by_key[key]
+                    }
+                ),
+            }
+        )
+    if not incomplete_sections:
+        return []
+    return [
+        {
+            "code": "finalizer_review_stream_incomplete",
+            "message": (
+                "The finalizer must read every durable coverage-question and source-finding record part "
+                "before finalizing."
+            ),
+            "sections": incomplete_sections,
+            "next_action": (
+                "Page each listed section from cursor 0 and follow page.next_cursor until empty, then retry "
+                "finalize_source_map."
+            ),
+        }
+    ]
+
+
+def carry_finalizer_finding_review_forward(
+    workspace: dict[str, Any],
+    *,
+    previous_finding: dict[str, Any],
+) -> bool:
+    """Credit an atomic link rewrite only when the finalizer read the whole old finding."""
+
+    section = "source_findings"
+    ledger = dict(workspace.get(FINALIZER_READ_LEDGER_FIELD) or {})
+    section_ledger = ledger.get(section) if isinstance(ledger.get(section), dict) else {}
+    read_keys = {str(value) for value in section_ledger.get("read_part_keys") or []}
+    previous_parts = composite_record_parts(
+        _model_safe_source_finding(previous_finding),
+        record_kind="source_finding",
+    )
+    previous_keys = {_record_part_review_key(part) for part in previous_parts}
+    if not previous_keys or not previous_keys.issubset(read_keys):
+        return False
+
+    finding_id = str(previous_finding.get("finding_id") or "")
+    current_finding = next(
+        (
+            item
+            for item in workspace.get("source_findings") or []
+            if isinstance(item, dict) and str(item.get("finding_id") or "") == finding_id
+        ),
+        None,
+    )
+    if current_finding is None:
+        return False
+    current_parts = composite_record_parts(
+        _model_safe_source_finding(current_finding),
+        record_kind="source_finding",
+    )
+    current_keys = {_record_part_review_key(part) for part in current_parts}
+    _, expected_parts = _canonical_section_record_parts(workspace, section=section)
+    expected_keys = {_record_part_review_key(part) for part in expected_parts}
+    next_read_keys = ((read_keys - previous_keys) | current_keys) & expected_keys
+    ledger[section] = {
+        "read_part_keys": sorted(next_read_keys),
+        "read_part_count": len(next_read_keys),
+        "expected_part_count": len(expected_keys),
+        "complete": expected_keys.issubset(next_read_keys),
+        "updated_at": _workspace._now(),
+    }
+    workspace[FINALIZER_READ_LEDGER_FIELD] = ledger
+    return True
 
 
 def _full_assigned_question_page(
@@ -292,14 +504,214 @@ def _full_assigned_question_page(
                 }
             )
         included_ids.add(question_id)
-    page = values[cursor : cursor + limit]
+    parts = [
+        part
+        for item in values
+        for part in composite_record_parts(
+            _model_safe_coverage_question(item),
+            record_kind="coverage_question",
+        )
+    ]
+    page = parts[cursor : cursor + limit]
     return fit_model_page(
         {
             "accepted": True,
             "section": "assigned_questions",
             "set_id": source_set.get("set_id"),
-            "items": [_model_safe_coverage_question(item) for item in page],
-            "page": _page_metadata(total=len(values), cursor=cursor, returned=len(page)),
+            "record_count": len(values),
+            "items": page,
+            "page": {
+                **_page_metadata(total=len(parts), cursor=cursor, returned=len(page)),
+                "unit": "record_part",
+            },
+        },
+        requested_limit=limit,
+        error_code="triage_workspace_item_exceeds_model_read_contract",
+    )
+
+
+def _current_set_state_page(
+    workspace: dict[str, Any],
+    source_set: dict[str, Any],
+    *,
+    cursor: int,
+    limit: int,
+) -> dict[str, Any]:
+    set_id = str(source_set.get("set_id") or "")
+    durable_read_receipts = [
+        item
+        for item in workspace.get("source_read_receipts") or []
+        if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
+    ]
+    latest_read_receipts = latest_source_read_receipts(durable_read_receipts)
+    pending_read_receipts = [
+        item
+        for item in durable_read_receipts
+        if not source_read_receipt_is_delivered(item)
+    ]
+    uncheckpointed_replays = uncheckpointed_source_read_replays(
+        workspace,
+        set_id=set_id,
+    )
+    read_receipts = sorted(
+        durable_read_receipts,
+        key=lambda item: (
+            str(item.get("source_ref") or ""),
+            int(item.get("start_offset") or 0),
+            str(item.get("receipt_ref") or ""),
+        ),
+    )
+    reading_notes = sorted(
+        [
+            item
+            for item in workspace.get("reading_notes") or []
+            if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
+        ],
+        key=lambda item: str(item.get("note_id") or ""),
+    )
+    assessments = sorted(
+        [
+            item
+            for item in workspace.get("source_assessments") or []
+            if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
+        ],
+        key=lambda item: str(item.get("source_ref") or ""),
+    )
+    findings = sorted(
+        [
+            item
+            for item in workspace.get("source_findings") or []
+            if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
+        ],
+        key=lambda item: str(item.get("finding_id") or ""),
+    )
+    outcomes = sorted(
+        [
+            item
+            for item in workspace.get("coverage_outcomes") or []
+            if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
+        ],
+        key=lambda item: str(item.get("question_id") or ""),
+    )
+    resolved_refs = {
+        str(item.get("source_ref") or "")
+        for item in assessments
+        if str(item.get("processing_status") or "resolved") == "resolved"
+        and (item.get("finding_ids") or str(item.get("no_findings_reason") or "").strip())
+    }
+    current_outcome_ids = {
+        str(item.get("question_id") or "")
+        for item in outcomes
+        if str(item.get("status") or "")
+        in {"covered", "partial", "missing", "conflicted", "deferred"}
+        and not bool(item.get("is_stale"))
+    }
+    required_question_ids = [str(value) for value in source_set.get("question_ids") or []]
+    records = [
+        *(
+            {"state_record_kind": "source_read_receipt", **part}
+            for item in read_receipts
+            for part in composite_record_parts(
+                _model_safe_source_read_receipt(item),
+                record_kind="source_read_receipt",
+                owner_ref=str(item.get("receipt_ref") or "source_read_receipt:unknown"),
+            )
+        ),
+        *(
+            {"state_record_kind": "reading_note", **part}
+            for item in reading_notes
+            for part in _reading_note_record_parts(_model_safe_reading_note(item))
+        ),
+        *(
+            {"state_record_kind": "source_analysis", **part}
+            for item in assessments
+            for part in composite_record_parts(
+                _model_safe_source_assessment(item),
+                record_kind="source_assessment",
+            )
+        ),
+        *(
+            {"state_record_kind": "source_finding", **part}
+            for item in findings
+            for part in composite_record_parts(
+                _model_safe_source_finding(item),
+                record_kind="source_finding",
+            )
+        ),
+        *(
+            {"state_record_kind": "question_outcome", **part}
+            for item in outcomes
+            for part in composite_record_parts(
+                _model_safe_coverage_outcome(item, source_ref_by_id={}),
+                record_kind="coverage_outcome",
+            )
+        ),
+    ]
+    page = records[cursor : cursor + limit]
+    return fit_model_page(
+        {
+            "accepted": True,
+            "section": "current_set_state",
+            "set_id": set_id,
+            "state": {
+                "pending_source_refs": [
+                    str(value)
+                    for value in source_set.get("source_refs") or []
+                    if str(value) not in resolved_refs
+                ],
+                "pending_exact_read_source_refs": [
+                    str(item.get("source_ref") or "")
+                    for item in source_set.get("pending_exact_reads") or []
+                    if isinstance(item, dict)
+                    and str(item.get("source_ref") or "")
+                    and str(item.get("source_ref") or "") not in resolved_refs
+                ],
+                "pending_discovered_question_attempts": [
+                    {
+                        "question_id": str(item.get("question_id") or ""),
+                        "requirement_ids": [
+                            str(value) for value in item.get("requirement_ids") or []
+                        ],
+                        "finding_ids": [str(value) for value in item.get("finding_ids") or []],
+                        "source_refs": [str(value) for value in item.get("source_refs") or []],
+                        "reviewed_source_refs": [
+                            str(value) for value in item.get("reviewed_source_refs") or []
+                        ],
+                    }
+                    for item in source_set.get("pending_discovered_question_attempts") or []
+                    if isinstance(item, dict)
+                ],
+                "required_question_ids": required_question_ids,
+                "missing_outcome_question_ids": [
+                    question_id
+                    for question_id in required_question_ids
+                    if question_id not in current_outcome_ids
+                ],
+                "stale_outcome_question_ids": [
+                    str(item.get("question_id") or "")
+                    for item in outcomes
+                    if bool(item.get("is_stale"))
+                ],
+                "saved_source_analysis_count": len(assessments),
+                "source_read_receipt_count": len(read_receipts),
+                "latest_source_read_receipts": [
+                    _model_safe_source_read_receipt(item)
+                    for item in latest_read_receipts
+                ],
+                "pending_source_read_receipts": [
+                    _model_safe_source_read_receipt(item)
+                    for item in pending_read_receipts
+                ],
+                "replay_required_after_activation": uncheckpointed_replays,
+                "saved_reading_note_count": len(reading_notes),
+                "saved_finding_count": len(findings),
+                "saved_outcome_count": len(outcomes),
+            },
+            "items": page,
+            "page": {
+                **_page_metadata(total=len(records), cursor=cursor, returned=len(page)),
+                "unit": "record_part",
+            },
         },
         requested_limit=limit,
         error_code="triage_workspace_item_exceeds_model_read_contract",
@@ -315,7 +727,135 @@ def _model_safe_coverage_question(item: dict[str, Any]) -> dict[str, Any]:
         "rationale": str(item.get("rationale") or ""),
         "parent_question_id": item.get("parent_question_id"),
         "origin": item.get("origin"),
+        "answer_requirements": [
+            {
+                "requirement_id": requirement.get("requirement_id"),
+                "description": str(requirement.get("description") or ""),
+                "rationale": str(requirement.get("rationale") or ""),
+            }
+            for requirement in item.get("answer_requirements") or []
+            if isinstance(requirement, dict)
+        ],
     }
+
+
+def _model_safe_source_read_receipt(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "receipt_ref": str(item.get("receipt_ref") or ""),
+        "set_id": str(item.get("set_id") or ""),
+        "source_ref": str(item.get("source_ref") or ""),
+        "start_offset": item.get("start_offset"),
+        "end_offset": item.get("end_offset"),
+        "total_chars": item.get("total_chars"),
+        "read_kind": str(item.get("read_kind") or ""),
+        "request": dict(item.get("request") or {}),
+        "delivery_status": source_read_receipt_delivery_status(item),
+        "next_cursor": str(item.get("next_cursor") or ""),
+        "eof": bool(item.get("eof")),
+        "created_at": item.get("created_at"),
+    }
+
+
+def _model_safe_reading_note(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "note_id": str(item.get("note_id") or ""),
+        "set_id": str(item.get("set_id") or ""),
+        "source_ref": str(item.get("source_ref") or ""),
+        "receipt_refs": [str(value) for value in item.get("receipt_refs") or []],
+        "what_was_read": str(item.get("what_was_read") or ""),
+        "what_was_established": str(item.get("what_was_established") or ""),
+        "boundaries": str(item.get("boundaries") or ""),
+        "unread_regions": str(item.get("unread_regions") or ""),
+        "why_unread_is_safe": str(item.get("why_unread_is_safe") or ""),
+        "question_links": [
+            {
+                "question_id": str(link.get("question_id") or ""),
+                "connection": str(link.get("connection") or ""),
+            }
+            for link in item.get("question_links") or []
+            if isinstance(link, dict)
+        ],
+        "doubts": [str(value) for value in item.get("doubts") or []],
+        "next_checks": [str(value) for value in item.get("next_checks") or []],
+        "created_at": item.get("created_at"),
+        "updated_at": item.get("updated_at"),
+    }
+
+
+def _reading_note_record_parts(note: dict[str, Any]) -> list[dict[str, Any]]:
+    """Page a note by whole semantic fields; no semantic scalar is ever sliced."""
+
+    owner_ref = str(note.get("note_id") or "reading_note:unknown")
+    receipt_refs = [str(value) for value in note.get("receipt_refs") or []]
+    question_links = [item for item in note.get("question_links") or [] if isinstance(item, dict)]
+    doubts = [str(value) for value in note.get("doubts") or []]
+    next_checks = [str(value) for value in note.get("next_checks") or []]
+    parts: list[dict[str, Any]] = [
+        {
+            "owner_ref": owner_ref,
+            "record_kind": "reading_note",
+            "part_kind": "core",
+            "note_id": note.get("note_id"),
+            "set_id": note.get("set_id"),
+            "source_ref": note.get("source_ref"),
+            "receipt_ref_count": len(receipt_refs),
+            "question_link_count": len(question_links),
+            "doubt_count": len(doubts),
+            "next_check_count": len(next_checks),
+            "created_at": note.get("created_at"),
+            "updated_at": note.get("updated_at"),
+        }
+    ]
+    for field in (
+        "what_was_read",
+        "what_was_established",
+        "boundaries",
+        "unread_regions",
+        "why_unread_is_safe",
+    ):
+        parts.append(
+            {
+                "owner_ref": owner_ref,
+                "record_kind": "reading_note",
+                "part_kind": "semantic_field",
+                "field": field,
+                "value": str(note.get(field) or ""),
+            }
+        )
+    parts.extend(
+        {
+            "owner_ref": owner_ref,
+            "record_kind": "reading_note",
+            "part_kind": "receipt_ref",
+            "index": index,
+            "receipt_ref": receipt_ref,
+        }
+        for index, receipt_ref in enumerate(receipt_refs)
+    )
+    parts.extend(
+        {
+            "owner_ref": owner_ref,
+            "record_kind": "reading_note",
+            "part_kind": "question_link",
+            "index": index,
+            "question_id": str(link.get("question_id") or ""),
+            "connection": str(link.get("connection") or ""),
+        }
+        for index, link in enumerate(question_links)
+    )
+    for field, values in (("doubts", doubts), ("next_checks", next_checks)):
+        parts.extend(
+            {
+                "owner_ref": owner_ref,
+                "record_kind": "reading_note",
+                "part_kind": "semantic_list_item",
+                "field": field,
+                "index": index,
+                "value": value,
+            }
+            for index, value in enumerate(values)
+        )
+    return parts
 
 
 def _model_safe_source_assessment(item: dict[str, Any]) -> dict[str, Any]:
@@ -338,6 +878,8 @@ def _model_safe_source_assessment(item: dict[str, Any]) -> dict[str, Any]:
         "coverage_question_ids": list(item.get("coverage_question_ids") or []),
         "editorial_functions": list(item.get("editorial_functions") or []),
         "evidence_ids": list(item.get("evidence_ids") or []),
+        "finding_ids": list(item.get("finding_ids") or []),
+        "no_findings_reason": str(item.get("no_findings_reason") or ""),
         "limitations": list(item.get("limitations") or []),
         "confidence": item.get("confidence"),
         "updated_at": item.get("updated_at"),
@@ -352,6 +894,44 @@ def _model_safe_source_assessment(item: dict[str, Any]) -> dict[str, Any]:
             payload["repair_baseline_unavailable_evidence_count"] = int(
                 item.get("repair_baseline_unavailable_evidence_count") or 0
             )
+    return payload
+
+
+def _model_safe_source_finding(item: dict[str, Any]) -> dict[str, Any]:
+    payload = {
+        "finding_id": str(item.get("finding_id") or ""),
+        "set_id": str(item.get("set_id") or ""),
+        "source_ref": str(item.get("source_ref") or ""),
+        "statement": str(item.get("statement") or ""),
+        "evidence_ids": [str(value) for value in item.get("evidence_ids") or []],
+        "scope": dict(item.get("scope") or {}),
+        "limitations": [str(value) for value in item.get("limitations") or []],
+        "question_links": [
+            {
+                "question_id": str(link.get("question_id") or ""),
+                "requirement_ids": [str(value) for value in link.get("requirement_ids") or []],
+                "rationale": str(link.get("rationale") or ""),
+            }
+            for link in item.get("question_links") or []
+            if isinstance(link, dict)
+        ],
+        "source_relations": [
+            {
+                "related_source_ref": str(
+                    relation.get("related_source_ref") or ""
+                ),
+                "relationship": relation.get("relationship"),
+                "rationale": str(relation.get("rationale") or ""),
+                "evidence_ids": [str(value) for value in relation.get("evidence_ids") or []],
+            }
+            for relation in item.get("source_relations") or []
+            if isinstance(relation, dict) and str(relation.get("related_source_ref") or "").strip()
+        ],
+        "semantic_revision": int(item.get("semantic_revision") or 0),
+        "updated_at": item.get("updated_at"),
+    }
+    if item.get("repair_baseline"):
+        payload["repair_baseline"] = True
     return payload
 
 
@@ -378,11 +958,29 @@ def _model_safe_coverage_outcome(
         "status": item.get("status"),
         "source_refs": source_refs,
         "evidence_ids": list(item.get("evidence_ids") or []),
+        "finding_ids": list(item.get("finding_ids") or []),
+        "requirement_results": [
+            {
+                "requirement_id": str(result.get("requirement_id") or ""),
+                "status": result.get("status"),
+                "finding_ids": [str(value) for value in result.get("finding_ids") or []],
+                "summary": str(result.get("summary") or ""),
+                "missing_detail": str(result.get("missing_detail") or ""),
+                "conflict_summary": str(result.get("conflict_summary") or ""),
+                "deferred_reason": str(result.get("deferred_reason") or ""),
+                "confidence": result.get("confidence"),
+                "next_action": result.get("next_action"),
+            }
+            for result in item.get("requirement_results") or []
+            if isinstance(result, dict)
+        ],
         "orientation_summary": str(item.get("orientation_summary") or ""),
         "missing_detail": str(item.get("missing_detail") or ""),
         "conflict_summary": str(item.get("conflict_summary") or ""),
         "deferred_reason": str(item.get("deferred_reason") or ""),
         "confidence": item.get("confidence"),
+        "semantic_revision": int(item.get("semantic_revision") or 0),
+        "is_stale": bool(item.get("is_stale")),
         "updated_at": item.get("updated_at"),
     }
     if item.get("repair_baseline"):
@@ -441,6 +1039,11 @@ def _coverage_question_packet_page(
         [item for item in workspace.get("coverage_outcomes") or [] if isinstance(item, dict)],
         key=lambda item: _canonical_item_identity("coverage_outcomes", item),
     )
+    question_ids = {str(item.get("question_id") or "") for item in questions}
+    overlap_parts_by_question = _cross_question_overlap_parts(
+        [item for item in outcomes if str(item.get("question_id") or "") in question_ids],
+        source_ref_by_id=source_ref_by_id,
+    )
     syntheses = {
         str(item.get("question_id") or ""): item
         for item in workspace.get("coverage_syntheses") or []
@@ -464,26 +1067,29 @@ def _coverage_question_packet_page(
             source_ref_by_id=source_ref_by_id,
         )
         existing = syntheses.get(question_id)
-        packet_parts.append(
-            {
-                "packet_ref": packet_ref,
-                "part_kind": "question",
-                "question": _model_safe_coverage_question(question),
-                "per_set_outcome_count": len(question_outcomes),
-                "derived_lineage": {
-                    "backend_derived": True,
-                    "for_covered_partial_or_conflicted": {
-                        "outcome_count": len(active_outcome_refs),
-                        "source_count": len(active_sources),
-                        "evidence_count": len(active_evidence),
-                    },
-                    "for_missing_or_deferred": {
-                        "outcome_count": len(closed_outcome_refs),
-                        "source_count": len(closed_sources),
-                        "evidence_count": len(closed_evidence),
+        packet_parts.extend(
+            _packet_composite_record_parts(
+                packet_ref=packet_ref,
+                packet_part_kind="question",
+                record=_model_safe_coverage_question(question),
+                record_kind="coverage_question",
+                packet_metadata={
+                    "per_set_outcome_count": len(question_outcomes),
+                    "derived_lineage": {
+                        "backend_derived": True,
+                        "for_covered_partial_or_conflicted": {
+                            "outcome_count": len(active_outcome_refs),
+                            "source_count": len(active_sources),
+                            "evidence_count": len(active_evidence),
+                        },
+                        "for_missing_or_deferred": {
+                            "outcome_count": len(closed_outcome_refs),
+                            "source_count": len(closed_sources),
+                            "evidence_count": len(closed_evidence),
+                        },
                     },
                 },
-            }
+            )
         )
         existing_synthesis = (
             _model_safe_coverage_synthesis(
@@ -513,6 +1119,7 @@ def _coverage_question_packet_page(
                     ),
                 )
             )
+        packet_parts.extend(overlap_parts_by_question.get(question_id, []))
     page_parts = packet_parts[cursor : cursor + limit]
     return fit_model_page(
         {
@@ -521,11 +1128,101 @@ def _coverage_question_packet_page(
             "packet_contract": "ordered_parts_v1",
             "question_count": len(questions),
             "items": page_parts,
-            "page": _page_metadata(total=len(packet_parts), cursor=cursor, returned=len(page_parts)),
+            "page": {
+                **_page_metadata(total=len(packet_parts), cursor=cursor, returned=len(page_parts)),
+                "unit": "packet_part",
+            },
         },
         requested_limit=limit,
         error_code="triage_workspace_item_exceeds_model_read_contract",
     )
+
+
+def _cross_question_overlap_parts(
+    outcomes: list[dict[str, Any]],
+    *,
+    source_ref_by_id: dict[str, str],
+) -> dict[str, list[dict[str, Any]]]:
+    """Expose factual lineage intersections without deciding what they mean."""
+
+    model_outcomes = [
+        _model_safe_coverage_outcome(item, source_ref_by_id=source_ref_by_id)
+        for item in outcomes
+    ]
+    model_outcomes.sort(
+        key=lambda item: (
+            str(item.get("question_id") or ""),
+            str(item.get("set_id") or ""),
+            str(item.get("outcome_ref") or ""),
+        )
+    )
+    question_id_by_outcome_ref: dict[str, str] = {}
+    memberships: dict[tuple[str, str], dict[str, None]] = {}
+    for outcome in model_outcomes:
+        question_id = str(outcome.get("question_id") or "")
+        outcome_ref = str(outcome.get("outcome_ref") or "")
+        if not question_id or not outcome_ref:
+            continue
+        question_id_by_outcome_ref[outcome_ref] = question_id
+        factual_keys = [
+            *(("shared_set_ids", str(outcome.get("set_id") or "")),),
+            *(
+                ("source_refs", str(value))
+                for value in outcome.get("source_refs") or []
+                if str(value).strip()
+            ),
+            *(
+                ("evidence_ids", str(value))
+                for value in outcome.get("evidence_ids") or []
+                if str(value).strip()
+            ),
+        ]
+        for field, value in factual_keys:
+            if value:
+                memberships.setdefault((field, value), {})[outcome_ref] = None
+
+    grouped_keys: dict[tuple[str, ...], dict[str, list[str]]] = {}
+    for (field, value), members in sorted(memberships.items()):
+        outcome_refs = tuple(members)
+        question_ids = {question_id_by_outcome_ref[ref] for ref in outcome_refs}
+        if len(question_ids) < 2:
+            continue
+        grouped_keys.setdefault(
+            outcome_refs,
+            {"shared_set_ids": [], "source_refs": [], "evidence_ids": []},
+        )[field].append(value)
+
+    parts_by_question: dict[str, list[dict[str, Any]]] = {}
+    for outcome_refs, shared_keys in sorted(grouped_keys.items()):
+        question_ids = list(
+            dict.fromkeys(question_id_by_outcome_ref[outcome_ref] for outcome_ref in outcome_refs)
+        )
+        question_refs = [f"coverage_question:{question_id}" for question_id in question_ids]
+        overlap_digest = sha256("\x1f".join(outcome_refs).encode()).hexdigest()
+        record = {
+            "overlap_ref": f"cross_overlap:{overlap_digest}",
+            "question_refs": question_refs,
+            "outcome_refs": list(outcome_refs),
+            **shared_keys,
+        }
+        anchor_question_id = question_ids[-1]
+        # Anchor after the latest referenced question so all outcome records have
+        # already appeared. Identical memberships share one compact record.
+        parts_by_question.setdefault(anchor_question_id, []).extend(
+            _packet_record_parts(
+                packet_ref=f"coverage_question:{anchor_question_id}",
+                part_kind="cross_question_overlap",
+                record=record,
+                lineage_fields=(
+                    ("question_refs", "question_ref_count"),
+                    ("outcome_refs", "outcome_ref_count"),
+                    ("shared_set_ids", "shared_set_id_count"),
+                    ("source_refs", "source_ref_count"),
+                    ("evidence_ids", "evidence_id_count"),
+                ),
+            )
+        )
+    return parts_by_question
 
 
 def _packet_record_parts(
@@ -533,45 +1230,131 @@ def _packet_record_parts(
     packet_ref: str,
     part_kind: str,
     record: dict[str, Any] | None,
+    lineage_fields: tuple[tuple[str, str], ...] = (
+        ("source_refs", "source_ref_count"),
+        ("evidence_ids", "evidence_id_count"),
+    ),
 ) -> list[dict[str, Any]]:
+    owner_ref = _packet_record_owner_ref(
+        packet_ref=packet_ref,
+        part_kind=part_kind,
+        record=record,
+    )
     full_part = {
         "packet_ref": packet_ref,
         "part_kind": part_kind,
+        "owner_ref": owner_ref,
         part_kind: record,
     }
     if record is None or _packet_part_fits(full_part):
         return [full_part]
 
-    source_refs = [str(value) for value in record.get("source_refs") or []]
-    evidence_ids = [str(value) for value in record.get("evidence_ids") or []]
+    if part_kind in {"existing_synthesis", "per_set_outcome"}:
+        semantic_record = dict(record)
+        lineage_values = {
+            field: [str(value) for value in semantic_record.pop(field, []) or []]
+            for field, _count_field in lineage_fields
+        }
+        parts = _packet_composite_record_parts(
+            packet_ref=packet_ref,
+            packet_part_kind=part_kind,
+            record=semantic_record,
+            record_kind=(
+                "coverage_synthesis" if part_kind == "existing_synthesis" else "coverage_outcome"
+            ),
+            owner_ref=owner_ref,
+            packet_metadata={
+                count_field: len(lineage_values[field])
+                for field, count_field in lineage_fields
+            },
+        )
+        if any(lineage_values.values()):
+            parts.extend(
+                _packet_lineage_parts(
+                    packet_ref=packet_ref,
+                    owner_kind=part_kind,
+                    owner_ref=owner_ref,
+                    lineage_values=lineage_values,
+                )
+            )
+        return parts
+
+    lineage_values = {
+        field: [str(value) for value in record.get(field) or []]
+        for field, _count_field in lineage_fields
+    }
     semantic_record = dict(record)
-    semantic_record.pop("source_refs", None)
-    semantic_record.pop("evidence_ids", None)
+    for field, _count_field in lineage_fields:
+        semantic_record.pop(field, None)
     semantic_part = {
         "packet_ref": packet_ref,
         "part_kind": part_kind,
+        "owner_ref": owner_ref,
         part_kind: semantic_record,
-        "source_ref_count": len(source_refs),
-        "evidence_id_count": len(evidence_ids),
-        "lineage_continues": bool(source_refs or evidence_ids),
+        **{
+            count_field: len(lineage_values[field])
+            for field, count_field in lineage_fields
+        },
+        "lineage_continues": any(lineage_values.values()),
     }
     parts = [semantic_part]
-    if source_refs or evidence_ids:
+    if any(lineage_values.values()):
         parts.extend(
             _packet_lineage_parts(
                 packet_ref=packet_ref,
                 owner_kind=part_kind,
-                owner_ref=str(
-                    record.get("outcome_ref")
-                    or record.get("synthesis_ref")
-                    or record.get("question_id")
-                    or ""
-                ),
-                source_refs=source_refs,
-                evidence_ids=evidence_ids,
+                owner_ref=owner_ref,
+                lineage_values=lineage_values,
             )
         )
     return parts
+
+
+def _packet_composite_record_parts(
+    *,
+    packet_ref: str,
+    packet_part_kind: str,
+    record: dict[str, Any],
+    record_kind: str,
+    owner_ref: str | None = None,
+    packet_metadata: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    metadata = dict(packet_metadata or {})
+    return [
+        {
+            "packet_ref": packet_ref,
+            "part_kind": packet_part_kind,
+            "owner_ref": part.get("owner_ref"),
+            "record_part_kind": part.get("part_kind"),
+            packet_part_kind: part,
+            **metadata,
+        }
+        for part in composite_record_parts(
+            record,
+            record_kind=record_kind,
+            owner_ref=owner_ref,
+        )
+    ]
+
+
+def _packet_record_owner_ref(
+    *,
+    packet_ref: str,
+    part_kind: str,
+    record: dict[str, Any] | None,
+) -> str:
+    if record is not None:
+        for field in (
+            "overlap_ref",
+            "outcome_ref",
+            "synthesis_ref",
+            "finding_id",
+            "question_id",
+        ):
+            value = str(record.get(field) or "")
+            if value:
+                return value
+    return f"{packet_ref}:{part_kind}"
 
 
 def _packet_lineage_parts(
@@ -579,11 +1362,13 @@ def _packet_lineage_parts(
     packet_ref: str,
     owner_kind: str,
     owner_ref: str,
-    source_refs: list[str],
-    evidence_ids: list[str],
+    lineage_values: dict[str, list[str]],
 ) -> list[dict[str, Any]]:
-    entries = [("source_ref", value) for value in source_refs]
-    entries.extend(("evidence_id", value) for value in evidence_ids)
+    entries = [
+        (field, value)
+        for field, values in lineage_values.items()
+        for value in values
+    ]
     total = len(entries)
     parts: list[dict[str, Any]] = []
     offset = 0
@@ -597,6 +1382,7 @@ def _packet_lineage_parts(
                 owner_kind=owner_kind,
                 owner_ref=owner_ref,
                 entries=candidate_entries,
+                fields=tuple(lineage_values),
                 cursor=offset,
                 total=total,
             )
@@ -612,6 +1398,7 @@ def _packet_lineage_parts(
                 owner_kind=owner_kind,
                 owner_ref=owner_ref,
                 entries=entries[offset : offset + 1],
+                fields=tuple(lineage_values),
                 cursor=offset,
                 total=total,
             )
@@ -627,19 +1414,20 @@ def _packet_lineage_part(
     owner_kind: str,
     owner_ref: str,
     entries: list[tuple[str, str]],
+    fields: tuple[str, ...],
     cursor: int,
     total: int,
 ) -> dict[str, Any]:
-    source_refs = [value for kind, value in entries if kind == "source_ref"]
-    evidence_ids = [value for kind, value in entries if kind == "evidence_id"]
     returned = len(entries)
     return {
         "packet_ref": packet_ref,
         "part_kind": "lineage",
         "owner_kind": owner_kind,
         "owner_ref": owner_ref,
-        "source_refs": source_refs,
-        "evidence_ids": evidence_ids,
+        **{
+            field: [value for entry_field, value in entries if entry_field == field]
+            for field in fields
+        },
         "lineage_page": {
             "total_count": total,
             "returned_count": returned,
@@ -658,7 +1446,10 @@ def _packet_part_fits(part: dict[str, Any]) -> bool:
             "packet_contract": "ordered_parts_v1",
             "question_count": 1,
             "items": [part],
-            "page": _page_metadata(total=1, cursor=0, returned=1),
+            "page": {
+                **_page_metadata(total=1, cursor=0, returned=1),
+                "unit": "packet_part",
+            },
         },
         requested_limit=TRIAGE_WORKSPACE_MAX_PAGE_LIMIT,
         error_code="triage_workspace_item_exceeds_model_read_contract",
@@ -676,6 +1467,7 @@ def _source_set_page_tool(
     workspace: dict[str, Any],
     current_set_id: str | None = None,
     include_evidence_ids: bool = False,
+    track_finalizer_review: bool = False,
 ) -> AgentTool:
     async def handler(args: dict[str, Any]) -> dict[str, Any]:
         current = await load_source_triage_workspace(db, run.id) or workspace
@@ -697,14 +1489,38 @@ def _source_set_page_tool(
             return _full_source_map_repair_page(current, cursor=cursor, limit=limit)
         if section == "coverage_question_packets":
             return _coverage_question_packet_page(current, cursor=cursor, limit=limit)
-        if section in {"coverage_questions", "source_assessments", "coverage_outcomes", "coverage_syntheses"}:
-            return _full_canonical_item_page(
+        if section in {
+            "coverage_questions",
+            "source_read_receipts",
+            "reading_notes",
+            "source_assessments",
+            "source_findings",
+            "coverage_outcomes",
+            "coverage_syntheses",
+        }:
+            payload = _full_canonical_item_page(
                 current,
                 section=section,
                 cursor=cursor,
                 limit=limit,
                 current_set_id=current_set_id,
             )
+            if (
+                track_finalizer_review
+                and section in FINALIZER_REVIEW_SECTIONS
+                and payload.get("accepted") is True
+            ):
+                _record_finalizer_review_page(
+                    current,
+                    section=section,
+                    page_payload=payload,
+                )
+                await save_source_triage_workspace(
+                    db,
+                    generation_run_id=run.id,
+                    workspace=current,
+                )
+            return payload
         if section == "sets":
             payload = _workspace.workspace_summary_for_prompt(current, max_sets=limit, set_cursor=cursor)
             return fit_model_page(
@@ -732,7 +1548,19 @@ def _source_set_page_tool(
         )
         source_set = _workspace._workspace_set(current, requested_set_id) if requested_set_id else None
         if source_set is None:
-            return {"accepted": False, "error": "triage_source_set_not_found", "set_id": requested_set_id}
+            return {
+                "accepted": False,
+                "error": "triage_source_set_not_found",
+                "set_id": requested_set_id,
+                "next_action": "Page section=sets and copy an exact set_id.",
+            }
+        if section == "current_set_state":
+            return _current_set_state_page(
+                current,
+                source_set,
+                cursor=cursor,
+                limit=limit,
+            )
         if section == "current_set":
             items = [_full_source_set_item(source_set)] if cursor == 0 else []
             return _checked_page_output(
@@ -773,15 +1601,37 @@ def _source_set_page_tool(
                 requested_limit=limit,
                 error_code="triage_workspace_item_exceeds_model_read_contract",
             )
-        return {"accepted": False, "error": "unknown_triage_workspace_section", "section": section}
+        return {
+            "accepted": False,
+            "error": "unknown_triage_workspace_section",
+            "section": section,
+            "next_action": "Use one of allowed_sections and follow page.next_cursor.",
+            "allowed_sections": [
+                "sets",
+                "plan_summary",
+                "deferred_sources",
+                "source_map_repairs",
+                "coverage_question_packets",
+                "coverage_questions",
+                "source_read_receipts",
+                "reading_notes",
+                "source_assessments",
+                "source_findings",
+                "coverage_outcomes",
+                "coverage_syntheses",
+                "current_set_state",
+                "current_set",
+                "assigned_questions",
+            ],
+        }
 
     return AgentTool(
         name="list_triage_source_sets",
         description=(
-            "Page compact source-set listings or full durable records after compact context/checkpoint "
-            "truncation. Finalizers should use coverage_question_packets and follow next_cursor through its "
-            "ordered question, existing-synthesis, per-set-outcome, and optional lineage parts. Semantic "
-            "records are always whole; large packets continue in this same section."
+            "Read one section of durable triage state. Choose the section needed for the current task and follow "
+            "page.next_cursor until it is empty. Composite records may be returned as ordered, reconstructable "
+            "parts keyed by owner_ref and part_kind. Semantic scalars remain whole; an individually oversized scalar "
+            "returns an explicit validation error."
         ),
         parameters={
             "type": "object",
@@ -806,12 +1656,15 @@ def _source_set_page_tool(
                         "source_map_repairs",
                         "coverage_question_packets",
                         "coverage_questions",
+                        "source_read_receipts",
+                        "reading_notes",
                         "source_assessments",
+                        "source_findings",
                         "coverage_outcomes",
                         "coverage_syntheses",
+                        "current_set_state",
                         "current_set",
                         "assigned_questions",
-                        "observations",
                     ],
                 },
                 "set_id": {"type": "string"},
@@ -902,7 +1755,7 @@ def build_workspace_tools(
     async def set_resume_loader() -> AgentTerminalResult | None:
         current = await load_source_triage_workspace(db, run.id) or workspace
         source_set = _workspace._workspace_set(current, str(current_set_id or ""))
-        if source_set is None or source_set.get("status") not in {"mapped", "deferred", "needs_repair"}:
+        if source_set is None or source_set.get("status") not in {"mapped", "deferred"}:
             return None
         deferred_reason = str(source_set.get("deferred_reason") or "").strip()
         return AgentTerminalResult(
@@ -938,19 +1791,27 @@ def build_workspace_tools(
         )
         tools.extend(
             source_triage_set_tools(
-                handlers.record_triage_observation_tool,
                 handlers.upsert_source_assessment_tool,
                 handlers.upsert_coverage_outcome_tool,
                 handlers.finish_triage_source_set_tool,
+                save_reading_note_handler=handlers.save_reading_note_tool,
                 terminal_resume_loader=set_resume_loader,
             )
         )
     if mode == "finalizer":
-        tools.append(_source_set_page_tool(db=db, run=run, workspace=workspace))
+        tools.append(
+            _source_set_page_tool(
+                db=db,
+                run=run,
+                workspace=workspace,
+                track_finalizer_review=True,
+            )
+        )
         tools.extend(
             source_triage_finalizer_tools(
                 handlers.finish_triage_source_set_tool,
-                handlers.upsert_source_assessment_tool,
+                handlers.update_source_finding_links_tool,
+                handlers.update_source_finding_relations_tool,
                 handlers.upsert_coverage_outcome_tool,
                 handlers.upsert_coverage_synthesis_tool,
             )

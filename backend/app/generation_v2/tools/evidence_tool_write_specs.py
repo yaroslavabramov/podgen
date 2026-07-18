@@ -24,8 +24,23 @@ def _strings(tool_name: str, field: str) -> dict[str, Any]:
 
 
 def evidence_write_tools(owner: Any) -> list[AgentTool]:
+    def source_map_terminal_completion(
+        arguments: dict[str, Any],
+        output: dict[str, Any],
+    ) -> SourceTriageCompletion:
+        payload = output.get("terminal_completion")
+        if isinstance(payload, dict):
+            return SourceTriageCompletion.model_validate(payload)
+        # Compatibility for the legacy non-workspace finalizer path.
+        return SourceTriageCompletion(
+            ready=True,
+            summary=str(arguments.get("summary") or "Source map finalized."),
+            notes=[],
+        )
+
     async def source_map_resume_loader() -> AgentTerminalResult | None:
         from app.generation_v2.source_triage_workspace_persistence import load_source_triage_workspace
+        from app.generation_v2.source_triage_lineage import coverage_terminal_completion_payload
 
         workspace = await load_source_triage_workspace(owner.db, owner.run.id)
         finalization = (workspace or {}).get("source_map_finalization") or {}
@@ -33,10 +48,8 @@ def evidence_write_tools(owner: Any) -> list[AgentTool]:
             return None
         return AgentTerminalResult(
             accepted=True,
-            completion=SourceTriageCompletion(
-                ready=True,
-                summary=str(finalization.get("summary") or "Source map already finalized."),
-                notes=[],
+            completion=SourceTriageCompletion.model_validate(
+                coverage_terminal_completion_payload(finalization)
             ),
         )
 
@@ -128,6 +141,11 @@ def evidence_write_tools(owner: Any) -> list[AgentTool]:
                             "updates",
                             "background_for",
                         ],
+                        "description": (
+                            "Direction is source_ref -> related_source_ref: primary_to_secondary means source_ref "
+                            "is the primary/original; updates means source_ref updates related_source_ref; "
+                            "background_for means source_ref provides background for related_source_ref."
+                        ),
                     },
                     "evidence_ids": _strings("record_source_relationship", "evidence_ids"),
                     "rationale": _text("record_source_relationship", "rationale"),
@@ -259,11 +277,7 @@ def evidence_write_tools(owner: Any) -> list[AgentTool]:
             },
             handler=owner.finalize_source_map_tool,
             terminal=True,
-            terminal_result_builder=lambda arguments, _output: SourceTriageCompletion(
-                ready=True,
-                summary=str(arguments.get("summary") or "Source map finalized."),
-                notes=[],
-            ),
+            terminal_result_builder=source_map_terminal_completion,
             terminal_resume_loader=source_map_resume_loader,
         ),
     ]

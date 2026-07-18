@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import uuid
 from types import SimpleNamespace
 
@@ -7,8 +8,13 @@ import pytest
 
 from app.generation_v2.tools.evidence_local_windows import (
     read_source_window,
+    sequential_source_window_page,
     source_allows_timestamp_locators,
     source_windows,
+)
+from app.generation_v2.tools.evidence_exact_read import (
+    evidence_has_current_exact_read,
+    mark_evidence_exact_read,
 )
 from app.generation_v2.tools.evidence_model_window_refs import (
     register_model_window_ref,
@@ -132,6 +138,336 @@ def test_unstructured_skim_samples_across_a_long_single_paragraph() -> None:
     assert windows[0].start_offset == 0
     assert windows[-1].end_offset == len(text)
     assert len({window.start_offset for window in windows}) == 4
+
+
+@pytest.mark.asyncio
+async def test_structural_outline_does_not_hide_broad_source_coverage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2.tools import evidence_local_windows as windows_module
+
+    prefix = " ".join(f"opening-{idx}" for idx in range(900))
+    text = f"{prefix}\n\nAppendix\n\nThe late appendix material."
+    version = _version(kind=SourceRepresentationKind.EXTRACTED_TEXT)
+    monkeypatch.setattr(windows_module, "_source_version_text", lambda _version: text)
+
+    windows = await source_windows(SimpleNamespace(db=_SourceDb()), version, max_windows=4)
+    starts = [parse_window_ref(item["window_ref"]).start_offset for item in windows]
+    ends = [parse_window_ref(item["window_ref"]).end_offset for item in windows]
+
+    assert starts[0] == 0
+    assert max(ends) == len(text)
+    assert any(item["locator_text"] == "Appendix" for item in windows)
+
+
+@pytest.mark.asyncio
+async def test_sequential_source_pages_reconstruct_long_single_section_losslessly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2.tools import evidence_local_windows as windows_module
+
+    text = "".join(f"segment-{idx:04d}|" for idx in range(1800))
+    version = _version(kind=SourceRepresentationKind.EXTRACTED_TEXT)
+    owner = SimpleNamespace(db=_SourceDb())
+    monkeypatch.setattr(windows_module, "_source_version_text", lambda _version: text)
+
+    cursor = ""
+    reconstructed = ""
+    while True:
+        page = await sequential_source_window_page(
+            owner,
+            version,
+            cursor=cursor,
+            max_windows=3,
+            max_chars=700,
+        )
+        reconstructed += "".join(item["snippet_text"] for item in page["windows"])
+        cursor = page["next_cursor"]
+        if not cursor:
+            break
+
+    assert reconstructed == text
+
+
+@pytest.mark.asyncio
+async def test_inspect_source_exposes_contiguous_continuation_until_eof(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2.tools import evidence_local_source as source_module
+    from app.generation_v2.tools import evidence_local_windows as windows_module
+    from app.generation_v2.tools.evidence import EvidenceToolset
+
+    text = "".join(f"part-{idx:04d}|" for idx in range(1000))
+    version = _version(kind=SourceRepresentationKind.EXTRACTED_TEXT)
+    toolset = EvidenceToolset(
+        db=SimpleNamespace(),  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4(), project_id=version.project_id),
+        run_view=SimpleNamespace(
+            selected_source_ids=[str(version.source_id)],
+            selected_source_version_ids=[str(version.id)],
+        ),
+        provider_index=None,
+    )
+
+    async def no_error(*_args, **_kwargs):
+        return None
+
+    async def resolve(**_kwargs):
+        return version
+
+    async def source_ref(_source_id):
+        return "S01"
+
+    monkeypatch.setattr(windows_module, "_source_version_text", lambda _version: text)
+    monkeypatch.setattr(source_module, "_source_version_text", lambda _version: text)
+    monkeypatch.setattr(toolset, "_triage_read_guard_error", no_error)
+    monkeypatch.setattr(toolset, "_invalid_source_or_version_ref_error", no_error)
+    monkeypatch.setattr(toolset, "_resolve_source_version", resolve)
+    monkeypatch.setattr(toolset, "_source_ref_for_id", source_ref)
+
+    cursor = ""
+    previous_end = 0
+    while True:
+        result = await toolset.inspect_source_tool(
+            {"source_ref": "S01", "max_items": 2, "cursor": cursor}
+        )
+        assert result["found"] is True
+        assert result["page_start"] == previous_end
+        previous_end = result["page_end"]
+        cursor = result["next_cursor"]
+        if not cursor:
+            break
+
+    assert previous_end == len(text)
+
+
+@pytest.mark.asyncio
+async def test_invalid_window_handle_returns_a_concrete_working_handle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2.tools import evidence_local_source as source_module
+    from app.generation_v2.tools import evidence_local_windows as windows_module
+    from app.generation_v2.tools.evidence import EvidenceToolset
+
+    text = "Concrete readable source text."
+    version = _version(kind=SourceRepresentationKind.EXTRACTED_TEXT)
+    toolset = EvidenceToolset(
+        db=SimpleNamespace(),  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4(), project_id=version.project_id),
+        run_view=SimpleNamespace(
+            selected_source_ids=[str(version.source_id)],
+            selected_source_version_ids=[str(version.id)],
+        ),
+        provider_index=None,
+    )
+
+    async def no_error(*_args, **_kwargs):
+        return None
+
+    async def resolve(**_kwargs):
+        return version
+
+    async def source_ref(_source_id):
+        return "S01"
+
+    monkeypatch.setattr(windows_module, "_source_version_text", lambda _version: text)
+    monkeypatch.setattr(source_module, "_source_version_text", lambda _version: text)
+    monkeypatch.setattr(toolset, "_triage_read_guard_error", no_error)
+    monkeypatch.setattr(toolset, "_resolve_source_version", resolve)
+    monkeypatch.setattr(toolset, "_source_ref_for_id", source_ref)
+
+    result = await toolset.read_source_window_tool(
+        {
+            "source_ref": "S01",
+            "window_ref": "W:S01:invented",
+            "locator": "",
+            "max_chars": 1000,
+        }
+    )
+
+    assert result["found"] is False
+    assert result["error"] == "invalid_window_ref"
+    available = result["available_window_ref"]
+    canonical = resolve_model_window_ref(toolset, available)
+    assert canonical is not None
+    assert parse_window_ref(canonical).source_version_id == version.id
+
+
+@pytest.mark.asyncio
+async def test_inspect_source_caps_requested_page_to_model_output_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2.runtime_tool_output import model_facing_tool_output
+    from app.generation_v2.tools import evidence_local_source as source_module
+    from app.generation_v2.tools import evidence_local_windows as windows_module
+    from app.generation_v2.tools.evidence import EvidenceToolset
+
+    heading = "H" * 110
+    chunk = f"{heading}\n" + "x" * (1600 - len(heading) - 1)
+    text = chunk * 40
+    version = _version(kind=SourceRepresentationKind.EXTRACTED_TEXT)
+    toolset = EvidenceToolset(
+        db=SimpleNamespace(),  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4(), project_id=version.project_id),
+        run_view=SimpleNamespace(
+            selected_source_ids=[str(version.source_id)],
+            selected_source_version_ids=[str(version.id)],
+        ),
+        provider_index=None,
+    )
+
+    async def no_error(*_args, **_kwargs):
+        return None
+
+    async def resolve(**_kwargs):
+        return version
+
+    async def source_ref(_source_id):
+        return "S01"
+
+    monkeypatch.setattr(windows_module, "_source_version_text", lambda _version: text)
+    monkeypatch.setattr(source_module, "_source_version_text", lambda _version: text)
+    monkeypatch.setattr(toolset, "_triage_read_guard_error", no_error)
+    monkeypatch.setattr(toolset, "_invalid_source_or_version_ref_error", no_error)
+    monkeypatch.setattr(toolset, "_resolve_source_version", resolve)
+    monkeypatch.setattr(toolset, "_source_ref_for_id", source_ref)
+
+    result = await toolset.inspect_source_tool(
+        {"source_ref": "S01", "max_items": 40, "cursor": ""}
+    )
+
+    assert len(result["items"]) == 24
+    assert result["next_cursor"]
+    assert model_facing_tool_output("inspect_source", result) == result
+
+
+@pytest.mark.asyncio
+async def test_read_source_window_guard_uses_resolved_source_when_input_ref_is_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2.tools.evidence import EvidenceToolset
+
+    version = _version(kind=SourceRepresentationKind.EXTRACTED_TEXT)
+    text = "Exact source window."
+    canonical_ref = create_window_ref(
+        source_version_id=version.id,
+        text=text,
+        start_offset=0,
+        end_offset=len(text),
+    )
+    toolset = EvidenceToolset(
+        db=SimpleNamespace(),  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4(), project_id=version.project_id),
+        run_view=SimpleNamespace(
+            selected_source_ids=[str(version.source_id)],
+            selected_source_version_ids=[str(version.id)],
+        ),
+        provider_index=None,
+    )
+    handle = register_model_window_ref(toolset, source_ref="S02", canonical_ref=canonical_ref)
+    guarded: list[dict] = []
+
+    async def no_error(*_args, **_kwargs):
+        return None
+
+    async def resolve(**_kwargs):
+        return version
+
+    async def source_ref(_source_id):
+        return "S02"
+
+    async def guard(**kwargs):
+        guarded.append(kwargs)
+        return {"outcome_kind": "control", "control_code": "blocked"}
+
+    monkeypatch.setattr(toolset, "_invalid_source_or_version_ref_error", no_error)
+    monkeypatch.setattr(toolset, "_resolve_source_version", resolve)
+    monkeypatch.setattr(toolset, "_source_ref_for_id", source_ref)
+    monkeypatch.setattr(toolset, "_triage_read_guard_error", guard)
+
+    result = await toolset.read_source_window_tool(
+        {
+            "source_ref": "",
+            "window_ref": handle,
+            "locator": "",
+            "max_chars": 1000,
+        }
+    )
+
+    assert result["control_code"] == "blocked"
+    assert guarded == [{"target_source_refs": ["S02"], "exact_read": True}]
+
+
+@pytest.mark.asyncio
+async def test_stale_signed_window_ref_returns_current_working_handle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2.tools.evidence import EvidenceToolset
+
+    current = _version(kind=SourceRepresentationKind.EXTRACTED_TEXT)
+    stale_version_id = uuid.uuid4()
+    stale_text = "Old source representation."
+    current_text = "Current readable source representation."
+    stale_ref = create_window_ref(
+        source_version_id=stale_version_id,
+        text=stale_text,
+        start_offset=0,
+        end_offset=len(stale_text),
+    )
+    current_ref = create_window_ref(
+        source_version_id=current.id,
+        text=current_text,
+        start_offset=0,
+        end_offset=len(current_text),
+    )
+    toolset = EvidenceToolset(
+        db=SimpleNamespace(),  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4(), project_id=current.project_id),
+        run_view=SimpleNamespace(
+            selected_source_ids=[str(current.source_id)],
+            selected_source_version_ids=[str(current.id)],
+        ),
+        provider_index=None,
+    )
+
+    async def no_error(*_args, **_kwargs):
+        return None
+
+    async def resolve(**kwargs):
+        if kwargs.get("source_version_id"):
+            return None
+        return current
+
+    async def source_ref(_source_id):
+        return "S01"
+
+    async def current_page(_version, **_kwargs):
+        return {
+            "windows": [{"window_ref": current_ref}],
+            "next_cursor": "",
+            "total_chars": len(current_text),
+            "page_start": 0,
+            "page_end": len(current_text),
+        }
+
+    monkeypatch.setattr(toolset, "_invalid_source_or_version_ref_error", no_error)
+    monkeypatch.setattr(toolset, "_resolve_source_version", resolve)
+    monkeypatch.setattr(toolset, "_source_ref_for_id", source_ref)
+    monkeypatch.setattr(toolset, "_sequential_source_window_page", current_page)
+
+    result = await toolset.read_source_window_tool(
+        {
+            "source_ref": "S01",
+            "window_ref": stale_ref,
+            "locator": "",
+            "max_chars": 1000,
+        }
+    )
+
+    assert result["found"] is False
+    assert result["error"] == "window_ref_invalid_or_stale"
+    available = result["available_window_ref"]
+    assert resolve_model_window_ref(toolset, available) == current_ref
 
 
 @pytest.mark.asyncio
@@ -306,6 +642,8 @@ async def test_skim_returns_window_refs_without_persisting_evidence(monkeypatch:
     result = await actions.skim_source(owner, {"source_ref": "S01", "max_windows": 3})
 
     assert result["found"] is True
+    assert result["support_status"] == "preview_only"
+    assert result["exact_read_next_action"] == "read_source_window"
     assert len(result["windows"]) == 3
     assert all("window_ref" in item for item in result["windows"])
     assert [item["window_ref"] for item in result["windows"]] == [
@@ -330,6 +668,150 @@ def test_short_model_window_refs_are_stable_and_reject_invented_handles() -> Non
     assert first == second == "W:S07:1"
     assert resolve_model_window_ref(owner, first) == canonical
     assert resolve_model_window_ref(owner, "W:S07:2") is None
+
+
+@pytest.mark.asyncio
+async def test_exact_read_provenance_is_durable_and_attempt_scoped() -> None:
+    db = _PersistenceDb()
+    run_id = uuid.uuid4()
+    version_id = uuid.uuid4()
+    evidence = SimpleNamespace(
+        id=uuid.uuid4(),
+        source_version_id=version_id,
+        snippet_text="Exact persisted passage.",
+        metadata_={"source_internal_search": True},
+    )
+    owner = SimpleNamespace(
+        db=db,
+        run=SimpleNamespace(id=run_id),
+        run_view=SimpleNamespace(revision=3, attempt=2),
+    )
+
+    assert evidence_has_current_exact_read(owner, evidence) is False
+    assert await mark_evidence_exact_read(owner, evidence, method="read_evidence") is True
+    provenance = evidence.metadata_["exact_read_provenance"]
+    assert provenance == {
+        "generation_run_id": str(run_id),
+        "corpus_revision": 3,
+        "attempt": 2,
+        "evidence_id": str(evidence.id),
+        "source_version_id": str(version_id),
+        "snippet_fingerprint": hashlib.sha256(evidence.snippet_text.encode()).hexdigest(),
+        "method": "read_evidence",
+    }
+
+    owner.run_view = SimpleNamespace(revision=3, attempt=3)
+    assert evidence_has_current_exact_read(owner, evidence) is False
+
+
+@pytest.mark.asyncio
+async def test_long_evidence_requires_every_stable_page_before_exact_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2.tools.evidence import EvidenceToolset
+
+    evidence_id = uuid.uuid4()
+    text = "".join(f"evidence-{idx:04d}|" for idx in range(500))
+    evidence = SimpleNamespace(
+        id=evidence_id,
+        source_id=uuid.uuid4(),
+        source_version_id=uuid.uuid4(),
+        snippet_text=text,
+        metadata_={"source_internal_search": True},
+    )
+    toolset = EvidenceToolset(
+        db=_PersistenceDb(),  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),
+        run_view=SimpleNamespace(revision=2, attempt=4),
+        provider_index=None,
+    )
+
+    async def evidence_in_run(_evidence_id: str):
+        return evidence
+
+    async def no_scope(_source_ids: list[str]):
+        return None
+
+    async def source_ref(_source_id):
+        return "S01"
+
+    async def page_payload(_item, *, start_offset: int, end_offset: int):
+        return {
+            "evidence_id": str(evidence_id),
+            "snippet_text": text[start_offset:end_offset],
+            "snippet_start": start_offset,
+            "snippet_end": end_offset,
+        }
+
+    async def no_guard(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(toolset, "_evidence_in_run", evidence_in_run)
+    monkeypatch.setattr(toolset, "_triage_scope_error_for_source_ids", no_scope)
+    monkeypatch.setattr(toolset, "_source_ref_for_id", source_ref)
+    monkeypatch.setattr(toolset, "_evidence_detail_page_payload", page_payload)
+    monkeypatch.setattr(toolset, "_triage_read_guard_error", no_guard)
+
+    page_ref = ""
+    reconstructed = ""
+    page_count = 0
+    while True:
+        result = await toolset.read_evidence_tool(
+            {
+                "evidence_id": str(evidence_id),
+                "page_ref": page_ref,
+                "max_chars": 1000,
+            }
+        )
+        assert result["found"] is True
+        reconstructed += result["evidence"]["snippet_text"]
+        page_count += 1
+        page_ref = result["next_page_ref"]
+        if not page_ref:
+            assert result["exact_read_complete"] is True
+            assert "next_action" not in result
+            break
+        assert result["exact_read_complete"] is False
+        assert "next_page_ref as page_ref" in result["next_action"]
+        assert toolset._evidence_has_current_exact_read(evidence) is False
+
+    assert page_count > 1
+    assert reconstructed == text
+    assert toolset._evidence_has_current_exact_read(evidence) is True
+
+
+@pytest.mark.asyncio
+async def test_successful_model_read_records_pending_source_before_switch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2.tools.evidence import EvidenceToolset
+
+    toolset = EvidenceToolset(
+        db=SimpleNamespace(),  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),
+        run_view=SimpleNamespace(revision=1, attempt=1),
+        provider_index=None,
+    )
+    calls: list[dict] = []
+
+    async def record(**kwargs):
+        calls.append(kwargs)
+        return {"pending_source_refs": [kwargs["source_ref"]]}
+
+    monkeypatch.setattr(toolset, "_record_triage_exact_read", record)
+
+    failed = await toolset._finalize_model_exact_read(
+        {"found": False, "coverage_warning": "No readable evidence."},
+        requested_source_ref="S01",
+    )
+    accepted = await toolset._finalize_model_exact_read(
+        {"found": True, "evidence": {"evidence_id": "E01", "source_ref": "S01"}},
+        requested_source_ref="S01",
+    )
+
+    assert "exact_read_control" not in failed
+    assert calls == [{"source_ref": "S01", "evidence_ids": ["E01"]}]
+    assert accepted["exact_read_control"]["pending_source_refs"] == ["S01"]
 
 
 @pytest.mark.asyncio
@@ -374,6 +856,9 @@ async def test_short_model_window_ref_round_trips_without_model_visible_version_
     async def source_id(_value: str):
         return str(version.source_id)
 
+    async def source_ref(_source_id):
+        return "S01"
+
     async def read_window(_version, *, locator: str, max_chars: int):
         captured["canonical_locator"] = locator
         return text, "section 1", EvidenceLocatorType.SECTION, "local_chunk_search"
@@ -392,6 +877,7 @@ async def test_short_model_window_ref_round_trips_without_model_visible_version_
     monkeypatch.setattr(toolset, "_invalid_source_or_version_ref_error", validate_refs)
     monkeypatch.setattr(toolset, "_resolve_source_version", resolve_version)
     monkeypatch.setattr(toolset, "_source_id_from_ref_or_id", source_id)
+    monkeypatch.setattr(toolset, "_source_ref_for_id", source_ref)
     monkeypatch.setattr(toolset, "_read_source_window", read_window)
     monkeypatch.setattr(toolset, "_evidence_detail_payload", detail)
     monkeypatch.setattr(source_tools_module, "persist_evidence_item", persist)
@@ -440,6 +926,9 @@ async def test_read_source_window_reports_locator_not_found(monkeypatch: pytest.
     async def source_id(_value: str):
         return str(version.source_id)
 
+    async def source_ref(_source_id):
+        return "S01"
+
     async def no_window(*_args, **_kwargs):
         return "", "", EvidenceLocatorType.UNKNOWN, "local_chunk_search"
 
@@ -447,7 +936,9 @@ async def test_read_source_window_reports_locator_not_found(monkeypatch: pytest.
     monkeypatch.setattr(toolset, "_invalid_source_or_version_ref_error", no_error)
     monkeypatch.setattr(toolset, "_resolve_source_version", resolve)
     monkeypatch.setattr(toolset, "_source_id_from_ref_or_id", source_id)
+    monkeypatch.setattr(toolset, "_source_ref_for_id", source_ref)
     monkeypatch.setattr(toolset, "_read_source_window", no_window)
+    monkeypatch.setattr(toolset, "_cached_source_version_text", lambda _version: "readable source text")
 
     result = await toolset.read_source_window_tool(
         {"source_ref": "S01", "locator": "missing section", "max_chars": 1000}
@@ -482,6 +973,9 @@ async def test_source_beginning_is_not_marked_exact(monkeypatch: pytest.MonkeyPa
     async def source_id(_value: str):
         return str(version.source_id)
 
+    async def source_ref(_source_id):
+        return "S01"
+
     async def beginning(*_args, **_kwargs):
         return "Beginning text.", "source beginning", EvidenceLocatorType.SOURCE_LEVEL, "local_chunk_search"
 
@@ -499,6 +993,7 @@ async def test_source_beginning_is_not_marked_exact(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(toolset, "_invalid_source_or_version_ref_error", no_error)
     monkeypatch.setattr(toolset, "_resolve_source_version", resolve)
     monkeypatch.setattr(toolset, "_source_id_from_ref_or_id", source_id)
+    monkeypatch.setattr(toolset, "_source_ref_for_id", source_ref)
     monkeypatch.setattr(toolset, "_read_source_window", beginning)
     monkeypatch.setattr(toolset, "_evidence_detail_payload", detail)
     monkeypatch.setattr(source_tools_module, "persist_evidence_item", persist)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +24,7 @@ class EvidenceToolset(EvidenceToolSpecsMixin, EvidenceToolHandlersMixin, Evidenc
     research_allowed_source_refs: set[str] | None = None
     research_allow_broad_search: bool = False
     research_current_job_id: str | None = None
+    triage_read_transition_guard: Any | None = None
 
 
 __all__ = ["EvidenceToolset"]

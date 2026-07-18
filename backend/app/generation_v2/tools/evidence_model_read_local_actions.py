@@ -59,6 +59,7 @@ async def persist_local_model_read_fallback(
             "model_read_request_cache_key": request_cache_key,
         },
     )
+    await owner._mark_evidence_exact_read(evidence, method="read_source_with_model_local_fallback")
     payload = await owner._evidence_detail_payload(evidence, max_snippet_chars=2400)
     await save_tool_trace(
         owner.db,
@@ -106,6 +107,7 @@ async def cached_local_model_read_response(
     request_cache_key: str,
     provider_failures: list[dict[str, Any]],
 ) -> dict[str, Any]:
+    await owner._mark_evidence_exact_read(cached, method="read_source_with_model_local_fallback")
     payload = await owner._evidence_detail_payload(cached, max_snippet_chars=2400)
     await save_tool_trace(
         owner.db,

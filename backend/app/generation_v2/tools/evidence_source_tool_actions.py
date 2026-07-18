@@ -6,6 +6,7 @@ from typing import Any
 from app.generation_v2.model_context_text import model_preview_text
 from app.generation_v2.artifacts import save_tool_trace
 from app.generation_v2.tools.evidence_model_window_refs import register_model_window_ref
+from app.generation_v2.tools.evidence_scope import target_aware_triage_read_guard
 from app.generation_v2.tools.evidence_store import persist_evidence_item
 from app.generation_v2.tools.evidence_utils import _normalize, _retrieval_channel_for_version, _search_text_windows
 from app.models.generation_v2 import EvidenceLocatorType, EvidenceStrength
@@ -63,7 +64,12 @@ async def search_text_source_windows(owner: Any, version: Any, *, query: str, te
 
 
 async def skim_source(owner: Any, args: dict[str, Any]) -> dict[str, Any]:
-    guard_error = await owner._triage_read_guard_error()
+    requested_source_ref = str(args.get("source_ref") or "").strip()
+    guard_error = await target_aware_triage_read_guard(
+        owner,
+        target_source_refs=[requested_source_ref] if requested_source_ref else [],
+        exact_read=False,
+    )
     if guard_error:
         return guard_error
     ref_error = await owner._invalid_source_or_version_ref_error(
@@ -112,6 +118,8 @@ async def skim_source(owner: Any, args: dict[str, Any]) -> dict[str, Any]:
     )
     return {
         "found": bool(results),
+        "support_status": "preview_only",
+        "exact_read_next_action": "read_source_window",
         "source_ref": source_ref,
         "outline": [item["locator_text"] for item in results],
         "windows": results,

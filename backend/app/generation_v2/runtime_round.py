@@ -54,6 +54,7 @@ class RuntimeRoundRunner:
         hosted_file_search_handler: Callable[[list[dict[str, Any]], str, str, str], Awaitable[dict[str, Any] | None]]
         | None,
         max_output_tokens: int | None,
+        server_compaction_threshold: int | None,
         temperature: float | None,
     ) -> None:
         self.runtime = runtime
@@ -74,6 +75,7 @@ class RuntimeRoundRunner:
         self.local_tools = local_tools
         self.hosted_file_search_handler = hosted_file_search_handler
         self.max_output_tokens = max_output_tokens
+        self.server_compaction_threshold = server_compaction_threshold
         self.temperature = temperature
         self.announced_hosted_evidence_ids: set[str] = set()
 
@@ -108,6 +110,7 @@ class RuntimeRoundRunner:
             vector_store_id=self.vector_store_id,
             local_tools=self.local_tools,
             max_output_tokens=self.max_output_tokens,
+            server_compaction_threshold=self.server_compaction_threshold,
             temperature=self.temperature,
             chain_id=chain_id,
             checkpoint_index=checkpoint_index,
@@ -143,6 +146,7 @@ class RuntimeRoundRunner:
             chain_round=chain_round,
             previous_response_id=previous_response_id,
             max_output_tokens=self.max_output_tokens,
+            server_compaction_threshold=self.server_compaction_threshold,
         )
         await _commit_runtime_side_effects(self.db)
         round_state = RuntimeRoundState(

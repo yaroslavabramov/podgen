@@ -31,6 +31,7 @@ from app.generation_v2.source_triage_repair_state import (
     triage_repair_operation,
 )
 from app.generation_v2.source_triage_canonical import materialize_source_map_v2
+from app.generation_v2.source_triage_workspace_state import is_structured_triage_workspace
 from app.generation_v2.tools.evidence import (
     EvidenceToolset,
     build_source_map_from_write_actions,
@@ -79,7 +80,7 @@ async def run_source_triage_gate_repair(
                 "Source-triage validation requires replanning or a source-map rewrite; "
                 f"an existing-set repair cannot safely resolve: {codes}."
             )
-        is_v2_workspace = str(workspace.get("schema_version") or "") == "source_triage_workspace.v2"
+        is_v2_workspace = is_structured_triage_workspace(workspace)
         repair_sets = [
             dict(item)
             for item in workspace.get("source_sets") or []

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.generation_v2.runtime import AgentTool
+from app.generation_v2.tools.evidence_tool_source_file_specs import evidence_source_file_tools
 from app.generation_v2.tools.evidence_tool_source_read_specs import evidence_source_read_tools
 from app.generation_v2.tools.evidence_types import EVIDENCE_PURPOSE_MAX_CHARS
 
@@ -31,10 +32,10 @@ def evidence_read_tools(owner: Any) -> list[AgentTool]:
             name="search_corpus",
             description=(
                 "Search the selected run corpus and persist returned passage matches as observed EvidenceItems. "
-                "This is a discovery preview tool, not a final evidence reader: use it to find leads for a specific investigation question, source comparison, quote, relation, or citation-sensitive claim. "
-                "It is not a substitute for skimming a source when you need to understand that source's overall role. "
-                "Use scope=all_sources for broad discovery, or scope=selected_sources with source_refs from the current prompt or prior tool results to target known sources. "
-                "The returned short_snippet is a preview with an evidence_id handle; call read_evidence, skim_source, inspect_source, or read_source_window when the preview is not enough before writing a durable conclusion."
+                "This is a discovery preview, not a final evidence reader. Search for one concrete question; use "
+                "scope=all_sources for the allowed corpus scope, or scope=selected_sources with exact source_refs to "
+                "target known sources. The returned short_snippet is a lead with an evidence_id handle. Use "
+                "read_evidence, skim_source, inspect_source, or read_source_window when exact context is needed."
             ),
             parameters={
                 "type": "object",
@@ -52,17 +53,25 @@ def evidence_read_tools(owner: Any) -> list[AgentTool]:
         AgentTool(
             name="read_evidence",
             description=(
-                "Read one already-saved EvidenceItem by evidence_id. Use this to inspect selected evidence before writing, rewriting, or linking a claim. "
-                "The result is a readable detail payload with source_ref/title, locator, snippet, and model-read support notes when available. "
+                "Exact-read one already-saved EvidenceItem by evidence_id before using it to ground a durable claim. "
+                "Pass page_ref='' for the first read. If the full item is too long, the result contains one lossless "
+                "exact page and a stable next_page_ref; keep copying next_page_ref until it is empty and "
+                "exact_read_complete=true. Invalid handles return a working available_page_ref. The result includes "
+                "source_ref/title, locator, snippet, and model-read support notes when available. "
                 "Do not use read_evidence to discover new material; call search_corpus first if no evidence_id is known."
             ),
             parameters={
                 "type": "object",
-                "properties": {"evidence_id": {"type": "string"}},
-                "required": ["evidence_id"],
+                "properties": {
+                    "evidence_id": {"type": "string"},
+                    "page_ref": {"type": "string"},
+                    "max_chars": {"type": "integer", "minimum": 400, "maximum": 3000},
+                },
+                "required": ["evidence_id", "page_ref", "max_chars"],
             },
             handler=lambda args: owner._call_with_research_commit_advisory(owner.read_evidence_tool, args),
         ),
+        *evidence_source_file_tools(owner),
         *evidence_source_read_tools(owner),
         AgentTool(
             name="find_quotes",
@@ -103,9 +112,10 @@ def evidence_read_tools(owner: Any) -> list[AgentTool]:
         AgentTool(
             name="compare_source_evidence",
             description=(
-                "Retrieve comparable evidence previews from 2-5 selected sources for one source-map question: duplication, interpretive relationship, update chain, contradiction, coverage overlap, or quality gap. "
-                "The tool searches each source with the same question and returns evidence_id-backed inputs grouped by source_ref. "
-                "Use this when a cluster or relationship needs multiple sources read together; write the resulting cluster/relationship/gap afterward."
+                "Retrieve comparable evidence previews from 2-5 selected sources for one question about duplication, "
+                "an update chain, contradiction, coverage overlap, or another concrete relation. The tool searches "
+                "each source with the same question and returns evidence_id-backed inputs grouped by source_ref. "
+                "Treat those inputs as material to inspect, not as an automatic conclusion about the sources."
             ),
             parameters={
                 "type": "object",

@@ -38,6 +38,7 @@ async def try_provider_model_read(
         cached_items = await owner._cached_evidence_items(cache_field="model_read_cache_key", cache_key=cache_key, limit=1)
         if cached_items:
             cached = cached_items[0]
+            await owner._mark_evidence_exact_read(cached, method="read_source_with_model")
             payload = await owner._evidence_detail_payload(cached, max_snippet_chars=2400)
             await save_tool_trace(
                 owner.db,
@@ -117,6 +118,7 @@ async def try_provider_model_read(
             cache_key=cache_key,
             request_cache_key=request_cache_key,
         )
+        await owner._mark_evidence_exact_read(evidence, method="read_source_with_model")
         payload = await owner._evidence_detail_payload(evidence, max_snippet_chars=2400)
         await save_tool_trace(
             owner.db,

@@ -7,7 +7,10 @@ import pytest
 
 from app.generation_v2.agents.source_acquisition_agent import _model_gap_report
 from app.generation_v2.contracts.pipeline import V2PipelineStep
-from app.generation_v2.corpus_brief_actions import triage_state_ready_for_research
+from app.generation_v2.corpus_brief_actions import (
+    corpus_brief_acquisition_requests,
+    triage_state_ready_for_research,
+)
 from app.generation_v2.pipeline import source_acquisition_flow
 from app.generation_v2.research_workspace import _jobs_from_corpus_brief
 from app.generation_v2.schemas import (
@@ -15,6 +18,8 @@ from app.generation_v2.schemas import (
     CorpusBriefIntent,
     CoverageOutcome,
     CoverageQuestion,
+    CoverageRequirement,
+    CoverageRequirementResult,
     SourceAcquisitionCompletion,
     SourceAcquisitionRound,
     SourceGapRecord,
@@ -253,6 +258,84 @@ def test_pending_acquisition_action_is_not_ready_for_research() -> None:
     assert triage_state_ready_for_research(_triage_state("research")) is True
     assert triage_state_ready_for_research(_triage_state("none")) is True
     assert triage_state_ready_for_research(_triage_state("omit")) is True
+
+
+def test_requirement_actions_route_each_answer_part_independently() -> None:
+    question = CoverageQuestion(
+        question_id="q_parts",
+        question="Which parts are known and which still need work?",
+        answer_requirements=[
+            CoverageRequirement(requirement_id="r_research", description="Deep-read the current evidence."),
+            CoverageRequirement(requirement_id="r_acquire", description="Find the missing primary instrument."),
+            CoverageRequirement(requirement_id="r_omit", description="Drop the irrelevant branch."),
+            CoverageRequirement(requirement_id="r_none", description="Keep the completed part closed."),
+        ],
+    )
+    workspace = {
+        "intent": {"user_prompt": "Resolve the composite question."},
+        "coverage_questions": [question.model_dump(mode="json")],
+        "source_sets": [],
+        "source_assessments": [],
+        "coverage_outcomes": [
+            {
+                "outcome_id": "outcome:q_parts",
+                "question_id": "q_parts",
+                "status": "partial",
+                "requirement_results": [
+                    CoverageRequirementResult(
+                        requirement_id="r_research",
+                        status="partial",
+                        summary="The current evidence establishes only part of the answer.",
+                        missing_detail="The current evidence still needs deeper comparison.",
+                        next_action="research",
+                    ).model_dump(mode="json"),
+                    CoverageRequirementResult(
+                        requirement_id="r_acquire",
+                        status="missing",
+                        missing_detail="The primary instrument is absent from the corpus.",
+                        next_action="source_acquisition",
+                    ).model_dump(mode="json"),
+                    CoverageRequirementResult(
+                        requirement_id="r_omit",
+                        status="missing",
+                        missing_detail="This branch is irrelevant to the requested answer.",
+                        next_action="omit",
+                    ).model_dump(mode="json"),
+                    CoverageRequirementResult(
+                        requirement_id="r_none",
+                        status="covered",
+                        summary="No further work is needed for this part.",
+                        next_action="none",
+                    ).model_dump(mode="json"),
+                ],
+                "orientation_summary": "One answer part is established.",
+                "missing_detail": "Other parts have explicit downstream routes.",
+                # Requirement routes are authoritative for structured questions.
+                "next_action": "omit",
+            }
+        ],
+    }
+    brief = materialize_corpus_brief(
+        generation_run_id="run-1",
+        project_id="project-1",
+        run_corpus_view_id="view-1",
+        corpus_revision=1,
+        attempt=1,
+        source_map_artifact_id="source-map-1",
+        source_map=SourceMap(),
+        workspace=workspace,
+    )
+
+    requests = corpus_brief_acquisition_requests(brief)
+    job = _jobs_from_corpus_brief(brief, SourceMap())[0]
+
+    assert len(requests) == 1
+    assert requests[0].question_id == "q_parts"
+    assert requests[0].reason == (
+        "Find the missing primary instrument. The primary instrument is absent from the corpus."
+    )
+    assert brief.research_handoff[0].question_assignments[0].requirement_ids == ["r_research"]
+    assert [item["requirement_id"] for item in job["open_requirements"]] == ["r_research"]
 
 
 @pytest.mark.asyncio

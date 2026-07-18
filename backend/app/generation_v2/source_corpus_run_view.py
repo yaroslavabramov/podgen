@@ -168,13 +168,21 @@ async def current_attempt_has_triage_history(
     db: AsyncSession,
     run_view: RunCorpusView,
 ) -> bool:
-    """Return whether triage already wrote durable state in this corpus attempt."""
+    """Return whether triage already touched this corpus attempt.
+
+    Legacy partial runs may have traces or evidence without a current
+    SourceTriage workspace artifact. Those rows still require a fresh attempt;
+    otherwise attempt-scoped SourceMap materialization would accept them as
+    current work.
+    """
+    revision = int(run_view.revision or 1)
+    attempt = int(run_view.attempt or 1)
     result = await db.execute(
         select(V2Artifact.id)
         .where(
             V2Artifact.generation_run_id == run_view.generation_run_id,
-            V2Artifact.corpus_revision == int(run_view.revision or 1),
-            V2Artifact.attempt == int(run_view.attempt or 1),
+            V2Artifact.corpus_revision == revision,
+            V2Artifact.attempt == attempt,
             V2Artifact.artifact_type.in_(
                 [
                     V2ArtifactType.SOURCE_TRIAGE_WORKSPACE,
@@ -185,7 +193,30 @@ async def current_attempt_has_triage_history(
         )
         .limit(1)
     )
-    return result.scalar_one_or_none() is not None
+    if result.scalar_one_or_none() is not None:
+        return True
+    trace_result = await db.execute(
+        select(V2ToolTrace.id)
+        .where(
+            V2ToolTrace.generation_run_id == run_view.generation_run_id,
+            V2ToolTrace.corpus_revision == revision,
+            V2ToolTrace.attempt == attempt,
+            V2ToolTrace.phase == "v2_source_triage",
+        )
+        .limit(1)
+    )
+    if trace_result.scalar_one_or_none() is not None:
+        return True
+    evidence_result = await db.execute(
+        select(EvidenceItem.id)
+        .where(
+            EvidenceItem.generation_run_id == run_view.generation_run_id,
+            EvidenceItem.corpus_revision == revision,
+            EvidenceItem.attempt == attempt,
+        )
+        .limit(1)
+    )
+    return evidence_result.scalar_one_or_none() is not None
 
 
 async def load_current_run_corpus_view(

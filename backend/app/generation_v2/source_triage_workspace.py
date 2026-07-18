@@ -54,7 +54,10 @@ from app.generation_v2.tools.evidence_types import (
     _WRITE_TOOL_NAMES,
 )
 from app.generation_v2.source_triage_workspace_tracking import (
+    clear_pending_exact_read,
     mark_workspace_write_action,
+    pending_exact_read_source_refs,
+    record_triage_exact_read,
     triage_workflow_guard_error,
 )
 from app.generation_v2.tools.evidence_refs import build_source_ref_context, source_ref_for_id
@@ -79,6 +82,18 @@ async def ensure_source_triage_workspace(
     scope = scope_for_run_view(run_view)
     manifest_hash = str(run_view.manifest_hash or "")
     source_order = _source_order(inventory)
+    legacy_workspace_contract = bool(
+        existing
+        and str(existing.get("schema_version") or "") != WORKSPACE_SCHEMA_VERSION
+    )
+    if (
+        legacy_workspace_contract
+        and int(existing.get("corpus_revision") or 1) == scope.revision
+        and int(existing.get("attempt") or 1) == scope.attempt
+    ):
+        raise RuntimeError(
+            "Legacy source-triage workspace requires a fresh corpus attempt before V3 triage"
+        )
     if (
         existing
         and existing.get("schema_version") == WORKSPACE_SCHEMA_VERSION
@@ -92,6 +107,7 @@ async def ensure_source_triage_workspace(
     run_config = getattr(run, "config", None) or {}
     workspace = {
         "schema_version": WORKSPACE_SCHEMA_VERSION,
+        "_workspace_revision": int((existing or {}).get("_workspace_revision") or 0),
         "manifest_hash": manifest_hash,
         "corpus_revision": scope.revision,
         "attempt": scope.attempt,
@@ -106,6 +122,9 @@ async def ensure_source_triage_workspace(
         },
         "coverage_questions": [],
         "source_assessments": [],
+        "source_findings": [],
+        "source_read_receipts": [],
+        "reading_notes": [],
         "coverage_outcomes": [],
         "coverage_syntheses": [],
         "triage_semantic_revision": 0,
@@ -118,7 +137,15 @@ async def ensure_source_triage_workspace(
         "created_at": _now(),
         "updated_at": _now(),
     }
-    workspace = carry_pending_triage_repair(existing or {}, workspace, source_order=source_order)
+    # Findings cannot be reconstructed from pre-V3 cards/observations. A
+    # legacy workspace therefore starts clean in its already-created fresh
+    # attempt; only a V3 targeted repair may carry durable semantic state.
+    if not legacy_workspace_contract:
+        workspace = carry_pending_triage_repair(
+            existing or {},
+            workspace,
+            source_order=source_order,
+        )
     if workspace.get("repair_operation") and int((existing or {}).get("attempt") or 1) != scope.attempt:
         evidence_id_map, invalid_evidence_ids = await _carry_evidence_to_current_attempt(
             db,
@@ -139,7 +166,12 @@ async def ensure_source_triage_workspace(
             source_attempt=int((existing or {}).get("attempt") or 1),
             evidence_id_map=evidence_id_map,
         )
-    await save_source_triage_workspace(db, generation_run_id=run.id, workspace=workspace)
+    await save_source_triage_workspace(
+        db,
+        generation_run_id=run.id,
+        workspace=workspace,
+        allow_scope_transition=True,
+    )
     return workspace
 
 
@@ -485,7 +517,7 @@ async def start_triage_source_set(
     )
     source_set = _workspace_set(current, set_id) or source_set
     source_set["status"] = "in_progress"
-    source_set["started_at"] = _now()
+    source_set.setdefault("started_at", _now())
     source_set["updated_at"] = _now()
     _replace_workspace_set(current, source_set)
     current["current_set"] = {
@@ -506,7 +538,9 @@ __all__ = [
     "_dedupe",
     "load_source_triage_workspace",
     "mark_workspace_write_action",
+    "pending_exact_read_source_refs",
     "planner_source_catalog",
+    "record_triage_exact_read",
     "_merge_deferred",
     "_metadata_only_capsule",
     "_now",
@@ -524,4 +558,5 @@ __all__ = [
     "_source_set_covered_refs",
     "_source_set_has_unresolved_refs",
     "workspace_summary_for_prompt",
+    "clear_pending_exact_read",
 ]

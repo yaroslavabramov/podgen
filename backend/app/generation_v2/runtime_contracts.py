@@ -12,6 +12,18 @@ class V2RuntimeUnavailable(RuntimeError):
     pass
 
 
+class AgentTerminalNotReached(RuntimeError):
+    """The model returned normally without completing a required terminal tool."""
+
+    def __init__(self, message: str, *, repeated_without_progress: bool = False) -> None:
+        super().__init__(message)
+        self.repeated_without_progress = repeated_without_progress
+
+
+class AgentOperationalStall(RuntimeError):
+    """The agent repeated the same non-terminal tool cycle without new information."""
+
+
 @dataclass(frozen=True)
 class AgentTerminalResult:
     """Authoritative result produced by an accepted terminal tool."""

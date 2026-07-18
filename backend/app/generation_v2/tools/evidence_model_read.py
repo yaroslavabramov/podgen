@@ -9,6 +9,7 @@ from app.generation_v2.artifacts import save_tool_trace
 from app.generation_v2.tools.evidence_model_read_local import EvidenceModelReadLocalMixin
 from app.generation_v2.tools.evidence_model_read_persistence import EvidenceModelReadPersistenceMixin
 from app.generation_v2.tools.evidence_model_read_provider_flow import try_provider_model_read as _try_provider_model_read
+from app.generation_v2.tools.evidence_scope import target_aware_triage_read_guard
 from app.generation_v2.tools.evidence_tool_payloads import (
     cached_model_read_payload as _cached_model_read_payload,
     coverage_warning as _coverage_warning,
@@ -26,7 +27,12 @@ from app.models.generation_v2 import (
 
 class EvidenceModelReadMixin(EvidenceModelReadLocalMixin, EvidenceModelReadPersistenceMixin):
     async def read_source_with_model_tool(self, args: dict[str, Any]) -> dict[str, Any]:
-        guard_error = await self._triage_read_guard_error()
+        requested_source_ref = str(args.get("source_ref") or "").strip()
+        guard_error = await target_aware_triage_read_guard(
+            self,
+            target_source_refs=[requested_source_ref] if requested_source_ref else [],
+            exact_read=True,
+        )
         if guard_error:
             return guard_error
         focus_question = str(args.get("focus_question") or "").strip()
@@ -79,6 +85,7 @@ class EvidenceModelReadMixin(EvidenceModelReadLocalMixin, EvidenceModelReadPersi
         cached_request_items = await self._cached_evidence_items(cache_field="model_read_request_cache_key", cache_key=request_cache_key, limit=1)
         if cached_request_items:
             cached = cached_request_items[0]
+            await self._mark_evidence_exact_read(cached, method="read_source_with_model")
             payload = await self._evidence_detail_payload(cached, max_snippet_chars=2400)
             await save_tool_trace(
                 self.db,
@@ -107,7 +114,7 @@ class EvidenceModelReadMixin(EvidenceModelReadLocalMixin, EvidenceModelReadPersi
                 response["coverage_warning"] = _coverage_warning(cached)
             else:
                 response["model_read"] = _cached_model_read_payload(cached)
-            return response
+            return await self._finalize_model_exact_read(response, requested_source_ref=source_ref)
         candidates: list[tuple[ProviderCorpusFile, SourceVersion]] = []
         if settings.openai_api_key:
             candidates = await self._resolve_provider_file_candidates_for_model_read(
@@ -126,9 +133,12 @@ class EvidenceModelReadMixin(EvidenceModelReadLocalMixin, EvidenceModelReadPersi
             request_cache_key=request_cache_key,
         )
         if provider_result is not None:
-            return provider_result
+            return await self._finalize_model_exact_read(
+                provider_result,
+                requested_source_ref=source_ref,
+            )
 
-        return await self._model_read_local_fallback(
+        fallback_result = await self._model_read_local_fallback(
             source_id=source_id,
             source_version_id=source_version_id,
             focus_question=focus_question,
@@ -139,5 +149,30 @@ class EvidenceModelReadMixin(EvidenceModelReadLocalMixin, EvidenceModelReadPersi
             provider_failures=provider_failures,
             provider_candidate_count=len(candidates),
         )
+        return await self._finalize_model_exact_read(
+            fallback_result,
+            requested_source_ref=source_ref,
+        )
+
+    async def _finalize_model_exact_read(
+        self,
+        result: dict[str, Any],
+        *,
+        requested_source_ref: str,
+    ) -> dict[str, Any]:
+        evidence = result.get("evidence") if isinstance(result, dict) else None
+        evidence_id = str(evidence.get("evidence_id") or "") if isinstance(evidence, dict) else ""
+        if not result.get("found") or not evidence_id:
+            return result
+        source_ref = str(evidence.get("source_ref") or requested_source_ref or "").strip()
+        if not source_ref:
+            return result
+        exact_read_control = await self._record_triage_exact_read(
+            source_ref=source_ref,
+            evidence_ids=[evidence_id],
+        )
+        if not exact_read_control:
+            return result
+        return {**result, "exact_read_control": exact_read_control}
 
 __all__ = ["EvidenceModelReadMixin"]

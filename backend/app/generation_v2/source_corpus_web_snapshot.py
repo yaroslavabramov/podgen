@@ -130,6 +130,7 @@ async def ensure_web_snapshot_versions(db: AsyncSession, source: Source) -> list
                             "canonical": True,
                             "source_type": "web",
                             "view": "fetched_document_text",
+                            "extraction_policy": "coverage_first_v2",
                             "derived_from_source_version_id": str(fetched_version.id),
                             "url": str(response.url),
                             "status_code": response.status_code,

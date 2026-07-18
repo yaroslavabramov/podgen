@@ -53,6 +53,82 @@ class CoverageQuestion(BaseModel):
     rationale: str = ""
     parent_question_id: str | None = None
     origin: CoverageQuestionOrigin = CoverageQuestionOrigin.PLANNED
+    answer_requirements: list[CoverageRequirement] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_answer_requirements(self) -> "CoverageQuestion":
+        _unique_ids(self.answer_requirements, "requirement_id", "coverage requirement")
+        return self
+
+
+class CoverageRequirement(BaseModel):
+    """One freely worded part that a complete answer to a question must resolve."""
+
+    requirement_id: str
+    description: str
+    rationale: str = ""
+
+
+class CoverageQuestionAssignment(BaseModel):
+    """Planner-owned responsibility for checking question parts in one source set."""
+
+    question_id: str
+    requirement_ids: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_requirement_ids(self) -> "CoverageQuestionAssignment":
+        if len(self.requirement_ids) != len(set(self.requirement_ids)):
+            raise ValueError("coverage question assignment requirement_ids must be unique")
+        return self
+
+
+class FindingQuestionLink(BaseModel):
+    question_id: str
+    requirement_ids: list[str] = Field(default_factory=list)
+    rationale: str = ""
+
+    @model_validator(mode="after")
+    def validate_requirement_ids(self) -> "FindingQuestionLink":
+        if len(self.requirement_ids) != len(set(self.requirement_ids)):
+            raise ValueError("finding question link requirement_ids must be unique")
+        return self
+
+
+class FindingScope(BaseModel):
+    actor: str = ""
+    period: str = ""
+    geography: str = ""
+    qualifiers: list[str] = Field(default_factory=list)
+
+
+class FindingSourceRelation(BaseModel):
+    related_source_id: str
+    relationship: SourceRelationshipKind
+    rationale: str = ""
+    evidence_ids: list[str] = Field(default_factory=list)
+
+
+class SourceFinding(BaseModel):
+    """Durable source-level meaning; evidence text remains in the evidence store."""
+
+    finding_id: str
+    source_id: str
+    source_version_ids: list[str] = Field(default_factory=list)
+    assessment_id: str | None = None
+    statement: str
+    evidence_ids: list[str] = Field(min_length=1)
+    scope: FindingScope = Field(default_factory=FindingScope)
+    limitations: list[str] = Field(default_factory=list)
+    question_links: list[FindingQuestionLink] = Field(default_factory=list)
+    source_relations: list[FindingSourceRelation] = Field(default_factory=list)
+    semantic_revision: int = Field(default=0, ge=0)
+
+    @model_validator(mode="after")
+    def validate_question_links(self) -> "SourceFinding":
+        question_ids = [item.question_id for item in self.question_links]
+        if len(question_ids) != len(set(question_ids)):
+            raise ValueError("finding question links must be unique per question_id")
+        return self
 
 
 class SourceAssessment(BaseModel):
@@ -76,8 +152,28 @@ class SourceAssessment(BaseModel):
     coverage_question_ids: list[str] = Field(default_factory=list)
     editorial_functions: list[str] = Field(default_factory=list)
     evidence_ids: list[str] = Field(default_factory=list)
+    finding_ids: list[str] = Field(default_factory=list)
+    no_findings_reason: str = ""
     limitations: list[str] = Field(default_factory=list)
     confidence: float = Field(default=0.5, ge=0, le=1)
+
+
+class CoverageRequirementResult(BaseModel):
+    requirement_id: str
+    status: CoverageOutcomeStatus = CoverageOutcomeStatus.UNKNOWN
+    finding_ids: list[str] = Field(default_factory=list)
+    summary: str = ""
+    missing_detail: str = ""
+    conflict_summary: str = ""
+    deferred_reason: str = ""
+    confidence: float = Field(default=0.5, ge=0, le=1)
+    next_action: CoverageNextAction = CoverageNextAction.RESEARCH
+
+    @model_validator(mode="after")
+    def validate_finding_ids(self) -> "CoverageRequirementResult":
+        if len(self.finding_ids) != len(set(self.finding_ids)):
+            raise ValueError("coverage requirement result finding_ids must be unique")
+        return self
 
 
 class CoverageOutcome(BaseModel):
@@ -86,12 +182,23 @@ class CoverageOutcome(BaseModel):
     status: CoverageOutcomeStatus = CoverageOutcomeStatus.UNKNOWN
     source_ids: list[str] = Field(default_factory=list)
     evidence_ids: list[str] = Field(default_factory=list)
+    finding_ids: list[str] = Field(default_factory=list)
+    requirement_results: list[CoverageRequirementResult] = Field(default_factory=list)
     orientation_summary: str = ""
     missing_detail: str = ""
     conflict_summary: str = ""
     deferred_reason: str = ""
     confidence: float = Field(default=0.5, ge=0, le=1)
     next_action: CoverageNextAction = CoverageNextAction.RESEARCH
+    semantic_revision: int = Field(default=0, ge=0)
+    is_stale: bool = False
+
+    @model_validator(mode="after")
+    def validate_requirement_results(self) -> "CoverageOutcome":
+        _unique_ids(self.requirement_results, "requirement_id", "coverage requirement result")
+        if len(self.finding_ids) != len(set(self.finding_ids)):
+            raise ValueError("coverage outcome finding_ids must be unique")
+        return self
 
 
 class CorpusBriefIntent(BaseModel):
@@ -110,6 +217,7 @@ class CorpusBriefSourceSet(BaseModel):
     rationale: str = ""
     source_ids: list[str] = Field(default_factory=list)
     question_ids: list[str] = Field(default_factory=list)
+    question_assignments: list[CoverageQuestionAssignment] = Field(default_factory=list)
     priority: str = "normal"
     status: CorpusBriefSourceSetStatus = CorpusBriefSourceSetStatus.MAPPED
     findings_summary: str = ""
@@ -122,6 +230,8 @@ class ResearchHandoffItem(BaseModel):
     priority: str = "normal"
     objective: str
     question_ids: list[str] = Field(default_factory=list)
+    question_assignments: list[CoverageQuestionAssignment] = Field(default_factory=list)
+    finding_ids: list[str] = Field(default_factory=list)
     preferred_source_ids: list[str] = Field(default_factory=list)
     starting_evidence_ids: list[str] = Field(default_factory=list)
     action: ResearchHandoffAction = ResearchHandoffAction.DEEP_READ
@@ -150,6 +260,7 @@ class CorpusBrief(BaseModel):
     source_map_hash: str
     intent: CorpusBriefIntent
     coverage_questions: list[CoverageQuestion] = Field(default_factory=list)
+    source_findings: list[SourceFinding] = Field(default_factory=list)
     source_sets: list[CorpusBriefSourceSet] = Field(default_factory=list)
     coverage_outcomes: list[CoverageOutcome] = Field(default_factory=list)
     research_handoff: list[ResearchHandoffItem] = Field(default_factory=list)
@@ -162,6 +273,12 @@ class CorpusBrief(BaseModel):
         question_ids = _unique_ids(self.coverage_questions, "question_id", "coverage question")
         _unique_ids(self.source_sets, "set_id", "source set")
         _unique_ids(self.coverage_outcomes, "outcome_id", "coverage outcome")
+        finding_ids = _unique_ids(self.source_findings, "finding_id", "source finding")
+        _validate_structured_outcome_finding_union(
+            self.coverage_questions,
+            self.coverage_outcomes,
+        )
+        _derive_outcome_finding_lineage(self.source_findings, self.coverage_outcomes)
         _unique_ids(self.research_handoff, "handoff_id", "research handoff item")
         _unique_ids(self.gap_records, "gap_id", "gap record")
         outcome_question_ids = [item.question_id for item in self.coverage_outcomes]
@@ -169,8 +286,23 @@ class CorpusBrief(BaseModel):
             raise ValueError("coverage outcomes must be unique per question_id")
         referenced_question_ids = {
             *(question_id for item in self.source_sets for question_id in item.question_ids),
+            *(
+                assignment.question_id
+                for item in self.source_sets
+                for assignment in item.question_assignments
+            ),
+            *(
+                link.question_id
+                for finding in self.source_findings
+                for link in finding.question_links
+            ),
             *(item.question_id for item in self.coverage_outcomes),
             *(question_id for item in self.research_handoff for question_id in item.question_ids),
+            *(
+                assignment.question_id
+                for item in self.research_handoff
+                for assignment in item.question_assignments
+            ),
             *(question_id for item in self.gap_records for question_id in item.question_ids),
         }
         unknown = sorted(referenced_question_ids - question_ids)
@@ -179,6 +311,125 @@ class CorpusBrief(BaseModel):
         for question in self.coverage_questions:
             if question.parent_question_id and question.parent_question_id not in question_ids:
                 raise ValueError(f"unknown parent coverage question id: {question.parent_question_id}")
+        requirements_by_question = {
+            question.question_id: {
+                requirement.requirement_id for requirement in question.answer_requirements
+            }
+            for question in self.coverage_questions
+        }
+        for source_set in self.source_sets:
+            assignment_question_ids = [item.question_id for item in source_set.question_assignments]
+            if len(assignment_question_ids) != len(set(assignment_question_ids)):
+                raise ValueError("source set question assignments must be unique per question_id")
+            if not set(assignment_question_ids).issubset(set(source_set.question_ids)):
+                raise ValueError(
+                    "source set question_assignments must reference question_ids in the same set"
+                )
+            for assignment in source_set.question_assignments:
+                unknown_requirements = sorted(
+                    set(assignment.requirement_ids)
+                    - requirements_by_question.get(assignment.question_id, set())
+                )
+                if unknown_requirements:
+                    raise ValueError(
+                        "unknown coverage requirement ids for "
+                        f"{assignment.question_id}: {', '.join(unknown_requirements)}"
+                    )
+        for item in self.research_handoff:
+            assignment_question_ids = [
+                assignment.question_id for assignment in item.question_assignments
+            ]
+            if len(assignment_question_ids) != len(set(assignment_question_ids)):
+                raise ValueError("research handoff assignments must be unique per question_id")
+            if not set(assignment_question_ids).issubset(set(item.question_ids)):
+                raise ValueError(
+                    "research handoff assignments must reference question_ids in the same item"
+                )
+            for assignment in item.question_assignments:
+                unknown_requirements = sorted(
+                    set(assignment.requirement_ids)
+                    - requirements_by_question.get(assignment.question_id, set())
+                )
+                if unknown_requirements:
+                    raise ValueError(
+                        "unknown coverage requirement ids for "
+                        f"{assignment.question_id}: {', '.join(unknown_requirements)}"
+                    )
+        finding_links: dict[str, set[str]] = {}
+        finding_requirement_links: dict[str, dict[str, set[str]]] = {}
+        for finding in self.source_findings:
+            linked_questions: set[str] = set()
+            linked_requirements: dict[str, set[str]] = {}
+            for link in finding.question_links:
+                linked_questions.add(link.question_id)
+                linked_requirements[link.question_id] = set(link.requirement_ids)
+                unknown_requirements = sorted(
+                    set(link.requirement_ids)
+                    - requirements_by_question.get(link.question_id, set())
+                )
+                if unknown_requirements:
+                    raise ValueError(
+                        "unknown coverage requirement ids for "
+                        f"{link.question_id}: {', '.join(unknown_requirements)}"
+                    )
+            finding_links[finding.finding_id] = linked_questions
+            finding_requirement_links[finding.finding_id] = linked_requirements
+        for outcome in self.coverage_outcomes:
+            unknown_findings = sorted(set(outcome.finding_ids) - finding_ids)
+            if unknown_findings:
+                raise ValueError(f"unknown source finding ids: {', '.join(unknown_findings)}")
+            unlinked_findings = sorted(
+                finding_id
+                for finding_id in outcome.finding_ids
+                if outcome.question_id not in finding_links.get(finding_id, set())
+            )
+            if unlinked_findings:
+                raise ValueError(
+                    "coverage outcome uses findings not linked to its question: "
+                    + ", ".join(unlinked_findings)
+                )
+            requirement_ids = requirements_by_question.get(outcome.question_id, set())
+            unknown_results = sorted(
+                {item.requirement_id for item in outcome.requirement_results} - requirement_ids
+            )
+            if unknown_results:
+                raise ValueError(
+                    "unknown coverage requirement result ids for "
+                    f"{outcome.question_id}: {', '.join(unknown_results)}"
+                )
+            for result in outcome.requirement_results:
+                unknown_result_findings = sorted(set(result.finding_ids) - finding_ids)
+                if unknown_result_findings:
+                    raise ValueError(
+                        "unknown source finding ids: " + ", ".join(unknown_result_findings)
+                    )
+                invalid_result_findings = sorted(
+                    finding_id
+                    for finding_id in result.finding_ids
+                    if result.requirement_id
+                    not in finding_requirement_links.get(finding_id, {}).get(
+                        outcome.question_id, set()
+                    )
+                )
+                if invalid_result_findings:
+                    raise ValueError(
+                        "coverage requirement result uses findings not linked to its requirement: "
+                        + ", ".join(invalid_result_findings)
+                    )
+        for item in self.research_handoff:
+            unknown_findings = sorted(set(item.finding_ids) - finding_ids)
+            if unknown_findings:
+                raise ValueError(f"unknown source finding ids: {', '.join(unknown_findings)}")
+            unlinked_findings = sorted(
+                finding_id
+                for finding_id in item.finding_ids
+                if not finding_links.get(finding_id, set()).intersection(item.question_ids)
+            )
+            if unlinked_findings:
+                raise ValueError(
+                    "research handoff uses findings not linked to its questions: "
+                    + ", ".join(unlinked_findings)
+                )
         return self
 
 
@@ -220,6 +471,125 @@ def _unique_ids(items: list[BaseModel], field_name: str, label: str) -> set[str]
     if len(values) != len(set(values)):
         raise ValueError(f"duplicate {label} ids")
     return set(values)
+
+
+def _validate_source_finding_lineage(
+    questions: list[CoverageQuestion],
+    findings: list[SourceFinding],
+    outcomes: list[CoverageOutcome],
+) -> None:
+    _validate_structured_outcome_finding_union(questions, outcomes)
+    question_ids = {item.question_id for item in questions}
+    requirements_by_question = {
+        question.question_id: {
+            requirement.requirement_id for requirement in question.answer_requirements
+        }
+        for question in questions
+    }
+    finding_ids = {item.finding_id for item in findings}
+    _derive_outcome_finding_lineage(findings, outcomes)
+    requirement_links: dict[str, dict[str, set[str]]] = {}
+    for finding in findings:
+        links: dict[str, set[str]] = {}
+        for link in finding.question_links:
+            if link.question_id not in question_ids:
+                raise ValueError(f"unknown coverage question ids: {link.question_id}")
+            unknown_requirements = set(link.requirement_ids) - requirements_by_question.get(
+                link.question_id, set()
+            )
+            if unknown_requirements:
+                raise ValueError(
+                    "unknown coverage requirement ids for "
+                    f"{link.question_id}: {', '.join(sorted(unknown_requirements))}"
+                )
+            links[link.question_id] = set(link.requirement_ids)
+        requirement_links[finding.finding_id] = links
+    for outcome in outcomes:
+        if outcome.question_id not in question_ids:
+            raise ValueError(f"unknown coverage question ids: {outcome.question_id}")
+        for finding_id in outcome.finding_ids:
+            if finding_id not in finding_ids:
+                raise ValueError(f"unknown source finding ids: {finding_id}")
+            if outcome.question_id not in requirement_links.get(finding_id, {}):
+                raise ValueError(
+                    "coverage outcome uses findings not linked to its question: " + finding_id
+                )
+        for result in outcome.requirement_results:
+            if result.requirement_id not in requirements_by_question.get(outcome.question_id, set()):
+                raise ValueError(
+                    "unknown coverage requirement result ids for "
+                    f"{outcome.question_id}: {result.requirement_id}"
+                )
+            for finding_id in result.finding_ids:
+                if finding_id not in finding_ids:
+                    raise ValueError(f"unknown source finding ids: {finding_id}")
+                if result.requirement_id not in requirement_links.get(finding_id, {}).get(
+                    outcome.question_id, set()
+                ):
+                    raise ValueError(
+                        "coverage requirement result uses findings not linked to its requirement: "
+                        + finding_id
+                    )
+
+
+def _validate_structured_outcome_finding_union(
+    questions: list[CoverageQuestion],
+    outcomes: list[CoverageOutcome],
+) -> None:
+    structured_question_ids = {
+        question.question_id
+        for question in questions
+        if question.answer_requirements
+    }
+    for outcome in outcomes:
+        if outcome.question_id not in structured_question_ids:
+            continue
+        result_finding_ids = {
+            finding_id
+            for result in outcome.requirement_results
+            for finding_id in result.finding_ids
+        }
+        if outcome.finding_ids and set(outcome.finding_ids) != result_finding_ids:
+            raise ValueError(
+                "structured coverage outcome finding_ids must exactly match requirement result findings"
+            )
+
+
+def _derive_outcome_finding_lineage(
+    findings: list[SourceFinding], outcomes: list[CoverageOutcome]
+) -> None:
+    finding_by_id = {item.finding_id: item for item in findings}
+    for outcome in outcomes:
+        referenced_ids = list(
+            dict.fromkeys(
+                [
+                    *outcome.finding_ids,
+                    *[
+                        finding_id
+                        for result in outcome.requirement_results
+                        for finding_id in result.finding_ids
+                    ],
+                ]
+            )
+        )
+        if not referenced_ids:
+            continue
+        referenced_findings = [
+            finding_by_id[finding_id]
+            for finding_id in referenced_ids
+            if finding_id in finding_by_id
+        ]
+        outcome.finding_ids = referenced_ids
+        outcome.source_ids = list(
+            dict.fromkeys(finding.source_id for finding in referenced_findings)
+        )
+        outcome.evidence_ids = list(
+            dict.fromkeys(
+                evidence_id
+                for finding in referenced_findings
+                for evidence_id in finding.evidence_ids
+            )
+        )
 
 
 class SourceCard(BaseModel):
@@ -318,10 +688,54 @@ class SourceMap(BaseModel):
     gap_records: list[SourceGapRecord] = Field(default_factory=list)
     retrieval_notes: list[str] = Field(default_factory=list)
     source_assessments: list[SourceAssessment] = Field(default_factory=list)
+    coverage_questions: list[CoverageQuestion] = Field(default_factory=list)
+    source_findings: list[SourceFinding] = Field(default_factory=list)
+    coverage_outcomes: list[CoverageOutcome] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_gap_records(self) -> "SourceMap":
         _unique_ids(self.gap_records, "gap_id", "gap record")
+        _unique_ids(self.coverage_questions, "question_id", "coverage question")
+        finding_ids = _unique_ids(self.source_findings, "finding_id", "source finding")
+        _unique_ids(self.coverage_outcomes, "outcome_id", "coverage outcome")
+        finding_by_id = {item.finding_id: item for item in self.source_findings}
+        if self.source_assessments:
+            assessment_by_id = {
+                item.assessment_id: item for item in self.source_assessments
+            }
+            for finding in self.source_findings:
+                if finding.assessment_id and finding.assessment_id not in assessment_by_id:
+                    raise ValueError(f"unknown source assessment id: {finding.assessment_id}")
+                if (
+                    finding.assessment_id
+                    and assessment_by_id[finding.assessment_id].source_id != finding.source_id
+                ):
+                    raise ValueError(
+                        f"source finding {finding.finding_id} does not belong to its assessment"
+                    )
+            for assessment in self.source_assessments:
+                for finding_id in assessment.finding_ids:
+                    if finding_id not in finding_by_id:
+                        raise ValueError(f"unknown source finding ids: {finding_id}")
+                    if finding_by_id[finding_id].source_id != assessment.source_id:
+                        raise ValueError(
+                            f"source finding {finding_id} does not belong to its assessment"
+                        )
+        unknown_findings = sorted(
+            {
+                finding_id
+                for outcome in self.coverage_outcomes
+                for finding_id in outcome.finding_ids
+            }
+            - finding_ids
+        )
+        if unknown_findings:
+            raise ValueError(f"unknown source finding ids: {', '.join(unknown_findings)}")
+        _validate_source_finding_lineage(
+            self.coverage_questions,
+            self.source_findings,
+            self.coverage_outcomes,
+        )
         return self
 
 
@@ -363,8 +777,14 @@ __all__ = [
     "CorpusBriefAuditReport",
     "CorpusBriefIntent",
     "CorpusBriefSourceSet",
+    "CoverageQuestionAssignment",
     "CoverageOutcome",
     "CoverageQuestion",
+    "CoverageRequirement",
+    "CoverageRequirementResult",
+    "FindingQuestionLink",
+    "FindingScope",
+    "FindingSourceRelation",
     "QuoteCard",
     "ResearchHandoffItem",
     "ResearchWorkflowCompletion",
@@ -373,6 +793,7 @@ __all__ = [
     "SourceCluster",
     "SourceGapRecord",
     "SourceMap",
+    "SourceFinding",
     "SourceRelationship",
     "SourceTriageCompletion",
     "SourceTriageGate",

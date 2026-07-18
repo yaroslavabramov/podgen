@@ -94,18 +94,25 @@ def checkpoint_restart_instructions(state: dict[str, Any]) -> str:
             )
         if agent_name.startswith("source_triage_set_agent_"):
             return instructions + (
-                "Continue only the current source set. Use list_triage_source_sets with section=current_set to restore its full fields, "
-                "and page section=observations from cursor 0 when observation previews were omitted. "
-                "Use skim_source, inspect_source, read_source_window, read_evidence, search_corpus, or compare_source_evidence only as needed. "
-                "Persist missing assessments and outcomes with upsert_source_assessment and upsert_coverage_outcome; persist useful map entries with "
-                "upsert_source_card, create_quote_card, record_source_cluster, record_source_relationship, record_gap, resolve_gap, or record_triage_observation. "
-                "Then call finish_triage_source_set."
+                "Continue only the current source set. Restore complete durable memory through "
+                "list_triage_source_sets sections current_set_state, source_read_receipts, reading_notes, "
+                "source_assessments, source_findings, coverage_outcomes, and assigned_questions. Continue only from "
+                "delivered read ranges. Execute the persisted retry arguments for pending text reads; retry pending "
+                "native attachments. Use source reads only for unfinished work and do not reread completed "
+                "source analyses. Save useful partial "
+                "understanding as a reading note, then save one complete source-analysis revision with "
+                "save_source_analysis. Refresh every stale local outcome with upsert_coverage_outcome. Do not write "
+                "cards, clusters, quotes, or global gaps. Call finish_triage_source_set only when all source analyses "
+                "and assigned or discovered question outcomes are current; status is mapped or deferred only."
             )
         if agent_name == "source_triage_finalizer_agent":
             return instructions + (
-                "Review only persisted triage state. Read every ordered coverage_question_packets part before writing, assemble them by packet_ref, and page source_map_repairs with list_triage_source_sets; page a specific assessment or outcome only for a concrete repair. "
-                "Preserve current accepted syntheses and upsert every missing or invalidated run-wide question synthesis without passing source_refs or evidence_ids; the backend derives lineage from per-set outcomes. "
-                "Resolve every open source_map repair with resolve_source_map_repair, repair concrete assessment/outcome inconsistencies, record a known gap when needed, then call finalize_source_map. Do not start broad new reading."
+                "Review only persisted triage state. Page every source_findings record and every coverage question; "
+                "repair missing or unsupported links, then refresh affected local outcomes. Read the complete "
+                "coverage_question_packets stream and write one run-wide result per requirement and question. Check "
+                "whether another set's findings close each local gap. Only afterward build useful SourceMap entries "
+                "and genuine global gaps. Read exact evidence only for a concrete conflict or doubtful causal link, "
+                "resolve open source-map repairs, then call finalize_source_map."
             )
         return instructions + "Continue only with tools exposed to this agent role."
     if state.get("phase") == "v2_editorial_research":

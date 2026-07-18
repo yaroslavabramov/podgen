@@ -246,7 +246,7 @@ async def test_repair_budget_survives_runner_recreation(monkeypatch: pytest.Monk
     async def load_workspace(_db, _run_id):
         return {**stored_workspace, "repair_budget": dict(stored_workspace.get("repair_budget") or {})}
 
-    async def save_workspace(_db, *, generation_run_id, workspace, status=None):
+    async def save_workspace(_db, *, generation_run_id, workspace, status=None, **_kwargs):
         del generation_run_id, status
         stored_workspace.clear()
         stored_workspace.update(workspace)
@@ -322,7 +322,7 @@ async def test_reserved_audit_rerun_is_completed_by_resumed_model_pass(
     async def load_workspace(_db, _run_id):
         return deepcopy(stored_workspace)
 
-    async def save_workspace(_db, *, generation_run_id, workspace, status=None):
+    async def save_workspace(_db, *, generation_run_id, workspace, status=None, **_kwargs):
         del generation_run_id, status
         stored_workspace.clear()
         stored_workspace.update(deepcopy(workspace))
@@ -393,7 +393,7 @@ async def test_memo_gate_without_open_questions_enqueues_durable_research_repair
     async def load_workspace(_db, _run_id):
         return deepcopy(stored_workspace)
 
-    async def save_workspace(_db, *, generation_run_id, workspace, status=None):
+    async def save_workspace(_db, *, generation_run_id, workspace, status=None, **_kwargs):
         del generation_run_id, status
         snapshot = deepcopy(workspace)
         stored_workspace.clear()
@@ -504,7 +504,7 @@ async def test_in_progress_research_repair_survives_new_corpus_attempt_with_payl
     async def load_workspace(_db, _run_id):
         return existing
 
-    async def save_workspace(_db, *, generation_run_id, workspace, status=None):
+    async def save_workspace(_db, *, generation_run_id, workspace, status=None, **_kwargs):
         del generation_run_id, status
         saved.update(workspace)
         return SimpleNamespace(payload=workspace)
@@ -588,7 +588,7 @@ async def test_reserved_finalizer_repair_survives_new_corpus_attempt(
     async def load_workspace(_db, _run_id):
         return existing
 
-    async def save_workspace(_db, *, generation_run_id, workspace, status=None):
+    async def save_workspace(_db, *, generation_run_id, workspace, status=None, **_kwargs):
         del generation_run_id, status
         return SimpleNamespace(payload=workspace)
 
@@ -668,7 +668,7 @@ async def test_research_finalizer_repair_completes_budget_only_after_durable_mem
     async def load_workspace(_db, _run_id):
         return deepcopy(stored_workspace)
 
-    async def save_workspace(_db, *, generation_run_id, workspace, status=None):
+    async def save_workspace(_db, *, generation_run_id, workspace, status=None, **_kwargs):
         del generation_run_id, status
         stored_workspace.clear()
         stored_workspace.update(deepcopy(workspace))
@@ -729,7 +729,7 @@ async def test_in_progress_triage_repair_survives_new_corpus_attempt(
     old_evidence_id = str(uuid.uuid4())
     new_evidence_id = str(uuid.uuid4())
     existing = {
-        "schema_version": "source_triage_workspace.v1",
+        "schema_version": "source_triage_workspace.v3",
         "manifest_hash": "manifest",
         "corpus_revision": 1,
         "attempt": 1,
@@ -760,7 +760,7 @@ async def test_in_progress_triage_repair_survives_new_corpus_attempt(
     async def load_workspace(_db, _run_id):
         return existing
 
-    async def save_workspace(_db, *, generation_run_id, workspace, status=None):
+    async def save_workspace(_db, *, generation_run_id, workspace, status=None, **_kwargs):
         del generation_run_id, status
         saved.update(workspace)
         return SimpleNamespace(payload=workspace)
@@ -934,8 +934,10 @@ def test_checkpoint_restart_instructions_match_the_active_role() -> None:
     assert "skim_source" not in planner
     assert "finalize_source_map" not in planner
     assert "finish_triage_source_set" in triage_set
-    assert "upsert_source_card" in triage_set
-    assert "read_source_window" in triage_set
+    assert "save_source_analysis" in triage_set
+    assert "current_set_state" in triage_set
+    assert "upsert_source_card" not in triage_set
+    assert "source reads only for unfinished work" in triage_set
     assert "list_source_capsules" not in triage_set
     assert "finalize_source_map" not in triage_set
     assert "finalize_source_map" in finalizer
@@ -1176,8 +1178,11 @@ async def test_mapped_triage_set_requires_one_resolved_assessment_per_source(
                 "set_id": "set_1",
                 "source_ref": "S01",
                 "source_id": source_1,
+                "processing_status": "resolved",
+                "representation_status": "readable",
                 "disposition": "anchor",
                 "relevance_reason": "The source is active.",
+                "no_findings_reason": "The completed reading yielded no substantive finding.",
             }
         ],
         "coverage_outcomes": [{"set_id": "set_1", "question_id": "q1", "status": "covered"}],
@@ -1217,7 +1222,7 @@ async def test_mapped_triage_set_requires_one_resolved_assessment_per_source(
     )
     assert len(workspace["repair_baseline_source_assessments"]) == 2
     assert len(workspace["repair_baseline_coverage_outcomes"]) == 2
-    paused_for_repair = await finish.handler(
+    rejected_repair_status = await finish.handler(
         {
             "set_id": "set_1",
             "status": "needs_repair",
@@ -1226,7 +1231,8 @@ async def test_mapped_triage_set_requires_one_resolved_assessment_per_source(
             "deferred_sources": [],
         }
     )
-    assert paused_for_repair["accepted"] is True
+    assert rejected_repair_status["accepted"] is False
+    assert rejected_repair_status["error"] == "status must be mapped or deferred"
     assert len(workspace["repair_baseline_source_assessments"]) == 2
     assert len(workspace["repair_baseline_coverage_outcomes"]) == 2
     workspace["source_assessments"].append(
@@ -1234,8 +1240,11 @@ async def test_mapped_triage_set_requires_one_resolved_assessment_per_source(
             "set_id": "set_1",
             "source_ref": "S02",
             "source_id": source_2,
+            "processing_status": "resolved",
+            "representation_status": "unreadable",
             "disposition": "deferred",
             "relevance_reason": "The source is explicitly deferred.",
+            "no_findings_reason": "No inspectable source representation was available.",
         }
     )
     contradictory_source_deferral = await finish.handler(
@@ -1902,32 +1911,55 @@ def test_triage_context_reports_source_set_page_and_preview_fields() -> None:
 def test_triage_source_set_payload_is_compact_and_preserves_workspace() -> None:
     long_purpose = "p" * 600
     long_rationale = "r" * 1200
-    long_note = "n" * 1600
+    long_finding = "f" * 1600
+    long_outcome = "o" * 1200
     workspace = {
         "source_order": ["S01"],
+        "coverage_questions": [
+            {
+                "question_id": "q1",
+                "question": "What happened?",
+                "answer_requirements": [],
+            }
+        ],
         "source_sets": [
             {
                 "set_id": "set_1",
                 "label": "Primary set",
                 "purpose": long_purpose,
                 "rationale": long_rationale,
-                "questions": ["What happened?"],
                 "source_refs": ["S01"],
-                "observations": [
-                    {
-                        "source_refs": ["S01"],
-                        "evidence_ids": ["ev-1"],
-                        "note": long_note,
-                        "pending_questions": ["What remains?"],
-                    }
-                ],
-                "written_actions": [
-                    {
-                        "tool_name": "upsert_source_card",
-                        "source_refs": ["S01"],
-                        "evidence_ids": ["ev-1"],
-                    }
-                ],
+                "question_ids": ["q1"],
+            }
+        ],
+        "source_assessments": [
+            {
+                "set_id": "set_1",
+                "source_ref": "S01",
+                "processing_status": "resolved",
+                "representation_status": "readable",
+                "disposition": "anchor",
+                "finding_ids": ["finding-1"],
+                "no_findings_reason": "",
+            }
+        ],
+        "source_findings": [
+            {
+                "finding_id": "finding-1",
+                "set_id": "set_1",
+                "source_ref": "S01",
+                "statement": long_finding,
+                "evidence_ids": ["ev-1"],
+                "question_links": [{"question_id": "q1", "requirement_ids": []}],
+            }
+        ],
+        "coverage_outcomes": [
+            {
+                "set_id": "set_1",
+                "question_id": "q1",
+                "status": "covered",
+                "finding_ids": ["finding-1"],
+                "orientation_summary": long_outcome,
             }
         ],
         "source_capsules": {
@@ -1959,28 +1991,47 @@ def test_triage_source_set_payload_is_compact_and_preserves_workspace() -> None:
     assert "written_actions" not in source_set
     assert source_set["purpose_truncated"] is True
     assert source_set["rationale_truncated"] is True
-    assert source_set["observation_count"] == 1
-    assert source_set["observation_previews"][0]["note_truncated"] is True
+    assert source_set["source_assessment_count"] == 1
+    assert source_set["source_finding_count"] == 1
+    assert source_set["coverage_outcome_count"] == 1
+    assert payload["saved_state_previews"]["findings"][0]["statement_truncated"] is True
+    assert (
+        payload["saved_state_previews"]["question_outcomes"][0][
+            "orientation_summary_truncated"
+        ]
+        is True
+    )
+    assert "current_set_state" in payload["saved_state_previews"]["full_records"]
     assert payload["capsule_previews"][0]["summary_hint_truncated"] is True
     assert payload["capsule_previews"][0]["window_previews"][0]["text_truncated"] is True
     assert workspace["source_sets"][0]["purpose"] == long_purpose
-    assert workspace["source_sets"][0]["observations"][0]["note"] == long_note
+    assert workspace["source_findings"][0]["statement"] == long_finding
+    assert workspace["coverage_outcomes"][0]["orientation_summary"] == long_outcome
 
 
 @pytest.mark.asyncio
-async def test_triage_set_agent_can_restore_full_current_set_and_observations(
+async def test_triage_set_agent_can_restore_full_durable_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.generation_v2 import source_triage_workspace as workspace_api
 
     purpose = "p" * 600
     rationale = "r" * 1200
-    findings = "f" * 1600
-    note = "n" * 1600
+    finding_statement = "f" * 1600
+    outcome_summary = "o" * 1600
     evidence_ids = [f"ev-{index}" for index in range(12)]
     workspace = {
         "source_order": ["S01"],
         "current_set": {"set_id": "set_1"},
+        "coverage_questions": [
+            {
+                "question_id": "q1",
+                "question": "q" * 280,
+                "kind": "cause",
+                "importance": "critical",
+                "answer_requirements": [],
+            }
+        ],
         "source_sets": [
             {
                 "set_id": "set_1",
@@ -1988,31 +2039,83 @@ async def test_triage_set_agent_can_restore_full_current_set_and_observations(
                 "purpose": purpose,
                 "source_refs": ["S01"],
                 "rationale": rationale,
-                "questions": ["q" * 280],
+                "question_ids": ["q1"],
                 "priority": "high",
                 "status": "in_progress",
-                "findings_summary": findings,
-                "observations": [
-                    {
-                        "source_refs": ["S01"],
-                        "evidence_ids": evidence_ids,
-                        "note": note,
-                        "pending_questions": ["pending " * 30],
-                    }
-                ],
-                "written_actions": [],
+            }
+        ],
+        "source_assessments": [
+            {
+                "assessment_id": "assessment:source-1",
+                "set_id": "set_1",
+                "source_ref": "S01",
+                "source_id": "source-1",
+                "processing_status": "resolved",
+                "representation_status": "readable",
+                "disposition": "anchor",
+                "finding_ids": ["finding-1"],
+                "no_findings_reason": "",
+                "evidence_ids": evidence_ids,
+            }
+        ],
+        "source_findings": [
+            {
+                "finding_id": "finding-1",
+                "set_id": "set_1",
+                "source_ref": "S01",
+                "source_id": "source-1",
+                "statement": finding_statement,
+                "evidence_ids": evidence_ids,
+                "scope": {
+                    "actor": "Actor",
+                    "period": "Period",
+                    "geography": "Place",
+                    "qualifiers": [],
+                },
+                "limitations": [],
+                "question_links": [{"question_id": "q1", "requirement_ids": []}],
+                "source_relations": [],
+                "semantic_revision": 1,
+            }
+        ],
+        "coverage_outcomes": [
+            {
+                "outcome_id": "outcome:q1:set_1",
+                "set_id": "set_1",
+                "question_id": "q1",
+                "status": "covered",
+                "source_refs": ["S01"],
+                "source_ids": ["source-1"],
+                "evidence_ids": evidence_ids,
+                "finding_ids": ["finding-1"],
+                "requirement_results": [],
+                "orientation_summary": outcome_summary,
+                "missing_detail": "",
+                "conflict_summary": "",
+                "deferred_reason": "",
+                "is_stale": False,
             }
         ],
     }
     compact = source_set_prompt_payload(workspace, "set_1")
     assert "purpose" not in compact["set"]
     assert compact["set"]["purpose_truncated"] is True
-    assert "note" not in compact["set"]["observation_previews"][0]
+    assert compact["saved_state_previews"]["findings"][0]["statement_truncated"] is True
+    assert (
+        compact["saved_state_previews"]["question_outcomes"][0][
+            "orientation_summary_truncated"
+        ]
+        is True
+    )
 
     async def load(_db, _run_id):
         return workspace
 
+    async def save(_db, *, workspace, **_kwargs):
+        return SimpleNamespace(payload=workspace)
+
     monkeypatch.setattr(workspace_api, "load_source_triage_workspace", load)
+    monkeypatch.setattr(workspace_api, "save_source_triage_workspace", save)
     set_tools = build_workspace_tools(
         db=None,  # type: ignore[arg-type]
         run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
@@ -2022,28 +2125,54 @@ async def test_triage_set_agent_can_restore_full_current_set_and_observations(
         current_set_id="set_1",
     )
     page_tool = next(tool for tool in set_tools if tool.name == "list_triage_source_sets")
-    current_page = await page_tool.handler({"section": "current_set", "set_id": "set_1", "cursor": "0", "limit": 1})
-    observation_page = await page_tool.handler(
-        {"section": "observations", "set_id": "set_1", "cursor": "0", "limit": 1}
+    state_page = await page_tool.handler(
+        {"section": "current_set_state", "set_id": "set_1", "cursor": "0", "limit": 25}
     )
     question_page = await page_tool.handler(
         {"section": "assigned_questions", "set_id": "set_1", "cursor": "0", "limit": 1}
     )
+    assessment_page = await page_tool.handler(
+        {"section": "source_assessments", "set_id": "set_1", "cursor": "0", "limit": 25}
+    )
+    finding_page = await page_tool.handler(
+        {"section": "source_findings", "set_id": "set_1", "cursor": "0", "limit": 25}
+    )
+    outcome_page = await page_tool.handler(
+        {"section": "coverage_outcomes", "set_id": "set_1", "cursor": "0", "limit": 25}
+    )
 
-    assert current_page["items"][0]["purpose"] == purpose
-    assert current_page["items"][0]["rationale"] == rationale
-    assert current_page["items"][0]["findings_summary"] == findings
-    assert "questions" not in current_page["items"][0]
-    assert current_page["items"][0]["legacy_question_count"] == 1
+    assert state_page["state"] == {
+        "pending_source_refs": [],
+        "required_question_ids": ["q1"],
+        "missing_outcome_question_ids": [],
+        "stale_outcome_question_ids": [],
+        "saved_source_analysis_count": 1,
+        "source_read_receipt_count": 0,
+        "saved_reading_note_count": 0,
+        "latest_source_read_receipts": [],
+        "pending_source_read_receipts": [],
+        "replay_required_after_activation": [],
+        "saved_finding_count": 1,
+        "saved_outcome_count": 1,
+        "pending_exact_read_source_refs": [],
+        "pending_discovered_question_attempts": [],
+    }
+    assert {item["state_record_kind"] for item in state_page["items"]} == {
+        "source_analysis",
+        "source_finding",
+        "question_outcome",
+    }
     assert question_page["items"][0]["question"] == "q" * 280
-    assert question_page["items"][0]["origin"] == "legacy_source_set"
-    assert observation_page["items"][0]["note"] == note
-    assert observation_page["items"][0]["pending_questions"] == ["pending " * 30]
-    assert observation_page["items"][0]["evidence_ids"] == evidence_ids
-    assert observation_page["items"][0]["evidence_omitted_count"] == 0
-    model_facing_tool_output("list_triage_source_sets", current_page)
+    assert assessment_page["items"][0]["finding_ids"] == ["finding-1"]
+    assert finding_page["items"][0]["statement"] == finding_statement
+    assert finding_page["items"][0]["evidence_ids"] == evidence_ids
+    assert outcome_page["items"][0]["orientation_summary"] == outcome_summary
+    assert outcome_page["items"][0]["finding_ids"] == ["finding-1"]
+    model_facing_tool_output("list_triage_source_sets", state_page)
     model_facing_tool_output("list_triage_source_sets", question_page)
-    model_facing_tool_output("list_triage_source_sets", observation_page)
+    model_facing_tool_output("list_triage_source_sets", assessment_page)
+    model_facing_tool_output("list_triage_source_sets", finding_page)
+    model_facing_tool_output("list_triage_source_sets", outcome_page)
 
     finalizer_tools = build_workspace_tools(
         db=None,  # type: ignore[arg-type]
@@ -2053,11 +2182,11 @@ async def test_triage_set_agent_can_restore_full_current_set_and_observations(
         mode="finalizer",
     )
     finalizer_page_tool = next(tool for tool in finalizer_tools if tool.name == "list_triage_source_sets")
-    hidden_page = await finalizer_page_tool.handler(
-        {"section": "observations", "set_id": "set_1", "cursor": "0", "limit": 1}
+    finalizer_finding_page = await finalizer_page_tool.handler(
+        {"section": "source_findings", "cursor": "0", "limit": 25}
     )
-    assert "evidence_ids" not in hidden_page["items"][0]
-    assert hidden_page["items"][0]["evidence_count"] == 12
+    assert finalizer_finding_page["items"][0]["statement"] == finding_statement
+    assert finalizer_finding_page["items"][0]["evidence_ids"] == evidence_ids
 
 
 @pytest.mark.asyncio

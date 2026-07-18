@@ -10,46 +10,22 @@ MAX_CHECKPOINT_WORKFLOW_CONTRACT_CHARS = 12_000
 MAX_CHECKPOINT_TASK_CONTEXT_CHARS = 30_000
 
 
-TRIAGE_PLANNER_RESUME_CONTRACT = """Continue source-triage planning only.
-Use the fresh durable workspace and compact source inventory page in the checkpoint as authoritative; follow its
-next_cursor only when the page metadata says the catalog is incomplete.
-Preserve every accepted coverage question and source-set assignment. Never recreate, translate, or paraphrase
-accepted writes. If there are no accepted questions, preserve the central question type and scope of the user intent
-in one critical root substantive question; source ranking and triage procedure are not coverage questions. Keep
-materially distinct explanatory subquestions as children rather than substitutes for that root.
-Assign every source_ref to exactly one coverage set, or after explicitly inspecting its capsule route it through
-route_sources_for_initial_reading when no honest substantive assignment is supported. Attach every accepted question
-to a coverage set. Sparse or mechanical previews do not
-establish shared content, source quality, or repair scope. Do not read the whole corpus, invent a thesis, or assemble
-the episode's causal chain. Follow planner_resume.next_action and finish only through
+TRIAGE_PLANNER_RESUME_CONTRACT = """Continue only the current source-triage planning attempt.
+Treat fresh durable workspace pages as authoritative, follow next_cursor until required sections are complete, and
+never recreate accepted writes. Resume the unfinished planning work under the original prompt and finish only through
 finalize_triage_workspace_plan."""
 
 
-TRIAGE_SET_RESUME_CONTRACT = """Continue mapping only the current source set from the fresh durable workspace.
-Restore omitted full fields with list_triage_source_sets and use source/evidence reads only as needed. Persist one
-assessment for every assigned source and one outcome for every currently assigned coverage question. A neutral
-orientation set starts with no question and must not invent one; genuine relevance discovered by reading is linked to
-an existing substantive question and then receives a normal outcome. If saved evidence contains only an access,
-error, consent, or navigation shell rather than the requested material, record not_target_content, keep semantic
-judgments unknown, defer it, and add no coverage or editorial links. Keep processing,
-representation health, relevance, authority, uniqueness, and downstream disposition separate. Persist useful cards,
-relationships, clusters, quote seeds, observations, and gaps only when grounded in saved evidence. Do not decide the
-episode thesis or story structure. Follow current_set.execution_mode; when it is targeted_repair, preserve accepted
-work outside current_set.repair_source_refs, repair_question_ids, and repair_targets. Finish mapped/deferred only
-after the set is fully resolved; if work remains unfinished, finish with needs_repair and a concrete reason so it
-cannot be finalized."""
+TRIAGE_SET_RESUME_CONTRACT = """Continue only the current source set from fresh durable state.
+Restore current_set_state and every section it marks incomplete. Execute persisted retries for pending reads and
+replay_required_after_activation before advancing beyond those ranges. Never recreate completed source analyses or
+outcomes; continue the unfinished work under the original prompt and finish only through finish_triage_source_set."""
 
 
-TRIAGE_FINALIZER_RESUME_CONTRACT = """Continue source-triage finalization from fresh persisted state only.
-Review coverage_question_packets, deferred sources, and the assembled SourceMap for concrete omissions or
-contradictions. Read the complete ordered packet-parts stream before writing: assemble question, existing_synthesis,
-per_set_outcome, and optional lineage parts by packet_ref. Page source_map_repairs and only the specific assessment/outcome records needed
-for a concrete repair. Persist one run-wide coverage synthesis for every question, reconciling complementary set
-results instead of concatenating them. Do not pass source_refs or evidence_ids to upsert_coverage_synthesis. Repair only
-traceable inconsistencies; do not begin broad reading, invent source roles, grade creative depth, or decide the
-episode thesis. Resolve every open source_map_repairs item explicitly with resolve_source_map_repair; use
-list_source_map_gaps and resolve_gap when durable evidence makes an ordinary old gap obsolete. Finish only
-through finalize_source_map."""
+TRIAGE_FINALIZER_RESUME_CONTRACT = """Continue only the current source-triage finalization attempt.
+Treat fresh persisted questions, findings, outcomes, and map records as authoritative; page every section marked
+incomplete and never recreate accepted writes. Continue the unfinished finalization under the original prompt and
+finish only through finalize_source_map."""
 
 
 RESEARCH_PLANNER_RESUME_CONTRACT = """Continue editorial-research planning only.

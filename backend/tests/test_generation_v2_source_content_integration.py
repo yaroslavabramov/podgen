@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import uuid
 from types import SimpleNamespace
 
@@ -43,6 +44,49 @@ def _legacy_version(source: Source, kind: SourceRepresentationKind, path: str) -
         upload_status=V2RecordStatus.READY,
         is_active=True,
     )
+
+
+def test_fetched_html_read_surface_verifies_capture_then_extracts_document(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2.tools import evidence_source_text
+
+    source = _source(SourceType.WEB, original_url="https://example.com/report")
+    version = _legacy_version(source, SourceRepresentationKind.FETCHED_HTML, "legacy/report.html")
+    html = "<html><body><main>The complete immutable article.</main></body></html>"
+    version.content_hash = hashlib.sha256(html.encode("utf-8")).hexdigest()
+    monkeypatch.setattr(evidence_source_text, "get_minio_client", lambda: object())
+    monkeypatch.setattr(evidence_source_text, "download_text", lambda *_args: html)
+    monkeypatch.setattr(
+        evidence_source_text,
+        "extract_web_document_text",
+        lambda stored: "The complete immutable article." if stored == html else "",
+    )
+
+    assert evidence_source_text.source_version_text(version) == "The complete immutable article."
+
+
+def test_model_read_surface_removes_only_internal_source_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2.tools import evidence_source_text
+
+    source = _source(SourceType.PDF)
+    version = _legacy_version(source, SourceRepresentationKind.PAGE_MARKED_TEXT, "page.txt")
+    factual_uuid = str(uuid.uuid4())
+    stored = (
+        f"[source_id={source.id} page_marker=1 paragraph=1] "
+        f"The filing itself names factual id {factual_uuid}."
+    )
+    version.content_hash = hashlib.sha256(stored.encode("utf-8")).hexdigest()
+    monkeypatch.setattr(evidence_source_text, "get_minio_client", lambda: object())
+    monkeypatch.setattr(evidence_source_text, "download_text", lambda *_args: stored)
+
+    text = evidence_source_text.source_version_text(version)
+
+    assert str(source.id) not in text
+    assert text.startswith("[page_marker=1 paragraph=1]")
+    assert factual_uuid in text
 
 
 def test_legacy_url_media_transcript_is_not_treated_as_unassessed_web_surface() -> None:
@@ -182,6 +226,57 @@ async def test_implicit_local_read_keeps_confirmed_immutable_fallback_only() -> 
     resolved = await owner._resolve_source_version(source_id=str(source.id), source_version_id="")
 
     assert resolved is confirmed
+
+
+@pytest.mark.asyncio
+async def test_implicit_local_read_recovers_fuller_view_from_pinned_html_parent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2.tools import evidence_local_source
+
+    source = _source(SourceType.WEB, original_url="https://example.com/report")
+    extracted = _legacy_version(source, SourceRepresentationKind.EXTRACTED_TEXT, "legacy/report.md")
+    fetched = _legacy_version(source, SourceRepresentationKind.FETCHED_HTML, "legacy/report.html")
+    extracted.metadata_ = {"derived_from_source_version_id": str(fetched.id)}
+    appendix = "Appendix references supporting the report. " * 180
+    complete = (
+        "The full article explains the historical decision, the operating mechanism, and its consequences. " * 700
+        + appendix
+    )
+    owner = _LocalResolverOwner(source, extracted, query_versions=[extracted, fetched])
+    monkeypatch.setattr(
+        evidence_local_source,
+        "_source_version_text",
+        lambda version: appendix if version is extracted else complete,
+    )
+
+    resolved = await owner._resolve_source_version(source_id=str(source.id), source_version_id="")
+
+    assert resolved is fetched
+
+
+@pytest.mark.asyncio
+async def test_implicit_local_read_rejects_long_parent_shell_that_drops_article(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2.tools import evidence_local_source
+
+    source = _source(SourceType.WEB, original_url="https://example.com/report")
+    extracted = _legacy_version(source, SourceRepresentationKind.EXTRACTED_TEXT, "legacy/report.md")
+    fetched = _legacy_version(source, SourceRepresentationKind.FETCHED_HTML, "legacy/report.html")
+    extracted.metadata_ = {"derived_from_source_version_id": str(fetched.id)}
+    article = " ".join(f"articleterm{index:03d}" for index in range(220))
+    navigation_shell = " ".join(f"navigationitem{index:04d}" for index in range(1400))
+    owner = _LocalResolverOwner(source, extracted, query_versions=[extracted, fetched])
+    monkeypatch.setattr(
+        evidence_local_source,
+        "_source_version_text",
+        lambda version: article if version is extracted else navigation_shell,
+    )
+
+    resolved = await owner._resolve_source_version(source_id=str(source.id), source_version_id="")
+
+    assert resolved is extracted
 
 
 @pytest.mark.asyncio

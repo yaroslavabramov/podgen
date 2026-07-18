@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 
+# Trace classifications only. They do not impose read or write-call limits.
 TRIAGE_READ_TOOLS = {
     "search_corpus",
+    "read_source",
+    "search_source",
+    "open_source_file",
     "find_quotes",
     "read_evidence",
     "read_source_window",
@@ -14,11 +18,13 @@ TRIAGE_READ_TOOLS = {
     "compare_evidence_for_question",
 }
 TRIAGE_SEMANTIC_COMMIT_TOOLS = {
-    "record_triage_observation",
-    "finish_triage_source_set",
-    "upsert_source_assessment",
+    "save_reading_note",
+    "save_source_analysis",
     "upsert_coverage_outcome",
+    "update_source_finding_links",
+    "update_source_finding_relations",
     "upsert_coverage_synthesis",
+    "finish_triage_source_set",
     "upsert_source_card",
     "create_quote_card",
     "record_source_relationship",
@@ -27,7 +33,7 @@ TRIAGE_SEMANTIC_COMMIT_TOOLS = {
     "resolve_gap",
     "resolve_source_map_repair",
 }
-TRIAGE_READS_PER_COMMIT = 10
+
 TRIAGE_CAPSULE_PAGE_DEFAULT_LIMIT = 8
 TRIAGE_CAPSULE_PAGE_MAX_LIMIT = 12
 TRIAGE_CAPSULE_OUTPUT_TARGET_CHARS = 9000
@@ -46,6 +52,14 @@ TRIAGE_SEMANTIC_FIELD_LIMITS = {
     "deferred_reason": 1000,
     "assessment_reason": 1200,
     "assessment_limitation": 800,
+    "no_findings_reason": 1200,
+    "finding_statement": 2400,
+    "finding_scope": 800,
+    "finding_link_rationale": 1000,
+    "finding_relation_rationale": 1200,
+    "requirement_description": 800,
+    "requirement_rationale": 1000,
+    "requirement_summary": 1600,
     "coverage_summary": 1600,
     "coverage_detail": 1200,
     "coverage_synthesis_summary": 2400,

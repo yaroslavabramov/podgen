@@ -41,6 +41,7 @@ async def record_round_response_trace(
     chain_round: int,
     previous_response_id: str | None,
     max_output_tokens: int | None,
+    server_compaction_threshold: int | None,
 ) -> RuntimeResponseTrace:
     response_trace = _runtime_response_trace_payload(response, requested_model=requested_model)
     usage = response_trace.usage
@@ -69,6 +70,7 @@ async def record_round_response_trace(
             function_calls=function_calls,
             hosted_followup=None,
             max_output_tokens=max_output_tokens,
+            server_compaction_threshold=server_compaction_threshold,
         ),
     )
     _set_response_run_outputs(
@@ -99,6 +101,7 @@ async def record_round_response_trace(
         trace_payload=response_trace,
         latency_ms=latency_ms,
         max_output_tokens=max_output_tokens,
+        server_compaction_threshold=server_compaction_threshold,
     )
     return response_trace
 

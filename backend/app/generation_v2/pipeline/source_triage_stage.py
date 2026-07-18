@@ -21,7 +21,10 @@ from app.generation_v2.pipeline.source_triage_gate_repair_flow import (
     run_source_triage_gate_repair,
     source_triage_repair_already_used,
 )
-from app.generation_v2.pipeline.source_triage_set_flow import run_source_triage_set
+from app.generation_v2.pipeline.source_triage_set_flow import (
+    SourceTriageSetOperationalError,
+    run_source_triage_set,
+)
 from app.generation_v2.pipeline.state import TriageState
 from app.generation_v2.pipeline.status import start_phase
 from app.generation_v2.runtime import V2Runtime
@@ -165,6 +168,15 @@ class SourceTriageStageRunner:
             )
             set_completions.append(completion)
             workspace = await load_source_triage_workspace(self.db, self.run.id) or workspace
+            set_id = str(source_set.get("set_id") or "")
+            persisted_set = next(
+                (item for item in workspace.get("source_sets") or [] if str(item.get("set_id") or "") == set_id),
+                None,
+            )
+            if persisted_set is None or persisted_set.get("status") not in {"mapped", "deferred"}:
+                raise SourceTriageSetOperationalError(
+                    f"Source triage set {set_id or '<missing>'} returned without a terminal mapped/deferred state."
+                )
         return planner_completion, set_completions, workspace
 
     async def record_planner_not_finalized(

@@ -104,11 +104,13 @@ def test_default_checkpoint_policy_uses_pressure_not_an_arbitrary_round_count() 
     ) == "chain_rounds>=8"
 
 
-def test_source_agent_prompts_label_embedded_context_as_an_initial_snapshot() -> None:
+def test_source_agent_prompts_label_embedded_context_as_durable_preview_state() -> None:
     assert "Initial durable triage workspace snapshot" in SOURCE_TRIAGE_PLANNER_PROMPT
-    assert "Initial source-set and durable workspace snapshot" in SOURCE_TRIAGE_SET_PROMPT
-    assert "Initial durable triage workspace snapshot" in SOURCE_TRIAGE_FINALIZER_PROMPT
-    assert "Current triage workspace" not in SOURCE_TRIAGE_PLANNER_PROMPT
+    assert "Initial durable set snapshot" in SOURCE_TRIAGE_SET_PROMPT
+    assert "Initial durable finalizer snapshot" in SOURCE_TRIAGE_FINALIZER_PROMPT
+    assert "Later tool results and paged durable state" in SOURCE_TRIAGE_PLANNER_PROMPT
+    assert "Later tool results and current_set_state pages" in SOURCE_TRIAGE_SET_PROMPT
+    assert "Later paged durable state" in SOURCE_TRIAGE_FINALIZER_PROMPT
 
 
 def test_planner_resume_payload_preserves_accepted_writes_and_computes_next_action() -> None:
@@ -281,9 +283,28 @@ def test_finalizer_checkpoint_requires_missing_or_invalidated_syntheses_before_f
     )
 
     assert "coverage_question_packets" in instructions
-    assert "upsert every missing or invalidated run-wide question synthesis" in instructions
-    assert "backend derives lineage" in instructions
-    assert instructions.index("question synthesis") < instructions.index("finalize_source_map")
+    assert "Page every source_findings record" in instructions
+    assert "repair missing or unsupported links" in instructions
+    assert "refresh affected local outcomes" in instructions
+    assert "another set's findings close each local gap" in instructions
+    assert instructions.index("coverage_question_packets") < instructions.index("finalize_source_map")
+
+
+def test_triage_resume_contracts_only_restore_technical_execution_state() -> None:
+    planner_contract = " ".join(TRIAGE_PLANNER_RESUME_CONTRACT.split())
+    set_contract = " ".join(TRIAGE_SET_RESUME_CONTRACT.split())
+    finalizer_contract = " ".join(TRIAGE_FINALIZER_RESUME_CONTRACT.split())
+
+    assert "fresh durable workspace pages" in planner_contract
+    assert "never recreate accepted writes" in planner_contract
+    assert "current_set_state" in set_contract
+    assert "pending reads" in set_contract
+    assert "replay_required_after_activation" in set_contract
+    assert "original prompt" in set_contract
+    assert "fresh persisted questions, findings, outcomes, and map records" in finalizer_contract
+    assert "original prompt" in finalizer_contract
+    assert "every question/requirement link" not in set_contract
+    assert "another set's findings close a local gap" not in finalizer_contract
 
 
 def test_checkpoint_state_fails_closed_when_required_workspace_is_missing() -> None:

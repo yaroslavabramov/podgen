@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.generation_v2 import research_workspace as research_workspace_module
+from app.generation_v2 import source_triage_workspace_tracking as workspace_tracking
 from app.generation_v2.schemas import ResearchHandoffItem, SourceCard, SourceMap
 from app.generation_v2.source_triage_canonical import (
     aggregate_coverage_outcomes,
@@ -129,6 +130,40 @@ def _workspace(
     }
 
 
+def test_unreadable_representation_cannot_carry_unseen_source_judgments() -> None:
+    unreadable = _assessment(
+        "S01",
+        "source-unreadable",
+        [],
+        representation_status="unreadable",
+        disposition="deferred",
+    )
+    unreadable["disposition_reason"] = "No inspectable target text was obtained."
+    workspace = _workspace([unreadable])
+
+    invalid_codes = {
+        item["code"] for item in canonical_workspace_violations(workspace)
+    }
+    unreadable.update(
+        {
+            "relevance": "unknown",
+            "relevance_reason": "",
+            "authority": "unknown",
+            "authority_reason": "",
+            "uniqueness": "unknown",
+            "uniqueness_reason": "",
+            "coverage_question_ids": [],
+            "editorial_functions": [],
+        }
+    )
+    valid_codes = {
+        item["code"] for item in canonical_workspace_violations(workspace)
+    }
+
+    assert "inconsistent_source_assessment" in invalid_codes
+    assert "inconsistent_source_assessment" not in valid_codes
+
+
 def _materialized_map(workspace: dict) -> SourceMap:
     cards = [
         _card(str(item["source_id"]), [str(value) for value in item.get("evidence_ids") or []])
@@ -166,6 +201,21 @@ def test_canonical_workspace_requires_exactly_one_assessment_per_source() -> Non
 
     assert by_code["duplicate_source_assessments"]["source_refs"] == ["S01"]
     assert by_code["unassessed_sources"]["source_refs"] == ["S02"]
+
+
+def test_canonical_workspace_rejects_duplicate_question_assignments() -> None:
+    workspace = _workspace([_assessment("S01", "source-1", ["evidence-1"])])
+    workspace["source_sets"][0]["question_assignments"] = [
+        {"question_id": "q_main", "requirement_ids": []},
+        {"question_id": "q_main", "requirement_ids": []},
+    ]
+
+    violations = canonical_workspace_violations(workspace)
+    by_code = {item["code"]: item for item in violations}
+
+    assert by_code["duplicate_source_set_question_assignments"]["set_question_pairs"] == [
+        ["set_main", "q_main"]
+    ]
 
 
 def test_canonical_workspace_requires_outcome_for_each_set_question_pair() -> None:
@@ -490,6 +540,79 @@ def test_coverage_synthesis_hash_ignores_other_question_assessment_in_shared_set
     assert before == after
 
 
+@pytest.mark.asyncio
+async def test_derived_source_map_writes_do_not_stale_completed_synthesis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assessment = _assessment("S01", "source-1", ["evidence-1"])
+    assessment["set_id"] = "set_main"
+    workspace = _workspace([assessment])
+    workspace["triage_semantic_revision"] = 3
+    workspace["current_set"] = {"set_id": "set_main"}
+    workspace["coverage_outcomes"][0].update(
+        {
+            "outcome_id": "outcome:q_main:set_main",
+            "source_refs": ["S01"],
+            "missing_detail": "",
+            "conflict_summary": "",
+            "deferred_reason": "",
+        }
+    )
+    synthesis = {
+        "outcome_id": "synthesis:q_main",
+        "question_id": "q_main",
+        "status": "covered",
+        "source_refs": ["S01"],
+        "source_ids": ["source-1"],
+        "evidence_ids": ["evidence-1"],
+        "orientation_summary": "The source establishes the mechanism.",
+        "missing_detail": "",
+        "conflict_summary": "",
+        "deferred_reason": "",
+        "confidence": 0.9,
+        "next_action": "research",
+        "input_revision": 3,
+    }
+    workspace["coverage_syntheses"] = [synthesis]
+    synthesis["input_hash"] = coverage_synthesis_input_hash(workspace, "q_main")
+    original_hash = synthesis["input_hash"]
+    original_finalization = dict(workspace["source_map_finalization"])
+    state = {"workspace": workspace}
+
+    async def load_workspace(_db, _run_id):
+        return state["workspace"]
+
+    async def save_workspace(_db, *, workspace: dict, **_kwargs):
+        state["workspace"] = workspace
+        return SimpleNamespace(payload=workspace)
+
+    monkeypatch.setattr(workspace_tracking, "load_source_triage_workspace", load_workspace)
+    monkeypatch.setattr(workspace_tracking, "save_source_triage_workspace", save_workspace)
+
+    for tool_name in (
+        "upsert_source_card",
+        "record_source_relationship",
+        "create_quote_card",
+        "record_source_cluster",
+        "record_gap",
+        "resolve_gap",
+    ):
+        await workspace_tracking.mark_workspace_write_action(
+            None,  # type: ignore[arg-type]
+            generation_run_id=uuid.uuid4(),
+            tool_name=tool_name,
+            source_refs=["S01"],
+            evidence_ids=["evidence-1"],
+        )
+
+    stored = state["workspace"]
+    assert stored["triage_semantic_revision"] == 3
+    assert stored["coverage_syntheses"] == [synthesis]
+    assert stored["source_map_finalization"] == original_finalization
+    assert coverage_synthesis_input_hash(stored, "q_main") == original_hash
+    assert canonical_workspace_violations(stored, require_syntheses=True) == []
+
+
 def test_question_material_lineage_uses_set_assignment_only_for_legacy_assessment() -> None:
     assessment = _assessment("S01", "source-1", ["evidence-1"])
     assessment.pop("coverage_question_ids")
@@ -772,7 +895,19 @@ def test_run_wide_synthesis_from_another_mapped_set_reaches_research_handoff() -
         representation_status="unreadable",
         disposition="deferred",
     )
-    deferred["disposition_reason"] = "The checked representation is unreadable."
+    deferred.update(
+        {
+            "relevance": "unknown",
+            "relevance_reason": "",
+            "authority": "unknown",
+            "authority_reason": "",
+            "uniqueness": "unknown",
+            "uniqueness_reason": "",
+            "coverage_question_ids": [],
+            "editorial_functions": [],
+            "disposition_reason": "The checked representation is unreadable.",
+        }
+    )
     active = _assessment("S02", "source-2", ["evidence-2"])
     deferred["set_id"] = "set_assigned"
     active["set_id"] = "set_other"
@@ -1060,6 +1195,20 @@ def test_materialize_corpus_brief_excludes_deferred_and_unreadable_inputs_from_h
         "source-unreadable",
         ["evidence-unreadable"],
         representation_status="unreadable",
+        relevance="unknown",
+        authority="unknown",
+        uniqueness="unknown",
+        disposition="deferred",
+    )
+    unreadable.update(
+        {
+            "relevance_reason": "",
+            "authority_reason": "",
+            "uniqueness_reason": "",
+            "coverage_question_ids": [],
+            "editorial_functions": [],
+            "disposition_reason": "The target representation is unreadable.",
+        }
     )
     workspace = _workspace([eligible, deferred, unreadable])
     source_map = _materialized_map(workspace)

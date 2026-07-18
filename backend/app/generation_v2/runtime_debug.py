@@ -31,6 +31,40 @@ def tool_policy_payload(policy: Any) -> dict[str, Any]:
     }
 
 
+def redact_runtime_file_ids(value: Any) -> Any:
+    file_ids: set[str] = set()
+
+    def collect(item: Any) -> None:
+        if isinstance(item, dict):
+            for key, nested in item.items():
+                if key == "file_id" and isinstance(nested, str) and nested:
+                    file_ids.add(nested)
+                collect(nested)
+        elif isinstance(item, (list, tuple)):
+            for nested in item:
+                collect(nested)
+
+    collect(value)
+
+    def redact(item: Any) -> Any:
+        if isinstance(item, dict):
+            return {
+                key: "[redacted]" if key == "file_id" else redact(nested)
+                for key, nested in item.items()
+            }
+        if isinstance(item, list):
+            return [redact(nested) for nested in item]
+        if isinstance(item, tuple):
+            return [redact(nested) for nested in item]
+        if isinstance(item, str):
+            redacted = item
+            for file_id in file_ids:
+                redacted = redacted.replace(file_id, "[redacted]")
+            return redacted
+        return item
+
+    return redact(value)
+
 def runtime_debug_payload(
     *,
     generation_run_id: Any,
@@ -52,8 +86,9 @@ def runtime_debug_payload(
     function_calls: list[dict[str, Any]],
     hosted_followup: dict[str, Any] | None,
     max_output_tokens: int | None = None,
+    server_compaction_threshold: int | None = None,
 ) -> dict[str, Any]:
-    return {
+    return redact_runtime_file_ids({
         "run_id": str(generation_run_id),
         "phase": phase,
         "agent_name": agent_name,
@@ -67,6 +102,7 @@ def runtime_debug_payload(
         "tool_policy": tool_policy_payload(policy),
         "input_payload": input_payload,
         "max_output_tokens": max_output_tokens,
+        "server_compaction_threshold": server_compaction_threshold,
         "response": {
             "id": getattr(response, "id", None),
             "model": _openai_response_model(response),
@@ -81,4 +117,4 @@ def runtime_debug_payload(
         "web_search_calls": web_search_calls,
         "function_calls": function_calls,
         "hosted_followup": hosted_followup,
-    }
+    })

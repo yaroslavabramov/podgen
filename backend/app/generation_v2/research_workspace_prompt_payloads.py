@@ -197,6 +197,11 @@ def current_job_prompt_payload(
             "next_action": item.get("next_action"),
             "source_refs": item.get("source_refs") or [],
             "evidence_count": len(item.get("evidence_ids") or []),
+            "finding_ids": [str(value) for value in item.get("finding_ids") or []][:12],
+            "finding_count": len(item.get("finding_ids") or []),
+            "requirement_result_count": len(item.get("requirement_results") or []),
+            "semantic_revision": int(item.get("semantic_revision") or 0),
+            "is_stale": bool(item.get("is_stale")),
             **_preview_fields("orientation_summary", item.get("orientation_summary") or "", 600),
             **_preview_fields("missing_detail", item.get("missing_detail") or "", 500),
             **_preview_fields("conflict_summary", item.get("conflict_summary") or "", 500),
@@ -204,6 +209,68 @@ def current_job_prompt_payload(
             "confidence": item.get("confidence"),
         }
         for item in brief_outcomes
+    ]
+    coverage_requirements = [
+        item for item in job.get("coverage_requirements") or [] if isinstance(item, dict)
+    ]
+    requirement_previews = [
+        {
+            "question_id": item.get("question_id"),
+            "requirement_id": item.get("requirement_id"),
+            **_preview_fields("description", item.get("description") or "", 600),
+            **_preview_fields("rationale", item.get("rationale") or "", 400),
+            "result": {
+                "status": (item.get("result") or {}).get("status"),
+                "finding_ids": [
+                    str(value) for value in (item.get("result") or {}).get("finding_ids") or []
+                ][:12],
+                "finding_count": len((item.get("result") or {}).get("finding_ids") or []),
+                **_preview_fields(
+                    "summary", (item.get("result") or {}).get("summary") or "", 500
+                ),
+                **_preview_fields(
+                    "missing_detail",
+                    (item.get("result") or {}).get("missing_detail") or "",
+                    400,
+                ),
+                **_preview_fields(
+                    "conflict_summary",
+                    (item.get("result") or {}).get("conflict_summary") or "",
+                    400,
+                ),
+            },
+        }
+        for item in coverage_requirements[:12]
+    ]
+    source_findings = [
+        item for item in job.get("source_findings") or [] if isinstance(item, dict)
+    ]
+    finding_previews = [
+        {
+            "finding_id": item.get("finding_id"),
+            "source_ref": item.get("source_ref"),
+            "evidence_count": len(item.get("evidence_ids") or []),
+            "semantic_revision": int(item.get("semantic_revision") or 0),
+            **_preview_fields("statement", item.get("statement") or "", 700),
+            "scope": {
+                **_preview_fields("actor", (item.get("scope") or {}).get("actor") or "", 200),
+                **_preview_fields("period", (item.get("scope") or {}).get("period") or "", 200),
+                **_preview_fields(
+                    "geography", (item.get("scope") or {}).get("geography") or "", 200
+                ),
+                "qualifier_count": len((item.get("scope") or {}).get("qualifiers") or []),
+            },
+            "question_links": [
+                {
+                    "question_id": link.get("question_id"),
+                    "requirement_ids": link.get("requirement_ids") or [],
+                }
+                for link in item.get("question_links") or []
+                if isinstance(link, dict)
+            ],
+            "limitation_count": len(item.get("limitations") or []),
+        }
+        for item in source_findings[:12]
     ]
     starting_evidence_ids = [str(item) for item in job.get("starting_evidence_ids") or [] if str(item).strip()]
     starting_evidence_page = starting_evidence_ids[:12]
@@ -246,20 +313,56 @@ def current_job_prompt_payload(
         **_preview_fields("resume_reason", job.get("resume_reason") or "", 500),
         "repair_for_gap_id": job.get("repair_for_gap_id"),
         "corpus_brief_lineage": {
+            "handoff_question_assignments": job.get("corpus_handoff_question_assignments") or [],
+            "handoff_finding_ids": job.get("corpus_handoff_finding_ids") or [],
             "outcomes": brief_outcome_previews,
+            "coverage_requirement_previews": requirement_previews,
+            "coverage_requirement_count": len(coverage_requirements),
+            "coverage_requirement_omitted_count": max(
+                0, len(coverage_requirements) - len(requirement_previews)
+            ),
+            "open_requirement_count": len(job.get("open_requirements") or []),
+            "source_finding_previews": finding_previews,
+            "source_finding_count": len(source_findings),
+            "source_finding_omitted_count": max(
+                0, len(source_findings) - len(finding_previews)
+            ),
             "requires_full_outcome_read": any(
                 str(item.get("status") or "") in {"partial", "conflicted"}
                 for item in brief_outcomes
             ),
             "paging_instruction": (
-                "For partial/conflicted lineage, page corpus_brief_outcomes from cursor 0 and follow "
-                "next_cursor until every coverage_question_id above is found; preserve its covered, "
-                "missing, and conflicting details when investigating."
+                "Page corpus_brief_questions, corpus_brief_findings, and corpus_brief_outcomes from "
+                "cursor 0 until each next_cursor is empty whenever the counts above exceed the previews "
+                "or a preview is truncated. Preserve requirements, finding lineage, missing details, "
+                "and conflicts when investigating."
             ),
         },
         "pages": {
             "questions": question_page,
             "observations": observation_page,
+            "coverage_requirements": {
+                **_page_metadata(
+                    total=len(coverage_requirements),
+                    cursor=0,
+                    returned=len(requirement_previews),
+                ),
+                "cursor_unit": "job_preview_record",
+                "full_section": "corpus_brief_questions",
+                "full_page_start_cursor": "0",
+                "full_page_unit": "record_part",
+            },
+            "source_findings": {
+                **_page_metadata(
+                    total=len(source_findings),
+                    cursor=0,
+                    returned=len(finding_previews),
+                ),
+                "cursor_unit": "job_preview_record",
+                "full_section": "corpus_brief_findings",
+                "full_page_start_cursor": "0",
+                "full_page_unit": "record_part",
+            },
             "starting_evidence": _page_metadata(
                 total=len(starting_evidence_ids),
                 cursor=0,

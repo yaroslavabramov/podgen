@@ -196,7 +196,9 @@ def carry_pending_triage_repair(
         "source_capsules",
         "coverage_questions",
         "source_assessments",
+        "source_findings",
         "coverage_outcomes",
+        "triage_semantic_revision",
         "repair_baseline_source_assessments",
         "repair_baseline_coverage_outcomes",
         "deferred_sources",
@@ -228,6 +230,7 @@ def triage_workspace_evidence_ids(workspace: dict[str, Any]) -> list[str]:
     values: list[str] = []
     for field in (
         "source_assessments",
+        "source_findings",
         "coverage_outcomes",
         "repair_baseline_source_assessments",
         "repair_baseline_coverage_outcomes",
@@ -263,17 +266,51 @@ def reconcile_carried_triage_evidence(
         target["source_refs"].update(str(item) for item in source_refs or [] if str(item).strip())
         target["question_ids"].update(str(item) for item in question_ids or [] if str(item).strip())
 
-    assessments: list[dict[str, Any]] = []
-    for raw in current.get("source_assessments") or []:
+    findings: list[dict[str, Any]] = []
+    stale_finding_source_refs: set[str] = set()
+    for raw in current.get("source_findings") or []:
         if not isinstance(raw, dict):
             continue
         stale_ids = invalid.intersection(_nested_evidence_ids(raw))
         if stale_ids:
             source_ref = str(raw.get("source_ref") or "")
+            stale_finding_source_refs.add(source_ref)
+            assessment_refs.add(source_ref)
+            affect(
+                str(raw.get("set_id") or ""),
+                source_refs=[source_ref],
+                question_ids=[
+                    str(link.get("question_id") or "")
+                    for link in raw.get("question_links") or []
+                    if isinstance(link, dict)
+                ],
+            )
+            continue
+        findings.append(_remap_nested_evidence(raw, mapping, invalid))
+    current["source_findings"] = findings
+    valid_finding_ids = {
+        str(item.get("finding_id") or "")
+        for item in findings
+        if str(item.get("finding_id") or "")
+    }
+
+    assessments: list[dict[str, Any]] = []
+    for raw in current.get("source_assessments") or []:
+        if not isinstance(raw, dict):
+            continue
+        stale_ids = invalid.intersection(_nested_evidence_ids(raw))
+        source_ref = str(raw.get("source_ref") or "")
+        if stale_ids or source_ref in stale_finding_source_refs:
             assessment_refs.add(source_ref)
             affect(str(raw.get("set_id") or ""), source_refs=[source_ref])
             continue
-        assessments.append(_remap_nested_evidence(raw, mapping, invalid))
+        assessment = _remap_nested_evidence(raw, mapping, invalid)
+        assessment["finding_ids"] = [
+            str(finding_id)
+            for finding_id in assessment.get("finding_ids") or []
+            if str(finding_id) in valid_finding_ids
+        ]
+        assessments.append(assessment)
     current["source_assessments"] = assessments
 
     outcomes: list[dict[str, Any]] = []
@@ -281,7 +318,10 @@ def reconcile_carried_triage_evidence(
         if not isinstance(raw, dict):
             continue
         stale_ids = invalid.intersection(_nested_evidence_ids(raw))
-        if stale_ids:
+        raw_finding_ids = {
+            str(finding_id) for finding_id in raw.get("finding_ids") or [] if str(finding_id)
+        }
+        if stale_ids or bool(raw_finding_ids - valid_finding_ids):
             affect(
                 str(raw.get("set_id") or ""),
                 source_refs=[str(item) for item in raw.get("source_refs") or []],
@@ -486,7 +526,7 @@ def _remap_nested_evidence(value: Any, mapping: dict[str, str], invalid: set[str
 
 def _recompute_set_evidence(workspace: dict[str, Any]) -> None:
     by_set: dict[str, list[str]] = {}
-    for field in ("source_assessments", "coverage_outcomes"):
+    for field in ("source_assessments", "source_findings", "coverage_outcomes"):
         for item in workspace.get(field) or []:
             if isinstance(item, dict) and item.get("set_id"):
                 by_set.setdefault(str(item["set_id"]), []).extend(_nested_evidence_ids(item))

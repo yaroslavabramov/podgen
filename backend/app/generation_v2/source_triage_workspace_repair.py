@@ -7,13 +7,13 @@ from app.generation_v2.model_context_text import model_preview_text
 from app.generation_v2.source_triage_workspace_state import (
     dedupe as _dedupe,
     invalidate_coverage_syntheses,
+    is_structured_triage_workspace,
     now as _now,
 )
 from app.generation_v2.tools.evidence_refs import build_source_ref_context, source_ref_for_id
 from app.generation_v2.tools.evidence_source_map_ids import public_gap_ref, source_map_record_fingerprint
 
 
-_V2_WORKSPACE_SCHEMA = "source_triage_workspace.v2"
 _REPLAN_REQUIRED_CODES = {
     "coverage_source_set_without_questions",
     "cyclic_coverage_question_hierarchy",
@@ -51,7 +51,7 @@ def create_repair_sets_from_gate(
     inventory: SourceMap,
     source_map: SourceMap | None = None,
 ) -> dict[str, Any]:
-    if str(workspace.get("schema_version") or "") == _V2_WORKSPACE_SCHEMA:
+    if is_structured_triage_workspace(workspace):
         return _target_existing_v2_sets(
             workspace,
             gate=gate,

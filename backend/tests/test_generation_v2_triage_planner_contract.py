@@ -59,6 +59,13 @@ def _set_mode_workspace() -> dict:
                 "kind": "cause",
                 "importance": "critical",
                 "rationale": "Directly serves the user request.",
+                "answer_requirements": [
+                    {
+                        "requirement_id": "q_main:mechanism",
+                        "description": "Explain the connecting mechanism.",
+                        "rationale": "A cause is incomplete without its mechanism.",
+                    }
+                ],
             }
         ],
         "source_sets": [
@@ -145,12 +152,148 @@ async def test_planner_accepts_root_question_without_fake_parent(
             "importance": "critical",
             "rationale": "This directly preserves the user's explanatory intent.",
             "parent_question_id": parent_value,
+            "answer_requirements": [
+                {
+                    "description": "Identify the actors and connecting mechanism.",
+                    "rationale": "These are required for a complete causal answer.",
+                }
+            ],
         }
     )
 
     assert result["accepted"] is True
     assert saved
     assert workspace["coverage_questions"][0]["parent_question_id"] is None
+    assert workspace["coverage_questions"][0]["answer_requirements"][0]["description"] == (
+        "Identify the actors and connecting mechanism."
+    )
+
+
+@pytest.mark.asyncio
+async def test_planner_finalization_rejects_stale_requirement_assignments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = {
+        "source_order": ["S01"],
+        "coverage_questions": [
+            {
+                "question_id": "q_main",
+                "question": "Why did it happen?",
+                "kind": "cause",
+                "importance": "critical",
+                "parent_question_id": None,
+                "answer_requirements": [
+                    {
+                        "requirement_id": "q_main:new",
+                        "description": "Explain the current required part.",
+                        "rationale": "",
+                    }
+                ],
+            }
+        ],
+        "source_sets": [
+            {
+                "set_id": "set_1",
+                "set_kind": "coverage",
+                "source_refs": ["S01"],
+                "question_ids": ["q_main"],
+                "planned_question_ids": ["q_main"],
+                "question_assignments": [
+                    {"question_id": "q_main", "requirement_ids": ["q_main:removed"]}
+                ],
+            }
+        ],
+    }
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, **_kwargs):
+        raise AssertionError("Invalid plan must not be persisted as finalized")
+
+    monkeypatch.setattr(triage_workspace_module, "load_source_triage_workspace", _load)
+    monkeypatch.setattr(triage_workspace_module, "save_source_triage_workspace", _save)
+    tools = build_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(),
+        evidence_toolset=None,
+        mode="planner",
+    )
+    finalize = next(tool for tool in tools if tool.name == "finalize_triage_workspace_plan")
+
+    result = await finalize.handler(
+        {"summary": "Plan complete.", "central_question_id": "q_main"}
+    )
+
+    assert result["accepted"] is False
+    assert result["unassigned_question_requirements"] == [
+        {"question_id": "q_main", "requirement_id": "q_main:new"}
+    ]
+    assert result["unknown_assigned_question_requirements"] == [
+        {"question_id": "q_main", "requirement_id": "q_main:removed"}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_planner_finalization_rejects_persisted_duplicate_question_assignments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assignment = {"question_id": "q_main", "requirement_ids": ["q_main:mechanism"]}
+    workspace = {
+        "source_order": ["S01"],
+        "coverage_questions": [
+            {
+                "question_id": "q_main",
+                "question": "Why?",
+                "importance": "critical",
+                "parent_question_id": None,
+                "answer_requirements": [
+                    {
+                        "requirement_id": "q_main:mechanism",
+                        "description": "Explain the mechanism.",
+                    }
+                ],
+            }
+        ],
+        "source_sets": [
+            {
+                "set_id": "set_1",
+                "set_kind": "coverage",
+                "source_refs": ["S01"],
+                "question_ids": ["q_main"],
+                "planned_question_ids": ["q_main"],
+                "question_assignments": [assignment, dict(assignment)],
+            }
+        ],
+    }
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, **_kwargs):
+        raise AssertionError("Invalid plan must not be finalized")
+
+    monkeypatch.setattr(triage_workspace_module, "load_source_triage_workspace", _load)
+    monkeypatch.setattr(triage_workspace_module, "save_source_triage_workspace", _save)
+    tools = build_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(),
+        mode="planner",
+    )
+    finalize = next(tool for tool in tools if tool.name == "finalize_triage_workspace_plan")
+
+    result = await finalize.handler(
+        {"summary": "Plan complete.", "central_question_id": "q_main"}
+    )
+
+    assert result["accepted"] is False
+    assert result["duplicate_question_assignments"] == [
+        {"set_id": "set_1", "question_id": "q_main"}
+    ]
 
 
 @pytest.mark.asyncio
@@ -294,17 +437,78 @@ async def test_planner_handler_rejects_repair_source_set(
     assert save_calls == 0
 
 
-def test_planner_prompt_preserves_intent_without_prejudging_sources() -> None:
-    prompt = SOURCE_TRIAGE_PLANNER_PROMPT.casefold()
+@pytest.mark.asyncio
+async def test_planner_rejects_duplicate_question_assignments_without_persistence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = {
+        "source_order": ["S01"],
+        "coverage_questions": [
+            {
+                "question_id": "q_main",
+                "question": "Why?",
+                "answer_requirements": [
+                    {"requirement_id": "q_main:cause", "description": "Establish the cause."},
+                    {
+                        "requirement_id": "q_main:mechanism",
+                        "description": "Explain the mechanism.",
+                    },
+                ],
+            }
+        ],
+        "source_sets": [],
+    }
+    save_calls = 0
 
-    assert "central question type" in prompt
-    assert "requested explanatory task" in prompt
-    assert "substantive question about the topic" in prompt
-    assert "source ranking" in prompt and "not in coverage questions" in prompt
-    assert "need for repair" in prompt and "previews" in prompt
-    assert "distinct actors" in prompt
-    assert "roles" in prompt
-    assert "exceptions" in prompt
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, **_kwargs):
+        nonlocal save_calls
+        save_calls += 1
+
+    monkeypatch.setattr(triage_workspace_module, "load_source_triage_workspace", _load)
+    monkeypatch.setattr(triage_workspace_module, "save_source_triage_workspace", _save)
+    tools = build_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(),
+        mode="planner",
+    )
+    upsert_set = next(tool for tool in tools if tool.name == "upsert_triage_source_set")
+
+    result = await upsert_set.handler(
+        {
+            "label": "Reading queue",
+            "purpose": "Read the assigned source.",
+            "source_refs": ["S01"],
+            "rationale": "One source needs one owner.",
+            "priority": "normal",
+            "question_assignments": [
+                {"question_id": "q_main", "requirement_ids": ["q_main:cause"]},
+                {"question_id": "q_main", "requirement_ids": ["q_main:mechanism"]},
+            ],
+        }
+    )
+
+    assert result["accepted"] is False
+    assert result["question_id"] == "q_main"
+    assert "exactly one" in result["error"]
+    assert workspace["source_sets"] == []
+    assert save_calls == 0
+
+
+def test_planner_prompt_preserves_intent_without_prejudging_sources() -> None:
+    prompt = " ".join(SOURCE_TRIAGE_PLANNER_PROMPT.split()).casefold()
+
+    assert "full actors, periods, comparisons, and requested relations" in prompt
+    assert "semantic requirements of a complete answer" in prompt
+    assert "no quota or fixed ontology" in prompt
+    assert "responsibility for reading, never a thematic boundary" in prompt
+    assert "neutral initial-reading set" in prompt
+    assert "do not infer source quality or content from a weak preview" in prompt
+    assert "do not answer the questions" in prompt
 
 
 def test_legacy_repair_flag_without_saved_set_work_is_first_pass() -> None:
@@ -323,6 +527,13 @@ def test_set_payload_keeps_only_compact_index_for_other_questions() -> None:
             "kind": "context",
             "importance": "exploratory",
             "rationale": "UNRELATED RATIONALE",
+            "answer_requirements": [
+                {
+                    "requirement_id": "q_unrelated:context",
+                    "description": "UNRELATED REQUIREMENT TEXT",
+                    "rationale": "UNRELATED REQUIREMENT RATIONALE",
+                }
+            ],
         }
     )
     workspace["source_sets"].append(
@@ -345,16 +556,17 @@ def test_set_payload_keeps_only_compact_index_for_other_questions() -> None:
     assert "UNRELATED SET PURPOSE" not in encoded
     assert "source_sets" not in payload["workspace_progress"]
     assert "coverage_questions" not in payload["workspace_progress"]
-    assert payload["other_coverage_question_index"] == [
-        {
-            "question_id": "q_unrelated",
-            "question_preview": "UNRELATED QUESTION TEXT",
-            "question_chars": len("UNRELATED QUESTION TEXT"),
-            "question_truncated": False,
-            "kind": "context",
-            "importance": "exploratory",
-        }
+    assert payload["all_coverage_question_count"] == 2
+    assert [item["question_id"] for item in payload["all_coverage_question_index"]] == [
+        "q_main",
+        "q_unrelated",
     ]
+    unrelated = payload["all_coverage_question_index"][1]
+    assert unrelated["question_preview"] == "UNRELATED QUESTION TEXT"
+    assert unrelated["answer_requirements"][0]["requirement_id"] == "q_unrelated:context"
+    assert unrelated["answer_requirements"][0]["description_preview"] == (
+        "UNRELATED REQUIREMENT TEXT"
+    )
 
 
 def test_set_payload_exposes_backend_derived_pending_work() -> None:
@@ -377,7 +589,7 @@ def test_set_payload_exposes_backend_derived_pending_work() -> None:
     assert source_set["missing_outcome_question_ids"] == ["q_main"]
 
 
-def test_other_question_index_is_bounded_and_reports_omitted_items() -> None:
+def test_all_question_index_has_no_fixed_item_quota() -> None:
     workspace = _set_mode_workspace()
     workspace["coverage_questions"].extend(
         {
@@ -386,19 +598,26 @@ def test_other_question_index_is_bounded_and_reports_omitted_items() -> None:
             "kind": "context",
             "importance": "exploratory",
             "rationale": "Full rationale stays out of the compact index.",
+            "answer_requirements": [
+                {
+                    "requirement_id": f"q_other_{index}:context",
+                    "description": f"Resolve context part {index}.",
+                    "rationale": "Needed for the complete answer.",
+                }
+            ],
         }
         for index in range(100)
     )
 
     payload = source_set_prompt_payload(workspace, "set_1")
 
-    assert len(payload["other_coverage_question_index"]) == 12
-    assert payload["other_coverage_question_count"] == 100
-    assert payload["other_coverage_question_returned_count"] == 12
-    assert payload["other_coverage_question_omitted_count"] == 88
+    assert len(payload["all_coverage_question_index"]) == 101
+    assert payload["all_coverage_question_count"] == 101
+    assert payload["all_coverage_question_index"][-1]["question_id"] == "q_other_99"
+    assert "all_coverage_question_omitted_count" not in payload
 
 
-def test_assigned_question_previews_are_one_page_and_full_questions_remain_pageable() -> None:
+def test_assigned_question_previews_have_no_fixed_three_item_quota() -> None:
     workspace = _set_mode_workspace()
     workspace["coverage_questions"] = [
         {
@@ -407,6 +626,13 @@ def test_assigned_question_previews_are_one_page_and_full_questions_remain_pagea
             "kind": "context",
             "importance": "supporting",
             "rationale": "r" * 800,
+            "answer_requirements": [
+                {
+                    "requirement_id": f"q_{index}:context",
+                    "description": f"Resolve assigned part {index}.",
+                    "rationale": "Required for the assigned question.",
+                }
+            ],
         }
         for index in range(20)
     ]
@@ -416,10 +642,10 @@ def test_assigned_question_previews_are_one_page_and_full_questions_remain_pagea
 
     source_set = source_set_prompt_payload(workspace, "set_1")["set"]
 
-    assert len(source_set["coverage_questions"]) == 3
+    assert len(source_set["coverage_questions"]) == 20
     assert source_set["question_count"] == 20
-    assert source_set["coverage_question_returned_count"] == 3
-    assert source_set["coverage_question_omitted_count"] == 17
+    assert source_set["coverage_question_returned_count"] == 20
+    assert source_set["coverage_question_omitted_count"] == 0
 
 
 @pytest.mark.parametrize("saved_work", ["assessment", "outcome", "observation"])
@@ -493,10 +719,48 @@ def test_raw_repair_flags_never_enter_set_agent_checkpoint_payload() -> None:
     assert "repair_targeted" not in _nested_dict_keys(payload)
 
 
-def test_set_prompt_uses_derived_execution_modes_instead_of_raw_repair_flags() -> None:
+def test_set_prompt_uses_one_continuous_contract_without_mode_branches() -> None:
     prompt = SOURCE_TRIAGE_SET_PROMPT.casefold()
 
     for execution_mode in ("first_pass", "resume", "targeted_repair"):
-        assert execution_mode in prompt
+        assert execution_mode not in prompt
+    assert "one continuous agent" in prompt
+    assert "current_set_state" in prompt
+    assert "there is no backend-controlled reading or synthesis phase" in prompt
     assert "repair=true" not in prompt
     assert "repair_targeted=true" not in prompt
+
+
+def test_set_prompt_requires_deep_reading_with_semantic_stopping_criteria() -> None:
+    prompt = " ".join(SOURCE_TRIAGE_SET_PROMPT.split())
+
+    assert "Use read_source for the actual source text" in prompt
+    assert "For an ordinary document, follow read_source to the end" in prompt
+    assert "search_source is navigation only" in prompt
+    assert "open_source_file" in prompt
+    assert "truly too large to read completely" in prompt
+    assert "what remains unread" in prompt
+    assert "why the unread regions cannot reasonably change the analysis" in prompt
+    assert "After a meaningful section or group of related passages, call save_reading_note" in prompt
+    assert "This is a semantic checkpoint, not a fixed schedule" in prompt
+    assert "You may move between sources whenever comparison" in prompt
+    assert "save_source_analysis is a completed analysis, not a prerequisite" in prompt
+    assert "complete all_coverage_question_index" in prompt
+    assert "One source may support any number of questions" in prompt
+    assert "actor, action, connecting mechanism, result" in prompt
+    assert "use read_source_window only for the exact passage or passages" in prompt
+    assert "Stop reading a source only when all of these are true" in prompt
+    assert "further reading is not reasonably likely to change" in prompt
+    assert "There is no target number of tool calls, pages, notes, findings, or evidence items" in prompt
+
+
+def test_set_prompt_does_not_treat_navigation_or_read_counts_as_semantic_evidence() -> None:
+    prompt = " ".join(SOURCE_TRIAGE_SET_PROMPT.split())
+
+    assert "neither a match nor the absence of a match" in prompt
+    assert "Do not stop after the first useful passage or the first answered question" in prompt
+    assert "Do not exact-read every page merely to create evidence" in prompt
+    assert "findings=[] with a concrete no_findings_reason" in prompt
+    assert "do not open, search, or read a different unresolved source" not in prompt.casefold()
+    assert "minimum number" not in prompt.casefold()
+    assert "maximum number" not in prompt.casefold()

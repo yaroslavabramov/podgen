@@ -34,6 +34,8 @@ class EvidencePayloadMixin:
         full_locator = model_preview_text(item.locator_text, replacements=replacements)
         payload: dict[str, Any] = {
             "evidence_id": str(item.id),
+            "support_status": "preview_only",
+            "exact_read_next_action": "read_evidence",
             "source_ref": source_ref,
             "source_title": full_title[:220],
             "source_title_chars": len(full_title),
@@ -126,6 +128,41 @@ class EvidencePayloadMixin:
         if warning:
             payload["coverage_warning"] = model_preview_text(warning, replacements=replacements)
         return {key: value for key, value in payload.items() if value not in (None, "", [])}
+
+    async def _evidence_detail_page_payload(
+        self,
+        item: EvidenceItem,
+        *,
+        start_offset: int,
+        end_offset: int,
+    ) -> dict[str, Any]:
+        """Expose one exact part while leaving the persisted semantic field untouched."""
+
+        raw_snippet = str(item.snippet_text or "")
+        if start_offset < 0 or end_offset <= start_offset or end_offset > len(raw_snippet):
+            return {"error": "invalid_evidence_page_range"}
+        context = await self._source_ref_context()
+        source_ref = source_ref_for_id(str(item.source_id), context)
+        replacements = _evidence_replacements(item, source_ref, context=context)
+        payload = await self._evidence_detail_payload(
+            item,
+            max_snippet_chars=max(2400, len(raw_snippet) * 2),
+        )
+        payload["snippet_text"] = model_preview_text(
+            raw_snippet[start_offset:end_offset],
+            replacements=replacements,
+            collapse_whitespace=False,
+        )
+        payload.update(
+            {
+                "snippet_start": start_offset,
+                "snippet_end": end_offset,
+                "snippet_chars": len(raw_snippet),
+                "snippet_complete": start_offset == 0 and end_offset == len(raw_snippet),
+            }
+        )
+        payload.pop("error", None)
+        return payload
 
 
 def _evidence_replacements(item: EvidenceItem, source_ref: str, *, context: Any) -> dict[str, str]:

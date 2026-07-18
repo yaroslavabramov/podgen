@@ -17,6 +17,14 @@ def source_map_evidence_ids(source_map: SourceMap) -> list[str]:
     ids.extend(eid for cluster in source_map.source_triage.source_clusters for eid in cluster.evidence_ids)
     ids.extend(eid for relation in source_map.source_triage.source_relationships for eid in relation.evidence_ids)
     ids.extend(eid for gap in source_map.gap_records for eid in gap.evidence_ids)
+    ids.extend(eid for finding in source_map.source_findings for eid in finding.evidence_ids)
+    ids.extend(
+        eid
+        for finding in source_map.source_findings
+        for relation in finding.source_relations
+        for eid in relation.evidence_ids
+    )
+    ids.extend(eid for outcome in source_map.coverage_outcomes for eid in outcome.evidence_ids)
     return _dedupe([str(item) for item in ids if item])
 
 
@@ -35,6 +43,13 @@ def source_map_source_ids(source_map: SourceMap) -> set[str]:
         ids.add(relation.related_source_id)
     for gap in source_map.gap_records:
         ids.update(gap.source_ids)
+    ids.update(finding.source_id for finding in source_map.source_findings)
+    ids.update(
+        relation.related_source_id
+        for finding in source_map.source_findings
+        for relation in finding.source_relations
+    )
+    ids.update(source_id for outcome in source_map.coverage_outcomes for source_id in outcome.source_ids)
     return {str(item) for item in ids if item}
 
 
@@ -42,6 +57,7 @@ def source_map_version_ids(source_map: SourceMap) -> set[str]:
     ids = {version_id for card in source_map.source_cards for version_id in card.source_version_ids}
     ids.update(quote.source_version_id for quote in source_map.quote_cards if quote.source_version_id)
     ids.update(version_id for item in source_map.source_triage.ranked_sources for version_id in item.source_version_ids)
+    ids.update(version_id for finding in source_map.source_findings for version_id in finding.source_version_ids)
     return {str(item) for item in ids if item}
 
 

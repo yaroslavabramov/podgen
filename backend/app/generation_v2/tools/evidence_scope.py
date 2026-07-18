@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import uuid
 from typing import Any
 
@@ -10,6 +11,7 @@ from app.generation_v2.runtime_tool_outcomes import is_control_tool_output, succ
 from app.generation_v2.source_triage_workspace_tracking import (
     blocked_read_control,
     completed_read_control,
+    record_triage_exact_read,
     triage_workflow_read_control,
 )
 from app.generation_v2.tools.evidence_refs import (
@@ -19,6 +21,10 @@ from app.generation_v2.tools.evidence_refs import (
     resolve_source_ref,
     source_ref_for_id,
     version_ref_for_index,
+)
+from app.generation_v2.tools.evidence_exact_read import (
+    evidence_has_current_exact_read,
+    mark_evidence_exact_read,
 )
 from app.generation_v2.tools.evidence_scope_versions import (
     invalid_source_or_version_ref_error,
@@ -136,7 +142,26 @@ class EvidenceScopeMixin:
             "invalid_source_count": len(invalid),
         }
 
-    async def _triage_read_guard_error(self) -> dict[str, Any] | None:
+    async def _triage_read_guard_error(
+        self,
+        *,
+        target_source_refs: list[str] | None = None,
+        exact_read: bool = False,
+    ) -> dict[str, Any] | None:
+        target_refs = [str(item) for item in target_source_refs or [] if str(item).strip()]
+        setattr(self, "_triage_read_target_refs", target_refs)
+        setattr(self, "_triage_exact_read_requested", bool(exact_read))
+        transition_guard = getattr(self, "triage_read_transition_guard", None)
+        if callable(transition_guard):
+            transition_error = await transition_guard(
+                db=self.db,
+                generation_run_id=self.run.id,
+                current_set_id=getattr(self, "triage_current_set_id", None),
+                target_source_refs=target_refs,
+                exact_read=bool(exact_read),
+            )
+            if transition_error:
+                return transition_error
         if getattr(self, "research_current_job_id", None):
             advisory = await research_workflow_commit_advisory(
                 self.db,
@@ -154,6 +179,41 @@ class EvidenceScopeMixin:
         if control and control.get("must_persist_before_more_reads"):
             return blocked_read_control(control)
         return None
+
+    async def _mark_evidence_exact_read(
+        self,
+        evidence: Any,
+        *,
+        method: str,
+        read_range: tuple[int, int] | None = None,
+        total_chars: int | None = None,
+    ) -> bool:
+        return await mark_evidence_exact_read(
+            self,
+            evidence,
+            method=method,
+            read_range=read_range,
+            total_chars=total_chars,
+        )
+
+    def _evidence_has_current_exact_read(self, evidence: Any) -> bool:
+        return evidence_has_current_exact_read(self, evidence)
+
+    async def _record_triage_exact_read(
+        self,
+        *,
+        source_ref: str,
+        evidence_ids: list[str],
+    ) -> dict[str, Any] | None:
+        if not getattr(self, "triage_current_set_id", None):
+            return None
+        return await record_triage_exact_read(
+            self.db,
+            generation_run_id=self.run.id,
+            current_set_id=getattr(self, "triage_current_set_id", None),
+            source_ref=source_ref,
+            evidence_ids=evidence_ids,
+        )
 
     async def _call_with_research_commit_advisory(self, handler, args: dict[str, Any]) -> dict[str, Any]:
         setattr(self, "_research_commit_advisory", None)
@@ -201,11 +261,35 @@ class EvidenceScopeMixin:
         return await versions_for_source(self, source_id)
 
 
+async def target_aware_triage_read_guard(
+    owner: Any,
+    *,
+    target_source_refs: list[str],
+    exact_read: bool,
+) -> dict[str, Any] | None:
+    """Call the new target-aware guard while keeping lightweight legacy test doubles usable."""
+
+    guard = owner._triage_read_guard_error
+    try:
+        parameters = inspect.signature(guard).parameters.values()
+    except (TypeError, ValueError):
+        parameters = ()
+    accepts_keywords = any(parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in parameters)
+    parameter_names = {parameter.name for parameter in parameters}
+    if accepts_keywords or "target_source_refs" in parameter_names:
+        return await guard(
+            target_source_refs=target_source_refs,
+            exact_read=exact_read,
+        )
+    return await guard()
+
+
 __all__ = [
     "active_filter_list",
     "invalid_source_or_version_ref_error",
     "select",
     "source_version_id_from_ref",
+    "target_aware_triage_read_guard",
     "version_ref_for_version",
     "version_ref_for_index",
     "versions_for_source",

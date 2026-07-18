@@ -328,6 +328,8 @@ async def test_evidence_preview_sanitizes_known_ids_and_reports_omitted_text() -
     assert str(version_id) not in encoded
     assert str(profile_id) not in encoded
     assert "source_id=" not in encoded
+    assert payload["support_status"] == "preview_only"
+    assert payload["exact_read_next_action"] == "read_evidence"
     assert payload["short_snippet_chars"] > len(payload["short_snippet"])
     assert payload["short_snippet_truncated"] is True
     assert payload["short_snippet_omitted_chars"] == (

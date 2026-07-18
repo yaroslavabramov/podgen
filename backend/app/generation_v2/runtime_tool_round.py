@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+import json
 from typing import Any
 
 from pydantic import BaseModel
@@ -29,10 +31,12 @@ from app.generation_v2.runtime_round import RuntimeRoundState
 class RuntimeToolAdvance:
     input_payload: Any
     previous_response_id: str | None
+    delivery_receipt_refs: list[str]
     checkpoint_index: int
     chain_id: str
     chain_round: int
     chain_model_tool_output_chars: int
+    tool_cycle_fingerprint: str | None = None
     terminal_result: AgentTerminalResult | None = None
 
 
@@ -96,7 +100,10 @@ class RuntimeToolRoundProcessor:
             chain_model_tool_output_chars=chain_model_tool_output_chars,
         )
         tool_outputs = tool_call_result.tool_outputs
+        followup_input_messages = tool_call_result.followup_input_messages
+        delivery_receipt_refs = tool_call_result.delivery_receipt_refs
         checkpoint_tool_results = tool_call_result.checkpoint_tool_results
+        tool_cycle_fingerprint = _tool_cycle_fingerprint(checkpoint_tool_results)
         chain_model_tool_output_chars = tool_call_result.chain_model_tool_output_chars
         if round_state.hosted_followup:
             chain_model_tool_output_chars = _append_hosted_followup_tool_output(
@@ -112,17 +119,23 @@ class RuntimeToolRoundProcessor:
             return RuntimeToolAdvance(
                 input_payload=tool_outputs,
                 previous_response_id=round_state.response.id,
+                delivery_receipt_refs=[],
                 checkpoint_index=checkpoint_index,
                 chain_id=chain_id,
                 chain_round=chain_round,
                 chain_model_tool_output_chars=chain_model_tool_output_chars,
+                tool_cycle_fingerprint=None,
                 terminal_result=tool_call_result.terminal_result,
             )
-        checkpoint_reason = _checkpoint_reason(
-            self.checkpoint,
-            chain_round=chain_round,
-            usage=round_state.usage,
-            chain_model_tool_output_chars=chain_model_tool_output_chars,
+        checkpoint_reason = (
+            None
+            if followup_input_messages or delivery_receipt_refs
+            else _checkpoint_reason(
+                self.checkpoint,
+                chain_round=chain_round,
+                usage=round_state.usage,
+                chain_model_tool_output_chars=chain_model_tool_output_chars,
+            )
         )
         if checkpoint_reason:
             next_checkpoint_index, next_chain_id, next_input_payload = await _checkpoint_restart(
@@ -140,18 +153,22 @@ class RuntimeToolRoundProcessor:
             return RuntimeToolAdvance(
                 input_payload=next_input_payload,
                 previous_response_id=None,
+                delivery_receipt_refs=[],
                 checkpoint_index=next_checkpoint_index,
                 chain_id=next_chain_id,
                 chain_round=0,
                 chain_model_tool_output_chars=0,
+                tool_cycle_fingerprint=tool_cycle_fingerprint,
             )
         return RuntimeToolAdvance(
-            input_payload=tool_outputs,
+            input_payload=[*tool_outputs, *followup_input_messages],
             previous_response_id=round_state.response.id,
+            delivery_receipt_refs=delivery_receipt_refs,
             checkpoint_index=checkpoint_index,
             chain_id=chain_id,
             chain_round=chain_round,
             chain_model_tool_output_chars=chain_model_tool_output_chars,
+            tool_cycle_fingerprint=tool_cycle_fingerprint,
         )
 
     def _dump_tool_outputs(
@@ -189,6 +206,19 @@ class RuntimeToolRoundProcessor:
                 "tool_outputs": tool_outputs,
             },
         )
+
+
+def _tool_cycle_fingerprint(tool_results: list[dict[str, Any]]) -> str | None:
+    if not tool_results:
+        return None
+    encoded = json.dumps(
+        tool_results,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 __all__ = ["RuntimeToolAdvance", "RuntimeToolRoundProcessor"]

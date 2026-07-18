@@ -10,6 +10,9 @@ _CHUNK_BACKED_VERSION_KINDS = (
 _TRIAGE_READING_TOOL_NAMES = {
     "list_sources",
     "search_corpus",
+    "read_source",
+    "search_source",
+    "open_source_file",
     "read_evidence",
     "read_source_window",
     "skim_source",

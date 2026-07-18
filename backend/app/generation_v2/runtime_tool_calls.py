@@ -33,6 +33,8 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class RuntimeToolCallResult:
     tool_outputs: list[dict[str, Any]]
+    followup_input_messages: list[dict[str, Any]]
+    delivery_receipt_refs: list[str]
     checkpoint_tool_results: list[dict[str, Any]]
     chain_model_tool_output_chars: int
     terminal_result: AgentTerminalResult | None = None
@@ -54,6 +56,8 @@ async def process_runtime_function_calls(
 ) -> RuntimeToolCallResult:
     local_tool_map = {tool.name: tool for tool in local_tools or []}
     tool_outputs: list[dict[str, Any]] = []
+    followup_input_messages: list[dict[str, Any]] = []
+    delivery_receipt_refs: list[str] = []
     checkpoint_tool_results: list[dict[str, Any]] = []
     accepted_terminal_result: AgentTerminalResult | None = None
     terminal_calls_in_batch = {
@@ -122,8 +126,40 @@ async def process_runtime_function_calls(
                     "detail": str(exc),
                 }
         output_contract_error = None
+        runtime_input_messages: list[dict[str, Any]] = []
         if isinstance(output, dict):
-            trace_output = {**output, **({"_runtime_error": trace_only_error} if trace_only_error else {})}
+            contract_candidate = dict(output)
+            has_runtime_messages = "_runtime_input_messages" in contract_candidate
+            has_receipt_delivery = "_runtime_receipt_delivery" in contract_candidate
+            raw_runtime_messages = contract_candidate.pop("_runtime_input_messages", [])
+            raw_receipt_delivery = contract_candidate.pop("_runtime_receipt_delivery", None)
+            trace_output = {
+                **contract_candidate,
+                **({"_runtime_error": trace_only_error} if trace_only_error else {}),
+            }
+            if (
+                has_runtime_messages
+                or has_receipt_delivery
+                or call["name"] in _PRIVATE_RUNTIME_DELIVERY_TOOLS
+            ):
+                (
+                    runtime_input_messages,
+                    receipt_refs,
+                    output_contract_error,
+                ) = _validated_private_runtime_directive(
+                    tool_name=call["name"],
+                    output=contract_candidate,
+                    raw_runtime_messages=raw_runtime_messages,
+                    raw_receipt_delivery=raw_receipt_delivery,
+                    has_runtime_messages=has_runtime_messages,
+                    has_receipt_delivery=has_receipt_delivery,
+                )
+                trace_output["_runtime_delivery"] = {
+                    "scheduled": output_contract_error is None,
+                    **({"receipt_refs": receipt_refs} if receipt_refs else {}),
+                }
+                if receipt_refs and output_contract_error is None:
+                    delivery_receipt_refs.extend(receipt_refs)
         else:
             output_contract_error = f"{call['name']} returned non-object output"
             trace_output = {
@@ -155,7 +191,11 @@ async def process_runtime_function_calls(
             # never sent back to the model. Keep its completion payload out of
             # the model-facing output contract while retaining it in the raw
             # trace above.
-            contract_output = {"accepted": True, "terminal": True} if is_accepted_terminal else output
+            contract_output = (
+                {"accepted": True, "terminal": True}
+                if is_accepted_terminal
+                else contract_candidate
+            )
             model_output = _model_facing_tool_output(call["name"], contract_output)
             output_stats = _model_output_stats(call["name"], model_output)
         except ToolOutputContractViolation as exc:
@@ -216,6 +256,7 @@ async def process_runtime_function_calls(
                 "output": json.dumps(model_output, ensure_ascii=False),
             }
         )
+        followup_input_messages.extend(runtime_input_messages)
         checkpoint_tool_results.append(
             {
                 "tool_name": call["name"],
@@ -234,7 +275,107 @@ async def process_runtime_function_calls(
                 break
     return RuntimeToolCallResult(
         tool_outputs=tool_outputs,
+        followup_input_messages=followup_input_messages,
+        delivery_receipt_refs=delivery_receipt_refs,
         checkpoint_tool_results=checkpoint_tool_results,
         chain_model_tool_output_chars=chain_model_tool_output_chars,
         terminal_result=accepted_terminal_result,
     )
+
+
+_PRIVATE_RUNTIME_DELIVERY_TOOLS = frozenset(
+    {"read_source", "search_source", "open_source_file"}
+)
+
+
+def _validated_private_runtime_directive(
+    *,
+    tool_name: str,
+    output: dict[str, Any],
+    raw_runtime_messages: Any,
+    raw_receipt_delivery: Any,
+    has_runtime_messages: bool,
+    has_receipt_delivery: bool,
+) -> tuple[list[dict[str, Any]], list[str], str | None]:
+    if tool_name not in _PRIVATE_RUNTIME_DELIVERY_TOOLS:
+        return [], [], f"{tool_name} is not allowed to return private runtime input"
+
+    successful = (
+        output.get("accepted") is True and output.get("attached") is True
+        if tool_name == "open_source_file"
+        else output.get("found") is True
+    )
+    if not successful:
+        if has_runtime_messages or has_receipt_delivery:
+            return [], [], f"{tool_name} may schedule private delivery only after success"
+        return [], [], None
+
+    if not has_receipt_delivery or not isinstance(raw_receipt_delivery, dict) or set(
+        raw_receipt_delivery
+    ) != {"receipt_refs"}:
+        return [], [], f"{tool_name} returned invalid receipt delivery metadata"
+    raw_receipt_refs = raw_receipt_delivery.get("receipt_refs")
+    if (
+        not isinstance(raw_receipt_refs, list)
+        or not raw_receipt_refs
+        or len(raw_receipt_refs) > 8
+    ):
+        return [], [], f"{tool_name} returned invalid delivery receipt_refs"
+    receipt_refs = [str(value or "").strip() for value in raw_receipt_refs]
+    if (
+        len(set(receipt_refs)) != len(receipt_refs)
+        or any(not value.startswith("receipt:") or len(value) > 128 for value in receipt_refs)
+    ):
+        return [], [], f"{tool_name} returned invalid delivery receipt_refs"
+
+    expected_receipt_refs: list[str]
+    if tool_name in {"read_source", "open_source_file"}:
+        expected_receipt_refs = [str(output.get("receipt_ref") or "").strip()]
+    else:
+        results = output.get("results")
+        if not isinstance(results, list):
+            return [], [], "search_source returned invalid results for receipt delivery"
+        expected_receipt_refs = [
+            str(item.get("receipt_ref") or "").strip()
+            for item in results
+            if isinstance(item, dict)
+        ]
+        if len(expected_receipt_refs) != len(results):
+            return [], [], "search_source returned invalid result receipt_refs"
+    if receipt_refs != expected_receipt_refs:
+        return [], [], f"{tool_name} delivery receipt_refs do not match its public output"
+
+    if tool_name != "open_source_file":
+        if has_runtime_messages:
+            return [], [], f"{tool_name} is not allowed to inject private runtime messages"
+        return [], receipt_refs, None
+
+    if not has_runtime_messages or not isinstance(raw_runtime_messages, list) or len(
+        raw_runtime_messages
+    ) != 1:
+        return [], [], "open_source_file must return exactly one private attachment message"
+    message = raw_runtime_messages[0]
+    if not isinstance(message, dict) or set(message) != {"role", "content"}:
+        return [], [], "open_source_file returned invalid private attachment message"
+    content = message.get("content")
+    if message.get("role") != "user" or not isinstance(content, list) or len(content) != 2:
+        return [], [], "open_source_file returned invalid private attachment content"
+    text_part, file_part = content
+    if (
+        not isinstance(text_part, dict)
+        or set(text_part) != {"type", "text"}
+        or text_part.get("type") != "input_text"
+        or not isinstance(text_part.get("text"), str)
+        or not str(text_part.get("text") or "").strip()
+    ):
+        return [], [], "open_source_file returned invalid private attachment text"
+    if (
+        not isinstance(file_part, dict)
+        or set(file_part) != {"type", "file_id"}
+        or file_part.get("type") != "input_file"
+        or not isinstance(file_part.get("file_id"), str)
+        or not str(file_part.get("file_id") or "").strip()
+        or len(str(file_part.get("file_id") or "")) > 255
+    ):
+        return [], [], "open_source_file returned invalid private attachment file"
+    return [message], receipt_refs, None

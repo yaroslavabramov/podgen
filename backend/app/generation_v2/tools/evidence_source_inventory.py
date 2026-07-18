@@ -7,9 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.generation_v2.model_context_text import stable_unique_texts
 from app.generation_v2.schemas import SourceCard, SourceMap, SourceProfile
-from app.generation_v2.source_content_readiness import extract_web_document_text, source_version_model_eligible
+from app.generation_v2.source_content_readiness import source_version_model_eligible
 from app.generation_v2.source_profiles import ensure_legacy_source_profile, semantic_source_kind
-from app.generation_v2.tools.evidence_source_text import source_version_text
+from app.generation_v2.tools.evidence_source_text import best_readable_source_version, source_version_text
 from app.generation_v2.tools.evidence_utils import (
     _inventory_cautions,
     _neutral_preview,
@@ -24,7 +24,6 @@ from app.ingestion.source_metadata import audited_authority_type
 from app.models.generation_v2 import (
     ProviderCorpusFile,
     RunCorpusView,
-    SourceRepresentationKind,
     SourceVersion,
     V2RecordStatus,
 )
@@ -119,18 +118,14 @@ async def build_source_inventory(db: AsyncSession, run_view: RunCorpusView) -> S
 
 
 def _selected_version_preview(versions: list[SourceVersion], *, max_chars: int = 900) -> str:
-    for version in versions:
-        if not source_version_model_eligible(version):
-            continue
-        text = source_version_text(version)
-        if version.kind == SourceRepresentationKind.FETCHED_HTML and text:
-            text = extract_web_document_text(text)
-        text = text.strip()
-        if not text:
-            continue
-        preview = text[:max_chars]
-        omitted = max(0, len(text) - len(preview))
-        if omitted:
-            return f"{preview}\n\n[Selected-version preview; {omitted} characters omitted.]"
-        return preview
+    eligible = [version for version in versions if source_version_model_eligible(version)]
+    version = best_readable_source_version(eligible, text_getter=source_version_text)
+    if version is not None:
+        text = source_version_text(version).strip()
+        if text:
+            preview = text[:max_chars]
+            omitted = max(0, len(text) - len(preview))
+            if omitted:
+                return f"{preview}\n\n[Selected-version preview; {omitted} characters omitted.]"
+            return preview
     return ""

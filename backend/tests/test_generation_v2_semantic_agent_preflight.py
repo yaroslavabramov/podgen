@@ -45,7 +45,7 @@ def test_semantic_agent_output_policy_defaults_to_provider_and_has_one_optional_
     assert semantic_agent_output_limit() == 24_000
 
 
-def test_every_semantic_agent_through_treatment_uses_the_shared_output_policy() -> None:
+def test_semantic_agents_use_shared_output_policy_except_continuous_triage() -> None:
     agent_dir = Path(__file__).parents[1] / "app" / "generation_v2" / "agents"
     for filename in _PRE_TREATMENT_AGENT_FILES:
         tree = ast.parse((agent_dir / filename).read_text())
@@ -63,6 +63,10 @@ def test_every_semantic_agent_through_treatment_uses_the_shared_output_policy() 
                 None,
             )
             assert keyword is not None, filename
+            if filename == "source_agents.py":
+                assert isinstance(keyword.value, ast.Constant), filename
+                assert keyword.value.value is None, filename
+                continue
             assert isinstance(keyword.value, ast.Call), filename
             assert isinstance(keyword.value.func, ast.Name), filename
             assert keyword.value.func.id == "semantic_agent_output_limit", filename

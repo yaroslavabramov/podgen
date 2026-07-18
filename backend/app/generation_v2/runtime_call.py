@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.generation_v2.runtime_contracts import (
     AgentCheckpointPolicy,
+    AgentOperationalStall,
+    AgentTerminalNotReached,
     AgentTerminalResult,
     AgentTool,
     CheckpointResumeContext,
@@ -22,6 +24,7 @@ from app.generation_v2.runtime_contracts import (
 from app.generation_v2.runtime_checkpoint_context import validate_checkpoint_resume_context
 from app.generation_v2.runtime_checkpoint_state import (
     chain_id as _chain_id,
+    commit_runtime_side_effects as _commit_runtime_side_effects,
 )
 from app.generation_v2.runtime_hosted_followup import (
     advance_hosted_followup_without_function_calls as _advance_hosted_followup_without_function_calls,
@@ -59,9 +62,11 @@ class RuntimeCallSession(Generic[T]):
         | None = None,
         max_output_tokens: int | None = None,
         max_tool_rounds: int | None = None,
+        server_compaction_threshold: int | None = None,
         temperature: float | None = None,
         checkpoint_policy: AgentCheckpointPolicy | None = None,
         checkpoint_resume_context: CheckpointResumeContext | None = None,
+        terminal_progress_loader: Callable[[], Awaitable[Any]] | None = None,
     ) -> None:
         self.runtime = runtime
         self.db = db
@@ -76,9 +81,13 @@ class RuntimeCallSession(Generic[T]):
         self.tool_policy = tool_policy
         self.hosted_file_search_handler = hosted_file_search_handler
         self.max_output_tokens = max_output_tokens
+        if server_compaction_threshold is not None and server_compaction_threshold <= 0:
+            raise ValueError("server_compaction_threshold must be positive when enabled")
+        self.server_compaction_threshold = server_compaction_threshold
         self.temperature = temperature
         self.checkpoint = checkpoint_policy or _default_checkpoint_policy(agent_name, phase=phase)
         self.checkpoint_resume_context = checkpoint_resume_context
+        self.terminal_progress_loader = terminal_progress_loader
 
         self.prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
         self.input_payload: Any = prompt
@@ -86,7 +95,11 @@ class RuntimeCallSession(Generic[T]):
         self.checkpoint_index = 0
         self.chain_round = 0
         self.chain_model_tool_output_chars = 0
+        self.pending_delivery_receipt_refs: list[str] = []
         self.consecutive_output_exhaustions = 0
+        self.terminal_return_count = 0
+        self.terminal_progress_state: Any = None
+        self.previous_tool_cycle_fingerprint: str | None = None
         self.chain_id = _chain_id(phase, agent_name, self.prompt_hash, self.checkpoint_index)
 
         self.client: Any | None = None
@@ -95,10 +108,13 @@ class RuntimeCallSession(Generic[T]):
         self.tools: list[dict[str, Any]] = []
         self.schema: dict[str, Any] = {}
         self.tool_round_limit = _tool_round_limit(max_tool_rounds)
-        # Output continuations do not consume semantic tool rounds, but they
-        # still need an operational runaway guard. Reuse the configured global
-        # provider-round budget instead of a hidden hard-coded continuation cap.
-        self.output_continuation_limit = _tool_round_limit(None)
+        # An explicitly unlimited agent loop must not inherit the unrelated
+        # global tool-round default as a hidden response-continuation cap.
+        self.output_continuation_limit = (
+            None
+            if max_tool_rounds is not None and int(max_tool_rounds) <= 0
+            else _tool_round_limit(None)
+        )
         self.round_runner: RuntimeRoundRunner | None = None
         self.tool_processor: RuntimeToolRoundProcessor | None = None
 
@@ -110,6 +126,8 @@ class RuntimeCallSession(Generic[T]):
         if not settings.openai_api_key:
             raise V2RuntimeUnavailable("OPENAI_API_KEY is not configured")
         self._prepare_call()
+        if self.terminal_progress_loader is not None:
+            self.terminal_progress_state = await self.terminal_progress_loader()
 
         workflow_round_count = 0
         for round_idx in itertools.count():
@@ -205,6 +223,7 @@ class RuntimeCallSession(Generic[T]):
             vector_store_id=self.vector_store_id,
             local_tools=self.local_tools,
             max_output_tokens=self.max_output_tokens,
+            server_compaction_threshold=self.server_compaction_threshold,
             temperature=self.temperature,
             hosted_file_search_handler=self.hosted_file_search_handler,
         )
@@ -229,8 +248,10 @@ class RuntimeCallSession(Generic[T]):
     async def _run_round(self, round_idx: int) -> RuntimeRoundState:
         if self.round_runner is None:
             raise RuntimeError("RuntimeCallSession is not prepared")
+        if self.pending_delivery_receipt_refs and not self.previous_response_id:
+            raise RuntimeError("Pending source-read delivery lost its same-agent response chain")
         self.chain_round += 1
-        return await self.round_runner.run_round(
+        round_state = await self.round_runner.run_round(
             round_idx=round_idx,
             input_payload=self.input_payload,
             chain_id=self.chain_id,
@@ -238,6 +259,27 @@ class RuntimeCallSession(Generic[T]):
             chain_round=self.chain_round,
             previous_response_id=self.previous_response_id,
         )
+        if (
+            self.pending_delivery_receipt_refs
+            and response_status(round_state.response) in {"completed", "incomplete"}
+        ):
+            from app.generation_v2.tools.evidence_read_delivery import (
+                mark_source_read_receipts_delivered,
+            )
+
+            acknowledged = await mark_source_read_receipts_delivered(
+                self.db,
+                generation_run_id=self.generation_run_id,
+                receipt_refs=self.pending_delivery_receipt_refs,
+            )
+            expected = len(set(self.pending_delivery_receipt_refs))
+            if acknowledged != expected:
+                raise RuntimeError(
+                    "Source-read delivery acknowledgment did not match durable receipts"
+                )
+            await _commit_runtime_side_effects(self.db)
+            self.pending_delivery_receipt_refs = []
+        return round_state
 
     async def _advance_hosted_followup_or_parse(self, round_state: RuntimeRoundState) -> T | None:
         if round_state.hosted_followup:
@@ -277,9 +319,8 @@ class RuntimeCallSession(Generic[T]):
             return None
 
         if any(tool.terminal for tool in self.local_tools or []):
-            raise RuntimeError(
-                f"{self.agent_name} returned structured output without completing its required terminal tool"
-            )
+            await self._continue_after_missing_terminal(round_state)
+            return None
         return _parse_structured_runtime_response(
             schema_model=self.schema_model,
             response=round_state.response,
@@ -301,6 +342,32 @@ class RuntimeCallSession(Generic[T]):
             hosted_followup=round_state.hosted_followup,
         )
 
+    async def _continue_after_missing_terminal(self, round_state: RuntimeRoundState) -> None:
+        if self.terminal_progress_loader is None:
+            raise AgentTerminalNotReached(
+                f"{self.agent_name} returned structured output without completing its required terminal tool"
+            )
+        progress_state = await self.terminal_progress_loader()
+        progress_saved = progress_state != self.terminal_progress_state
+        if self.terminal_return_count > 0 and not progress_saved:
+            raise AgentTerminalNotReached(
+                f"{self.agent_name} returned again without terminal completion or saved semantic progress",
+                repeated_without_progress=True,
+            )
+        self.terminal_progress_state = progress_state
+        self.terminal_return_count += 1
+        self.input_payload = [
+            {
+                "role": "user",
+                "content": (
+                    "The workflow is not complete because no terminal tool was accepted. Continue in this same "
+                    "response chain from durable state. Do not repeat saved work. Inspect current state if needed, "
+                    "persist the next unfinished semantic record, or call the terminal tool when all work is current."
+                ),
+            }
+        ]
+        self.previous_response_id = round_state.response.id
+
     async def _process_function_calls(self, round_state: RuntimeRoundState) -> T | None:
         if self.tool_processor is None:
             raise RuntimeError("RuntimeCallSession is not prepared")
@@ -317,12 +384,21 @@ class RuntimeCallSession(Generic[T]):
                 advance.terminal_result,
                 source="accepted terminal tool",
             )
+        if (
+            advance.tool_cycle_fingerprint is not None
+            and advance.tool_cycle_fingerprint == self.previous_tool_cycle_fingerprint
+        ):
+            raise AgentOperationalStall(
+                f"{self.agent_name} repeated the same non-terminal tool calls with the same results"
+            )
+        self.previous_tool_cycle_fingerprint = advance.tool_cycle_fingerprint
         self.input_payload = advance.input_payload
         self.previous_response_id = advance.previous_response_id
         self.checkpoint_index = advance.checkpoint_index
         self.chain_id = advance.chain_id
         self.chain_round = advance.chain_round
         self.chain_model_tool_output_chars = advance.chain_model_tool_output_chars
+        self.pending_delivery_receipt_refs = advance.delivery_receipt_refs
         return None
 
     async def _resume_terminal_completion(self) -> T | None:
@@ -380,9 +456,11 @@ async def call_structured_runtime(
     | None = None,
     max_output_tokens: int | None = None,
     max_tool_rounds: int | None = None,
+    server_compaction_threshold: int | None = None,
     temperature: float | None = None,
     checkpoint_policy: AgentCheckpointPolicy | None = None,
     checkpoint_resume_context: CheckpointResumeContext | None = None,
+    terminal_progress_loader: Callable[[], Awaitable[Any]] | None = None,
 ) -> T:
     return await RuntimeCallSession(
         runtime,
@@ -399,9 +477,11 @@ async def call_structured_runtime(
         hosted_file_search_handler=hosted_file_search_handler,
         max_output_tokens=max_output_tokens,
         max_tool_rounds=max_tool_rounds,
+        server_compaction_threshold=server_compaction_threshold,
         temperature=temperature,
         checkpoint_policy=checkpoint_policy,
         checkpoint_resume_context=checkpoint_resume_context,
+        terminal_progress_loader=terminal_progress_loader,
     ).run()
 
 

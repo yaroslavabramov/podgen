@@ -82,6 +82,10 @@ class Settings(BaseSettings):
     generation_v2_allow_fallback_audio: bool = False
     generation_v2_max_tool_rounds: int = 8
     generation_v2_triage_max_tool_rounds: int = 0
+    # OpenAI's documented server-side compaction example threshold. This is
+    # used by the continuous source-triage agent loops and is configurable
+    # independently of local checkpoint/restart policies.
+    generation_v2_triage_compaction_threshold: int = 200_000
     generation_v2_debug_dump_dir: str = ""
     generation_v2_enable_source_acquisition: bool = True
     generation_v2_source_acquisition_mode: str = "auto"

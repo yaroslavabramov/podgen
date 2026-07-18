@@ -50,6 +50,13 @@ def _question(
         "rationale": "Serves the requested explanation.",
         "parent_question_id": parent_question_id,
         "origin": "planned",
+        "answer_requirements": [
+            {
+                "requirement_id": f"{question_id}:r_core",
+                "description": "Resolve the substantive answer to this question.",
+                "rationale": "This is the semantic part required for a complete answer.",
+            }
+        ],
     }
 
 
@@ -69,6 +76,13 @@ def _source_set(
         "purpose": "Read the assigned sources.",
         "source_refs": source_refs,
         "question_ids": list(question_ids),
+        "question_assignments": [
+            {
+                "question_id": question_id,
+                "requirement_ids": [f"{question_id}:r_core"],
+            }
+            for question_id in planned_question_ids
+        ],
         "planned_question_ids": planned_question_ids,
         "cross_question_ids": [
             question_id for question_id in question_ids if question_id not in planned_question_ids
@@ -349,6 +363,13 @@ async def test_question_update_cannot_create_a_parent_cycle(
             "importance": "critical",
             "rationale": "Serves the requested explanation.",
             "parent_question_id": "q_child",
+            "answer_requirements": [
+                {
+                    "requirement_id": "q_root:r_core",
+                    "description": "Resolve the substantive answer to this question.",
+                    "rationale": "Required for a complete answer.",
+                }
+            ],
         }
     )
 
@@ -403,7 +424,31 @@ def _orientation_execution_workspace(refs: list[str]) -> dict:
     return workspace
 
 
-def _assessment_args(source_ref: str, *, question_ids: list[str]) -> dict:
+def _source_analysis_args(source_ref: str, *, question_ids: list[str]) -> dict:
+    evidence_id = str(uuid.uuid4())
+    findings = [
+        {
+            "finding_id": "orientation_finding",
+            "statement": "The inspected source establishes a substantive answer component.",
+            "evidence_ids": [evidence_id],
+            "scope": {
+                "actor": "The actor named in the source",
+                "period": "The period covered by the source",
+                "geography": "The geography covered by the source",
+                "qualifiers": [],
+            },
+            "limitations": [],
+            "question_links": [
+                {
+                    "question_id": question_id,
+                    "requirement_ids": [f"{question_id}:r_core"],
+                    "rationale": "The saved evidence directly supports this answer requirement.",
+                }
+                for question_id in question_ids
+            ],
+            "source_relations": [],
+        }
+    ] if question_ids else []
     return {
         "set_id": "orientation_set",
         "source_ref": source_ref,
@@ -418,11 +463,16 @@ def _assessment_args(source_ref: str, *, question_ids: list[str]) -> dict:
         "authority_reason": "The source gives an attributable expert account.",
         "uniqueness_reason": "No duplication was established.",
         "disposition_reason": "Keep as a possible supporting source.",
-        "coverage_question_ids": question_ids,
         "editorial_functions": [],
-        "evidence_ids": [str(uuid.uuid4())],
+        "evidence_ids": [evidence_id],
         "limitations": [],
         "confidence": 0.7,
+        "no_findings_reason": (
+            "The inspected source yielded no substantive finding for any current question."
+            if not findings
+            else ""
+        ),
+        "findings": findings,
     }
 
 
@@ -464,8 +514,8 @@ async def test_orientation_set_finishes_after_assessments_without_outcomes(
         current_set_id="orientation_set",
     )
 
-    assessment = await tools["upsert_source_assessment"].handler(
-        _assessment_args(refs[0], question_ids=[])
+    assessment = await tools["save_source_analysis"].handler(
+        _source_analysis_args(refs[0], question_ids=[])
     )
     finished = await tools["finish_triage_source_set"].handler(_finish_args())
 
@@ -502,8 +552,8 @@ async def test_orientation_cross_question_requires_an_outcome_before_finish(
         current_set_id="orientation_set",
     )
 
-    assessment = await tools["upsert_source_assessment"].handler(
-        _assessment_args(refs[0], question_ids=["q_root"])
+    assessment = await tools["save_source_analysis"].handler(
+        _source_analysis_args(refs[0], question_ids=["q_root"])
     )
     rejected_finish = await tools["finish_triage_source_set"].handler(_finish_args())
 
@@ -520,11 +570,22 @@ async def test_orientation_cross_question_requires_an_outcome_before_finish(
         {
             "set_id": "orientation_set",
             "question_id": "q_root",
-            "status": "missing",
-            "source_refs": [],
-            "evidence_ids": [],
-            "orientation_summary": "",
-            "missing_detail": "Initial reading found no usable support for this question.",
+            "status": "covered",
+            "finding_ids": assessment["finding_ids"],
+            "requirement_results": [
+                {
+                    "requirement_id": "q_root:r_core",
+                    "status": "covered",
+                    "finding_ids": assessment["finding_ids"],
+                    "summary": "The finding establishes the answer component.",
+                    "missing_detail": "",
+                    "conflict_summary": "",
+                    "deferred_reason": "",
+                    "confidence": 0.7,
+                }
+            ],
+            "orientation_summary": "The finding establishes the answer component.",
+            "missing_detail": "",
             "conflict_summary": "",
             "deferred_reason": "",
             "confidence": 0.7,
@@ -537,7 +598,7 @@ async def test_orientation_cross_question_requires_an_outcome_before_finish(
 
 
 @pytest.mark.asyncio
-async def test_orientation_observations_must_remain_source_specific(
+async def test_orientation_source_analyses_are_atomic_and_source_specific(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     inventory, refs = _inventory(3)
@@ -561,29 +622,37 @@ async def test_orientation_observations_must_remain_source_specific(
     ]
     workspace["current_set"] = {"set_id": "orientation_set", "source_refs": refs[:2]}
     state = _install_workspace_store(monkeypatch, workspace)
-    observation = _tools(
+    monkeypatch.setattr(
+        SourceTriageWorkspaceToolHandlers,
+        "_validate_set_evidence_ids",
+        _allow_evidence,
+    )
+    monkeypatch.setattr(
+        SourceTriageWorkspaceToolHandlers,
+        "_select_validated_evidence_ids",
+        _allow_evidence,
+    )
+    tools = _tools(
         inventory=inventory,
         workspace=workspace,
         mode="set",
         current_set_id="orientation_set",
-    )["record_triage_observation"]
-    common = {
-        "set_id": "orientation_set",
-        "evidence_ids": [],
-        "note": "A source-specific reading note.",
-        "pending_questions": [],
-    }
-
-    rejected = await observation.handler({**common, "source_refs": refs[:2]})
-    accepted = await observation.handler({**common, "source_refs": [refs[0]]})
-
-    assert rejected["accepted"] is False
-    assert rejected["error"] == "orientation_observation_requires_one_source"
-    assert accepted["accepted"] is True
-    orientation_set = next(
-        item for item in state["workspace"]["source_sets"] if item["set_id"] == "orientation_set"
     )
-    assert orientation_set["observations"][0]["source_refs"] == [refs[0]]
+
+    assert "record_triage_observation" not in tools
+    assert "source_ref" in tools["save_source_analysis"].parameters["required"]
+    assert "source_refs" not in tools["save_source_analysis"].parameters["properties"]
+
+    first = await tools["save_source_analysis"].handler(
+        _source_analysis_args(refs[0], question_ids=[])
+    )
+    second = await tools["save_source_analysis"].handler(
+        _source_analysis_args(refs[1], question_ids=[])
+    )
+
+    assert first["accepted"] is True
+    assert second["accepted"] is True
+    assert {item["source_ref"] for item in state["workspace"]["source_assessments"]} == set(refs[:2])
 
 
 @pytest.mark.asyncio

@@ -7,8 +7,11 @@ from typing import Any
 import openai
 
 from app.generation_v2.debug_dump import dump_v2_debug
-from app.generation_v2.runtime_debug import tool_policy_payload as _tool_policy_payload
-from app.generation_v2.runtime_debug import tool_trace_name as _tool_trace_name
+from app.generation_v2.runtime_debug import (
+    redact_runtime_file_ids as _redact_runtime_file_ids,
+    tool_policy_payload as _tool_policy_payload,
+    tool_trace_name as _tool_trace_name,
+)
 from app.observability import safe_set_run, trace_span
 
 
@@ -40,6 +43,7 @@ async def create_runtime_response(
     vector_store_id: str | None,
     local_tools: list[Any] | None,
     max_output_tokens: int | None,
+    server_compaction_threshold: int | None,
     temperature: float | None,
     chain_id: str,
     checkpoint_index: int,
@@ -62,6 +66,7 @@ async def create_runtime_response(
             "agent_name": agent_name,
             "reasoning_effort": reasoning_effort,
             "vector_store_id": vector_store_id or "",
+            "server_compaction_threshold": server_compaction_threshold,
         },
         tags=["generation-v2", "openai", "responses", f"phase:{phase}", f"agent:{agent_name}"],
     ) as run_tree:
@@ -73,6 +78,16 @@ async def create_runtime_response(
                 previous_response_id=previous_response_id or openai.NOT_GIVEN,
                 max_output_tokens=(
                     max_output_tokens if max_output_tokens is not None else openai.NOT_GIVEN
+                ),
+                context_management=(
+                    [
+                        {
+                            "type": "compaction",
+                            "compact_threshold": server_compaction_threshold,
+                        }
+                    ]
+                    if server_compaction_threshold is not None
+                    else openai.NOT_GIVEN
                 ),
                 temperature=temperature if temperature is not None else openai.NOT_GIVEN,
                 reasoning={"effort": reasoning_effort} if reasoning_effort else openai.NOT_GIVEN,
@@ -91,12 +106,8 @@ async def create_runtime_response(
                 },
             )
         except Exception as exc:
-            dump_v2_debug(
-                run_id=str(generation_run_id),
-                phase=phase,
-                agent_name=agent_name,
-                dump_type=f"round-{round_number:02d}-exception",
-                payload={
+            exception_payload = _redact_runtime_file_ids(
+                {
                     "run_id": str(generation_run_id),
                     "phase": phase,
                     "agent_name": agent_name,
@@ -113,10 +124,21 @@ async def create_runtime_response(
                     "checkpoint_index": checkpoint_index,
                     "chain_round": chain_round,
                     "requested_model": requested_model,
+                    "server_compaction_threshold": server_compaction_threshold,
                     "error": str(exc),
-                },
+                }
             )
-            safe_set_run(run_tree, outputs={"status": "exception", "error": str(exc)})
+            dump_v2_debug(
+                run_id=str(generation_run_id),
+                phase=phase,
+                agent_name=agent_name,
+                dump_type=f"round-{round_number:02d}-exception",
+                payload=exception_payload,
+            )
+            safe_set_run(
+                run_tree,
+                outputs={"status": "exception", "error": exception_payload["error"]},
+            )
             raise
     return RuntimeResponseCreateResult(
         response=response,
