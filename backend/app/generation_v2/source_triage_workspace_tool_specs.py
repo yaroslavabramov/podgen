@@ -12,6 +12,12 @@ from app.generation_v2.source_triage_workspace_contracts import (
     TRIAGE_CAPSULE_PAGE_MAX_LIMIT,
     TRIAGE_SEMANTIC_FIELD_LIMITS,
 )
+from app.generation_v2.source_triage_source_analysis_tool_schema import (
+    reading_basis_schema,
+)
+from app.generation_v2.source_triage_grounding_audit_tool import (
+    source_finding_grounding_audit_tool,
+)
 
 
 ToolHandler = Callable[[dict[str, Any]], Any]
@@ -122,8 +128,20 @@ def source_triage_planner_tools(
                                     "type": "string",
                                     "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["requirement_rationale"],
                                 },
+                                "completion_criterion": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS[
+                                        "requirement_completion_criterion"
+                                    ],
+                                    "description": (
+                                        "State what evidence or explanatory link would make this answer part "
+                                        "genuinely resolved; chronology or adjacent context is not enough for a "
+                                        "causal requirement."
+                                    ),
+                                },
                             },
-                            "required": ["description", "rationale"],
+                            "required": ["description", "rationale", "completion_criterion"],
                             "additionalProperties": False,
                         },
                     },
@@ -239,8 +257,10 @@ def source_triage_finalizer_tools(
     update_source_finding_relations_handler: ToolHandler,
     upsert_coverage_outcome_handler: ToolHandler,
     upsert_coverage_synthesis_handler: ToolHandler,
+    *,
+    audit_source_finding_handler: ToolHandler | None = None,
 ) -> list[AgentTool]:
-    return [
+    tools = [
         update_source_finding_links_tool(update_source_finding_links_handler),
         update_source_finding_relations_tool(update_source_finding_relations_handler),
         coverage_outcome_tool(upsert_coverage_outcome_handler),
@@ -253,6 +273,9 @@ def source_triage_finalizer_tools(
             terminal=False,
         ),
     ]
+    if audit_source_finding_handler is not None:
+        tools.insert(0, source_finding_grounding_audit_tool(audit_source_finding_handler))
+    return tools
 
 
 def reading_note_tool(handler: ToolHandler) -> AgentTool:
@@ -363,6 +386,14 @@ def source_analysis_tool(handler: ToolHandler) -> AgentTool:
                     "type": "string",
                     "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["finding_statement"],
                 },
+                "support_explanation": {
+                    "type": "string",
+                    "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["finding_support_explanation"],
+                    "description": (
+                        "Explain how the exact attached passages support this bounded statement, including actor, "
+                        "period, and causal/mechanism limits where material."
+                    ),
+                },
                 "evidence_ids": {
                     "type": "array",
                     "minItems": 1,
@@ -456,6 +487,7 @@ def source_analysis_tool(handler: ToolHandler) -> AgentTool:
             },
             "required": [
                 "statement",
+                "support_explanation",
                 "evidence_ids",
                 "scope",
                 "limitations",
@@ -465,10 +497,11 @@ def source_analysis_tool(handler: ToolHandler) -> AgentTool:
             "additionalProperties": False,
         },
     }
+    properties["reading_basis"] = reading_basis_schema()
     required = [
         item for item in parameters["required"] if item != "coverage_question_ids"
     ]
-    required.extend(["no_findings_reason", "findings"])
+    required.extend(["no_findings_reason", "findings", "reading_basis"])
     parameters["required"] = list(dict.fromkeys(required))
     return AgentTool(
         name="save_source_analysis",
@@ -898,6 +931,23 @@ def _requirement_result_schema(*, allow_global_next_action: bool = False) -> dic
             "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["requirement_summary"],
             "description": "Required for covered/partial; empty for missing/deferred.",
         },
+        "closure_basis": {
+            "type": "string",
+            "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["requirement_closure_basis"],
+            "description": (
+                "For covered, explain specifically why the linked findings satisfy this requirement's persisted "
+                "completion_criterion. For partial/conflicted, state only what the findings establish. Empty for "
+                "missing/deferred."
+            ),
+        },
+        "remaining_uncertainty": {
+            "type": "string",
+            "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["requirement_uncertainty"],
+            "description": (
+                "Material uncertainty left after applying the linked findings. Empty only when none remains or "
+                "when missing/deferred fields already fully state the absence."
+            ),
+        },
         "missing_detail": {
             "type": "string",
             "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["coverage_detail"],
@@ -920,6 +970,8 @@ def _requirement_result_schema(*, allow_global_next_action: bool = False) -> dic
         "status",
         "finding_ids",
         "summary",
+        "closure_basis",
+        "remaining_uncertainty",
         "missing_detail",
         "conflict_summary",
         "deferred_reason",

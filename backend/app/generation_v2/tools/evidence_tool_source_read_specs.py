@@ -49,7 +49,7 @@ def evidence_source_read_tools(owner: Any) -> list[AgentTool]:
                 "Search inside exactly one source for navigation without creating EvidenceItems. Returns real exact "
                 "context ranges, not snippets or previews. Each result includes its full text, offsets, durable "
                 "receipt_ref, and a stable window_ref that can be passed directly to read_source_window for evidence "
-                "the visible result has delivery_status=delivered and is usable immediately."
+                "creation. The visible result has delivery_status=delivered and is usable immediately."
             ),
             parameters={
                 "type": "object",

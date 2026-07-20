@@ -6,7 +6,7 @@ import uuid
 import pytest
 
 from app.generation_v2 import source_triage_workspace as workspace_api
-from app.generation_v2 import source_triage_workspace_tracking as tracking
+from app.generation_v2 import source_triage_read_checkpointing as tracking
 from app.generation_v2.schemas import SourceCard, SourceMap
 from app.generation_v2.source_triage_workspace_tool_handlers import (
     SourceTriageWorkspaceToolHandlers,
@@ -209,7 +209,7 @@ def test_set_relation_tool_contract_requires_two_sided_evidence() -> None:
 
 
 @pytest.mark.asyncio
-async def test_exact_read_marker_is_advisory_and_does_not_require_a_source_switch_commit(
+async def test_exact_read_requires_a_durable_checkpoint_before_source_switch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     workspace = _workspace()
@@ -235,16 +235,9 @@ async def test_exact_read_marker_is_advisory_and_does_not_require_a_source_switc
     assert advisory is not None
     assert advisory["pending_source_refs"] == ["S01"]
     assert advisory["analysis_pending"] is True
-    assert "before" not in advisory["message"].casefold()
+    assert "before switching sources" in advisory["message"].casefold()
 
-    workspace["source_assessments"] = [
-        {
-            "set_id": "set-1",
-            "source_ref": "S01",
-            "processing_status": "resolved",
-            "finding_ids": ["finding:S01:one"],
-        }
-    ]
+    tracking.clear_pending_exact_read(workspace["source_sets"][0], source_ref="S01")
     assert tracking.pending_exact_read_source_refs(
         workspace,
         source_set=workspace["source_sets"][0],

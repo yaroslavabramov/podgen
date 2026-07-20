@@ -183,6 +183,38 @@ def test_gate_a_does_not_block_long_article_quoting_http_error_banner() -> None:
     assert assessment.state == "ok"
 
 
+def test_gate_a_blocks_publisher_shell_without_target_document() -> None:
+    text = """
+    Chapter information
+    Abstract
+    This page contains bibliographic orientation but not the requested chapter text.
+    Unfortunately you do not have access to this chapter.
+    Get access
+    Institutional login
+    Download PDF
+    Cite
+    References
+    """
+
+    assessment = assess_web_fetch_health(text, min_chars=160)
+
+    assert assessment.state == "blocked"
+    assert "target_content_access_restricted" in assessment.reasons
+
+
+def test_gate_a_does_not_block_article_quoting_access_copy() -> None:
+    text = (
+        "This article analyzes interface language. It quotes ‘you do not have access’ and the button label "
+        "‘get access’, then compares how readers understood those messages. The study describes its interview "
+        "method, abstract, findings, limitations, references, citation practice, sharing, and the redesign that "
+        "followed. "
+    ) * 8
+
+    assessment = assess_web_fetch_health(text, min_chars=160)
+
+    assert assessment.state == "ok"
+
+
 def test_clean_web_text_removes_markdown_noise() -> None:
     raw = (
         "[Skip to content](https://example.com/#main)\n"

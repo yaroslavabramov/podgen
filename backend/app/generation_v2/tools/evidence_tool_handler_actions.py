@@ -238,6 +238,17 @@ async def read_evidence_tool_action(owner: Any, args: dict[str, Any]) -> dict[st
         read_ids = set(getattr(owner, "_research_read_evidence_ids", set()) or set())
         read_ids.add(str(evidence_id))
         setattr(owner, "_research_read_evidence_ids", read_ids)
+    if getattr(owner, "triage_finalizer_mode", False):
+        from app.generation_v2.source_triage_finalizer_evidence import (
+            record_finalizer_evidence_read,
+        )
+
+        await record_finalizer_evidence_read(
+            owner.db,
+            generation_run_id=owner.run.id,
+            evidence_id=str(evidence_id),
+            exact_read_complete=bool(result.get("exact_read_complete")),
+        )
     return result
 
 
@@ -359,6 +370,20 @@ async def compare_source_evidence_tool_action(owner: Any, args: dict[str, Any]) 
             ]
         },
     )
+    comparison_control = None
+    recorder = getattr(owner, "_record_triage_comparison_read", None)
+    if callable(recorder):
+        comparison_control = await recorder(
+            evidence_ids_by_source_ref={
+                str(comparison.get("source_ref") or ""): [
+                    str(item.get("evidence_id") or "")
+                    for item in comparison.get("evidence") or []
+                    if str(item.get("evidence_id") or "")
+                ]
+                for comparison in comparisons
+                if str(comparison.get("source_ref") or "")
+            }
+        )
     return {
         "accepted": True,
         "question": question[:300],
@@ -367,9 +392,15 @@ async def compare_source_evidence_tool_action(owner: Any, args: dict[str, Any]) 
         "compared_source_count": len(source_ids),
         "omitted_source_count": max(0, len(requested_source_ids) - len(source_ids)),
         "expected_next_action": (
-            "Use the compared evidence to update finding links or relations, refresh affected outcomes, "
-            "or persist a supported source relationship, cluster, or gap before another comparison."
+            "Read exact passages where needed, resave each affected complete source analysis, and refresh stale "
+            "outcomes."
+            if getattr(owner, "triage_current_set_id", None)
+            else (
+                "Use the compared evidence to update finding links or relations, refresh affected outcomes, "
+                "or persist a supported source relationship, cluster, or gap before another comparison."
+            )
         ),
+        **({"comparison_control": comparison_control} if comparison_control else {}),
     }
 
 

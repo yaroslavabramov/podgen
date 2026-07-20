@@ -12,6 +12,9 @@ from app.generation_v2.source_triage_workspace_completion_handlers import (
 from app.generation_v2.source_triage_workspace_finding_handlers import (
     SourceTriageWorkspaceFindingHandlersMixin,
 )
+from app.generation_v2.source_triage_workspace_grounding_audit_handlers import (
+    SourceTriageWorkspaceGroundingAuditHandlersMixin,
+)
 from app.generation_v2.source_triage_workspace_outcome_handlers import (
     SourceTriageWorkspaceOutcomeHandlersMixin,
 )
@@ -39,6 +42,7 @@ class SourceTriageWorkspaceToolHandlers(
     SourceTriageWorkspaceReadingHandlersMixin,
     SourceTriageWorkspaceSourceAnalysisHandlersMixin,
     SourceTriageWorkspaceFindingHandlersMixin,
+    SourceTriageWorkspaceGroundingAuditHandlersMixin,
     SourceTriageWorkspaceOutcomeHandlersMixin,
     SourceTriageWorkspaceSynthesisHandlersMixin,
     SourceTriageWorkspaceSupportHandlersMixin,

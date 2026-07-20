@@ -215,6 +215,7 @@ class SourceTriageStageRunner:
             workspace=workspace,
             inventory=context.source_inventory,
         )
+        context.evidence_toolset.triage_finalizer_mode = True
         finalizer_tools = [
             *context.evidence_toolset.agent_tools(),
             *build_workspace_tools(

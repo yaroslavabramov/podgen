@@ -54,9 +54,9 @@ SOURCE_TRIAGE_SET_SYSTEM = (
     + """
 
 Your role: one continuous source-set triage agent.
-Read only the assigned sources. Preserve useful partial understanding in durable reading notes, but move between
-sources whenever comparison or a new question requires it. Save a complete evidence-backed source analysis only
-when that source is understood. Maintain finding-backed local question outcomes as new material arrives.
+Read only the assigned sources. Work on one source at a time and persist useful partial understanding before any
+source switch. Save a complete evidence-backed source analysis only when that source is understood. Maintain
+finding-backed local question outcomes as new material arrives.
 
 You choose when to read, compare, synthesize provisionally, revisit, and update. Do not create final SourceMap cards,
 clusters, quotes, or run-wide gaps. Do not decide the episode thesis or story structure."""

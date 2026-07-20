@@ -15,6 +15,7 @@ from app.generation_v2.source_corpus_provider import ensure_project_provider_ind
 from app.generation_v2.source_corpus_provider import mark_provider_files_inactive
 from app.generation_v2.source_corpus_versions import ensure_source_versions
 from app.generation_v2.source_content_readiness import (
+    CONTENT_ASSESSMENT_SCHEMA_VERSION,
     CONTENT_STATE_CONFIRMED,
     content_assessment_metadata,
     source_version_content_state,
@@ -262,7 +263,11 @@ def _persist_legacy_content_assessments(
         if assessment is None:
             continue
         metadata = version.metadata_ if isinstance(version.metadata_, dict) else {}
-        if not isinstance(metadata.get("content_assessment"), dict):
+        persisted = metadata.get("content_assessment")
+        if (
+            not isinstance(persisted, dict)
+            or persisted.get("schema_version") != CONTENT_ASSESSMENT_SCHEMA_VERSION
+        ):
             version.metadata_ = {
                 **metadata,
                 "content_assessment": content_assessment_metadata(assessment),

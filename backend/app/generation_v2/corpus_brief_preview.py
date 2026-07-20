@@ -80,6 +80,7 @@ def corpus_brief_preview(
                         "requirement_id": requirement.requirement_id,
                         "description": preview(requirement.description),
                         "rationale": preview(requirement.rationale),
+                        "completion_criterion": preview(requirement.completion_criterion),
                     }
                     for requirement in item.answer_requirements[:item_limit]
                 ],
@@ -101,6 +102,7 @@ def corpus_brief_preview(
                 "evidence_count": len(item.evidence_ids),
                 "semantic_revision": item.semantic_revision,
                 "statement": preview(item.statement),
+                "support_explanation": preview(item.support_explanation),
                 "scope": {
                     "actor": preview(item.scope.actor),
                     "period": preview(item.scope.period),
@@ -160,6 +162,8 @@ def corpus_brief_preview(
                         "finding_ids": list(result.finding_ids[:item_limit]),
                         "finding_count": len(result.finding_ids),
                         "summary": preview(result.summary),
+                        "closure_basis": preview(result.closure_basis),
+                        "remaining_uncertainty": preview(result.remaining_uncertainty),
                         "missing_detail": preview(result.missing_detail),
                         "conflict_summary": preview(result.conflict_summary),
                         "deferred_reason": preview(result.deferred_reason),

@@ -17,6 +17,9 @@ def strict_object(node: Any) -> None:
         return
     node.pop("default", None)
     node.pop("examples", None)
+    # OpenAI strict function schemas reject this standard JSON Schema keyword.
+    # Domain handlers still enforce uniqueness where it matters.
+    node.pop("uniqueItems", None)
     if node.get("type") == "object" or "properties" in node:
         properties = node.get("properties") or {}
         originally_required = set(node.get("required") or [])

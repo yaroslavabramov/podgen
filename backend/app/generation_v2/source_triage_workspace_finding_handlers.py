@@ -8,6 +8,9 @@ from app.generation_v2.persistence_contracts import semantic_field_error
 from app.generation_v2.source_triage_workspace_contracts import TRIAGE_SEMANTIC_FIELD_LIMITS
 from app.generation_v2.source_triage_workspace_handler_helpers import semantic_json as _semantic_json
 from app.generation_v2.source_triage_workspace_state import invalidate_coverage_syntheses
+from app.generation_v2.source_triage_source_analysis_contract import (
+    reconcile_source_assessment_findings,
+)
 from app.generation_v2.tools.evidence_refs import build_source_ref_context
 
 
@@ -117,21 +120,16 @@ class SourceTriageWorkspaceFindingHandlersMixin:
             and str(item.get("source_id") or "") == source_id
             and str(item.get("set_id") or "") == set_id
         ]
-        source_question_ids = workspace_api._dedupe(
-            [
-                str(link.get("question_id") or "")
-                for item in source_findings
-                for link in item.get("question_links") or []
-                if isinstance(link, dict) and str(link.get("question_id") or "")
-            ]
-        )
         for assessment in current.get("source_assessments") or []:
             if (
                 isinstance(assessment, dict)
                 and str(assessment.get("source_id") or "") == source_id
                 and str(assessment.get("set_id") or "") == set_id
             ):
-                assessment["coverage_question_ids"] = source_question_ids
+                reconcile_source_assessment_findings(
+                    assessment,
+                    findings=source_findings,
+                )
                 assessment["updated_at"] = workspace_api._now()
         source_set = workspace_api._workspace_set(current, set_id)
         if source_set is None:

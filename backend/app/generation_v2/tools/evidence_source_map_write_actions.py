@@ -708,6 +708,9 @@ async def finalize_source_map(owner: Any, args: dict[str, Any]) -> dict[str, Any
     from app.generation_v2.source_triage_workspace_tools import (
         finalizer_review_stream_violations,
     )
+    from app.generation_v2.source_triage_grounding_audit_state import (
+        current_grounding_audit_violations,
+    )
 
     workspace = await load_source_triage_workspace(owner.db, owner.run.id)
     if workspace and is_structured_triage_workspace(workspace):
@@ -729,6 +732,7 @@ async def finalize_source_map(owner: Any, args: dict[str, Any]) -> dict[str, Any
         )
         violations = [
             *review_violations,
+            *current_grounding_audit_violations(workspace),
             *canonical_workspace_violations(workspace, require_syntheses=True),
         ]
         if violations:

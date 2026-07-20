@@ -240,6 +240,38 @@ def test_triage_canonical_page_honors_requested_limit() -> None:
     assert page["page"]["output_budget_limited"] is False
 
 
+def test_large_finding_audit_state_stays_paginated_and_bounded() -> None:
+    findings = [
+        {
+            "finding_id": f"finding-{index:03d}",
+            "source_ref": f"S{index + 1:03d}",
+            "statement": f"Bounded finding {index}.",
+            "support_explanation": "Exact evidence supports the statement.",
+            "evidence_ids": [f"evidence-{index:03d}"],
+            "question_links": [],
+            "source_relations": [],
+            "scope": {"actor": "", "period": "", "geography": "", "qualifiers": []},
+            "limitations": [],
+        }
+        for index in range(200)
+    ]
+    workspace = {"source_findings": findings}
+
+    page = _full_canonical_item_page(
+        workspace,
+        section="source_findings",
+        cursor=0,
+        limit=12,
+    )
+
+    assert page["accepted"] is True
+    assert page["grounding_audit_state"] == {"current_count": 0, "pending_count": 200}
+    assert page["items"]
+    assert all(item["grounding_audit_status"] == "pending" for item in page["items"])
+    assert "finding_ids" not in page["grounding_audit_state"]
+    assert len(json.dumps(page, ensure_ascii=False)) <= MODEL_TOOL_OUTPUT_MAX_CHARS
+
+
 def test_triage_synthesis_page_exposes_freshness_without_internal_hash_or_revision() -> None:
     workspace = {
         "triage_semantic_revision": 2,

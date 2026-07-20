@@ -471,6 +471,7 @@ class EvidenceSourceToolsMixin:
                     "next_cursor": (receipt_ref if read_kind == "sequential" and not bool(item.get("eof")) else ""),
                     "eof": bool(item.get("eof")),
                     "request": dict(request_metadata),
+                    **({"structure": item["structure"]} if isinstance(item.get("structure"), dict) else {}),
                     "delivery_status": READ_RECEIPT_DELIVERY_PENDING,
                     "created_at": workspace_now(),
                 },
@@ -874,6 +875,17 @@ class EvidenceSourceToolsMixin:
         )
         await self._mark_evidence_exact_read(evidence, method="read_source_window")
         payload = await self._evidence_detail_payload(evidence, max_snippet_chars=max_chars)
+        if getattr(self, "triage_finalizer_mode", False):
+            from app.generation_v2.source_triage_finalizer_evidence import (
+                record_finalizer_evidence_read,
+            )
+
+            await record_finalizer_evidence_read(
+                self.db,
+                generation_run_id=self.run.id,
+                evidence_id=str(payload["evidence_id"]),
+                exact_read_complete=True,
+            )
         exact_read_control = await self._record_triage_exact_read(
             source_ref=canonical_source_ref,
             evidence_ids=[str(payload["evidence_id"])],

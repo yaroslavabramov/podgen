@@ -22,9 +22,15 @@ from app.generation_v2.source_triage_workspace_tool_specs import (
 )
 from app.generation_v2.source_triage_workspace_state import (
     latest_source_read_receipts,
+    source_read_coverage_ledger,
     source_read_receipt_delivery_status,
     source_read_receipt_is_delivered,
     uncheckpointed_source_read_replays,
+)
+from app.generation_v2.source_triage_read_checkpointing import (
+    pending_comparison_source_refs,
+    pending_exact_read_source_refs,
+    source_refs_with_reads_newer_than_analysis,
 )
 from app.models.generation_run import GenerationRun
 
@@ -161,21 +167,33 @@ def _full_canonical_item_page(
         current_set_id=current_set_id,
     )
     page = parts[cursor : cursor + limit]
+    grounding_audit_state: dict[str, Any] | None = None
+    if section == "source_findings":
+        from app.generation_v2.source_triage_grounding_audit_state import (
+            annotate_finding_page_grounding_state,
+        )
+
+        page, grounding_audit_state = annotate_finding_page_grounding_state(
+            workspace,
+            page,
+        )
+    payload = {
+        "accepted": True,
+        "section": section,
+        "record_count": len(values),
+        "items": page,
+        "page": {
+            **_page_metadata(total=len(parts), cursor=cursor, returned=len(page)),
+            "unit": "record_part",
+        }
+    }
+    if grounding_audit_state is not None:
+        payload["grounding_audit_state"] = grounding_audit_state
     return fit_model_page(
-        {
-            "accepted": True,
-            "section": section,
-            "record_count": len(values),
-            "items": page,
-            "page": {
-                **_page_metadata(total=len(parts), cursor=cursor, returned=len(page)),
-                "unit": "record_part",
-            },
-        },
+        payload,
         requested_limit=limit,
         error_code="triage_workspace_item_exceeds_model_read_contract",
     )
-
 
 def _canonical_section_record_parts(
     workspace: dict[str, Any],
@@ -343,7 +361,7 @@ def _record_finalizer_review_page(
     _, expected_parts = _canonical_section_record_parts(workspace, section=section)
     expected_keys = {_record_part_review_key(part) for part in expected_parts}
     returned_keys = {
-        _record_part_review_key(part)
+        _record_part_review_key(_reviewable_finding_part(part, section=section))
         for part in page_payload.get("items") or []
         if isinstance(part, dict)
     }
@@ -363,6 +381,14 @@ def _record_finalizer_review_page(
         "updated_at": _workspace._now(),
     }
     workspace[FINALIZER_READ_LEDGER_FIELD] = ledger
+
+
+def _reviewable_finding_part(part: dict[str, Any], *, section: str) -> dict[str, Any]:
+    if section != "source_findings" or "grounding_audit_status" not in part:
+        return part
+    value = dict(part)
+    value.pop("grounding_audit_status", None)
+    return value
 
 
 def finalizer_review_stream_violations(workspace: dict[str, Any]) -> list[dict[str, Any]]:
@@ -416,7 +442,7 @@ def carry_finalizer_finding_review_forward(
     *,
     previous_finding: dict[str, Any],
 ) -> bool:
-    """Credit an atomic link rewrite only when the finalizer read the whole old finding."""
+    """Carry review credit through an atomic finding rewrite or removal."""
 
     section = "source_findings"
     ledger = dict(workspace.get(FINALIZER_READ_LEDGER_FIELD) or {})
@@ -439,11 +465,13 @@ def carry_finalizer_finding_review_forward(
         ),
         None,
     )
-    if current_finding is None:
-        return False
-    current_parts = composite_record_parts(
-        _model_safe_source_finding(current_finding),
-        record_kind="source_finding",
+    current_parts = (
+        composite_record_parts(
+            _model_safe_source_finding(current_finding),
+            record_kind="source_finding",
+        )
+        if current_finding is not None
+        else []
     )
     current_keys = {_record_part_review_key(part) for part in current_parts}
     _, expected_parts = _canonical_section_record_parts(workspace, section=section)
@@ -544,6 +572,10 @@ def _current_set_state_page(
         if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
     ]
     latest_read_receipts = latest_source_read_receipts(durable_read_receipts)
+    read_coverage_ledger = source_read_coverage_ledger(
+        durable_read_receipts,
+        set_id=set_id,
+    )
     pending_read_receipts = [
         item
         for item in durable_read_receipts
@@ -553,6 +585,9 @@ def _current_set_state_page(
         workspace,
         set_id=set_id,
     )
+    pending_exact_refs = pending_exact_read_source_refs(workspace, source_set=source_set)
+    pending_comparison_refs = pending_comparison_source_refs(source_set)
+    stale_analysis_refs = source_refs_with_reads_newer_than_analysis(workspace, set_id=set_id)
     read_receipts = sorted(
         durable_read_receipts,
         key=lambda item: (
@@ -659,13 +694,9 @@ def _current_set_state_page(
                     for value in source_set.get("source_refs") or []
                     if str(value) not in resolved_refs
                 ],
-                "pending_exact_read_source_refs": [
-                    str(item.get("source_ref") or "")
-                    for item in source_set.get("pending_exact_reads") or []
-                    if isinstance(item, dict)
-                    and str(item.get("source_ref") or "")
-                    and str(item.get("source_ref") or "") not in resolved_refs
-                ],
+                "pending_exact_read_source_refs": pending_exact_refs,
+                "pending_comparison_source_refs": pending_comparison_refs,
+                "stale_source_analysis_refs": stale_analysis_refs,
                 "pending_discovered_question_attempts": [
                     {
                         "question_id": str(item.get("question_id") or ""),
@@ -698,6 +729,7 @@ def _current_set_state_page(
                     _model_safe_source_read_receipt(item)
                     for item in latest_read_receipts
                 ],
+                "source_read_coverage_ledger": read_coverage_ledger,
                 "pending_source_read_receipts": [
                     _model_safe_source_read_receipt(item)
                     for item in pending_read_receipts
@@ -729,9 +761,16 @@ def _model_safe_coverage_question(item: dict[str, Any]) -> dict[str, Any]:
         "origin": item.get("origin"),
         "answer_requirements": [
             {
-                "requirement_id": requirement.get("requirement_id"),
-                "description": str(requirement.get("description") or ""),
-                "rationale": str(requirement.get("rationale") or ""),
+                **{
+                    "requirement_id": requirement.get("requirement_id"),
+                    "description": str(requirement.get("description") or ""),
+                    "rationale": str(requirement.get("rationale") or ""),
+                },
+                **(
+                    {"completion_criterion": str(requirement.get("completion_criterion") or "")}
+                    if "completion_criterion" in requirement
+                    else {}
+                ),
             }
             for requirement in item.get("answer_requirements") or []
             if isinstance(requirement, dict)
@@ -879,6 +918,7 @@ def _model_safe_source_assessment(item: dict[str, Any]) -> dict[str, Any]:
         "editorial_functions": list(item.get("editorial_functions") or []),
         "evidence_ids": list(item.get("evidence_ids") or []),
         "finding_ids": list(item.get("finding_ids") or []),
+        "reading_basis": _model_safe_reading_basis(item.get("reading_basis")),
         "no_findings_reason": str(item.get("no_findings_reason") or ""),
         "limitations": list(item.get("limitations") or []),
         "confidence": item.get("confidence"),
@@ -897,13 +937,39 @@ def _model_safe_source_assessment(item: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def _model_safe_reading_basis(value: Any) -> dict[str, Any]:
+    basis = value if isinstance(value, dict) else {}
+    receipt_refs = [str(item) for item in basis.get("receipt_refs") or [] if str(item)]
+    return {
+        "receipt_count": len(receipt_refs),
+        "coverage_summary": str(basis.get("coverage_summary") or ""),
+        "unread_regions": str(basis.get("unread_regions") or ""),
+        "unread_risk_assessment": str(basis.get("unread_risk_assessment") or ""),
+        "representation_limits": str(basis.get("representation_limits") or ""),
+        "stopping_reason": str(basis.get("stopping_reason") or ""),
+        "coverage_ledger": dict(basis.get("coverage_ledger") or {}),
+    }
+
+
 def _model_safe_source_finding(item: dict[str, Any]) -> dict[str, Any]:
     payload = {
         "finding_id": str(item.get("finding_id") or ""),
         "set_id": str(item.get("set_id") or ""),
         "source_ref": str(item.get("source_ref") or ""),
         "statement": str(item.get("statement") or ""),
+        "support_explanation": str(item.get("support_explanation") or ""),
         "evidence_ids": [str(value) for value in item.get("evidence_ids") or []],
+        "evidence_previews": [
+            {
+                "evidence_id": str(preview.get("evidence_id") or ""),
+                "snippet_preview": str(preview.get("snippet_preview") or ""),
+                "snippet_chars": int(preview.get("snippet_chars") or 0),
+                "snippet_truncated": bool(preview.get("snippet_truncated")),
+                "locator": str(preview.get("locator") or ""),
+            }
+            for preview in item.get("evidence_previews") or []
+            if isinstance(preview, dict)
+        ],
         "scope": dict(item.get("scope") or {}),
         "limitations": [str(value) for value in item.get("limitations") or []],
         "question_links": [
@@ -965,6 +1031,8 @@ def _model_safe_coverage_outcome(
                 "status": result.get("status"),
                 "finding_ids": [str(value) for value in result.get("finding_ids") or []],
                 "summary": str(result.get("summary") or ""),
+                "closure_basis": str(result.get("closure_basis") or ""),
+                "remaining_uncertainty": str(result.get("remaining_uncertainty") or ""),
                 "missing_detail": str(result.get("missing_detail") or ""),
                 "conflict_summary": str(result.get("conflict_summary") or ""),
                 "deferred_reason": str(result.get("deferred_reason") or ""),
@@ -1814,6 +1882,7 @@ def build_workspace_tools(
                 handlers.update_source_finding_relations_tool,
                 handlers.upsert_coverage_outcome_tool,
                 handlers.upsert_coverage_synthesis_tool,
+                audit_source_finding_handler=handlers.audit_source_finding_tool,
             )
         )
     return tools

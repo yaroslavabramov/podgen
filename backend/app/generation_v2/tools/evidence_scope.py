@@ -8,10 +8,13 @@ from sqlalchemy import select
 
 from app.generation_v2.research_workspace import research_workflow_commit_advisory
 from app.generation_v2.runtime_tool_outcomes import is_control_tool_output, successful_read_output
+from app.generation_v2.source_triage_read_checkpointing import (
+    record_triage_comparison_read,
+    record_triage_exact_read,
+)
 from app.generation_v2.source_triage_workspace_tracking import (
     blocked_read_control,
     completed_read_control,
-    record_triage_exact_read,
     triage_workflow_read_control,
 )
 from app.generation_v2.tools.evidence_refs import (
@@ -213,6 +216,20 @@ class EvidenceScopeMixin:
             current_set_id=getattr(self, "triage_current_set_id", None),
             source_ref=source_ref,
             evidence_ids=evidence_ids,
+        )
+
+    async def _record_triage_comparison_read(
+        self,
+        *,
+        evidence_ids_by_source_ref: dict[str, list[str]],
+    ) -> dict[str, Any] | None:
+        if not getattr(self, "triage_current_set_id", None):
+            return None
+        return await record_triage_comparison_read(
+            self.db,
+            generation_run_id=self.run.id,
+            current_set_id=getattr(self, "triage_current_set_id", None),
+            evidence_ids_by_source_ref=evidence_ids_by_source_ref,
         )
 
     async def _call_with_research_commit_advisory(self, handler, args: dict[str, Any]) -> dict[str, Any]:

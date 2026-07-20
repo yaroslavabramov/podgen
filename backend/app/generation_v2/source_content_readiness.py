@@ -11,7 +11,11 @@ from app.ingestion.web_quality import WebQualityAssessment, assess_web_fetch_hea
 from app.models.generation_v2 import SourceRepresentationKind, V2RecordStatus
 
 
-CONTENT_ASSESSMENT_SCHEMA_VERSION = "source_content_assessment.v1"
+CONTENT_ASSESSMENT_SCHEMA_VERSION = "source_content_assessment.v2"
+_COMPATIBLE_CONTENT_ASSESSMENT_SCHEMA_VERSIONS = {
+    "source_content_assessment.v1",
+    CONTENT_ASSESSMENT_SCHEMA_VERSION,
+}
 CONTENT_STATE_CONFIRMED = "confirmed"
 CONTENT_STATE_UNAVAILABLE = "unavailable"
 CONTENT_STATE_UNCONFIRMED = "unconfirmed"
@@ -314,7 +318,10 @@ def source_version_content_state(version: Any) -> str:
     assessment = metadata.get("content_assessment") if isinstance(metadata, dict) else None
     state = assessment.get("state") if isinstance(assessment, dict) else None
     schema_version = assessment.get("schema_version") if isinstance(assessment, dict) else None
-    if state in _CONTENT_STATES and schema_version == CONTENT_ASSESSMENT_SCHEMA_VERSION:
+    # V1 remains readable for completed historical runs. Corpus preparation
+    # re-evaluates it from the immutable representation before a new agent may
+    # use it; newly persisted assessments always use the current schema.
+    if state in _CONTENT_STATES and schema_version in _COMPATIBLE_CONTENT_ASSESSMENT_SCHEMA_VERSIONS:
         return str(state)
     if state in {CONTENT_STATE_UNAVAILABLE, CONTENT_STATE_UNCONFIRMED}:
         return str(state)

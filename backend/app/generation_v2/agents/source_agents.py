@@ -126,7 +126,7 @@ async def build_source_triage_set_agent(
                 file_search=False,
                 web_search=False,
                 local_tools=True,
-                parallel_local_tool_calls=True,
+                parallel_local_tool_calls=False,
             ),
             hosted_file_search_handler=hosted_file_search_handler,
             max_output_tokens=None,

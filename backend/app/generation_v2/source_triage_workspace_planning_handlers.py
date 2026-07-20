@@ -84,19 +84,32 @@ class SourceTriageWorkspacePlanningHandlersMixin:
                 return {"accepted": False, "error": "answer_requirements items must be objects"}
             description = str(raw_requirement.get("description") or "").strip()
             rationale = str(raw_requirement.get("rationale") or "").strip()
+            completion_criterion = str(raw_requirement.get("completion_criterion") or "").strip()
             if not description:
                 return {
                     "accepted": False,
                     "error": "Each answer requirement needs a description",
                     "requirement_index": index - 1,
                 }
+            if "completion_criterion" in raw_requirement and not completion_criterion:
+                return {
+                    "accepted": False,
+                    "error": "Each answer requirement needs a non-empty completion_criterion",
+                    "requirement_index": index - 1,
+                }
             requirement_error = semantic_field_error(
                 {
                     "requirement_description": description,
                     "requirement_rationale": rationale,
+                    "completion_criterion": completion_criterion,
                 },
-                TRIAGE_SEMANTIC_FIELD_LIMITS,
-                ["requirement_description", "requirement_rationale"],
+                {
+                    **TRIAGE_SEMANTIC_FIELD_LIMITS,
+                    "completion_criterion": TRIAGE_SEMANTIC_FIELD_LIMITS[
+                        "requirement_completion_criterion"
+                    ],
+                },
+                ["requirement_description", "requirement_rationale", "completion_criterion"],
             )
             if requirement_error:
                 return requirement_error
@@ -135,6 +148,7 @@ class SourceTriageWorkspacePlanningHandlersMixin:
                     "requirement_id": requirement_id,
                     "description": description,
                     "rationale": rationale,
+                    "completion_criterion": completion_criterion or description,
                 }
             )
         item = {

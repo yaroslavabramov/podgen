@@ -4,6 +4,11 @@ import json
 from typing import Any
 
 from app.generation_v2 import source_triage_workspace as workspace_api
+from app.generation_v2.source_triage_read_checkpointing import (
+    pending_comparison_source_refs,
+    pending_exact_read_source_refs,
+    source_refs_with_reads_newer_than_analysis,
+)
 
 
 def pending_set_work(workspace: dict[str, Any], source_set: dict[str, Any]) -> dict[str, Any]:
@@ -54,6 +59,15 @@ def pending_set_work(workspace: dict[str, Any], source_set: dict[str, Any]) -> d
             question_id for question_id in required_question_ids if question_id not in completed_question_ids
         ],
         "stale_outcome_question_ids": workspace_api._dedupe(stale_question_ids),
+        "pending_exact_read_source_refs": pending_exact_read_source_refs(
+            workspace,
+            source_set=source_set,
+        ),
+        "pending_comparison_source_refs": pending_comparison_source_refs(source_set),
+        "stale_source_analysis_refs": source_refs_with_reads_newer_than_analysis(
+            workspace,
+            set_id=set_id,
+        ),
         "saved_state": {
             "source_refs": sorted(assessed_refs),
             "finding_ids": sorted(

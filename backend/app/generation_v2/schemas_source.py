@@ -67,6 +67,7 @@ class CoverageRequirement(BaseModel):
     requirement_id: str
     description: str
     rationale: str = ""
+    completion_criterion: str = ""
 
 
 class CoverageQuestionAssignment(BaseModel):
@@ -101,6 +102,22 @@ class FindingScope(BaseModel):
     qualifiers: list[str] = Field(default_factory=list)
 
 
+class SourceReadingBasis(BaseModel):
+    receipt_refs: list[str] = Field(default_factory=list)
+    coverage_summary: str = ""
+    unread_regions: str = ""
+    unread_risk_assessment: str = ""
+    representation_limits: str = ""
+    stopping_reason: str = ""
+    coverage_ledger: dict = Field(default_factory=dict)
+
+
+class SourceQuestionDisposition(BaseModel):
+    question_id: str
+    status: str
+    rationale: str = ""
+
+
 class FindingSourceRelation(BaseModel):
     related_source_id: str
     relationship: SourceRelationshipKind
@@ -116,6 +133,7 @@ class SourceFinding(BaseModel):
     source_version_ids: list[str] = Field(default_factory=list)
     assessment_id: str | None = None
     statement: str
+    support_explanation: str = ""
     evidence_ids: list[str] = Field(min_length=1)
     scope: FindingScope = Field(default_factory=FindingScope)
     limitations: list[str] = Field(default_factory=list)
@@ -153,6 +171,8 @@ class SourceAssessment(BaseModel):
     editorial_functions: list[str] = Field(default_factory=list)
     evidence_ids: list[str] = Field(default_factory=list)
     finding_ids: list[str] = Field(default_factory=list)
+    reading_basis: SourceReadingBasis = Field(default_factory=SourceReadingBasis)
+    question_dispositions: list[SourceQuestionDisposition] = Field(default_factory=list)
     no_findings_reason: str = ""
     limitations: list[str] = Field(default_factory=list)
     confidence: float = Field(default=0.5, ge=0, le=1)
@@ -163,6 +183,8 @@ class CoverageRequirementResult(BaseModel):
     status: CoverageOutcomeStatus = CoverageOutcomeStatus.UNKNOWN
     finding_ids: list[str] = Field(default_factory=list)
     summary: str = ""
+    closure_basis: str = ""
+    remaining_uncertainty: str = ""
     missing_detail: str = ""
     conflict_summary: str = ""
     deferred_reason: str = ""

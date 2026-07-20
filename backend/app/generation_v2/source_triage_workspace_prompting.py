@@ -12,12 +12,18 @@ from app.generation_v2.source_triage_workspace_state import (
     SOURCE_SET_KIND_COVERAGE,
     SOURCE_SET_KIND_ORIENTATION,
     latest_source_read_receipts,
+    source_read_coverage_ledger,
     source_read_receipt_delivery_status,
     source_read_receipt_is_delivered,
     uncheckpointed_source_read_replays,
     normalize_workspace as _normalize_workspace,
     source_set_has_unresolved_refs as _source_set_has_unresolved_refs,
     workspace_set as _workspace_set,
+)
+from app.generation_v2.source_triage_read_checkpointing import (
+    pending_comparison_source_refs,
+    pending_exact_read_source_refs,
+    source_refs_with_reads_newer_than_analysis,
 )
 from app.generation_v2.tools.evidence_refs import build_source_ref_context, source_ref_for_id
 
@@ -782,6 +788,7 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
         if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
     ]
     latest_set_read_receipts = latest_source_read_receipts(set_read_receipts)
+    read_coverage_ledger = source_read_coverage_ledger(set_read_receipts, set_id=set_id)
     pending_set_read_receipts = [
         item for item in set_read_receipts if not source_read_receipt_is_delivered(item)
     ]
@@ -789,6 +796,9 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
         workspace,
         set_id=set_id,
     )
+    pending_exact_refs = pending_exact_read_source_refs(workspace, source_set=source_set)
+    pending_comparison_refs = pending_comparison_source_refs(source_set)
+    stale_analysis_refs = source_refs_with_reads_newer_than_analysis(workspace, set_id=set_id)
     set_outcomes = [
         item
         for item in workspace.get("coverage_outcomes") or []
@@ -848,13 +858,9 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
             "pending_source_refs": [
                 str(item) for item in source_set.get("source_refs") or [] if str(item) not in assessed_refs
             ],
-            "pending_exact_read_source_refs": [
-                str(item.get("source_ref") or "")
-                for item in source_set.get("pending_exact_reads") or []
-                if isinstance(item, dict)
-                and str(item.get("source_ref") or "")
-                and str(item.get("source_ref") or "") not in assessed_refs
-            ],
+            "pending_exact_read_source_refs": pending_exact_refs,
+            "pending_comparison_source_refs": pending_comparison_refs,
+            "stale_source_analysis_refs": stale_analysis_refs,
             "pending_discovered_question_attempts": [
                 {
                     "question_id": str(item.get("question_id") or ""),
@@ -903,6 +909,7 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
         "all_coverage_question_index": all_question_index,
         "all_coverage_question_count": len(all_question_index),
         "saved_state_previews": {
+            "source_read_coverage_ledger": read_coverage_ledger,
             "latest_source_read_receipts": [
                 {
                     "receipt_ref": item.get("receipt_ref"),
@@ -1098,6 +1105,11 @@ def _compact_question_prompt_item(item: dict[str, Any]) -> dict[str, Any]:
                     240,
                 ),
                 **_preview_fields("rationale", requirement.get("rationale") or "", 220),
+                **_preview_fields(
+                    "completion_criterion",
+                    requirement.get("completion_criterion") or "",
+                    240,
+                ),
             }
             for requirement in item.get("answer_requirements") or []
             if isinstance(requirement, dict)

@@ -101,7 +101,11 @@ from app.generation_v2.runtime_checkpoint_context import (
 from app.generation_v2.source_triage_workspace_tool_specs import (
     coverage_outcome_tool,
     coverage_synthesis_tool,
+    reading_note_tool,
     source_assessment_tool,
+    source_triage_finalizer_tools,
+    source_triage_planner_tools,
+    source_triage_set_tools,
 )
 from app.generation_v2.research_kinds import ATOM_KIND_GUIDANCE, ATOM_KIND_PROMPT_BLOCK
 from app.generation_v2.research_workspace import (
@@ -299,6 +303,56 @@ def test_strict_json_schema_preserves_optional_fields_as_nullable() -> None:
 
     assert set(schema["required"]) == {"required_value", "optional_value"}
     assert schema["properties"]["optional_value"] == {"anyOf": [{"type": "string"}, {"type": "null"}]}
+
+
+def test_strict_json_schema_removes_provider_unsupported_unique_items_recursively() -> None:
+    schema = _strict_json_schema(
+        {
+            "type": "object",
+            "properties": {
+                "values": {
+                    "type": "array",
+                    "uniqueItems": True,
+                    "items": {"type": "string"},
+                }
+            },
+            "required": ["values"],
+        }
+    )
+
+    assert "uniqueItems" not in schema["properties"]["values"]
+
+
+def test_reading_note_tool_compiles_to_openai_function_schema() -> None:
+    async def handler(_args):
+        return {}
+
+    tool = reading_note_tool(handler)
+    provider_schema = _strict_json_schema(tool.parameters)
+
+    assert "uniqueItems" not in provider_schema["properties"]["receipt_refs"]
+    _assert_strict_object_schema(provider_schema, path=tool.name, is_root=True)
+
+
+def test_all_triage_workspace_write_tools_compile_to_openai_function_schema() -> None:
+    async def handler(_args):
+        return {}
+
+    tools = [
+        *source_triage_planner_tools(handler, handler, handler, handler, handler),
+        *source_triage_set_tools(handler, handler, handler, save_reading_note_handler=handler),
+        *source_triage_finalizer_tools(
+            handler,
+            handler,
+            handler,
+            handler,
+            handler,
+            audit_source_finding_handler=handler,
+        ),
+    ]
+    for tool in tools:
+        provider_schema = _strict_json_schema(tool.parameters)
+        _assert_strict_object_schema(provider_schema, path=tool.name, is_root=True)
 
 
 def test_function_call_parser_accepts_sdk_objects_and_dicts() -> None:
@@ -4480,6 +4534,7 @@ async def test_source_triage_workflow_agents_have_stage_specific_tools() -> None
         "open_source_file",
         "read_evidence",
         "read_source_window",
+        "compare_source_evidence",
         "save_reading_note",
         "save_source_analysis",
         "upsert_coverage_outcome",
@@ -4490,7 +4545,7 @@ async def test_source_triage_workflow_agents_have_stage_specific_tools() -> None
     set_agent_kwargs = _CaptureRuntime.kwargs_by_agent[set_agent_name]
     assert 'Output language: "ru"' in set_agent_kwargs["prompt"]
     assert "one continuous agent" in set_agent_kwargs["prompt"]
-    assert set_agent_kwargs["tool_policy"].parallel_local_tool_calls is True
+    assert set_agent_kwargs["tool_policy"].parallel_local_tool_calls is False
     for triage_agent_name in (
         "source_triage_planner_agent",
         set_agent_name,
@@ -4523,6 +4578,7 @@ async def test_source_triage_workflow_agents_have_stage_specific_tools() -> None
         "create_quote_card",
         "update_source_finding_links",
         "update_source_finding_relations",
+        "audit_source_finding",
         "upsert_coverage_outcome",
         "upsert_coverage_synthesis",
         "finalize_source_map",
@@ -9237,6 +9293,7 @@ def _workspace_triage_tools() -> list[AgentTool]:
             "save_source_analysis",
             "update_source_finding_links",
             "update_source_finding_relations",
+            "audit_source_finding",
             "upsert_source_assessment",
             "upsert_coverage_outcome",
             "upsert_coverage_synthesis",

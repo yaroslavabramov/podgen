@@ -9,6 +9,12 @@ from app.generation_v2.source_triage_workspace_state import (
     SOURCE_SET_KIND_COVERAGE,
     SOURCE_SET_KIND_ORIENTATION,
     invalidate_coverage_syntheses,
+    uncheckpointed_source_read_replays,
+)
+from app.generation_v2.source_triage_read_checkpointing import (
+    pending_comparison_source_refs,
+    pending_exact_read_source_refs,
+    source_refs_with_reads_newer_than_analysis,
 )
 from app.generation_v2.tools.evidence_refs import build_source_ref_context, resolve_source_ref
 
@@ -46,6 +52,25 @@ class SourceTriageWorkspaceCompletionHandlersMixin:
                 "accepted": False,
                 "error": "status must be mapped or deferred",
                 "next_action": "Persist the unfinished source analyses and outcomes, then retry this terminal tool.",
+            }
+        uncheckpointed_reads = uncheckpointed_source_read_replays(current, set_id=set_id)
+        pending_exact_refs = pending_exact_read_source_refs(current, source_set=source_set)
+        pending_comparison_refs = pending_comparison_source_refs(source_set)
+        stale_analysis_refs = source_refs_with_reads_newer_than_analysis(current, set_id=set_id)
+        if uncheckpointed_reads or pending_exact_refs or pending_comparison_refs or stale_analysis_refs:
+            return {
+                "accepted": False,
+                "error": "source_reading_not_reconciled",
+                "uncheckpointed_receipt_refs": [
+                    str(item.get("receipt_ref") or "") for item in uncheckpointed_reads
+                ],
+                "pending_exact_source_refs": pending_exact_refs,
+                "pending_comparison_source_refs": pending_comparison_refs,
+                "stale_source_analysis_refs": stale_analysis_refs,
+                "next_action": (
+                    "Save durable reading notes where reading is still in progress, and resave the complete source "
+                    "analysis for every source with newer exact or comparison material. Then refresh stale outcomes."
+                ),
             }
         summary = str(args.get("summary") or "").strip()
         if not summary:

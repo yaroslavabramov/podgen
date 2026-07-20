@@ -46,6 +46,11 @@ from app.generation_v2.source_triage_repair_state import (
     reconcile_carried_triage_evidence,
     triage_workspace_evidence_ids,
 )
+from app.generation_v2.source_triage_read_checkpointing import (
+    clear_pending_exact_read,
+    pending_exact_read_source_refs,
+    record_triage_exact_read,
+)
 from app.generation_v2.tools.evidence_store import persist_evidence_item
 from app.generation_v2.tools.evidence_source_map_action_helpers import trace_accepted
 from app.generation_v2.tools.evidence_types import (
@@ -54,10 +59,7 @@ from app.generation_v2.tools.evidence_types import (
     _WRITE_TOOL_NAMES,
 )
 from app.generation_v2.source_triage_workspace_tracking import (
-    clear_pending_exact_read,
     mark_workspace_write_action,
-    pending_exact_read_source_refs,
-    record_triage_exact_read,
     triage_workflow_guard_error,
 )
 from app.generation_v2.tools.evidence_refs import build_source_ref_context, source_ref_for_id

@@ -370,6 +370,7 @@ def _job_coverage_requirements(
                     "requirement_id": requirement.requirement_id,
                     "description": requirement.description,
                     "rationale": requirement.rationale,
+                    "completion_criterion": requirement.completion_criterion,
                     "result": (
                         {
                             **result.model_dump(mode="json"),

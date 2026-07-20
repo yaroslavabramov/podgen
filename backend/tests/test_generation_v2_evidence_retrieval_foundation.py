@@ -818,6 +818,7 @@ async def test_successful_model_read_records_pending_source_before_switch(
 async def test_short_model_window_ref_round_trips_without_model_visible_version_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from app.generation_v2 import source_triage_finalizer_evidence as finalizer_evidence_module
     from app.generation_v2.tools import evidence_source_tools as source_tools_module
     from app.generation_v2.tools.evidence import EvidenceToolset
 
@@ -838,6 +839,7 @@ async def test_short_model_window_ref_round_trips_without_model_visible_version_
         ),
         provider_index=None,
     )
+    toolset.triage_finalizer_mode = True
     handle = register_model_window_ref(toolset, source_ref="S01", canonical_ref=canonical_ref)
     captured: dict[str, object] = {}
 
@@ -873,6 +875,9 @@ async def test_short_model_window_ref_round_trips_without_model_visible_version_
     async def save_trace(*_args, **_kwargs):
         return None
 
+    async def record_finalizer_read(_db, **kwargs):
+        captured["finalizer_read"] = kwargs
+
     monkeypatch.setattr(toolset, "_triage_read_guard_error", no_guard)
     monkeypatch.setattr(toolset, "_invalid_source_or_version_ref_error", validate_refs)
     monkeypatch.setattr(toolset, "_resolve_source_version", resolve_version)
@@ -882,6 +887,11 @@ async def test_short_model_window_ref_round_trips_without_model_visible_version_
     monkeypatch.setattr(toolset, "_evidence_detail_payload", detail)
     monkeypatch.setattr(source_tools_module, "persist_evidence_item", persist)
     monkeypatch.setattr(source_tools_module, "save_tool_trace", save_trace)
+    monkeypatch.setattr(
+        finalizer_evidence_module,
+        "record_finalizer_evidence_read",
+        record_finalizer_read,
+    )
 
     result = await toolset.read_source_window_tool(
         {
@@ -901,6 +911,11 @@ async def test_short_model_window_ref_round_trips_without_model_visible_version_
     persisted = captured["persist"]
     assert isinstance(persisted, dict)
     assert persisted["metadata"]["window_ref"] == canonical_ref
+    assert captured["finalizer_read"] == {
+        "generation_run_id": toolset.run.id,
+        "evidence_id": "E01",
+        "exact_read_complete": True,
+    }
 
 
 @pytest.mark.asyncio

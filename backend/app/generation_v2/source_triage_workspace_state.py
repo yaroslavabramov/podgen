@@ -130,6 +130,99 @@ def latest_source_read_receipts(
     return [latest_by_source[source_ref] for source_ref in source_order]
 
 
+def source_read_coverage_ledger(
+    receipts: list[Any],
+    *,
+    set_id: str = "",
+) -> list[dict[str, Any]]:
+    """Summarize delivered reading mechanically without declaring it sufficient."""
+
+    by_source: dict[str, list[dict[str, Any]]] = {}
+    for item in receipts:
+        if (
+            not isinstance(item, dict)
+            or not source_read_receipt_is_delivered(item)
+            or (set_id and str(item.get("set_id") or "") != set_id)
+        ):
+            continue
+        source_ref = str(item.get("source_ref") or "")
+        if source_ref:
+            by_source.setdefault(source_ref, []).append(item)
+
+    ledger: list[dict[str, Any]] = []
+    for source_ref, source_receipts in sorted(by_source.items()):
+        sequential_ranges = _merged_receipt_ranges(source_receipts, read_kind="sequential")
+        search_ranges = _merged_receipt_ranges(source_receipts, read_kind="search")
+        total_chars = max(
+            (int(item.get("total_chars") or 0) for item in source_receipts),
+            default=0,
+        )
+        sequential_chars = sum(end - start for start, end in sequential_ranges)
+        searches = [
+            str((item.get("request") or {}).get("query") or "")
+            for item in source_receipts
+            if str(item.get("read_kind") or "") == "search"
+            and str((item.get("request") or {}).get("query") or "").strip()
+        ]
+        structure = next(
+            (
+                dict(item.get("structure") or {})
+                for item in source_receipts
+                if isinstance(item.get("structure"), dict)
+            ),
+            {},
+        )
+        ledger.append(
+            {
+                "source_ref": source_ref,
+                "total_chars": total_chars,
+                "sequential_ranges": [
+                    {"start_offset": start, "end_offset": end}
+                    for start, end in sequential_ranges
+                ],
+                "sequential_chars_read": sequential_chars,
+                "unread_char_count": max(0, total_chars - sequential_chars),
+                "eof_reached": any(
+                    str(item.get("read_kind") or "") == "sequential" and bool(item.get("eof"))
+                    for item in source_receipts
+                ),
+                "search_ranges": [
+                    {"start_offset": start, "end_offset": end}
+                    for start, end in search_ranges
+                ],
+                "search_queries": dedupe(searches),
+                "structure": structure,
+                "completion_is_model_judgment": True,
+            }
+        )
+    return ledger
+
+
+def _merged_receipt_ranges(
+    receipts: list[dict[str, Any]],
+    *,
+    read_kind: str,
+) -> list[tuple[int, int]]:
+    ranges: list[tuple[int, int]] = []
+    for item in receipts:
+        if str(item.get("read_kind") or "") != read_kind:
+            continue
+        try:
+            start = int(item.get("start_offset"))
+            end = int(item.get("end_offset"))
+        except (TypeError, ValueError):
+            continue
+        if start >= 0 and end > start:
+            ranges.append((start, end))
+    merged: list[tuple[int, int]] = []
+    for start, end in sorted(ranges):
+        if not merged or start > merged[-1][1]:
+            merged.append((start, end))
+            continue
+        merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+    return merged
+
+
 def uncheckpointed_source_read_replays(
     workspace: dict[str, Any],
     *,

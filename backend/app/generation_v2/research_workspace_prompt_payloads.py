@@ -219,6 +219,11 @@ def current_job_prompt_payload(
             "requirement_id": item.get("requirement_id"),
             **_preview_fields("description", item.get("description") or "", 600),
             **_preview_fields("rationale", item.get("rationale") or "", 400),
+            **_preview_fields(
+                "completion_criterion",
+                item.get("completion_criterion") or "",
+                500,
+            ),
             "result": {
                 "status": (item.get("result") or {}).get("status"),
                 "finding_ids": [
@@ -227,6 +232,16 @@ def current_job_prompt_payload(
                 "finding_count": len((item.get("result") or {}).get("finding_ids") or []),
                 **_preview_fields(
                     "summary", (item.get("result") or {}).get("summary") or "", 500
+                ),
+                **_preview_fields(
+                    "closure_basis",
+                    (item.get("result") or {}).get("closure_basis") or "",
+                    500,
+                ),
+                **_preview_fields(
+                    "remaining_uncertainty",
+                    (item.get("result") or {}).get("remaining_uncertainty") or "",
+                    400,
                 ),
                 **_preview_fields(
                     "missing_detail",
@@ -252,6 +267,11 @@ def current_job_prompt_payload(
             "evidence_count": len(item.get("evidence_ids") or []),
             "semantic_revision": int(item.get("semantic_revision") or 0),
             **_preview_fields("statement", item.get("statement") or "", 700),
+            **_preview_fields(
+                "support_explanation",
+                item.get("support_explanation") or "",
+                500,
+            ),
             "scope": {
                 **_preview_fields("actor", (item.get("scope") or {}).get("actor") or "", 200),
                 **_preview_fields("period", (item.get("scope") or {}).get("period") or "", 200),

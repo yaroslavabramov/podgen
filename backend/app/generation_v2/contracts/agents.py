@@ -61,6 +61,7 @@ class V2ToolName(StrEnum):
     SAVE_READING_NOTE = "save_reading_note"
     UPDATE_SOURCE_FINDING_LINKS = "update_source_finding_links"
     UPDATE_SOURCE_FINDING_RELATIONS = "update_source_finding_relations"
+    AUDIT_SOURCE_FINDING = "audit_source_finding"
     UPSERT_COVERAGE_OUTCOME = "upsert_coverage_outcome"
     UPSERT_COVERAGE_SYNTHESIS = "upsert_coverage_synthesis"
     FINISH_TRIAGE_SOURCE_SET = "finish_triage_source_set"

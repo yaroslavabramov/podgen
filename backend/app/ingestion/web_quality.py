@@ -47,6 +47,7 @@ _HTTP_ERROR_BANNER_RE = re.compile(
 )
 _HTTP_ERROR_MAX_CHARS = 1200
 _SERVICE_PAGE_MAX_CHARS = 2000
+_PUBLISHER_SHELL_MAX_CHARS = 8000
 
 _INVALID_URL_ERROR_RE = re.compile(r"error:\s+this is an invalid url", re.IGNORECASE)
 _BOT_CHECK_RE = re.compile(r"verify (?:that )?you are not a bot", re.IGNORECASE)
@@ -88,6 +89,31 @@ _ACCESS_FORM_MARKERS = (
     "forgot your password",
     "member portal",
     "sign in to continue",
+)
+_TARGET_ACCESS_DENIAL_RE = re.compile(
+    r"(?:unfortunately\s+)?(?:you|your institution)\s+(?:do|does)\s+not\s+have\s+access"
+    r"|full(?:\s+text)?\s+access\s+(?:is\s+)?(?:not\s+available|restricted)"
+    r"|this\s+(?:content|article|chapter|document)\s+is\s+not\s+available\s+to\s+you",
+    re.IGNORECASE,
+)
+_ACCESS_ROUTE_MARKERS = (
+    "get access",
+    "institutional login",
+    "institutional access",
+    "purchase access",
+    "subscribe to access",
+    "sign in to access",
+)
+_PUBLISHER_DOCUMENT_CONTROL_MARKERS = (
+    "article contents",
+    "book contents",
+    "chapter information",
+    "download pdf",
+    "save pdf",
+)
+_PREVIEW_ONLY_RE = re.compile(
+    r"(?:only\s+a\s+preview|preview\s+only|this\s+is\s+a\s+preview|limited\s+preview)",
+    re.IGNORECASE,
 )
 
 
@@ -330,6 +356,32 @@ def _blocked_reasons(normalized_text: str) -> list[str]:
     access_form_markers = sum(marker in normalized_lower for marker in _ACCESS_FORM_MARKERS)
     if short_service_page and "password" in normalized_lower and access_form_markers >= 2:
         reasons.append("access_form_only")
+
+    # A publisher shell can be longer than a generic error page because it
+    # contains navigation, bibliographic metadata, an abstract, and purchase
+    # controls. Require both an explicit target-content denial/preview signal
+    # and an access route so an article discussing access restrictions is not
+    # misclassified.
+    access_route_markers = sum(marker in normalized_lower for marker in _ACCESS_ROUTE_MARKERS)
+    document_control_markers = sum(
+        marker in normalized_lower for marker in _PUBLISHER_DOCUMENT_CONTROL_MARKERS
+    )
+    publisher_shell = len(normalized_text) <= _PUBLISHER_SHELL_MAX_CHARS
+    access_shell_structure = access_route_markers >= 2 or document_control_markers >= 2
+    if (
+        publisher_shell
+        and _TARGET_ACCESS_DENIAL_RE.search(normalized_text)
+        and access_route_markers
+        and access_shell_structure
+    ):
+        reasons.append("target_content_access_restricted")
+    if (
+        publisher_shell
+        and _PREVIEW_ONLY_RE.search(normalized_text)
+        and access_route_markers
+        and access_shell_structure
+    ):
+        reasons.append("target_content_preview_only")
 
     cookie_controls = sum(marker in normalized_lower for marker in _COOKIE_CONTROL_PHRASES)
     words = re.findall(r"[^\W_]+", normalized_lower, re.UNICODE)

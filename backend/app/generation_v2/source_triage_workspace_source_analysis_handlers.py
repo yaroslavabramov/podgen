@@ -17,7 +17,14 @@ from app.generation_v2.source_triage_workspace_handler_helpers import (
     semantic_json as _semantic_json,
 )
 from app.generation_v2.source_triage_workspace_state import invalidate_coverage_syntheses
-from app.generation_v2.source_triage_workspace_tracking import clear_pending_exact_read
+from app.generation_v2.source_triage_source_analysis_contract import (
+    attach_evidence_previews,
+    validate_reading_basis,
+)
+from app.generation_v2.source_triage_read_checkpointing import (
+    clear_pending_comparison_read,
+    clear_pending_exact_read,
+)
 from app.generation_v2.tools.evidence_refs import build_source_ref_context, resolve_source_ref
 from app.ingestion.web_quality import assess_web_fetch_health
 
@@ -200,6 +207,13 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
         finding_question_ids: list[str] = []
         finding_evidence_ids: list[str] = []
         if analysis_mode:
+            enhanced_analysis_contract = (
+                "reading_basis" in args
+                or any(
+                    isinstance(item, dict) and "support_explanation" in item
+                    for item in args.get("findings") or []
+                )
+            )
             findings, finding_question_ids, finding_evidence_ids, finding_error = await self._validate_source_findings(
                 current=current,
                 source_set=source_set,
@@ -207,9 +221,35 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
                 source_id=source_id,
                 assessment_id=f"assessment:{source_id}",
                 raw_findings=args.get("findings"),
+                require_support_explanation=enhanced_analysis_contract,
             )
             if finding_error:
                 return finding_error
+            if enhanced_analysis_contract:
+                reading_basis, reading_basis_error = validate_reading_basis(
+                    workspace=current,
+                    source_set=source_set,
+                    source_ref=source_ref,
+                    representation_status=values["representation_status"],
+                    raw_basis=args.get("reading_basis"),
+                )
+                if reading_basis_error:
+                    return reading_basis_error
+            else:
+                # Historical internal callers predate the richer model contract.
+                # Production tool schemas always provide both records.
+                reading_basis = {}
+            # Finding links are the authoritative per-source/question relation.
+            # Do not persist an O(sources × questions) matrix of boilerplate.
+            question_dispositions = []
+            if self.evidence_toolset is not None:
+                await attach_evidence_previews(
+                    findings,
+                    evidence_toolset=self.evidence_toolset,
+                )
+        else:
+            reading_basis = dict(args.get("reading_basis") or {})
+            question_dispositions = list(args.get("question_dispositions") or [])
         relation_evidence_ids = public_api._dedupe(
             [
                 str(evidence_id)
@@ -385,6 +425,8 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
             "editorial_functions": editorial_functions,
             "evidence_ids": evidence_ids,
             "finding_ids": [str(item.get("finding_id") or "") for item in findings],
+            "reading_basis": reading_basis,
+            "question_dispositions": question_dispositions,
             "no_findings_reason": no_findings_reason,
             "limitations": limitations,
             "confidence": _confidence(args.get("confidence")),
@@ -414,6 +456,14 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
             # A later source-analysis write changes the finalizer's authoritative
             # review stream. Make it read the current questions/findings again.
             current.pop("source_triage_finalizer_reads", None)
+            grounding_audits = dict(current.get("source_finding_grounding_audits") or {})
+            for finding_id in {
+                str(item.get("finding_id") or "")
+                for item in [*old_findings, *findings]
+                if isinstance(item, dict) and str(item.get("finding_id") or "")
+            }:
+                grounding_audits.pop(finding_id, None)
+            current["source_finding_grounding_audits"] = grounding_audits
             next_revision = int(current.get("triage_semantic_revision") or 0) + 1
             for finding in findings:
                 finding["semantic_revision"] = next_revision
@@ -461,6 +511,7 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
         ]
         current["source_assessments"].append(assessment)
         clear_pending_exact_read(source_set, source_ref=source_ref)
+        clear_pending_comparison_read(source_set, source_ref=source_ref)
         self._reconcile_pending_discovered_question_attempts(
             workspace=current,
             source_set=source_set,
@@ -506,6 +557,7 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
         source_id: str,
         assessment_id: str,
         raw_findings: Any,
+        require_support_explanation: bool,
     ) -> tuple[list[dict[str, Any]], list[str], list[str], dict[str, Any] | None]:
         if not isinstance(raw_findings, list):
             return (
@@ -573,6 +625,25 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
             )
             if field_error:
                 return [], [], [], field_error
+            support_explanation = str(raw_finding.get("support_explanation") or "").strip()
+            support_error = semantic_field_error(
+                {"finding_support_explanation": support_explanation},
+                TRIAGE_SEMANTIC_FIELD_LIMITS,
+                ["finding_support_explanation"],
+            )
+            if support_error:
+                return [], [], [], support_error
+            if require_support_explanation and not support_explanation:
+                return (
+                    [],
+                    [],
+                    [],
+                    {
+                        "accepted": False,
+                        "error": "Each finding requires an explanation of how its exact evidence supports it",
+                        "finding_index": finding_index,
+                    },
+                )
             finding_evidence_ids = workspace_api._dedupe(
                 [str(item) for item in raw_finding.get("evidence_ids") or [] if str(item).strip()]
             )
@@ -950,6 +1021,7 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
                     "source_version_ids": list(getattr(inventory_card, "source_version_ids", []) or []),
                     "assessment_id": assessment_id,
                     "statement": statement,
+                    "support_explanation": support_explanation,
                     "evidence_ids": finding_evidence_ids,
                     "scope": scope,
                     "limitations": limitations,

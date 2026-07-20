@@ -531,23 +531,39 @@ class SourceTriageWorkspaceOutcomeHandlersMixin:
                     },
                 )
             summary = str(raw_result.get("summary") or "").strip()
+            enhanced_completion_contract = (
+                "closure_basis" in raw_result or "remaining_uncertainty" in raw_result
+            )
+            closure_basis = str(raw_result.get("closure_basis") or "").strip()
+            remaining_uncertainty = str(raw_result.get("remaining_uncertainty") or "").strip()
             missing_detail = str(raw_result.get("missing_detail") or "").strip()
             conflict_summary = str(raw_result.get("conflict_summary") or "").strip()
             deferred_reason = str(raw_result.get("deferred_reason") or "").strip()
             field_error = semantic_field_error(
                 {
                     "requirement_summary": summary,
+                    "requirement_closure_basis": closure_basis,
+                    "requirement_uncertainty": remaining_uncertainty,
                     "missing_detail": missing_detail,
                     "conflict_summary": conflict_summary,
                     "deferred_reason": deferred_reason,
                 },
                 {
                     "requirement_summary": TRIAGE_SEMANTIC_FIELD_LIMITS["requirement_summary"],
+                    "requirement_closure_basis": TRIAGE_SEMANTIC_FIELD_LIMITS["requirement_closure_basis"],
+                    "requirement_uncertainty": TRIAGE_SEMANTIC_FIELD_LIMITS["requirement_uncertainty"],
                     "missing_detail": TRIAGE_SEMANTIC_FIELD_LIMITS["coverage_detail"],
                     "conflict_summary": TRIAGE_SEMANTIC_FIELD_LIMITS["coverage_detail"],
                     "deferred_reason": TRIAGE_SEMANTIC_FIELD_LIMITS["deferred_reason"],
                 },
-                ["requirement_summary", "missing_detail", "conflict_summary", "deferred_reason"],
+                [
+                    "requirement_summary",
+                    "requirement_closure_basis",
+                    "requirement_uncertainty",
+                    "missing_detail",
+                    "conflict_summary",
+                    "deferred_reason",
+                ],
             )
             if field_error:
                 return [], [], field_error
@@ -561,23 +577,41 @@ class SourceTriageWorkspaceOutcomeHandlersMixin:
                         "requirement_id": requirement_id,
                     },
                 )
-            if status == "covered" and (not summary or missing_detail or conflict_summary or deferred_reason):
+            if status == "covered" and (
+                not summary
+                or (enhanced_completion_contract and not closure_basis)
+                or missing_detail
+                or conflict_summary
+                or deferred_reason
+            ):
                 return (
                     [],
                     [],
                     {
                         "accepted": False,
-                        "error": "covered requirement result needs summary and no gap/conflict/deferred fields",
+                        "error": (
+                            "covered requirement result needs summary, a completion-criterion closure_basis, "
+                            "and no gap/conflict/deferred fields"
+                        ),
                         "requirement_id": requirement_id,
                     },
                 )
-            if status == "partial" and (not summary or not missing_detail or conflict_summary or deferred_reason):
+            if status == "partial" and (
+                not summary
+                or (enhanced_completion_contract and not closure_basis)
+                or not missing_detail
+                or conflict_summary
+                or deferred_reason
+            ):
                 return (
                     [],
                     [],
                     {
                         "accepted": False,
-                        "error": "partial requirement result needs summary plus a concrete missing_detail",
+                        "error": (
+                            "partial requirement result needs summary, the established closure_basis, "
+                            "and a concrete missing_detail"
+                        ),
                         "requirement_id": requirement_id,
                     },
                 )
@@ -643,6 +677,8 @@ class SourceTriageWorkspaceOutcomeHandlersMixin:
                     "status": status,
                     "finding_ids": finding_ids,
                     "summary": summary,
+                    "closure_basis": closure_basis,
+                    "remaining_uncertainty": remaining_uncertainty,
                     "missing_detail": missing_detail,
                     "conflict_summary": conflict_summary,
                     "deferred_reason": deferred_reason,

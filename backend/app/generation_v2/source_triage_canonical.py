@@ -1805,6 +1805,8 @@ def _aggregate_requirement_results(values: list[dict[str, Any]]) -> list[dict[st
                     ]
                 ),
                 "summary": _join_semantic(parts, "summary"),
+                "closure_basis": _join_semantic(parts, "closure_basis"),
+                "remaining_uncertainty": _join_semantic(parts, "remaining_uncertainty"),
                 "missing_detail": _join_semantic(parts, "missing_detail"),
                 "conflict_summary": _join_semantic(parts, "conflict_summary"),
                 "deferred_reason": _join_semantic(parts, "deferred_reason"),

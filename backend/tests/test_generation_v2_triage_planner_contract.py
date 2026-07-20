@@ -743,7 +743,8 @@ def test_set_prompt_requires_deep_reading_with_semantic_stopping_criteria() -> N
     assert "why the unread regions cannot reasonably change the analysis" in prompt
     assert "After a meaningful section or group of related passages, call save_reading_note" in prompt
     assert "This is a semantic checkpoint, not a fixed schedule" in prompt
-    assert "You may move between sources whenever comparison" in prompt
+    assert "before opening a different source persist the current understanding" in prompt
+    assert "Use compare_source_evidence only after every compared source has durable reading memory" in prompt
     assert "save_source_analysis is a completed analysis, not a prerequisite" in prompt
     assert "complete all_coverage_question_index" in prompt
     assert "One source may support any number of questions" in prompt

@@ -17,6 +17,9 @@ from app.generation_v2.source_triage_workspace import (
     source_set_prompt_payload,
     start_triage_source_set,
 )
+from app.generation_v2.source_triage_read_checkpointing import (
+    source_checkpoint_transition_guard,
+)
 from app.generation_v2.tools.evidence import EvidenceToolset
 from app.models.generation_run import GenerationRun
 from app.pipeline.step_control import assert_step_not_stopped
@@ -35,6 +38,7 @@ _SET_FINISH_ONLY_FIELDS = {
     "deferred_reason",
     "written_actions",
     "pending_exact_reads",
+    "pending_comparison_reads",
     "pending_discovered_question_attempts",
 }
 _WORKSPACE_EXECUTION_COLLECTIONS = {
@@ -42,6 +46,10 @@ _WORKSPACE_EXECUTION_COLLECTIONS = {
     "processed_sets",
     "mapped_sources",
     "deferred_sources",
+    # A receipt proves delivery, not durable model understanding. Counting it
+    # here would let an agent avoid the no-semantic-progress failure merely by
+    # reading another range without saving a note, analysis, or outcome.
+    "source_read_receipts",
 }
 
 
@@ -123,6 +131,7 @@ async def run_source_triage_set(
             triage_write_allowed_source_refs=repair_write_refs,
             triage_current_set_id=set_id,
         )
+        scoped_toolset.triage_read_transition_guard = source_checkpoint_transition_guard
         set_tools = [
             *scoped_toolset.agent_tools(),
             *build_workspace_tools(
