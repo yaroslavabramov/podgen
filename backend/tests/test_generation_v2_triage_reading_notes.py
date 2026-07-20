@@ -141,10 +141,10 @@ def _handler(*, workspace: dict, source_id: str, source_version_id: str):
 
 @pytest.fixture(autouse=True)
 def _stub_pinned_source_text(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.generation_v2 import source_triage_workspace_tool_handlers
+    from app.generation_v2 import source_triage_workspace_reading_handlers
 
     monkeypatch.setattr(
-        source_triage_workspace_tool_handlers,
+        source_triage_workspace_reading_handlers,
         "source_version_text",
         lambda version: str(getattr(version, "receipt_text", "")),
     )

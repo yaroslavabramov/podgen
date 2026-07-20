@@ -118,13 +118,10 @@ class SourceTriageWorkspacePlanningHandlersMixin:
                     }
                 requirement_id = requested_requirement_id
             elif requested_requirement_id:
-                requirement_id = public_api._stable_set_id(
-                    requested_requirement_id, description, index
-                )
+                requirement_id = public_api._stable_set_id(requested_requirement_id, description, index)
             else:
                 requirement_id = (
-                    f"{question_id}:r_"
-                    f"{hashlib.sha256(description.casefold().encode('utf-8')).hexdigest()[:10]}"
+                    f"{question_id}:r_{hashlib.sha256(description.casefold().encode('utf-8')).hexdigest()[:10]}"
                 )
             if requirement_id in seen_requirement_ids:
                 return {
@@ -180,9 +177,7 @@ class SourceTriageWorkspacePlanningHandlersMixin:
         public_api = workspace_api
         current = await public_api.load_source_triage_workspace(self.db, self.run.id) or self.workspace
         source_order = [str(item) for item in current.get("source_order") or []]
-        requested_refs = public_api._dedupe(
-            [str(item) for item in args.get("source_refs") or [] if str(item).strip()]
-        )
+        requested_refs = public_api._dedupe([str(item) for item in args.get("source_refs") or [] if str(item).strip()])
         invalid_refs = [ref for ref in requested_refs if ref not in source_order]
         if invalid_refs:
             return {
@@ -217,7 +212,9 @@ class SourceTriageWorkspacePlanningHandlersMixin:
                     next_cursor=(
                         ""
                         if requested_refs
-                        else str(offset + len(candidate)) if offset + len(candidate) < len(source_order) else ""
+                        else str(offset + len(candidate))
+                        if offset + len(candidate) < len(source_order)
+                        else ""
                     ),
                 ),
                 ensure_ascii=False,
@@ -230,17 +227,15 @@ class SourceTriageWorkspacePlanningHandlersMixin:
         next_cursor = (
             ""
             if requested_refs
-            else str(offset + returned_count) if offset + returned_count < len(source_order) else ""
+            else str(offset + returned_count)
+            if offset + returned_count < len(source_order)
+            else ""
         )
         if requested_refs and returned_count:
             current["planner_inspected_source_refs"] = public_api._dedupe(
                 [
                     *[str(item) for item in current.get("planner_inspected_source_refs") or []],
-                    *[
-                        str(item.get("source_ref") or "")
-                        for item in page_capsules
-                        if isinstance(item, dict)
-                    ],
+                    *[str(item.get("source_ref") or "") for item in page_capsules if isinstance(item, dict)],
                 ]
             )
             await public_api.save_source_triage_workspace(
@@ -265,9 +260,7 @@ class SourceTriageWorkspacePlanningHandlersMixin:
         public_api = workspace_api
         current = await public_api.load_source_triage_workspace(self.db, self.run.id) or self.workspace
         source_order = {str(item) for item in current.get("source_order") or []}
-        source_refs = public_api._dedupe(
-            [str(item) for item in args.get("source_refs") or [] if str(item).strip()]
-        )
+        source_refs = public_api._dedupe([str(item) for item in args.get("source_refs") or [] if str(item).strip()])
         if not source_refs:
             return {
                 "accepted": False,
@@ -280,16 +273,13 @@ class SourceTriageWorkspacePlanningHandlersMixin:
                 "error": "source_refs must exist in the triage workspace",
                 "invalid_source_refs": invalid_refs,
             }
-        inspected_refs = {
-            str(item) for item in current.get("planner_inspected_source_refs") or []
-        }
+        inspected_refs = {str(item) for item in current.get("planner_inspected_source_refs") or []}
         uninspected_refs = [ref for ref in source_refs if ref not in inspected_refs]
         if uninspected_refs:
             return {
                 "accepted": False,
                 "error": (
-                    "Each source_ref must first be explicitly inspected with "
-                    "list_source_capsules(source_refs=[...])"
+                    "Each source_ref must first be explicitly inspected with list_source_capsules(source_refs=[...])"
                 ),
                 "uninspected_source_refs": uninspected_refs,
             }
@@ -302,7 +292,10 @@ class SourceTriageWorkspacePlanningHandlersMixin:
             ),
             None,
         )
-        if existing_orientation and str(existing_orientation.get("set_kind") or SOURCE_SET_KIND_COVERAGE) != SOURCE_SET_KIND_ORIENTATION:
+        if (
+            existing_orientation
+            and str(existing_orientation.get("set_kind") or SOURCE_SET_KIND_COVERAGE) != SOURCE_SET_KIND_ORIENTATION
+        ):
             return {
                 "accepted": False,
                 "error": "The reserved initial-reading set_id is already used by a coverage set",
@@ -417,8 +410,7 @@ class SourceTriageWorkspacePlanningHandlersMixin:
         raw_assignments = args.get("question_assignments")
         if raw_assignments is None:
             raw_assignments = [
-                {"question_id": str(item), "requirement_ids": []}
-                for item in args.get("question_ids") or []
+                {"question_id": str(item), "requirement_ids": []} for item in args.get("question_ids") or []
             ]
         if not isinstance(raw_assignments, list):
             return {"accepted": False, "error": "question_assignments must be an array"}
@@ -446,8 +438,7 @@ class SourceTriageWorkspacePlanningHandlersMixin:
                     "error": "Use exactly one question_assignment per question_id in a source set",
                     "question_id": question_id,
                     "next_action": (
-                        "Merge that question's requirement_ids into one assignment and retry "
-                        "upsert_triage_source_set."
+                        "Merge that question's requirement_ids into one assignment and retry upsert_triage_source_set."
                     ),
                 }
             seen_assignment_question_ids.add(question_id)
@@ -476,12 +467,8 @@ class SourceTriageWorkspacePlanningHandlersMixin:
                     "error": "Each question assignment must include at least one answer requirement",
                     "question_id": question_id,
                 }
-            question_assignments.append(
-                {"question_id": question_id, "requirement_ids": requirement_ids}
-            )
-        question_ids = public_api._dedupe(
-            [str(item.get("question_id") or "") for item in question_assignments]
-        )
+            question_assignments.append({"question_id": question_id, "requirement_ids": requirement_ids})
+        question_ids = public_api._dedupe([str(item.get("question_id") or "") for item in question_assignments])
         known_question_ids = {
             str(item.get("question_id") or "")
             for item in current.get("coverage_questions") or []
@@ -532,7 +519,10 @@ class SourceTriageWorkspacePlanningHandlersMixin:
             ),
             None,
         )
-        if existing_same_id and str(existing_same_id.get("set_kind") or SOURCE_SET_KIND_COVERAGE) == SOURCE_SET_KIND_ORIENTATION:
+        if (
+            existing_same_id
+            and str(existing_same_id.get("set_kind") or SOURCE_SET_KIND_COVERAGE) == SOURCE_SET_KIND_ORIENTATION
+        ):
             return {
                 "accepted": False,
                 "error": "Initial-reading sets cannot be replaced with upsert_triage_source_set",
@@ -583,11 +573,7 @@ class SourceTriageWorkspacePlanningHandlersMixin:
         known_question_ids = {str(item.get("question_id") or "") for item in questions}
         central_question_id = str(args.get("central_question_id") or "").strip()
         central_question = next(
-            (
-                item
-                for item in questions
-                if str(item.get("question_id") or "") == central_question_id
-            ),
+            (item for item in questions if str(item.get("question_id") or "") == central_question_id),
             None,
         )
         if central_question is None:
@@ -660,9 +646,7 @@ class SourceTriageWorkspacePlanningHandlersMixin:
             for requirement_id in assignment.get("requirement_ids") or []
         }
         unassigned_requirements = sorted(required_assignment_pairs - assigned_requirement_pairs)
-        unknown_assigned_requirements = sorted(
-            assigned_requirement_pairs - required_assignment_pairs
-        )
+        unknown_assigned_requirements = sorted(assigned_requirement_pairs - required_assignment_pairs)
         known_source_refs = set(source_order)
         unknown_source_refs = sorted(
             {
