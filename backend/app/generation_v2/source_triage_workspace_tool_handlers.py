@@ -24,6 +24,9 @@ from app.generation_v2.source_triage_workspace_planning_handlers import (
 from app.generation_v2.source_triage_workspace_reading_handlers import (
     SourceTriageWorkspaceReadingHandlersMixin,
 )
+from app.generation_v2.source_triage_workspace_review_handlers import (
+    SourceTriageWorkspaceReviewHandlersMixin,
+)
 from app.generation_v2.source_triage_workspace_source_analysis_handlers import (
     SourceTriageWorkspaceSourceAnalysisHandlersMixin,
 )
@@ -40,6 +43,7 @@ from app.models.generation_run import GenerationRun
 class SourceTriageWorkspaceToolHandlers(
     SourceTriageWorkspacePlanningHandlersMixin,
     SourceTriageWorkspaceReadingHandlersMixin,
+    SourceTriageWorkspaceReviewHandlersMixin,
     SourceTriageWorkspaceSourceAnalysisHandlersMixin,
     SourceTriageWorkspaceFindingHandlersMixin,
     SourceTriageWorkspaceGroundingAuditHandlersMixin,

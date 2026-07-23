@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from copy import deepcopy
 from typing import Any
 
 from app.generation_v2.runtime import AgentTool
@@ -231,11 +230,26 @@ def source_triage_set_tools(
     finish_triage_source_set_handler: ToolHandler,
     *,
     save_reading_note_handler: ToolHandler | None = None,
+    save_semantic_review_self_check_handler: ToolHandler | None = None,
+    output_language: str = "",
+    allowed_source_refs: list[str] | None = None,
+    allowed_question_ids: list[str] | None = None,
     terminal_resume_loader=None,
 ) -> list[AgentTool]:
     tools = [
-        source_analysis_tool(save_source_analysis_handler),
-        coverage_outcome_tool(upsert_coverage_outcome_handler),
+        source_analysis_tool(
+            save_source_analysis_handler,
+            output_language=output_language,
+            allowed_source_refs=allowed_source_refs,
+            allowed_question_ids=allowed_question_ids,
+        ),
+        question_resolution_tool(
+            upsert_coverage_outcome_handler,
+            output_language=output_language,
+            allowed_question_ids=allowed_question_ids,
+        ),
+    ]
+    tools.append(
         finish_triage_source_set_tool(
             finish_triage_source_set_handler,
             description=(
@@ -244,10 +258,18 @@ def source_triage_set_tools(
             ),
             terminal=True,
             terminal_resume_loader=terminal_resume_loader,
-        ),
-    ]
+        )
+    )
     if save_reading_note_handler is not None:
-        tools.insert(0, reading_note_tool(save_reading_note_handler))
+        tools.insert(
+            0,
+            reading_note_tool(
+                save_reading_note_handler,
+                output_language=output_language,
+                allowed_source_refs=allowed_source_refs,
+                allowed_question_ids=allowed_question_ids,
+            ),
+        )
     return tools
 
 
@@ -278,7 +300,13 @@ def source_triage_finalizer_tools(
     return tools
 
 
-def reading_note_tool(handler: ToolHandler) -> AgentTool:
+def reading_note_tool(
+    handler: ToolHandler,
+    *,
+    output_language: str = "",
+    allowed_source_refs: list[str] | None = None,
+    allowed_question_ids: list[str] | None = None,
+) -> AgentTool:
     """Persist complete model-authored memory for source ranges already returned to this set agent."""
 
     return AgentTool(
@@ -288,7 +316,10 @@ def reading_note_tool(handler: ToolHandler) -> AgentTool:
             "handles previously returned by read_source/search_source/open_source_file for this source and set. "
             "A native-file receipt proves only that the file was attached, not that any range or the whole file "
             "was read. This is the semantic checkpoint that lets a fresh worker continue without replaying the "
-            "named material. The backend validates handles and identities, not semantic relevance or sufficiency."
+            "named material. The backend validates handles and identities, not semantic relevance or sufficiency. "
+            "This is a provisional checkpoint, not a stopping judgment: describe remaining risk and next checks "
+            "without claiming unread material is safe. "
+            + _language_instruction(output_language)
         ),
         parameters={
             "type": "object",
@@ -300,7 +331,7 @@ def reading_note_tool(handler: ToolHandler) -> AgentTool:
                         "receipt_refs."
                     ),
                 },
-                "source_ref": {"type": "string", "minLength": 1},
+                "source_ref": _bounded_id_schema(allowed_source_refs),
                 "receipt_refs": {
                     "type": "array",
                     "minItems": 1,
@@ -311,13 +342,19 @@ def reading_note_tool(handler: ToolHandler) -> AgentTool:
                 "what_was_established": {"type": "string"},
                 "boundaries": {"type": "string"},
                 "unread_regions": {"type": "string"},
-                "why_unread_is_safe": {"type": "string"},
+                "unread_risk_assessment": {
+                    "type": "string",
+                    "description": (
+                        "Current risk from unread material. For unfinished reading, state what remains unknown; "
+                        "this checkpoint never establishes that unread material is safe."
+                    ),
+                },
                 "question_links": {
                     "type": "array",
                     "items": {
                         "type": "object",
                         "properties": {
-                            "question_id": {"type": "string", "minLength": 1},
+                            "question_id": _bounded_id_schema(allowed_question_ids),
                             "connection": {"type": "string"},
                         },
                         "required": ["question_id", "connection"],
@@ -335,7 +372,7 @@ def reading_note_tool(handler: ToolHandler) -> AgentTool:
                 "what_was_established",
                 "boundaries",
                 "unread_regions",
-                "why_unread_is_safe",
+                "unread_risk_assessment",
                 "question_links",
                 "doubts",
                 "next_checks",
@@ -346,169 +383,173 @@ def reading_note_tool(handler: ToolHandler) -> AgentTool:
     )
 
 
-def source_analysis_tool(handler: ToolHandler) -> AgentTool:
-    """One atomic source commit: assessment plus complete substantive findings."""
+def source_analysis_tool(
+    handler: ToolHandler,
+    *,
+    output_language: str = "",
+    allowed_source_refs: list[str] | None = None,
+    allowed_question_ids: list[str] | None = None,
+) -> AgentTool:
+    """Persist one source's meaning; question resolution is a separate decision."""
 
-    base = source_assessment_tool(handler)
-    parameters = deepcopy(base.parameters)
-    properties = parameters["properties"]
-    properties["processing_status"] = {"type": "string", "enum": ["resolved"]}
-    properties.pop("coverage_question_ids", None)
-    properties["no_findings_reason"] = {
-        "type": "string",
-        "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["no_findings_reason"],
-        "description": (
-            "Required control field. Pass an empty string when findings is non-empty. When findings is empty after "
-            "actual reading, explain why the inspected source yielded no substantive finding."
-        ),
-    }
-    properties["evidence_ids"]["description"] = (
-        "Additional assessment evidence from source_ref itself. It may be empty when finding evidence already "
-        "grounds a readable/partial assessment; it is required for a readable/partial no-findings analysis or a "
-        "not_target_content diagnosis. Evidence for another source belongs only inside source_relations. Use only "
-        "evidence substantively opened by read_evidence/read_source_window in this run; search/skim previews fail."
-    )
-    properties["disposition"]["description"] = (
-        "anchor/supporting/background/weak/unusable are completed judgments over inspected target content. "
-        "deferred means a checked partial, not_target_content, or unreadable representation prevents evaluation."
-    )
-    properties["findings"] = {
-        "type": "array",
-        "description": (
-            "Every substantive finding established by this source. Use an empty array only after actual reading and "
-            "explain why in no_findings_reason."
-        ),
-        "items": {
-            "type": "object",
-            "properties": {
-                "finding_id": {"type": "string"},
-                "statement": {
+    parameters = {
+        "type": "object",
+        "properties": {
+            "source_ref": _bounded_id_schema(allowed_source_refs),
+            "representation_status": {
+                "type": "string",
+                "enum": ["readable", "partial", "not_target_content", "unreadable"],
+            },
+            "representation_reason": {
+                "type": "string",
+                "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["assessment_reason"],
+            },
+            "source_summary": {
+                "type": "string",
+                "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["coverage_summary"],
+            },
+            "authority": {
+                "type": "string",
+                "enum": ["primary", "official", "expert", "secondary", "tertiary", "weak", "unknown"],
+            },
+            "authority_reason": {
+                "type": "string",
+                "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["assessment_reason"],
+            },
+            "uniqueness": {
+                "type": "string",
+                "enum": ["unique", "complementary", "derivative", "duplicate", "unknown"],
+                "description": (
+                    "Contribution identity after reading/comparison. duplicate means the same substantive source, "
+                    "not unavailable or wrong-target content."
+                ),
+            },
+            "uniqueness_reason": {
+                "type": "string",
+                "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["assessment_reason"],
+            },
+            "duplicate_of_source_ref": {
+                **_bounded_optional_id_schema(allowed_source_refs),
+                "description": (
+                    "Required when uniqueness=duplicate; otherwise empty. Copy the earlier source_ref named by "
+                    "read_source or established through source comparison."
+                ),
+            },
+            "limitations": {
+                "type": "array",
+                "items": {
                     "type": "string",
-                    "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["finding_statement"],
-                },
-                "support_explanation": {
-                    "type": "string",
-                    "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["finding_support_explanation"],
-                    "description": (
-                        "Explain how the exact attached passages support this bounded statement, including actor, "
-                        "period, and causal/mechanism limits where material."
-                    ),
-                },
-                "evidence_ids": {
-                    "type": "array",
-                    "minItems": 1,
-                    "items": {"type": "string"},
-                    "description": (
-                        "Exact current-run evidence substantively opened by read_evidence/read_source_window. "
-                        "Search/skim preview ids are rejected until opened."
-                    ),
-                },
-                "scope": {
-                    "type": "object",
-                    "properties": {
-                        "actor": {"type": "string", "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["finding_scope"]},
-                        "period": {"type": "string", "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["finding_scope"]},
-                        "geography": {"type": "string", "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["finding_scope"]},
-                        "qualifiers": {
-                            "type": "array",
-                            "items": {
-                                "type": "string",
-                                "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["finding_scope"],
-                            },
-                        },
-                    },
-                    "required": ["actor", "period", "geography", "qualifiers"],
-                    "additionalProperties": False,
-                },
-                "limitations": {
-                    "type": "array",
-                    "items": {
-                        "type": "string",
-                        "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["assessment_limitation"],
-                    },
-                },
-                "question_links": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "question_id": {"type": "string"},
-                            "requirement_ids": {"type": "array", "items": {"type": "string"}},
-                            "rationale": {
-                                "type": "string",
-                                "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["finding_link_rationale"],
-                            },
-                        },
-                        "required": ["question_id", "requirement_ids", "rationale"],
-                        "additionalProperties": False,
-                    },
-                },
-                "source_relations": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "related_source_ref": {"type": "string"},
-                            "relationship": {
-                                "type": "string",
-                                "enum": [
-                                    "duplicate",
-                                    "near_duplicate",
-                                    "updates",
-                                    "contradicts",
-                                    "primary_to_secondary",
-                                    "background_for",
-                                ],
-                                "description": (
-                                    "Direction is current source_ref -> related_source_ref: primary_to_secondary "
-                                    "means current is the primary/original; updates means current updates related; "
-                                    "background_for means current provides background for related. Duplicate, "
-                                    "near_duplicate, and contradicts are semantically symmetric."
-                                ),
-                            },
-                            "rationale": {
-                                "type": "string",
-                                "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["finding_relation_rationale"],
-                            },
-                            "evidence_ids": {
-                                "type": "array",
-                                "minItems": 2,
-                                "items": {"type": "string"},
-                                "description": (
-                                    "Exact grounded non-shell evidence with at least one item from current "
-                                    "source_ref and at least one from related_source_ref."
-                                ),
-                            },
-                        },
-                        "required": ["related_source_ref", "relationship", "rationale", "evidence_ids"],
-                        "additionalProperties": False,
-                    },
+                    "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["assessment_limitation"],
                 },
             },
-            "required": [
-                "statement",
-                "support_explanation",
-                "evidence_ids",
-                "scope",
-                "limitations",
-                "question_links",
-                "source_relations",
-            ],
-            "additionalProperties": False,
+            "no_findings_reason": {
+                "type": "string",
+                "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["no_findings_reason"],
+                "description": (
+                    "Explain why actual reading produced no substantive finding. Must be empty when findings exist."
+                ),
+            },
+            "findings": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "finding_id": {"type": "string"},
+                        "statement": {
+                            "type": "string",
+                            "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["finding_statement"],
+                        },
+                        "support_explanation": {
+                            "type": "string",
+                            "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["finding_support_explanation"],
+                        },
+                        "passage_refs": {
+                            "type": "array",
+                            "uniqueItems": True,
+                            "items": {"type": "string", "minLength": 1},
+                            "description": (
+                                "Stable passage refs returned by sequential read_source only. Search refs are "
+                                "navigation candidates and are rejected here."
+                            ),
+                        },
+                        "evidence_ids": {
+                            "type": "array",
+                            "uniqueItems": True,
+                            "items": {"type": "string"},
+                            "description": (
+                                "Exact evidence IDs already returned by read_source_window or read_evidence for "
+                                "this source. Use these after hydrating a search result."
+                            ),
+                        },
+                        "scope": {
+                            "type": "object",
+                            "properties": {
+                                "actor": {"type": "string", "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["finding_scope"]},
+                                "period": {"type": "string", "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["finding_scope"]},
+                                "geography": {"type": "string", "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["finding_scope"]},
+                                "qualifiers": {
+                                    "type": "array",
+                                    "items": {"type": "string", "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["finding_scope"]},
+                                },
+                            },
+                            "required": ["actor", "period", "geography", "qualifiers"],
+                            "additionalProperties": False,
+                        },
+                        "limitations": {
+                            "type": "array",
+                            "items": {"type": "string", "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["assessment_limitation"]},
+                        },
+                        "possible_question_ids": {
+                            "type": "array",
+                            "uniqueItems": True,
+                            "items": _bounded_id_schema(allowed_question_ids),
+                            "description": (
+                                "Coverage question_id values only. Never pass nested requirement_id values."
+                            ),
+                        },
+                    },
+                    "required": [
+                        "statement",
+                        "support_explanation",
+                        "passage_refs",
+                        "evidence_ids",
+                        "scope",
+                        "limitations",
+                        "possible_question_ids",
+                    ],
+                    "additionalProperties": False,
+                },
+            },
+            "reading_basis": reading_basis_schema(),
         },
+        "required": [
+            "source_ref",
+            "representation_status",
+            "representation_reason",
+            "source_summary",
+            "authority",
+            "authority_reason",
+            "uniqueness",
+            "uniqueness_reason",
+            "duplicate_of_source_ref",
+            "limitations",
+            "no_findings_reason",
+            "findings",
+            "reading_basis",
+        ],
+        "additionalProperties": False,
     }
-    properties["reading_basis"] = reading_basis_schema()
-    required = [
-        item for item in parameters["required"] if item != "coverage_question_ids"
-    ]
-    required.extend(["no_findings_reason", "findings", "reading_basis"])
-    parameters["required"] = list(dict.fromkeys(required))
     return AgentTool(
         name="save_source_analysis",
         description=(
-            "Atomically persist one source's completed independent assessment and all evidence-backed substantive "
-            "findings. Save only when the source analysis is semantically complete. Replaces the previous analysis "
-            "for this source, so later reading or comparison may revise it when needed."
+            "Persist one source's completed analysis and atomic findings. Use passage_refs only from sequential "
+            "read_source. A search result is navigation: copy its exact_read_call into read_source_window, then put "
+            "the returned evidence_id on the finding. Each finding needs at least one passage_ref or evidence_id. "
+            "possible_question_ids accept only question_id values, never requirement_id values, and remain "
+            "candidates rather than final links. "
+            "For a mechanical rejection, retry the complete analysis while changing only the fields named by the "
+            "error. After genuinely new reading, replace the complete analysis from the expanded evidence. "
+            + _language_instruction(output_language)
         ),
         parameters=parameters,
         handler=handler,
@@ -752,14 +793,119 @@ def source_assessment_tool(handler: ToolHandler) -> AgentTool:
     )
 
 
-def coverage_outcome_tool(handler: ToolHandler) -> AgentTool:
+def question_resolution_tool(
+    handler: ToolHandler,
+    *,
+    output_language: str = "",
+    allowed_question_ids: list[str] | None = None,
+) -> AgentTool:
+    return AgentTool(
+        name="resolve_triage_question",
+        description=(
+            "Resolve one question from the complete current question_workbench snapshot. This single write creates "
+            "the authoritative finding-to-requirement links and the local outcome; do not edit source analyses to "
+            "pre-authorize links. The current finding_catalog must have been read first. A stale or incompletely "
+            "read snapshot invalidates the attempted semantic decision; finish reading from the returned cursor "
+            "and recompute it. For covered, the selected finding statements must establish the exact completion "
+            "criterion; chronology or contextual synthesis cannot supply a missing causal choice or mechanism. "
+            "For partial, preserve only the directly supported fragment and keep the missing relation out of the "
+            "established answer. "
+            + _language_instruction(output_language)
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "question_id": _bounded_id_schema(allowed_question_ids),
+                "workbench_snapshot_id": {"type": "string", "minLength": 1},
+                "requirement_results": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "requirement_id": {"type": "string", "minLength": 1},
+                            "status": {
+                                "type": "string",
+                                "enum": ["covered", "partial", "missing", "conflicted", "deferred"],
+                            },
+                            "finding_ids": {
+                                "type": "array",
+                                "uniqueItems": True,
+                                "description": (
+                                    "Findings that directly establish or conflict on this exact requirement."
+                                ),
+                                "items": {"type": "string"},
+                            },
+                            "established_answer": {
+                                "type": "string",
+                                "description": (
+                                    "Only bounded propositions directly established by the selected finding "
+                                    "statements. For partial, state the supported fragment without asserting or "
+                                    "implying the unresolved cause, motive, mechanism, or transfer across actor, "
+                                    "period, or geography."
+                                ),
+                                "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["requirement_summary"],
+                            },
+                            "criterion_match_reason": {
+                                "type": "string",
+                                "description": (
+                                    "For covered, identify the exact proposition in the selected finding statements "
+                                    "that satisfies the persisted completion criterion. If the explanation requires "
+                                    "a causal choice, motive, or mechanism absent from those statements, use partial "
+                                    "and state that missing link in unresolved_remainder. For partial, name the exact "
+                                    "scope or relation boundary and do not describe the incomplete result as an "
+                                    "explanation of the whole criterion."
+                                ),
+                                "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["requirement_closure_basis"],
+                            },
+                            "unresolved_remainder": {
+                                "type": "string",
+                                "description": (
+                                    "Empty for covered/deferred; required for partial or missing and optional for "
+                                    "conflicted when uncertainty remains beyond the stated conflict. Name the exact "
+                                    "unsupported proposition or connecting relation, not merely a desirable extra "
+                                    "source."
+                                ),
+                                "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["coverage_detail"],
+                            },
+                            "conflict_summary": {
+                                "type": "string",
+                                "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["coverage_detail"],
+                            },
+                            "deferred_reason": {
+                                "type": "string",
+                                "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["deferred_reason"],
+                            },
+                        },
+                        "required": [
+                            "requirement_id",
+                            "status",
+                            "finding_ids",
+                            "established_answer",
+                            "criterion_match_reason",
+                            "unresolved_remainder",
+                            "conflict_summary",
+                            "deferred_reason",
+                        ],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            "required": ["question_id", "workbench_snapshot_id", "requirement_results"],
+            "additionalProperties": False,
+        },
+        handler=handler,
+    )
+
+
+def coverage_outcome_tool(handler: ToolHandler, *, output_language: str = "") -> AgentTool:
     return AgentTool(
         name="upsert_coverage_outcome",
         description=(
             "Persist or replace one current-set question outcome. It must reference linked findings and contain "
             "one result per assigned or newly linked requirement; source and evidence lineage is derived by the "
             "backend. A lineage error names the exact question, requirement, finding, owner source, and the "
-            "save_source_analysis correction needed before retrying."
+            "save_source_analysis correction needed before retrying. "
+            + _language_instruction(output_language)
         ),
         parameters={
             "type": "object",
@@ -993,6 +1139,39 @@ def _requirement_result_schema(*, allow_global_next_action: bool = False) -> dic
         "properties": properties,
         "required": required,
         "additionalProperties": False,
+    }
+
+
+def _language_instruction(output_language: str) -> str:
+    language = str(output_language or "").strip()
+    if not language:
+        return "Use the workflow output language for every model-authored prose field."
+    return (
+        f"Write every model-authored prose field in output_language={language!r}, even when source text is in "
+        "another language. Use natural equivalents in that language for ordinary and technical wording. Preserve "
+        "only proper names, official titles, abbreviations, and untranslatable codes. Pair a needed original official "
+        "title with a natural output-language label and preserve its capitalization; do not use foreign common words "
+        "as sentence grammar. Exact source wording belongs "
+        "in evidence, not model-authored summaries or reasoning. Before calling this tool for a non-Latin output "
+        "language, scan every authored field and translate ordinary source-language prose and technical terms. "
+        "Mechanical validation rejects clear foreign prose but is not a glossary and does not certify isolated terms."
+    )
+
+
+def _bounded_id_schema(values: list[str] | None) -> dict[str, Any]:
+    allowed = list(dict.fromkeys(str(value) for value in values or [] if str(value)))
+    return {
+        "type": "string",
+        "minLength": 1,
+        **({"enum": allowed} if allowed else {}),
+    }
+
+
+def _bounded_optional_id_schema(values: list[str] | None) -> dict[str, Any]:
+    allowed = list(dict.fromkeys(str(value) for value in values or [] if str(value)))
+    return {
+        "type": "string",
+        **({"enum": ["", *allowed]} if allowed else {}),
     }
 
 

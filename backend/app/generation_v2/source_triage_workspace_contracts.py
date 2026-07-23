@@ -19,8 +19,11 @@ TRIAGE_READ_TOOLS = {
 }
 TRIAGE_SEMANTIC_COMMIT_TOOLS = {
     "save_reading_note",
+    "save_semantic_review_self_check",
+    "acknowledge_semantic_review",
     "save_source_analysis",
     "upsert_coverage_outcome",
+    "resolve_triage_question",
     "update_source_finding_links",
     "update_source_finding_relations",
     "audit_source_finding",
@@ -71,6 +74,8 @@ TRIAGE_SEMANTIC_FIELD_LIMITS = {
     "coverage_detail": 1200,
     "coverage_synthesis_summary": 2400,
     "coverage_synthesis_detail": 1600,
+    "semantic_review_reason": 1600,
+    "semantic_review_conclusion": 2400,
 }
 TRIAGE_PENDING_QUESTION_LIMIT = 8
 TRIAGE_LIMITATION_LIMIT = 12

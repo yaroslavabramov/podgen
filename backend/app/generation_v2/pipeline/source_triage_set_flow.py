@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from hashlib import sha256
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +21,7 @@ from app.generation_v2.source_triage_workspace import (
 from app.generation_v2.source_triage_read_checkpointing import (
     source_checkpoint_transition_guard,
 )
+from app.generation_v2.source_triage_set_state_views import set_overview_page
 from app.generation_v2.tools.evidence import EvidenceToolset
 from app.models.generation_run import GenerationRun
 from app.pipeline.step_control import assert_step_not_stopped
@@ -50,7 +52,12 @@ _WORKSPACE_EXECUTION_COLLECTIONS = {
     # here would let an agent avoid the no-semantic-progress failure merely by
     # reading another range without saving a note, analysis, or outcome.
     "source_read_receipts",
+    "source_structure_pages",
+    "source_triage_semantic_review_deliveries",
+    "source_triage_question_workbench_deliveries",
+    "source_triage_finding_catalog_deliveries",
 }
+_WORKSPACE_SET_SCOPED_MAPS: set[str] = set()
 
 
 async def run_source_triage_set(
@@ -147,7 +154,7 @@ async def run_source_triage_set(
 
         async def terminal_progress_loader() -> dict[str, Any]:
             latest_state = await load_source_triage_workspace(db, run.id) or current
-            return _set_progress_state(latest_state, set_id)
+            return _set_runtime_progress_state(latest_state, set_id)
 
         try:
             completion = await build_source_triage_set_agent(
@@ -296,7 +303,43 @@ def _set_progress_state(workspace: dict[str, Any], set_id: str) -> dict[str, Any
                     _progress_sort_key(item),
                 ),
             )
+    for collection_name in _WORKSPACE_SET_SCOPED_MAPS:
+        value = workspace.get(collection_name)
+        record = value.get(set_id) if isinstance(value, dict) else None
+        if isinstance(record, dict):
+            records[collection_name] = _canonical_progress_value(record)
     return {"source_set": set_state, "records": records}
+
+
+def _set_runtime_progress_state(workspace: dict[str, Any], set_id: str) -> dict[str, Any]:
+    """Compact durable state injected after a terminal-less response or server compaction."""
+
+    semantic_state = _set_progress_state(workspace, set_id)
+    source_set = next(
+        (item for item in workspace.get("source_sets") or [] if str(item.get("set_id") or "") == set_id),
+        {"set_id": set_id},
+    )
+    overview = set_overview_page(
+        workspace,
+        source_set,
+        cursor=0,
+        limit=25,
+    )
+    return {
+        "set_id": set_id,
+        "output_language": str(overview.get("output_language") or ""),
+        "semantic_state_sha256": sha256(
+            json.dumps(
+                semantic_state,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                default=str,
+            ).encode("utf-8")
+        ).hexdigest(),
+        "state": dict(overview.get("state") or {}),
+        "items": list(overview.get("items") or []),
+    }
 
 
 def _canonical_progress_value(value: Any) -> Any:

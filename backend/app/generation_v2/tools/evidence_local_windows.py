@@ -8,15 +8,12 @@ import re
 from typing import Any
 
 from app.generation_v2.tools.evidence_text_windows import (
-    heading_markers,
     locator_type_for_label,
     nearest_locator_for_position,
-    page_markers,
     query_tokens,
     representative_text_windows,
     resolve_window_for_locator,
     source_outline,
-    timestamp_markers,
 )
 from app.generation_v2.tools.evidence_utils import (
     _retrieval_channel_for_version,
@@ -30,6 +27,9 @@ from app.generation_v2.tools.evidence_window_refs import (
     resolve_window_ref,
 )
 from app.generation_v2.tools.evidence_source_text import best_readable_source_version
+from app.generation_v2.tools.evidence_source_structure import (
+    build_source_structure_page,
+)
 from app.models.generation_v2 import (
     EvidenceLocatorType,
     SourceRepresentationKind,
@@ -39,8 +39,7 @@ from app.models.generation_v2 import (
 from app.models.source import Source, SourceType
 
 
-_SOURCE_STRUCTURE_ITEM_LIMIT = 120
-_SOURCE_STRUCTURE_LABEL_PREVIEW_CHARS = 120
+_SOURCE_STRUCTURE_ITEM_LIMIT = 24
 _SEARCH_SCORING_BLOCK_CHARS = 1_024
 _SEARCH_SCORING_HALO_MAX_CHARS = 1_024
 _SEARCH_SHORTLIST_MAX_BLOCKS = 64
@@ -356,7 +355,22 @@ async def read_source_text_page(
         "eof": end == len(text),
     }
     if not cursor:
-        result["structure"] = await _source_structure(owner, version, text=text)
+        structure = build_source_structure_page(
+            text=text,
+            source_version_id=version.id,
+            allow_timestamps=await source_allows_timestamp_locators(owner, version),
+            cursor="",
+            max_items=_SOURCE_STRUCTURE_ITEM_LIMIT,
+        )
+        structure["structure_cursor"] = str(structure.pop("cursor", ""))
+        structure["next_structure_cursor"] = str(
+            structure.pop("next_cursor", "")
+        )
+        structure["next_action"] = (
+            "If next_structure_cursor is non-empty, pass it only to inspect_source.cursor. "
+            "Use the read_source result's top-level next_cursor to continue text."
+        )
+        result["structure"] = structure
     return result
 
 
@@ -372,72 +386,6 @@ def _natural_contiguous_end(text: str, *, start: int, hard_end: int) -> int:
     for pattern in (r"\f+", r"\n[ \t]*\n+", r"(?m)(?=^#{1,6}\s+\S)"):
         boundaries.extend(search_start + match.end() for match in re.finditer(pattern, tail))
     return max(boundaries) if boundaries else hard_end
-
-
-async def _source_structure(
-    owner: Any,
-    version: SourceVersion,
-    *,
-    text: str,
-) -> dict[str, Any]:
-    pages = page_markers(text)
-    page_offsets = {int(item["start"]) for item in pages}
-    headings = [item for item in heading_markers(text) if int(item["start"]) not in page_offsets]
-    timestamps = timestamp_markers(text) if await source_allows_timestamp_locators(owner, version) else []
-    all_items = [
-        *[
-            {
-                "kind": "heading",
-                **_structure_label_preview(str(item["heading"])),
-                "offset": int(item["start"]),
-            }
-            for item in headings
-        ],
-        *[
-            {
-                "kind": "timestamp",
-                **_structure_label_preview(str(item["timestamp"])),
-                "offset": int(item["start"]),
-            }
-            for item in timestamps
-        ],
-    ]
-    all_items.sort(key=lambda item: (item["offset"], item["kind"], item["label_preview"]))
-    items = _representative_structure_items(all_items, limit=_SOURCE_STRUCTURE_ITEM_LIMIT)
-    return {
-        "counts": {
-            "pages": len(pages),
-            "headings": len(headings),
-            "timestamps": len(timestamps),
-        },
-        "items": items,
-        "returned_count": len(items),
-        "omitted_count": len(all_items) - len(items),
-    }
-
-
-def _structure_label_preview(value: str) -> dict[str, Any]:
-    """Return explicitly bounded navigation metadata, never a semantic field."""
-
-    preview = value[:_SOURCE_STRUCTURE_LABEL_PREVIEW_CHARS]
-    return {
-        "label_preview": preview,
-        "label_chars": len(value),
-        "label_omitted_chars": max(0, len(value) - len(preview)),
-    }
-
-
-def _representative_structure_items(
-    items: list[dict[str, Any]],
-    *,
-    limit: int,
-) -> list[dict[str, Any]]:
-    if len(items) <= limit:
-        return items
-    if limit == 1:
-        return [items[0]]
-    indexes = [round(index * (len(items) - 1) / (limit - 1)) for index in range(limit)]
-    return [items[index] for index in dict.fromkeys(indexes)]
 
 
 async def search_source_text_ranges(

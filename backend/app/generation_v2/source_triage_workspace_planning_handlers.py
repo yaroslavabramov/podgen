@@ -16,6 +16,11 @@ from app.generation_v2.source_triage_workspace_state import (
     SOURCE_SET_KIND_COVERAGE,
     SOURCE_SET_KIND_ORIENTATION,
 )
+from app.generation_v2.source_triage_plan_validation import (
+    question_parent_cycle,
+    triage_plan_finalization_error,
+    validate_triage_plan,
+)
 
 
 ORIENTATION_SET_ID = "orientation_initial_reading"
@@ -167,7 +172,7 @@ class SourceTriageWorkspacePlanningHandlersMixin:
         ]
         if question_id not in existing_ids:
             updated_questions.append(item)
-        cycle = _question_parent_cycle(updated_questions)
+        cycle = question_parent_cycle(updated_questions)
         if cycle:
             return {
                 "accepted": False,
@@ -550,177 +555,25 @@ class SourceTriageWorkspacePlanningHandlersMixin:
     async def finalize_triage_workspace_plan_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         public_api = workspace_api
         current = await public_api.load_source_triage_workspace(self.db, self.run.id) or self.workspace
-        source_order = [str(item) for item in current.get("source_order") or []]
-        source_sets = [dict(item) for item in current.get("source_sets") or []]
         if args.get("deferred_sources"):
             return {
                 "accepted": False,
                 "error": "The planner cannot defer sources; assign every source to exactly one set",
             }
-        ref_counts = {ref: sum(ref in (item.get("source_refs") or []) for item in source_sets) for ref in source_order}
-        duplicate_refs = sorted(ref for ref, count in ref_counts.items() if count > 1)
-        missing = [ref for ref, count in ref_counts.items() if count == 0]
-        if not source_sets:
-            return {"accepted": False, "error": "Cannot finalize triage workspace without source sets"}
-        if duplicate_refs:
-            return {
-                "accepted": False,
-                "error": "Every source_ref must belong to exactly one source set",
-                "duplicate_source_refs": duplicate_refs,
-            }
-        if missing:
-            return {
-                "accepted": False,
-                "error": "Every source_ref must be assigned to exactly one source set",
-                "missing_source_refs": missing,
-            }
-        questions = [item for item in current.get("coverage_questions") or [] if isinstance(item, dict)]
-        if not questions:
-            return {"accepted": False, "error": "Persist at least one coverage question before finalizing"}
-        hierarchy_cycle = _question_parent_cycle(questions)
-        if hierarchy_cycle:
-            return {
-                "accepted": False,
-                "error": "coverage question hierarchy cannot contain a cycle",
-                "question_ids": hierarchy_cycle,
-            }
-        known_question_ids = {str(item.get("question_id") or "") for item in questions}
         central_question_id = str(args.get("central_question_id") or "").strip()
-        central_question = next(
-            (item for item in questions if str(item.get("question_id") or "") == central_question_id),
-            None,
+        validation = validate_triage_plan(
+            current,
+            central_question_id=central_question_id,
         )
-        if central_question is None:
-            return {
-                "accepted": False,
-                "error": "central_question_id must reference a persisted coverage question",
-                "central_question_id": central_question_id,
-            }
-        if str(central_question.get("parent_question_id") or "").strip():
-            return {
-                "accepted": False,
-                "error": "central_question_id must reference a root question",
-                "central_question_id": central_question_id,
-            }
-        if str(central_question.get("importance") or "") != "critical":
-            return {
-                "accepted": False,
-                "error": "central_question_id must reference a critical question",
-                "central_question_id": central_question_id,
-            }
-        invalid_set_kinds = [
-            str(item.get("set_id") or "")
-            for item in source_sets
-            if str(item.get("set_kind") or SOURCE_SET_KIND_COVERAGE)
-            not in {SOURCE_SET_KIND_COVERAGE, SOURCE_SET_KIND_ORIENTATION}
-        ]
-        coverage_sets = [
+        validation_error = triage_plan_finalization_error(validation)
+        if validation_error:
+            return validation_error
+        source_sets = [dict(item) for item in current.get("source_sets") or []]
+        questions = [
             item
-            for item in source_sets
-            if str(item.get("set_kind") or SOURCE_SET_KIND_COVERAGE) == SOURCE_SET_KIND_COVERAGE
+            for item in current.get("coverage_questions") or []
+            if isinstance(item, dict)
         ]
-        orientation_sets = [
-            item
-            for item in source_sets
-            if str(item.get("set_kind") or SOURCE_SET_KIND_COVERAGE) == SOURCE_SET_KIND_ORIENTATION
-        ]
-        duplicate_assignment_pairs: list[dict[str, str]] = []
-        for source_set in coverage_sets:
-            seen_question_ids: set[str] = set()
-            for assignment in source_set.get("question_assignments") or []:
-                if not isinstance(assignment, dict):
-                    continue
-                question_id = str(assignment.get("question_id") or "")
-                if question_id in seen_question_ids:
-                    duplicate_assignment_pairs.append(
-                        {
-                            "set_id": str(source_set.get("set_id") or ""),
-                            "question_id": question_id,
-                        }
-                    )
-                seen_question_ids.add(question_id)
-        referenced_question_ids = {
-            str(question_id)
-            for item in coverage_sets
-            for question_id in item.get("planned_question_ids", item.get("question_ids") or [])
-        }
-        unknown_question_ids = sorted(referenced_question_ids - known_question_ids)
-        unassigned_question_ids = sorted(known_question_ids - referenced_question_ids)
-        required_assignment_pairs = {
-            (str(question.get("question_id") or ""), str(requirement.get("requirement_id") or ""))
-            for question in questions
-            for requirement in question.get("answer_requirements") or []
-            if isinstance(requirement, dict)
-        }
-        assigned_requirement_pairs = {
-            (str(assignment.get("question_id") or ""), str(requirement_id))
-            for item in coverage_sets
-            for assignment in item.get("question_assignments") or []
-            if isinstance(assignment, dict)
-            for requirement_id in assignment.get("requirement_ids") or []
-        }
-        unassigned_requirements = sorted(required_assignment_pairs - assigned_requirement_pairs)
-        unknown_assigned_requirements = sorted(assigned_requirement_pairs - required_assignment_pairs)
-        known_source_refs = set(source_order)
-        unknown_source_refs = sorted(
-            {
-                str(source_ref)
-                for item in source_sets
-                for source_ref in item.get("source_refs") or []
-                if str(source_ref) not in known_source_refs
-            }
-        )
-        coverage_sets_without_questions = [
-            str(item.get("set_id") or "")
-            for item in coverage_sets
-            if not (item.get("planned_question_ids", item.get("question_ids") or []))
-        ]
-        orientation_sets_with_planned_questions = [
-            str(item.get("set_id") or "")
-            for item in orientation_sets
-            if item.get("planned_question_ids") or item.get("question_ids")
-        ]
-        inspected_refs = {str(item) for item in current.get("planner_inspected_source_refs") or []}
-        uninspected_orientation_refs = sorted(
-            {
-                str(ref)
-                for item in orientation_sets
-                for ref in item.get("source_refs") or []
-                if str(ref) not in inspected_refs
-            }
-        )
-        if (
-            invalid_set_kinds
-            or unknown_question_ids
-            or unassigned_question_ids
-            or unassigned_requirements
-            or unknown_assigned_requirements
-            or unknown_source_refs
-            or coverage_sets_without_questions
-            or orientation_sets_with_planned_questions
-            or uninspected_orientation_refs
-            or duplicate_assignment_pairs
-        ):
-            return {
-                "accepted": False,
-                "error": "The source-set plan has invalid question or initial-reading assignments",
-                "invalid_source_set_ids": invalid_set_kinds,
-                "unknown_question_ids": unknown_question_ids,
-                "unassigned_question_ids": unassigned_question_ids,
-                "unassigned_question_requirements": [
-                    {"question_id": question_id, "requirement_id": requirement_id}
-                    for question_id, requirement_id in unassigned_requirements
-                ],
-                "unknown_assigned_question_requirements": [
-                    {"question_id": question_id, "requirement_id": requirement_id}
-                    for question_id, requirement_id in unknown_assigned_requirements
-                ],
-                "unknown_source_refs": unknown_source_refs,
-                "coverage_source_sets_without_question_ids": coverage_sets_without_questions,
-                "orientation_source_sets_with_question_ids": orientation_sets_with_planned_questions,
-                "uninspected_orientation_source_refs": uninspected_orientation_refs,
-                "duplicate_question_assignments": duplicate_assignment_pairs,
-            }
         summary = str(args.get("summary") or "").strip()
         field_error = semantic_field_error({"plan_summary": summary}, TRIAGE_SEMANTIC_FIELD_LIMITS, ["plan_summary"])
         if field_error:
@@ -738,22 +591,3 @@ class SourceTriageWorkspacePlanningHandlersMixin:
 
 
 __all__ = ["SourceTriageWorkspacePlanningHandlersMixin"]
-
-
-def _question_parent_cycle(questions: list[dict[str, Any]]) -> list[str]:
-    parent_by_id = {
-        str(item.get("question_id") or ""): str(item.get("parent_question_id") or "")
-        for item in questions
-        if isinstance(item, dict) and str(item.get("question_id") or "")
-    }
-    for start in parent_by_id:
-        path: list[str] = []
-        positions: dict[str, int] = {}
-        current = start
-        while current and current in parent_by_id:
-            if current in positions:
-                return path[positions[current] :] + [current]
-            positions[current] = len(path)
-            path.append(current)
-            current = parent_by_id.get(current, "")
-    return []

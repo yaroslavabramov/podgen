@@ -6,6 +6,13 @@ from typing import Any
 from app.generation_v2.artifacts import save_tool_trace
 from app.generation_v2.contracts import V2AgentName, V2Phase, V2ToolName
 from app.generation_v2.model_context_text import model_preview_text
+from app.generation_v2.source_triage_model_delivery import (
+    source_structure_receipt_ref,
+    stage_source_structure_page,
+)
+from app.generation_v2.source_triage_exact_duplicates import (
+    exact_duplicate_predecessor,
+)
 from app.generation_v2.source_triage_workspace_persistence import (
     load_source_triage_workspace,
     save_source_triage_workspace,
@@ -19,6 +26,22 @@ from app.generation_v2.source_triage_workspace_state import (
 from app.generation_v2.tools.evidence_model_window_refs import (
     register_model_window_ref,
     resolve_model_window_ref,
+)
+from app.generation_v2.tools.evidence_receipt_selection import (
+    select_receipt_evidence_range,
+)
+from app.generation_v2.tools.evidence_search_context import expanded_search_context
+from app.generation_v2.tools.evidence_source_structure import (
+    build_source_structure_page,
+)
+from app.generation_v2.tools.evidence_source_passages import (
+    resolve_source_passage_ref,
+    source_passages_for_range,
+)
+from app.generation_v2.tools.evidence_source_passage_handles import (
+    attach_source_passage_handles,
+    passage_ref_repair_payload,
+    validate_delivered_passage_refs,
 )
 from app.generation_v2.tools.evidence_source_tool_actions import (
     search_text_source_windows as _search_text_source_windows_action,
@@ -45,7 +68,6 @@ SOURCE_NAVIGATION_SEARCH_MAX_CHARS = 3_000
 SOURCE_NAVIGATION_SEARCH_MAX_RESULTS = 8
 SOURCE_NAVIGATION_QUERY_MAX_CHARS = 1_000
 SOURCE_NAVIGATION_LOCATOR_PREVIEW_CHARS = 400
-INSPECT_SOURCE_PREVIEW_CHARS = 160
 
 
 def _source_version_text(version: Any) -> str:
@@ -214,6 +236,8 @@ class EvidenceSourceToolsMixin:
             return {"found": False, **receipts}
         receipt_ref = receipts["receipt_refs"][0]
         next_cursor = receipt_ref if not page["eof"] else ""
+        passages = receipts["passages_by_receipt_ref"][receipt_ref]
+        exact_duplicate = await self._triage_exact_duplicate_predecessor(source_ref)
         await save_tool_trace(
             self.db,
             generation_run_id=self.run.id,
@@ -235,14 +259,55 @@ class EvidenceSourceToolsMixin:
         return {
             "found": True,
             "source_ref": source_ref,
-            "text": page["text"],
+            "eof": page["eof"],
+            "next_cursor": next_cursor,
+            "receipt_ref": receipt_ref,
+            "before_opening_different_source": {
+                "required": True,
+                "source_ref": source_ref,
+                "receipt_refs_from_this_read": [receipt_ref],
+                "allowed_next_actions": ["save_reading_note", "save_source_analysis"],
+                "next_action": (
+                    "Continue this source with next_cursor, or before opening a different source save a reading "
+                    "note covering this and every earlier uncheckpointed sequential receipt for the source; a "
+                    "complete source analysis is also valid."
+                ),
+            },
+            "source_analysis_guidance": (
+                {
+                    "recommended_next_action": "save_source_analysis",
+                    "reason": (
+                        "This source has a byte-identical persisted representation in an earlier source. "
+                        "Record it as readable with uniqueness=duplicate and the returned "
+                        "duplicate_of_source_ref; do not classify a duplicate as not_target_content."
+                    ),
+                    "duplicate_of_source_ref": exact_duplicate["source_ref"],
+                    "exact_duplicate_verified": True,
+                }
+                if exact_duplicate
+                else (
+                    {
+                        "recommended_next_action": "save_source_analysis",
+                        "reason": "Sequential reading reached EOF; synthesize this source before switching.",
+                    }
+                    if page["eof"]
+                    else {
+                        "recommended_next_action": "continue_read_source",
+                        "reason": (
+                            "More sequential text remains. Continue with next_cursor. If you deliberately stop "
+                            "early, inspect every structure page and save a reading note before switching."
+                        ),
+                    }
+                )
+            ),
+            **({"exact_duplicate": exact_duplicate} if exact_duplicate else {}),
+            # Put controls before source text in the serialized result so they
+            # are visible before a long passage payload.
+            "passages": passages,
             "range": _model_range(page),
-            "returned_chars": len(page["text"]),
+            "returned_chars": sum(len(item["text"]) for item in passages),
             "total_chars": page["total_chars"],
             "cursor": cursor,
-            "next_cursor": next_cursor,
-            "eof": page["eof"],
-            "receipt_ref": receipt_ref,
             # The model sees this payload only after the provider received the
             # range. Durable state stays pending until that response succeeds.
             "delivery_status": READ_RECEIPT_DELIVERY_DELIVERED,
@@ -344,23 +409,52 @@ class EvidenceSourceToolsMixin:
         if "error" in receipts:
             return {"found": False, **receipts, "results": []}
         receipt_refs = receipts["receipt_refs"]
-        results = [
-            {
-                "text": item["text"],
-                "range": _model_range(item),
-                "returned_chars": len(item["text"]),
-                "window_ref": register_model_window_ref(
-                    self,
-                    source_ref=source_ref,
-                    canonical_ref=item["window_ref"],
-                ),
-                **_model_navigation_locator(item["locator"]),
-                "locator_type": item["locator_type"],
-                "boundary_kind": item["boundary_kind"],
-                "receipt_ref": receipt_refs[index],
-            }
-            for index, item in enumerate(ranges)
-        ]
+        source_text = _owner_source_version_text(self, version)
+        results = []
+        for index, item in enumerate(ranges):
+            receipt_ref = receipt_refs[index]
+            passages = receipts["passages_by_receipt_ref"][receipt_ref]
+            match_text = "".join(str(passage.get("text") or "") for passage in passages)
+            context = expanded_search_context(
+                source_version_id=version.id,
+                text=source_text,
+                match_start=int(item["start_offset"]),
+                match_end=int(item["end_offset"]),
+                max_chars=SOURCE_NAVIGATION_SEARCH_MAX_CHARS,
+            )
+            model_context_ref = register_model_window_ref(
+                self,
+                source_ref=source_ref,
+                canonical_ref=str(context["window_ref"]),
+            )
+            results.append(
+                {
+                    "match_text": match_text,
+                    "range": _model_range(item),
+                    "context_range": {
+                        "start_offset": int(context["start_offset"]),
+                        "end_offset": int(context["end_offset"]),
+                        "offset_unit": "unicode_codepoint",
+                        "end_exclusive": True,
+                    },
+                    "returned_chars": len(match_text),
+                    "window_ref": model_context_ref,
+                    **_model_navigation_locator(item["locator"]),
+                    "locator_type": item["locator_type"],
+                    "boundary_kind": item["boundary_kind"],
+                    "receipt_ref": receipt_ref,
+                    "navigation_only": True,
+                    "exact_read_call": {
+                        "tool": "read_source_window",
+                        "arguments": {
+                            "source_ref": source_ref,
+                            "window_ref": model_context_ref,
+                            "locator": "",
+                            "max_chars": SOURCE_NAVIGATION_SEARCH_MAX_CHARS,
+                        },
+                    },
+                }
+            )
         await save_tool_trace(
             self.db,
             generation_run_id=self.run.id,
@@ -393,6 +487,34 @@ class EvidenceSourceToolsMixin:
             result["_runtime_receipt_delivery"] = {"receipt_refs": receipt_refs}
         return result
 
+    async def _triage_exact_duplicate_predecessor(
+        self,
+        source_ref: str,
+    ) -> dict[str, Any] | None:
+        set_id = str(getattr(self, "triage_current_set_id", None) or "")
+        if not set_id:
+            return None
+        workspace = await load_source_triage_workspace(self.db, self.run.id)
+        source_set = next(
+            (
+                item
+                for item in (workspace or {}).get("source_sets") or []
+                if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
+            ),
+            None,
+        )
+        if source_set is None:
+            return None
+        context_loader = getattr(self, "_source_ref_context", None)
+        if not callable(context_loader):
+            return None
+        return await exact_duplicate_predecessor(
+            self.db,
+            ref_context=await context_loader(),
+            ordered_source_refs=[str(value) for value in source_set.get("source_refs") or []],
+            source_ref=source_ref,
+        )
+
     async def _persist_source_read_receipts(
         self,
         *,
@@ -403,7 +525,7 @@ class EvidenceSourceToolsMixin:
         request_metadata: dict[str, Any],
     ) -> dict[str, Any]:
         if not ranges:
-            return {"receipt_refs": []}
+            return {"receipt_refs": [], "passages_by_receipt_ref": {}}
         workspace = await load_source_triage_workspace(self.db, self.run.id)
         set_id = str(
             getattr(self, "triage_current_set_id", None)
@@ -442,6 +564,8 @@ class EvidenceSourceToolsMixin:
             if isinstance(item, dict) and str(item.get("receipt_ref") or "")
         }
         receipt_refs: list[str] = []
+        passages_by_receipt_ref: dict[str, list[dict[str, Any]]] = {}
+        allow_timestamps = await self._source_allows_timestamp_locators(version)
         for item in ranges:
             start_offset = int(item["start_offset"])
             end_offset = int(item["end_offset"])
@@ -455,7 +579,14 @@ class EvidenceSourceToolsMixin:
                 read_kind=read_kind,
             )
             receipt_refs.append(receipt_ref)
-            existing.setdefault(
+            passages = source_passages_for_range(
+                source_version_id=version.id,
+                text=text,
+                start_offset=start_offset,
+                end_offset=end_offset,
+                allow_timestamps=allow_timestamps,
+            )
+            stored_receipt = existing.setdefault(
                 receipt_ref,
                 {
                     "receipt_ref": receipt_ref,
@@ -471,10 +602,21 @@ class EvidenceSourceToolsMixin:
                     "next_cursor": (receipt_ref if read_kind == "sequential" and not bool(item.get("eof")) else ""),
                     "eof": bool(item.get("eof")),
                     "request": dict(request_metadata),
+                    "passage_refs": [str(passage["passage_ref"]) for passage in passages],
                     **({"structure": item["structure"]} if isinstance(item.get("structure"), dict) else {}),
                     "delivery_status": READ_RECEIPT_DELIVERY_PENDING,
                     "created_at": workspace_now(),
                 },
+            )
+            stored_receipt["passage_refs"] = [
+                str(passage["passage_ref"]) for passage in passages
+            ]
+            # Canonical signed refs remain backend-only. The model receives
+            # short handles that are durably mapped inside the receipt.
+            passages_by_receipt_ref[receipt_ref] = attach_source_passage_handles(
+                {**workspace, "source_read_receipts": list(existing.values())},
+                receipt=stored_receipt,
+                passages=passages,
             )
         workspace["source_read_receipts"] = list(existing.values())
         await save_source_triage_workspace(
@@ -482,7 +624,106 @@ class EvidenceSourceToolsMixin:
             generation_run_id=self.run.id,
             workspace=workspace,
         )
-        return {"receipt_refs": receipt_refs}
+        return {
+            "receipt_refs": receipt_refs,
+            "passages_by_receipt_ref": passages_by_receipt_ref,
+        }
+
+    async def materialize_source_passages(
+        self,
+        *,
+        source_ref: str,
+        passage_refs: list[str],
+        allowed_read_kinds: set[str] | None = None,
+    ) -> dict[str, Any]:
+        """Turn delivered passages into canonical EvidenceItems without another model read."""
+
+        version = await self._resolve_source_version(
+            source_id="",
+            source_version_id="",
+            source_ref=source_ref,
+            version_ref="",
+        )
+        if version is None:
+            return {"accepted": False, "error": "source_version_unavailable_for_passage"}
+        canonical_source_ref = await self._source_ref_for_id(version.source_id)
+        if canonical_source_ref != source_ref:
+            return {"accepted": False, "error": "passage_source_ref_mismatch"}
+        text = _owner_source_version_text(self, version)
+        workspace = await load_source_triage_workspace(self.db, self.run.id)
+        set_id = str(getattr(self, "triage_current_set_id", None) or "")
+        delivered_refs, ref_error = validate_delivered_passage_refs(
+            workspace or {},
+            set_id=set_id,
+            source_ref=source_ref,
+            passage_refs=passage_refs,
+            allowed_read_kinds=allowed_read_kinds,
+        )
+        requested = list(dict.fromkeys(str(value) for value in passage_refs if str(value).strip()))
+        if ref_error:
+            return ref_error
+        resolved_passages: list[tuple[str, str, int, int]] = []
+        for model_passage_ref in requested:
+            canonical_passage_ref = delivered_refs[model_passage_ref]
+            try:
+                resolved = resolve_source_passage_ref(
+                    canonical_passage_ref,
+                    source_version_id=version.id,
+                    text=text,
+                )
+            except ValueError as exc:
+                return {
+                    "accepted": False,
+                    "error": str(exc),
+                    "source_ref": source_ref,
+                    "invalid_passage_refs": [model_passage_ref],
+                    **passage_ref_repair_payload(
+                        [model_passage_ref],
+                        available_ref_map=delivered_refs,
+                    ),
+                }
+            resolved_passages.append(
+                (
+                    model_passage_ref,
+                    canonical_passage_ref,
+                    int(resolved["start_offset"]),
+                    int(resolved["end_offset"]),
+                )
+            )
+        evidence_ids: list[str] = []
+        for model_passage_ref, canonical_passage_ref, start_offset, end_offset in resolved_passages:
+            locator = await self._read_source_window(
+                version,
+                locator=canonical_passage_ref,
+                max_chars=end_offset - start_offset,
+            )
+            snippet, locator_text, locator_type, channel = locator
+            evidence = await persist_evidence_item(
+                self.db,
+                generation_run_id=self.run.id,
+                project_id=self.run.project_id,
+                source_id=version.source_id,
+                source_version_id=version.id,
+                provider=None,
+                retrieval_channel=channel,
+                purpose="triage_source_finding",
+                search_result_index=0,
+                score=1.0,
+                snippet_text=snippet,
+                normalized_quote_text=_normalize(snippet),
+                locator_text=locator_text,
+                locator_type=locator_type,
+                evidence_strength=EvidenceStrength.EXACT,
+                metadata={
+                    "source_passage": True,
+                    "passage_ref": canonical_passage_ref,
+                    "start_offset": start_offset,
+                    "end_offset": end_offset,
+                },
+            )
+            await self._mark_evidence_exact_read(evidence, method="source_passage_materialization")
+            evidence_ids.append(str(evidence.id))
+        return {"accepted": True, "evidence_ids": evidence_ids}
 
     async def _resolve_source_read_cursor(
         self,
@@ -494,11 +735,11 @@ class EvidenceSourceToolsMixin:
     ) -> dict[str, Any]:
         if not cursor:
             return {"canonical_cursor": ""}
-        workspace = await load_source_triage_workspace(self.db, self.run.id)
-        set_id = str(
-            getattr(self, "triage_current_set_id", None)
-            or ((workspace or {}).get("current_set") or {}).get("set_id")
-            or ""
+        set_id = str(getattr(self, "triage_current_set_id", None) or "")
+        workspace = (
+            await load_source_triage_workspace(self.db, self.run.id)
+            if set_id
+            else None
         )
         receipt = next(
             (
@@ -580,7 +821,7 @@ class EvidenceSourceToolsMixin:
         if guard_error:
             return guard_error
         ref_error = await self._invalid_source_or_version_ref_error(
-            source_ref=str(args.get("source_ref") or ""),
+            source_ref=requested_source_ref,
             version_ref=str(args.get("version_ref") or ""),
         )
         if ref_error:
@@ -588,87 +829,75 @@ class EvidenceSourceToolsMixin:
         version = await self._resolve_source_version(
             source_id=str(args.get("source_id") or ""),
             source_version_id=str(args.get("source_version_id") or ""),
-            source_ref=str(args.get("source_ref") or ""),
+            source_ref=requested_source_ref,
             version_ref=str(args.get("version_ref") or ""),
         )
         if version is None:
             return {"found": False, "error": "No readable source version in this run corpus view."}
-        max_items = max(1, min(int(args.get("max_items") or 24), 24))
         source_ref = await self._source_ref_for_id(version.source_id)
-        requested_cursor = str(args.get("cursor") or "").strip()
-        canonical_cursor = ""
-        if requested_cursor:
-            canonical_cursor = resolve_model_window_ref(self, requested_cursor) or (
-                requested_cursor if is_window_ref(requested_cursor) else ""
-            )
-            if not canonical_cursor:
-                recovery = await self._source_window_recovery_payload(source_ref=source_ref, version=version)
-                return {
-                    "found": False,
-                    "error": "invalid_or_stale_source_window_cursor",
-                    **recovery,
-                }
-        try:
-            page = await self._sequential_source_window_page(
-                version,
-                cursor=canonical_cursor,
-                max_windows=max_items,
-            )
-        except ValueError:
-            recovery = await self._source_window_recovery_payload(source_ref=source_ref, version=version)
-            return {
-                "found": False,
-                "error": "invalid_or_stale_source_window_cursor",
-                **recovery,
-            }
-        windows = page["windows"]
-        if not windows:
+        text = _owner_source_version_text(self, version)
+        if not text:
             load_error = _owner_source_version_text_error_payload(self, version)
-            if load_error:
-                return {"found": False, "source_ref": source_ref, "items": [], **load_error}
+            return {"found": False, "source_ref": source_ref, **(load_error or {"error": "source_has_no_readable_text"})}
+        set_id = str(getattr(self, "triage_current_set_id", None) or "")
+        workspace = (
+            await load_source_triage_workspace(self.db, self.run.id)
+            if set_id
+            else None
+        )
+        if set_id and workspace is None:
             return {
                 "found": False,
+                "accepted": False,
+                "error": "triage_workspace_receipt_unavailable",
                 "source_ref": source_ref,
-                "items": [],
-                "error": "source_has_no_readable_text",
+                "message": "The source structure was not returned because it could not be recorded durably.",
+                "next_action": "Retry inspect_source after the triage workspace is available.",
             }
-        items = []
-        for item in windows:
-            preview_text = model_preview_text(item["snippet_text"])
-            preview = preview_text[:INSPECT_SOURCE_PREVIEW_CHARS]
-            items.append(
-                {
-                    "window_ref": register_model_window_ref(
-                        self,
-                        source_ref=source_ref,
-                        canonical_ref=item["window_ref"],
-                    ),
-                    **_model_navigation_locator(item["locator_text"]),
-                    "locator_type": item["locator_type"],
-                    "preview": preview,
-                    "preview_chars": len(preview),
-                    "preview_omitted_chars": max(0, len(preview_text) - len(preview)),
-                }
-            )
-        return {
-            "found": bool(items),
+        content_sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        cursor = str(args.get("cursor") or "").strip()
+        placeholder_receipt_ref = (
+            f"structure_receipt:{'0' * 24}" if workspace is not None and set_id else ""
+        )
+        payload = {
             "source_ref": source_ref,
             "kind": version.kind,
-            "items": items,
-            "cursor": requested_cursor,
-            "next_cursor": (
-                register_model_window_ref(
-                    self,
-                    source_ref=source_ref,
-                    canonical_ref=page["next_cursor"],
-                )
-                if page["next_cursor"]
-                else ""
+            **build_source_structure_page(
+                text=text,
+                source_version_id=version.id,
+                allow_timestamps=await self._source_allows_timestamp_locators(version),
+                cursor=cursor,
+                max_items=max(1, min(int(args.get("max_items") or 24), 24)),
+                delivery_receipt_ref=placeholder_receipt_ref,
             ),
-            "page_start": page["page_start"],
-            "page_end": page["page_end"],
-            "total_chars": page["total_chars"],
         }
+        if workspace is None or not set_id or payload.get("found") is not True:
+            return payload
+        receipt_ref = source_structure_receipt_ref(
+            set_id=set_id,
+            source_ref=source_ref,
+            source_version_id=str(version.id),
+            content_sha256=content_sha256,
+            cursor=str(payload.get("cursor") or "0"),
+            returned_count=int(payload.get("returned_count") or 0),
+        )
+        payload["structure_receipt_ref"] = receipt_ref
+        stage_source_structure_page(
+            workspace,
+            set_id=set_id,
+            source_ref=source_ref,
+            source_version_id=str(version.id),
+            content_sha256=content_sha256,
+            payload=payload,
+            receipt_ref=receipt_ref,
+        )
+        await save_source_triage_workspace(
+            self.db,
+            generation_run_id=self.run.id,
+            workspace=workspace,
+        )
+        payload["_runtime_receipt_delivery"] = {"receipt_refs": [receipt_ref]}
+        return payload
 
     async def read_source_window_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         requested_source_ref = str(args.get("source_ref") or "").strip()
@@ -741,6 +970,17 @@ class EvidenceSourceToolsMixin:
             if "error" in receipt_result:
                 return {"found": False, **receipt_result}
             receipt = receipt_result["receipt"]
+        elif (
+            window_ref
+            and requested_source_ref
+            and getattr(self, "triage_current_set_id", None)
+        ):
+            receipt = await self._delivered_search_receipt_for_window(
+                window_ref=window_ref,
+                requested_source_ref=requested_source_ref,
+            )
+            if receipt is not None:
+                receipt_ref = str(receipt.get("receipt_ref") or "")
         requested_version_ref = (
             ""
             if parsed_window_ref is not None or receipt is not None
@@ -795,10 +1035,17 @@ class EvidenceSourceToolsMixin:
                     "found": False,
                     "error": "window_ref_source_mismatch" if model_window_ref else "source_version_mismatch",
                 }
-        guard_error = await target_aware_triage_read_guard(
-            self,
-            target_source_refs=[canonical_source_ref],
-            exact_read=True,
+        # Materializing evidence from a delivered receipt reveals no new source
+        # text. The original read retains its own checkpoint obligation, but
+        # this extraction must not create a false source switch.
+        guard_error = (
+            None
+            if receipt is not None
+            else await target_aware_triage_read_guard(
+                self,
+                target_source_refs=[canonical_source_ref],
+                exact_read=True,
+            )
         )
         if guard_error:
             return guard_error
@@ -886,9 +1133,13 @@ class EvidenceSourceToolsMixin:
                 evidence_id=str(payload["evidence_id"]),
                 exact_read_complete=True,
             )
-        exact_read_control = await self._record_triage_exact_read(
-            source_ref=canonical_source_ref,
-            evidence_ids=[str(payload["evidence_id"])],
+        exact_read_control = (
+            None
+            if receipt is not None
+            else await self._record_triage_exact_read(
+                source_ref=canonical_source_ref,
+                evidence_ids=[str(payload["evidence_id"])],
+            )
         )
         await save_tool_trace(
             self.db,
@@ -972,6 +1223,34 @@ class EvidenceSourceToolsMixin:
             }
         return {"receipt": receipt}
 
+    async def _delivered_search_receipt_for_window(
+        self,
+        *,
+        window_ref: str,
+        requested_source_ref: str,
+    ) -> dict[str, Any] | None:
+        """Reuse a delivered search range instead of treating evidence selection as a new read."""
+
+        workspace = await load_source_triage_workspace(self.db, self.run.id)
+        set_id = str(
+            getattr(self, "triage_current_set_id", None)
+            or ((workspace or {}).get("current_set") or {}).get("set_id")
+            or ""
+        )
+        return next(
+            (
+                item
+                for item in (workspace or {}).get("source_read_receipts") or []
+                if isinstance(item, dict)
+                and str(item.get("set_id") or "") == set_id
+                and str(item.get("source_ref") or "") == requested_source_ref
+                and str(item.get("read_kind") or "") == "search"
+                and str(item.get("window_ref") or "") == window_ref
+                and source_read_receipt_is_delivered(item)
+            ),
+            None,
+        )
+
     def _source_read_receipt_window(
         self,
         *,
@@ -986,92 +1265,17 @@ class EvidenceSourceToolsMixin:
         text = _owner_source_version_text(self, version)
         if not text:
             load_error = _owner_source_version_text_error_payload(self, version)
-            if load_error:
-                return load_error
-            return {"error": "source_has_no_readable_text"}
-        content_sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
-        try:
-            receipt_start = int(receipt.get("start_offset"))
-            receipt_end = int(receipt.get("end_offset"))
-            receipt_total = int(receipt.get("total_chars"))
-        except (TypeError, ValueError):
-            return {"error": "invalid_source_read_receipt_range"}
-        if (
-            str(receipt.get("source_ref") or "") != source_ref
-            or str(receipt.get("source_version_id") or "") != str(version.id)
-            or str(receipt.get("content_sha256") or "") != content_sha256
-            or receipt_total != len(text)
-            or receipt_start < 0
-            or receipt_end <= receipt_start
-            or receipt_end > len(text)
-        ):
-            return {
-                "error": "source_read_receipt_identity_mismatch",
-                "message": "The pinned source text no longer matches this durable read receipt.",
-            }
-
-        selected_start = receipt_start
-        selected_end = receipt_end
-        if quote:
-            receipt_text = text[receipt_start:receipt_end]
-            first = receipt_text.find(quote)
-            if first < 0:
-                return {
-                    "error": "quote_not_found_in_source_read_receipt",
-                    "receipt_range": {
-                        "start_offset": receipt_start,
-                        "end_offset": receipt_end,
-                    },
-                }
-            second = receipt_text.find(quote, first + 1)
-            if second >= 0:
-                return {
-                    "error": "quote_ambiguous_in_source_read_receipt",
-                    "message": "The exact quote occurs more than once; use absolute start_offset/end_offset.",
-                }
-            selected_start = receipt_start + first
-            selected_end = selected_start + len(quote)
-        elif start_offset not in {None, ""} and end_offset not in {None, ""}:
-            try:
-                selected_start = int(start_offset)
-                selected_end = int(end_offset)
-            except (TypeError, ValueError):
-                return {"error": "receipt_subrange_offsets_must_be_integers"}
-            if selected_start < receipt_start or selected_end > receipt_end or selected_end <= selected_start:
-                return {
-                    "error": "receipt_subrange_out_of_bounds",
-                    "receipt_range": {
-                        "start_offset": receipt_start,
-                        "end_offset": receipt_end,
-                    },
-                }
-        if selected_end - selected_start > max_chars:
-            return {
-                "error": "receipt_range_too_large_for_exact_evidence",
-                "selected_chars": selected_end - selected_start,
-                "max_chars": max_chars,
-                "receipt_range": {
-                    "start_offset": receipt_start,
-                    "end_offset": receipt_end,
-                },
-                "next_action": (
-                    "Retry with an exact quote or absolute start_offset/end_offset inside the receipt range."
-                ),
-            }
-        try:
-            durable_window_ref = create_window_ref(
-                source_version_id=version.id,
-                text=text,
-                start_offset=selected_start,
-                end_offset=selected_end,
-            )
-        except WindowRefError:
-            return {"error": "invalid_source_read_receipt_range"}
-        return {
-            "window_ref": durable_window_ref,
-            "start_offset": selected_start,
-            "end_offset": selected_end,
-        }
+            return load_error or {"error": "source_has_no_readable_text"}
+        return select_receipt_evidence_range(
+            text=text,
+            receipt=receipt,
+            source_ref=source_ref,
+            source_version_id=version.id,
+            quote=quote,
+            start_offset=start_offset,
+            end_offset=end_offset,
+            max_chars=max_chars,
+        )
 
     async def search_within_source_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         requested_source_ref = str(args.get("source_ref") or "").strip()

@@ -343,6 +343,52 @@ async def test_successful_research_read_marks_seed_as_inspected() -> None:
 
 
 @pytest.mark.asyncio
+async def test_repeated_exact_evidence_read_does_not_reopen_triage_analysis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2.tools import evidence_exact_read
+
+    evidence_id = uuid.uuid4()
+    recorder_calls: list[dict] = []
+
+    class EvidenceTools:
+        run = SimpleNamespace(id=uuid.uuid4())
+        run_view = None
+
+        async def _triage_read_guard_error(self):
+            return None
+
+        async def _evidence_in_run(self, _requested_id: str):
+            return SimpleNamespace(
+                id=evidence_id,
+                source_id="source-1",
+                source_version_id="version-1",
+                snippet_text="Grounded text.",
+                metadata_={},
+            )
+
+        async def _triage_scope_error_for_source_ids(self, _source_ids: list[str]):
+            return None
+
+        async def _source_ref_for_id(self, _source_id) -> str:
+            return "S01"
+
+        async def _evidence_detail_payload(self, _item, *, max_snippet_chars: int):
+            return {"evidence_id": str(evidence_id), "snippet_text": "Grounded text."}
+
+        async def _record_triage_exact_read(self, **kwargs):
+            recorder_calls.append(kwargs)
+            return {"analysis_pending": True}
+
+    monkeypatch.setattr(evidence_exact_read, "evidence_has_current_exact_read", lambda _owner, _item: True)
+    result = await read_evidence_tool_action(EvidenceTools(), {"evidence_id": str(evidence_id)})
+
+    assert result["found"] is True
+    assert "exact_read_control" not in result
+    assert recorder_calls == []
+
+
+@pytest.mark.asyncio
 async def test_planner_rejects_only_concretely_unassigned_handoff_questions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

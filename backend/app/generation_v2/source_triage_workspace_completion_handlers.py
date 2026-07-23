@@ -4,6 +4,7 @@ from typing import Any
 
 from app.generation_v2 import source_triage_workspace as workspace_api
 from app.generation_v2.persistence_contracts import semantic_field_error
+from app.generation_v2.model_authored_language import model_authored_language_error
 from app.generation_v2.source_triage_workspace_contracts import TRIAGE_SEMANTIC_FIELD_LIMITS
 from app.generation_v2.source_triage_workspace_state import (
     SOURCE_SET_KIND_COVERAGE,
@@ -16,6 +17,7 @@ from app.generation_v2.source_triage_read_checkpointing import (
     pending_exact_read_source_refs,
     source_refs_with_reads_newer_than_analysis,
 )
+from app.generation_v2.source_triage_question_state import question_outcome_is_current
 from app.generation_v2.tools.evidence_refs import build_source_ref_context, resolve_source_ref
 
 
@@ -58,6 +60,17 @@ class SourceTriageWorkspaceCompletionHandlersMixin:
         pending_comparison_refs = pending_comparison_source_refs(source_set)
         stale_analysis_refs = source_refs_with_reads_newer_than_analysis(current, set_id=set_id)
         if uncheckpointed_reads or pending_exact_refs or pending_comparison_refs or stale_analysis_refs:
+            blockers_by_source: dict[str, set[str]] = {}
+            for item in uncheckpointed_reads:
+                blockers_by_source.setdefault(str(item.get("source_ref") or ""), set()).add(
+                    "delivered_read_not_checkpointed"
+                )
+            for source_ref in pending_exact_refs:
+                blockers_by_source.setdefault(source_ref, set()).add("new_exact_material_not_in_analysis")
+            for source_ref in pending_comparison_refs:
+                blockers_by_source.setdefault(source_ref, set()).add("comparison_not_in_analysis")
+            for source_ref in stale_analysis_refs:
+                blockers_by_source.setdefault(source_ref, set()).add("read_state_signature_changed")
             return {
                 "accepted": False,
                 "error": "source_reading_not_reconciled",
@@ -67,6 +80,19 @@ class SourceTriageWorkspaceCompletionHandlersMixin:
                 "pending_exact_source_refs": pending_exact_refs,
                 "pending_comparison_source_refs": pending_comparison_refs,
                 "stale_source_analysis_refs": stale_analysis_refs,
+                "source_blockers": [
+                    {
+                        "source_ref": source_ref,
+                        "reasons": sorted(reasons),
+                        "next_action": (
+                            "Save a reading note first."
+                            if reasons == {"delivered_read_not_checkpointed"}
+                            else "Resave one complete source analysis incorporating the listed new material."
+                        ),
+                    }
+                    for source_ref, reasons in sorted(blockers_by_source.items())
+                    if source_ref
+                ],
                 "next_action": (
                     "Save durable reading notes where reading is still in progress, and resave the complete source "
                     "analysis for every source with newer exact or comparison material. Then refresh stale outcomes."
@@ -171,7 +197,14 @@ class SourceTriageWorkspaceCompletionHandlersMixin:
                 "missing_question_ids": missing_outcome_ids,
             }
         stale_outcome_ids = sorted(
-            question_id for question_id, outcome in outcomes_by_question.items() if bool(outcome.get("is_stale"))
+            question_id
+            for question_id, outcome in outcomes_by_question.items()
+            if not question_outcome_is_current(
+                outcome,
+                workspace=current,
+                source_set=source_set,
+                question_id=question_id,
+            )
         )
         if stale_outcome_ids:
             return {
@@ -246,6 +279,16 @@ class SourceTriageWorkspaceCompletionHandlersMixin:
             if reason_error:
                 return reason_error
             deferred_sources.append({"source_ref": source_ref, "reason": reason})
+        language_error = model_authored_language_error(
+            output_language=str((current.get("intent") or {}).get("language") or ""),
+            fields={
+                "summary": summary,
+                "deferred_reason": deferred_reason,
+                "deferred_sources": [item["reason"] for item in deferred_sources],
+            },
+        )
+        if language_error:
+            return language_error
         requested_deferred_reasons = {item["source_ref"]: item["reason"] for item in deferred_sources}
         assessment_deferred_refs = {
             source_ref

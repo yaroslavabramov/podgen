@@ -54,6 +54,12 @@ def normalize_workspace(workspace: dict[str, Any]) -> dict[str, Any]:
     workspace.setdefault("coverage_outcomes", [])
     workspace.setdefault("coverage_syntheses", [])
     workspace.setdefault("source_triage_finalizer_reads", {})
+    workspace.setdefault("source_triage_set_semantic_reviews", {})
+    workspace.setdefault("source_triage_set_semantic_self_checks", {})
+    workspace.setdefault("source_triage_semantic_review_deliveries", [])
+    workspace.setdefault("source_triage_question_workbench_deliveries", [])
+    workspace.setdefault("source_triage_finding_catalog_deliveries", [])
+    workspace.setdefault("source_structure_pages", [])
     workspace.setdefault("triage_semantic_revision", 0)
     workspace.setdefault("processed_sets", [])
     workspace.setdefault("deferred_sources", [])
@@ -346,6 +352,7 @@ def _reading_note_has_semantic_memory(note: dict[str, Any]) -> bool:
             "what_was_established",
             "boundaries",
             "unread_regions",
+            "unread_risk_assessment",
             "why_unread_is_safe",
         )
     ) or any(note.get(field) for field in ("question_links", "doubts", "next_checks"))

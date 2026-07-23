@@ -19,13 +19,19 @@ def evidence_source_read_tools(owner: Any) -> list[AgentTool]:
         AgentTool(
             name="read_source",
             description=(
-                "Read real contiguous text from one source for set-agent reasoning without creating an EvidenceItem. "
-                "Start with cursor=''. The first result includes bounded structure metadata: full marker counts, a "
-                "representative heading/timestamp index, and explicit omitted_count, never content previews. Short sources "
+                "Read real contiguous text from one source as lossless stable passages. "
+                "Start with cursor=''. The first result includes the first bounded structure page: full marker counts, "
+                "total_count, explicit omitted_count and next_structure_cursor, never content previews. Pass only "
+                "structure.next_structure_cursor to inspect_source.cursor. The top-level next_cursor belongs only to "
+                "the next read_source call. Short sources "
                 "are returned whole; long sources return one exact range ending near a completed text block. Continue "
-                "with next_cursor; ranges are contiguous and eof marks the end. text is the complete returned range, "
-                "not a preview and not silently shortened. receipt_ref records that exact range in durable set memory; "
-                "the visible tool result has delivery_status=delivered and is usable immediately."
+                "with next_cursor; ranges are contiguous and eof marks the end. passages concatenate to the complete "
+                "returned range. Each passage includes its full text and passage_ref; none is a preview or silently shortened. "
+                "receipt_ref records that exact range in durable set memory; "
+                "the visible tool result has delivery_status=delivered and is usable immediately. If the result's "
+                "before_opening_different_source.required is true, save_reading_note or save_source_analysis for "
+                "that source before calling any read tool for a different source. Read source_analysis_guidance "
+                "before the passages; it identifies remaining sequential work or a verified exact duplicate."
             ),
             parameters={
                 "type": "object",
@@ -46,10 +52,12 @@ def evidence_source_read_tools(owner: Any) -> list[AgentTool]:
         AgentTool(
             name="search_source",
             description=(
-                "Search inside exactly one source for navigation without creating EvidenceItems. Returns real exact "
-                "context ranges, not snippets or previews. Each result includes its full text, offsets, durable "
-                "receipt_ref, and a stable window_ref that can be passed directly to read_source_window for evidence "
-                "creation. The visible result has delivery_status=delivered and is usable immediately."
+                "Search inside exactly one source for navigation. Returns real lossless match_text and durable "
+                "receipt_refs, but deliberately returns no passage_ref because a search match cannot support a "
+                "persisted finding. Each result also contains a stable context window of up to 3000 characters. "
+                "Copy its exact_read_call unchanged into read_source_window; do not invent quotes or extend receipt "
+                "offsets. Use the returned evidence_id. Search does not "
+                "establish that unmatched regions are irrelevant."
             ),
             parameters={
                 "type": "object",
@@ -79,14 +87,10 @@ def evidence_source_read_tools(owner: Any) -> list[AgentTool]:
         AgentTool(
             name="inspect_source",
             description=(
-                "Inspect one source as a contiguous page of stable readable windows. Start with cursor=''; follow "
-                "next_cursor when you need later areas or complete coverage. This makes every character of a long "
-                "single-section source reachable without truncation or sampling gaps. Returned previews are "
-                "orientation only; exact-read a "
-                "window_ref before using its text as durable support. Each preview reports preview_chars and "
-                "preview_omitted_chars explicitly. "
-                "Pass source_ref; the backend selects the readable version from the pinned run corpus. "
-                "Use this when you need locators before exact reads; it does not create evidence."
+                "Inspect document structure without reading its content. Returns headings, pages, timestamps, or "
+                "coarse ranges with offsets and stable window_ref handles. Start with cursor='' and follow "
+                "next_cursor. In triage, delivered pages remain available in source_memory after continuation. Use "
+                "read_source for actual reading; this tool creates no evidence."
             ),
             parameters={
                 "type": "object",
@@ -96,6 +100,7 @@ def evidence_source_read_tools(owner: Any) -> list[AgentTool]:
                     "cursor": {"type": "string"},
                 },
                 "required": ["source_ref", "max_items", "cursor"],
+                "additionalProperties": False,
             },
             handler=lambda args: owner._call_with_research_commit_advisory(owner.inspect_source_tool, args),
         ),
@@ -103,8 +108,9 @@ def evidence_source_read_tools(owner: Any) -> list[AgentTool]:
             name="read_source_window",
             description=(
                 "Read one concrete local text window from a selected source and persist that window as an EvidenceItem. "
-                "This does not read the whole source. Prefer a durable receipt_ref returned by read_source or "
-                "search_source; it remains valid after worker restart. If that receipt covers more than max_chars, "
+                "This does not read the whole source. Prefer a durable receipt_ref returned by read_source, or copy "
+                "search_source.exact_read_call unchanged to read the stable expanded context around a match. "
+                "Receipts remain valid after worker restart. If a receipt covers more than max_chars, "
                 "select one exact quote or an absolute start_offset/end_offset inside its returned range. Alternatively "
                 "pass a window_ref returned by inspect_source/skim_source, or a concrete locator such as page, heading, "
                 "timestamp, beginning, or exact phrase. Exactly one of receipt_ref, window_ref, or locator must be "
@@ -112,7 +118,8 @@ def evidence_source_read_tools(owner: Any) -> list[AgentTool]:
                 "Timestamps are locators only for transcript/audio/video sources. An unresolved locator returns "
                 "locator_not_found and never substitutes the beginning of the source. "
                 "Pass source_ref; the backend selects the readable version from the pinned run corpus. "
-                "For PDF/document sources this uses extracted/page-marked text and returns a durable evidence_id."
+                "For PDF/document sources this uses extracted/page-marked text and returns a durable evidence_id. "
+                "In triage, this is the required bridge from a search result to exact finding evidence."
             ),
             parameters={
                 "type": "object",

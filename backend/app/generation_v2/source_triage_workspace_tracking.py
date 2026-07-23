@@ -22,7 +22,7 @@ from app.models.generation_v2 import V2ToolTrace
 SOURCE_SET_COMMIT_CONTROL_CODE = "source_set_state_commit_required"
 SOURCE_SET_COMMIT_ACTIONS = [
     "save_source_analysis",
-    "upsert_coverage_outcome",
+    "resolve_triage_question",
     "finish_triage_source_set",
 ]
 

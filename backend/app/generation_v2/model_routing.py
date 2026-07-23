@@ -24,8 +24,14 @@ def generation_v2_model_for_agent(phase: str, agent_name: str, *, default_model:
     agent_value = str(agent_name)
     by_agent = {
         V2AgentName.SOURCE_TRIAGE.value: settings.generation_v2_source_triage_model,
-        V2AgentName.SOURCE_TRIAGE_PLANNER.value: settings.generation_v2_source_triage_model,
-        V2AgentName.SOURCE_TRIAGE_FINALIZER.value: settings.generation_v2_source_triage_model,
+        V2AgentName.SOURCE_TRIAGE_PLANNER.value: (
+            settings.generation_v2_source_triage_planner_model
+            or settings.generation_v2_source_triage_model
+        ),
+        V2AgentName.SOURCE_TRIAGE_FINALIZER.value: (
+            settings.generation_v2_source_triage_finalizer_model
+            or settings.generation_v2_source_triage_model
+        ),
         V2AgentName.SOURCE_ACQUISITION.value: settings.generation_v2_source_acquisition_model,
         V2AgentName.RESEARCH_PLANNER.value: settings.generation_v2_research_planner_model,
         V2AgentName.RESEARCH_FINALIZER.value: settings.generation_v2_research_finalizer_model,
@@ -37,6 +43,12 @@ def generation_v2_model_for_agent(phase: str, agent_name: str, *, default_model:
     }
     if agent_value.startswith(V2AgentPrefix.SOURCE_ACQUISITION_ROUND.value):
         return _configured_model(settings.generation_v2_source_acquisition_model) or fallback
+    if agent_value.startswith("source_triage_set_agent_"):
+        return (
+            _configured_model(settings.generation_v2_source_triage_set_model)
+            or _configured_model(settings.generation_v2_source_triage_model)
+            or fallback
+        )
     if agent_value.startswith(V2AgentPrefix.RESEARCH_JOB.value):
         return (
             _configured_model(settings.generation_v2_research_job_model)

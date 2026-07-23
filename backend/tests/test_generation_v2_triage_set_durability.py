@@ -12,6 +12,19 @@ from app.generation_v2.source_triage_workspace_tool_handlers import (
     SourceTriageWorkspaceToolHandlers,
 )
 from app.generation_v2.source_triage_workspace_tool_specs import source_triage_set_tools
+from app.generation_v2.source_triage_model_delivery import (
+    finding_catalog_receipt_ref,
+    question_workbench_receipt_ref,
+    stage_finding_catalog_page,
+    stage_question_workbench_page,
+)
+from app.generation_v2.source_triage_set_state_views import finding_catalog_page
+from app.generation_v2.source_triage_set_state_views import question_workbench_page
+from app.generation_v2.source_triage_set_state_views import question_workbench_signature
+from app.generation_v2.pipeline.source_triage_set_flow import (
+    _set_progress_state,
+    _set_runtime_progress_state,
+)
 from app.models.generation_v2 import EvidenceStrength
 
 
@@ -191,7 +204,7 @@ def _patch_workspace(monkeypatch: pytest.MonkeyPatch, workspace: dict) -> dict:
     return state
 
 
-def test_set_relation_tool_contract_requires_two_sided_evidence() -> None:
+def test_set_source_analysis_contract_defers_links_and_relations() -> None:
     async def handler(_args):
         return {"accepted": True}
 
@@ -200,12 +213,254 @@ def test_set_relation_tool_contract_requires_two_sided_evidence() -> None:
         for tool in source_triage_set_tools(handler, handler, handler)
         if tool.name == "save_source_analysis"
     )
-    relation_evidence = analysis_tool.parameters["properties"]["findings"]["items"][
+    finding_properties = analysis_tool.parameters["properties"]["findings"]["items"][
         "properties"
-    ]["source_relations"]["items"]["properties"]["evidence_ids"]
+    ]
 
-    assert relation_evidence["minItems"] == 2
-    assert "at least one item from current source_ref" in relation_evidence["description"]
+    assert "passage_refs" in finding_properties
+    assert "possible_question_ids" in finding_properties
+    assert "question_links" not in finding_properties
+    assert "source_relations" not in finding_properties
+
+
+def test_set_runtime_progress_keeps_output_language_after_compaction() -> None:
+    workspace = _workspace()
+    workspace["intent"] = {"language": "ru"}
+
+    progress = _set_runtime_progress_state(workspace, "set-1")
+
+    assert progress["output_language"] == "ru"
+
+
+@pytest.mark.asyncio
+async def test_question_resolution_atomically_writes_links_and_outcome(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    workspace = _workspace()
+    workspace["source_sets"][0]["source_refs"] = ["S01"]
+    workspace["source_order"] = ["S01"]
+    workspace["source_findings"] = [
+        {
+            **_finding(
+                finding_id="finding:S01:one",
+                evidence_id=evidence_id,
+                question_links=[],
+            ),
+            "set_id": "set-1",
+            "source_ref": "S01",
+            "source_id": source_id,
+            "support_explanation": "The exact passage establishes the bounded event.",
+        }
+    ]
+    workspace["source_assessments"] = [
+        {
+            "assessment_id": f"assessment:{source_id}",
+            "set_id": "set-1",
+            "source_ref": "S01",
+            "source_id": source_id,
+            "processing_status": "resolved",
+            "representation_status": "readable",
+            "disposition": "background",
+            "finding_ids": ["finding:S01:one"],
+            "no_findings_reason": "",
+        }
+    ]
+    state = _patch_workspace(monkeypatch, workspace)
+    catalog = finding_catalog_page(
+        workspace,
+        workspace["source_sets"][0],
+        cursor=0,
+        limit=100,
+    )
+    catalog_receipt_ref = finding_catalog_receipt_ref(
+        set_id="set-1",
+        snapshot_id=catalog["finding_catalog_snapshot_id"],
+        cursor=0,
+        returned_count=catalog["page"]["returned_count"],
+    )
+    stage_finding_catalog_page(
+        workspace,
+        source_set=workspace["source_sets"][0],
+        payload=catalog,
+        receipt_ref=catalog_receipt_ref,
+    )
+    workspace["source_triage_finding_catalog_deliveries"][0]["delivery_status"] = "delivered"
+    page = question_workbench_page(
+        workspace,
+        workspace["source_sets"][0],
+        question_id="q1",
+        cursor=0,
+        limit=100,
+    )
+    snapshot_id = page["workbench_snapshot_id"]
+    receipt_ref = question_workbench_receipt_ref(
+        set_id="set-1",
+        question_id="q1",
+        snapshot_id=snapshot_id,
+        cursor=0,
+        returned_count=page["page"]["returned_count"],
+    )
+    stage_question_workbench_page(
+        workspace,
+        source_set=workspace["source_sets"][0],
+        question_id="q1",
+        payload=page,
+        receipt_ref=receipt_ref,
+    )
+    workspace["source_triage_question_workbench_deliveries"][0]["delivery_status"] = "delivered"
+    handler = SourceTriageWorkspaceToolHandlers(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(source_cards=[_card(source_id, "A")]),
+        evidence_toolset=_EvidenceToolset(
+            {evidence_id: _evidence(evidence_id, source_id)},
+            {source_id: "S01"},
+        ),
+        current_set_id="set-1",
+    )
+
+    resolution_args = {
+        "question_id": "q1",
+        "workbench_snapshot_id": snapshot_id,
+        "requirement_results": [
+            {
+                "requirement_id": "q1:r1",
+                "status": "covered",
+                "finding_ids": ["finding:S01:one"],
+                "established_answer": "Событие установлено.",
+                "criterion_match_reason": "Находка прямо устанавливает событие.",
+                "unresolved_remainder": "",
+                "conflict_summary": "",
+                "deferred_reason": "",
+            }
+        ],
+    }
+    contradictory_args = {
+        **resolution_args,
+        "requirement_results": [
+            {
+                **resolution_args["requirement_results"][0],
+                "unresolved_remainder": "Причина всё ещё не установлена.",
+            }
+        ],
+    }
+    rejected = await handler.upsert_coverage_outcome_tool(contradictory_args)
+
+    assert rejected["error"] == "question_resolution_fields_contradict_status"
+    assert state["workspace"]["source_findings"][0]["question_links"] == []
+    assert state["workspace"]["coverage_outcomes"] == []
+
+    result = await handler.upsert_coverage_outcome_tool(resolution_args)
+
+    assert result["accepted"] is True
+    finding = state["workspace"]["source_findings"][0]
+    assert finding["question_links"] == [
+        {
+            "question_id": "q1",
+            "requirement_ids": ["q1:r1"],
+            "rationale": "Находка прямо устанавливает событие.",
+        }
+    ]
+    outcome = state["workspace"]["coverage_outcomes"][0]
+    assert outcome["status"] == "covered"
+    assert outcome["finding_ids"] == ["finding:S01:one"]
+    assert outcome["workbench_snapshot_id"] == snapshot_id
+
+
+def test_legacy_review_bookkeeping_does_not_count_as_semantic_progress() -> None:
+    workspace = _workspace()
+    before = _set_progress_state(workspace, "set-1")
+
+    workspace["source_triage_set_semantic_reviews"] = {
+        "set-1": {"signature": "snapshot", "read_part_indexes": [0], "complete": False}
+    }
+    after_review = _set_progress_state(workspace, "set-1")
+    workspace["source_triage_set_semantic_self_checks"] = {
+        "set-1": {"contract_version": "v2.semantic_self_check.2", "review_snapshot_id": "snapshot"}
+    }
+    after_self_check = _set_progress_state(workspace, "set-1")
+
+    assert after_review == before
+    assert after_self_check == after_review
+
+
+@pytest.mark.asyncio
+async def test_set_finishes_without_a_separate_semantic_review_protocol(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    workspace = _workspace()
+    workspace["intent"] = {"language": "ru"}
+    workspace["source_sets"][0]["source_refs"] = ["S01"]
+    workspace["source_order"] = ["S01"]
+    workspace["coverage_questions"][1]["parent_question_id"] = "q1"
+    _patch_workspace(monkeypatch, workspace)
+    evidence = _evidence(evidence_id, source_id)
+    handler = SourceTriageWorkspaceToolHandlers(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(source_cards=[_card(source_id, "A")]),
+        evidence_toolset=_EvidenceToolset({evidence_id: evidence}, {source_id: "S01"}),
+        current_set_id="set-1",
+    )
+    finding_id = "finding:S01:one"
+    saved = await handler.upsert_source_assessment_tool(
+        _analysis_args(
+            source_ref="S01",
+            findings=[
+                _finding(
+                    finding_id=finding_id,
+                    evidence_id=evidence_id,
+                    question_links=[
+                        {
+                            "question_id": "q1",
+                            "requirement_ids": ["q1:r1"],
+                            "rationale": "Direct support.",
+                        }
+                    ],
+                )
+            ],
+        )
+    )
+    outcome = await handler.upsert_coverage_outcome_tool(
+        _outcome_args(question_id="q1", requirement_id="q1:r1", finding_id=finding_id)
+    )
+    workspace["coverage_outcomes"][0]["workbench_snapshot_id"] = question_workbench_signature(
+        workspace,
+        workspace["source_sets"][0],
+        question_id="q1",
+    )
+    rejected_language = await handler.finish_triage_source_set_tool(
+        {
+            "set_id": "set-1",
+            "status": "mapped",
+            "summary": (
+                "This final summary is written entirely in English even though the requested output language "
+                "is Russian, so it must not be persisted."
+            ),
+            "deferred_reason": "",
+            "deferred_sources": [],
+        }
+    )
+    finish_args = {
+        "set_id": "set-1",
+        "status": "mapped",
+        "summary": "Источники разобраны, а результаты по вопросу сохранены.",
+        "deferred_reason": "",
+        "deferred_sources": [],
+    }
+
+    completed = await handler.finish_triage_source_set_tool(finish_args)
+
+    assert saved["accepted"] is True
+    assert outcome["accepted"] is True
+    assert rejected_language["error"] == "model_authored_prose_language_mismatch"
+    assert completed["accepted"] is True
 
 
 @pytest.mark.asyncio

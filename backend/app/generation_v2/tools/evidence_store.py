@@ -414,7 +414,7 @@ def _canonical_location_key(
 ) -> str:
     if str(evidence_strength) != str(EvidenceStrength.EXACT):
         return ""
-    window_ref = str(metadata.get("window_ref") or "").strip()
+    window_ref = str(metadata.get("window_ref") or metadata.get("passage_ref") or "").strip()
     if window_ref:
         try:
             window = parse_window_ref(window_ref)

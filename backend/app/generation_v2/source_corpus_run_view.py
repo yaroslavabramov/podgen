@@ -27,6 +27,41 @@ from app.models.generation_v2 import (
 from app.models.source import Source
 
 
+def corpus_manifest_hash(
+    *,
+    sources: list[Source],
+    source_versions: list[SourceVersion],
+    provider_files: list[ProviderCorpusFile],
+    canonical_source_version_ids: list[str],
+    skipped_sources: list[dict[str, Any]],
+    provider_index: ProviderCorpusIndex | None,
+) -> str:
+    payload = {
+        "sources": sorted({str(source.id) for source in sources}),
+        "versions": sorted({str(version.id) for version in source_versions}),
+        "provider_files": sorted(
+            {
+                file.provider_file_id
+                for file in provider_files
+                if file.provider_file_id and file.status == V2RecordStatus.READY
+            }
+        ),
+        "canonical_source_version_ids": sorted(
+            {str(value) for value in canonical_source_version_ids}
+        ),
+        "skipped_sources": sorted(
+            [dict(item) for item in skipped_sources],
+            key=lambda item: (
+                str(item.get("source_id") or ""),
+                str(item.get("reason") or ""),
+                str(item.get("canonical_version_id") or ""),
+            ),
+        ),
+        "provider_index_id": str(provider_index.id) if provider_index else None,
+    }
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+
+
 async def create_run_corpus_view(
     db: AsyncSession,
     run: GenerationRun,
@@ -79,15 +114,14 @@ async def create_run_corpus_view(
     status = V2RecordStatus.READY
     if not readiness["source_version_count"] or not readiness["usable_source_count"]:
         status = V2RecordStatus.FAILED
-    manifest_payload = {
-        "sources": selected_source_ids,
-        "versions": selected_version_ids,
-        "provider_files": eligible_provider_file_ids,
-        "canonical_source_version_ids": canonical_ids,
-        "skipped_sources": skipped,
-        "provider_index_id": str(provider_index.id) if provider_index else None,
-    }
-    manifest_hash = hashlib.sha256(json.dumps(manifest_payload, sort_keys=True).encode("utf-8")).hexdigest()
+    manifest_hash = corpus_manifest_hash(
+        sources=sources,
+        source_versions=source_versions,
+        provider_files=provider_files,
+        canonical_source_version_ids=canonical_ids,
+        skipped_sources=skipped,
+        provider_index=provider_index,
+    )
     # Serialize corpus revisions per run, including the first revision where no
     # RunCorpusView row exists yet.
     await db.execute(
@@ -236,6 +270,7 @@ async def load_current_run_corpus_view(
 
 
 __all__ = [
+    "corpus_manifest_hash",
     "create_run_corpus_view",
     "current_attempt_has_triage_history",
     "load_current_run_corpus_view",

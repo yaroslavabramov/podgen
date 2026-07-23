@@ -10,6 +10,7 @@ import pytest
 from app.generation_v2 import source_triage_workspace as workspace_api
 from app.generation_v2.schemas import SourceCard, SourceMap
 from app.generation_v2.source_triage_workspace_prompting import source_set_prompt_payload
+from app.generation_v2.source_triage_set_state_views import source_memory_page
 from app.generation_v2.source_triage_workspace_state import normalize_workspace
 from app.generation_v2.source_triage_workspace_tool_handlers import (
     SourceTriageWorkspaceToolHandlers,
@@ -86,7 +87,7 @@ def _note_args(**overrides) -> dict:
         "what_was_established": "The named actor used the described mechanism.",
         "boundaries": "The statement applies only to the documented period.",
         "unread_regions": "",
-        "why_unread_is_safe": "",
+        "unread_risk_assessment": "",
         "question_links": [{"question_id": "q1", "connection": "Directly describes the event."}],
         "doubts": ["The later outcome is not yet established."],
         "next_checks": ["Read the remaining section."],
@@ -171,7 +172,7 @@ def test_reading_note_contract_has_full_untruncated_semantic_fields() -> None:
         "what_was_established",
         "boundaries",
         "unread_regions",
-        "why_unread_is_safe",
+        "unread_risk_assessment",
     ):
         assert "maxLength" not in properties[field]
     assert "maxItems" not in properties["doubts"]
@@ -271,7 +272,9 @@ async def test_reading_note_persists_full_semantics_and_returns_on_resume(
             what_was_read=long_read,
             what_was_established=long_established,
             unread_regions="Appendices A-C.",
-            why_unread_is_safe="They contain only the referenced raw tables.",
+            unread_risk_assessment=(
+                "The appendices remain unread, so any conclusions depending on their raw tables remain provisional."
+            ),
         )
     )
 
@@ -281,7 +284,9 @@ async def test_reading_note_persists_full_semantics_and_returns_on_resume(
     assert note["what_was_read"] == long_read
     assert note["what_was_established"] == long_established
     assert note["unread_regions"] == "Appendices A-C."
-    assert note["why_unread_is_safe"] == "They contain only the referenced raw tables."
+    assert note["unread_risk_assessment"] == (
+        "The appendices remain unread, so any conclusions depending on their raw tables remain provisional."
+    )
 
     prompt_payload = source_set_prompt_payload(state["workspace"], "set-1")
     assert prompt_payload["set"]["execution_mode"] == "resume"
@@ -291,9 +296,10 @@ async def test_reading_note_persists_full_semantics_and_returns_on_resume(
     state_pages = []
     cursor = 0
     while True:
-        state_page = _current_set_state_page(
+        state_page = source_memory_page(
             state["workspace"],
             state["workspace"]["source_sets"][0],
+            source_ref="S01",
             cursor=cursor,
             limit=25,
         )
@@ -304,8 +310,6 @@ async def test_reading_note_persists_full_semantics_and_returns_on_resume(
         cursor = int(next_cursor)
     encoded_state = json.dumps(state_pages, ensure_ascii=False)
     assert all(page["accepted"] is True for page in state_pages)
-    assert state_pages[0]["state"]["source_read_receipt_count"] == 1
-    assert state_pages[0]["state"]["saved_reading_note_count"] == 1
     assert "receipt:one" in encoded_state
     assert long_read in encoded_state
     assert long_established in encoded_state
@@ -446,7 +450,7 @@ async def test_native_file_receipt_is_valid_note_provenance_but_has_no_range(
             receipt_refs=["receipt:native"],
             what_was_read="The original file was delivered to the agent.",
             unread_regions="Completeness was not established by the attachment receipt.",
-            why_unread_is_safe="",
+            unread_risk_assessment="The unread content could change the analysis.",
         )
     )
 
@@ -459,7 +463,7 @@ async def test_native_file_receipt_is_valid_note_provenance_but_has_no_range(
             receipt_refs=["receipt:native"],
             what_was_read="The original file was delivered to the agent.",
             unread_regions="Completeness was not established by the attachment receipt.",
-            why_unread_is_safe="",
+            unread_risk_assessment="The unread content could change the analysis.",
         )
     )
 

@@ -109,7 +109,7 @@ def test_source_agent_prompts_label_embedded_context_as_durable_preview_state() 
     assert "Initial durable set snapshot" in SOURCE_TRIAGE_SET_PROMPT
     assert "Initial durable finalizer snapshot" in SOURCE_TRIAGE_FINALIZER_PROMPT
     assert "Later tool results and paged durable state" in SOURCE_TRIAGE_PLANNER_PROMPT
-    assert "Later tool results and current_set_state pages" in SOURCE_TRIAGE_SET_PROMPT
+    assert "Later tool results and read_triage_set_state pages" in SOURCE_TRIAGE_SET_PROMPT
     assert "Later paged durable state" in SOURCE_TRIAGE_FINALIZER_PROMPT
 
 

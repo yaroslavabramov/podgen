@@ -14,23 +14,43 @@ from app.generation_v2.schemas import SourceTriageCompletion
 from app.generation_v2.runtime_tool_output import MODEL_TOOL_OUTPUT_MAX_CHARS
 from app.generation_v2.schemas import SourceMap
 from app.generation_v2.source_triage_lineage import coverage_synthesis_lineage
+from app.generation_v2.source_triage_model_views import (
+    model_safe_coverage_outcome as _model_safe_coverage_outcome,
+    model_safe_coverage_question as _model_safe_coverage_question,
+    model_safe_reading_note as _model_safe_reading_note,
+    model_safe_source_assessment as _model_safe_source_assessment,
+    model_safe_source_finding as _model_safe_source_finding,
+    model_safe_source_read_receipt as _model_safe_source_read_receipt,
+    reading_note_record_parts as _reading_note_record_parts,
+)
+from app.generation_v2.source_triage_set_review import (
+    semantic_review_evidence_ids,
+    semantic_review_page,
+    semantic_self_check_page,
+)
+from app.generation_v2.source_triage_model_delivery import (
+    finding_catalog_receipt_ref,
+    fit_staged_model_page,
+    question_workbench_receipt_ref,
+    semantic_review_receipt_ref,
+    stage_finding_catalog_page,
+    stage_question_workbench_page,
+    stage_semantic_review_page,
+)
+from app.generation_v2.source_triage_set_state_views import (
+    finding_catalog_page,
+    question_memory_page,
+    question_workbench_page,
+    set_overview_page,
+    source_memory_page,
+    unfinished_work_page,
+)
+from app.generation_v2.tools.evidence_legacy_receipts import hydrate_legacy_source_receipts
 from app.generation_v2.source_triage_workspace_tool_handlers import SourceTriageWorkspaceToolHandlers
 from app.generation_v2.source_triage_workspace_tool_specs import (
     source_triage_finalizer_tools,
     source_triage_planner_tools,
     source_triage_set_tools,
-)
-from app.generation_v2.source_triage_workspace_state import (
-    latest_source_read_receipts,
-    source_read_coverage_ledger,
-    source_read_receipt_delivery_status,
-    source_read_receipt_is_delivered,
-    uncheckpointed_source_read_replays,
-)
-from app.generation_v2.source_triage_read_checkpointing import (
-    pending_comparison_source_refs,
-    pending_exact_read_source_refs,
-    source_refs_with_reads_newer_than_analysis,
 )
 from app.models.generation_run import GenerationRun
 
@@ -565,503 +585,15 @@ def _current_set_state_page(
     cursor: int,
     limit: int,
 ) -> dict[str, Any]:
-    set_id = str(source_set.get("set_id") or "")
-    durable_read_receipts = [
-        item
-        for item in workspace.get("source_read_receipts") or []
-        if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
-    ]
-    latest_read_receipts = latest_source_read_receipts(durable_read_receipts)
-    read_coverage_ledger = source_read_coverage_ledger(
-        durable_read_receipts,
-        set_id=set_id,
-    )
-    pending_read_receipts = [
-        item
-        for item in durable_read_receipts
-        if not source_read_receipt_is_delivered(item)
-    ]
-    uncheckpointed_replays = uncheckpointed_source_read_replays(
+    """Compatibility view: compact overview only, never the former monolithic state stream."""
+
+    return set_overview_page(
         workspace,
-        set_id=set_id,
+        source_set,
+        cursor=cursor,
+        limit=limit,
+        section="current_set_state",
     )
-    pending_exact_refs = pending_exact_read_source_refs(workspace, source_set=source_set)
-    pending_comparison_refs = pending_comparison_source_refs(source_set)
-    stale_analysis_refs = source_refs_with_reads_newer_than_analysis(workspace, set_id=set_id)
-    read_receipts = sorted(
-        durable_read_receipts,
-        key=lambda item: (
-            str(item.get("source_ref") or ""),
-            int(item.get("start_offset") or 0),
-            str(item.get("receipt_ref") or ""),
-        ),
-    )
-    reading_notes = sorted(
-        [
-            item
-            for item in workspace.get("reading_notes") or []
-            if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
-        ],
-        key=lambda item: str(item.get("note_id") or ""),
-    )
-    assessments = sorted(
-        [
-            item
-            for item in workspace.get("source_assessments") or []
-            if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
-        ],
-        key=lambda item: str(item.get("source_ref") or ""),
-    )
-    findings = sorted(
-        [
-            item
-            for item in workspace.get("source_findings") or []
-            if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
-        ],
-        key=lambda item: str(item.get("finding_id") or ""),
-    )
-    outcomes = sorted(
-        [
-            item
-            for item in workspace.get("coverage_outcomes") or []
-            if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
-        ],
-        key=lambda item: str(item.get("question_id") or ""),
-    )
-    resolved_refs = {
-        str(item.get("source_ref") or "")
-        for item in assessments
-        if str(item.get("processing_status") or "resolved") == "resolved"
-        and (item.get("finding_ids") or str(item.get("no_findings_reason") or "").strip())
-    }
-    current_outcome_ids = {
-        str(item.get("question_id") or "")
-        for item in outcomes
-        if str(item.get("status") or "")
-        in {"covered", "partial", "missing", "conflicted", "deferred"}
-        and not bool(item.get("is_stale"))
-    }
-    required_question_ids = [str(value) for value in source_set.get("question_ids") or []]
-    records = [
-        *(
-            {"state_record_kind": "source_read_receipt", **part}
-            for item in read_receipts
-            for part in composite_record_parts(
-                _model_safe_source_read_receipt(item),
-                record_kind="source_read_receipt",
-                owner_ref=str(item.get("receipt_ref") or "source_read_receipt:unknown"),
-            )
-        ),
-        *(
-            {"state_record_kind": "reading_note", **part}
-            for item in reading_notes
-            for part in _reading_note_record_parts(_model_safe_reading_note(item))
-        ),
-        *(
-            {"state_record_kind": "source_analysis", **part}
-            for item in assessments
-            for part in composite_record_parts(
-                _model_safe_source_assessment(item),
-                record_kind="source_assessment",
-            )
-        ),
-        *(
-            {"state_record_kind": "source_finding", **part}
-            for item in findings
-            for part in composite_record_parts(
-                _model_safe_source_finding(item),
-                record_kind="source_finding",
-            )
-        ),
-        *(
-            {"state_record_kind": "question_outcome", **part}
-            for item in outcomes
-            for part in composite_record_parts(
-                _model_safe_coverage_outcome(item, source_ref_by_id={}),
-                record_kind="coverage_outcome",
-            )
-        ),
-    ]
-    page = records[cursor : cursor + limit]
-    return fit_model_page(
-        {
-            "accepted": True,
-            "section": "current_set_state",
-            "set_id": set_id,
-            "state": {
-                "pending_source_refs": [
-                    str(value)
-                    for value in source_set.get("source_refs") or []
-                    if str(value) not in resolved_refs
-                ],
-                "pending_exact_read_source_refs": pending_exact_refs,
-                "pending_comparison_source_refs": pending_comparison_refs,
-                "stale_source_analysis_refs": stale_analysis_refs,
-                "pending_discovered_question_attempts": [
-                    {
-                        "question_id": str(item.get("question_id") or ""),
-                        "requirement_ids": [
-                            str(value) for value in item.get("requirement_ids") or []
-                        ],
-                        "finding_ids": [str(value) for value in item.get("finding_ids") or []],
-                        "source_refs": [str(value) for value in item.get("source_refs") or []],
-                        "reviewed_source_refs": [
-                            str(value) for value in item.get("reviewed_source_refs") or []
-                        ],
-                    }
-                    for item in source_set.get("pending_discovered_question_attempts") or []
-                    if isinstance(item, dict)
-                ],
-                "required_question_ids": required_question_ids,
-                "missing_outcome_question_ids": [
-                    question_id
-                    for question_id in required_question_ids
-                    if question_id not in current_outcome_ids
-                ],
-                "stale_outcome_question_ids": [
-                    str(item.get("question_id") or "")
-                    for item in outcomes
-                    if bool(item.get("is_stale"))
-                ],
-                "saved_source_analysis_count": len(assessments),
-                "source_read_receipt_count": len(read_receipts),
-                "latest_source_read_receipts": [
-                    _model_safe_source_read_receipt(item)
-                    for item in latest_read_receipts
-                ],
-                "source_read_coverage_ledger": read_coverage_ledger,
-                "pending_source_read_receipts": [
-                    _model_safe_source_read_receipt(item)
-                    for item in pending_read_receipts
-                ],
-                "replay_required_after_activation": uncheckpointed_replays,
-                "saved_reading_note_count": len(reading_notes),
-                "saved_finding_count": len(findings),
-                "saved_outcome_count": len(outcomes),
-            },
-            "items": page,
-            "page": {
-                **_page_metadata(total=len(records), cursor=cursor, returned=len(page)),
-                "unit": "record_part",
-            },
-        },
-        requested_limit=limit,
-        error_code="triage_workspace_item_exceeds_model_read_contract",
-    )
-
-
-def _model_safe_coverage_question(item: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "question_id": item.get("question_id"),
-        "question": str(item.get("question") or ""),
-        "kind": item.get("kind"),
-        "importance": item.get("importance"),
-        "rationale": str(item.get("rationale") or ""),
-        "parent_question_id": item.get("parent_question_id"),
-        "origin": item.get("origin"),
-        "answer_requirements": [
-            {
-                **{
-                    "requirement_id": requirement.get("requirement_id"),
-                    "description": str(requirement.get("description") or ""),
-                    "rationale": str(requirement.get("rationale") or ""),
-                },
-                **(
-                    {"completion_criterion": str(requirement.get("completion_criterion") or "")}
-                    if "completion_criterion" in requirement
-                    else {}
-                ),
-            }
-            for requirement in item.get("answer_requirements") or []
-            if isinstance(requirement, dict)
-        ],
-    }
-
-
-def _model_safe_source_read_receipt(item: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "receipt_ref": str(item.get("receipt_ref") or ""),
-        "set_id": str(item.get("set_id") or ""),
-        "source_ref": str(item.get("source_ref") or ""),
-        "start_offset": item.get("start_offset"),
-        "end_offset": item.get("end_offset"),
-        "total_chars": item.get("total_chars"),
-        "read_kind": str(item.get("read_kind") or ""),
-        "request": dict(item.get("request") or {}),
-        "delivery_status": source_read_receipt_delivery_status(item),
-        "next_cursor": str(item.get("next_cursor") or ""),
-        "eof": bool(item.get("eof")),
-        "created_at": item.get("created_at"),
-    }
-
-
-def _model_safe_reading_note(item: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "note_id": str(item.get("note_id") or ""),
-        "set_id": str(item.get("set_id") or ""),
-        "source_ref": str(item.get("source_ref") or ""),
-        "receipt_refs": [str(value) for value in item.get("receipt_refs") or []],
-        "what_was_read": str(item.get("what_was_read") or ""),
-        "what_was_established": str(item.get("what_was_established") or ""),
-        "boundaries": str(item.get("boundaries") or ""),
-        "unread_regions": str(item.get("unread_regions") or ""),
-        "why_unread_is_safe": str(item.get("why_unread_is_safe") or ""),
-        "question_links": [
-            {
-                "question_id": str(link.get("question_id") or ""),
-                "connection": str(link.get("connection") or ""),
-            }
-            for link in item.get("question_links") or []
-            if isinstance(link, dict)
-        ],
-        "doubts": [str(value) for value in item.get("doubts") or []],
-        "next_checks": [str(value) for value in item.get("next_checks") or []],
-        "created_at": item.get("created_at"),
-        "updated_at": item.get("updated_at"),
-    }
-
-
-def _reading_note_record_parts(note: dict[str, Any]) -> list[dict[str, Any]]:
-    """Page a note by whole semantic fields; no semantic scalar is ever sliced."""
-
-    owner_ref = str(note.get("note_id") or "reading_note:unknown")
-    receipt_refs = [str(value) for value in note.get("receipt_refs") or []]
-    question_links = [item for item in note.get("question_links") or [] if isinstance(item, dict)]
-    doubts = [str(value) for value in note.get("doubts") or []]
-    next_checks = [str(value) for value in note.get("next_checks") or []]
-    parts: list[dict[str, Any]] = [
-        {
-            "owner_ref": owner_ref,
-            "record_kind": "reading_note",
-            "part_kind": "core",
-            "note_id": note.get("note_id"),
-            "set_id": note.get("set_id"),
-            "source_ref": note.get("source_ref"),
-            "receipt_ref_count": len(receipt_refs),
-            "question_link_count": len(question_links),
-            "doubt_count": len(doubts),
-            "next_check_count": len(next_checks),
-            "created_at": note.get("created_at"),
-            "updated_at": note.get("updated_at"),
-        }
-    ]
-    for field in (
-        "what_was_read",
-        "what_was_established",
-        "boundaries",
-        "unread_regions",
-        "why_unread_is_safe",
-    ):
-        parts.append(
-            {
-                "owner_ref": owner_ref,
-                "record_kind": "reading_note",
-                "part_kind": "semantic_field",
-                "field": field,
-                "value": str(note.get(field) or ""),
-            }
-        )
-    parts.extend(
-        {
-            "owner_ref": owner_ref,
-            "record_kind": "reading_note",
-            "part_kind": "receipt_ref",
-            "index": index,
-            "receipt_ref": receipt_ref,
-        }
-        for index, receipt_ref in enumerate(receipt_refs)
-    )
-    parts.extend(
-        {
-            "owner_ref": owner_ref,
-            "record_kind": "reading_note",
-            "part_kind": "question_link",
-            "index": index,
-            "question_id": str(link.get("question_id") or ""),
-            "connection": str(link.get("connection") or ""),
-        }
-        for index, link in enumerate(question_links)
-    )
-    for field, values in (("doubts", doubts), ("next_checks", next_checks)):
-        parts.extend(
-            {
-                "owner_ref": owner_ref,
-                "record_kind": "reading_note",
-                "part_kind": "semantic_list_item",
-                "field": field,
-                "index": index,
-                "value": value,
-            }
-            for index, value in enumerate(values)
-        )
-    return parts
-
-
-def _model_safe_source_assessment(item: dict[str, Any]) -> dict[str, Any]:
-    source_ref = str(item.get("source_ref") or "")
-    payload = {
-        "assessment_ref": f"assessment:{source_ref}" if source_ref else "",
-        "set_id": item.get("set_id"),
-        "source_ref": source_ref,
-        "processing_status": item.get("processing_status"),
-        "representation_status": item.get("representation_status"),
-        "representation_reason": str(item.get("representation_reason") or ""),
-        "relevance": item.get("relevance"),
-        "relevance_reason": str(item.get("relevance_reason") or ""),
-        "authority": item.get("authority"),
-        "authority_reason": str(item.get("authority_reason") or ""),
-        "uniqueness": item.get("uniqueness"),
-        "uniqueness_reason": str(item.get("uniqueness_reason") or ""),
-        "disposition": item.get("disposition"),
-        "disposition_reason": str(item.get("disposition_reason") or ""),
-        "coverage_question_ids": list(item.get("coverage_question_ids") or []),
-        "editorial_functions": list(item.get("editorial_functions") or []),
-        "evidence_ids": list(item.get("evidence_ids") or []),
-        "finding_ids": list(item.get("finding_ids") or []),
-        "reading_basis": _model_safe_reading_basis(item.get("reading_basis")),
-        "no_findings_reason": str(item.get("no_findings_reason") or ""),
-        "limitations": list(item.get("limitations") or []),
-        "confidence": item.get("confidence"),
-        "updated_at": item.get("updated_at"),
-    }
-    if item.get("repair_baseline"):
-        payload["repair_baseline"] = True
-        payload["repair_baseline_version"] = int(item.get("repair_baseline_version") or 1)
-        if "original_set_id" in item:
-            payload["original_set_id"] = item.get("original_set_id")
-        if item.get("repair_baseline_evidence_unavailable"):
-            payload["repair_baseline_evidence_unavailable"] = True
-            payload["repair_baseline_unavailable_evidence_count"] = int(
-                item.get("repair_baseline_unavailable_evidence_count") or 0
-            )
-    return payload
-
-
-def _model_safe_reading_basis(value: Any) -> dict[str, Any]:
-    basis = value if isinstance(value, dict) else {}
-    receipt_refs = [str(item) for item in basis.get("receipt_refs") or [] if str(item)]
-    return {
-        "receipt_count": len(receipt_refs),
-        "coverage_summary": str(basis.get("coverage_summary") or ""),
-        "unread_regions": str(basis.get("unread_regions") or ""),
-        "unread_risk_assessment": str(basis.get("unread_risk_assessment") or ""),
-        "representation_limits": str(basis.get("representation_limits") or ""),
-        "stopping_reason": str(basis.get("stopping_reason") or ""),
-        "coverage_ledger": dict(basis.get("coverage_ledger") or {}),
-    }
-
-
-def _model_safe_source_finding(item: dict[str, Any]) -> dict[str, Any]:
-    payload = {
-        "finding_id": str(item.get("finding_id") or ""),
-        "set_id": str(item.get("set_id") or ""),
-        "source_ref": str(item.get("source_ref") or ""),
-        "statement": str(item.get("statement") or ""),
-        "support_explanation": str(item.get("support_explanation") or ""),
-        "evidence_ids": [str(value) for value in item.get("evidence_ids") or []],
-        "evidence_previews": [
-            {
-                "evidence_id": str(preview.get("evidence_id") or ""),
-                "snippet_preview": str(preview.get("snippet_preview") or ""),
-                "snippet_chars": int(preview.get("snippet_chars") or 0),
-                "snippet_truncated": bool(preview.get("snippet_truncated")),
-                "locator": str(preview.get("locator") or ""),
-            }
-            for preview in item.get("evidence_previews") or []
-            if isinstance(preview, dict)
-        ],
-        "scope": dict(item.get("scope") or {}),
-        "limitations": [str(value) for value in item.get("limitations") or []],
-        "question_links": [
-            {
-                "question_id": str(link.get("question_id") or ""),
-                "requirement_ids": [str(value) for value in link.get("requirement_ids") or []],
-                "rationale": str(link.get("rationale") or ""),
-            }
-            for link in item.get("question_links") or []
-            if isinstance(link, dict)
-        ],
-        "source_relations": [
-            {
-                "related_source_ref": str(
-                    relation.get("related_source_ref") or ""
-                ),
-                "relationship": relation.get("relationship"),
-                "rationale": str(relation.get("rationale") or ""),
-                "evidence_ids": [str(value) for value in relation.get("evidence_ids") or []],
-            }
-            for relation in item.get("source_relations") or []
-            if isinstance(relation, dict) and str(relation.get("related_source_ref") or "").strip()
-        ],
-        "semantic_revision": int(item.get("semantic_revision") or 0),
-        "updated_at": item.get("updated_at"),
-    }
-    if item.get("repair_baseline"):
-        payload["repair_baseline"] = True
-    return payload
-
-
-def _model_safe_coverage_outcome(
-    item: dict[str, Any],
-    *,
-    source_ref_by_id: dict[str, str],
-    include_next_action: bool = False,
-) -> dict[str, Any]:
-    source_refs = [str(value) for value in item.get("source_refs") or [] if str(value).strip()]
-    if not source_refs:
-        source_refs = [
-            source_ref_by_id[str(source_id)]
-            for source_id in item.get("source_ids") or []
-            if source_ref_by_id.get(str(source_id))
-        ]
-    source_refs = list(dict.fromkeys(source_refs))
-    set_id = str(item.get("set_id") or "")
-    question_id = str(item.get("question_id") or "")
-    payload = {
-        "outcome_ref": f"outcome:{question_id}:{set_id}" if question_id and set_id else "",
-        "set_id": set_id,
-        "question_id": question_id,
-        "status": item.get("status"),
-        "source_refs": source_refs,
-        "evidence_ids": list(item.get("evidence_ids") or []),
-        "finding_ids": list(item.get("finding_ids") or []),
-        "requirement_results": [
-            {
-                "requirement_id": str(result.get("requirement_id") or ""),
-                "status": result.get("status"),
-                "finding_ids": [str(value) for value in result.get("finding_ids") or []],
-                "summary": str(result.get("summary") or ""),
-                "closure_basis": str(result.get("closure_basis") or ""),
-                "remaining_uncertainty": str(result.get("remaining_uncertainty") or ""),
-                "missing_detail": str(result.get("missing_detail") or ""),
-                "conflict_summary": str(result.get("conflict_summary") or ""),
-                "deferred_reason": str(result.get("deferred_reason") or ""),
-                "confidence": result.get("confidence"),
-                "next_action": result.get("next_action"),
-            }
-            for result in item.get("requirement_results") or []
-            if isinstance(result, dict)
-        ],
-        "orientation_summary": str(item.get("orientation_summary") or ""),
-        "missing_detail": str(item.get("missing_detail") or ""),
-        "conflict_summary": str(item.get("conflict_summary") or ""),
-        "deferred_reason": str(item.get("deferred_reason") or ""),
-        "confidence": item.get("confidence"),
-        "semantic_revision": int(item.get("semantic_revision") or 0),
-        "is_stale": bool(item.get("is_stale")),
-        "updated_at": item.get("updated_at"),
-    }
-    if item.get("repair_baseline"):
-        payload["repair_baseline"] = True
-        payload["repair_baseline_version"] = int(item.get("repair_baseline_version") or 1)
-        if item.get("repair_baseline_evidence_unavailable"):
-            payload["repair_baseline_evidence_unavailable"] = True
-            payload["repair_baseline_unavailable_evidence_count"] = int(
-                item.get("repair_baseline_unavailable_evidence_count") or 0
-            )
-    if include_next_action:
-        payload["next_action"] = item.get("next_action")
-    return payload
 
 
 def _model_safe_coverage_synthesis(
@@ -1536,10 +1068,58 @@ def _source_set_page_tool(
     current_set_id: str | None = None,
     include_evidence_ids: bool = False,
     track_finalizer_review: bool = False,
+    evidence_toolset: Any | None = None,
 ) -> AgentTool:
+    configured_set = (
+        next(
+            (
+                item
+                for item in workspace.get("source_sets") or []
+                if isinstance(item, dict) and str(item.get("set_id") or "") == str(current_set_id or "")
+            ),
+            None,
+        )
+        if current_set_id
+        else None
+    )
+    legacy_set_contract = isinstance(configured_set, dict) and "question_assignments" not in configured_set
+    set_agent_sections = (
+        [
+            "set_overview",
+            "source_memory",
+            "finding_catalog",
+            "question_workbench",
+            "unfinished_work",
+            *(
+                [
+                    "question_memory",
+                    "current_set",
+                    "assigned_questions",
+                    "source_assessments",
+                    "coverage_outcomes",
+                ]
+                if (
+                    isinstance(configured_set, dict)
+                    and (configured_set.get("repair_targeted") or legacy_set_contract)
+                )
+                else []
+            ),
+        ]
+        if current_set_id
+        else None
+    )
+
     async def handler(args: dict[str, Any]) -> dict[str, Any]:
         current = await load_source_triage_workspace(db, run.id) or workspace
-        section = str(args.get("section") or "sets")
+        section = str(args.get("section") or ("set_overview" if current_set_id else "sets"))
+        if set_agent_sections is not None and section not in set_agent_sections:
+            return {
+                "accepted": False,
+                "error": "section_not_available_to_set_agent",
+                "section": section,
+                "allowed_sections": set_agent_sections,
+                "next_action": "Choose the narrow state page needed for the current set.",
+            }
         cursor_text = str(args.get("cursor") or "0")
         cursor = max(0, int(cursor_text) if cursor_text.isdigit() else 0)
         limit = max(
@@ -1629,6 +1209,181 @@ def _source_set_page_tool(
                 cursor=cursor,
                 limit=limit,
             )
+        if section == "set_overview":
+            return set_overview_page(current, source_set, cursor=cursor, limit=limit)
+        if section == "source_memory":
+            source_ref = str(args.get("source_ref") or "")
+            if evidence_toolset is not None:
+                hydration = await hydrate_legacy_source_receipts(
+                    evidence_toolset,
+                    current,
+                    set_id=str(source_set.get("set_id") or ""),
+                    source_ref=source_ref,
+                )
+                if hydration.get("accepted") is not True:
+                    return hydration
+                if hydration.get("changed"):
+                    await save_source_triage_workspace(
+                        db,
+                        generation_run_id=run.id,
+                        workspace=current,
+                    )
+            return source_memory_page(
+                current,
+                source_set,
+                source_ref=source_ref,
+                cursor=cursor,
+                limit=limit,
+            )
+        if section == "question_memory":
+            return question_memory_page(
+                current,
+                source_set,
+                question_id=str(args.get("question_id") or ""),
+                cursor=cursor,
+                limit=limit,
+            )
+        if section == "finding_catalog":
+            payload = finding_catalog_page(
+                current,
+                source_set,
+                cursor=cursor,
+                limit=limit,
+            )
+            if current_set_id and payload.get("accepted") is True:
+                payload = fit_staged_model_page(
+                    payload,
+                    requested_limit=limit,
+                    receipt_field="finding_catalog_receipt_ref",
+                    receipt_prefix="finding_catalog_receipt",
+                )
+                if payload.get("accepted") is not True:
+                    return payload
+                page = dict(payload.get("page") or {})
+                receipt_ref = finding_catalog_receipt_ref(
+                    set_id=str(source_set.get("set_id") or ""),
+                    snapshot_id=str(payload.get("finding_catalog_snapshot_id") or ""),
+                    cursor=int(str(page.get("cursor") or "0")),
+                    returned_count=int(page.get("returned_count") or 0),
+                )
+                payload["finding_catalog_receipt_ref"] = receipt_ref
+                stage_finding_catalog_page(
+                    current,
+                    source_set=source_set,
+                    payload=payload,
+                    receipt_ref=receipt_ref,
+                )
+                await save_source_triage_workspace(
+                    db,
+                    generation_run_id=run.id,
+                    workspace=current,
+                )
+                payload["_runtime_receipt_delivery"] = {"receipt_refs": [receipt_ref]}
+            return payload
+        if section == "question_workbench":
+            question_id = str(args.get("question_id") or "")
+            payload = question_workbench_page(
+                current,
+                source_set,
+                question_id=question_id,
+                cursor=cursor,
+                limit=limit,
+            )
+            if current_set_id and payload.get("accepted") is True:
+                payload = fit_staged_model_page(
+                    payload,
+                    requested_limit=limit,
+                    receipt_field="workbench_receipt_ref",
+                    receipt_prefix="workbench_receipt",
+                )
+                if payload.get("accepted") is not True:
+                    return payload
+                page = dict(payload.get("page") or {})
+                receipt_ref = question_workbench_receipt_ref(
+                    set_id=str(source_set.get("set_id") or ""),
+                    question_id=question_id,
+                    snapshot_id=str(payload.get("workbench_snapshot_id") or ""),
+                    cursor=int(str(page.get("cursor") or "0")),
+                    returned_count=int(page.get("returned_count") or 0),
+                )
+                payload["workbench_receipt_ref"] = receipt_ref
+                stage_question_workbench_page(
+                    current,
+                    source_set=source_set,
+                    question_id=question_id,
+                    payload=payload,
+                    receipt_ref=receipt_ref,
+                )
+                await save_source_triage_workspace(
+                    db,
+                    generation_run_id=run.id,
+                    workspace=current,
+                )
+                payload["_runtime_receipt_delivery"] = {"receipt_refs": [receipt_ref]}
+            return payload
+        if section == "unfinished_work":
+            return unfinished_work_page(current, source_set, cursor=cursor, limit=limit)
+        if section == "semantic_review":
+            evidence_by_id: dict[str, dict[str, Any]] = {}
+            for evidence_id in semantic_review_evidence_ids(current, source_set):
+                evidence = (
+                    await evidence_toolset._evidence_in_run(evidence_id)
+                    if evidence_toolset is not None
+                    else None
+                )
+                if evidence is None:
+                    continue
+                snippet = str(getattr(evidence, "snippet_text", "") or "")
+                evidence_by_id[evidence_id] = {
+                    "evidence_id": evidence_id,
+                    "snippet_text": snippet,
+                    "snippet_chars": len(snippet),
+                    "locator": str(getattr(evidence, "locator_text", "") or ""),
+                }
+            payload = semantic_review_page(
+                current,
+                source_set,
+                evidence_by_id=evidence_by_id,
+                cursor=cursor,
+                limit=limit,
+            )
+            if current_set_id and payload.get("accepted") is True:
+                payload = fit_staged_model_page(
+                    payload,
+                    requested_limit=limit,
+                    receipt_field="review_receipt_ref",
+                    receipt_prefix="review_receipt",
+                )
+                if payload.get("accepted") is not True:
+                    return payload
+                page = dict(payload.get("page") or {})
+                receipt_ref = semantic_review_receipt_ref(
+                    set_id=str(source_set.get("set_id") or ""),
+                    snapshot_id=str(payload.get("review_snapshot_id") or ""),
+                    cursor=int(str(page.get("cursor") or "0")),
+                    returned_count=int(page.get("returned_count") or 0),
+                )
+                payload["review_receipt_ref"] = receipt_ref
+                stage_semantic_review_page(
+                    current,
+                    source_set=source_set,
+                    payload=payload,
+                    receipt_ref=receipt_ref,
+                )
+                await save_source_triage_workspace(
+                    db,
+                    generation_run_id=run.id,
+                    workspace=current,
+                )
+                payload["_runtime_receipt_delivery"] = {"receipt_refs": [receipt_ref]}
+            return payload
+        if section == "semantic_self_check":
+            return semantic_self_check_page(
+                current,
+                source_set,
+                cursor=cursor,
+                limit=limit,
+            )
         if section == "current_set":
             items = [_full_source_set_item(source_set)] if cursor == 0 else []
             return _checked_page_output(
@@ -1688,15 +1443,23 @@ def _source_set_page_tool(
                 "coverage_outcomes",
                 "coverage_syntheses",
                 "current_set_state",
+                "set_overview",
+                "source_memory",
+                "finding_catalog",
+                "question_memory",
+                "question_workbench",
+                "unfinished_work",
+                "semantic_review",
+                "semantic_self_check",
                 "current_set",
                 "assigned_questions",
             ],
         }
 
     return AgentTool(
-        name="list_triage_source_sets",
+        name="read_triage_set_state" if current_set_id else "list_triage_source_sets",
         description=(
-            "Read one section of durable triage state. Choose the section needed for the current task and follow "
+            "Read one section of durable state for the current set. Choose the section needed and follow "
             "page.next_cursor until it is empty. Composite records may be returned as ordered, reconstructable "
             "parts keyed by owner_ref and part_kind. Semantic scalars remain whole; an individually oversized scalar "
             "returns an explicit validation error."
@@ -1717,7 +1480,7 @@ def _source_set_page_tool(
                 },
                 "section": {
                     "type": "string",
-                    "enum": [
+                    "enum": set_agent_sections or [
                         "sets",
                         "plan_summary",
                         "deferred_sources",
@@ -1731,11 +1494,25 @@ def _source_set_page_tool(
                         "coverage_outcomes",
                         "coverage_syntheses",
                         "current_set_state",
+                        "set_overview",
+                        "source_memory",
+                        "question_memory",
+                        "unfinished_work",
+                        "semantic_review",
+                        "semantic_self_check",
                         "current_set",
                         "assigned_questions",
                     ],
                 },
                 "set_id": {"type": "string"},
+                "source_ref": {
+                    "type": "string",
+                    "description": "Required only for section=source_memory.",
+                },
+                "question_id": {
+                    "type": "string",
+                    "description": "Required for section=question_memory or question_workbench.",
+                },
             },
             "required": ["cursor", "limit"],
         },
@@ -1848,6 +1625,15 @@ def build_workspace_tools(
             )
         )
     if mode == "set":
+        active_set = _workspace._workspace_set(workspace, str(current_set_id or "")) or {}
+        allowed_source_refs = [
+            str(value) for value in active_set.get("source_refs") or [] if str(value)
+        ]
+        allowed_question_ids = [
+            str(item.get("question_id") or "")
+            for item in workspace.get("coverage_questions") or []
+            if isinstance(item, dict) and str(item.get("question_id") or "")
+        ]
         tools.append(
             _source_set_page_tool(
                 db=db,
@@ -1855,6 +1641,7 @@ def build_workspace_tools(
                 workspace=workspace,
                 current_set_id=current_set_id,
                 include_evidence_ids=True,
+                evidence_toolset=evidence_toolset,
             )
         )
         tools.extend(
@@ -1863,6 +1650,9 @@ def build_workspace_tools(
                 handlers.upsert_coverage_outcome_tool,
                 handlers.finish_triage_source_set_tool,
                 save_reading_note_handler=handlers.save_reading_note_tool,
+                output_language=str((workspace.get("intent") or {}).get("language") or "").strip(),
+                allowed_source_refs=allowed_source_refs,
+                allowed_question_ids=allowed_question_ids,
                 terminal_resume_loader=set_resume_loader,
             )
         )

@@ -171,14 +171,15 @@ def test_ranked_sources_include_only_research_eligible_assessments() -> None:
 def test_new_canonical_writes_are_trace_classifications_without_read_limits() -> None:
     assert "save_source_analysis" in TRIAGE_SEMANTIC_COMMIT_TOOLS
     assert "upsert_coverage_outcome" in TRIAGE_SEMANTIC_COMMIT_TOOLS
+    assert "resolve_triage_question" in TRIAGE_SEMANTIC_COMMIT_TOOLS
     assert "update_source_finding_links" in TRIAGE_SEMANTIC_COMMIT_TOOLS
     assert "update_source_finding_relations" in TRIAGE_SEMANTIC_COMMIT_TOOLS
     assert "upsert_source_assessment" not in TRIAGE_SEMANTIC_COMMIT_TOOLS
 
 
 def test_triage_prompts_define_completed_unreadable_sources_and_scoped_evidence() -> None:
-    assert "error, or wrong-target page establishes only a representation problem" in SOURCE_TRIAGE_SET_PROMPT
-    assert "A partial representation is not automatically a useless source" in SOURCE_TRIAGE_SET_PROMPT
+    assert "representation failures as" in SOURCE_TRIAGE_SET_PROMPT
+    assert "representation limits instead of inferring content" in SOURCE_TRIAGE_SET_PROMPT
     assert "There is no needs_repair" in SOURCE_TRIAGE_SET_PROMPT
     assert "Evidence attachments are scoped to the map item that cites them" in CORPUS_BRIEF_SHADOW_AUDIT_PROMPT
     assert "does not also have to appear on every related" in CORPUS_BRIEF_SHADOW_AUDIT_PROMPT
@@ -398,7 +399,15 @@ def test_shadow_audit_prompt_forbids_guesses_from_omitted_preview() -> None:
 
 
 def test_triage_set_prompt_separates_reading_navigation_and_final_evidence() -> None:
-    assert "Use read_source for the actual source text" in SOURCE_TRIAGE_SET_PROMPT
-    assert "search_source is navigation only" in SOURCE_TRIAGE_SET_PROMPT
-    assert "read_source and save_reading_note support understanding" in SOURCE_TRIAGE_SET_PROMPT
-    assert "use read_source_window only for the exact passage or passages" in SOURCE_TRIAGE_SET_PROMPT
+    assert "read_source returns the actual text as lossless" in SOURCE_TRIAGE_SET_PROMPT
+    assert "search_source is navigation only, not proof" in SOURCE_TRIAGE_SET_PROMPT
+    assert "Before switching sources, save a reading note" in SOURCE_TRIAGE_SET_PROMPT
+    assert "its own read_source passage_refs and/or exact evidence_ids" in SOURCE_TRIAGE_SET_PROMPT
+    assert "inspect_source page until its next_cursor is empty" in SOURCE_TRIAGE_SET_PROMPT
+    assert "structure.next_structure_cursor is only for inspect_source.cursor" in SOURCE_TRIAGE_SET_PROMPT
+    assert "continue read_source to eof" in SOURCE_TRIAGE_SET_PROMPT
+    assert "For a mechanical rejection" in SOURCE_TRIAGE_SET_PROMPT
+    assert "attempted semantic decision is provisional" in SOURCE_TRIAGE_SET_PROMPT
+    assert "read the current finding_catalog once" in SOURCE_TRIAGE_SET_PROMPT
+    assert "a new\nchild result makes an earlier parent result stale" in SOURCE_TRIAGE_SET_PROMPT
+    assert "question_id values, never requirement_id values" in SOURCE_TRIAGE_SET_PROMPT

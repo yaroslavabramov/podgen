@@ -491,7 +491,9 @@ def _nested_evidence_ids(value: Any) -> list[str]:
     if isinstance(value, dict):
         result: list[str] = []
         for key, item in value.items():
-            if key == "evidence_ids" and isinstance(item, list):
+            if key == "evidence_id" and str(item or "").strip():
+                result.append(str(item))
+            elif key == "evidence_ids" and isinstance(item, list):
                 result.extend(str(evidence_id) for evidence_id in item if str(evidence_id).strip())
             else:
                 result.extend(_nested_evidence_ids(item))
@@ -508,7 +510,9 @@ def _remap_nested_evidence(value: Any, mapping: dict[str, str], invalid: set[str
     if isinstance(value, dict):
         remapped: dict[str, Any] = {}
         for key, item in value.items():
-            if key == "evidence_ids" and isinstance(item, list):
+            if key == "evidence_id" and str(item or "").strip():
+                remapped[key] = mapping.get(str(item), str(item))
+            elif key == "evidence_ids" and isinstance(item, list):
                 remapped[key] = _dedupe(
                     [
                         mapping.get(str(evidence_id), str(evidence_id))

@@ -9,6 +9,11 @@ from app.generation_v2.source_triage_workspace_persistence import (
     load_source_triage_workspace,
     save_source_triage_workspace,
 )
+from app.generation_v2.source_triage_read_state import (
+    canonical_source_read_state,
+    merge_source_structures,
+    source_read_state_signature,
+)
 from app.generation_v2.source_triage_workspace_state import (
     dedupe as _dedupe,
     now as _now,
@@ -47,11 +52,11 @@ async def source_checkpoint_transition_guard(
     if not target_refs:
         return None
 
-    blockers = {
-        str(item.get("source_ref") or "")
-        for item in uncheckpointed_source_read_replays(workspace, set_id=current_set_id)
-        if str(item.get("source_ref") or "")
-    }
+    checkpoint_requirements = pending_source_checkpoint_requirements(
+        workspace,
+        source_set=source_set,
+    )
+    blockers = {str(item.get("source_ref") or "") for item in checkpoint_requirements}
     blockers.update(_uncheckpointed_exact_read_refs(workspace, source_set=source_set))
 
     if len(target_refs) > 1:
@@ -71,6 +76,11 @@ async def source_checkpoint_transition_guard(
                 "error": "checkpoint_sources_before_comparison",
                 "message": "No comparison content was read. Each source needs durable reading memory first.",
                 "checkpoint_required_source_refs": missing_checkpoint_refs,
+                "checkpoint_requirements": [
+                    item
+                    for item in checkpoint_requirements
+                    if str(item.get("source_ref") or "") in missing_checkpoint_refs
+                ],
                 "requested_source_refs": sorted(target_refs),
                 "allowed_next_actions": ["read_source", "save_reading_note", "save_source_analysis"],
                 "next_action": (
@@ -90,13 +100,76 @@ async def source_checkpoint_transition_guard(
             "current source before opening a different source."
         ),
         "checkpoint_required_source_refs": switch_blockers,
+        "checkpoint_requirements": [
+            item
+            for item in checkpoint_requirements
+            if str(item.get("source_ref") or "") in switch_blockers
+        ],
         "requested_source_refs": sorted(target_refs),
         "allowed_next_actions": ["save_reading_note", "save_source_analysis"],
         "next_action": (
-            "Call save_reading_note for the listed source using its delivered receipt_refs, or save its complete "
-            "source analysis; then retry this read."
+            "For each checkpoint_requirements item, call save_reading_note with its source_ref and copy all "
+            "receipt_refs exactly while summarizing those reads; or save the complete source analysis. Then "
+            "retry the requested read."
         ),
     }
+
+
+def pending_source_checkpoint_requirements(
+    workspace: dict[str, Any],
+    *,
+    source_set: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Return exact public handles needed to make delivered reading durable."""
+
+    set_id = str(source_set.get("set_id") or "")
+    allowed_refs = {str(value) for value in source_set.get("source_refs") or []}
+    replay_by_source: dict[str, list[dict[str, Any]]] = {}
+    for replay in uncheckpointed_source_read_replays(workspace, set_id=set_id):
+        source_ref = str(replay.get("source_ref") or "")
+        if source_ref in allowed_refs:
+            replay_by_source.setdefault(source_ref, []).append(replay)
+
+    pending_exact_refs = _uncheckpointed_exact_read_refs(workspace, source_set=source_set)
+    pending_evidence_by_source: dict[str, list[str]] = {}
+    for item in source_set.get("pending_exact_reads") or []:
+        if not isinstance(item, dict):
+            continue
+        source_ref = str(item.get("source_ref") or "")
+        if source_ref not in allowed_refs or source_ref not in pending_exact_refs:
+            continue
+        pending_evidence_by_source[source_ref] = _dedupe(
+            [str(value) for value in item.get("evidence_ids") or [] if str(value)]
+        )
+
+    requirements: list[dict[str, Any]] = []
+    for source_ref in sorted({*replay_by_source, *pending_evidence_by_source}):
+        replays = replay_by_source.get(source_ref, [])
+        receipt_refs = _dedupe(
+            [str(item.get("receipt_ref") or "") for item in replays if str(item.get("receipt_ref") or "")]
+        )
+        requirements.append(
+            {
+                "source_ref": source_ref,
+                "receipt_refs": receipt_refs,
+                "pending_evidence_ids": pending_evidence_by_source.get(source_ref, []),
+                "read_ranges": [
+                    {
+                        "receipt_ref": str(item.get("receipt_ref") or ""),
+                        "read_kind": str(item.get("read_kind") or ""),
+                        "start_offset": item.get("start_offset"),
+                        "end_offset": item.get("end_offset"),
+                        "replay": dict(item.get("retry") or {}),
+                    }
+                    for item in replays
+                ],
+                "allowed_next_action": (
+                    "Call save_reading_note with this exact source_ref and every receipt_ref listed here, "
+                    "or save a complete source analysis that incorporates these reads."
+                ),
+            }
+        )
+    return requirements
 
 
 def _uncheckpointed_exact_read_refs(
@@ -180,9 +253,9 @@ def pending_exact_read_source_refs(
     allowed_refs = {str(item) for item in source_set.get("source_refs") or []}
     return _dedupe(
         [
-            source_ref
-            for source_ref in _uncheckpointed_exact_read_refs(workspace, source_set=source_set)
-            if source_ref in allowed_refs
+            str(item.get("source_ref") or "")
+            for item in source_set.get("pending_exact_reads") or []
+            if isinstance(item, dict) and str(item.get("source_ref") or "") in allowed_refs
         ]
     )
 
@@ -226,7 +299,7 @@ def source_refs_with_reads_newer_than_analysis(
         and str(item.get("set_id") or "") == set_id
         and str(item.get("source_ref") or "")
     }
-    receipts_by_source: dict[str, list[dict[str, Any]]] = {}
+    refs_with_read_state: set[str] = set()
     for item in workspace.get("source_read_receipts") or []:
         if (
             isinstance(item, dict)
@@ -234,38 +307,118 @@ def source_refs_with_reads_newer_than_analysis(
             and str(item.get("source_ref") or "")
             and source_read_receipt_is_delivered(item)
         ):
-            receipts_by_source.setdefault(str(item.get("source_ref") or ""), []).append(item)
+            refs_with_read_state.add(str(item.get("source_ref") or ""))
+    for item in workspace.get("source_structure_pages") or []:
+        if (
+            isinstance(item, dict)
+            and str(item.get("set_id") or "") == set_id
+            and str(item.get("source_ref") or "")
+            and str(item.get("delivery_status") or "") == "delivered"
+        ):
+            refs_with_read_state.add(str(item.get("source_ref") or ""))
+    source_set = _workspace_set(workspace, set_id)
+    if source_set is not None:
+        refs_with_read_state.update(pending_exact_read_source_refs(workspace, source_set=source_set))
+        refs_with_read_state.update(pending_comparison_source_refs(source_set))
 
     stale_refs: list[str] = []
-    for source_ref, receipts in receipts_by_source.items():
+    for source_ref in sorted(refs_with_read_state):
         assessment = assessments.get(source_ref)
         if assessment is None:
             stale_refs.append(source_ref)
             continue
         reading_basis = assessment.get("reading_basis")
-        if isinstance(reading_basis, dict) and "receipt_refs" in reading_basis:
-            cited_refs = {str(value) for value in reading_basis.get("receipt_refs") or []}
-            delivered_refs = {str(item.get("receipt_ref") or "") for item in receipts}
-            if any(receipt_ref and receipt_ref not in cited_refs for receipt_ref in delivered_refs):
-                stale_refs.append(source_ref)
-            continue
-        analysis_at = _parse_dt(assessment.get("updated_at"))
-        latest_read_at = max(
-            [
-                timestamp
-                for item in receipts
-                if (
-                    timestamp := _parse_dt(
-                        item.get("delivered_at") or item.get("created_at") or item.get("updated_at")
-                    )
-                )
-                is not None
-            ],
-            default=None,
+        saved_signature = (
+            str(reading_basis.get("read_state_signature") or "")
+            if isinstance(reading_basis, dict)
+            else ""
         )
-        if analysis_at is not None and latest_read_at is not None and latest_read_at > analysis_at:
+        current_signature = source_read_state_signature(
+            workspace,
+            set_id=set_id,
+            source_ref=source_ref,
+        )
+        if not saved_signature:
+            saved_signature = _legacy_read_state_signature(
+                workspace,
+                set_id=set_id,
+                source_ref=source_ref,
+                reading_basis=reading_basis,
+            )
+        if saved_signature != current_signature:
             stale_refs.append(source_ref)
     return sorted(set(stale_refs))
+
+
+def _legacy_read_state_signature(
+    workspace: dict[str, Any],
+    *,
+    set_id: str,
+    source_ref: str,
+    reading_basis: Any,
+) -> str:
+    """Upgrade an unfinished legacy assessment without forcing a reread."""
+
+    if not isinstance(reading_basis, dict):
+        return ""
+    cited_refs = {str(value) for value in reading_basis.get("receipt_refs") or [] if str(value)}
+    current_refs = {
+        str(item.get("receipt_ref") or "")
+        for item in workspace.get("source_read_receipts") or []
+        if isinstance(item, dict)
+        and str(item.get("set_id") or "") == set_id
+        and str(item.get("source_ref") or "") == source_ref
+        and source_read_receipt_is_delivered(item)
+    }
+    saved_ledger = dict(reading_basis.get("coverage_ledger") or {})
+    if isinstance(saved_ledger.get("structure"), dict):
+        saved_ledger["structure"] = merge_source_structures(
+            [dict(saved_ledger.get("structure") or {})],
+            source_ref=source_ref,
+        )
+    current_ledger = dict(
+        canonical_source_read_state(
+            workspace,
+            set_id=set_id,
+            source_ref=source_ref,
+        )["coverage_ledger"]
+    )
+    current_structure = dict(current_ledger.get("structure") or {})
+    has_new_unsaved_structure = bool(current_structure) and "structure" not in saved_ledger
+    saved_view = _legacy_ledger_view(saved_ledger)
+    current_view = {
+        key: _legacy_ledger_view(current_ledger).get(key)
+        for key in saved_view
+    }
+    if (
+        cited_refs == current_refs
+        and not has_new_unsaved_structure
+        and saved_view == current_view
+    ):
+        return source_read_state_signature(
+            workspace,
+            set_id=set_id,
+            source_ref=source_ref,
+        )
+    return ""
+
+
+def _legacy_ledger_view(value: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value.get(key)
+        for key in (
+            "source_ref",
+            "total_chars",
+            "sequential_ranges",
+            "sequential_chars_read",
+            "unread_char_count",
+            "eof_reached",
+            "search_ranges",
+            "search_queries",
+            "structure",
+        )
+        if key in value
+    }
 
 
 async def record_triage_comparison_read(

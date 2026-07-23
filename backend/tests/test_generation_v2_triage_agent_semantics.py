@@ -12,6 +12,11 @@ from app.generation_v2.schemas import SourceMap
 from app.generation_v2.source_triage_source_analysis_contract import (
     validate_reading_basis,
 )
+from app.generation_v2.source_triage_read_state import (
+    canonical_source_read_state,
+    merge_source_structures,
+    source_read_state_signature,
+)
 from app.generation_v2.source_triage_grounding_audit_state import (
     current_grounding_audit_violations,
 )
@@ -94,6 +99,31 @@ async def test_agent_cannot_switch_sources_before_semantic_checkpoint(
     assert blocked is not None
     assert blocked["error"] == "checkpoint_current_source_before_switch"
     assert blocked["checkpoint_required_source_refs"] == ["S01"]
+    assert blocked["checkpoint_requirements"] == [
+        {
+            "source_ref": "S01",
+            "receipt_refs": ["receipt:S01:1"],
+            "pending_evidence_ids": [],
+            "read_ranges": [
+                {
+                    "receipt_ref": "receipt:S01:1",
+                    "read_kind": "sequential",
+                    "start_offset": 0,
+                    "end_offset": 4_000,
+                    "replay": {
+                        "tool": "read_source",
+                        "source_ref": "S01",
+                        "cursor": "",
+                        "max_chars": 4_000,
+                    },
+                }
+            ],
+            "allowed_next_action": (
+                "Call save_reading_note with this exact source_ref and every receipt_ref listed here, "
+                "or save a complete source analysis that incorporates these reads."
+            ),
+        }
+    ]
 
     workspace["reading_notes"] = [
         {
@@ -197,6 +227,22 @@ def test_partial_reading_ledger_is_descriptive_not_a_completion_quota() -> None:
                 "end_offset": 2_000,
                 "total_chars": 20_000,
                 "delivery_status": "delivered",
+                "structure": {
+                    "source_ref": "S01",
+                    "total_count": 1,
+                    "returned_count": 1,
+                    "omitted_count": 0,
+                    "items": [
+                        {
+                            "kind": "heading",
+                            "label_preview": "Relevant argument",
+                            "start_offset": 0,
+                            "end_offset": 20_000,
+                        }
+                    ],
+                    "counts": {"headings": 1},
+                    "total_chars": 20_000,
+                },
             }
         ],
     }
@@ -221,6 +267,225 @@ def test_partial_reading_ledger_is_descriptive_not_a_completion_quota() -> None:
     assert basis["coverage_ledger"]["completion_is_model_judgment"] is True
 
 
+def test_search_only_read_requires_complete_document_structure() -> None:
+    workspace = {
+        "source_read_receipts": [
+            {
+                "receipt_ref": "receipt:search",
+                "set_id": "set-1",
+                "source_ref": "S01",
+                "source_version_id": "version-1",
+                "read_kind": "search",
+                "start_offset": 4_000,
+                "end_offset": 5_000,
+                "total_chars": 20_000,
+                "delivery_status": "delivered",
+                "structure": {
+                    "source_ref": "S01",
+                    "total_count": 50,
+                    "items": [
+                        {
+                            "kind": "heading",
+                            "label_preview": "First",
+                            "start_offset": 0,
+                            "end_offset": 100,
+                        }
+                    ],
+                    "counts": {"headings": 50},
+                    "total_chars": 20_000,
+                },
+            }
+        ],
+    }
+
+    basis, error = validate_reading_basis(
+        workspace=workspace,
+        source_set={"set_id": "set-1"},
+        source_ref="S01",
+        representation_status="partial",
+        raw_basis={
+            "coverage_summary": "Targeted locations were read.",
+            "unread_regions": "Other sections.",
+            "unread_risk_assessment": "Claimed irrelevant.",
+            "representation_limits": "",
+            "stopping_reason": "Search appeared sufficient.",
+        },
+    )
+
+    assert basis == {}
+    assert error is not None
+    assert error["error"] == "partial_read_requires_complete_structure"
+    assert error["structure_progress"] == {
+        "returned_count": 1,
+        "total_count": 50,
+        "next_cursor": "1",
+    }
+
+
+def test_search_only_read_is_mechanically_eligible_after_complete_structure() -> None:
+    item = {
+        "kind": "heading",
+        "label_preview": "Only section",
+        "start_offset": 0,
+        "end_offset": 20_000,
+    }
+    workspace = {
+        "source_read_receipts": [
+            {
+                "receipt_ref": "receipt:search",
+                "set_id": "set-1",
+                "source_ref": "S01",
+                "source_version_id": "version-1",
+                "read_kind": "search",
+                "start_offset": 4_000,
+                "end_offset": 5_000,
+                "total_chars": 20_000,
+                "delivery_status": "delivered",
+            }
+        ],
+        "source_structure_pages": [
+            {
+                "receipt_ref": "structure:1",
+                "set_id": "set-1",
+                "source_ref": "S01",
+                "cursor": "0",
+                "total_count": 1,
+                "items": [item],
+                "counts": {"headings": 1},
+                "total_chars": 20_000,
+                "delivery_status": "delivered",
+            }
+        ],
+    }
+
+    basis, error = validate_reading_basis(
+        workspace=workspace,
+        source_set={"set_id": "set-1"},
+        source_ref="S01",
+        representation_status="partial",
+        raw_basis={
+            "coverage_summary": "The relevant section was read.",
+            "unread_regions": "The remaining mapped section content.",
+            "unread_risk_assessment": "The complete structure was checked.",
+            "representation_limits": "",
+            "stopping_reason": "The bounded finding and structure were checked.",
+        },
+    )
+
+    assert error is None
+    assert basis["coverage_ledger"]["structure"]["complete"] is True
+
+
+def test_unstructured_partial_source_requires_sequential_completion() -> None:
+    workspace = {
+        "source_read_receipts": [
+            {
+                "receipt_ref": "receipt:first",
+                "set_id": "set-1",
+                "source_ref": "S01",
+                "source_version_id": "version-1",
+                "read_kind": "sequential",
+                "start_offset": 0,
+                "end_offset": 20_000,
+                "total_chars": 100_000,
+                "delivery_status": "delivered",
+                "structure": {
+                    "source_ref": "S01",
+                    "total_count": 5,
+                    "returned_count": 5,
+                    "omitted_count": 0,
+                    "items": [
+                        {
+                            "kind": "text_range",
+                            "label_preview": f"chars {index * 20_000 + 1}-{(index + 1) * 20_000}",
+                            "start_offset": index * 20_000,
+                            "end_offset": (index + 1) * 20_000,
+                        }
+                        for index in range(5)
+                    ],
+                    "counts": {"coarse_text_ranges": 5},
+                    "total_chars": 100_000,
+                },
+            }
+        ],
+    }
+
+    basis, error = validate_reading_basis(
+        workspace=workspace,
+        source_set={"set_id": "set-1"},
+        source_ref="S01",
+        representation_status="readable",
+        raw_basis={
+            "coverage_summary": "The introduction was read.",
+            "unread_regions": "The rest of the unstructured document.",
+            "unread_risk_assessment": "Assumed repetitive.",
+            "representation_limits": "No headings were extracted.",
+            "stopping_reason": "The introduction appeared sufficient.",
+        },
+    )
+
+    assert basis == {}
+    assert error is not None
+    assert error["error"] == "unstructured_source_requires_sequential_completion"
+    assert error["read_progress"] == {
+        "sequential_chars_read": 20_000,
+        "total_chars": 100_000,
+        "next_cursor": "receipt:first",
+    }
+
+
+def test_verified_exact_duplicate_does_not_require_rereading_identical_remainder() -> None:
+    workspace = {
+        "source_read_receipts": [
+            {
+                "receipt_ref": "receipt:first",
+                "set_id": "set-1",
+                "source_ref": "S02",
+                "source_version_id": "version-2",
+                "read_kind": "sequential",
+                "start_offset": 0,
+                "end_offset": 10_000,
+                "total_chars": 100_000,
+                "delivery_status": "delivered",
+                "structure": {
+                    "source_ref": "S02",
+                    "total_count": 5,
+                    "returned_count": 5,
+                    "omitted_count": 0,
+                    "items": [
+                        {
+                            "kind": "text_range",
+                            "label_preview": "coarse range",
+                            "start_offset": 0,
+                            "end_offset": 100_000,
+                        }
+                    ],
+                    "counts": {"coarse_text_ranges": 5},
+                    "total_chars": 100_000,
+                },
+            }
+        ],
+    }
+
+    basis, error = validate_reading_basis(
+        workspace=workspace,
+        source_set={"set_id": "set-1"},
+        source_ref="S02",
+        representation_status="readable",
+        verified_exact_duplicate_of_source_ref="S01",
+        raw_basis={
+            "coverage_summary": "Начало сверено с точным дубликатом S01.",
+            "unread_regions": "Остаток байт-в-байт совпадает с S01.",
+            "unread_risk_assessment": "Нового содержания в идентичном представлении нет.",
+            "representation_limits": "",
+            "stopping_reason": "Точное совпадение представления подтверждено системой.",
+        },
+    )
+
+    assert error is None
+    assert basis["verified_exact_duplicate_of_source_ref"] == "S01"
+
+
 def test_finish_reconciliation_detects_receipts_missing_from_latest_analysis() -> None:
     workspace = {
         "source_read_receipts": [
@@ -243,6 +508,294 @@ def test_finish_reconciliation_detects_receipts_missing_from_latest_analysis() -
 
     assert tracking.source_refs_with_reads_newer_than_analysis(workspace, set_id="set-1") == ["S01"]
     workspace["source_assessments"][0]["reading_basis"]["receipt_refs"] = ["receipt:new"]
+    assert tracking.source_refs_with_reads_newer_than_analysis(workspace, set_id="set-1") == []
+
+
+def test_repeated_structure_delivery_is_stale_only_when_semantic_coverage_changes() -> None:
+    structure_item = {
+        "kind": "heading",
+        "label_preview": "A",
+        "start_offset": 0,
+        "end_offset": 100,
+    }
+    saved_structure = {
+        "source_ref": "S01",
+        "total_count": 1,
+        "items": [structure_item],
+        "returned_count": 1,
+        "omitted_count": 0,
+        "complete": True,
+        "next_unread_cursor": "",
+        "counts": {"headings": 1},
+        "total_chars": 100,
+        "delivered_page_count": 1,
+    }
+    workspace = {
+        "source_read_receipts": [],
+        "source_structure_pages": [
+            {
+                "receipt_ref": "structure_receipt:one",
+                "set_id": "set-1",
+                "source_ref": "S01",
+                "cursor": "0",
+                "total_count": 1,
+                "items": [structure_item],
+                "counts": {"headings": 1},
+                "total_chars": 100,
+                "delivery_status": "delivered",
+            },
+            {
+                "receipt_ref": "structure_receipt:repeat",
+                "set_id": "set-1",
+                "source_ref": "S01",
+                "cursor": "0",
+                "total_count": 1,
+                "items": [structure_item],
+                "counts": {"headings": 1},
+                "total_chars": 100,
+                "delivery_status": "delivered",
+            },
+        ],
+        "source_assessments": [
+            {
+                "set_id": "set-1",
+                "source_ref": "S01",
+                "reading_basis": {
+                    "receipt_refs": [],
+                    "structure_receipt_refs": ["structure_receipt:one"],
+                    "coverage_ledger": {"structure": saved_structure},
+                },
+            }
+        ],
+    }
+
+    assert tracking.source_refs_with_reads_newer_than_analysis(workspace, set_id="set-1") == []
+    workspace["source_structure_pages"][1]["total_count"] = 2
+    workspace["source_structure_pages"][1]["items"].append(
+        {
+            "kind": "heading",
+            "label_preview": "B",
+            "start_offset": 100,
+            "end_offset": 200,
+        }
+    )
+    assert tracking.source_refs_with_reads_newer_than_analysis(workspace, set_id="set-1") == ["S01"]
+
+
+def test_receipt_embedded_structure_is_current_immediately_after_analysis() -> None:
+    structure = {
+        "source_ref": "S01",
+        "total_count": 1,
+        "items": [{"kind": "heading", "label_preview": "A", "start_offset": 0, "end_offset": 100}],
+        "counts": {"headings": 1},
+        "total_chars": 100,
+    }
+    workspace = {
+        "source_read_receipts": [
+            {
+                "receipt_ref": "receipt:one",
+                "set_id": "set-1",
+                "source_ref": "S01",
+                "source_version_id": "version-1",
+                "content_sha256": "content-1",
+                "read_kind": "sequential",
+                "start_offset": 0,
+                "end_offset": 100,
+                "total_chars": 100,
+                "eof": True,
+                "structure": structure,
+                "delivery_status": "delivered",
+            }
+        ],
+        "source_structure_pages": [],
+        "source_assessments": [],
+    }
+    basis, error = validate_reading_basis(
+        workspace=workspace,
+        source_set={"set_id": "set-1"},
+        source_ref="S01",
+        representation_status="readable",
+        raw_basis={
+            "coverage_summary": "The full source was read.",
+            "unread_regions": "None.",
+            "unread_risk_assessment": "No unread material.",
+            "representation_limits": "",
+            "stopping_reason": "EOF was reached.",
+        },
+    )
+    assert error is None
+    workspace["source_assessments"] = [
+        {"set_id": "set-1", "source_ref": "S01", "reading_basis": basis}
+    ]
+    assert tracking.source_refs_with_reads_newer_than_analysis(workspace, set_id="set-1") == []
+
+
+def test_structure_merge_is_independent_of_delivery_path_and_duplicates() -> None:
+    item = {"kind": "heading", "label_preview": "A", "start_offset": 0, "end_offset": 100}
+    receipt_structure = {
+        "source_ref": "S01",
+        "total_count": 1,
+        "items": [item],
+        "counts": {"headings": 1},
+        "total_chars": 100,
+    }
+    page_structure = {
+        **receipt_structure,
+        "returned_count": 1,
+        "omitted_count": 0,
+        "complete": True,
+        "next_unread_cursor": "",
+        "delivered_page_count": 1,
+    }
+    receipt_only = merge_source_structures([receipt_structure], source_ref="S01")
+    page_only = merge_source_structures([page_structure], source_ref="S01")
+    both = merge_source_structures(
+        [receipt_structure, page_structure, page_structure],
+        source_ref="S01",
+    )
+    assert receipt_only == page_only == both
+
+
+def test_legacy_embedded_structure_uses_omitted_count_instead_of_claiming_complete() -> None:
+    items = [
+        {
+            "kind": "heading",
+            "label_preview": f"Section {index}",
+            "start_offset": index * 100,
+            "end_offset": (index + 1) * 100,
+        }
+        for index in range(3)
+    ]
+
+    merged = merge_source_structures(
+        [
+            {
+                "items": items,
+                "returned_count": 3,
+                "omitted_count": 7,
+                "counts": {"headings": 10},
+            }
+        ],
+        source_ref="S01",
+    )
+
+    assert merged["total_count"] == 10
+    assert merged["returned_count"] == 3
+    assert merged["complete"] is False
+    assert merged["next_unread_cursor"] == "3"
+
+
+def test_duplicate_semantic_receipt_does_not_change_canonical_read_state() -> None:
+    receipt = {
+        "set_id": "set-1",
+        "source_ref": "S01",
+        "source_version_id": "version-1",
+        "content_sha256": "content-1",
+        "read_kind": "sequential",
+        "start_offset": 0,
+        "end_offset": 100,
+        "total_chars": 100,
+        "delivery_status": "delivered",
+    }
+    first = canonical_source_read_state(
+        {"source_read_receipts": [{**receipt, "receipt_ref": "receipt:one"}]},
+        set_id="set-1",
+        source_ref="S01",
+    )
+    repeated = canonical_source_read_state(
+        {
+            "source_read_receipts": [
+                {**receipt, "receipt_ref": "receipt:one"},
+                {**receipt, "receipt_ref": "receipt:duplicate"},
+            ]
+        },
+        set_id="set-1",
+        source_ref="S01",
+    )
+    assert first == repeated
+
+
+def test_same_text_receipt_from_another_query_does_not_change_signature() -> None:
+    receipt = {
+        "set_id": "set-1",
+        "source_ref": "S01",
+        "source_version_id": "version-1",
+        "content_sha256": "content-1",
+        "read_kind": "search",
+        "start_offset": 100,
+        "end_offset": 300,
+        "total_chars": 1_000,
+        "delivery_status": "delivered",
+    }
+    first = {
+        "source_read_receipts": [
+            {**receipt, "receipt_ref": "receipt:one", "request": {"query": "first term"}}
+        ]
+    }
+    repeated = {
+        "source_read_receipts": [
+            *first["source_read_receipts"],
+            {
+                **receipt,
+                "receipt_ref": "receipt:two",
+                "read_kind": "sequential",
+                "request": {"query": "second term"},
+            },
+        ]
+    }
+    assert source_read_state_signature(first, set_id="set-1", source_ref="S01") == (
+        source_read_state_signature(repeated, set_id="set-1", source_ref="S01")
+    )
+
+
+def test_new_exact_read_remains_stale_until_source_analysis_acknowledges_it() -> None:
+    workspace = {
+        "source_sets": [
+            {
+                "set_id": "set-1",
+                "source_refs": ["S01"],
+                "pending_exact_reads": [
+                    {
+                        "source_ref": "S01",
+                        "evidence_ids": ["evidence:new"],
+                        "updated_at": "2026-07-20T10:00:00",
+                    }
+                ],
+            }
+        ],
+        "source_read_receipts": [],
+        "source_assessments": [],
+        "reading_notes": [
+            {
+                "set_id": "set-1",
+                "source_ref": "S01",
+                "what_was_read": "The new exact window.",
+                "what_was_established": "Its bounded meaning.",
+                "updated_at": "2026-07-20T10:01:00",
+            }
+        ],
+    }
+    acknowledged_signature = source_read_state_signature(
+        workspace,
+        set_id="set-1",
+        source_ref="S01",
+        acknowledge_pending=True,
+    )
+    workspace["source_assessments"] = [
+        {
+            "set_id": "set-1",
+            "source_ref": "S01",
+            "reading_basis": {"read_state_signature": acknowledged_signature},
+        }
+    ]
+
+    assert tracking.pending_exact_read_source_refs(
+        workspace,
+        source_set=workspace["source_sets"][0],
+    ) == ["S01"]
+    assert tracking.source_refs_with_reads_newer_than_analysis(workspace, set_id="set-1") == ["S01"]
+
+    tracking.clear_pending_exact_read(workspace["source_sets"][0], source_ref="S01")
     assert tracking.source_refs_with_reads_newer_than_analysis(workspace, set_id="set-1") == []
 
 

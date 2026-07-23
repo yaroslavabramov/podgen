@@ -134,22 +134,7 @@ class SourceTriageStageRunner:
                 [],
                 context.workspace,
             )
-        planner_tools = build_workspace_tools(
-            db=self.db,
-            run=self.run,
-            workspace=context.workspace,
-            inventory=context.source_inventory,
-            evidence_toolset=context.evidence_toolset,
-            mode="planner",
-        )
-        planner_completion = await build_source_triage_planner_agent(
-            self.db,
-            self.run,
-            self.runtime,
-            workspace_summary=workspace_summary_for_prompt(context.workspace, include_planner_resume=True),
-            source_catalog=planner_source_catalog(context.source_inventory),
-            workspace_tools=planner_tools,
-        )
+        planner_completion = await self.run_planner(context)
         workspace = await load_source_triage_workspace(self.db, self.run.id) or context.workspace
         set_completions: list[SourceTriageCompletion] = []
         if workspace.get("status") != "planned":
@@ -178,6 +163,24 @@ class SourceTriageStageRunner:
                     f"Source triage set {set_id or '<missing>'} returned without a terminal mapped/deferred state."
                 )
         return planner_completion, set_completions, workspace
+
+    async def run_planner(self, context: SourceTriageStageContext) -> SourceTriageCompletion:
+        planner_tools = build_workspace_tools(
+            db=self.db,
+            run=self.run,
+            workspace=context.workspace,
+            inventory=context.source_inventory,
+            evidence_toolset=context.evidence_toolset,
+            mode="planner",
+        )
+        return await build_source_triage_planner_agent(
+            self.db,
+            self.run,
+            self.runtime,
+            workspace_summary=workspace_summary_for_prompt(context.workspace, include_planner_resume=True),
+            source_catalog=planner_source_catalog(context.source_inventory),
+            workspace_tools=planner_tools,
+        )
 
     async def record_planner_not_finalized(
         self,

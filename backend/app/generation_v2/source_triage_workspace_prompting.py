@@ -8,6 +8,7 @@ from app.generation_v2.model_context_text import (
     stable_unique_texts,
 )
 from app.generation_v2.schemas import SourceMap
+from app.generation_v2.source_triage_model_delivery import source_structure_coverage
 from app.generation_v2.source_triage_workspace_state import (
     SOURCE_SET_KIND_COVERAGE,
     SOURCE_SET_KIND_ORIENTATION,
@@ -25,6 +26,7 @@ from app.generation_v2.source_triage_read_checkpointing import (
     pending_exact_read_source_refs,
     source_refs_with_reads_newer_than_analysis,
 )
+from app.generation_v2.source_triage_question_state import question_outcome_is_current
 from app.generation_v2.tools.evidence_refs import build_source_ref_context, source_ref_for_id
 
 
@@ -812,13 +814,21 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
         and str(item.get("processing_status") or "resolved") == "resolved"
         and (item.get("finding_ids") or str(item.get("no_findings_reason") or "").strip())
     }
-    completed_question_ids = {
-        str(item.get("question_id") or "")
+    outcomes_by_question = {
+        str(item.get("question_id") or ""): item
         for item in workspace.get("coverage_outcomes") or []
-        if isinstance(item, dict)
-        and str(item.get("set_id") or "") == set_id
-        and str(item.get("status") or "") in {"covered", "partial", "missing", "conflicted", "deferred"}
-        and not bool(item.get("is_stale"))
+        if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
+    }
+    completed_question_ids = {
+        question_id
+        for question_id, item in outcomes_by_question.items()
+        if str(item.get("status") or "") in {"covered", "partial", "missing", "conflicted", "deferred"}
+        and question_outcome_is_current(
+            item,
+            workspace=workspace,
+            source_set=source_set,
+            question_id=question_id,
+        )
     }
     required_question_ids = [str(item) for item in source_set.get("question_ids") or []]
     assigned_question_previews = [
@@ -879,9 +889,14 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
                 question_id for question_id in required_question_ids if question_id not in completed_question_ids
             ],
             "stale_outcome_question_ids": [
-                str(item.get("question_id") or "")
-                for item in set_outcomes
-                if bool(item.get("is_stale"))
+                question_id
+                for question_id, item in outcomes_by_question.items()
+                if not question_outcome_is_current(
+                    item,
+                    workspace=workspace,
+                    source_set=source_set,
+                    question_id=question_id,
+                )
             ],
             "priority": source_set.get("priority"),
             "execution_mode": execution_mode,
@@ -910,6 +925,21 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
         "all_coverage_question_count": len(all_question_index),
         "saved_state_previews": {
             "source_read_coverage_ledger": read_coverage_ledger,
+            "source_structure_coverage": [
+                {
+                    key: value
+                    for key, value in structure.items()
+                    if key != "items"
+                }
+                for source_ref in source_set.get("source_refs") or []
+                if (
+                    structure := source_structure_coverage(
+                        workspace,
+                        set_id=set_id,
+                        source_ref=str(source_ref),
+                    )
+                )
+            ],
             "latest_source_read_receipts": [
                 {
                     "receipt_ref": item.get("receipt_ref"),
@@ -996,8 +1026,10 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
                         260,
                     ),
                     **_preview_fields(
-                        "why_unread_is_safe",
-                        item.get("why_unread_is_safe") or "",
+                        "unread_risk_assessment",
+                        item.get("unread_risk_assessment")
+                        or item.get("why_unread_is_safe")
+                        or "",
                         260,
                     ),
                     "question_ids": [
@@ -1070,8 +1102,9 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
                 for item in set_outcomes
             ],
             "full_records": (
-                "Use list_triage_source_sets with current_set_state, source_read_receipts, reading_notes, "
-                "source_assessments, source_findings, or coverage_outcomes; follow page.next_cursor."
+                "Use set_overview (current_set_state compatibility alias) and unfinished_work first; then page "
+                "source_memory for one source, "
+                "or every question_workbench page for one question before resolving it."
             ),
         },
         "workspace_progress": {
@@ -1096,6 +1129,7 @@ def _compact_question_prompt_item(item: dict[str, Any]) -> dict[str, Any]:
         **_preview_fields("question", item.get("question") or "", 280),
         "kind": item.get("kind"),
         "importance": item.get("importance"),
+        "parent_question_id": item.get("parent_question_id"),
         "answer_requirements": [
             {
                 "requirement_id": requirement.get("requirement_id"),

@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     generation_v2_openai_model: str = ""  # legacy fallback; prefer per-agent model settings below
     generation_v2_default_model: str = "gpt-5.4-mini"
     generation_v2_source_triage_model: str = "gpt-5.4-mini"
+    generation_v2_source_triage_planner_model: str = ""
+    generation_v2_source_triage_set_model: str = ""
+    generation_v2_source_triage_finalizer_model: str = ""
     generation_v2_source_acquisition_model: str = "gpt-5.4-mini"
     generation_v2_research_model: str = "gpt-5.4-mini"
     generation_v2_research_planner_model: str = "gpt-5.4-mini"

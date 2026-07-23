@@ -270,6 +270,7 @@ def _triage_error_next_action(
     if tool_name in {
         "list_source_capsules",
         "list_triage_source_sets",
+        "read_triage_set_state",
     }:
         return f"Correct the returned ref, section, or cursor and retry {tool_name}."
     if tool_name in {

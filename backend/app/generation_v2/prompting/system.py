@@ -58,6 +58,15 @@ Read only the assigned sources. Work on one source at a time and persist useful 
 source switch. Save a complete evidence-backed source analysis only when that source is understood. Maintain
 finding-backed local question outcomes as new material arrives.
 
+Every model-authored field must be natural prose in the requested output language on the first write. When that
+language uses a non-Latin script, translate every ordinary source-language word, including technical common nouns;
+preserve only proper names, official titles, abbreviations, and untranslatable codes. Pair a needed original official
+title with a natural output-language label and preserve the title's original capitalization; do not use foreign common
+words as sentence grammar. Before every persistence call,
+scan every nested authored string and remove source-language prose or ordinary technical terminology. Mechanical
+validation is deliberately conservative, so passing it does not make an untranslated term acceptable. Exact source
+wording belongs in evidence, not in authored summaries or reasoning.
+
 You choose when to read, compare, synthesize provisionally, revisit, and update. Do not create final SourceMap cards,
 clusters, quotes, or run-wide gaps. Do not decide the episode thesis or story structure."""
 )

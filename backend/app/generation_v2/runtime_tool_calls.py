@@ -16,6 +16,7 @@ from app.generation_v2.runtime_checkpoint_state import (
     trace_output_with_runtime as _trace_output_with_runtime,
 )
 from app.generation_v2.runtime_contracts import (
+    AgentOperationalStall,
     AgentTerminalResult,
     AgentTool,
     terminal_result_from_tool_output,
@@ -115,6 +116,8 @@ async def process_runtime_function_calls(
         else:
             try:
                 output = await tool.handler(call["arguments"])
+            except AgentOperationalStall:
+                raise
             except Exception as exc:
                 logger.warning("V2 local tool failed: %s", call["name"], exc_info=True)
                 output = {
@@ -284,7 +287,14 @@ async def process_runtime_function_calls(
 
 
 _PRIVATE_RUNTIME_DELIVERY_TOOLS = frozenset(
-    {"read_source", "search_source", "open_source_file"}
+    {
+        "read_source",
+        "search_source",
+        "open_source_file",
+        "inspect_source",
+        "list_triage_source_sets",
+        "read_triage_set_state",
+    }
 )
 
 
@@ -300,14 +310,27 @@ def _validated_private_runtime_directive(
     if tool_name not in _PRIVATE_RUNTIME_DELIVERY_TOOLS:
         return [], [], f"{tool_name} is not allowed to return private runtime input"
 
-    successful = (
-        output.get("accepted") is True and output.get("attached") is True
-        if tool_name == "open_source_file"
-        else output.get("found") is True
-    )
+    if tool_name == "open_source_file":
+        successful = output.get("accepted") is True and output.get("attached") is True
+    elif tool_name in {"list_triage_source_sets", "read_triage_set_state"}:
+        successful = output.get("accepted") is True and output.get("section") in {
+            "finding_catalog",
+            "semantic_review",
+            "question_workbench",
+        }
+    else:
+        successful = output.get("found") is True
     if not successful:
         if has_runtime_messages or has_receipt_delivery:
             return [], [], f"{tool_name} may schedule private delivery only after success"
+        return [], [], None
+
+    delivery_is_optional = tool_name in {
+        "inspect_source",
+        "list_triage_source_sets",
+        "read_triage_set_state",
+    }
+    if delivery_is_optional and not has_runtime_messages and not has_receipt_delivery:
         return [], [], None
 
     if not has_receipt_delivery or not isinstance(raw_receipt_delivery, dict) or set(
@@ -324,14 +347,14 @@ def _validated_private_runtime_directive(
     receipt_refs = [str(value or "").strip() for value in raw_receipt_refs]
     if (
         len(set(receipt_refs)) != len(receipt_refs)
-        or any(not value.startswith("receipt:") or len(value) > 128 for value in receipt_refs)
+        or any(not _valid_delivery_receipt_ref(tool_name, value) for value in receipt_refs)
     ):
         return [], [], f"{tool_name} returned invalid delivery receipt_refs"
 
     expected_receipt_refs: list[str]
     if tool_name in {"read_source", "open_source_file"}:
         expected_receipt_refs = [str(output.get("receipt_ref") or "").strip()]
-    else:
+    elif tool_name == "search_source":
         results = output.get("results")
         if not isinstance(results, list):
             return [], [], "search_source returned invalid results for receipt delivery"
@@ -342,6 +365,16 @@ def _validated_private_runtime_directive(
         ]
         if len(expected_receipt_refs) != len(results):
             return [], [], "search_source returned invalid result receipt_refs"
+    elif tool_name == "inspect_source":
+        expected_receipt_refs = [str(output.get("structure_receipt_ref") or "").strip()]
+    elif output.get("section") == "question_workbench":
+        expected_receipt_refs = [str(output.get("workbench_receipt_ref") or "").strip()]
+    elif output.get("section") == "finding_catalog":
+        expected_receipt_refs = [
+            str(output.get("finding_catalog_receipt_ref") or "").strip()
+        ]
+    else:
+        expected_receipt_refs = [str(output.get("review_receipt_ref") or "").strip()]
     if receipt_refs != expected_receipt_refs:
         return [], [], f"{tool_name} delivery receipt_refs do not match its public output"
 
@@ -379,3 +412,20 @@ def _validated_private_runtime_directive(
     ):
         return [], [], "open_source_file returned invalid private attachment file"
     return [message], receipt_refs, None
+
+
+def _valid_delivery_receipt_ref(tool_name: str, value: str) -> bool:
+    expected_prefix = {
+        "inspect_source": "structure_receipt:",
+        "list_triage_source_sets": "review_receipt:",
+        "read_triage_set_state": "review_receipt:",
+    }.get(tool_name, "receipt:")
+    if tool_name in {"list_triage_source_sets", "read_triage_set_state"} and value.startswith(
+        "workbench_receipt:"
+    ):
+        expected_prefix = "workbench_receipt:"
+    if tool_name == "read_triage_set_state" and value.startswith(
+        "finding_catalog_receipt:"
+    ):
+        expected_prefix = "finding_catalog_receipt:"
+    return bool(value.startswith(expected_prefix) and len(value) <= 128)

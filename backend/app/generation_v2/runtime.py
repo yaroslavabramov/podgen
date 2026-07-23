@@ -88,12 +88,17 @@ _MODEL_HIDDEN_TOOL_KEYS = MODEL_HIDDEN_TOOL_KEYS
 class V2Runtime:
     """OpenAI-first structured runtime with hosted and local tools."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        before_provider_call: Callable[..., Awaitable[None]] | None = None,
+    ) -> None:
         self.default_model = generation_v2_default_model()
         self.model = self.default_model
         self.reasoning_effort = settings.generation_v2_openai_reasoning_effort
         self._prompt_hashes: dict[tuple[str, str], str] = {}
         self._fallback_agents: set[tuple[str, str]] = set()
+        self.before_provider_call = before_provider_call
 
     def model_for(self, phase: str, agent_name: str) -> str:
         return generation_v2_model_for_agent(phase, agent_name, default_model=self.default_model)

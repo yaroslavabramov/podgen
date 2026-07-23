@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
 from app.generation_v2 import source_triage_workspace as workspace_api
@@ -19,6 +20,23 @@ from app.generation_v2.source_triage_workspace_handler_helpers import (
     requirement_status_consistency_error as _requirement_status_consistency_error,
 )
 from app.generation_v2.source_triage_workspace_state import invalidate_coverage_syntheses
+from app.generation_v2.source_triage_model_delivery import (
+    finding_catalog_delivery_state,
+    question_workbench_is_fully_delivered,
+    question_workbench_delivery_state,
+)
+from app.generation_v2.source_triage_question_state import finding_catalog_snapshot_id
+from app.generation_v2.source_triage_set_state_views import (
+    question_workbench_signature,
+)
+from app.generation_v2.source_triage_question_resolution import (
+    apply_question_resolution_links,
+    normalize_question_resolution_args,
+    question_resolution_shape_error,
+)
+from app.generation_v2.source_triage_language_contract import (
+    question_resolution_language_error,
+)
 from app.generation_v2.tools.evidence_refs import build_source_ref_context, resolve_source_ref
 
 
@@ -48,11 +66,96 @@ class SourceTriageWorkspaceOutcomeHandlersMixin:
                 "question_id": question_id,
                 "next_action": "Copy an exact question_id from the persisted coverage question list.",
             }
-        findings_by_id = {
+        snapshot_id = str(args.get("workbench_snapshot_id") or "").strip()
+        v3_resolution = bool(snapshot_id)
+        if v3_resolution:
+            current_snapshot_id = question_workbench_signature(
+                current,
+                source_set,
+                question_id=question_id,
+            )
+            if snapshot_id != current_snapshot_id:
+                catalog_snapshot_id = finding_catalog_snapshot_id(current, source_set)
+                return {
+                    "accepted": False,
+                    "error": "question_workbench_snapshot_stale",
+                    "question_id": question_id,
+                    "current_workbench_snapshot_id": current_snapshot_id,
+                    "current_finding_catalog_snapshot_id": catalog_snapshot_id,
+                    "next_action": (
+                        "The previous semantic decision is no longer valid. Read the current finding_catalog if "
+                        "its snapshot changed, then read question_workbench from cursor='0' and recompute the "
+                        "complete question result from the new state."
+                    ),
+                }
+            catalog_snapshot_id = finding_catalog_snapshot_id(current, source_set)
+            catalog_delivery = finding_catalog_delivery_state(
+                current,
+                set_id=set_id,
+                snapshot_id=catalog_snapshot_id,
+            )
+            if not catalog_delivery["complete"]:
+                return {
+                    "accepted": False,
+                    "error": "finding_catalog_not_fully_read",
+                    "question_id": question_id,
+                    "finding_catalog_snapshot_id": catalog_snapshot_id,
+                    **catalog_delivery,
+                    "next_action": (
+                        "The attempted semantic decision is provisional. Read section=finding_catalog from "
+                        f"cursor={catalog_delivery['first_unread_cursor']!r}, follow every page.next_cursor, then "
+                        "reread the current question_workbench and recompute the result."
+                    ),
+                }
+            if not question_workbench_is_fully_delivered(
+                current,
+                set_id=set_id,
+                question_id=question_id,
+                snapshot_id=snapshot_id,
+            ):
+                delivery = question_workbench_delivery_state(
+                    current,
+                    set_id=set_id,
+                    question_id=question_id,
+                    snapshot_id=snapshot_id,
+                )
+                return {
+                    "accepted": False,
+                    "error": "question_workbench_not_fully_read",
+                    "question_id": question_id,
+                    "workbench_snapshot_id": snapshot_id,
+                    **delivery,
+                    "next_action": (
+                        "The attempted semantic decision is provisional, not a record to preserve. Read "
+                        f"question_workbench from cursor={delivery['first_unread_cursor']!r}, follow every "
+                        "page.next_cursor, then recompute every requirement affected by the newly read state."
+                    ),
+                }
+            shape_error = question_resolution_shape_error(args)
+            if shape_error:
+                return shape_error
+            args = normalize_question_resolution_args(args)
+        language_error = question_resolution_language_error(
+            args,
+            output_language=str((current.get("intent") or {}).get("language") or ""),
+        )
+        if language_error:
+            return language_error
+        stored_findings_by_id = {
             str(item.get("finding_id") or ""): item
             for item in current.get("source_findings") or []
             if isinstance(item, dict) and str(item.get("finding_id") or "")
         }
+        findings_by_id = deepcopy(stored_findings_by_id) if v3_resolution else stored_findings_by_id
+        if v3_resolution:
+            link_error = apply_question_resolution_links(
+                findings_by_id=findings_by_id,
+                set_id=set_id,
+                question=question,
+                requirement_results=args.get("requirement_results") or [],
+            )
+            if link_error:
+                return link_error
         current_question_ids = {str(item) for item in source_set.get("question_ids") or []}
         if question_id not in current_question_ids:
             linked_current_set_findings = [
@@ -157,7 +260,22 @@ class SourceTriageWorkspaceOutcomeHandlersMixin:
                 expected_requirement_ids=expected_requirement_ids,
             )
             if requirement_error:
-                return requirement_error
+                return {
+                    **requirement_error,
+                    "allowed_findings_by_requirement": _allowed_findings_by_requirement(
+                        question=question,
+                        findings_by_id=findings_by_id,
+                        set_id=set_id,
+                    ),
+                    "next_action": (
+                        "Read every page of read_triage_set_state section=question_workbench for this question_id, "
+                        "then retry with its current snapshot and only findings that satisfy the exact criterion."
+                        if v3_resolution
+                        else
+                        "Read read_triage_set_state section=question_memory for this question_id, then retry "
+                        "using only findings shown under the intended requirement."
+                    ),
+                }
             provided_finding_ids = public_api._dedupe(
                 [str(item) for item in args.get("finding_ids") or [] if str(item).strip()]
             )
@@ -211,7 +329,14 @@ class SourceTriageWorkspaceOutcomeHandlersMixin:
                     "wrong_set_finding_ids": wrong_set_finding_ids,
                     "unlinked_finding_ids": unlinked_finding_ids,
                     "lineage_errors": lineage_errors,
-                    "next_action": _lineage_repair_next_action(lineage_errors),
+                    "allowed_findings_by_requirement": _allowed_findings_by_requirement(
+                        question=question,
+                        findings_by_id=findings_by_id,
+                        set_id=set_id,
+                    ),
+                    "next_action": (
+                        f"{_lineage_repair_next_action(lineage_errors)} Then read section=question_memory before retrying."
+                    ),
                 }
             selected_findings = [findings_by_id[finding_id] for finding_id in finding_ids]
             source_refs = public_api._dedupe([str(item.get("source_ref") or "") for item in selected_findings])
@@ -264,18 +389,24 @@ class SourceTriageWorkspaceOutcomeHandlersMixin:
             "conflict_summary": str(args.get("conflict_summary") or "").strip(),
             "deferred_reason": str(args.get("deferred_reason") or "").strip(),
         }
-        field_error = semantic_field_error(
-            semantic_fields,
-            {
-                "coverage_summary": TRIAGE_SEMANTIC_FIELD_LIMITS["coverage_summary"],
-                "missing_detail": TRIAGE_SEMANTIC_FIELD_LIMITS["coverage_detail"],
-                "conflict_summary": TRIAGE_SEMANTIC_FIELD_LIMITS["coverage_detail"],
-                "deferred_reason": TRIAGE_SEMANTIC_FIELD_LIMITS["deferred_reason"],
-            },
-            list(semantic_fields),
-        )
-        if field_error:
-            return field_error
+        if not v3_resolution:
+            # The legacy tool authors these aggregate fields directly, so each
+            # one must fit its declared input contract. The current resolution
+            # tool authors bounded per-requirement fields instead; these values
+            # are losslessly derived by joining them and must not acquire a
+            # second, smaller aggregate limit.
+            field_error = semantic_field_error(
+                semantic_fields,
+                {
+                    "coverage_summary": TRIAGE_SEMANTIC_FIELD_LIMITS["coverage_summary"],
+                    "missing_detail": TRIAGE_SEMANTIC_FIELD_LIMITS["coverage_detail"],
+                    "conflict_summary": TRIAGE_SEMANTIC_FIELD_LIMITS["coverage_detail"],
+                    "deferred_reason": TRIAGE_SEMANTIC_FIELD_LIMITS["deferred_reason"],
+                },
+                list(semantic_fields),
+            )
+            if field_error:
+                return field_error
         assessments_by_ref = {
             str(item.get("source_ref") or ""): item
             for item in current.get("source_assessments") or []
@@ -383,6 +514,13 @@ class SourceTriageWorkspaceOutcomeHandlersMixin:
             "is_stale": False,
             "updated_at": public_api._now(),
         }
+        if v3_resolution:
+            outcome["workbench_snapshot_id"] = snapshot_id
+        if v3_resolution:
+            for finding_id, proposed in findings_by_id.items():
+                stored = stored_findings_by_id.get(finding_id)
+                if stored is not None:
+                    stored["question_links"] = deepcopy(proposed.get("question_links") or [])
         current["coverage_outcomes"] = [
             item
             for item in current.get("coverage_outcomes") or []
@@ -696,6 +834,34 @@ class SourceTriageWorkspaceOutcomeHandlersMixin:
         if consistency_error:
             return [], [], consistency_error
         return normalized, workspace_api._dedupe(all_finding_ids), None
+
+
+def _allowed_findings_by_requirement(
+    *,
+    question: dict[str, Any],
+    findings_by_id: dict[str, dict[str, Any]],
+    set_id: str,
+) -> list[dict[str, Any]]:
+    question_id = str(question.get("question_id") or "")
+    result: list[dict[str, Any]] = []
+    for requirement in question.get("answer_requirements") or []:
+        if not isinstance(requirement, dict):
+            continue
+        requirement_id = str(requirement.get("requirement_id") or "")
+        finding_ids = sorted(
+            finding_id
+            for finding_id, finding in findings_by_id.items()
+            if str(finding.get("set_id") or "") == set_id
+            and _finding_supports_requirement(finding, question_id, requirement_id)
+        )
+        result.append(
+            {
+                "requirement_id": requirement_id,
+                "finding_ids_preview": finding_ids[:12],
+                "omitted_finding_count": max(0, len(finding_ids) - 12),
+            }
+        )
+    return result
 
 
 __all__ = ["SourceTriageWorkspaceOutcomeHandlersMixin"]

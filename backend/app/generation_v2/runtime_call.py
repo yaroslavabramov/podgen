@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import itertools
+import json
 from collections.abc import Awaitable, Callable
 from typing import Any, Generic, TypeVar
 
@@ -100,6 +101,8 @@ class RuntimeCallSession(Generic[T]):
         self.terminal_return_count = 0
         self.terminal_progress_state: Any = None
         self.previous_tool_cycle_fingerprint: str | None = None
+        self.terminal_blocker_fingerprint: str | None = None
+        self.validation_blocker_progress_states: dict[str, Any] = {}
         self.chain_id = _chain_id(phase, agent_name, self.prompt_hash, self.checkpoint_index)
 
         self.client: Any | None = None
@@ -250,6 +253,18 @@ class RuntimeCallSession(Generic[T]):
             raise RuntimeError("RuntimeCallSession is not prepared")
         if self.pending_delivery_receipt_refs and not self.previous_response_id:
             raise RuntimeError("Pending source-read delivery lost its same-agent response chain")
+        before_provider_call = getattr(getattr(self, "runtime", None), "before_provider_call", None)
+        if before_provider_call is not None:
+            await before_provider_call(
+                db=self.db,
+                generation_run_id=self.generation_run_id,
+                phase=self.phase,
+                agent_name=self.agent_name,
+                round_idx=round_idx,
+                requested_model=self.requested_model,
+                max_output_tokens=self.max_output_tokens,
+                server_compaction_threshold=self.server_compaction_threshold,
+            )
         self.chain_round += 1
         round_state = await self.round_runner.run_round(
             round_idx=round_idx,
@@ -263,11 +278,11 @@ class RuntimeCallSession(Generic[T]):
             self.pending_delivery_receipt_refs
             and response_status(round_state.response) in {"completed", "incomplete"}
         ):
-            from app.generation_v2.tools.evidence_read_delivery import (
-                mark_source_read_receipts_delivered,
+            from app.generation_v2.source_triage_model_delivery import (
+                mark_runtime_delivery_receipts_delivered,
             )
 
-            acknowledged = await mark_source_read_receipts_delivered(
+            acknowledged = await mark_runtime_delivery_receipts_delivered(
                 self.db,
                 generation_run_id=self.generation_run_id,
                 receipt_refs=self.pending_delivery_receipt_refs,
@@ -275,7 +290,7 @@ class RuntimeCallSession(Generic[T]):
             expected = len(set(self.pending_delivery_receipt_refs))
             if acknowledged != expected:
                 raise RuntimeError(
-                    "Source-read delivery acknowledgment did not match durable receipts"
+                    "Model-output delivery acknowledgment did not match durable receipts"
                 )
             await _commit_runtime_side_effects(self.db)
             self.pending_delivery_receipt_refs = []
@@ -362,7 +377,10 @@ class RuntimeCallSession(Generic[T]):
                 "content": (
                     "The workflow is not complete because no terminal tool was accepted. Continue in this same "
                     "response chain from durable state. Do not repeat saved work. Inspect current state if needed, "
-                    "persist the next unfinished semantic record, or call the terminal tool when all work is current."
+                    "persist the next unfinished semantic record, or call the terminal tool when all work is current. "
+                    "The durable progress snapshot below supersedes any stale cursor or status retained by server "
+                    "compaction.\nDurable progress snapshot:\n"
+                    + json.dumps(progress_state, ensure_ascii=False, default=str)
                 ),
             }
         ]
@@ -384,6 +402,20 @@ class RuntimeCallSession(Generic[T]):
                 advance.terminal_result,
                 source="accepted terminal tool",
             )
+        terminal_blocker = _terminal_blocker_fingerprint(
+            advance,
+            terminal_tool_names={tool.name for tool in self.local_tools or [] if tool.terminal},
+        )
+        if terminal_blocker is not None:
+            if terminal_blocker == self.terminal_blocker_fingerprint:
+                raise AgentOperationalStall(
+                    f"{self.agent_name} repeated the same terminal blocker after one repair attempt"
+                )
+            self.terminal_blocker_fingerprint = terminal_blocker
+        await self._raise_on_repeated_validation_blocker(
+            advance,
+            terminal_tool_names={tool.name for tool in self.local_tools or [] if tool.terminal},
+        )
         if (
             advance.tool_cycle_fingerprint is not None
             and advance.tool_cycle_fingerprint == self.previous_tool_cycle_fingerprint
@@ -400,6 +432,30 @@ class RuntimeCallSession(Generic[T]):
         self.chain_model_tool_output_chars = advance.chain_model_tool_output_chars
         self.pending_delivery_receipt_refs = advance.delivery_receipt_refs
         return None
+
+    async def _raise_on_repeated_validation_blocker(
+        self,
+        advance: Any,
+        *,
+        terminal_tool_names: set[str],
+    ) -> None:
+        if self.terminal_progress_loader is None:
+            return
+        fingerprints = _validation_blocker_fingerprints(
+            advance,
+            terminal_tool_names=terminal_tool_names,
+        )
+        if not fingerprints:
+            return
+        progress_state = await self.terminal_progress_loader()
+        progress_fingerprint = _semantic_progress_fingerprint(progress_state)
+        for fingerprint in fingerprints:
+            previous_state = self.validation_blocker_progress_states.get(fingerprint)
+            if previous_state is not None and previous_state == progress_fingerprint:
+                raise AgentOperationalStall(
+                    f"{self.agent_name} repeated the same rejected tool defect without saved semantic progress"
+                )
+            self.validation_blocker_progress_states[fingerprint] = progress_fingerprint
 
     async def _resume_terminal_completion(self) -> T | None:
         resumed: list[tuple[str, AgentTerminalResult]] = []
@@ -437,6 +493,102 @@ class RuntimeCallSession(Generic[T]):
             raise RuntimeError(
                 f"{source} returned a completion that does not match {self.schema_model.__name__}"
             ) from exc
+
+
+def _terminal_blocker_fingerprint(
+    advance: Any,
+    *,
+    terminal_tool_names: set[str],
+) -> str | None:
+    blockers = []
+    for item in getattr(advance, "checkpoint_tool_results", []) or []:
+        if not isinstance(item, dict) or str(item.get("tool_name") or "") not in terminal_tool_names:
+            continue
+        result = item.get("result")
+        if not isinstance(result, dict) or result.get("accepted") is True or not result.get("error"):
+            continue
+        blockers.append(
+            {
+                "tool_name": str(item.get("tool_name") or ""),
+                "result": _without_blocker_prose(result),
+            }
+        )
+    if not blockers:
+        return None
+    encoded = json.dumps(blockers, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _validation_blocker_fingerprints(
+    advance: Any,
+    *,
+    terminal_tool_names: set[str],
+) -> set[str]:
+    fingerprints: set[str] = set()
+    identity_fields = (
+        "error",
+        "set_id",
+        "source_ref",
+        "finding_index",
+        "question_id",
+        "requirement_id",
+        "section",
+    )
+    for item in getattr(advance, "checkpoint_tool_results", []) or []:
+        if not isinstance(item, dict):
+            continue
+        tool_name = str(item.get("tool_name") or "")
+        if tool_name in terminal_tool_names:
+            continue
+        result = item.get("result")
+        if (
+            not isinstance(result, dict)
+            or not result.get("error")
+            or result.get("accepted") is True
+        ):
+            continue
+        identity = {
+            key: result.get(key)
+            for key in identity_fields
+            if result.get(key) is not None and result.get(key) != ""
+        }
+        encoded = json.dumps(
+            {"tool_name": tool_name, "defect": identity},
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        )
+        fingerprints.add(hashlib.sha256(encoded.encode("utf-8")).hexdigest())
+    return fingerprints
+
+
+def _semantic_progress_fingerprint(progress_state: Any) -> str:
+    if isinstance(progress_state, dict):
+        durable_fingerprint = str(progress_state.get("semantic_state_sha256") or "")
+        if durable_fingerprint:
+            return durable_fingerprint
+    return hashlib.sha256(
+        json.dumps(
+            progress_state,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _without_blocker_prose(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _without_blocker_prose(item)
+            for key, item in value.items()
+            if key not in {"message", "next_action", "allowed_next_actions"}
+        }
+    if isinstance(value, list):
+        return [_without_blocker_prose(item) for item in value]
+    return value
 
 
 async def call_structured_runtime(

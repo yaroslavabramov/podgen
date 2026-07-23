@@ -587,16 +587,11 @@ async def test_terminal_structured_return_continues_same_response_chain_until_fi
     assert len(fake_client.responses.calls) == 2
     continuation = fake_client.responses.calls[1]
     assert continuation["previous_response_id"] == first.id
-    assert continuation["input"] == [
-        {
-            "role": "user",
-            "content": (
-                "The workflow is not complete because no terminal tool was accepted. Continue in this same "
-                "response chain from durable state. Do not repeat saved work. Inspect current state if needed, "
-                "persist the next unfinished semantic record, or call the terminal tool when all work is current."
-            ),
-        }
-    ]
+    assert continuation["input"][0]["role"] == "user"
+    continuation_text = continuation["input"][0]["content"]
+    assert "Durable progress snapshot" in continuation_text
+    assert '"saved_source_count": 1' in continuation_text
+    assert '"finished": false' in continuation_text
 
 
 @pytest.mark.asyncio
@@ -701,6 +696,223 @@ async def test_identical_rejected_tool_cycle_fails_without_a_round_quota(
         )
 
     assert len(fake_client.responses.calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_repeated_validation_defect_across_navigation_stalls_without_semantic_progress(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import runtime as runtime_module
+
+    async def save(args: dict) -> dict:
+        return {
+            "accepted": False,
+            "error": "passage_ref_not_delivered_to_current_set_agent",
+            "source_ref": "S14",
+            "finding_index": 0,
+            "invalid_passage_refs": [args["passage_ref"]],
+            "next_action": "Replace only the invalid passage_ref and retry.",
+        }
+
+    async def search(_args: dict) -> dict:
+        return {"found": True, "passage_refs": ["P:S14:1"]}
+
+    async def finish(_args: dict) -> dict:
+        return {"accepted": True}
+
+    async def progress() -> dict:
+        return {"semantic_state_sha256": "unchanged"}
+
+    fake_client = _FakeClient(
+        [
+            _tool_response(("save", "call_save_1", {"passage_ref": "broken-a"})),
+            _tool_response(("search", "call_search", {})),
+            _tool_response(("save", "call_save_2", {"passage_ref": "broken-b"})),
+        ]
+    )
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(runtime_module, "get_openai_client", lambda: fake_client)
+
+    with pytest.raises(AgentOperationalStall, match="rejected tool defect"):
+        await V2Runtime().call_structured(
+            db=_FakeDb(),  # type: ignore[arg-type]
+            generation_run_id=uuid.uuid4(),
+            phase="v2_source_triage",
+            agent_name="source_triage_set_agent_validation_stall",
+            schema_model=_Completion,
+            system="system",
+            prompt="prompt",
+            local_tools=[
+                AgentTool(
+                    name="save",
+                    description="Save",
+                    parameters={
+                        "type": "object",
+                        "properties": {"passage_ref": {"type": "string"}},
+                        "required": ["passage_ref"],
+                    },
+                    handler=save,
+                ),
+                AgentTool(
+                    name="search",
+                    description="Search",
+                    parameters={"type": "object", "properties": {}},
+                    handler=search,
+                ),
+                AgentTool(
+                    name="finish",
+                    description="Finish",
+                    parameters={"type": "object", "properties": {}},
+                    handler=finish,
+                    terminal=True,
+                    terminal_result_builder=lambda _arguments, _output: {"ok": True},
+                ),
+            ],
+            tool_policy=ToolPolicy(file_search=False, local_tools=True),
+            checkpoint_policy=AgentCheckpointPolicy(enabled=False),
+            max_tool_rounds=0,
+            terminal_progress_loader=progress,
+        )
+
+    assert len(fake_client.responses.calls) == 3
+
+
+@pytest.mark.asyncio
+async def test_semantic_progress_allows_a_fresh_repair_of_the_same_validation_defect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import runtime as runtime_module
+
+    progress_revision = 0
+
+    async def reject(_args: dict) -> dict:
+        return {
+            "accepted": False,
+            "error": "invalid_question_reference",
+            "source_ref": "S01",
+            "finding_index": 0,
+        }
+
+    async def save_note(_args: dict) -> dict:
+        nonlocal progress_revision
+        progress_revision += 1
+        return {"accepted": True}
+
+    async def finish(_args: dict) -> dict:
+        return {"accepted": True}
+
+    async def progress() -> dict:
+        return {"semantic_revision": progress_revision}
+
+    fake_client = _FakeClient(
+        [
+            _tool_response(("save", "call_save_1", {})),
+            _tool_response(("save_note", "call_note", {})),
+            _tool_response(("save", "call_save_2", {})),
+            _tool_response(("finish", "call_finish", {})),
+        ]
+    )
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(runtime_module, "get_openai_client", lambda: fake_client)
+
+    result = await V2Runtime().call_structured(
+        db=_FakeDb(),  # type: ignore[arg-type]
+        generation_run_id=uuid.uuid4(),
+        phase="v2_source_triage",
+        agent_name="source_triage_set_agent_validation_progress",
+        schema_model=_Completion,
+        system="system",
+        prompt="prompt",
+        local_tools=[
+            AgentTool(
+                name="save",
+                description="Save",
+                parameters={"type": "object", "properties": {}},
+                handler=reject,
+            ),
+            AgentTool(
+                name="save_note",
+                description="Save note",
+                parameters={"type": "object", "properties": {}},
+                handler=save_note,
+            ),
+            AgentTool(
+                name="finish",
+                description="Finish",
+                parameters={"type": "object", "properties": {}},
+                handler=finish,
+                terminal=True,
+                terminal_result_builder=lambda _arguments, _output: {"ok": True},
+            ),
+        ],
+        tool_policy=ToolPolicy(file_search=False, local_tools=True),
+        checkpoint_policy=AgentCheckpointPolicy(enabled=False),
+        max_tool_rounds=0,
+        terminal_progress_loader=progress,
+    )
+
+    assert result == _Completion(ok=True)
+    assert len(fake_client.responses.calls) == 4
+
+
+@pytest.mark.asyncio
+async def test_repeated_terminal_blocker_survives_alternation_only_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import runtime as runtime_module
+
+    async def finish(_args: dict) -> dict:
+        return {
+            "accepted": False,
+            "error": "source_reading_not_reconciled",
+            "stale_source_analysis_refs": ["S01"],
+            "next_action": "Resave S01.",
+        }
+
+    async def repair(_args: dict) -> dict:
+        return {"accepted": True, "source_ref": "S01"}
+
+    fake_client = _FakeClient(
+        [
+            _tool_response(("finish", "call_finish_1", {})),
+            _tool_response(("repair", "call_repair", {})),
+            _tool_response(("finish", "call_finish_2", {})),
+        ]
+    )
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(runtime_module, "get_openai_client", lambda: fake_client)
+
+    with pytest.raises(AgentOperationalStall, match="same terminal blocker after one repair attempt"):
+        await V2Runtime().call_structured(
+            db=_FakeDb(),  # type: ignore[arg-type]
+            generation_run_id=uuid.uuid4(),
+            phase="v2_source_triage",
+            agent_name="source_triage_set_agent_terminal_stall",
+            schema_model=_Completion,
+            system="system",
+            prompt="prompt",
+            local_tools=[
+                AgentTool(
+                    name="repair",
+                    description="Repair",
+                    parameters={"type": "object", "properties": {}},
+                    handler=repair,
+                ),
+                AgentTool(
+                    name="finish",
+                    description="Finish",
+                    parameters={"type": "object", "properties": {}},
+                    handler=finish,
+                    terminal=True,
+                    terminal_result_builder=lambda _arguments, _output: {"ok": True},
+                ),
+            ],
+            tool_policy=ToolPolicy(file_search=False, local_tools=True),
+            checkpoint_policy=AgentCheckpointPolicy(enabled=False),
+            max_tool_rounds=0,
+        )
+
+    assert len(fake_client.responses.calls) == 3
 
 
 @pytest.mark.asyncio

@@ -725,8 +725,8 @@ def test_set_prompt_uses_one_continuous_contract_without_mode_branches() -> None
     for execution_mode in ("first_pass", "resume", "targeted_repair"):
         assert execution_mode not in prompt
     assert "one continuous agent" in prompt
-    assert "current_set_state" in prompt
-    assert "there is no backend-controlled reading or synthesis phase" in prompt
+    assert "read_triage_set_state" in prompt
+    assert "read_triage_set_state as durable external memory" in prompt
     assert "repair=true" not in prompt
     assert "repair_targeted=true" not in prompt
 
@@ -734,34 +734,24 @@ def test_set_prompt_uses_one_continuous_contract_without_mode_branches() -> None
 def test_set_prompt_requires_deep_reading_with_semantic_stopping_criteria() -> None:
     prompt = " ".join(SOURCE_TRIAGE_SET_PROMPT.split())
 
-    assert "Use read_source for the actual source text" in prompt
-    assert "For an ordinary document, follow read_source to the end" in prompt
-    assert "search_source is navigation only" in prompt
-    assert "open_source_file" in prompt
-    assert "truly too large to read completely" in prompt
-    assert "what remains unread" in prompt
-    assert "why the unread regions cannot reasonably change the analysis" in prompt
-    assert "After a meaningful section or group of related passages, call save_reading_note" in prompt
-    assert "This is a semantic checkpoint, not a fixed schedule" in prompt
-    assert "before opening a different source persist the current understanding" in prompt
-    assert "Use compare_source_evidence only after every compared source has durable reading memory" in prompt
-    assert "save_source_analysis is a completed analysis, not a prerequisite" in prompt
-    assert "complete all_coverage_question_index" in prompt
-    assert "One source may support any number of questions" in prompt
-    assert "actor, action, connecting mechanism, result" in prompt
-    assert "use read_source_window only for the exact passage or passages" in prompt
-    assert "Stop reading a source only when all of these are true" in prompt
-    assert "further reading is not reasonably likely to change" in prompt
-    assert "There is no target number of tool calls, pages, notes, findings, or evidence items" in prompt
+    assert "read_source returns the actual text as lossless passages" in prompt
+    assert "search_source is navigation only, not proof" in prompt
+    assert "name the unread regions" in prompt
+    assert "why they are unlikely to change the result" in prompt
+    assert "Before switching sources, save a reading note or the completed source analysis" in prompt
+    assert "Findings must be atomic" in prompt
+    assert "actor, period, geography, qualifiers" in prompt
+    assert "passage_refs" in prompt
+    assert "Stop only when further reading is not reasonably likely to change" in prompt
+    assert "There are no quotas for reads, findings, or evidence" in prompt
 
 
 def test_set_prompt_does_not_treat_navigation_or_read_counts_as_semantic_evidence() -> None:
     prompt = " ".join(SOURCE_TRIAGE_SET_PROMPT.split())
 
-    assert "neither a match nor the absence of a match" in prompt
-    assert "Do not stop after the first useful passage or the first answered question" in prompt
-    assert "Do not exact-read every page merely to create evidence" in prompt
-    assert "findings=[] with a concrete no_findings_reason" in prompt
+    assert "search_source is navigation only, not proof" in prompt
+    assert "Do not stop at the first match" in prompt
+    assert "Zero findings is valid only with a concrete reason after actual reading" in prompt
     assert "do not open, search, or read a different unresolved source" not in prompt.casefold()
     assert "minimum number" not in prompt.casefold()
     assert "maximum number" not in prompt.casefold()

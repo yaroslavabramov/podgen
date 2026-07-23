@@ -14,6 +14,7 @@ from app.generation_v2.tools.evidence_local_windows import (
 )
 from app.generation_v2.tools.evidence_model_window_refs import resolve_model_window_ref
 from app.generation_v2.tools.evidence_source_tools import EvidenceSourceToolsMixin
+from app.generation_v2.tools.evidence_tool_source_read_specs import evidence_source_read_tools
 from app.generation_v2.tools.evidence_window_refs import resolve_window_ref
 from app.models.generation_v2 import SourceRepresentationKind, SourceVersion, V2RecordStatus
 
@@ -21,6 +22,46 @@ from app.models.generation_v2 import SourceRepresentationKind, SourceVersion, V2
 class _Db:
     async def get(self, _model: Any, _item_id: Any) -> None:
         return None
+
+
+def _passage_text(payload: dict[str, Any]) -> str:
+    return "".join(str(item.get("text") or "") for item in payload.get("passages") or [])
+
+
+def test_source_passages_are_lossless_bounded_and_stable() -> None:
+    from app.generation_v2.tools.evidence_source_passages import (
+        SOURCE_PASSAGE_MAX_CHARS,
+        resolve_source_passage_ref,
+        source_passages_for_range,
+    )
+
+    version_id = uuid.uuid4()
+    text = "\n\n".join(f"Section {index}. " + ("content " * 220) for index in range(8))
+    first = source_passages_for_range(
+        source_version_id=version_id,
+        text=text,
+        start_offset=0,
+        end_offset=len(text),
+        allow_timestamps=False,
+    )
+    repeated = source_passages_for_range(
+        source_version_id=version_id,
+        text=text,
+        start_offset=0,
+        end_offset=len(text),
+        allow_timestamps=False,
+    )
+
+    assert first == repeated
+    assert "".join(item["text"] for item in first) == text
+    assert all(len(item["text"]) <= SOURCE_PASSAGE_MAX_CHARS for item in first)
+    for item in first:
+        resolved = resolve_source_passage_ref(
+            item["passage_ref"],
+            source_version_id=version_id,
+            text=text,
+        )
+        assert text[resolved["start_offset"] : resolved["end_offset"]] == item["text"]
 
 
 def _version() -> SourceVersion:
@@ -70,6 +111,17 @@ class _NavigationOwner(EvidenceSourceToolsMixin, EvidenceLocalSourceMixin):
 
     async def _record_triage_exact_read(self, **_kwargs: Any) -> None:
         return None
+
+
+def test_read_source_tool_declares_checkpoint_before_source_switch() -> None:
+    tool = next(
+        item
+        for item in evidence_source_read_tools(_NavigationOwner(_version()))
+        if item.name == "read_source"
+    )
+
+    assert "before_opening_different_source.required" in tool.description
+    assert "before calling any read tool for a different source" in tool.description
 
 
 def test_source_text_is_extracted_once_per_immutable_version(
@@ -303,7 +355,25 @@ async def test_read_source_reports_transient_storage_failure_and_succeeds_on_ret
     )
 
     assert second["found"] is True
-    assert second["text"] == text[: second["range"]["end_offset"]]
+    assert _passage_text(second) == text[: second["range"]["end_offset"]]
+    assert second["before_opening_different_source"] == {
+        "required": True,
+        "source_ref": "S01",
+        "receipt_refs_from_this_read": [second["receipt_ref"]],
+        "allowed_next_actions": ["save_reading_note", "save_source_analysis"],
+        "next_action": (
+            "Continue this source with next_cursor, or before opening a different source save a reading "
+            "note covering this and every earlier uncheckpointed sequential receipt for the source; a "
+            "complete source analysis is also valid."
+        ),
+    }
+    keys = list(second)
+    assert keys.index("before_opening_different_source") < keys.index("passages")
+    assert keys.index("source_analysis_guidance") < keys.index("passages")
+    assert second["source_analysis_guidance"]["recommended_next_action"] in {
+        "continue_read_source",
+        "save_source_analysis",
+    }
     assert len(workspace["source_read_receipts"]) == 1
 
 
@@ -332,11 +402,15 @@ async def test_read_source_pages_reconstruct_text_and_expose_bounded_structure(
         if first:
             structure = page["structure"]
             assert structure["counts"]["headings"] == 180
-            assert structure["returned_count"] == 120
-            assert structure["omitted_count"] == 60
+            assert structure["total_count"] == 180
+            assert structure["returned_count"] == 24
+            assert structure["omitted_count"] == 156
+            assert structure["next_structure_cursor"] == "24"
+            assert "next_cursor" not in structure
             assert all("preview" not in item and "text" not in item for item in structure["items"])
             assert all("label_preview" in item and "label_chars" in item for item in structure["items"])
             assert all("label_omitted_chars" in item for item in structure["items"])
+            assert all("start_offset" in item and "end_offset" in item for item in structure["items"])
             first = False
         else:
             assert "structure" not in page
@@ -489,7 +563,11 @@ async def test_read_source_receipt_resumes_after_worker_restart(
         assert result["found"] is True
         assert result["delivery_status"] == "delivered"
         assert "window_ref" not in result
-        reconstructed += result["text"]
+        assert all(
+            str(passage["passage_ref"]).startswith("P:S01:")
+            for passage in result["passages"]
+        )
+        reconstructed += _passage_text(result)
         receipt = next(
             item for item in workspace["source_read_receipts"] if item["receipt_ref"] == result["receipt_ref"]
         )
@@ -499,6 +577,12 @@ async def test_read_source_receipt_resumes_after_worker_restart(
         assert receipt["next_cursor"] == result["next_cursor"]
         assert receipt["eof"] == result["eof"]
         assert receipt["request"] == {"cursor": cursor, "max_chars": 1_000}
+        assert [item["passage_ref"] for item in receipt["passage_handles"]] == [
+            item["passage_ref"] for item in result["passages"]
+        ]
+        assert receipt["passage_refs"] == [
+            item["canonical_passage_ref"] for item in receipt["passage_handles"]
+        ]
         assert receipt["delivery_status"] == "pending"
         receipt["delivery_status"] = "delivered"
         cursor = result["next_cursor"]
@@ -619,13 +703,13 @@ async def test_provider_failure_does_not_advance_past_pending_text_range_on_rest
             "max_chars": 1_000,
         }
     )
-    assert repeated["text"] == second["text"]
+    assert repeated["passages"] == second["passages"]
     assert repeated["range"] == second["range"]
     assert repeated["receipt_ref"] == second["receipt_ref"]
 
 
 @pytest.mark.asyncio
-async def test_read_source_receipt_captures_exact_evidence_after_worker_restart(
+async def test_delivered_passage_materializes_exact_evidence_after_worker_restart(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.generation_v2.tools import evidence_local_source, evidence_local_windows, evidence_source_tools
@@ -638,6 +722,7 @@ async def test_read_source_receipt_captures_exact_evidence_after_worker_restart(
         "current_set": {"set_id": "set-1"},
         "source_sets": [{"set_id": "set-1", "source_refs": ["S01"]}],
         "source_read_receipts": [],
+        "intent": {"language": "ru"},
     }
 
     async def load_workspace(_db: Any, _run_id: Any) -> dict[str, Any]:
@@ -649,7 +734,10 @@ async def test_read_source_receipt_captures_exact_evidence_after_worker_restart(
     async def save_trace(*_args: Any, **_kwargs: Any) -> None:
         return None
 
+    persisted_snippets: list[str] = []
+
     async def persist_evidence(*_args: Any, **kwargs: Any) -> Any:
+        persisted_snippets.append(kwargs["snippet_text"])
         return SimpleNamespace(
             id=uuid.uuid4(),
             snippet_text=kwargs["snippet_text"],
@@ -676,40 +764,55 @@ async def test_read_source_receipt_captures_exact_evidence_after_worker_restart(
 
     pending_owner = _NavigationOwner(version)
     pending_owner.run.id = run_id
-    pending_capture = await pending_owner.read_source_window_tool(
-        {
-            "source_ref": "S01",
-            "receipt_ref": read["receipt_ref"],
-            "window_ref": "",
-            "locator": "",
-            "quote": exact_quote,
-            "max_chars": 3_000,
-        }
+    passage = read["passages"][0]
+    pending_capture = await pending_owner.materialize_source_passages(
+        source_ref="S01",
+        passage_refs=[passage["passage_ref"]],
     )
-    assert pending_capture["error"] == "source_read_receipt_not_delivered"
+    assert pending_capture["error"] == "passage_ref_not_delivered_to_current_set_agent"
 
     read_receipt["delivery_status"] = "delivered"
 
     restarted_owner = _NavigationOwner(version)
     restarted_owner.run.id = run_id
-    captured = await restarted_owner.read_source_window_tool(
-        {
-            "source_ref": "S01",
-            "receipt_ref": read["receipt_ref"],
-            "window_ref": "",
-            "locator": "",
-            "quote": exact_quote,
-            "max_chars": 3_000,
-        }
+
+    async def unexpected_checkpoint(**_kwargs: Any) -> None:
+        raise AssertionError("evidence selection from delivered text is not a new source read")
+
+    monkeypatch.setattr(restarted_owner, "_triage_read_guard_error", unexpected_checkpoint)
+    monkeypatch.setattr(restarted_owner, "_record_triage_exact_read", unexpected_checkpoint)
+    invalid_capture = await restarted_owner.materialize_source_passages(
+        source_ref="S01",
+        passage_refs=[passage["passage_ref"] + "x"],
     )
 
-    assert captured["found"] is True
-    assert captured["receipt_ref"] == read["receipt_ref"]
-    assert captured["evidence"]["snippet_text"] == exact_quote
-    assert captured["range"] == {
-        "start_offset": text.index(exact_quote),
-        "end_offset": text.index(exact_quote) + len(exact_quote),
+    assert invalid_capture["error"] == "passage_ref_not_delivered_to_current_set_agent"
+    assert invalid_capture["passage_ref_corrections"] == [
+        {
+            "invalid_passage_ref": passage["passage_ref"] + "x",
+            "replacement_candidates": [passage["passage_ref"]],
+        }
+    ]
+    assert invalid_capture["retry_policy"] == {
+        "preserve_all_other_analysis_fields": True,
+        "replace_only_invalid_passage_refs": True,
+        "do_not_search_again": True,
     }
+    assert invalid_capture["output_language"] == "ru"
+
+    captured = await restarted_owner.materialize_source_passages(
+        source_ref="S01",
+        passage_refs=[passage["passage_ref"]],
+    )
+
+    assert captured["accepted"] is True
+    assert len(captured["evidence_ids"]) == 1
+    legacy_capture = await restarted_owner.materialize_source_passages(
+        source_ref="S01",
+        passage_refs=[read_receipt["passage_refs"][0]],
+    )
+    assert legacy_capture["accepted"] is True
+    assert persisted_snippets == [passage["text"], passage["text"]]
 
 
 @pytest.mark.asyncio
@@ -718,7 +821,11 @@ async def test_search_source_receipt_keeps_targeted_evidence_selector(
 ) -> None:
     from app.generation_v2.tools import evidence_local_source, evidence_local_windows, evidence_source_tools
 
-    text = "Intro.\n\nTarget policy mechanism appears in this complete paragraph.\n\nEnding."
+    text = (
+        "Earlier context. " * 180
+        + "\n\nTarget policy mechanism appears in this complete paragraph.\n\n"
+        + "Later context. " * 180
+    )
     version = _version()
     run_id = uuid.uuid4()
     workspace: dict[str, Any] = {
@@ -773,20 +880,48 @@ async def test_search_source_receipt_keeps_targeted_evidence_selector(
         "max_chars": 400,
     }
     assert receipt["delivery_status"] == "pending"
-    receipt["delivery_status"] = "delivered"
-    assert first["window_ref"].startswith("W:S01:")
-    canonical_window_ref = resolve_model_window_ref(owner, first["window_ref"])
-    assert canonical_window_ref is not None
-    assert canonical_window_ref == receipt["window_ref"]
-    selected = resolve_window_ref(canonical_window_ref, source_version_id=version.id, text=text)
-    assert text[selected.start_offset : selected.end_offset] == first["text"]
-    captured = await owner.read_source_window_tool(
-        {
+    assert first["navigation_only"] is True
+    assert first["match_text"]
+    assert "passages" not in first
+    assert "passage_ref" not in first
+    assert first["exact_read_call"] == {
+        "tool": "read_source_window",
+        "arguments": {
             "source_ref": "S01",
             "window_ref": first["window_ref"],
             "locator": "",
             "max_chars": 3_000,
-        }
+        },
+    }
+    assert first["context_range"]["start_offset"] <= first["range"]["start_offset"]
+    assert first["context_range"]["end_offset"] >= first["range"]["end_offset"]
+    assert first["context_range"] != first["range"]
+    receipt["delivery_status"] = "delivered"
+    exact_read_calls: list[dict[str, Any]] = []
+
+    async def record_exact_read(**kwargs: Any) -> None:
+        exact_read_calls.append(kwargs)
+
+    monkeypatch.setattr(owner, "_record_triage_exact_read", record_exact_read)
+    assert first["window_ref"].startswith("W:S01:")
+    canonical_window_ref = resolve_model_window_ref(owner, first["window_ref"])
+    assert canonical_window_ref is not None
+    assert canonical_window_ref != receipt["window_ref"]
+    selected = resolve_window_ref(canonical_window_ref, source_version_id=version.id, text=text)
+    assert selected.start_offset == first["context_range"]["start_offset"]
+    assert selected.end_offset == first["context_range"]["end_offset"]
+    captured = await owner.read_source_window_tool(
+        first["exact_read_call"]["arguments"]
     )
     assert captured["found"] is True
-    assert captured["evidence"]["snippet_text"] == first["text"]
+    assert "receipt_ref" not in captured
+    context_range = first["context_range"]
+    assert captured["evidence"]["snippet_text"] == text[
+        context_range["start_offset"] : context_range["end_offset"]
+    ]
+    assert exact_read_calls == [
+        {
+            "source_ref": "S01",
+            "evidence_ids": [captured["evidence"]["evidence_id"]],
+        }
+    ]

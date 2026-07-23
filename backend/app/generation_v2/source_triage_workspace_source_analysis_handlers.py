@@ -6,6 +6,7 @@ from typing import Any
 
 from app.generation_v2 import source_triage_workspace as workspace_api
 from app.generation_v2.persistence_contracts import semantic_field_error, semantic_list_error
+from app.generation_v2.runtime_contracts import AgentOperationalStall
 from app.generation_v2.source_triage_workspace_contracts import (
     TRIAGE_EDITORIAL_FUNCTION_LIMIT,
     TRIAGE_LIMITATION_LIMIT,
@@ -24,6 +25,18 @@ from app.generation_v2.source_triage_source_analysis_contract import (
 from app.generation_v2.source_triage_read_checkpointing import (
     clear_pending_comparison_read,
     clear_pending_exact_read,
+    source_refs_with_reads_newer_than_analysis,
+)
+from app.generation_v2.source_triage_passage_analysis import (
+    normalize_passage_analysis_args,
+    preserve_downstream_fields_for_unchanged_findings,
+    uses_passage_analysis_contract,
+)
+from app.generation_v2.source_triage_language_contract import (
+    source_analysis_language_error,
+)
+from app.generation_v2.source_triage_question_references import (
+    possible_question_ids_error,
 )
 from app.generation_v2.tools.evidence_refs import build_source_ref_context, resolve_source_ref
 from app.ingestion.web_quality import assess_web_fetch_health
@@ -58,6 +71,26 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
         source_id = resolve_source_ref(source_ref, build_source_ref_context(self.inventory))
         if not source_id:
             return {"accepted": False, "error": "Unknown source_ref", "source_ref": source_ref}
+
+        language_error = source_analysis_language_error(
+            args,
+            output_language=str((current.get("intent") or {}).get("language") or ""),
+        )
+        if language_error:
+            return language_error
+
+        v3_analysis = uses_passage_analysis_contract(args)
+        if v3_analysis:
+            normalized_args, materialization_error = await normalize_passage_analysis_args(
+                self,
+                workspace=current,
+                source_set=source_set,
+                source_ref=source_ref,
+                args=args,
+            )
+            if materialization_error:
+                return materialization_error
+            args = normalized_args
 
         enum_fields = {
             "processing_status": {"pending", "in_progress", "resolved", "needs_repair"},
@@ -232,6 +265,9 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
                     source_ref=source_ref,
                     representation_status=values["representation_status"],
                     raw_basis=args.get("reading_basis"),
+                    verified_exact_duplicate_of_source_ref=str(
+                        args.get("verified_exact_duplicate_of_source_ref") or ""
+                    ),
                 )
                 if reading_basis_error:
                     return reading_basis_error
@@ -246,6 +282,7 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
                 await attach_evidence_previews(
                     findings,
                     evidence_toolset=self.evidence_toolset,
+                    preview_chars=3_000 if v3_analysis else 900,
                 )
         else:
             reading_basis = dict(args.get("reading_basis") or {})
@@ -324,6 +361,14 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
         )
         if no_findings_error:
             return no_findings_error
+        source_summary = str(args.get("source_summary") or "").strip()
+        source_summary_error = semantic_field_error(
+            {"source_summary": source_summary},
+            {"source_summary": TRIAGE_SEMANTIC_FIELD_LIMITS["findings_summary"]},
+            ["source_summary"],
+        )
+        if source_summary_error:
+            return source_summary_error
         if analysis_mode and not findings and not no_findings_reason:
             return {
                 "accepted": False,
@@ -420,6 +465,7 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
             "relevance_reason": reason_fields["relevance_reason"],
             "authority_reason": reason_fields["authority_reason"],
             "uniqueness_reason": reason_fields["uniqueness_reason"],
+            "duplicate_of_source_ref": str(args.get("duplicate_of_source_ref") or ""),
             "disposition_reason": reason_fields["disposition_reason"],
             "coverage_question_ids": question_ids,
             "editorial_functions": editorial_functions,
@@ -427,6 +473,7 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
             "finding_ids": [str(item.get("finding_id") or "") for item in findings],
             "reading_basis": reading_basis,
             "question_dispositions": question_dispositions,
+            "source_summary": source_summary,
             "no_findings_reason": no_findings_reason,
             "limitations": limitations,
             "confidence": _confidence(args.get("confidence")),
@@ -447,6 +494,11 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
             and str(item.get("source_id") or "") == source_id
             and str(item.get("set_id") or "") == set_id
         ]
+        if v3_analysis:
+            preserve_downstream_fields_for_unchanged_findings(
+                findings,
+                previous_findings=old_findings,
+            )
         analysis_changed = (
             not analysis_mode
             or _semantic_json(old_assessment) != _semantic_json(assessment)
@@ -510,6 +562,20 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
             if isinstance(item, dict) and str(item.get("source_id") or "") != source_id
         ]
         current["source_assessments"].append(assessment)
+        if v3_analysis:
+            planned_question_ids = {
+                str(value)
+                for value in source_set.get("planned_question_ids", source_set.get("question_ids") or [])
+            }
+            source_set["question_ids"] = public_api._dedupe(
+                [*(source_set.get("question_ids") or []), *question_ids]
+            )
+            source_set["cross_question_ids"] = public_api._dedupe(
+                [
+                    *(source_set.get("cross_question_ids") or []),
+                    *(question_id for question_id in question_ids if question_id not in planned_question_ids),
+                ]
+            )
         clear_pending_exact_read(source_set, source_ref=source_ref)
         clear_pending_comparison_read(source_set, source_ref=source_ref)
         self._reconcile_pending_discovered_question_attempts(
@@ -523,6 +589,14 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
         self._recompute_all_set_evidence_ids(current)
         if analysis_changed:
             invalidate_coverage_syntheses(current)
+        if analysis_mode and source_ref in source_refs_with_reads_newer_than_analysis(
+            current,
+            set_id=set_id,
+        ):
+            raise AgentOperationalStall(
+                "source analysis invariant failed: saved read_state_signature is not current "
+                f"for set_id={set_id!r}, source_ref={source_ref!r}"
+            )
         await public_api.save_source_triage_workspace(self.db, generation_run_id=self.run.id, workspace=current)
         return {
             "accepted": True,
@@ -822,6 +896,27 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
                 )
                 all_question_ids.append(question_id)
 
+            possible_question_ids = workspace_api._dedupe(
+                [
+                    str(value)
+                    for value in raw_finding.get("possible_question_ids") or []
+                    if str(value).strip()
+                ]
+            )
+            possible_question_error = possible_question_ids_error(
+                current,
+                possible_question_ids,
+                finding_index=finding_index,
+            )
+            if possible_question_error:
+                return (
+                    [],
+                    [],
+                    [],
+                    {**possible_question_error, "source_ref": source_ref},
+                )
+            all_question_ids.extend(possible_question_ids)
+
             source_relations: list[dict[str, Any]] = []
             for raw_relation in raw_finding.get("source_relations") or []:
                 if not isinstance(raw_relation, dict):
@@ -1023,9 +1118,15 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
                     "statement": statement,
                     "support_explanation": support_explanation,
                     "evidence_ids": finding_evidence_ids,
+                    "passage_refs": [
+                        str(value)
+                        for value in raw_finding.get("passage_refs") or []
+                        if str(value).strip()
+                    ],
                     "scope": scope,
                     "limitations": limitations,
                     "question_links": question_links,
+                    "possible_question_ids": possible_question_ids,
                     "source_relations": source_relations,
                     "updated_at": workspace_api._now(),
                 }

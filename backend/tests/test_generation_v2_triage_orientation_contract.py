@@ -10,6 +10,11 @@ from app.generation_v2.schemas import SourceCard, SourceMap
 from app.generation_v2.source_triage_workspace import build_workspace_tools
 from app.generation_v2.source_triage_workspace_prompting import source_set_prompt_payload
 from app.generation_v2.source_triage_workspace_tool_handlers import SourceTriageWorkspaceToolHandlers
+from app.generation_v2.source_triage_set_review import (
+    record_semantic_review_page,
+    semantic_review_page,
+    set_semantic_review_signature,
+)
 from app.generation_v2.tools import evidence_source_map_write_actions as write_actions
 from app.generation_v2.tools.evidence_refs import build_source_ref_context
 
@@ -401,6 +406,39 @@ def test_source_set_prompt_payload_marks_orientation_work_without_inventing_ques
     assert "independently" in source_set["execution_goal"]
 
 
+def _complete_set_semantic_review(workspace: dict, set_id: str) -> None:
+    source_set = next(item for item in workspace["source_sets"] if item["set_id"] == set_id)
+    evidence_by_id = {
+        str(evidence_id): {
+            "evidence_id": str(evidence_id),
+            "snippet_text": "Persisted evidence text used by the review fixture.",
+            "locator": "fixture",
+        }
+        for finding in workspace.get("source_findings") or []
+        if isinstance(finding, dict) and str(finding.get("set_id") or "") == set_id
+        for evidence_id in finding.get("evidence_ids") or []
+    }
+    cursor = 0
+    while True:
+        page = semantic_review_page(
+            workspace,
+            source_set,
+            evidence_by_id=evidence_by_id,
+            cursor=cursor,
+            limit=25,
+        )
+        record_semantic_review_page(workspace, source_set, page)
+        next_cursor = str(page["page"]["next_cursor"] or "")
+        if not next_cursor:
+            break
+        cursor = int(next_cursor)
+    workspace.setdefault("source_triage_set_semantic_self_checks", {})[set_id] = {
+        "contract_version": "v2.semantic_review_ack.1",
+        "review_snapshot_id": set_semantic_review_signature(workspace, source_set),
+        "readiness_explanation": "Reviewed in the test helper.",
+    }
+
+
 def _orientation_execution_workspace(refs: list[str]) -> dict:
     workspace = _workspace(refs)
     workspace["status"] = "planned"
@@ -517,6 +555,7 @@ async def test_orientation_set_finishes_after_assessments_without_outcomes(
     assessment = await tools["save_source_analysis"].handler(
         _source_analysis_args(refs[0], question_ids=[])
     )
+    _complete_set_semantic_review(state["workspace"], "orientation_set")
     finished = await tools["finish_triage_source_set"].handler(_finish_args())
 
     assert assessment["accepted"] is True
@@ -566,35 +605,143 @@ async def test_orientation_cross_question_requires_an_outcome_before_finish(
     assert rejected_finish["accepted"] is False
     assert rejected_finish["missing_question_ids"] == ["q_root"]
 
-    outcome = await tools["upsert_coverage_outcome"].handler(
+    catalog = await tools["read_triage_set_state"].handler(
         {
-            "set_id": "orientation_set",
+            "section": "finding_catalog",
+            "cursor": "0",
+            "limit": 25,
+        }
+    )
+    assert catalog["page"]["next_cursor"] == ""
+    for delivery in state["workspace"]["source_triage_finding_catalog_deliveries"]:
+        delivery["delivery_status"] = "delivered"
+    workbench = await tools["read_triage_set_state"].handler(
+        {
+            "section": "question_workbench",
             "question_id": "q_root",
-            "status": "covered",
-            "finding_ids": assessment["finding_ids"],
+            "cursor": "0",
+            "limit": 25,
+        }
+    )
+    assert workbench["page"]["next_cursor"] == ""
+    for delivery in state["workspace"]["source_triage_question_workbench_deliveries"]:
+        delivery["delivery_status"] = "delivered"
+    outcome = await tools["resolve_triage_question"].handler(
+        {
+            "question_id": "q_root",
+            "workbench_snapshot_id": workbench["workbench_snapshot_id"],
             "requirement_results": [
                 {
                     "requirement_id": "q_root:r_core",
                     "status": "covered",
                     "finding_ids": assessment["finding_ids"],
-                    "summary": "The finding establishes the answer component.",
-                    "missing_detail": "",
+                    "established_answer": "The finding establishes the answer component.",
+                    "criterion_match_reason": "The finding directly satisfies the criterion.",
+                    "unresolved_remainder": "",
                     "conflict_summary": "",
                     "deferred_reason": "",
-                    "confidence": 0.7,
                 }
             ],
-            "orientation_summary": "The finding establishes the answer component.",
-            "missing_detail": "",
-            "conflict_summary": "",
-            "deferred_reason": "",
-            "confidence": 0.7,
         }
     )
     accepted_finish = await tools["finish_triage_source_set"].handler(_finish_args())
 
     assert outcome["accepted"] is True
     assert accepted_finish["accepted"] is True
+
+
+@pytest.mark.asyncio
+async def test_resolved_question_preserves_aggregate_longer_than_one_requirement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inventory, refs = _inventory(2)
+    workspace = _orientation_execution_workspace(refs)
+    question = workspace["coverage_questions"][0]
+    question["answer_requirements"] = [
+        {
+            "requirement_id": "q_root:r_first",
+            "description": "Resolve the first independent component.",
+            "rationale": "The first component is required.",
+        },
+        {
+            "requirement_id": "q_root:r_second",
+            "description": "Resolve the second independent component.",
+            "rationale": "The second component is required.",
+        },
+    ]
+    state = _install_workspace_store(monkeypatch, workspace)
+    monkeypatch.setattr(
+        SourceTriageWorkspaceToolHandlers,
+        "_validate_set_evidence_ids",
+        _allow_evidence,
+    )
+    monkeypatch.setattr(
+        SourceTriageWorkspaceToolHandlers,
+        "_select_validated_evidence_ids",
+        _allow_evidence,
+    )
+    tools = _tools(
+        inventory=inventory,
+        workspace=workspace,
+        mode="set",
+        current_set_id="orientation_set",
+    )
+
+    analysis_args = _source_analysis_args(refs[0], question_ids=["q_root"])
+    analysis_args["findings"][0]["question_links"][0]["requirement_ids"] = [
+        "q_root:r_first",
+        "q_root:r_second",
+    ]
+    assessment = await tools["save_source_analysis"].handler(analysis_args)
+    assert assessment["accepted"] is True
+
+    catalog = await tools["read_triage_set_state"].handler(
+        {"section": "finding_catalog", "cursor": "0", "limit": 25}
+    )
+    assert catalog["page"]["next_cursor"] == ""
+    for delivery in state["workspace"]["source_triage_finding_catalog_deliveries"]:
+        delivery["delivery_status"] = "delivered"
+    workbench = await tools["read_triage_set_state"].handler(
+        {
+            "section": "question_workbench",
+            "question_id": "q_root",
+            "cursor": "0",
+            "limit": 25,
+        }
+    )
+    assert workbench["page"]["next_cursor"] == ""
+    for delivery in state["workspace"]["source_triage_question_workbench_deliveries"]:
+        delivery["delivery_status"] = "delivered"
+
+    first = "А" * 1000
+    second = "Б" * 1000
+    outcome = await tools["resolve_triage_question"].handler(
+        {
+            "question_id": "q_root",
+            "workbench_snapshot_id": workbench["workbench_snapshot_id"],
+            "requirement_results": [
+                {
+                    "requirement_id": requirement_id,
+                    "status": "covered",
+                    "finding_ids": assessment["finding_ids"],
+                    "established_answer": answer,
+                    "criterion_match_reason": "Находка прямо закрывает этот критерий.",
+                    "unresolved_remainder": "",
+                    "conflict_summary": "",
+                    "deferred_reason": "",
+                }
+                for requirement_id, answer in (
+                    ("q_root:r_first", first),
+                    ("q_root:r_second", second),
+                )
+            ],
+        }
+    )
+
+    assert outcome["accepted"] is True
+    stored = state["workspace"]["coverage_outcomes"][0]
+    assert stored["orientation_summary"] == f"{first}\n{second}"
+
 
 
 @pytest.mark.asyncio

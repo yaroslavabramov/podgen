@@ -37,6 +37,7 @@ class RuntimeToolAdvance:
     chain_round: int
     chain_model_tool_output_chars: int
     tool_cycle_fingerprint: str | None = None
+    checkpoint_tool_results: list[dict[str, Any]] | None = None
     terminal_result: AgentTerminalResult | None = None
 
 
@@ -125,6 +126,7 @@ class RuntimeToolRoundProcessor:
                 chain_round=chain_round,
                 chain_model_tool_output_chars=chain_model_tool_output_chars,
                 tool_cycle_fingerprint=None,
+                checkpoint_tool_results=checkpoint_tool_results,
                 terminal_result=tool_call_result.terminal_result,
             )
         checkpoint_reason = (
@@ -159,6 +161,7 @@ class RuntimeToolRoundProcessor:
                 chain_round=0,
                 chain_model_tool_output_chars=0,
                 tool_cycle_fingerprint=tool_cycle_fingerprint,
+                checkpoint_tool_results=checkpoint_tool_results,
             )
         return RuntimeToolAdvance(
             input_payload=[*tool_outputs, *followup_input_messages],
@@ -169,6 +172,7 @@ class RuntimeToolRoundProcessor:
             chain_round=chain_round,
             chain_model_tool_output_chars=chain_model_tool_output_chars,
             tool_cycle_fingerprint=tool_cycle_fingerprint,
+            checkpoint_tool_results=checkpoint_tool_results,
         )
 
     def _dump_tool_outputs(

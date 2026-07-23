@@ -123,6 +123,9 @@ async def read_evidence_tool_action(owner: Any, args: dict[str, Any]) -> dict[st
     item = await owner._evidence_in_run(str(evidence_id))
     if item is None:
         return {"found": False}
+    from app.generation_v2.tools.evidence_exact_read import evidence_has_current_exact_read
+
+    had_current_exact_read = evidence_has_current_exact_read(owner, item)
     scope_error = await owner._triage_scope_error_for_source_ids([str(item.source_id)])
     if scope_error:
         return scope_error
@@ -229,7 +232,7 @@ async def read_evidence_tool_action(owner: Any, args: dict[str, Any]) -> dict[st
     recorder = getattr(owner, "_record_triage_exact_read", None)
     exact_read_control = (
         await recorder(source_ref=source_ref, evidence_ids=[str(evidence_id)])
-        if callable(recorder)
+        if callable(recorder) and not had_current_exact_read and bool(result.get("exact_read_complete"))
         else None
     )
     if exact_read_control:

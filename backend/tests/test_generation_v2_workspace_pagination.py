@@ -478,19 +478,24 @@ async def test_only_finalizer_reads_current_question_and_finding_parts(
             mode=mode,
             current_set_id="set-main" if mode == "set" else None,
         )
-        page_tool = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+        page_tool = next(
+            tool
+            for tool in tools
+            if tool.name == ("read_triage_set_state" if mode == "set" else "list_triage_source_sets")
+        )
         cursor = "0"
         while True:
-            page = await page_tool.handler(
-                {"section": section, "cursor": cursor, "limit": 1}
-            )
+            args = {"section": section, "cursor": cursor, "limit": 1}
+            if mode == "set":
+                args["source_ref"] = "S01"
+            page = await page_tool.handler(args)
             assert page["accepted"] is True
             cursor = page["page"]["next_cursor"]
             if not cursor:
                 return
 
     await page_all("planner", "coverage_questions")
-    await page_all("set", "source_findings")
+    await page_all("set", "source_memory")
     assert save_calls == 0
     assert "source_triage_finalizer_reads" not in workspace
     assert finalizer_review_stream_violations(workspace)
@@ -1486,6 +1491,21 @@ async def test_full_semantic_handlers_keep_all_nested_evidence_refs(
                 ],
             }
         ],
+        "source_findings": [
+            {
+                "finding_id": "finding:S01:all-evidence",
+                "set_id": "set-main",
+                "source_ref": "S01",
+                "source_id": source_id,
+                "statement": "Complete persisted finding.",
+                "support_explanation": "Every linked evidence item remains available.",
+                "evidence_ids": evidence_ids,
+                "scope": {"actor": "", "period": "", "geography": "", "qualifiers": []},
+                "limitations": [],
+                "question_links": [],
+                "source_relations": [],
+            }
+        ],
     }
     research_workspace = {
         "current_job": {"job_id": "job-main"},
@@ -1622,18 +1642,18 @@ async def test_full_semantic_handlers_keep_all_nested_evidence_refs(
         mode="job",
         current_job_id="job-main",
     )
-    triage_page_tool = next(tool for tool in triage_tools if tool.name == "list_triage_source_sets")
+    triage_page_tool = next(tool for tool in triage_tools if tool.name == "read_triage_set_state")
     research_page_tool = next(tool for tool in research_tools if tool.name == "list_research_workspace_items")
 
-    triage_set = await triage_page_tool.handler(
-        {"section": "current_set", "cursor": "0", "limit": 1}
+    triage_memory = await triage_page_tool.handler(
+        {"section": "source_memory", "source_ref": "S01", "cursor": "0", "limit": 25}
     )
-    triage_observation = await triage_page_tool.handler(
-        {"section": "observations", "cursor": "0", "limit": 1}
+    finding = next(
+        item
+        for item in triage_memory["items"]
+        if item.get("record_kind") == "source_finding"
     )
-    assert triage_set["items"][0]["evidence_ids"] == evidence_ids
-    assert triage_observation["items"][0]["evidence_ids"] == evidence_ids
-    assert triage_observation["items"][0]["evidence_omitted_count"] == 0
+    assert finding["evidence_ids"] == evidence_ids
 
     expected_sections = {
         "jobs": "evidence_ids",
@@ -2053,3 +2073,45 @@ def test_valid_large_outcome_requirement_results_are_fully_readable() -> None:
         assert restored_finding_ids == {
             item["requirement_id"]: item["finding_ids"] for item in requirement_results
         }
+
+
+def test_derived_outcome_semantic_field_is_losslessly_paged() -> None:
+    orientation_summary = "Начало " + "смысл " * 5_000 + "конец"
+    workspace = {
+        "coverage_outcomes": [
+            {
+                "outcome_id": "outcome:q-large:set-main",
+                "question_id": "q-large",
+                "set_id": "set-main",
+                "status": "covered",
+                "source_refs": ["S01"],
+                "evidence_ids": ["evidence-1"],
+                "finding_ids": ["finding-1"],
+                "requirement_results": [],
+                "orientation_summary": orientation_summary,
+                "missing_detail": "",
+                "conflict_summary": "",
+                "deferred_reason": "",
+                "confidence": 0.8,
+            }
+        ]
+    }
+
+    parts = _collect_part_pages(
+        lambda cursor: _full_canonical_item_page(
+            workspace,
+            section="coverage_outcomes",
+            cursor=int(cursor),
+            limit=20,
+        )
+    )
+    semantic_parts = [
+        item
+        for item in parts
+        if item["part_kind"] == "outcome_semantic_field"
+        and item["field"] == "orientation_summary"
+    ]
+
+    assert len(semantic_parts) > 1
+    assert "".join(item["value"] for item in semantic_parts) == orientation_summary
+    assert semantic_parts[-1]["part_page"]["next_cursor"] == ""

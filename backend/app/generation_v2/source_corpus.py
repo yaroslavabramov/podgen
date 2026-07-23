@@ -90,7 +90,11 @@ from app.generation_v2.source_corpus_reconciliation import (
     SourceCorpusReconciliationDeps,
     default_source_corpus_reconciliation_deps,
 )
-from app.generation_v2.source_corpus_run_view import create_run_corpus_view, load_current_run_corpus_view
+from app.generation_v2.source_corpus_run_view import (
+    corpus_manifest_hash,
+    create_run_corpus_view,
+    load_current_run_corpus_view,
+)
 from app.generation_v2.source_corpus_summary import project_corpus_index_summary as project_corpus_index_summary
 from app.generation_v2.source_corpus_url_read import (
     OPENAI_URL_READ_SCHEMA,
@@ -116,7 +120,23 @@ class CorpusPreparationResult:
     readiness_summary: dict[str, Any]
 
 
-async def prepare_v2_corpus(db: AsyncSession, run: GenerationRun) -> CorpusPreparationResult:
+@dataclass
+class CorpusSelectionResult:
+    provider_index: ProviderCorpusIndex | None
+    all_sources: list[Source]
+    usable_sources: list[Source]
+    usable_versions: list[SourceVersion]
+    canonical_provider_files: list[ProviderCorpusFile]
+    skipped_sources: list[dict[str, Any]]
+    canonical_version_ids: list[str]
+
+
+async def resolve_v2_corpus_selection(
+    db: AsyncSession,
+    run: GenerationRun,
+) -> CorpusSelectionResult:
+    """Resolve the corpus deterministically without creating a run revision."""
+
     sources = await _load_run_sources(db, run)
     explicitly_selected_source_ids = {str(value) for value in (run.config or {}).get("source_ids", []) if value}
     loaded_source_ids = {str(source.id) for source in sources}
@@ -167,16 +187,44 @@ async def prepare_v2_corpus(db: AsyncSession, run: GenerationRun) -> CorpusPrepa
     if unready_selected_sources:
         details = ", ".join(_unready_source_detail(item) for item in unready_selected_sources)
         raise RuntimeError(f"V2 selected sources are not ready: {details}")
+    return CorpusSelectionResult(
+        provider_index=provider_index,
+        all_sources=sources,
+        usable_sources=usable_sources,
+        usable_versions=usable_versions,
+        canonical_provider_files=canonical_provider_files,
+        skipped_sources=skipped_sources,
+        canonical_version_ids=canonical_version_ids,
+    )
+
+
+async def preview_v2_corpus_manifest_hash(
+    db: AsyncSession,
+    run: GenerationRun,
+) -> str:
+    selection = await resolve_v2_corpus_selection(db, run)
+    return corpus_manifest_hash(
+        sources=selection.usable_sources,
+        source_versions=selection.usable_versions,
+        provider_files=selection.canonical_provider_files,
+        canonical_source_version_ids=selection.canonical_version_ids,
+        skipped_sources=selection.skipped_sources,
+        provider_index=selection.provider_index,
+    )
+
+
+async def prepare_v2_corpus(db: AsyncSession, run: GenerationRun) -> CorpusPreparationResult:
+    selection = await resolve_v2_corpus_selection(db, run)
     run_view = await create_run_corpus_view(
         db,
         run,
-        provider_index,
-        usable_sources,
-        usable_versions,
-        canonical_provider_files,
-        skipped_sources=skipped_sources,
-        canonical_source_version_ids=canonical_version_ids,
-        total_source_count=len(sources),
+        selection.provider_index,
+        selection.usable_sources,
+        selection.usable_versions,
+        selection.canonical_provider_files,
+        skipped_sources=selection.skipped_sources,
+        canonical_source_version_ids=selection.canonical_version_ids,
+        total_source_count=len(selection.all_sources),
     )
     readiness = dict(run_view.readiness_summary)
     await save_tool_trace(
@@ -185,25 +233,33 @@ async def prepare_v2_corpus(db: AsyncSession, run: GenerationRun) -> CorpusPrepa
         phase=V2Phase.CORPUS_PREPARE,
         agent_name=V2AgentName.SOURCE_CORPUS,
         tool_name=V2ToolName.PREPARE_V2_CORPUS,
-        input_json={"source_count": len(sources)},
+        input_json={"source_count": len(selection.all_sources)},
         output_json={
             "run_corpus_view_id": str(run_view.id),
             "corpus_revision": run_view.revision,
             "attempt": run_view.attempt,
-            "provider_index_id": str(provider_index.id) if provider_index else None,
-            "vector_store_id": provider_index.provider_vector_store_id if provider_index else None,
-            "source_version_count": len(usable_versions),
-            "provider_file_count": len(canonical_provider_files),
+            "provider_index_id": str(selection.provider_index.id) if selection.provider_index else None,
+            "vector_store_id": (
+                selection.provider_index.provider_vector_store_id
+                if selection.provider_index
+                else None
+            ),
+            "source_version_count": len(selection.usable_versions),
+            "provider_file_count": len(selection.canonical_provider_files),
             "readiness_summary": readiness,
         },
     )
     return CorpusPreparationResult(
         run_view=run_view,
-        provider_index=provider_index,
-        sources=usable_sources,
-        source_versions=usable_versions,
-        provider_files=canonical_provider_files,
-        vector_store_id=provider_index.provider_vector_store_id if provider_index else None,
+        provider_index=selection.provider_index,
+        sources=selection.usable_sources,
+        source_versions=selection.usable_versions,
+        provider_files=selection.canonical_provider_files,
+        vector_store_id=(
+            selection.provider_index.provider_vector_store_id
+            if selection.provider_index
+            else None
+        ),
         readiness_summary=readiness,
     )
 
@@ -386,6 +442,8 @@ __all__ = [
     "ensure_source_versions",
     "load_current_v2_corpus",
     "prepare_v2_corpus",
+    "preview_v2_corpus_manifest_hash",
+    "resolve_v2_corpus_selection",
     "download_file",
     "get_minio_client",
     "get_openai_client",

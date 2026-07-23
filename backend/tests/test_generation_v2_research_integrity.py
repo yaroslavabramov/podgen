@@ -47,6 +47,12 @@ from app.generation_v2.research_workspace_repair_budget import (
     reserve_repair_operation_in_workspace,
     start_persisted_repair_operation,
 )
+from app.generation_v2.source_triage_set_review import (
+    record_semantic_review_page,
+    semantic_review_page,
+    set_semantic_review_signature,
+)
+from app.generation_v2.source_triage_set_state_views import question_workbench_signature
 from app.generation_v2.research_source_map_prompting import (
     source_map_planner_summary,
     source_map_research_page,
@@ -935,7 +941,7 @@ def test_checkpoint_restart_instructions_match_the_active_role() -> None:
     assert "finalize_source_map" not in planner
     assert "finish_triage_source_set" in triage_set
     assert "save_source_analysis" in triage_set
-    assert "current_set_state" in triage_set
+    assert "read_triage_set_state" in triage_set
     assert "upsert_source_card" not in triage_set
     assert "source reads only for unfinished work" in triage_set
     assert "list_source_capsules" not in triage_set
@@ -1144,6 +1150,29 @@ async def test_research_job_requires_outcome_for_every_planned_question(monkeypa
     assert workspace["investigation_jobs"][0]["question_outcomes"][1]["status"] == "deferred"
 
 
+def _complete_set_semantic_review(workspace: dict, set_id: str) -> None:
+    source_set = next(item for item in workspace["source_sets"] if item["set_id"] == set_id)
+    cursor = 0
+    while True:
+        page = semantic_review_page(
+            workspace,
+            source_set,
+            evidence_by_id={},
+            cursor=cursor,
+            limit=25,
+        )
+        record_semantic_review_page(workspace, source_set, page)
+        next_cursor = str(page["page"]["next_cursor"] or "")
+        if not next_cursor:
+            break
+        cursor = int(next_cursor)
+    workspace.setdefault("source_triage_set_semantic_self_checks", {})[set_id] = {
+        "contract_version": "v2.semantic_review_ack.1",
+        "review_snapshot_id": set_semantic_review_signature(workspace, source_set),
+        "readiness_explanation": "Reviewed in the test helper.",
+    }
+
+
 @pytest.mark.asyncio
 async def test_mapped_triage_set_requires_one_resolved_assessment_per_source(
     monkeypatch: pytest.MonkeyPatch,
@@ -1198,6 +1227,11 @@ async def test_mapped_triage_set_requires_one_resolved_assessment_per_source(
         "mapped_sources": [],
         "deferred_sources": [],
     }
+    workspace["coverage_outcomes"][0]["workbench_snapshot_id"] = question_workbench_signature(
+        workspace,
+        workspace["source_sets"][0],
+        question_id="q1",
+    )
 
     async def load(_db, _run_id):
         return workspace
@@ -1265,6 +1299,7 @@ async def test_mapped_triage_set_requires_one_resolved_assessment_per_source(
             "deferred_sources": [],
         }
     )
+    _complete_set_semantic_review(workspace, "set_1")
     accepted = await finish.handler(
         {
             "set_id": "set_1",
@@ -1297,6 +1332,7 @@ async def test_mapped_triage_set_requires_one_resolved_assessment_per_source(
     workspace["source_assessments"][0]["disposition"] = "deferred"
     workspace["source_assessments"][0]["relevance_reason"] = "The whole set is now deferred."
     workspace["coverage_outcomes"][0].update({"status": "deferred", "deferred_reason": "The question is deferred."})
+    _complete_set_semantic_review(workspace, "set_1")
     deferred = await finish.handler(
         {
             "set_id": "set_1",
@@ -1396,7 +1432,6 @@ def test_research_job_context_does_not_copy_foreign_semantic_work() -> None:
             for idx in range(80)
         ],
     }
-
     payload = research_job_prompt_payload(workspace, "current", source_map_summary={})
     encoded = json.dumps(payload, ensure_ascii=False)
 
@@ -2097,6 +2132,11 @@ async def test_triage_set_agent_can_restore_full_durable_state(
             }
         ],
     }
+    workspace["coverage_outcomes"][0]["workbench_snapshot_id"] = question_workbench_signature(
+        workspace,
+        workspace["source_sets"][0],
+        question_id="q1",
+    )
     compact = source_set_prompt_payload(workspace, "set_1")
     assert "purpose" not in compact["set"]
     assert compact["set"]["purpose_truncated"] is True
@@ -2124,58 +2164,46 @@ async def test_triage_set_agent_can_restore_full_durable_state(
         mode="set",
         current_set_id="set_1",
     )
-    page_tool = next(tool for tool in set_tools if tool.name == "list_triage_source_sets")
+    page_tool = next(tool for tool in set_tools if tool.name == "read_triage_set_state")
     state_page = await page_tool.handler(
-        {"section": "current_set_state", "set_id": "set_1", "cursor": "0", "limit": 25}
+        {"section": "set_overview", "set_id": "set_1", "cursor": "0", "limit": 25}
     )
     question_page = await page_tool.handler(
-        {"section": "assigned_questions", "set_id": "set_1", "cursor": "0", "limit": 1}
+        {"section": "question_workbench", "question_id": "q1", "cursor": "0", "limit": 25}
     )
     assessment_page = await page_tool.handler(
-        {"section": "source_assessments", "set_id": "set_1", "cursor": "0", "limit": 25}
-    )
-    finding_page = await page_tool.handler(
-        {"section": "source_findings", "set_id": "set_1", "cursor": "0", "limit": 25}
-    )
-    outcome_page = await page_tool.handler(
-        {"section": "coverage_outcomes", "set_id": "set_1", "cursor": "0", "limit": 25}
+        {"section": "source_memory", "source_ref": "S01", "cursor": "0", "limit": 25}
     )
 
     assert state_page["state"] == {
         "pending_source_refs": [],
+        "pending_exact_read_source_refs": [],
+        "pending_comparison_source_refs": [],
+        "stale_source_analysis_refs": [],
         "required_question_ids": ["q1"],
+        "discovered_question_ids": [],
         "missing_outcome_question_ids": [],
         "stale_outcome_question_ids": [],
         "saved_source_analysis_count": 1,
         "source_read_receipt_count": 0,
+        "latest_source_read_receipts": [],
         "saved_reading_note_count": 0,
-            "latest_source_read_receipts": [],
-            "source_read_coverage_ledger": [],
-            "pending_source_read_receipts": [],
-        "replay_required_after_activation": [],
         "saved_finding_count": 1,
         "saved_outcome_count": 1,
-            "pending_exact_read_source_refs": [],
-            "pending_comparison_source_refs": [],
-            "stale_source_analysis_refs": [],
-            "pending_discovered_question_attempts": [],
     }
-    assert {item["state_record_kind"] for item in state_page["items"]} == {
-        "source_analysis",
-        "source_finding",
-        "question_outcome",
+    assert {item["item_kind"] for item in state_page["items"]} == {
+        "source",
+        "question",
     }
-    assert question_page["items"][0]["question"] == "q" * 280
-    assert assessment_page["items"][0]["finding_ids"] == ["finding-1"]
-    assert finding_page["items"][0]["statement"] == finding_statement
-    assert finding_page["items"][0]["evidence_ids"] == evidence_ids
-    assert outcome_page["items"][0]["orientation_summary"] == outcome_summary
-    assert outcome_page["items"][0]["finding_ids"] == ["finding-1"]
-    model_facing_tool_output("list_triage_source_sets", state_page)
-    model_facing_tool_output("list_triage_source_sets", question_page)
-    model_facing_tool_output("list_triage_source_sets", assessment_page)
-    model_facing_tool_output("list_triage_source_sets", finding_page)
-    model_facing_tool_output("list_triage_source_sets", outcome_page)
+    question_json = json.dumps(question_page, ensure_ascii=False)
+    source_json = json.dumps(assessment_page, ensure_ascii=False)
+    assert "q" * 280 in question_json
+    assert outcome_summary in question_json
+    assert finding_statement in source_json
+    assert all(evidence_id in source_json for evidence_id in evidence_ids)
+    model_facing_tool_output("read_triage_set_state", state_page)
+    model_facing_tool_output("read_triage_set_state", question_page)
+    model_facing_tool_output("read_triage_set_state", assessment_page)
 
     finalizer_tools = build_workspace_tools(
         db=None,  # type: ignore[arg-type]
@@ -2231,24 +2259,23 @@ async def test_triage_set_resume_pages_restore_assigned_questions_and_only_own_r
         mode="set",
         current_set_id="set_2",
     )
-    pager = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+    pager = next(tool for tool in tools if tool.name == "read_triage_set_state")
 
-    current = await pager.handler({"section": "current_set", "cursor": "0", "limit": 1})
+    current = await pager.handler({"section": "set_overview", "cursor": "0", "limit": 25})
     assigned_questions = await pager.handler(
-        {"section": "assigned_questions", "cursor": "0", "limit": 1}
+        {"section": "question_memory", "question_id": "q2", "cursor": "0", "limit": 25}
     )
-    assessments = await pager.handler({"section": "source_assessments", "cursor": "0", "limit": 3})
-    outcomes = await pager.handler({"section": "coverage_outcomes", "cursor": "0", "limit": 3})
+    assessments = await pager.handler(
+        {"section": "source_memory", "source_ref": "S02", "cursor": "0", "limit": 25}
+    )
     foreign_set = await pager.handler(
-        {"section": "assigned_questions", "set_id": "set_1", "cursor": "0", "limit": 1}
+        {"section": "question_memory", "question_id": "q1", "set_id": "set_1", "cursor": "0", "limit": 1}
     )
 
-    assert "coverage_questions" not in current["items"][0]
-    assert assigned_questions["items"][0]["question"] == "Second full question"
-    assert [item["set_id"] for item in assessments["items"]] == ["set_2"]
-    assert [item["set_id"] for item in outcomes["items"]] == ["set_2"]
-    assert assessments["page"]["total_count"] == 1
-    assert outcomes["page"]["total_count"] == 1
+    assert current["set_id"] == "set_2"
+    assert "Second full question" in json.dumps(assigned_questions, ensure_ascii=False)
+    assert "set_2" in json.dumps(assessments, ensure_ascii=False)
+    assert "set_1" not in json.dumps(assessments, ensure_ascii=False)
     assert foreign_set["accepted"] is False
     assert foreign_set["error"] == "triage_source_set_scope_mismatch"
 
@@ -2329,7 +2356,7 @@ async def test_targeted_repair_pages_old_records_until_replacements_exist(
         mode="set",
         current_set_id="set_1",
     )
-    pager = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+    pager = next(tool for tool in tools if tool.name == "read_triage_set_state")
 
     old_assessment = await pager.handler(
         {"section": "source_assessments", "cursor": "0", "limit": 3}
@@ -2448,7 +2475,7 @@ async def test_large_legacy_question_list_is_read_only_through_pages(
         mode="set",
         current_set_id="set_1",
     )
-    pager = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+    pager = next(tool for tool in tools if tool.name == "read_triage_set_state")
 
     current = await pager.handler({"section": "current_set", "cursor": "0", "limit": 1})
     first_page = await pager.handler(
@@ -2509,7 +2536,7 @@ async def test_many_assigned_questions_never_make_current_set_page_unreadable(
         mode="set",
         current_set_id="set_1",
     )
-    pager = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+    pager = next(tool for tool in tools if tool.name == "read_triage_set_state")
 
     current = await pager.handler({"section": "current_set", "cursor": "0", "limit": 1})
     first_questions = await pager.handler(

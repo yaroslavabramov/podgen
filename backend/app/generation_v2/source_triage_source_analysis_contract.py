@@ -3,9 +3,12 @@ from __future__ import annotations
 from typing import Any
 
 from app.generation_v2.persistence_contracts import semantic_field_error
+from app.generation_v2.source_triage_read_state import (
+    canonical_source_read_state,
+    source_read_state_signature,
+)
 from app.generation_v2.source_triage_workspace_contracts import TRIAGE_SEMANTIC_FIELD_LIMITS
 from app.generation_v2.source_triage_workspace_state import (
-    source_read_coverage_ledger,
     source_read_receipt_is_delivered,
 )
 
@@ -17,6 +20,7 @@ def validate_reading_basis(
     source_ref: str,
     representation_status: str,
     raw_basis: Any,
+    verified_exact_duplicate_of_source_ref: str = "",
 ) -> tuple[dict[str, Any], dict[str, Any] | None]:
     """Validate the semantic stopping judgment and bind receipts server-side."""
 
@@ -66,33 +70,156 @@ def validate_reading_basis(
     )
     if field_error:
         return {}, field_error
-    ledger = next(
-        (
-            item
-            for item in source_read_coverage_ledger(
-                list(workspace.get("source_read_receipts") or []),
-                set_id=set_id,
-            )
-            if item.get("source_ref") == source_ref
-        ),
-        {
+    read_state = canonical_source_read_state(
+        workspace,
+        set_id=set_id,
+        source_ref=source_ref,
+    )
+    ledger = dict(read_state["coverage_ledger"])
+    structure = dict(ledger.get("structure") or {})
+    has_native_read = any(
+        isinstance(item, dict)
+        and str(item.get("set_id") or "") == set_id
+        and str(item.get("source_ref") or "") == source_ref
+        and str(item.get("read_kind") or "") == "native_file_attachment"
+        and source_read_receipt_is_delivered(item)
+        for item in workspace.get("source_read_receipts") or []
+    )
+    partial_local_read = (
+        representation_status in {"readable", "partial"}
+        and not ledger.get("eof_reached")
+        and int(ledger.get("unread_char_count") or 0) > 0
+        and not has_native_read
+    )
+    verified_duplicate = str(verified_exact_duplicate_of_source_ref or "").strip()
+    if partial_local_read and not verified_duplicate and not structure.get("complete"):
+        next_structure_cursor = str(structure.get("next_unread_cursor") or "0")
+        next_read_cursor = _next_sequential_read_cursor(
+            workspace,
+            set_id=set_id,
+            source_ref=source_ref,
+        )
+        return {}, {
+            "accepted": False,
+            "error": "partial_read_requires_complete_structure",
             "source_ref": source_ref,
-            "total_chars": 0,
-            "sequential_ranges": [],
-            "sequential_chars_read": 0,
-            "unread_char_count": 0,
-            "eof_reached": False,
-            "search_ranges": [],
-            "search_queries": [],
-            "structure": {},
-            "completion_is_model_judgment": True,
-        },
+            "structure_progress": {
+                "returned_count": int(structure.get("returned_count") or 0),
+                "total_count": int(structure.get("total_count") or 0),
+                "next_cursor": next_structure_cursor,
+            },
+            "allowed_next_actions": [
+                {
+                    "tool": "inspect_source",
+                    "arguments": {
+                        "source_ref": source_ref,
+                        "cursor": next_structure_cursor,
+                        "max_items": 24,
+                    },
+                    "repeat_until": "next_cursor is empty",
+                },
+                {
+                    "tool": "read_source",
+                    "arguments": {
+                        "source_ref": source_ref,
+                        "cursor": next_read_cursor,
+                        "max_chars": 20_000,
+                    },
+                    "repeat_until": "eof=true",
+                },
+            ],
+            "next_action": (
+                "Inspect every remaining structure page before defending partial reading, or continue sequential "
+                "reading to EOF. Then recompute and retry the complete source analysis."
+            ),
+        }
+    if partial_local_read and not verified_duplicate and not _structure_has_content_labels(structure):
+        next_read_cursor = _next_sequential_read_cursor(
+            workspace,
+            set_id=set_id,
+            source_ref=source_ref,
+        )
+        return {}, {
+            "accepted": False,
+            "error": "unstructured_source_requires_sequential_completion",
+            "source_ref": source_ref,
+            "read_progress": {
+                "sequential_chars_read": int(ledger.get("sequential_chars_read") or 0),
+                "total_chars": int(ledger.get("total_chars") or 0),
+                "next_cursor": next_read_cursor,
+            },
+            "allowed_next_action": {
+                "tool": "read_source",
+                "arguments": {
+                    "source_ref": source_ref,
+                    "cursor": next_read_cursor,
+                    "max_chars": 20_000,
+                },
+                "repeat_until": "eof=true",
+            },
+            "next_action": (
+                "The document has no content-bearing section labels, so its unread regions cannot be assessed from "
+                "structure metadata. Continue sequential reading to EOF, then recompute the source analysis."
+            ),
+        }
+    structure_receipt_refs = sorted(
+        {
+            str(item.get("receipt_ref") or "")
+            for item in workspace.get("source_structure_pages") or []
+            if isinstance(item, dict)
+            and str(item.get("set_id") or "") == set_id
+            and str(item.get("source_ref") or "") == source_ref
+            and str(item.get("delivery_status") or "") == "delivered"
+            and str(item.get("receipt_ref") or "")
+        }
     )
     return {
         "receipt_refs": receipt_refs,
+        "structure_receipt_refs": structure_receipt_refs,
+        "read_state_signature": source_read_state_signature(
+            workspace,
+            set_id=set_id,
+            source_ref=source_ref,
+            acknowledge_pending=True,
+        ),
         **semantic_fields,
         "coverage_ledger": ledger,
+        **(
+            {"verified_exact_duplicate_of_source_ref": verified_duplicate}
+            if verified_duplicate
+            else {}
+        ),
     }, None
+
+
+def _structure_has_content_labels(structure: dict[str, Any]) -> bool:
+    return any(
+        isinstance(item, dict)
+        and str(item.get("kind") or "") == "heading"
+        and str(item.get("label_preview") or "").strip()
+        for item in structure.get("items") or []
+    )
+
+
+def _next_sequential_read_cursor(
+    workspace: dict[str, Any],
+    *,
+    set_id: str,
+    source_ref: str,
+) -> str:
+    receipts = [
+        item
+        for item in workspace.get("source_read_receipts") or []
+        if isinstance(item, dict)
+        and str(item.get("set_id") or "") == set_id
+        and str(item.get("source_ref") or "") == source_ref
+        and str(item.get("read_kind") or "sequential") == "sequential"
+        and source_read_receipt_is_delivered(item)
+    ]
+    if not receipts:
+        return ""
+    latest = max(receipts, key=lambda item: int(item.get("end_offset") or 0))
+    return str(latest.get("receipt_ref") or "")
 
 
 async def attach_evidence_previews(

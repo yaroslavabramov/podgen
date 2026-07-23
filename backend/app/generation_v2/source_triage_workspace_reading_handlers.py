@@ -6,6 +6,7 @@ from typing import Any
 from app.generation_v2 import source_triage_workspace as workspace_api
 from app.generation_v2.runtime_tool_output import MODEL_TOOL_OUTPUT_MAX_CHARS
 from app.generation_v2.source_triage_workspace_handler_helpers import pending_set_work
+from app.generation_v2.source_triage_language_contract import reading_note_language_error
 from app.generation_v2.source_triage_workspace_state import source_read_receipt_is_delivered
 from app.generation_v2.tools.evidence_refs import build_source_ref_context, resolve_source_ref
 from app.generation_v2.tools.evidence_source_text import source_version_text
@@ -40,6 +41,13 @@ class SourceTriageWorkspaceReadingHandlersMixin:
         source_id = resolve_source_ref(source_ref, build_source_ref_context(self.inventory))
         if not source_id:
             return {"accepted": False, "error": "Unknown source_ref", "source_ref": source_ref}
+
+        language_error = reading_note_language_error(
+            args,
+            output_language=str((current.get("intent") or {}).get("language") or ""),
+        )
+        if language_error:
+            return language_error
 
         raw_receipt_refs = args.get("receipt_refs")
         if not isinstance(raw_receipt_refs, list):
@@ -179,13 +187,20 @@ class SourceTriageWorkspaceReadingHandlersMixin:
                 "error": "doubts and next_checks must be arrays",
             }
         semantic_scalars = [
-            (field, None, str(args.get(field) or ""))
-            for field in (
-                "what_was_read",
-                "what_was_established",
-                "boundaries",
-                "unread_regions",
-                "why_unread_is_safe",
+            (field, None, value)
+            for field, value in (
+                ("what_was_read", str(args.get("what_was_read") or "")),
+                ("what_was_established", str(args.get("what_was_established") or "")),
+                ("boundaries", str(args.get("boundaries") or "")),
+                ("unread_regions", str(args.get("unread_regions") or "")),
+                (
+                    "unread_risk_assessment",
+                    str(
+                        args.get("unread_risk_assessment")
+                        or args.get("why_unread_is_safe")
+                        or ""
+                    ),
+                ),
             )
         ]
         semantic_scalars.extend(
@@ -242,6 +257,11 @@ class SourceTriageWorkspaceReadingHandlersMixin:
             }
 
         now = public_api._now()
+        unread_risk_assessment = str(
+            args.get("unread_risk_assessment")
+            or args.get("why_unread_is_safe")
+            or ""
+        )
         note = {
             "note_id": note_id,
             "set_id": set_id,
@@ -253,7 +273,12 @@ class SourceTriageWorkspaceReadingHandlersMixin:
             "what_was_established": str(args.get("what_was_established") or ""),
             "boundaries": str(args.get("boundaries") or ""),
             "unread_regions": str(args.get("unread_regions") or ""),
-            "why_unread_is_safe": str(args.get("why_unread_is_safe") or ""),
+            "unread_risk_assessment": unread_risk_assessment,
+            **(
+                {"why_unread_is_safe": unread_risk_assessment}
+                if "why_unread_is_safe" in args and "unread_risk_assessment" not in args
+                else {}
+            ),
             "question_links": question_links,
             "doubts": [str(value) for value in doubts],
             "next_checks": [str(value) for value in next_checks],

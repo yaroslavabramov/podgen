@@ -17,6 +17,7 @@ from app.generation_v2.schemas import (
     SourceTriageReport,
 )
 from app.generation_v2.source_triage_workspace_tool_handlers import SourceTriageWorkspaceToolHandlers
+from app.generation_v2.source_triage_set_state_views import question_workbench_signature
 from app.generation_v2.source_triage_workspace_tracking import (
     _successful_commit_trace,
     _successful_read_trace,
@@ -1776,6 +1777,11 @@ async def test_set_cannot_finalize_active_outcome_from_unusable_source(
             "source_ids": [source_id],
         }
     ]
+    workspace["coverage_outcomes"][0]["workbench_snapshot_id"] = question_workbench_signature(
+        workspace,
+        workspace["source_sets"][0],
+        question_id="q1",
+    )
     _patch_workspace(monkeypatch, workspace)
     handler = SourceTriageWorkspaceToolHandlers(
         db=None,  # type: ignore[arg-type]

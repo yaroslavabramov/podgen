@@ -95,13 +95,14 @@ def checkpoint_restart_instructions(state: dict[str, Any]) -> str:
         if agent_name.startswith("source_triage_set_agent_"):
             return instructions + (
                 "Continue only the current source set. Restore complete durable memory through "
-                "list_triage_source_sets sections current_set_state, source_read_receipts, reading_notes, "
-                "source_assessments, source_findings, coverage_outcomes, and assigned_questions. Continue only from "
+                "read_triage_set_state sections set_overview, source_memory, question_workbench, and unfinished_work. "
+                "Continue only from "
                 "delivered read ranges. Execute the persisted retry arguments for pending text reads; retry pending "
                 "native attachments. Use source reads only for unfinished work and do not reread completed "
                 "source analyses. Save useful partial "
-                "understanding as a reading note, then save one complete source-analysis revision with "
-                "save_source_analysis. Refresh every stale local outcome with upsert_coverage_outcome. Do not write "
+                "understanding as a reading note, then save the completed source analysis with "
+                "save_source_analysis. Resolve every current question from its complete question_workbench with "
+                "resolve_triage_question. Do not write "
                 "cards, clusters, quotes, or global gaps. Call finish_triage_source_set only when all source analyses "
                 "and assigned or discovered question outcomes are current; status is mapped or deferred only."
             )

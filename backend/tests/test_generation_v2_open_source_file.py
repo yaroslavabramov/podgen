@@ -477,7 +477,7 @@ async def test_attachment_receipt_becomes_delivered_only_after_successful_same_c
 async def test_runtime_keeps_attachment_pending_when_provider_call_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.generation_v2.tools import evidence_read_delivery as delivery_module
+    from app.generation_v2 import source_triage_model_delivery as delivery_module
 
     acknowledged: list[list[str]] = []
 
@@ -487,7 +487,7 @@ async def test_runtime_keeps_attachment_pending_when_provider_call_fails(
 
     monkeypatch.setattr(
         delivery_module,
-        "mark_source_read_receipts_delivered",
+        "mark_runtime_delivery_receipts_delivered",
         acknowledge,
     )
 
@@ -517,7 +517,7 @@ async def test_runtime_keeps_attachment_pending_when_provider_call_fails(
 async def test_runtime_acknowledges_attachment_after_provider_accepts_input(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.generation_v2.tools import evidence_read_delivery as delivery_module
+    from app.generation_v2 import source_triage_model_delivery as delivery_module
 
     acknowledged: list[list[str]] = []
 
@@ -527,7 +527,7 @@ async def test_runtime_acknowledges_attachment_after_provider_accepts_input(
 
     monkeypatch.setattr(
         delivery_module,
-        "mark_source_read_receipts_delivered",
+        "mark_runtime_delivery_receipts_delivered",
         acknowledge,
     )
 

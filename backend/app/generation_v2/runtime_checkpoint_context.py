@@ -17,9 +17,10 @@ finalize_triage_workspace_plan."""
 
 
 TRIAGE_SET_RESUME_CONTRACT = """Continue only the current source set from fresh durable state.
-Restore current_set_state and every section it marks incomplete. Execute persisted retries for pending reads and
-replay_required_after_activation before advancing beyond those ranges. Never recreate completed source analyses or
-outcomes; continue the unfinished work under the original prompt and finish only through finish_triage_source_set."""
+Restore set_overview (current_set_state is its compatibility alias) and unfinished_work, then open source_memory or
+question_workbench only for the relevant item and follow every page before resolving that question.
+Execute persisted retries for pending reads and replay_required_after_activation before advancing beyond those ranges. Never recreate completed source
+analyses or outcomes. Continue under the original prompt and finish only through finish_triage_source_set."""
 
 
 TRIAGE_FINALIZER_RESUME_CONTRACT = """Continue only the current source-triage finalization attempt.

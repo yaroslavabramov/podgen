@@ -7,8 +7,10 @@ from app.generation_v2 import source_triage_workspace as workspace_api
 from app.generation_v2.source_triage_read_checkpointing import (
     pending_comparison_source_refs,
     pending_exact_read_source_refs,
+    pending_source_checkpoint_requirements,
     source_refs_with_reads_newer_than_analysis,
 )
+from app.generation_v2.source_triage_question_state import question_outcome_is_current
 
 
 def pending_set_work(workspace: dict[str, Any], source_set: dict[str, Any]) -> dict[str, Any]:
@@ -21,19 +23,32 @@ def pending_set_work(workspace: dict[str, Any], source_set: dict[str, Any]) -> d
         and str(item.get("processing_status") or "resolved") == "resolved"
         and (item.get("finding_ids") or str(item.get("no_findings_reason") or "").strip())
     }
-    completed_question_ids = {
-        str(item.get("question_id") or "")
+    set_outcomes_by_question = {
+        str(item.get("question_id") or ""): item
         for item in workspace.get("coverage_outcomes") or []
-        if isinstance(item, dict)
-        and str(item.get("set_id") or "") == set_id
-        and str(item.get("status") or "") in {"covered", "partial", "missing", "conflicted", "deferred"}
-        and not bool(item.get("is_stale"))
+        if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
+    }
+    completed_question_ids = {
+        question_id
+        for question_id, item in set_outcomes_by_question.items()
+        if str(item.get("status") or "") in {"covered", "partial", "missing", "conflicted", "deferred"}
+        and question_outcome_is_current(
+            item,
+            workspace=workspace,
+            source_set=source_set,
+            question_id=question_id,
+        )
     }
     required_question_ids = [str(item) for item in source_set.get("question_ids") or []]
     stale_question_ids = [
-        str(item.get("question_id") or "")
-        for item in workspace.get("coverage_outcomes") or []
-        if isinstance(item, dict) and str(item.get("set_id") or "") == set_id and bool(item.get("is_stale"))
+        question_id
+        for question_id, item in set_outcomes_by_question.items()
+        if not question_outcome_is_current(
+            item,
+            workspace=workspace,
+            source_set=source_set,
+            question_id=question_id,
+        )
     ]
     set_findings = [
         item
@@ -64,6 +79,10 @@ def pending_set_work(workspace: dict[str, Any], source_set: dict[str, Any]) -> d
             source_set=source_set,
         ),
         "pending_comparison_source_refs": pending_comparison_source_refs(source_set),
+        "checkpoint_requirements": pending_source_checkpoint_requirements(
+            workspace,
+            source_set=source_set,
+        ),
         "stale_source_analysis_refs": source_refs_with_reads_newer_than_analysis(
             workspace,
             set_id=set_id,
