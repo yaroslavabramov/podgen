@@ -269,14 +269,15 @@ async def test_capsule_cache_is_ref_neutral_and_preview_metadata_is_honest() -> 
         "source_capsules": {"S01": first},
     }
     prompt_capsule = source_set_prompt_payload(workspace, "set-1")["capsule_previews"][0]
-    assert prompt_capsule["outline_previews"][0]["text_chars"] == len(
+    assert prompt_capsule["outline"][0]["text"] == (
         "Meaningful heading " + "x" * 220
-    )
-    assert prompt_capsule["outline_previews"][0]["text_truncated"] is True
-    assert prompt_capsule["readability_warning_previews"][0]["text_chars"] == len(
+    )[:100]
+    assert prompt_capsule["outline"][0]["text_omitted_chars"] == len(
+        "Meaningful heading " + "x" * 220
+    ) - 100
+    assert prompt_capsule["readability_warnings"][0]["text_omitted_chars"] == len(
         "Concrete warning " + "y" * 350
-    )
-    assert prompt_capsule["readability_warning_previews"][0]["text_truncated"] is True
+    ) - 300
 
 
 @pytest.mark.asyncio

@@ -162,6 +162,47 @@ async def test_worker_recovery_keeps_existing_in_progress_set_state(
 
 
 @pytest.mark.asyncio
+async def test_set_flow_forwards_restricted_tool_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stored = _workspace()
+    seen_allowed_tool_names: list[set[str] | None] = []
+
+    async def start(_db, **_kwargs):
+        _set_status(stored, "in_progress")
+        return deepcopy(stored)
+
+    async def load(_db, _run_id):
+        return deepcopy(stored)
+
+    async def run_agent(_db, _run, _runtime, *, allowed_tool_names=None, **_kwargs):
+        seen_allowed_tool_names.append(allowed_tool_names)
+        _set_status(stored, "mapped")
+        stored["source_sets"][0]["findings_summary"] = "Mapped."
+        return SourceTriageCompletion(ready=True, summary="done", notes=[])
+
+    monkeypatch.setattr(source_triage_set_flow, "EvidenceToolset", _EvidenceToolset)
+    monkeypatch.setattr(source_triage_set_flow, "start_triage_source_set", start)
+    monkeypatch.setattr(source_triage_set_flow, "load_source_triage_workspace", load)
+    monkeypatch.setattr(source_triage_set_flow, "build_workspace_tools", lambda **_kwargs: [])
+    monkeypatch.setattr(source_triage_set_flow, "build_source_triage_set_agent", run_agent)
+    monkeypatch.setattr(source_triage_set_flow, "assert_step_not_stopped", _noop_stop_check)
+
+    await source_triage_set_flow.run_source_triage_set(
+        run=SimpleNamespace(id="run-1"),
+        db=object(),  # type: ignore[arg-type]
+        runtime=object(),
+        corpus=SimpleNamespace(run_view=object(), provider_index=None, vector_store_id=None),
+        source_inventory=SourceMap(),
+        workspace=deepcopy(stored),
+        source_set=deepcopy(stored["source_sets"][0]),
+        allowed_tool_names={"read_triage_set_state", "finish_triage_source_set"},
+    )
+
+    assert seen_allowed_tool_names == [{"read_triage_set_state", "finish_triage_source_set"}]
+
+
+@pytest.mark.asyncio
 async def test_two_no_progress_returns_fail_without_needs_repair(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

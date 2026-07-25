@@ -50,6 +50,33 @@ def _preview_fields(name: str, value: Any, limit: int) -> dict[str, Any]:
     }
 
 
+def _lean_text_fields(name: str, value: Any, limit: int) -> dict[str, Any]:
+    text = model_preview_text(value, collapse_whitespace=False)
+    preview = text[:limit]
+    payload: dict[str, Any] = {name: preview}
+    omitted = max(0, len(text) - len(preview))
+    if omitted:
+        payload[f"{name}_omitted_chars"] = omitted
+    return payload
+
+
+def _lean_stored_text_fields(
+    name: str,
+    value: Any,
+    *,
+    chars: Any,
+    limit: int,
+) -> dict[str, Any]:
+    text = model_preview_text(value, collapse_whitespace=False)
+    preview = text[:limit]
+    original_chars = int(chars or len(text))
+    payload: dict[str, Any] = {name: preview}
+    omitted = max(0, original_chars - len(preview))
+    if omitted:
+        payload[f"{name}_omitted_chars"] = omitted
+    return payload
+
+
 def _checkpoint_intent_payload(workspace: dict[str, Any]) -> dict[str, Any]:
     intent = workspace.get("intent") or {}
     return {
@@ -349,82 +376,56 @@ def _capsule_prompt_preview(capsule: dict[str, Any]) -> dict[str, Any]:
     warning_item_chars = list(capsule.get("readability_warning_item_chars") or [])
     return {
         "source_ref": capsule.get("source_ref"),
-        **_stored_preview_fields(
-            "title",
-            capsule.get("title") or "",
-            chars=capsule.get("title_chars"),
-            truncated=capsule.get("title_truncated"),
-            limit=180,
-        ),
-        **_stored_preview_fields(
-            "domain",
-            capsule.get("domain") or "",
-            chars=capsule.get("domain_chars"),
-            truncated=capsule.get("domain_truncated"),
-            limit=180,
-        ),
+        **_lean_stored_text_fields("title", capsule.get("title") or "", chars=capsule.get("title_chars"), limit=180),
+        **_lean_stored_text_fields("domain", capsule.get("domain") or "", chars=capsule.get("domain_chars"), limit=180),
         "source_type": capsule.get("source_type"),
         "published_at": capsule.get("published_at"),
         "coverage_status": capsule.get("coverage_status"),
         "text_available": bool(capsule.get("text_available", capsule.get("readable"))),
-        **_stored_preview_fields(
+        **_lean_stored_text_fields(
             "summary_hint",
             capsule.get("summary_hint") or "",
             chars=capsule.get("summary_hint_chars"),
-            truncated=capsule.get("summary_hint_truncated"),
             limit=180,
         ),
-        "outline_previews": [
-            _stored_preview_fields(
+        "outline": [
+            _lean_stored_text_fields(
                 "text",
                 item,
                 chars=outline_item_chars[index] if index < len(outline_item_chars) else None,
-                truncated=(
-                    int(outline_item_chars[index]) > len(str(item))
-                    if index < len(outline_item_chars)
-                    else None
-                ),
                 limit=100,
             )
             for index, item in enumerate(outline[:4])
         ],
         "outline_count": max(len(outline), int(capsule.get("outline_total_count") or 0)),
-        "outline_returned_count": min(len(outline), 4),
         "outline_omitted_count": max(
             0,
             max(len(outline), int(capsule.get("outline_total_count") or 0)) - min(len(outline), 4),
         ),
-        "window_previews": [
+        "windows": [
             {
-                **_stored_preview_fields(
+                **_lean_stored_text_fields(
                     "locator",
                     item.get("locator") or "",
                     chars=item.get("locator_chars"),
-                    truncated=item.get("locator_truncated"),
                     limit=100,
                 ),
                 "locator_type": item.get("locator_type"),
-                **_stored_preview_fields(
+                **_lean_stored_text_fields(
                     "text",
                     item.get("preview_text") or "",
                     chars=item.get("preview_text_chars"),
-                    truncated=item.get("preview_text_truncated"),
                     limit=300,
                 ),
             }
             for item in windows[:2]
         ],
         "window_count": len(windows),
-        "readability_warning_previews": [
-            _stored_preview_fields(
+        "readability_warnings": [
+            _lean_stored_text_fields(
                 "text",
                 item,
                 chars=warning_item_chars[index] if index < len(warning_item_chars) else None,
-                truncated=(
-                    int(warning_item_chars[index]) > len(str(item))
-                    if index < len(warning_item_chars)
-                    else None
-                ),
                 limit=300,
             )
             for index, item in enumerate(warnings[:4])
@@ -433,7 +434,6 @@ def _capsule_prompt_preview(capsule: dict[str, Any]) -> dict[str, Any]:
             len(warnings),
             int(capsule.get("readability_warning_total_count") or 0),
         ),
-        "readability_warning_returned_count": min(len(warnings), 4),
         "readability_warning_omitted_count": max(
             0,
             max(len(warnings), int(capsule.get("readability_warning_total_count") or 0))
@@ -728,6 +728,8 @@ def _source_set_execution_mode(
     source_set: dict[str, Any],
     set_id: str,
 ) -> str:
+    if isinstance(workspace.get("triage_semantic_eval"), dict):
+        return "semantic_eval"
     if source_set.get("repair_targeted"):
         return "targeted_repair"
     has_durable_work = bool(
@@ -831,40 +833,57 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
         )
     }
     required_question_ids = [str(item) for item in source_set.get("question_ids") or []]
+    requirement_assignments_by_question: dict[str, set[str]] = {}
+    for assignment in source_set.get("question_assignments") or []:
+        if not isinstance(assignment, dict):
+            continue
+        question_id = str(assignment.get("question_id") or "")
+        if not question_id:
+            continue
+        requirement_assignments_by_question.setdefault(question_id, set()).update(
+            str(value) for value in assignment.get("requirement_ids") or [] if str(value)
+        )
     assigned_question_previews = [
-        _compact_question_prompt_item(questions_by_id[question_id])
+        _compact_question_prompt_item(
+            questions_by_id[question_id],
+            requirement_ids=requirement_assignments_by_question.get(question_id),
+        )
         for question_id in required_question_ids
         if question_id in questions_by_id
     ]
-    all_question_index = [
-        _compact_question_prompt_item(item)
+    other_question_index = [
+        _compact_question_prompt_item(item, include_requirements=False)
         for item in workspace.get("coverage_questions") or []
-        if isinstance(item, dict)
+        if isinstance(item, dict) and str(item.get("question_id") or "") not in set(required_question_ids)
     ]
     capsule_previews = [
         _capsule_prompt_preview(capsule)
         for ref in source_set.get("source_refs") or []
         if isinstance((capsule := capsules.get(ref)), dict)
     ]
+    if execution_mode == "semantic_eval":
+        execution_goal = (
+            "Resolve the assigned questions from frozen source analyses, findings, and evidence only. "
+            "If the frozen material does not establish a criterion, use partial or missing; do not read sources "
+            "or rewrite source analyses."
+        )
+    elif str(source_set.get("set_kind") or SOURCE_SET_KIND_COVERAGE) == SOURCE_SET_KIND_ORIENTATION:
+        execution_goal = (
+            "Read every source independently, then link only genuine findings to existing substantive questions."
+        )
+    else:
+        execution_goal = "Orient the assigned substantive coverage questions."
     return {
         "set": {
             "set_id": source_set.get("set_id"),
             "set_kind": source_set.get("set_kind") or SOURCE_SET_KIND_COVERAGE,
-            "execution_goal": (
-                "Read every source independently, then link only genuine findings to existing substantive questions."
-                if str(source_set.get("set_kind") or SOURCE_SET_KIND_COVERAGE) == SOURCE_SET_KIND_ORIENTATION
-                else "Orient the assigned substantive coverage questions."
-            ),
-            **_preview_fields("label", source_set.get("label") or "", 180),
-            **_preview_fields("purpose", source_set.get("purpose") or "", 400),
+            "execution_goal": execution_goal,
+            **_lean_text_fields("label", source_set.get("label") or "", 180),
+            **_lean_text_fields("purpose", source_set.get("purpose") or "", 400),
             "source_refs": source_set.get("source_refs") or [],
-            **_preview_fields("rationale", source_set.get("rationale") or "", 500),
-            "question_ids": source_set.get("question_ids") or [],
-            "question_assignments": source_set.get("question_assignments") or [],
-            "coverage_questions": assigned_question_previews,
-            "question_count": len(required_question_ids),
-            "coverage_question_returned_count": len(assigned_question_previews),
-            "coverage_question_omitted_count": 0,
+            **_lean_text_fields("rationale", source_set.get("rationale") or "", 500),
+            "assigned_questions": assigned_question_previews,
+            "assigned_question_count": len(required_question_ids),
             "pending_source_refs": [
                 str(item) for item in source_set.get("source_refs") or [] if str(item) not in assessed_refs
             ],
@@ -905,7 +924,7 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
             "repair_targets": [
                 {
                     "code": item.get("code"),
-                    **_preview_fields("message", item.get("message") or "", 400),
+                    **_lean_text_fields("message", item.get("message") or "", 400),
                     "source_refs": item.get("source_refs") or [],
                     "question_ids": item.get("question_ids") or [],
                 }
@@ -921,8 +940,9 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
         },
         "capsule_previews": capsule_previews,
         "capsule_count": len(capsule_previews),
-        "all_coverage_question_index": all_question_index,
-        "all_coverage_question_count": len(all_question_index),
+        "other_coverage_question_index": other_question_index,
+        "other_coverage_question_count": len(other_question_index),
+        "all_coverage_question_count": len(workspace.get("coverage_questions") or []),
         "saved_state_previews": {
             "source_read_coverage_ledger": read_coverage_ledger,
             "source_structure_coverage": [
@@ -1010,22 +1030,22 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
                     "note_id": item.get("note_id"),
                     "source_ref": item.get("source_ref"),
                     "receipt_refs": item.get("receipt_refs") or [],
-                    **_preview_fields(
+                    **_lean_text_fields(
                         "what_was_read",
                         item.get("what_was_read") or "",
                         320,
                     ),
-                    **_preview_fields(
+                    **_lean_text_fields(
                         "what_was_established",
                         item.get("what_was_established") or "",
                         420,
                     ),
-                    **_preview_fields(
+                    **_lean_text_fields(
                         "unread_regions",
                         item.get("unread_regions") or "",
                         260,
                     ),
-                    **_preview_fields(
+                    **_lean_text_fields(
                         "unread_risk_assessment",
                         item.get("unread_risk_assessment")
                         or item.get("why_unread_is_safe")
@@ -1050,7 +1070,7 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
                     "representation_status": item.get("representation_status"),
                     "disposition": item.get("disposition"),
                     "finding_ids": item.get("finding_ids") or [],
-                    **_preview_fields(
+                    **_lean_text_fields(
                         "no_findings_reason",
                         item.get("no_findings_reason") or "",
                         260,
@@ -1062,12 +1082,12 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
                 {
                     "finding_id": item.get("finding_id"),
                     "source_ref": item.get("source_ref"),
-                    **_preview_fields("statement", item.get("statement") or "", 320),
+                    **_lean_text_fields("statement", item.get("statement") or "", 320),
                     "question_links": [
                         {
                             "question_id": link.get("question_id"),
                             "requirement_ids": link.get("requirement_ids") or [],
-                            **_preview_fields("rationale", link.get("rationale") or "", 180),
+                            **_lean_text_fields("rationale", link.get("rationale") or "", 180),
                         }
                         for link in item.get("question_links") or []
                         if isinstance(link, dict)
@@ -1093,7 +1113,7 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
                         for result in item.get("requirement_results") or []
                         if isinstance(result, dict)
                     ],
-                    **_preview_fields(
+                    **_lean_text_fields(
                         "orientation_summary",
                         item.get("orientation_summary") or "",
                         320,
@@ -1123,31 +1143,51 @@ def source_set_prompt_payload(workspace: dict[str, Any], set_id: str) -> dict[st
     }
 
 
-def _compact_question_prompt_item(item: dict[str, Any]) -> dict[str, Any]:
-    return {
+def _compact_question_prompt_item(
+    item: dict[str, Any],
+    *,
+    requirement_ids: set[str] | None = None,
+    include_requirements: bool = True,
+) -> dict[str, Any]:
+    requirements = [
+        requirement
+        for requirement in item.get("answer_requirements") or []
+        if isinstance(requirement, dict)
+        and (
+            requirement_ids is None
+            or str(requirement.get("requirement_id") or "") in requirement_ids
+        )
+    ]
+    payload: dict[str, Any] = {
         "question_id": item.get("question_id"),
-        **_preview_fields("question", item.get("question") or "", 280),
+        **_lean_text_fields("question", item.get("question") or "", 280),
         "kind": item.get("kind"),
         "importance": item.get("importance"),
         "parent_question_id": item.get("parent_question_id"),
+    }
+    if not include_requirements:
+        payload["requirement_count"] = len(item.get("answer_requirements") or [])
+        return payload
+    return {
+        **payload,
         "answer_requirements": [
             {
                 "requirement_id": requirement.get("requirement_id"),
-                **_preview_fields(
+                **_lean_text_fields(
                     "description",
                     requirement.get("description") or "",
                     240,
                 ),
-                **_preview_fields("rationale", requirement.get("rationale") or "", 220),
-                **_preview_fields(
+                **_lean_text_fields("rationale", requirement.get("rationale") or "", 220),
+                **_lean_text_fields(
                     "completion_criterion",
                     requirement.get("completion_criterion") or "",
                     240,
                 ),
             }
-            for requirement in item.get("answer_requirements") or []
-            if isinstance(requirement, dict)
+            for requirement in requirements
         ],
+        "assigned_requirement_count": len(requirements),
     }
 
 

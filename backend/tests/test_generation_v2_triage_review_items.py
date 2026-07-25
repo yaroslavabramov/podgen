@@ -399,6 +399,8 @@ def test_shadow_audit_prompt_forbids_guesses_from_omitted_preview() -> None:
 
 
 def test_triage_set_prompt_separates_reading_navigation_and_final_evidence() -> None:
+    normalized_prompt = " ".join(SOURCE_TRIAGE_SET_PROMPT.split())
+
     assert "read_source returns the actual text as lossless" in SOURCE_TRIAGE_SET_PROMPT
     assert "search_source is navigation only, not proof" in SOURCE_TRIAGE_SET_PROMPT
     assert "Before switching sources, save a reading note" in SOURCE_TRIAGE_SET_PROMPT
@@ -409,5 +411,5 @@ def test_triage_set_prompt_separates_reading_navigation_and_final_evidence() -> 
     assert "For a mechanical rejection" in SOURCE_TRIAGE_SET_PROMPT
     assert "attempted semantic decision is provisional" in SOURCE_TRIAGE_SET_PROMPT
     assert "read the current finding_catalog once" in SOURCE_TRIAGE_SET_PROMPT
-    assert "a new\nchild result makes an earlier parent result stale" in SOURCE_TRIAGE_SET_PROMPT
+    assert "a new child result makes an earlier parent result stale" in normalized_prompt
     assert "question_id values, never requirement_id values" in SOURCE_TRIAGE_SET_PROMPT

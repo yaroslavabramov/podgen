@@ -7,6 +7,8 @@ import pytest
 from app.generation_v2.source_triage_set_state_views import (
     question_workbench_signature,
 )
+from app.generation_v2.agents.tool_sets import TRIAGE_SEMANTIC_EVAL_TOOL_NAMES
+from app.generation_v2.source_triage_workspace_prompting import source_set_prompt_payload
 from app.generation_v2.runtime_tool_calls import _validated_private_runtime_directive
 from app.generation_v2.triage_semantic_eval_runner import semantic_eval_report
 from app.generation_v2.triage_semantic_eval_state import (
@@ -110,6 +112,7 @@ def test_semantic_eval_state_keeps_full_reading_memory_but_removes_old_decisions
 
     source_set = workspace["source_sets"][0]
     assert source_set["status"] == "planned"
+    assert workspace["triage_semantic_eval"]["mode"] == "frozen_post_reading_state"
     assert "pending_exact_reads" not in source_set
     assert source_set["question_assignments"] == [
         {"question_id": "root", "requirement_ids": ["root:history", "root:cause"]},
@@ -127,6 +130,31 @@ def test_semantic_eval_state_keeps_full_reading_memory_but_removes_old_decisions
     assert semantic_eval_evidence_ids(workspace) == ["new-evidence"]
     assert workspace["source_assessments"][0]["source_summary"] == long_text
     assert workspace["source_findings"][0]["statement"] == long_text
+
+
+def test_semantic_eval_prompt_payload_declares_frozen_decision_mode() -> None:
+    workspace = build_semantic_eval_workspace(
+        fresh_workspace={"source_order": ["S01"], "intent": {"language": "ru"}},
+        source_workspace=_source_workspace(),
+        set_id="set-1",
+        question_ids=["root", "origin"],
+        evidence_id_map={"old-evidence": "new-evidence"},
+    )
+
+    payload = source_set_prompt_payload(workspace, "set-1")
+
+    assert payload["set"]["execution_mode"] == "semantic_eval"
+    assert "frozen" in payload["set"]["execution_goal"]
+    assert "do not read sources" in payload["set"]["execution_goal"]
+
+
+def test_semantic_eval_tool_contract_is_semantic_only() -> None:
+    assert TRIAGE_SEMANTIC_EVAL_TOOL_NAMES == {
+        "read_triage_set_state",
+        "read_evidence",
+        "resolve_triage_question",
+        "finish_triage_source_set",
+    }
 
 
 def test_semantic_eval_state_fails_closed_when_evidence_clone_is_incomplete() -> None:

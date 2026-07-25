@@ -2019,26 +2019,27 @@ def test_triage_source_set_payload_is_compact_and_preserves_workspace() -> None:
     payload = source_set_prompt_payload(workspace, "set_1")
     source_set = payload["set"]
 
-    assert "purpose" not in source_set
-    assert "rationale" not in source_set
+    assert source_set["purpose"] == long_purpose[:400]
+    assert source_set["purpose_omitted_chars"] == 200
+    assert source_set["rationale"] == long_rationale[:500]
+    assert source_set["rationale_omitted_chars"] == 700
     assert "questions" not in source_set
     assert "observations" not in source_set
     assert "written_actions" not in source_set
-    assert source_set["purpose_truncated"] is True
-    assert source_set["rationale_truncated"] is True
     assert source_set["source_assessment_count"] == 1
     assert source_set["source_finding_count"] == 1
     assert source_set["coverage_outcome_count"] == 1
-    assert payload["saved_state_previews"]["findings"][0]["statement_truncated"] is True
+    assert payload["saved_state_previews"]["findings"][0]["statement"] == long_finding[:320]
+    assert payload["saved_state_previews"]["findings"][0]["statement_omitted_chars"] == 1280
     assert (
         payload["saved_state_previews"]["question_outcomes"][0][
-            "orientation_summary_truncated"
+            "orientation_summary_omitted_chars"
         ]
-        is True
+        == 880
     )
     assert "current_set_state" in payload["saved_state_previews"]["full_records"]
-    assert payload["capsule_previews"][0]["summary_hint_truncated"] is True
-    assert payload["capsule_previews"][0]["window_previews"][0]["text_truncated"] is True
+    assert payload["capsule_previews"][0]["summary_hint_omitted_chars"] == 60
+    assert payload["capsule_previews"][0]["windows"][0]["text_omitted_chars"] == 100
     assert workspace["source_sets"][0]["purpose"] == long_purpose
     assert workspace["source_findings"][0]["statement"] == long_finding
     assert workspace["coverage_outcomes"][0]["orientation_summary"] == long_outcome
@@ -2138,14 +2139,15 @@ async def test_triage_set_agent_can_restore_full_durable_state(
         question_id="q1",
     )
     compact = source_set_prompt_payload(workspace, "set_1")
-    assert "purpose" not in compact["set"]
-    assert compact["set"]["purpose_truncated"] is True
-    assert compact["saved_state_previews"]["findings"][0]["statement_truncated"] is True
+    assert compact["set"]["purpose"] == purpose[:400]
+    assert compact["set"]["purpose_omitted_chars"] == 200
+    assert compact["saved_state_previews"]["findings"][0]["statement"] == finding_statement[:320]
+    assert compact["saved_state_previews"]["findings"][0]["statement_omitted_chars"] == 1280
     assert (
         compact["saved_state_previews"]["question_outcomes"][0][
-            "orientation_summary_truncated"
+            "orientation_summary_omitted_chars"
         ]
-        is True
+        == 1280
     )
 
     async def load(_db, _run_id):

@@ -12,7 +12,10 @@ from app.generation_v2.artifact_costs import summarize_tool_trace_costs
 from app.generation_v2.pipeline.source_triage_set_flow import run_source_triage_set
 from app.generation_v2.pipeline.source_triage_stage import SourceTriageStageRunner
 from app.generation_v2.runtime import V2Runtime
-from app.generation_v2.source_corpus import preview_v2_corpus_manifest_hash
+from app.generation_v2.source_corpus import (
+    load_current_v2_corpus,
+    preview_v2_corpus_manifest_hash,
+)
 from app.generation_v2.source_corpus_run_view import load_current_run_corpus_view
 from app.generation_v2.source_triage_workspace import (
     load_source_triage_workspace,
@@ -194,10 +197,26 @@ async def _execute_first_set(
         run = await db.get(GenerationRun, eval_run_id)
         if run is None:
             raise RuntimeError("Evaluation run disappeared before execution")
+        persisted_workspace = None
+        prepared_corpus = None
+        if resume_existing:
+            persisted_workspace = await load_source_triage_workspace(db, run.id)
+            if persisted_workspace is None or not persisted_workspace.get("source_sets"):
+                raise RuntimeError("Evaluation run lost its persisted set state")
+            current_eval_view = await load_current_run_corpus_view(db, run.id)
+            if current_eval_view is None or not _workspace_matches_run_view(
+                persisted_workspace,
+                current_eval_view,
+            ):
+                raise RuntimeError(
+                    "Evaluation run's current corpus scope no longer matches its persisted set state"
+                )
+            prepared_corpus = await load_current_v2_corpus(db, run)
         runner = SourceTriageStageRunner(
             run,
             db,
             V2Runtime(before_provider_call=EvalCostGuard(max_cost_usd=max_cost_usd)),
+            prepared_corpus=prepared_corpus,
         )
         context = await runner.prepare_context()
         source_view = await load_current_run_corpus_view(db, source_run_id)
@@ -206,9 +225,7 @@ async def _execute_first_set(
         if context.corpus.run_view.manifest_hash != source_view.manifest_hash:
             raise RuntimeError("Current project corpus differs from the source run; refusing a non-comparable eval")
         if resume_existing:
-            workspace = await load_source_triage_workspace(db, run.id)
-            if workspace is None:
-                raise RuntimeError("Evaluation run lost its persisted set state")
+            workspace = await load_source_triage_workspace(db, run.id) or persisted_workspace
             _emit(
                 "set_state_restored",
                 run_id=str(run.id),
@@ -293,6 +310,18 @@ async def _execute_first_set(
             )
         _emit("first_set_completed", **result)
         return result
+
+
+def _workspace_matches_run_view(
+    workspace: dict[str, Any],
+    run_view: Any,
+) -> bool:
+    return (
+        int(workspace.get("corpus_revision") or 1) == int(getattr(run_view, "revision", 1) or 1)
+        and int(workspace.get("attempt") or 1) == int(getattr(run_view, "attempt", 1) or 1)
+        and str(workspace.get("manifest_hash") or "")
+        == str(getattr(run_view, "manifest_hash", "") or "")
+    )
 
 
 def _clean_plan_workspace(

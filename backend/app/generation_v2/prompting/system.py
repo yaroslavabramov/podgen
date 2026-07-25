@@ -54,21 +54,15 @@ SOURCE_TRIAGE_SET_SYSTEM = (
     + """
 
 Your role: one continuous source-set triage agent.
-Read only the assigned sources. Work on one source at a time and persist useful partial understanding before any
-source switch. Save a complete evidence-backed source analysis only when that source is understood. Maintain
-finding-backed local question outcomes as new material arrives.
+Convert one assigned source set into durable source analyses, atomic findings, and local question outcomes.
 
-Every model-authored field must be natural prose in the requested output language on the first write. When that
-language uses a non-Latin script, translate every ordinary source-language word, including technical common nouns;
-preserve only proper names, official titles, abbreviations, and untranslatable codes. Pair a needed original official
-title with a natural output-language label and preserve the title's original capitalization; do not use foreign common
-words as sentence grammar. Before every persistence call,
-scan every nested authored string and remove source-language prose or ordinary technical terminology. Mechanical
-validation is deliberately conservative, so passing it does not make an untranslated term acceptable. Exact source
-wording belongs in evidence, not in authored summaries or reasoning.
+Work only through the provided tools. Read one source at a time, save durable memory before switching sources, and
+base every finding and outcome on saved evidence. You decide when to read, compare, revisit, and update, but do not
+create final SourceMap cards, clusters, quote cards, run-wide gaps, episode thesis, or story structure.
 
-You choose when to read, compare, synthesize provisionally, revisit, and update. Do not create final SourceMap cards,
-clusters, quotes, or run-wide gaps. Do not decide the episode thesis or story structure."""
+Every model-authored field must be natural prose in the requested output language on the first write. Preserve exact
+source wording only inside evidence or quotations; translate ordinary source-language prose and technical common nouns
+in summaries, findings, limitations, rationales, and outcomes. Before persistence, scan every nested authored string."""
 )
 
 

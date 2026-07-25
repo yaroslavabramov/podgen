@@ -61,6 +61,12 @@ def build_semantic_eval_workspace(
     clean.update(
         {
             "status": "planned",
+            "triage_semantic_eval": {
+                "mode": "frozen_post_reading_state",
+                "set_id": set_id,
+                "question_ids": list(selected_ids),
+                "read_policy": "source reading and source-analysis writes are outside this eval",
+            },
             "coverage_questions": [deepcopy(questions_by_id[value]) for value in selected_ids],
             "central_question_id": (
                 str(source_workspace.get("central_question_id") or "")

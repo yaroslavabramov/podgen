@@ -69,6 +69,7 @@ async def run_source_triage_set(
     source_inventory: SourceMap,
     workspace: dict[str, Any],
     source_set: dict[str, Any],
+    allowed_tool_names: set[str] | None = None,
 ) -> SourceTriageCompletion:
     set_id = str(source_set.get("set_id") or "")
     if not set_id:
@@ -167,6 +168,7 @@ async def run_source_triage_set(
                 hosted_file_search_handler=scoped_toolset.persist_hosted_file_search_calls,
                 output_language=str((current.get("intent") or {}).get("language") or "").strip() or None,
                 terminal_progress_loader=terminal_progress_loader,
+                allowed_tool_names=allowed_tool_names,
             )
         except AgentOperationalStall as exc:
             latest = await load_source_triage_workspace(db, run.id) or current

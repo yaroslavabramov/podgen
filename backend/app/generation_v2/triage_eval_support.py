@@ -23,7 +23,6 @@ TRIAGE_EVAL_ALLOWED_MODELS = {
     "gpt-5.4-mini",
     "gpt-5.4-mini-2026-03-17",
 }
-TRIAGE_EVAL_WORST_CASE_CALL_RESERVE_USD = 0.88
 
 
 class EvalBudgetExceeded(RuntimeError):
@@ -31,7 +30,7 @@ class EvalBudgetExceeded(RuntimeError):
 
 
 class EvalCostGuard:
-    """Stop before another provider call can cross an eval token-cost ceiling."""
+    """Stop when another call as costly as the run's observed maximum would cross the ceiling."""
 
     def __init__(self, *, max_cost_usd: float) -> None:
         self.max_cost_usd = max_cost_usd
@@ -66,11 +65,11 @@ class EvalCostGuard:
             raise EvalBudgetExceeded("Triage eval compaction threshold exceeds the model context window")
         report = await summarize_tool_trace_costs(db, generation_run_id)
         observed_cost = float(report["totals"].get("estimated_token_cost_usd") or 0.0)
-        reserve = TRIAGE_EVAL_WORST_CASE_CALL_RESERVE_USD
+        reserve = float(report["totals"].get("max_call_cost_usd") or 0.0)
         if observed_cost + reserve > self.max_cost_usd:
             raise EvalBudgetExceeded(
                 f"Triage eval stopped before the next provider call: ${observed_cost:.8f} spent, "
-                f"${reserve:.8f} reserved, ${self.max_cost_usd:.2f} ceiling"
+                f"${reserve:.8f} observed-call reserve, ${self.max_cost_usd:.2f} ceiling"
             )
 
 
@@ -231,7 +230,6 @@ __all__ = [
     "TRIAGE_EVAL_ALLOWED_MODELS",
     "TRIAGE_EVAL_CONTEXT_WINDOW_TOKENS",
     "TRIAGE_EVAL_NATIVE_MAX_OUTPUT_TOKENS",
-    "TRIAGE_EVAL_WORST_CASE_CALL_RESERVE_USD",
     "cancel_and_drain",
     "emit",
     "execute_monitored_eval",

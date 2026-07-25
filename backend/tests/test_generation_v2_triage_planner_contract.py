@@ -557,16 +557,12 @@ def test_set_payload_keeps_only_compact_index_for_other_questions() -> None:
     assert "source_sets" not in payload["workspace_progress"]
     assert "coverage_questions" not in payload["workspace_progress"]
     assert payload["all_coverage_question_count"] == 2
-    assert [item["question_id"] for item in payload["all_coverage_question_index"]] == [
-        "q_main",
-        "q_unrelated",
-    ]
-    unrelated = payload["all_coverage_question_index"][1]
-    assert unrelated["question_preview"] == "UNRELATED QUESTION TEXT"
-    assert unrelated["answer_requirements"][0]["requirement_id"] == "q_unrelated:context"
-    assert unrelated["answer_requirements"][0]["description_preview"] == (
-        "UNRELATED REQUIREMENT TEXT"
-    )
+    assert [item["question_id"] for item in payload["set"]["assigned_questions"]] == ["q_main"]
+    assert [item["question_id"] for item in payload["other_coverage_question_index"]] == ["q_unrelated"]
+    unrelated = payload["other_coverage_question_index"][0]
+    assert unrelated["question"] == "UNRELATED QUESTION TEXT"
+    assert unrelated["requirement_count"] == 1
+    assert "answer_requirements" not in unrelated
 
 
 def test_set_payload_exposes_backend_derived_pending_work() -> None:
@@ -589,7 +585,7 @@ def test_set_payload_exposes_backend_derived_pending_work() -> None:
     assert source_set["missing_outcome_question_ids"] == ["q_main"]
 
 
-def test_all_question_index_has_no_fixed_item_quota() -> None:
+def test_other_question_index_has_no_fixed_item_quota() -> None:
     workspace = _set_mode_workspace()
     workspace["coverage_questions"].extend(
         {
@@ -611,13 +607,14 @@ def test_all_question_index_has_no_fixed_item_quota() -> None:
 
     payload = source_set_prompt_payload(workspace, "set_1")
 
-    assert len(payload["all_coverage_question_index"]) == 101
+    assert len(payload["other_coverage_question_index"]) == 100
     assert payload["all_coverage_question_count"] == 101
-    assert payload["all_coverage_question_index"][-1]["question_id"] == "q_other_99"
-    assert "all_coverage_question_omitted_count" not in payload
+    assert payload["other_coverage_question_count"] == 100
+    assert payload["other_coverage_question_index"][-1]["question_id"] == "q_other_99"
+    assert "other_coverage_question_omitted_count" not in payload
 
 
-def test_assigned_question_previews_have_no_fixed_three_item_quota() -> None:
+def test_assigned_questions_have_no_fixed_three_item_quota() -> None:
     workspace = _set_mode_workspace()
     workspace["coverage_questions"] = [
         {
@@ -642,10 +639,42 @@ def test_assigned_question_previews_have_no_fixed_three_item_quota() -> None:
 
     source_set = source_set_prompt_payload(workspace, "set_1")["set"]
 
-    assert len(source_set["coverage_questions"]) == 20
-    assert source_set["question_count"] == 20
-    assert source_set["coverage_question_returned_count"] == 20
-    assert source_set["coverage_question_omitted_count"] == 0
+    assert len(source_set["assigned_questions"]) == 20
+    assert source_set["assigned_question_count"] == 20
+
+
+def test_assigned_questions_include_only_assigned_requirement_details() -> None:
+    workspace = _set_mode_workspace()
+    workspace["coverage_questions"][0]["answer_requirements"].append(
+        {
+            "requirement_id": "q_main:unassigned",
+            "description": "This belongs to another set.",
+            "rationale": "It should not be repeated in this set payload.",
+        }
+    )
+    workspace["source_sets"][0]["question_assignments"] = [
+        {"question_id": "q_main", "requirement_ids": ["q_main:mechanism"]}
+    ]
+
+    source_set = source_set_prompt_payload(workspace, "set_1")["set"]
+    assigned = source_set["assigned_questions"][0]
+
+    assert [item["requirement_id"] for item in assigned["answer_requirements"]] == [
+        "q_main:mechanism"
+    ]
+    assert "This belongs to another set." not in str(source_set)
+
+
+def test_set_payload_does_not_ship_preview_accounting_noise_or_duplicate_question_blocks() -> None:
+    payload = source_set_prompt_payload(_set_mode_workspace(), "set_1")
+    payload_keys = _nested_dict_keys(payload)
+
+    assert not any(key.endswith("_chars") and not key.endswith("_omitted_chars") for key in payload_keys)
+    assert not any(key.endswith("_truncated") for key in payload_keys)
+    assert "coverage_questions" not in payload["set"]
+    assert "question_assignments" not in payload["set"]
+    assert "all_coverage_question_index" not in payload
+    assert "assigned_questions" in payload["set"]
 
 
 @pytest.mark.parametrize("saved_work", ["assessment", "outcome", "observation"])

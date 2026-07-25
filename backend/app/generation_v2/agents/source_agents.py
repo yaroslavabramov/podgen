@@ -102,6 +102,7 @@ async def build_source_triage_set_agent(
     hosted_file_search_handler=None,
     output_language: str | None = None,
     terminal_progress_loader=None,
+    allowed_tool_names: set[str] | None = None,
 ) -> SourceTriageCompletion:
     resolved_output_language = _output_language(run, explicit=output_language)
     prompt = SOURCE_TRIAGE_SET_PROMPT.format(
@@ -121,7 +122,7 @@ async def build_source_triage_set_agent(
             system=SOURCE_TRIAGE_SET_SYSTEM,
             prompt=prompt,
             vector_store_id=vector_store_id,
-            local_tools=_triage_phase_tools(set_tools, TRIAGE_SET_TOOL_NAMES),
+            local_tools=_triage_phase_tools(set_tools, allowed_tool_names or TRIAGE_SET_TOOL_NAMES),
             tool_policy=ToolPolicy(
                 file_search=False,
                 web_search=False,

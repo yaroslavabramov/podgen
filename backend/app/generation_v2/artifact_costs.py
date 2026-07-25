@@ -16,6 +16,7 @@ async def summarize_tool_trace_costs(db: AsyncSession, generation_run_id) -> dic
     )
     groups: dict[tuple[str, str, str, str, str, str], dict[str, Any]] = {}
     warning: str | None = None
+    max_call_cost_usd = 0.0
     for trace in result.scalars():
         output = trace.output_json or {}
         usage = output.get("usage") if isinstance(output.get("usage"), dict) else output
@@ -63,7 +64,9 @@ async def summarize_tool_trace_costs(db: AsyncSession, generation_run_id) -> dic
         row["uncached_input_tokens"] += uncached_tokens
         row["output_tokens"] += output_tokens
         row["reasoning_output_tokens"] += int((usage or {}).get("reasoning_output_tokens") or 0)
-        row["estimated_token_cost_usd"] += float(output.get("estimated_token_cost_usd") or trace.cost_usd or 0.0)
+        call_cost_usd = float(output.get("estimated_token_cost_usd") or trace.cost_usd or 0.0)
+        row["estimated_token_cost_usd"] += call_cost_usd
+        max_call_cost_usd = max(max_call_cost_usd, call_cost_usd)
         warning = warning or output.get("cost_warning")
     rows = list(groups.values())
     rows.sort(key=lambda item: (item["phase"], item["agent_name"], item["tool_name"], item["billing_model"]))
@@ -75,6 +78,7 @@ async def summarize_tool_trace_costs(db: AsyncSession, generation_run_id) -> dic
         "output_tokens": sum(row["output_tokens"] for row in rows),
         "reasoning_output_tokens": sum(row["reasoning_output_tokens"] for row in rows),
         "estimated_token_cost_usd": round(sum(float(row["estimated_token_cost_usd"] or 0.0) for row in rows), 8),
+        "max_call_cost_usd": round(max_call_cost_usd, 8),
     }
     for row in rows:
         row["estimated_token_cost_usd"] = round(float(row["estimated_token_cost_usd"] or 0.0), 8)

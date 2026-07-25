@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
+import uuid
 
 import pytest
 
@@ -9,17 +10,18 @@ from app.generation_v2.triage_eval_runner import (
     TRIAGE_FIRST_SET_EVAL_MAX_COST_USD,
     _clean_plan_workspace,
     _eval_readiness_report,
+    _execute_first_set,
     _first_set_structural_report,
     _prepare_eval_resume,
     preflight_first_set_eval,
 )
 from app.models.generation_run import GenerationStatus
+from app.generation_v2.schemas import SourceTriageCompletion
 from app.generation_v2.triage_eval_support import (
     EvalBudgetExceeded,
     EvalCostGuard,
     TRIAGE_EVAL_CONTEXT_WINDOW_TOKENS,
     TRIAGE_EVAL_NATIVE_MAX_OUTPUT_TOKENS,
-    TRIAGE_EVAL_WORST_CASE_CALL_RESERVE_USD,
     cancel_and_drain,
 )
 
@@ -98,6 +100,136 @@ async def test_failed_eval_resume_keeps_persisted_set_memory(
     assert run.error_message is None
     assert run.completed_at is None
     assert workspace["source_assessments"] == [{"source_ref": "S01"}]
+
+
+@pytest.mark.asyncio
+async def test_resume_hydrates_pinned_corpus_without_preparing_a_new_revision(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_id = uuid.UUID("10000000-0000-0000-0000-000000000001")
+    source_run_id = uuid.UUID("20000000-0000-0000-0000-000000000002")
+    run = SimpleNamespace(id=run_id)
+    workspace = {
+        "source_sets": [
+            {
+                "set_id": "set-1",
+                "status": "in_progress",
+                "source_refs": ["S01"],
+                "question_ids": ["q1"],
+            }
+        ]
+    }
+    pinned_corpus = SimpleNamespace(
+        run_view=SimpleNamespace(
+            manifest_hash="manifest",
+            revision=1,
+            attempt=1,
+        ),
+    )
+    workspace.update(
+        manifest_hash="manifest",
+        corpus_revision=1,
+        attempt=1,
+    )
+    captured: dict[str, object] = {}
+
+    class Session:
+        async def get(self, _model, _run_id):
+            return run
+
+        async def commit(self):
+            return None
+
+    class SessionContext:
+        async def __aenter__(self):
+            return Session()
+
+        async def __aexit__(self, *_args):
+            return None
+
+    class Runner:
+        def __init__(self, _run, _db, runtime, *, prepared_corpus=None):
+            captured["prepared_corpus"] = prepared_corpus
+            self.runtime = runtime
+
+        async def prepare_context(self):
+            return SimpleNamespace(
+                corpus=captured["prepared_corpus"],
+                source_inventory=SimpleNamespace(),
+            )
+
+    async def load_workspace(_db, _run_id):
+        return workspace
+
+    async def load_pinned_corpus(_db, _run):
+        return pinned_corpus
+
+    async def load_source_view(_db, _run_id):
+        return SimpleNamespace(
+            manifest_hash="manifest",
+            revision=1,
+            attempt=1,
+        )
+
+    async def run_set(**_kwargs):
+        workspace["source_sets"][0]["status"] = "mapped"
+        return SourceTriageCompletion(ready=True, summary="done", notes=[])
+
+    async def costs(_db, _run_id):
+        return {
+            "totals": {
+                "call_count": 0,
+                "estimated_token_cost_usd": 0.0,
+                "max_call_cost_usd": 0.0,
+            }
+        }
+
+    monkeypatch.setattr(
+        "app.generation_v2.triage_eval_runner.async_session_factory",
+        SessionContext,
+    )
+    monkeypatch.setattr(
+        "app.generation_v2.triage_eval_runner.load_source_triage_workspace",
+        load_workspace,
+    )
+    monkeypatch.setattr(
+        "app.generation_v2.triage_eval_runner.load_current_v2_corpus",
+        load_pinned_corpus,
+    )
+    monkeypatch.setattr(
+        "app.generation_v2.triage_eval_runner.load_current_run_corpus_view",
+        load_source_view,
+    )
+    monkeypatch.setattr(
+        "app.generation_v2.triage_eval_runner.SourceTriageStageRunner",
+        Runner,
+    )
+    monkeypatch.setattr(
+        "app.generation_v2.triage_eval_runner.run_source_triage_set",
+        run_set,
+    )
+    monkeypatch.setattr(
+        "app.generation_v2.triage_eval_runner.summarize_tool_trace_costs",
+        costs,
+    )
+    monkeypatch.setattr(
+        "app.generation_v2.triage_eval_runner._first_set_structural_report",
+        lambda *_args: {"passed": True, "issues": []},
+    )
+    monkeypatch.setattr(
+        "app.generation_v2.triage_eval_runner._emit",
+        lambda *_args, **_kwargs: None,
+    )
+
+    result = await _execute_first_set(
+        eval_run_id=run_id,
+        source_run_id=source_run_id,
+        max_cost_usd=1.70,
+        resume_existing=True,
+    )
+
+    assert captured["prepared_corpus"] is pinned_corpus
+    assert result["set_status"] == "mapped"
 
 
 def test_clean_plan_workspace_keeps_plan_and_drops_all_set_execution_memory() -> None:
@@ -424,7 +556,13 @@ def test_eval_cost_ceiling_is_immutable() -> None:
 @pytest.mark.asyncio
 async def test_eval_cost_guard_stops_before_an_unreserved_provider_call(monkeypatch) -> None:
     async def costs(_db, _run_id):
-        return {"totals": {"call_count": 10, "estimated_token_cost_usd": 1.55}}
+        return {
+            "totals": {
+                "call_count": 10,
+                "estimated_token_cost_usd": 1.68,
+                "max_call_cost_usd": 0.03,
+            }
+        }
 
     monkeypatch.setattr(
         "app.generation_v2.triage_eval_support.summarize_tool_trace_costs",
@@ -442,16 +580,22 @@ async def test_eval_cost_guard_stops_before_an_unreserved_provider_call(monkeypa
 
 
 @pytest.mark.asyncio
-async def test_eval_cost_guard_reserves_audited_worst_case_call(monkeypatch) -> None:
+async def test_eval_cost_guard_reserves_largest_observed_call(monkeypatch) -> None:
     async def costs(_db, _run_id):
-        return {"totals": {"call_count": 1, "estimated_token_cost_usd": 0.91}}
+        return {
+            "totals": {
+                "call_count": 10,
+                "estimated_token_cost_usd": 1.65,
+                "max_call_cost_usd": 0.06,
+            }
+        }
 
     monkeypatch.setattr(
         "app.generation_v2.triage_eval_support.summarize_tool_trace_costs",
         costs,
     )
 
-    with pytest.raises(EvalBudgetExceeded, match=r"\$0.88000000 reserved"):
+    with pytest.raises(EvalBudgetExceeded, match=r"\$0.06000000 observed-call reserve"):
         await EvalCostGuard(max_cost_usd=1.70)(
             db=None,
             generation_run_id="run-1",
@@ -461,13 +605,29 @@ async def test_eval_cost_guard_reserves_audited_worst_case_call(monkeypatch) -> 
         )
 
 
-def test_eval_cost_reserve_covers_documented_native_model_limits() -> None:
-    documented_worst_case = (
-        TRIAGE_EVAL_CONTEXT_WINDOW_TOKENS * 0.75
-        + TRIAGE_EVAL_NATIVE_MAX_OUTPUT_TOKENS * 4.50
-    ) / 1_000_000
+@pytest.mark.asyncio
+async def test_eval_cost_guard_allows_headroom_above_observed_call(monkeypatch) -> None:
+    async def costs(_db, _run_id):
+        return {
+            "totals": {
+                "call_count": 64,
+                "estimated_token_cost_usd": 0.84,
+                "max_call_cost_usd": 0.04,
+            }
+        }
 
-    assert TRIAGE_EVAL_WORST_CASE_CALL_RESERVE_USD >= documented_worst_case
+    monkeypatch.setattr(
+        "app.generation_v2.triage_eval_support.summarize_tool_trace_costs",
+        costs,
+    )
+
+    await EvalCostGuard(max_cost_usd=1.70)(
+        db=None,
+        generation_run_id="run-1",
+        requested_model="gpt-5.4-mini",
+        max_output_tokens=None,
+        server_compaction_threshold=200_000,
+    )
 
 
 @pytest.mark.asyncio

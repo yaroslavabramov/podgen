@@ -12,6 +12,7 @@ from app.database import async_session_factory
 from app.generation_v2.artifact_costs import summarize_tool_trace_costs
 from app.generation_v2.pipeline.source_triage_set_flow import run_source_triage_set
 from app.generation_v2.pipeline.source_triage_stage import SourceTriageStageRunner
+from app.generation_v2.agents.tool_sets import TRIAGE_SEMANTIC_EVAL_TOOL_NAMES
 from app.generation_v2.runtime import V2Runtime
 from app.generation_v2.source_corpus_run_view import load_current_run_corpus_view
 from app.generation_v2.source_triage_workspace import (
@@ -287,6 +288,7 @@ async def _execute_semantic_eval(
             source_inventory=context.source_inventory,
             workspace=workspace,
             source_set=source_set,
+            allowed_tool_names=TRIAGE_SEMANTIC_EVAL_TOOL_NAMES,
         )
         workspace = await load_source_triage_workspace(db, run.id) or workspace
         source_set = _workspace_set(workspace, set_id) or source_set

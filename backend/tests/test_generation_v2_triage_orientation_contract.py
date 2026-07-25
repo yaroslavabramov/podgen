@@ -400,7 +400,8 @@ def test_source_set_prompt_payload_marks_orientation_work_without_inventing_ques
     source_set = source_set_prompt_payload(workspace, "orientation_set")["set"]
 
     assert source_set["set_kind"] == "orientation"
-    assert source_set["question_ids"] == []
+    assert source_set["assigned_questions"] == []
+    assert source_set["assigned_question_count"] == 0
     assert source_set["required_question_ids"] == []
     assert source_set["missing_outcome_question_ids"] == []
     assert "independently" in source_set["execution_goal"]
