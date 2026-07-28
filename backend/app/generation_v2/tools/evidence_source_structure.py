@@ -15,6 +15,7 @@ from app.generation_v2.tools.evidence_window_refs import create_window_ref
 _LABEL_PREVIEW_CHARS = 160
 _UNSTRUCTURED_RANGE_CHARS = 20_000
 _NAVIGATION_WINDOW_CHARS = 3_000
+_SOURCE_STRUCTURE_OUTPUT_BUDGET_CHARS = MODEL_TOOL_OUTPUT_MAX_CHARS - 1_200
 
 
 def build_source_structure_page(
@@ -139,14 +140,14 @@ def build_source_structure_page(
             "omitted_count": max(0, total - next_offset),
             "output_budget_limited": len(items) < requested_count,
         }
-        if len(json.dumps(candidate, ensure_ascii=False, default=str)) <= MODEL_TOOL_OUTPUT_MAX_CHARS:
+        if len(json.dumps(candidate, ensure_ascii=False, default=str)) <= _SOURCE_STRUCTURE_OUTPUT_BUDGET_CHARS:
             return candidate
         items = items[:-1]
     return {
         "found": False,
         "error": "source_structure_item_exceeds_model_read_contract",
         "cursor": cursor,
-        "max_chars": MODEL_TOOL_OUTPUT_MAX_CHARS,
+        "max_chars": _SOURCE_STRUCTURE_OUTPUT_BUDGET_CHARS,
         "next_action": "Retry with a later cursor only after reporting this contract error.",
     }
 

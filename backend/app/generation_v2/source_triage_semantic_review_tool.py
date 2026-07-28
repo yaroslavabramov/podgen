@@ -9,21 +9,13 @@ from app.generation_v2.source_triage_workspace_contracts import TRIAGE_SEMANTIC_
 
 def semantic_review_self_check_tool(
     handler: Callable[[dict[str, Any]], Any],
-    *,
-    output_language: str = "",
 ) -> AgentTool:
-    language = str(output_language or "").strip()
     return AgentTool(
         name="acknowledge_semantic_review",
         description=(
             "Confirm that every page of the current semantic_review snapshot was read after you made any needed "
             "semantic repairs. The backend checks only snapshot identity and complete delivery; it does not repeat "
-            "your judgments. "
-            + (
-                f"Write readiness_explanation in output_language={language!r}; exact quotations remain in the source language."
-                if language
-                else "Write readiness_explanation in the workflow output language."
-            )
+            "your judgments."
         ),
         parameters={
             "type": "object",

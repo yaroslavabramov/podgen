@@ -4,7 +4,6 @@ from typing import Any
 
 from app.generation_v2 import source_triage_workspace as workspace_api
 from app.generation_v2.persistence_contracts import semantic_field_error
-from app.generation_v2.model_authored_language import model_authored_language_error
 from app.generation_v2.source_triage_workspace_contracts import TRIAGE_SEMANTIC_FIELD_LIMITS
 from app.generation_v2.source_triage_workspace_state import (
     SOURCE_SET_KIND_COVERAGE,
@@ -279,16 +278,6 @@ class SourceTriageWorkspaceCompletionHandlersMixin:
             if reason_error:
                 return reason_error
             deferred_sources.append({"source_ref": source_ref, "reason": reason})
-        language_error = model_authored_language_error(
-            output_language=str((current.get("intent") or {}).get("language") or ""),
-            fields={
-                "summary": summary,
-                "deferred_reason": deferred_reason,
-                "deferred_sources": [item["reason"] for item in deferred_sources],
-            },
-        )
-        if language_error:
-            return language_error
         requested_deferred_reasons = {item["source_ref"]: item["reason"] for item in deferred_sources}
         assessment_deferred_refs = {
             source_ref

@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import uuid
 from types import SimpleNamespace
 
 import pytest
 
+from app.generation_v2.runtime_tool_output import MODEL_TOOL_OUTPUT_MAX_CHARS
 from app.generation_v2.tools.evidence_local_windows import (
     read_source_window,
     sequential_source_window_page,
     source_allows_timestamp_locators,
     source_windows,
 )
+from app.generation_v2.tools.evidence_source_structure import build_source_structure_page
 from app.generation_v2.tools.evidence_exact_read import (
     evidence_has_current_exact_read,
     mark_evidence_exact_read,
@@ -242,6 +245,37 @@ async def test_inspect_source_exposes_structure_without_pretending_to_read_conte
     assert parsed.end_offset <= 3_000
 
 
+def test_source_structure_page_reserves_runtime_envelope_budget() -> None:
+    text = "\n".join(
+        f"## Heading {index} {'x' * 120}\nBody {index}"
+        for index in range(200)
+    )
+
+    page = build_source_structure_page(
+        text=text,
+        source_version_id=uuid.uuid4(),
+        allow_timestamps=False,
+        cursor="0",
+        max_items=24,
+        delivery_receipt_ref="structure_receipt:" + "0" * 24,
+    )
+    envelope = {
+        "source_ref": "S23",
+        "kind": "rendered_snapshot",
+        **page,
+        "_runtime": {
+            "contract_version": "v2.tool-output-contract.1",
+            "tool_outcome_kind": "success",
+            "model_facing_schema": "source_outline",
+            "model_facing_tool_output_chars": 0,
+        },
+    }
+
+    assert page["found"] is True
+    assert page["returned_count"] < 24
+    assert len(json.dumps(envelope, ensure_ascii=False, default=str)) <= MODEL_TOOL_OUTPUT_MAX_CHARS
+
+
 @pytest.mark.asyncio
 async def test_triage_inspect_source_stages_structure_for_confirmed_delivery(
     monkeypatch: pytest.MonkeyPatch,
@@ -400,6 +434,7 @@ async def test_invalid_window_handle_returns_a_concrete_working_handle(
     result = await toolset.read_source_window_tool(
         {
             "source_ref": "S01",
+            "receipt_ref": "null",
             "window_ref": "W:S01:invented",
             "locator": "",
             "max_chars": 1000,

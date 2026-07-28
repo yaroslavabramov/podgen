@@ -3,6 +3,38 @@ from __future__ import annotations
 from typing import Any
 
 
+ANSWER_POINT_STATUSES = {"covered", "partial", "conflicted"}
+
+
+def _answer_points(raw: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    points: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        point = str(item.get("point") or "").strip()
+        finding_ids = [str(value) for value in item.get("finding_ids") or [] if str(value)]
+        if point or finding_ids:
+            points.append({"point": point, "finding_ids": finding_ids})
+    return points
+
+
+def _joined_answer_points(points: list[dict[str, Any]]) -> str:
+    return "\n".join(str(item.get("point") or "").strip() for item in points if str(item.get("point") or "").strip())
+
+
+def _answer_point_finding_ids(points: list[dict[str, Any]]) -> list[str]:
+    return list(
+        dict.fromkeys(
+            str(finding_id)
+            for point in points
+            for finding_id in point.get("finding_ids") or []
+            if str(finding_id)
+        )
+    )
+
+
 def question_resolution_shape_error(args: dict[str, Any]) -> dict[str, Any] | None:
     for index, result in enumerate(args.get("requirement_results") or []):
         if not isinstance(result, dict):
@@ -11,13 +43,55 @@ def question_resolution_shape_error(args: dict[str, Any]) -> dict[str, Any] | No
                 "error": "question_resolution_requirement_must_be_an_object",
                 "requirement_index": index,
             }
+        if "established_answer" in result:
+            return {
+                "accepted": False,
+                "error": "question_resolution_established_answer_is_deprecated",
+                "requirement_id": str(result.get("requirement_id") or ""),
+                "next_action": (
+                    "Move every established proposition into answer_points[].point with supporting finding_ids. "
+                    "The question outcome is assembled from answer_points only."
+                ),
+            }
         status = str(result.get("status") or "")
-        finding_ids = [str(value) for value in result.get("finding_ids") or [] if str(value)]
-        answer = str(result.get("established_answer") or "").strip()
+        raw_answer_points = result.get("answer_points")
+        answer_points = _answer_points(raw_answer_points)
+        finding_ids = _answer_point_finding_ids(answer_points)
+        answer = _joined_answer_points(answer_points)
         criterion = str(result.get("criterion_match_reason") or "").strip()
         remainder = str(result.get("unresolved_remainder") or "").strip()
         conflict = str(result.get("conflict_summary") or "").strip()
         deferred = str(result.get("deferred_reason") or "").strip()
+        if not isinstance(raw_answer_points, list):
+            return {
+                "accepted": False,
+                "error": "question_resolution_answer_points_must_be_an_array",
+                "requirement_id": str(result.get("requirement_id") or ""),
+                "next_action": (
+                    "Express each established answer proposition as answer_points[].point and attach the "
+                    "finding_ids that support that exact point. If the proposition is not already in a saved "
+                    "finding, update the source analysis first."
+                ),
+            }
+        if status in ANSWER_POINT_STATUSES and not answer_points:
+            return {
+                "accepted": False,
+                "error": "question_resolution_requires_answer_points_for_supported_status",
+                "requirement_id": str(result.get("requirement_id") or ""),
+                "status": status,
+                "next_action": (
+                    "Add at least one answer point linked to saved findings, or use missing/deferred when no "
+                    "saved finding establishes an answer fragment."
+                ),
+            }
+        if status not in ANSWER_POINT_STATUSES and answer_points:
+            return {
+                "accepted": False,
+                "error": "question_resolution_answer_points_contradict_status",
+                "requirement_id": str(result.get("requirement_id") or ""),
+                "status": status,
+                "next_action": "Use answer_points only for covered, partial, or conflicted requirements.",
+            }
         valid = {
             "covered": bool(finding_ids and answer and criterion and not remainder and not conflict and not deferred),
             "partial": bool(finding_ids and answer and criterion and remainder and not conflict and not deferred),
@@ -56,12 +130,15 @@ def normalize_question_resolution_args(args: dict[str, Any]) -> dict[str, Any]:
         status = str(raw.get("status") or "")
         statuses.append(status)
         remainder = str(raw.get("unresolved_remainder") or "").strip()
+        answer_points = _answer_points(raw.get("answer_points"))
+        finding_ids = _answer_point_finding_ids(answer_points)
         normalized_results.append(
             {
                 "requirement_id": str(raw.get("requirement_id") or ""),
                 "status": status,
-                "finding_ids": [str(value) for value in raw.get("finding_ids") or []],
-                "summary": str(raw.get("established_answer") or "").strip(),
+                "finding_ids": finding_ids,
+                "answer_points": answer_points,
+                "summary": _joined_answer_points(answer_points),
                 "closure_basis": str(raw.get("criterion_match_reason") or "").strip(),
                 "remaining_uncertainty": remainder,
                 "missing_detail": remainder if status in {"partial", "missing"} else "",

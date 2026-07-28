@@ -415,6 +415,11 @@ def question_workbench_page(
                         "suggested_finding_ids come from source analysis and are not exhaustive; any finding in "
                         "the current catalog may be selected after semantic comparison."
                     ),
+                    "coverage_rule": (
+                        "Covered must satisfy both the requirement completion_criterion and the full question text. "
+                        "If a requirement is broader than the question, the question's actor, period, mechanism, "
+                        "comparison, and scope are the tighter contract."
+                    ),
                 },
                 record_kind="question_finding_index",
                 owner_ref=f"question:{question_id}:finding_index",
@@ -422,6 +427,23 @@ def question_workbench_page(
             "question_finding_index",
         )
     )
+    for finding in findings:
+        finding_id = str(finding.get("finding_id") or "")
+        if not finding_id:
+            continue
+        records.extend(
+            _tag_parts(
+                composite_record_parts(
+                    _question_workbench_candidate_finding(
+                        finding,
+                        question_id=question_id,
+                    ),
+                    record_kind="candidate_source_finding",
+                    owner_ref=f"question:{question_id}:finding:{finding_id}",
+                ),
+                "question_candidate_finding",
+            )
+        )
     dependency_records = dependent_question_results(
         workspace,
         source_set,
@@ -431,21 +453,45 @@ def question_workbench_page(
         child = dict(dependency.get("question") or {})
         child_id = str(child.get("question_id") or "")
         child_outcome = dependency.get("outcome")
+        dependency_ref = f"question:{question_id}:dependency:{child_id}"
         records.extend(
             _tag_parts(
                 composite_record_parts(
                     {
-                        "question": child,
-                        "outcome": child_outcome,
+                        "child_question_id": child_id,
                         "outcome_present": isinstance(child_outcome, dict),
                         "outcome_is_current": bool(dependency.get("outcome_is_current")),
+                        "outcome_ref": (
+                            f"outcome:{child_id}:{set_id}" if isinstance(child_outcome, dict) else ""
+                        ),
                     },
                     record_kind="dependent_question_result",
-                    owner_ref=f"question:{question_id}:dependency:{child_id}",
+                    owner_ref=dependency_ref,
                 ),
                 "dependent_question_result",
             )
         )
+        records.extend(
+            _tag_parts(
+                composite_record_parts(
+                    model_safe_coverage_question(child),
+                    record_kind="coverage_question",
+                    owner_ref=f"{dependency_ref}:question",
+                ),
+                "dependent_question",
+            )
+        )
+        if isinstance(child_outcome, dict):
+            records.extend(
+                _tag_parts(
+                    composite_record_parts(
+                        model_safe_coverage_outcome(child_outcome, source_ref_by_id={}),
+                        record_kind="coverage_outcome",
+                        owner_ref=f"{dependency_ref}:outcome",
+                    ),
+                    "dependent_question_outcome",
+                )
+            )
     for outcome in _set_records(workspace, "coverage_outcomes", set_id):
         if str(outcome.get("question_id") or "") != question_id:
             continue
@@ -674,6 +720,35 @@ def _finding_catalog_item(finding: dict[str, Any]) -> dict[str, Any]:
         "set_id",
         "passage_refs",
         "evidence_previews",
+        "semantic_revision",
+        "updated_at",
+    ):
+        payload.pop(field, None)
+    return payload
+
+
+def _question_workbench_candidate_finding(
+    finding: dict[str, Any],
+    *,
+    question_id: str,
+) -> dict[str, Any]:
+    payload = _question_workbench_finding(finding)
+    possible_question_ids = [str(value) for value in finding.get("possible_question_ids") or []]
+    payload["suggested_for_question"] = question_id in set(possible_question_ids)
+    payload["current_question_links"] = [
+        {
+            "requirement_ids": [str(value) for value in link.get("requirement_ids") or []],
+            "rationale": str(link.get("rationale") or ""),
+        }
+        for link in finding.get("question_links") or []
+        if isinstance(link, dict) and str(link.get("question_id") or "") == question_id
+    ]
+    for field in (
+        "set_id",
+        "passage_refs",
+        "evidence_previews",
+        "source_relations",
+        "question_links",
         "semantic_revision",
         "updated_at",
     ):

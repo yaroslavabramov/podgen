@@ -30,7 +30,9 @@ def evidence_source_read_tools(owner: Any) -> list[AgentTool]:
                 "receipt_ref records that exact range in durable set memory; "
                 "the visible tool result has delivery_status=delivered and is usable immediately. If the result's "
                 "before_opening_different_source.required is true, save_reading_note or save_source_analysis for "
-                "that source before calling any read tool for a different source. Read source_analysis_guidance "
+                "that source before calling any read tool for a different source. For normal sequential reading, "
+                "omit max_chars; the backend uses the largest stable chunk. Use smaller max_chars only for a "
+                "deliberately narrow reread. Read source_analysis_guidance "
                 "before the passages; it identifies remaining sequential work or a verified exact duplicate."
             ),
             parameters={
@@ -42,9 +44,12 @@ def evidence_source_read_tools(owner: Any) -> list[AgentTool]:
                         "type": "integer",
                         "minimum": SOURCE_NAVIGATION_READ_MIN_CHARS,
                         "maximum": SOURCE_NAVIGATION_READ_MAX_CHARS,
+                        "description": (
+                            "Optional. Omit for ordinary sequential reading; default is the maximum stable chunk."
+                        ),
                     },
                 },
-                "required": ["source_ref", "cursor", "max_chars"],
+                "required": ["source_ref", "cursor"],
                 "additionalProperties": False,
             },
             handler=lambda args: owner._call_with_research_commit_advisory(owner.read_source_tool, args),
@@ -114,7 +119,7 @@ def evidence_source_read_tools(owner: Any) -> list[AgentTool]:
                 "select one exact quote or an absolute start_offset/end_offset inside its returned range. Alternatively "
                 "pass a window_ref returned by inspect_source/skim_source, or a concrete locator such as page, heading, "
                 "timestamp, beginning, or exact phrase. Exactly one of receipt_ref, window_ref, or locator must be "
-                "non-empty. quote and offsets are valid only with receipt_ref; choose quote or both offsets, not both. "
+                "non-empty; leave unused selectors empty. quote and offsets are valid only with receipt_ref; choose quote or both offsets, not both. "
                 "Timestamps are locators only for transcript/audio/video sources. An unresolved locator returns "
                 "locator_not_found and never substitutes the beginning of the source. "
                 "Pass source_ref; the backend selects the readable version from the pinned run corpus. "

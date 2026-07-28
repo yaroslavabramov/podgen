@@ -6,6 +6,10 @@ from typing import Any
 from app.generation_v2.artifacts import save_tool_trace
 from app.generation_v2.contracts import V2AgentName, V2Phase, V2ToolName
 from app.generation_v2.model_context_text import model_preview_text
+from app.generation_v2.model_optional_fields import (
+    has_optional_model_value,
+    optional_model_text,
+)
 from app.generation_v2.source_triage_model_delivery import (
     source_structure_receipt_ref,
     stage_source_structure_page,
@@ -170,7 +174,7 @@ class EvidenceSourceToolsMixin:
         if not requested_source_ref:
             return {"found": False, "error": "source_ref_required"}
         max_chars, size_error = _validated_int(
-            args.get("max_chars"),
+            args.get("max_chars", SOURCE_NAVIGATION_READ_MAX_CHARS),
             field="max_chars",
             minimum=SOURCE_NAVIGATION_READ_MIN_CHARS,
             maximum=SOURCE_NAVIGATION_READ_MAX_CHARS,
@@ -901,12 +905,12 @@ class EvidenceSourceToolsMixin:
 
     async def read_source_window_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         requested_source_ref = str(args.get("source_ref") or "").strip()
-        locator = str(args.get("locator") or "").strip()
-        model_window_ref = str(args.get("window_ref") or "").strip()
-        receipt_ref = str(args.get("receipt_ref") or "").strip()
-        exact_quote = str(args.get("quote") or "")
-        has_start_offset = args.get("start_offset") not in {None, ""}
-        has_end_offset = args.get("end_offset") not in {None, ""}
+        locator = optional_model_text(args.get("locator"))
+        model_window_ref = optional_model_text(args.get("window_ref"))
+        receipt_ref = optional_model_text(args.get("receipt_ref"))
+        exact_quote = optional_model_text(args.get("quote"))
+        has_start_offset = has_optional_model_value(args.get("start_offset"))
+        has_end_offset = has_optional_model_value(args.get("end_offset"))
         if receipt_ref and (model_window_ref or locator):
             return {
                 "found": False,

@@ -3,9 +3,6 @@ from __future__ import annotations
 from typing import Any
 
 from app.generation_v2.contracts import V2ToolName
-from app.generation_v2.source_triage_language_contract import (
-    question_resolution_language_error,
-)
 from app.generation_v2.source_triage_question_state import question_outcome_is_current
 
 
@@ -36,7 +33,6 @@ def semantic_eval_report(
     }
     issues: list[str] = []
     outcome_report: dict[str, Any] = {}
-    output_language = str((workspace.get("intent") or {}).get("language") or "")
     for question_id in question_ids:
         outcome = outcomes.get(question_id)
         if outcome is None:
@@ -67,13 +63,6 @@ def semantic_eval_report(
             issues.append(
                 f"question {question_id} expected status {expected}, got {outcome.get('status')}"
             )
-        language_error = question_resolution_language_error(
-            outcome,
-            output_language=output_language,
-        )
-        if language_error:
-            fields = [str(item.get("field") or "") for item in language_error.get("invalid_fields") or []]
-            issues.append(f"question {question_id} has wrong-language prose: {', '.join(fields)}")
     for (question_id, requirement_id), expected in expected_requirement_statuses.items():
         actual = (
             outcome_report.get(question_id, {})

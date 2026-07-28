@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+
+from app.generation_v2.runtime_tool_output import MODEL_TOOL_OUTPUT_MAX_CHARS
 from app.generation_v2.source_triage_model_delivery import (
     question_workbench_delivery_state,
 )
@@ -148,9 +151,14 @@ def test_child_outcome_invalidates_earlier_parent_outcome() -> None:
         and item.get("outcome_is_current") is True
         for item in page["items"]
     )
+    assert any(
+        item.get("state_record_kind") == "question_finding_index"
+        and "full question text" in item.get("coverage_rule", "")
+        for item in page["items"]
+    )
 
 
-def test_finding_catalog_is_shared_and_workbench_does_not_repeat_evidence() -> None:
+def test_finding_catalog_is_shared_and_workbench_repeats_only_finding_statements() -> None:
     workspace = _workspace()
     source_set = workspace["source_sets"][0]
     catalog = finding_catalog_page(workspace, source_set, cursor=0, limit=25)
@@ -169,7 +177,127 @@ def test_finding_catalog_is_shared_and_workbench_does_not_repeat_evidence() -> N
     assert workbench["finding_catalog_snapshot_id"] == catalog["finding_catalog_snapshot_id"]
     assert any(item.get("finding_id") == "finding:S01:one" for item in catalog["items"])
     assert not any("snippet_preview" in item for item in workbench["items"])
-    assert not any(item.get("statement") for item in workbench["items"])
+    assert any(
+        item.get("state_record_kind") == "question_candidate_finding"
+        and item.get("finding_id") == "finding:S01:one"
+        and item.get("statement")
+        for item in workbench["items"]
+    )
+
+
+def test_question_workbench_pages_long_outcome_answer_points_without_truncation() -> None:
+    workspace = _workspace()
+    long_point = "Длинный доказуемый пункт ответа. " * 900
+    workspace["coverage_outcomes"] = [
+        {
+            "set_id": "set-1",
+            "question_id": "q-root",
+            "status": "partial",
+            "finding_ids": ["finding:S01:one"],
+            "requirement_results": [
+                {
+                    "requirement_id": "q-root:r1",
+                    "status": "partial",
+                    "finding_ids": ["finding:S01:one"],
+                    "answer_points": [
+                        {"point": long_point, "finding_ids": ["finding:S01:one"]}
+                    ],
+                    "summary": long_point,
+                    "closure_basis": long_point,
+                    "remaining_uncertainty": "Нужна недостающая причинная связь.",
+                    "missing_detail": "Нужна недостающая причинная связь.",
+                    "conflict_summary": "",
+                    "deferred_reason": "",
+                }
+            ],
+            "orientation_summary": long_point,
+            "missing_detail": "Нужна недостающая причинная связь.",
+        }
+    ]
+    source_set = workspace["source_sets"][0]
+    items: list[dict] = []
+    cursor = "0"
+
+    while True:
+        page = question_workbench_page(
+            workspace,
+            source_set,
+            question_id="q-root",
+            cursor=int(cursor),
+            limit=25,
+        )
+        assert page["accepted"] is True
+        assert len(json.dumps(page, ensure_ascii=False, default=str)) <= MODEL_TOOL_OUTPUT_MAX_CHARS
+        items.extend(page["items"])
+        cursor = page["page"]["next_cursor"]
+        if not cursor:
+            break
+
+    text_parts = [
+        item
+        for item in items
+        if item.get("part_kind") == "outcome_requirement_answer_point_text"
+    ]
+    assert "".join(item["value"] for item in text_parts) == long_point
+
+
+def test_parent_question_workbench_pages_long_child_outcome_without_truncation() -> None:
+    workspace = _workspace()
+    long_point = "Длинный дочерний пункт ответа. " * 900
+    workspace["coverage_outcomes"] = [
+        {
+            "set_id": "set-1",
+            "question_id": "q-child",
+            "status": "partial",
+            "finding_ids": ["finding:S01:one"],
+            "requirement_results": [
+                {
+                    "requirement_id": "q-child:r1",
+                    "status": "partial",
+                    "finding_ids": ["finding:S01:one"],
+                    "answer_points": [
+                        {"point": long_point, "finding_ids": ["finding:S01:one"]}
+                    ],
+                    "summary": long_point,
+                    "closure_basis": long_point,
+                    "remaining_uncertainty": "Нужна недостающая причинная связь.",
+                    "missing_detail": "Нужна недостающая причинная связь.",
+                    "conflict_summary": "",
+                    "deferred_reason": "",
+                }
+            ],
+            "orientation_summary": long_point,
+            "missing_detail": "Нужна недостающая причинная связь.",
+        }
+    ]
+    source_set = workspace["source_sets"][0]
+    items: list[dict] = []
+    cursor = "0"
+
+    while True:
+        page = question_workbench_page(
+            workspace,
+            source_set,
+            question_id="q-root",
+            cursor=int(cursor),
+            limit=25,
+        )
+        assert page["accepted"] is True
+        assert len(json.dumps(page, ensure_ascii=False, default=str)) <= MODEL_TOOL_OUTPUT_MAX_CHARS
+        items.extend(page["items"])
+        cursor = page["page"]["next_cursor"]
+        if not cursor:
+            break
+
+    assert any(item.get("state_record_kind") == "dependent_question_result" for item in items)
+    assert any(item.get("state_record_kind") == "dependent_question" for item in items)
+    text_parts = [
+        item
+        for item in items
+        if item.get("state_record_kind") == "dependent_question_outcome"
+        and item.get("part_kind") == "outcome_requirement_answer_point_text"
+    ]
+    assert "".join(item["value"] for item in text_parts) == long_point
 
 
 def test_question_workbench_delivery_state_returns_first_gap() -> None:

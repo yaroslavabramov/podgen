@@ -6,7 +6,6 @@ from typing import Any
 from app.generation_v2 import source_triage_workspace as workspace_api
 from app.generation_v2.runtime_tool_output import MODEL_TOOL_OUTPUT_MAX_CHARS
 from app.generation_v2.source_triage_workspace_handler_helpers import pending_set_work
-from app.generation_v2.source_triage_language_contract import reading_note_language_error
 from app.generation_v2.source_triage_workspace_state import source_read_receipt_is_delivered
 from app.generation_v2.tools.evidence_refs import build_source_ref_context, resolve_source_ref
 from app.generation_v2.tools.evidence_source_text import source_version_text
@@ -41,13 +40,6 @@ class SourceTriageWorkspaceReadingHandlersMixin:
         source_id = resolve_source_ref(source_ref, build_source_ref_context(self.inventory))
         if not source_id:
             return {"accepted": False, "error": "Unknown source_ref", "source_ref": source_ref}
-
-        language_error = reading_note_language_error(
-            args,
-            output_language=str((current.get("intent") or {}).get("language") or ""),
-        )
-        if language_error:
-            return language_error
 
         raw_receipt_refs = args.get("receipt_refs")
         if not isinstance(raw_receipt_refs, list):

@@ -530,6 +530,75 @@ async def _allow_evidence(*_args, **_kwargs):
 
 
 @pytest.mark.asyncio
+async def test_save_source_analysis_derives_source_card_relevance_from_findings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inventory, refs = _inventory(2)
+    workspace = _orientation_execution_workspace(refs)
+    state = _install_workspace_store(monkeypatch, workspace)
+    monkeypatch.setattr(
+        SourceTriageWorkspaceToolHandlers,
+        "_validate_set_evidence_ids",
+        _allow_evidence,
+    )
+    monkeypatch.setattr(
+        SourceTriageWorkspaceToolHandlers,
+        "_select_validated_evidence_ids",
+        _allow_evidence,
+    )
+    tools = _tools(
+        inventory=inventory,
+        workspace=workspace,
+        mode="set",
+        current_set_id="orientation_set",
+    )
+    args = _source_analysis_args(refs[0], question_ids=["q_root"])
+    args["relevance"] = "unknown"
+    args["disposition"] = "background"
+
+    result = await tools["save_source_analysis"].handler(args)
+
+    assert result["accepted"] is True
+    assessment = state["workspace"]["source_assessments"][0]
+    assert assessment["relevance"] == "supporting"
+    assert assessment["disposition"] == "supporting"
+
+
+@pytest.mark.asyncio
+async def test_save_source_analysis_language_is_not_a_hard_write_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inventory, refs = _inventory(2)
+    workspace = _orientation_execution_workspace(refs)
+    workspace["intent"] = {"language": "ru"}
+    _install_workspace_store(monkeypatch, workspace)
+    monkeypatch.setattr(
+        SourceTriageWorkspaceToolHandlers,
+        "_validate_set_evidence_ids",
+        _allow_evidence,
+    )
+    monkeypatch.setattr(
+        SourceTriageWorkspaceToolHandlers,
+        "_select_validated_evidence_ids",
+        _allow_evidence,
+    )
+    tools = _tools(
+        inventory=inventory,
+        workspace=workspace,
+        mode="set",
+        current_set_id="orientation_set",
+    )
+    args = _source_analysis_args(refs[0], question_ids=["q_root"])
+    args["findings"][0]["statement"] = (
+        "The source establishes a useful answer component, but style is checked by eval rather than blocking writes."
+    )
+
+    result = await tools["save_source_analysis"].handler(args)
+
+    assert result["accepted"] is True
+
+
+@pytest.mark.asyncio
 async def test_orientation_set_finishes_after_assessments_without_outcomes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -635,8 +704,12 @@ async def test_orientation_cross_question_requires_an_outcome_before_finish(
                 {
                     "requirement_id": "q_root:r_core",
                     "status": "covered",
-                    "finding_ids": assessment["finding_ids"],
-                    "established_answer": "The finding establishes the answer component.",
+                    "answer_points": [
+                        {
+                            "point": "The finding establishes the answer component.",
+                            "finding_ids": assessment["finding_ids"],
+                        }
+                    ],
                     "criterion_match_reason": "The finding directly satisfies the criterion.",
                     "unresolved_remainder": "",
                     "conflict_summary": "",
@@ -724,8 +797,12 @@ async def test_resolved_question_preserves_aggregate_longer_than_one_requirement
                 {
                     "requirement_id": requirement_id,
                     "status": "covered",
-                    "finding_ids": assessment["finding_ids"],
-                    "established_answer": answer,
+                    "answer_points": [
+                        {
+                            "point": answer,
+                            "finding_ids": assessment["finding_ids"],
+                        }
+                    ],
                     "criterion_match_reason": "Находка прямо закрывает этот критерий.",
                     "unresolved_remainder": "",
                     "conflict_summary": "",

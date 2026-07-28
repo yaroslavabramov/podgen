@@ -5,6 +5,7 @@ import json
 from typing import Any
 
 from app.generation_v2 import source_triage_workspace as workspace_api
+from app.generation_v2.model_optional_fields import optional_model_text
 from app.generation_v2.persistence_contracts import semantic_field_error, semantic_list_error
 from app.generation_v2.runtime_contracts import AgentOperationalStall
 from app.generation_v2.source_triage_workspace_contracts import (
@@ -31,9 +32,6 @@ from app.generation_v2.source_triage_passage_analysis import (
     normalize_passage_analysis_args,
     preserve_downstream_fields_for_unchanged_findings,
     uses_passage_analysis_contract,
-)
-from app.generation_v2.source_triage_language_contract import (
-    source_analysis_language_error,
 )
 from app.generation_v2.source_triage_question_references import (
     possible_question_ids_error,
@@ -72,13 +70,6 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
         if not source_id:
             return {"accepted": False, "error": "Unknown source_ref", "source_ref": source_ref}
 
-        language_error = source_analysis_language_error(
-            args,
-            output_language=str((current.get("intent") or {}).get("language") or ""),
-        )
-        if language_error:
-            return language_error
-
         v3_analysis = uses_passage_analysis_contract(args)
         if v3_analysis:
             normalized_args, materialization_error = await normalize_passage_analysis_args(
@@ -114,6 +105,8 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
             "uniqueness": str(args.get("uniqueness") or "unknown"),
             "disposition": str(args.get("disposition") or "background"),
         }
+        duplicate_of_source_ref = optional_model_text(args.get("duplicate_of_source_ref"))
+        verified_duplicate_ref = optional_model_text(args.get("verified_exact_duplicate_of_source_ref"))
         for field, allowed in enum_fields.items():
             if values[field] not in allowed:
                 return {"accepted": False, "error": f"invalid {field}", "value": values[field]}
@@ -192,6 +185,31 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
                     "disposition=deferred requires a checked partial, not_target_content, or unreadable representation"
                 ),
             }
+        if (
+            verified_duplicate_ref
+            and values["uniqueness"] == "duplicate"
+            and values["representation_status"] in {"not_target_content", "unreadable"}
+        ):
+            return {
+                "accepted": False,
+                "error": "verified_duplicate_must_be_saved_as_readable_target_content",
+                "source_ref": source_ref,
+                "duplicate_of_source_ref": verified_duplicate_ref,
+                "invalid_fields": ["representation_status", "disposition"],
+                "corrected_fields": {
+                    "representation_status": "readable",
+                    "representation_reason": "",
+                    "uniqueness": "duplicate",
+                    "duplicate_of_source_ref": verified_duplicate_ref,
+                    "disposition": "background",
+                    "findings": [],
+                },
+                "next_action": (
+                    "Retry save_source_analysis for this same source as readable target content with "
+                    "uniqueness=duplicate and duplicate_of_source_ref copied exactly. Do not mark a verified "
+                    "exact duplicate as not_target_content or unreadable."
+                ),
+            }
         if values["representation_status"] in {"not_target_content", "unreadable"}:
             if values["processing_status"] != "resolved":
                 return {
@@ -212,6 +230,40 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
                         "all three judgments must be unknown"
                     ),
                     "invalid_fields": non_unknown_axes,
+                    "corrected_fields": {
+                        "relevance": "unknown",
+                        "authority": "unknown",
+                        "uniqueness": "unknown",
+                        "duplicate_of_source_ref": "",
+                    },
+                    "allowed_next_actions": [
+                        {
+                            "tool": "read_source",
+                            "arguments": {
+                                "source_ref": source_ref,
+                                "cursor": "",
+                                "max_chars": 20_000,
+                            },
+                            "when": "Use this if the source is readable and you need to establish content or duplicate status.",
+                        },
+                        {
+                            "tool": "save_source_analysis",
+                            "arguments": {
+                                "source_ref": source_ref,
+                                "representation_status": values["representation_status"],
+                                "relevance": "unknown",
+                                "authority": "unknown",
+                                "uniqueness": "unknown",
+                                "duplicate_of_source_ref": "",
+                            },
+                            "when": "Use this only if the checked representation is genuinely unavailable or not target content.",
+                        },
+                    ],
+                    "next_action": (
+                        "If you can read or compare this source, do that before judging relevance/authority/"
+                        "uniqueness. If the target content is genuinely unavailable, retry with relevance, "
+                        "authority, and uniqueness all unknown and duplicate_of_source_ref empty."
+                    ),
                 }
             asserted_reason_fields = [
                 field for field in ("relevance_reason", "authority_reason", "uniqueness_reason") if reason_fields[field]
@@ -302,6 +354,14 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
             if analysis_mode
             else [str(item) for item in args.get("coverage_question_ids") or [] if str(item).strip()]
         )
+        if analysis_mode:
+            values["relevance"] = _derived_relevance(
+                representation_status=values["representation_status"],
+                findings=findings,
+                question_ids=question_ids,
+            )
+            if values["disposition"] == "background" and values["relevance"] == "supporting":
+                values["disposition"] = "supporting"
         known_question_ids = {
             str(item.get("question_id") or "")
             for item in current.get("coverage_questions") or []
@@ -392,8 +452,15 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
                 *finding_evidence_ids,
             ]
         )
+        verified_exact_duplicate = bool(
+            verified_duplicate_ref
+            and values["uniqueness"] == "duplicate"
+            and duplicate_of_source_ref == verified_duplicate_ref
+        )
         requires_grounded_evidence = values["representation_status"] == "not_target_content" or (
-            values["processing_status"] == "resolved" and values["representation_status"] in {"readable", "partial"}
+            values["processing_status"] == "resolved"
+            and values["representation_status"] in {"readable", "partial"}
+            and not verified_exact_duplicate
         )
         if requires_grounded_evidence and not evidence_ids:
             return {
@@ -465,7 +532,7 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
             "relevance_reason": reason_fields["relevance_reason"],
             "authority_reason": reason_fields["authority_reason"],
             "uniqueness_reason": reason_fields["uniqueness_reason"],
-            "duplicate_of_source_ref": str(args.get("duplicate_of_source_ref") or ""),
+            "duplicate_of_source_ref": duplicate_of_source_ref,
             "disposition_reason": reason_fields["disposition_reason"],
             "coverage_question_ids": question_ids,
             "editorial_functions": editorial_functions,
@@ -598,6 +665,18 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
                 f"for set_id={set_id!r}, source_ref={source_ref!r}"
             )
         await public_api.save_source_triage_workspace(self.db, generation_run_id=self.run.id, workspace=current)
+        pending_work = _pending_set_work(current, source_set)
+        invalidated_workbench_question_ids = (
+            public_api._dedupe(
+                [
+                    *pending_work.get("required_question_ids", []),
+                    *pending_work.get("missing_outcome_question_ids", []),
+                    *pending_work.get("stale_outcome_question_ids", []),
+                ]
+            )
+            if analysis_changed
+            else []
+        )
         return {
             "accepted": True,
             "source_ref": source_ref,
@@ -606,7 +685,15 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
             "disposition": values["disposition"],
             "finding_ids": list(assessment.get("finding_ids") or []),
             "analysis_changed": analysis_changed,
-            **_pending_set_work(current, source_set),
+            "invalidated_question_workbench_question_ids": invalidated_workbench_question_ids,
+            "next_action": (
+                "Continue unresolved source work. If you already read any question_workbench for a listed "
+                "invalidated question, discard that old snapshot; after source work is done, reread the current "
+                "finding_catalog and the exact question_workbench before resolve_triage_question."
+                if invalidated_workbench_question_ids
+                else "Continue unresolved source work or resolve the current questions from fresh state."
+            ),
+            **pending_work,
         }
 
     async def _blocked_shell_evidence_ids(self, evidence_ids: list[str]) -> list[str]:
@@ -1139,6 +1226,21 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
             workspace_api._dedupe(all_evidence_ids),
             None,
         )
+
+
+def _derived_relevance(
+    *,
+    representation_status: str,
+    findings: list[dict[str, Any]],
+    question_ids: list[str],
+) -> str:
+    if representation_status in {"not_target_content", "unreadable"}:
+        return "unknown"
+    if question_ids:
+        return "supporting"
+    if findings:
+        return "contextual"
+    return "out_of_scope"
 
 
 __all__ = ["SourceTriageWorkspaceSourceAnalysisHandlersMixin"]

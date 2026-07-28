@@ -329,8 +329,12 @@ async def test_question_resolution_atomically_writes_links_and_outcome(
             {
                 "requirement_id": "q1:r1",
                 "status": "covered",
-                "finding_ids": ["finding:S01:one"],
-                "established_answer": "Событие установлено.",
+                "answer_points": [
+                    {
+                        "point": "Событие установлено.",
+                        "finding_ids": ["finding:S01:one"],
+                    }
+                ],
                 "criterion_match_reason": "Находка прямо устанавливает событие.",
                 "unresolved_remainder": "",
                 "conflict_summary": "",
@@ -353,6 +357,43 @@ async def test_question_resolution_atomically_writes_links_and_outcome(
     assert state["workspace"]["source_findings"][0]["question_links"] == []
     assert state["workspace"]["coverage_outcomes"] == []
 
+    unsupported_point_args = {
+        **resolution_args,
+        "requirement_results": [
+            {
+                **resolution_args["requirement_results"][0],
+                "answer_points": [
+                    {
+                        "point": "Событие установлено, и добавлен новый факт без сохранённой находки.",
+                        "finding_ids": ["finding:S01:not-saved"],
+                    }
+                ],
+            }
+        ],
+    }
+    unsupported = await handler.upsert_coverage_outcome_tool(unsupported_point_args)
+
+    assert unsupported["error"] == "question_resolution_references_unknown_or_wrong_set_finding"
+    assert unsupported["finding_id"] == "finding:S01:not-saved"
+    assert state["workspace"]["source_findings"][0]["question_links"] == []
+    assert state["workspace"]["coverage_outcomes"] == []
+
+    deprecated_summary_args = {
+        **resolution_args,
+        "requirement_results": [
+            {
+                **resolution_args["requirement_results"][0],
+                "established_answer": "Старый свободный итог больше не принимается.",
+            }
+        ],
+    }
+    deprecated = await handler.upsert_coverage_outcome_tool(deprecated_summary_args)
+
+    assert deprecated["error"] == "question_resolution_established_answer_is_deprecated"
+    assert "answer_points" in deprecated["next_action"]
+    assert state["workspace"]["source_findings"][0]["question_links"] == []
+    assert state["workspace"]["coverage_outcomes"] == []
+
     result = await handler.upsert_coverage_outcome_tool(resolution_args)
 
     assert result["accepted"] is True
@@ -367,7 +408,262 @@ async def test_question_resolution_atomically_writes_links_and_outcome(
     outcome = state["workspace"]["coverage_outcomes"][0]
     assert outcome["status"] == "covered"
     assert outcome["finding_ids"] == ["finding:S01:one"]
+    assert outcome["requirement_results"][0]["answer_points"] == [
+        {"point": "Событие установлено.", "finding_ids": ["finding:S01:one"]}
+    ]
+    assert outcome["requirement_results"][0]["summary"] == "Событие установлено."
     assert outcome["workbench_snapshot_id"] == snapshot_id
+
+
+@pytest.mark.asyncio
+async def test_stale_question_workbench_rejection_points_to_same_question(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    workspace = _workspace()
+    workspace["source_sets"][0]["source_refs"] = ["S01"]
+    workspace["source_order"] = ["S01"]
+    workspace["source_findings"] = [
+        {
+            **_finding(
+                finding_id="finding:S01:one",
+                evidence_id=evidence_id,
+                question_links=[],
+            ),
+            "set_id": "set-1",
+            "source_ref": "S01",
+            "source_id": source_id,
+            "support_explanation": "The exact passage establishes the bounded event.",
+        }
+    ]
+    _patch_workspace(monkeypatch, workspace)
+    page = question_workbench_page(
+        workspace,
+        workspace["source_sets"][0],
+        question_id="q1",
+        cursor=0,
+        limit=100,
+    )
+    old_snapshot_id = page["workbench_snapshot_id"]
+    workspace["source_findings"].append(
+        {
+            **_finding(
+                finding_id="finding:S01:two",
+                evidence_id=evidence_id,
+                question_links=[],
+            ),
+            "set_id": "set-1",
+            "source_ref": "S01",
+            "source_id": source_id,
+            "statement": "A later saved finding changes the current workbench snapshot.",
+            "support_explanation": "It changes the model-visible finding catalog.",
+        }
+    )
+    handler = SourceTriageWorkspaceToolHandlers(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(source_cards=[_card(source_id, "A")]),
+        evidence_toolset=_EvidenceToolset(
+            {evidence_id: _evidence(evidence_id, source_id)},
+            {source_id: "S01"},
+        ),
+        current_set_id="set-1",
+    )
+
+    rejected = await handler.upsert_coverage_outcome_tool(
+        {
+            "set_id": "set-1",
+            "question_id": "q1",
+            "workbench_snapshot_id": old_snapshot_id,
+            "requirement_results": [
+                {
+                    "requirement_id": "q1:r1",
+                    "status": "covered",
+                    "answer_points": [
+                        {
+                            "point": "Событие установлено.",
+                            "finding_ids": ["finding:S01:one"],
+                        }
+                    ],
+                    "criterion_match_reason": "Находка прямо устанавливает событие.",
+                    "unresolved_remainder": "",
+                    "conflict_summary": "",
+                    "deferred_reason": "",
+                }
+            ],
+        }
+    )
+
+    assert rejected["error"] == "question_workbench_snapshot_stale"
+    assert rejected["required_read"] == {
+        "section": "question_workbench",
+        "set_id": "set-1",
+        "question_id": "q1",
+        "cursor": "0",
+        "target_workbench_snapshot_id": rejected["current_workbench_snapshot_id"],
+    }
+    assert rejected["allowed_next_actions"][1]["arguments"]["question_id"] == "q1"
+    assert "question_id='q1'" in rejected["next_action"]
+
+
+@pytest.mark.asyncio
+async def test_source_analysis_warns_that_read_workbenches_are_invalidated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    workspace = _workspace()
+    workspace["source_sets"][0]["source_refs"] = ["S01"]
+    workspace["source_order"] = ["S01"]
+    _patch_workspace(monkeypatch, workspace)
+    handler = SourceTriageWorkspaceToolHandlers(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(source_cards=[_card(source_id, "A")]),
+        evidence_toolset=_EvidenceToolset(
+            {evidence_id: _evidence(evidence_id, source_id)},
+            {source_id: "S01"},
+        ),
+        current_set_id="set-1",
+    )
+
+    saved = await handler.upsert_source_assessment_tool(
+        _analysis_args(
+            source_ref="S01",
+            findings=[
+                _finding(
+                    finding_id="finding:S01:one",
+                    evidence_id=evidence_id,
+                    question_links=[],
+                )
+            ],
+        )
+    )
+
+    assert saved["accepted"] is True
+    assert saved["analysis_changed"] is True
+    assert saved["invalidated_question_workbench_question_ids"] == ["q1"]
+    assert "discard that old snapshot" in saved["next_action"]
+
+
+@pytest.mark.asyncio
+async def test_verified_duplicate_source_analysis_is_a_readable_source_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_id_1 = str(uuid.uuid4())
+    source_id_2 = str(uuid.uuid4())
+    workspace = _workspace()
+    _patch_workspace(monkeypatch, workspace)
+
+    async def exact_match(*_args, **_kwargs):
+        return {"source_ref": "S01", "matched_representation_kinds": ["extracted_text"]}
+
+    monkeypatch.setattr(
+        "app.generation_v2.source_triage_passage_analysis.exact_duplicate_predecessor",
+        exact_match,
+    )
+    handler = SourceTriageWorkspaceToolHandlers(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(
+            source_cards=[_card(source_id_1, "Original"), _card(source_id_2, "Mirror")]
+        ),
+        evidence_toolset=None,
+        current_set_id="set-1",
+    )
+
+    saved = await handler.upsert_source_assessment_tool(
+        {
+            "source_ref": "S02",
+            "representation_status": "readable",
+            "representation_reason": "",
+            "source_summary": "Зеркальная копия уже разобранного источника.",
+            "authority": "unknown",
+            "authority_reason": "",
+            "uniqueness": "duplicate",
+            "uniqueness_reason": "Backend подтвердил идентичное представление с S01.",
+            "duplicate_of_source_ref": "S01",
+            "limitations": ["Самостоятельных новых находок нет."],
+            "no_findings_reason": "Содержательно совпадает с S01, поэтому отдельные находки не дублируются.",
+            "findings": [],
+            "reading_basis": {
+                "coverage_summary": "Содержимое закрыто через подтверждённый точный дубликат S01.",
+                "unread_regions": "Отдельное повторное чтение S02 не требуется.",
+                "unread_risk_assessment": "Идентичное представление не добавит нового содержания.",
+                "representation_limits": "",
+                "stopping_reason": "Точное совпадение представления подтверждено backend.",
+            },
+        }
+    )
+
+    assert saved["accepted"] is True
+    stored = workspace["source_assessments"][0]
+    assert stored["representation_status"] == "readable"
+    assert stored["uniqueness"] == "duplicate"
+    assert stored["duplicate_of_source_ref"] == "S01"
+    assert stored["evidence_ids"] == []
+    assert stored["reading_basis"]["verified_exact_duplicate_of_source_ref"] == "S01"
+
+
+@pytest.mark.asyncio
+async def test_verified_duplicate_rejects_unavailable_representation_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_id_1 = str(uuid.uuid4())
+    source_id_2 = str(uuid.uuid4())
+    workspace = _workspace()
+    _patch_workspace(monkeypatch, workspace)
+
+    async def exact_match(*_args, **_kwargs):
+        return {"source_ref": "S01", "matched_representation_kinds": ["extracted_text"]}
+
+    monkeypatch.setattr(
+        "app.generation_v2.source_triage_passage_analysis.exact_duplicate_predecessor",
+        exact_match,
+    )
+    handler = SourceTriageWorkspaceToolHandlers(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(
+            source_cards=[_card(source_id_1, "Original"), _card(source_id_2, "Mirror")]
+        ),
+        evidence_toolset=None,
+        current_set_id="set-1",
+    )
+
+    rejected = await handler.upsert_source_assessment_tool(
+        {
+            "source_ref": "S02",
+            "representation_status": "unreadable",
+            "representation_reason": "Модель ошибочно решила, что копию не надо читать.",
+            "source_summary": "Зеркальная копия уже разобранного источника.",
+            "authority": "unknown",
+            "authority_reason": "",
+            "uniqueness": "duplicate",
+            "uniqueness_reason": "Backend подтвердил идентичное представление с S01.",
+            "duplicate_of_source_ref": "S01",
+            "limitations": [],
+            "no_findings_reason": "Содержательно совпадает с S01.",
+            "findings": [],
+            "reading_basis": {
+                "coverage_summary": "Содержимое закрыто через подтверждённый точный дубликат S01.",
+                "unread_regions": "Отдельное повторное чтение S02 не требуется.",
+                "unread_risk_assessment": "Идентичное представление не добавит нового содержания.",
+                "representation_limits": "",
+                "stopping_reason": "Точное совпадение представления подтверждено backend.",
+            },
+        }
+    )
+
+    assert rejected["accepted"] is False
+    assert rejected["error"] == "verified_duplicate_must_be_saved_as_readable_target_content"
+    assert rejected["corrected_fields"]["representation_status"] == "readable"
+    assert rejected["corrected_fields"]["uniqueness"] == "duplicate"
 
 
 def test_legacy_review_bookkeeping_does_not_count_as_semantic_progress() -> None:
@@ -435,18 +731,6 @@ async def test_set_finishes_without_a_separate_semantic_review_protocol(
         workspace["source_sets"][0],
         question_id="q1",
     )
-    rejected_language = await handler.finish_triage_source_set_tool(
-        {
-            "set_id": "set-1",
-            "status": "mapped",
-            "summary": (
-                "This final summary is written entirely in English even though the requested output language "
-                "is Russian, so it must not be persisted."
-            ),
-            "deferred_reason": "",
-            "deferred_sources": [],
-        }
-    )
     finish_args = {
         "set_id": "set-1",
         "status": "mapped",
@@ -459,7 +743,6 @@ async def test_set_finishes_without_a_separate_semantic_review_protocol(
 
     assert saved["accepted"] is True
     assert outcome["accepted"] is True
-    assert rejected_language["error"] == "model_authored_prose_language_mismatch"
     assert completed["accepted"] is True
 
 

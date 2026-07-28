@@ -1650,7 +1650,6 @@ def build_workspace_tools(
                 handlers.upsert_coverage_outcome_tool,
                 handlers.finish_triage_source_set_tool,
                 save_reading_note_handler=handlers.save_reading_note_tool,
-                output_language=str((workspace.get("intent") or {}).get("language") or "").strip(),
                 allowed_source_refs=allowed_source_refs,
                 allowed_question_ids=allowed_question_ids,
                 terminal_resume_loader=set_resume_loader,

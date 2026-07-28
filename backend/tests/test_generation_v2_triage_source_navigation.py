@@ -122,6 +122,42 @@ def test_read_source_tool_declares_checkpoint_before_source_switch() -> None:
 
     assert "before_opening_different_source.required" in tool.description
     assert "before calling any read tool for a different source" in tool.description
+    assert "max_chars" not in tool.parameters["required"]
+
+
+@pytest.mark.asyncio
+async def test_read_source_omitted_max_chars_uses_largest_stable_chunk(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2.tools import evidence_local_source, evidence_source_tools
+
+    text = "A" * 30_000
+    version = _version()
+    workspace: dict[str, Any] = {
+        "current_set": {"set_id": "set-1"},
+        "source_sets": [{"set_id": "set-1", "source_refs": ["S01"]}],
+        "source_read_receipts": [],
+    }
+
+    async def load_workspace(_db: Any, _run_id: Any) -> dict[str, Any]:
+        return workspace
+
+    async def save_workspace(*_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    async def save_trace(*_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    monkeypatch.setattr(evidence_local_source, "_source_version_text", lambda _version: text)
+    monkeypatch.setattr(evidence_source_tools, "load_source_triage_workspace", load_workspace)
+    monkeypatch.setattr(evidence_source_tools, "save_source_triage_workspace", save_workspace)
+    monkeypatch.setattr(evidence_source_tools, "save_tool_trace", save_trace)
+
+    result = await _NavigationOwner(version).read_source_tool({"source_ref": "S01", "cursor": ""})
+
+    assert result["found"] is True
+    assert result["range"]["end_offset"] == 20_000
+    assert result["returned_chars"] == 20_000
 
 
 def test_source_text_is_extracted_once_per_immutable_version(
@@ -403,9 +439,9 @@ async def test_read_source_pages_reconstruct_text_and_expose_bounded_structure(
             structure = page["structure"]
             assert structure["counts"]["headings"] == 180
             assert structure["total_count"] == 180
-            assert structure["returned_count"] == 24
-            assert structure["omitted_count"] == 156
-            assert structure["next_structure_cursor"] == "24"
+            assert 1 <= structure["returned_count"] <= 24
+            assert structure["omitted_count"] == 180 - structure["returned_count"]
+            assert structure["next_structure_cursor"] == str(structure["returned_count"])
             assert "next_cursor" not in structure
             assert all("preview" not in item and "text" not in item for item in structure["items"])
             assert all("label_preview" in item and "label_chars" in item for item in structure["items"])

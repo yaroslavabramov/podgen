@@ -434,17 +434,43 @@ def _coverage_outcome_parts(
             )
         )
 
-    result_cores: list[dict[str, Any]] = []
-    result_finding_parts: list[dict[str, Any]] = []
+    result_core_parts: list[dict[str, Any]] = []
+    result_detail_parts: list[dict[str, Any]] = []
     for index, raw_result in enumerate(requirement_results):
         result = dict(raw_result)
         finding_ids = list(result.pop("finding_ids", []) or [])
+        answer_points = [
+            item for item in (result.pop("answer_points", []) or []) if isinstance(item, dict)
+        ]
+        result_semantic_fields = {
+            field: str(result.pop(field) or "")
+            for field in (
+                "summary",
+                "closure_basis",
+                "remaining_uncertainty",
+                "missing_detail",
+                "conflict_summary",
+                "deferred_reason",
+            )
+            if field in result
+        }
         requirement_id = str(result.get("requirement_id") or index)
         result_ref = f"{owner}:requirement_result:{requirement_id}"
         result["result_ref"] = result_ref
-        result["finding_id_count"] = len(finding_ids)
-        result_cores.append(result)
-        result_finding_parts.extend(
+        result["nested_counts"] = {
+            "finding_ids": len(finding_ids),
+            "answer_points": len(answer_points),
+            "semantic_fields": len(result_semantic_fields),
+        }
+        result_core_parts.append(
+            {
+                "owner_ref": owner,
+                "record_kind": record_kind,
+                "part_kind": "outcome_requirement_result_core",
+                **result,
+            }
+        )
+        result_detail_parts.extend(
             _list_parts(
                 owner=owner,
                 record_kind=record_kind,
@@ -454,15 +480,93 @@ def _coverage_outcome_parts(
                 owner_fields={"requirement_id": requirement_id},
             )
         )
-    parts.extend(
-        _list_parts(
-            owner=owner,
-            record_kind=record_kind,
-            part_kind="outcome_requirement_results",
-            values=result_cores,
+        for field, value in result_semantic_fields.items():
+            result_detail_parts.extend(
+                _text_field_parts(
+                    owner=owner,
+                    record_kind=record_kind,
+                    part_kind="outcome_requirement_result_semantic_field",
+                    field=field,
+                    value=value,
+                    part_ref=f"{result_ref}:{field}",
+                    owner_fields={
+                        "requirement_id": requirement_id,
+                        "result_ref": result_ref,
+                    },
+                )
+            )
+        result_detail_parts.extend(
+            _answer_point_parts(
+                answer_points,
+                owner=owner,
+                record_kind=record_kind,
+                result_ref=result_ref,
+                requirement_id=requirement_id,
+            )
         )
-    )
-    parts.extend(result_finding_parts)
+    parts.extend(result_core_parts)
+    parts.extend(result_detail_parts)
+    return parts
+
+
+def _answer_point_parts(
+    answer_points: list[dict[str, Any]],
+    *,
+    owner: str,
+    record_kind: str,
+    result_ref: str,
+    requirement_id: str,
+) -> list[dict[str, Any]]:
+    parts: list[dict[str, Any]] = []
+    for index, raw_point in enumerate(answer_points):
+        point = dict(raw_point)
+        text = str(point.pop("point", "") or "")
+        finding_ids = list(point.pop("finding_ids", []) or [])
+        point_ref = f"{result_ref}:answer_point:{index}"
+        parts.append(
+            {
+                "owner_ref": owner,
+                "record_kind": record_kind,
+                "part_kind": "outcome_requirement_answer_point_core",
+                "part_ref": point_ref,
+                "requirement_id": requirement_id,
+                "answer_point_index": index,
+                **point,
+                "nested_counts": {
+                    "point": int(bool(text)),
+                    "finding_ids": len(finding_ids),
+                },
+            }
+        )
+        parts.extend(
+            _text_field_parts(
+                owner=owner,
+                record_kind=record_kind,
+                part_kind="outcome_requirement_answer_point_text",
+                field="point",
+                value=text,
+                part_ref=f"{point_ref}:point",
+                owner_fields={
+                    "requirement_id": requirement_id,
+                    "answer_point_index": index,
+                    "point_ref": point_ref,
+                },
+            )
+        )
+        parts.extend(
+            _list_parts(
+                owner=owner,
+                record_kind=record_kind,
+                part_kind="outcome_requirement_answer_point_finding_ids",
+                values=finding_ids,
+                part_ref=f"{point_ref}:finding_ids",
+                owner_fields={
+                    "requirement_id": requirement_id,
+                    "answer_point_index": index,
+                    "point_ref": point_ref,
+                },
+            )
+        )
     return parts
 
 
@@ -473,6 +577,8 @@ def _text_field_parts(
     part_kind: str,
     field: str,
     value: str,
+    part_ref: str | None = None,
+    owner_fields: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Page one semantic string without dropping or shortening any character."""
 
@@ -487,6 +593,8 @@ def _text_field_parts(
                 value="",
                 cursor=0,
                 total=0,
+                part_ref=part_ref,
+                owner_fields=owner_fields,
             )
         ]
 
@@ -506,6 +614,8 @@ def _text_field_parts(
                 value=value[cursor:end],
                 cursor=cursor,
                 total=total,
+                part_ref=part_ref,
+                owner_fields=owner_fields,
             )
             if _item_fits(candidate):
                 best_end = end
@@ -521,6 +631,8 @@ def _text_field_parts(
                 value=value[cursor:best_end],
                 cursor=cursor,
                 total=total,
+                part_ref=part_ref,
+                owner_fields=owner_fields,
             )
         )
         cursor = best_end
@@ -536,13 +648,16 @@ def _text_field_part(
     value: str,
     cursor: int,
     total: int,
+    part_ref: str | None = None,
+    owner_fields: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     end = cursor + len(value)
     return {
         "owner_ref": owner,
         "record_kind": record_kind,
         "part_kind": part_kind,
-        "part_ref": f"{owner}:{part_kind}:{field}",
+        "part_ref": part_ref or f"{owner}:{part_kind}:{field}",
+        **dict(owner_fields or {}),
         "field": field,
         "value": value,
         "part_page": {

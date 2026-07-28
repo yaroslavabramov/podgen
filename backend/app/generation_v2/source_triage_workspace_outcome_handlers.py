@@ -4,7 +4,7 @@ from copy import deepcopy
 from typing import Any
 
 from app.generation_v2 import source_triage_workspace as workspace_api
-from app.generation_v2.persistence_contracts import semantic_field_error
+from app.generation_v2.persistence_contracts import semantic_field_error, semantic_list_error
 from app.generation_v2.source_triage_workspace_contracts import TRIAGE_SEMANTIC_FIELD_LIMITS
 from app.generation_v2.source_triage_workspace_handler_helpers import (
     confidence as _confidence,
@@ -33,9 +33,6 @@ from app.generation_v2.source_triage_question_resolution import (
     apply_question_resolution_links,
     normalize_question_resolution_args,
     question_resolution_shape_error,
-)
-from app.generation_v2.source_triage_language_contract import (
-    question_resolution_language_error,
 )
 from app.generation_v2.tools.evidence_refs import build_source_ref_context, resolve_source_ref
 
@@ -82,10 +79,49 @@ class SourceTriageWorkspaceOutcomeHandlersMixin:
                     "question_id": question_id,
                     "current_workbench_snapshot_id": current_snapshot_id,
                     "current_finding_catalog_snapshot_id": catalog_snapshot_id,
+                    "required_read": {
+                        "section": "question_workbench",
+                        "set_id": set_id,
+                        "question_id": question_id,
+                        "cursor": "0",
+                        "target_workbench_snapshot_id": current_snapshot_id,
+                    },
+                    "allowed_next_actions": [
+                        {
+                            "tool": "read_triage_set_state",
+                            "arguments": {
+                                "section": "finding_catalog",
+                                "set_id": set_id,
+                                "cursor": "0",
+                                "limit": 25,
+                            },
+                            "repeat_until": (
+                                "page.next_cursor is empty and finding_catalog_snapshot_id equals "
+                                f"{catalog_snapshot_id!r}"
+                            ),
+                        },
+                        {
+                            "tool": "read_triage_set_state",
+                            "arguments": {
+                                "section": "question_workbench",
+                                "set_id": set_id,
+                                "question_id": question_id,
+                                "cursor": "0",
+                                "limit": 25,
+                            },
+                            "repeat_until": (
+                                "page.next_cursor is empty and workbench_snapshot_id equals "
+                                f"{current_snapshot_id!r}"
+                            ),
+                        },
+                    ],
                     "next_action": (
-                        "The previous semantic decision is no longer valid. Read the current finding_catalog if "
-                        "its snapshot changed, then read question_workbench from cursor='0' and recompute the "
-                        "complete question result from the new state."
+                        "The attempted result used an old question_workbench snapshot. Do not retry it. Read "
+                        f"read_triage_set_state section=question_workbench question_id={question_id!r} "
+                        "from cursor='0' through every page.next_cursor, using the returned "
+                        f"workbench_snapshot_id={current_snapshot_id!r}. If the finding_catalog snapshot also "
+                        "changed, read section=finding_catalog from cursor='0' through every page first. Then "
+                        "recompute this exact question result."
                     ),
                 }
             catalog_snapshot_id = finding_catalog_snapshot_id(current, source_set)
@@ -135,12 +171,6 @@ class SourceTriageWorkspaceOutcomeHandlersMixin:
             if shape_error:
                 return shape_error
             args = normalize_question_resolution_args(args)
-        language_error = question_resolution_language_error(
-            args,
-            output_language=str((current.get("intent") or {}).get("language") or ""),
-        )
-        if language_error:
-            return language_error
         stored_findings_by_id = {
             str(item.get("finding_id") or ""): item
             for item in current.get("source_findings") or []
@@ -258,6 +288,7 @@ class SourceTriageWorkspaceOutcomeHandlersMixin:
                 set_id=set_id,
                 allow_global_next_action=False,
                 expected_requirement_ids=expected_requirement_ids,
+                require_answer_points=v3_resolution,
             )
             if requirement_error:
                 return {
@@ -267,7 +298,7 @@ class SourceTriageWorkspaceOutcomeHandlersMixin:
                         findings_by_id=findings_by_id,
                         set_id=set_id,
                     ),
-                    "next_action": (
+                    "next_action": requirement_error.get("next_action") or (
                         "Read every page of read_triage_set_state section=question_workbench for this question_id, "
                         "then retry with its current snapshot and only findings that satisfy the exact criterion."
                         if v3_resolution
@@ -555,6 +586,7 @@ class SourceTriageWorkspaceOutcomeHandlersMixin:
         set_id: str | None,
         allow_global_next_action: bool,
         expected_requirement_ids: set[str] | None = None,
+        require_answer_points: bool = False,
     ) -> tuple[list[dict[str, Any]], list[str], dict[str, Any] | None]:
         requirements = [item for item in question.get("answer_requirements") or [] if isinstance(item, dict)]
         known_ids = {
@@ -669,6 +701,106 @@ class SourceTriageWorkspaceOutcomeHandlersMixin:
                     },
                 )
             summary = str(raw_result.get("summary") or "").strip()
+            raw_answer_points = raw_result.get("answer_points")
+            answer_points: list[dict[str, Any]] = []
+            if raw_answer_points is not None:
+                if not isinstance(raw_answer_points, list):
+                    return (
+                        [],
+                        [],
+                        {
+                            "accepted": False,
+                            "error": "requirement answer_points must be an array",
+                            "requirement_id": requirement_id,
+                            "next_action": (
+                                "Retry with answer_points as an array. If a needed proposition is not already "
+                                "present in saved findings, update the source analysis first."
+                            ),
+                        },
+                    )
+                for point_index, raw_point in enumerate(raw_answer_points):
+                    if not isinstance(raw_point, dict):
+                        return (
+                            [],
+                            [],
+                            {
+                                "accepted": False,
+                                "error": "requirement answer_points items must be objects",
+                                "requirement_id": requirement_id,
+                                "point_index": point_index,
+                            },
+                        )
+                    point_text = str(raw_point.get("point") or "").strip()
+                    point_finding_ids = workspace_api._dedupe(
+                        [str(item) for item in raw_point.get("finding_ids") or [] if str(item).strip()]
+                    )
+                    if not point_text or not point_finding_ids:
+                        return (
+                            [],
+                            [],
+                            {
+                                "accepted": False,
+                                "error": "requirement answer point needs point text and finding_ids",
+                                "requirement_id": requirement_id,
+                                "point_index": point_index,
+                            },
+                        )
+                    unknown_point_finding_ids = sorted(set(point_finding_ids) - set(findings_by_id))
+                    unselected_point_finding_ids = sorted(set(point_finding_ids) - set(finding_ids))
+                    if unknown_point_finding_ids or unselected_point_finding_ids:
+                        return (
+                            [],
+                            [],
+                            {
+                                "accepted": False,
+                                "error": "requirement answer point may use only selected requirement findings",
+                                "requirement_id": requirement_id,
+                                "point_index": point_index,
+                                "unknown_finding_ids": unknown_point_finding_ids,
+                                "unselected_finding_ids": unselected_point_finding_ids,
+                                "next_action": (
+                                    "Select only findings already listed in this requirement result. If the point "
+                                    "needs another finding, add that finding to requirement finding_ids; if no saved "
+                                    "finding says it, update the source analysis first."
+                                ),
+                            },
+                        )
+                    answer_points.append(
+                        {
+                            "point": point_text,
+                            "finding_ids": point_finding_ids,
+                        }
+                    )
+            if require_answer_points:
+                if status in {"covered", "partial", "conflicted"} and not answer_points:
+                    return (
+                        [],
+                        [],
+                        {
+                            "accepted": False,
+                            "error": "supported requirement result needs answer_points",
+                            "requirement_id": requirement_id,
+                            "status": status,
+                            "next_action": (
+                                "Add one answer point for each established proposition and link it to saved "
+                                "findings. If the proposition exists only in source text, update the source "
+                                "analysis before retrying this outcome."
+                            ),
+                        },
+                    )
+                if status in {"missing", "deferred"} and answer_points:
+                    return (
+                        [],
+                        [],
+                        {
+                            "accepted": False,
+                            "error": "unsupported requirement result cannot carry answer_points",
+                            "requirement_id": requirement_id,
+                            "status": status,
+                        },
+                    )
+                if answer_points:
+                    summary = "\n".join(item["point"] for item in answer_points)
             enhanced_completion_contract = (
                 "closure_basis" in raw_result or "remaining_uncertainty" in raw_result
             )
@@ -705,6 +837,13 @@ class SourceTriageWorkspaceOutcomeHandlersMixin:
             )
             if field_error:
                 return [], [], field_error
+            point_error = semantic_list_error(
+                field="answer_points",
+                values=[item["point"] for item in answer_points],
+                item_limit=TRIAGE_SEMANTIC_FIELD_LIMITS["requirement_summary"],
+            )
+            if point_error:
+                return [], [], point_error
             if status in {"covered", "partial", "conflicted"} and not finding_ids:
                 return (
                     [],
@@ -814,6 +953,7 @@ class SourceTriageWorkspaceOutcomeHandlersMixin:
                     "requirement_id": requirement_id,
                     "status": status,
                     "finding_ids": finding_ids,
+                    "answer_points": answer_points,
                     "summary": summary,
                     "closure_basis": closure_basis,
                     "remaining_uncertainty": remaining_uncertainty,

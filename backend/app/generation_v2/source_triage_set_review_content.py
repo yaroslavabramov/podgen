@@ -158,9 +158,8 @@ def semantic_review_page(
             "review_instruction": (
                 "Judge meaning yourself. Compare every result with its exact completion criterion. Repair "
                 "unsupported claims, wrong links, incomplete causality, inconsistent parent/child outcomes, weak "
-                "partial-reading justifications, or model-authored prose outside output_language; then reread the "
-                "new snapshot. Quotations stay in the source language. The backend checks only that the current "
-                "snapshot was read."
+                "partial-reading justifications, or saved text written in the wrong output language; then reread "
+                "the new snapshot. The backend checks only that the current snapshot was read."
             ),
             "items": page_parts,
             "page": {

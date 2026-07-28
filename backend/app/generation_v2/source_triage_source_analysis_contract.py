@@ -41,7 +41,12 @@ def validate_reading_basis(
             and source_read_receipt_is_delivered(item)
         }
     )
-    if representation_status in {"readable", "partial"} and not receipt_refs:
+    verified_duplicate = str(verified_exact_duplicate_of_source_ref or "").strip()
+    if (
+        representation_status in {"readable", "partial"}
+        and not receipt_refs
+        and not verified_duplicate
+    ):
         return {}, {
             "accepted": False,
             "error": "A readable or partial source analysis requires delivered source reading",
@@ -91,7 +96,6 @@ def validate_reading_basis(
         and int(ledger.get("unread_char_count") or 0) > 0
         and not has_native_read
     )
-    verified_duplicate = str(verified_exact_duplicate_of_source_ref or "").strip()
     if partial_local_read and not verified_duplicate and not structure.get("complete"):
         next_structure_cursor = str(structure.get("next_unread_cursor") or "0")
         next_read_cursor = _next_sequential_read_cursor(

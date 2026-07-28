@@ -26,6 +26,7 @@ from app.generation_v2.source_triage_set_review import (
 from app.generation_v2.source_triage_set_state_views import (
     finding_catalog_page,
     question_memory_page,
+    question_workbench_page,
     question_workbench_signature,
     set_overview_page,
     source_memory_page,
@@ -168,6 +169,29 @@ def test_question_memory_groups_one_finding_under_each_linked_question_part() ->
         ]
 
 
+def test_question_workbench_puts_candidate_finding_statements_next_to_question() -> None:
+    workspace = _workspace()
+    source_set = workspace["source_sets"][0]
+    page = question_workbench_page(workspace, source_set, question_id="q1", cursor=0, limit=100)
+
+    candidates = [
+        item
+        for item in page["items"]
+        if item.get("state_record_kind") == "question_candidate_finding"
+    ]
+
+    assert candidates
+    assert any(
+        item.get("finding_id") == "finding-1"
+        and item.get("statement") == "One bounded finding supports both questions."
+        and item.get("scope") == {
+            "actor": "Actor",
+            "period": "Period",
+            "geography": "",
+            "qualifiers": [],
+        }
+        for item in candidates
+    )
 def test_finding_catalog_exposes_every_set_finding_once_before_linking() -> None:
     workspace = _workspace()
     workspace["source_findings"][0]["question_links"] = []

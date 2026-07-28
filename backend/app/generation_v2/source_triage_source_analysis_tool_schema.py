@@ -9,17 +9,19 @@ def reading_basis_schema() -> dict[str, Any]:
     return {
         "type": "object",
         "description": (
-            "The model-authored stopping judgment. The backend binds delivered reading receipts and derives "
+            "The agent's stopping judgment. The backend binds delivered reading receipts and derives "
             "range coverage without asking the model to copy transport identifiers."
         ),
         "properties": {
             "coverage_summary": {
                 "type": "string",
                 "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["reading_basis"],
+                "description": "Summarize what the delivered reading established for this source analysis.",
             },
             "unread_regions": {
                 "type": "string",
                 "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["reading_basis"],
+                "description": "Name the material regions not read, or state that no material region remains unread.",
             },
             "unread_risk_assessment": {
                 "type": "string",
@@ -32,11 +34,12 @@ def reading_basis_schema() -> dict[str, Any]:
             "representation_limits": {
                 "type": "string",
                 "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["reading_basis"],
+                "description": "Describe representation limits that bound this source analysis.",
             },
             "stopping_reason": {
                 "type": "string",
                 "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["reading_basis"],
-                "description": "Why further reading is unlikely to change findings, scope, or question links.",
+                "description": "Explain why further reading is unlikely to change findings, scope, or question links.",
             },
         },
         "required": [

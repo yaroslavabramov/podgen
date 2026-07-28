@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.generation_v2.model_optional_fields import optional_model_text
 from app.generation_v2.source_triage_exact_duplicates import (
     exact_duplicate_predecessor,
 )
@@ -89,7 +90,7 @@ async def normalize_passage_analysis_args(
     representation_status = str(args.get("representation_status") or "unchecked")
     uniqueness = str(args.get("uniqueness") or "unknown")
     uniqueness_reason = str(args.get("uniqueness_reason") or "").strip()
-    duplicate_of_source_ref = str(args.get("duplicate_of_source_ref") or "").strip()
+    duplicate_of_source_ref = optional_model_text(args.get("duplicate_of_source_ref"))
     if uniqueness == "duplicate":
         if not duplicate_of_source_ref:
             return normalized, {
@@ -281,7 +282,29 @@ async def normalize_passage_analysis_args(
 
     normalized["findings"] = normalized_findings
     normalized["evidence_ids"] = list(dict.fromkeys(all_evidence_ids))
+    derived_relevance, derived_disposition = _derived_source_card_axes(
+        representation_status=representation_status,
+        findings=normalized_findings,
+    )
+    normalized["relevance"] = derived_relevance
+    normalized["disposition"] = derived_disposition
     return normalized, None
+
+
+def _derived_source_card_axes(
+    *,
+    representation_status: str,
+    findings: list[dict[str, Any]],
+) -> tuple[str, str]:
+    """Derive redundant source-card axes from durable facts instead of asking the model twice."""
+
+    if representation_status in {"not_target_content", "unreadable"}:
+        return "unknown", "deferred"
+    if any(finding.get("possible_question_ids") for finding in findings):
+        return "supporting", "supporting"
+    if findings:
+        return "contextual", "background"
+    return "out_of_scope", "background"
 
 
 async def _validate_explicit_evidence_ids(

@@ -318,6 +318,14 @@ def model_safe_coverage_outcome(
                 "requirement_id": str(result.get("requirement_id") or ""),
                 "status": result.get("status"),
                 "finding_ids": [str(value) for value in result.get("finding_ids") or []],
+                "answer_points": [
+                    {
+                        "point": str(point.get("point") or ""),
+                        "finding_ids": [str(value) for value in point.get("finding_ids") or []],
+                    }
+                    for point in result.get("answer_points") or []
+                    if isinstance(point, dict)
+                ],
                 "summary": str(result.get("summary") or ""),
                 "closure_basis": str(result.get("closure_basis") or ""),
                 "remaining_uncertainty": str(result.get("remaining_uncertainty") or ""),

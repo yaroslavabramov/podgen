@@ -2056,15 +2056,17 @@ def test_valid_large_outcome_requirement_results_are_fully_readable() -> None:
     )
 
     for parts in (triage_parts, research_parts):
-        restored_results = [
-            result
-            for item in parts
-            if item["part_kind"] == "outcome_requirement_results"
-            for result in item["items"]
-        ]
-        assert [item["summary"] for item in restored_results] == [
-            item["summary"] for item in requirement_results
-        ]
+        restored_summaries: dict[str, str] = {}
+        for item in parts:
+            if (
+                item["part_kind"] == "outcome_requirement_result_semantic_field"
+                and item["field"] == "summary"
+            ):
+                restored_summaries.setdefault(item["requirement_id"], "")
+                restored_summaries[item["requirement_id"]] += item["value"]
+        assert restored_summaries == {
+            item["requirement_id"]: item["summary"] for item in requirement_results
+        }
         restored_finding_ids = {
             item["requirement_id"]: [str(value) for value in item["items"]]
             for item in parts
