@@ -1595,6 +1595,99 @@ async def test_source_map_pages_are_retrievable_through_research_tool(
     assert page["page"]["next_cursor"] == "2"
 
 
+@pytest.mark.asyncio
+async def test_research_planner_upsert_preserves_seeded_candidate_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import research_workspace as workspace_api
+
+    workspace = {
+        "source_order": ["S01", "S02"],
+        "corpus_brief": {
+            "coverage_questions": [{"question_id": "q_main", "question": "How does it work?"}],
+            "research_handoff": [{"question_ids": ["q_main"]}],
+        },
+        "investigation_jobs": [
+            {
+                "job_id": "brief_01",
+                "corpus_handoff_id": "handoff:q_main",
+                "coverage_question_ids": ["q_main"],
+                "corpus_handoff_question_assignments": [
+                    {"question_id": "q_main", "requirement_ids": ["req_mechanism"]}
+                ],
+                "corpus_handoff_finding_ids": ["finding-hinted"],
+                "corpus_handoff_final_finding_ids": [],
+                "corpus_handoff_candidate_finding_ids": ["finding-hinted"],
+                "corpus_handoff_allowed_source_refs": ["S01", "S02"],
+                "corpus_handoff_preferred_source_refs": ["S01"],
+                "corpus_handoff_candidate_source_refs": ["S01"],
+                "corpus_handoff_candidate_evidence_ids": ["evidence-hinted"],
+                "corpus_handoff_coverage_hint_ids": ["hint-hinted"],
+                "coverage_requirements": [{"question_id": "q_main", "requirement_id": "req_mechanism"}],
+                "open_requirements": [{"question_id": "q_main", "requirement_id": "req_mechanism"}],
+                "source_findings": [
+                    {
+                        "finding_id": "finding-hinted",
+                        "source_ref": "S01",
+                        "statement": "Candidate source finding.",
+                        "handoff_link_kind": "candidate",
+                    }
+                ],
+                "label": "Seed",
+                "story_job": "mechanism",
+                "purpose": "Seeded from handoff.",
+                "source_refs": ["S01", "S02"],
+                "questions": ["How does it work?"],
+                "starting_evidence_ids": ["evidence-hinted"],
+                "allow_broad_search": False,
+                "status": "planned",
+            }
+        ],
+    }
+
+    async def load(_db, _run_id):
+        return workspace
+
+    async def save(_db, *, generation_run_id, workspace: dict):  # noqa: ARG001
+        return None
+
+    monkeypatch.setattr(workspace_api, "load_research_workspace", load)
+    monkeypatch.setattr(workspace_api, "save_research_workspace", save)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=SourceMap(source_cards=[_source("source-1"), _source("source-2")]),
+        mode="planner",
+    )
+    upsert = next(tool for tool in tools if tool.name == "upsert_research_job")
+
+    accepted = await upsert.handler(
+        {
+            "job_id": "brief_01",
+            "label": "Mechanism",
+            "story_job": "mechanism",
+            "purpose": "Resolve the mechanism.",
+            "source_refs": [],
+            "questions": [],
+            "required_atom_kinds": ["mechanism"],
+            "priority": "high",
+            "allow_broad_search": False,
+        }
+    )
+
+    assert accepted["accepted"] is True
+    job = workspace["investigation_jobs"][0]
+    assert job["source_refs"] == ["S01", "S02"]
+    assert job["corpus_handoff_candidate_finding_ids"] == ["finding-hinted"]
+    assert job["corpus_handoff_allowed_source_refs"] == ["S01", "S02"]
+    assert job["corpus_handoff_preferred_source_refs"] == ["S01"]
+    assert job["corpus_handoff_candidate_evidence_ids"] == ["evidence-hinted"]
+    assert job["corpus_handoff_coverage_hint_ids"] == ["hint-hinted"]
+    assert job["coverage_requirements"] == [{"question_id": "q_main", "requirement_id": "req_mechanism"}]
+    assert job["source_findings"][0]["handoff_link_kind"] == "candidate"
+
+
 def test_source_map_initial_context_is_compact_but_pages_restore_full_validated_items() -> None:
     source = _source(title="Primary")
     related = _source(title="Related")
@@ -2028,16 +2121,11 @@ def test_triage_source_set_payload_is_compact_and_preserves_workspace() -> None:
     assert "written_actions" not in source_set
     assert source_set["source_assessment_count"] == 1
     assert source_set["source_finding_count"] == 1
-    assert source_set["coverage_outcome_count"] == 1
+    assert "legacy_coverage_outcome_count" not in source_set
     assert payload["saved_state_previews"]["findings"][0]["statement"] == long_finding[:320]
     assert payload["saved_state_previews"]["findings"][0]["statement_omitted_chars"] == 1280
-    assert (
-        payload["saved_state_previews"]["question_outcomes"][0][
-            "orientation_summary_omitted_chars"
-        ]
-        == 880
-    )
-    assert "current_set_state" in payload["saved_state_previews"]["full_records"]
+    assert "legacy_question_outcomes" not in payload["saved_state_previews"]
+    assert "set_overview" in payload["saved_state_previews"]["full_records"]
     assert payload["capsule_previews"][0]["summary_hint_omitted_chars"] == 60
     assert payload["capsule_previews"][0]["windows"][0]["text_omitted_chars"] == 100
     assert workspace["source_sets"][0]["purpose"] == long_purpose
@@ -2143,12 +2231,7 @@ async def test_triage_set_agent_can_restore_full_durable_state(
     assert compact["set"]["purpose_omitted_chars"] == 200
     assert compact["saved_state_previews"]["findings"][0]["statement"] == finding_statement[:320]
     assert compact["saved_state_previews"]["findings"][0]["statement_omitted_chars"] == 1280
-    assert (
-        compact["saved_state_previews"]["question_outcomes"][0][
-            "orientation_summary_omitted_chars"
-        ]
-        == 1280
-    )
+    assert "legacy_question_outcomes" not in compact["saved_state_previews"]
 
     async def load(_db, _run_id):
         return workspace
@@ -2171,7 +2254,7 @@ async def test_triage_set_agent_can_restore_full_durable_state(
         {"section": "set_overview", "set_id": "set_1", "cursor": "0", "limit": 25}
     )
     question_page = await page_tool.handler(
-        {"section": "question_workbench", "question_id": "q1", "cursor": "0", "limit": 25}
+        {"section": "question_index", "cursor": "0", "limit": 25}
     )
     assessment_page = await page_tool.handler(
         {"section": "source_memory", "source_ref": "S01", "cursor": "0", "limit": 25}
@@ -2182,16 +2265,15 @@ async def test_triage_set_agent_can_restore_full_durable_state(
         "pending_exact_read_source_refs": [],
         "pending_comparison_source_refs": [],
         "stale_source_analysis_refs": [],
-        "required_question_ids": ["q1"],
+        "assigned_question_ids": ["q1"],
+        "cross_question_ids": [],
         "discovered_question_ids": [],
-        "missing_outcome_question_ids": [],
-        "stale_outcome_question_ids": [],
         "saved_source_analysis_count": 1,
         "source_read_receipt_count": 0,
         "latest_source_read_receipts": [],
         "saved_reading_note_count": 0,
         "saved_finding_count": 1,
-        "saved_outcome_count": 1,
+        "saved_coverage_hint_count": 0,
     }
     assert {item["item_kind"] for item in state_page["items"]} == {
         "source",
@@ -2200,7 +2282,7 @@ async def test_triage_set_agent_can_restore_full_durable_state(
     question_json = json.dumps(question_page, ensure_ascii=False)
     source_json = json.dumps(assessment_page, ensure_ascii=False)
     assert "q" * 280 in question_json
-    assert outcome_summary in question_json
+    assert outcome_summary not in question_json
     assert finding_statement in source_json
     assert all(evidence_id in source_json for evidence_id in evidence_ids)
     model_facing_tool_output("read_triage_set_state", state_page)
@@ -2264,18 +2346,18 @@ async def test_triage_set_resume_pages_restore_assigned_questions_and_only_own_r
     pager = next(tool for tool in tools if tool.name == "read_triage_set_state")
 
     current = await pager.handler({"section": "set_overview", "cursor": "0", "limit": 25})
-    assigned_questions = await pager.handler(
-        {"section": "question_memory", "question_id": "q2", "cursor": "0", "limit": 25}
+    question_index = await pager.handler(
+        {"section": "question_index", "cursor": "0", "limit": 25}
     )
     assessments = await pager.handler(
         {"section": "source_memory", "source_ref": "S02", "cursor": "0", "limit": 25}
     )
     foreign_set = await pager.handler(
-        {"section": "question_memory", "question_id": "q1", "set_id": "set_1", "cursor": "0", "limit": 1}
+        {"section": "source_memory", "source_ref": "S01", "set_id": "set_1", "cursor": "0", "limit": 1}
     )
 
     assert current["set_id"] == "set_2"
-    assert "Second full question" in json.dumps(assigned_questions, ensure_ascii=False)
+    assert "Second full question" in json.dumps(question_index, ensure_ascii=False)
     assert "set_2" in json.dumps(assessments, ensure_ascii=False)
     assert "set_1" not in json.dumps(assessments, ensure_ascii=False)
     assert foreign_set["accepted"] is False
@@ -2367,16 +2449,12 @@ async def test_targeted_repair_pages_old_records_until_replacements_exist(
         {"section": "coverage_outcomes", "cursor": "0", "limit": 3}
     )
 
-    assert old_assessment["items"][0]["repair_baseline"] is True
-    assert old_assessment["items"][0]["original_set_id"] == "wrong_set"
-    assert old_assessment["items"][0]["representation_reason"] == "Old useful assessment detail."
-    assert old_assessment["items"][1]["representation_reason"] == "Second old assessment detail."
-    assert [item["repair_baseline_version"] for item in old_assessment["items"]] == [1, 2]
-    assert old_outcome["items"][0]["repair_baseline"] is True
-    assert old_outcome["items"][0]["orientation_summary"] == "Old useful outcome detail."
-    assert old_outcome["items"][1]["orientation_summary"] == "Second old outcome detail."
-    assert [item["repair_baseline_version"] for item in old_outcome["items"]] == [1, 2]
-    assert old_outcome["items"][0]["source_refs"] == ["S01"]
+    assert old_assessment["accepted"] is True
+    assert "Old useful assessment detail." in json.dumps(old_assessment, ensure_ascii=False)
+    assert "Second old assessment detail." in json.dumps(old_assessment, ensure_ascii=False)
+    assert old_outcome["accepted"] is True
+    assert "Old useful outcome detail." in json.dumps(old_outcome, ensure_ascii=False)
+    assert "Second old outcome detail." in json.dumps(old_outcome, ensure_ascii=False)
 
     workspace["source_assessments"] = [
         {
@@ -2395,23 +2473,11 @@ async def test_targeted_repair_pages_old_records_until_replacements_exist(
             "orientation_summary": "Unfinished replacement.",
         }
     ]
-    unfinished_assessments = await pager.handler(
-        {"section": "source_assessments", "cursor": "0", "limit": 3}
-    )
-    unfinished_outcomes = await pager.handler(
-        {"section": "coverage_outcomes", "cursor": "0", "limit": 3}
+    unfinished_memory = await pager.handler(
+        {"section": "source_memory", "source_ref": "S01", "cursor": "0", "limit": 3}
     )
 
-    assert unfinished_assessments["items"][0]["processing_status"] == "needs_repair"
-    assert [
-        item["repair_baseline_version"]
-        for item in unfinished_assessments["items"][1:]
-    ] == [1, 2]
-    assert unfinished_outcomes["items"][0]["status"] == "needs_repair"
-    assert [
-        item["repair_baseline_version"]
-        for item in unfinished_outcomes["items"][1:]
-    ] == [1, 2]
+    assert "Unfinished replacement." in json.dumps(unfinished_memory, ensure_ascii=False)
 
     workspace["source_assessments"] = [
         {
@@ -2432,17 +2498,14 @@ async def test_targeted_repair_pages_old_records_until_replacements_exist(
         }
     ]
 
-    new_assessment = await pager.handler(
-        {"section": "source_assessments", "cursor": "0", "limit": 1}
-    )
-    new_outcome = await pager.handler(
-        {"section": "coverage_outcomes", "cursor": "0", "limit": 1}
+    new_memory = await pager.handler(
+        {"section": "source_memory", "source_ref": "S01", "cursor": "0", "limit": 1}
     )
 
-    assert new_assessment["items"][0]["representation_reason"] == "Replacement assessment."
-    assert "repair_baseline" not in new_assessment["items"][0]
-    assert new_outcome["items"][0]["orientation_summary"] == "Replacement outcome."
-    assert "repair_baseline" not in new_outcome["items"][0]
+    new_json = json.dumps(new_memory, ensure_ascii=False)
+    assert "Replacement assessment." in new_json
+    assert "Replacement outcome." not in new_json
+    assert "repair_baseline" not in new_json
 
 
 @pytest.mark.asyncio
@@ -2479,18 +2542,15 @@ async def test_large_legacy_question_list_is_read_only_through_pages(
     )
     pager = next(tool for tool in tools if tool.name == "read_triage_set_state")
 
-    current = await pager.handler({"section": "current_set", "cursor": "0", "limit": 1})
+    current = await pager.handler({"section": "set_overview", "cursor": "0", "limit": 1})
     first_page = await pager.handler(
         {"section": "assigned_questions", "cursor": "0", "limit": 3}
     )
 
     assert current["accepted"] is True
-    assert current["items"][0]["question_count"] == 30
-    assert "questions" not in current["items"][0]
-    assert first_page["accepted"] is True
-    assert first_page["items"][0]["question"] == questions[0]
-    assert first_page["page"]["total_count"] == 30
-    assert first_page["page"]["next_cursor"] == "3"
+    assert "questions" not in json.dumps(current, ensure_ascii=False)
+    assert first_page["accepted"] is False
+    assert first_page["error"] == "triage_workspace_section_not_available_to_agent"
 
 
 @pytest.mark.asyncio
@@ -2540,13 +2600,12 @@ async def test_many_assigned_questions_never_make_current_set_page_unreadable(
     )
     pager = next(tool for tool in tools if tool.name == "read_triage_set_state")
 
-    current = await pager.handler({"section": "current_set", "cursor": "0", "limit": 1})
+    current = await pager.handler({"section": "set_overview", "cursor": "0", "limit": 1})
     first_questions = await pager.handler(
-        {"section": "assigned_questions", "cursor": "0", "limit": 3}
+        {"section": "question_index", "cursor": "0", "limit": 3}
     )
 
     assert current["accepted"] is True
-    assert current["items"][0]["question_count"] == 10
     assert first_questions["accepted"] is True
     assert first_questions["page"]["total_count"] == 10
     assert first_questions["page"]["returned_count"] == 3

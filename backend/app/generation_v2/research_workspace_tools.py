@@ -381,12 +381,22 @@ def _model_safe_corpus_brief_item(
             relations.append(model_relation)
         payload["source_relations"] = relations
     source_ids = payload.pop("source_ids", [])
+    allowed_source_ids = payload.pop("allowed_source_ids", [])
     preferred_source_ids = payload.pop("preferred_source_ids", [])
+    candidate_source_ids = payload.pop("candidate_source_ids", [])
     if source_ids:
         payload["source_refs"] = [source_ref_for_id(source_id, context) for source_id in source_ids]
+    if allowed_source_ids:
+        payload["allowed_source_refs"] = [
+            source_ref_for_id(source_id, context) for source_id in allowed_source_ids
+        ]
     if preferred_source_ids:
         payload["preferred_source_refs"] = [
             source_ref_for_id(source_id, context) for source_id in preferred_source_ids
+        ]
+    if candidate_source_ids:
+        payload["candidate_source_refs"] = [
+            source_ref_for_id(source_id, context) for source_id in candidate_source_ids
         ]
     return _model_safe_value(payload, replacements=context.ref_by_source_id)
 

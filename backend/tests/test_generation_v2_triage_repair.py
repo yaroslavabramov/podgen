@@ -28,7 +28,10 @@ from app.generation_v2.source_triage_repair_state import (
 )
 from app.generation_v2.source_triage_workspace_repair import create_repair_sets_from_gate
 from app.generation_v2.source_triage_workspace_prompting import workspace_summary_for_prompt
-from app.generation_v2.source_triage_workspace_tools import _full_source_map_repair_page
+from app.generation_v2.source_triage_workspace_tools import (
+    _canonical_section_record_parts,
+    _full_source_map_repair_page,
+)
 
 
 def _inventory(count: int) -> SourceMap:
@@ -580,6 +583,88 @@ def test_v2_duplicate_assessments_are_rebuilt_in_their_existing_set() -> None:
     assert repaired["repair_baseline_source_assessments"][0]["repair_baseline"] is True
     assert repaired["source_sets"][0]["status"] == "planned"
     assert repaired["source_sets"][0]["repair_source_refs"] == ["S01"]
+
+
+def test_v2_targeted_source_repair_preserves_findings_and_hints_as_baseline() -> None:
+    inventory = _inventory(1)
+    workspace = {
+        "schema_version": "source_triage_workspace.v2",
+        "source_order": ["S01"],
+        "source_sets": [_set(1)],
+        "source_assessments": [
+            {
+                "source_ref": "S01",
+                "source_id": "source-1",
+                "set_id": "set_1",
+                "processing_status": "resolved",
+                "finding_ids": ["finding:s01:1"],
+                "evidence_ids": ["evidence-1"],
+            }
+        ],
+        "source_findings": [
+            {
+                "finding_id": "finding:s01:1",
+                "source_ref": "S01",
+                "source_id": "source-1",
+                "set_id": "set_1",
+                "statement": "Old source memory that repair must be able to inspect.",
+                "evidence_ids": ["evidence-1"],
+                "possible_question_ids": ["q_main"],
+            }
+        ],
+        "coverage_hints": [
+            {
+                "hint_id": "hint:s01:q_main",
+                "source_ref": "S01",
+                "set_id": "set_1",
+                "question_id": "q_main",
+                "candidate_finding_ids": ["finding:s01:1"],
+                "candidate_evidence_ids": ["evidence-1"],
+            }
+        ],
+        "coverage_outcomes": [],
+    }
+    gate = SourceTriageGate(
+        passed=False,
+        summary="Source assessment needs targeted repair.",
+        workspace_violations=[
+            {
+                "code": "inconsistent_source_assessment",
+                "message": "Assessment is invalid.",
+                "source_refs": ["S01"],
+            }
+        ],
+    )
+
+    repaired = create_repair_sets_from_gate(
+        workspace,
+        gate=gate,
+        inventory=inventory,
+        source_map=SourceMap(),
+    )
+
+    assert repaired["source_assessments"] == []
+    assert repaired["source_findings"] == []
+    assert repaired["coverage_hints"] == []
+    assert repaired["repair_baseline_source_findings"][0]["repair_baseline"] is True
+    assert repaired["repair_baseline_source_findings"][0]["statement"] == (
+        "Old source memory that repair must be able to inspect."
+    )
+    assert repaired["repair_baseline_coverage_hints"][0]["repair_baseline"] is True
+    assert repaired["repair_baseline_coverage_hints"][0]["candidate_finding_ids"] == ["finding:s01:1"]
+
+    finding_values, _finding_parts = _canonical_section_record_parts(
+        repaired,
+        section="source_findings",
+        current_set_id="set_1",
+    )
+    hint_values, _hint_parts = _canonical_section_record_parts(
+        repaired,
+        section="coverage_hints",
+        current_set_id="set_1",
+    )
+    assert finding_values[0]["repair_baseline"] is True
+    assert hint_values[0]["repair_baseline"] is True
 
 
 def test_v2_synthesis_failures_reserve_finalizer_only_repair() -> None:

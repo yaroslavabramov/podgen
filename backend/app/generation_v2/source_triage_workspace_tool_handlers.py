@@ -9,6 +9,9 @@ from app.generation_v2.schemas import SourceMap
 from app.generation_v2.source_triage_workspace_completion_handlers import (
     SourceTriageWorkspaceCompletionHandlersMixin,
 )
+from app.generation_v2.source_triage_workspace_coverage_hint_handlers import (
+    SourceTriageWorkspaceCoverageHintHandlersMixin,
+)
 from app.generation_v2.source_triage_workspace_finding_handlers import (
     SourceTriageWorkspaceFindingHandlersMixin,
 )
@@ -45,6 +48,7 @@ class SourceTriageWorkspaceToolHandlers(
     SourceTriageWorkspaceReadingHandlersMixin,
     SourceTriageWorkspaceReviewHandlersMixin,
     SourceTriageWorkspaceSourceAnalysisHandlersMixin,
+    SourceTriageWorkspaceCoverageHintHandlersMixin,
     SourceTriageWorkspaceFindingHandlersMixin,
     SourceTriageWorkspaceGroundingAuditHandlersMixin,
     SourceTriageWorkspaceOutcomeHandlersMixin,

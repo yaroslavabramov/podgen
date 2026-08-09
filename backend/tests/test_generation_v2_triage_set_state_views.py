@@ -9,7 +9,6 @@ import pytest
 
 from app.generation_v2.source_triage_model_delivery import (
     mark_runtime_delivery_receipts_delivered,
-    question_workbench_is_fully_delivered,
     semantic_review_receipt_ref,
     source_structure_coverage,
     stage_semantic_review_page,
@@ -263,8 +262,9 @@ def test_new_set_finding_invalidates_every_question_input_snapshot() -> None:
         != before[question_id]
         for question_id in ("q1", "q2")
     )
-    assert overview["state"]["stale_outcome_question_ids"] == ["q1", "q2"]
-    assert overview["state"]["missing_outcome_question_ids"] == ["q1", "q2"]
+    assert "stale_outcome_question_ids" not in overview["state"]
+    assert "missing_outcome_question_ids" not in overview["state"]
+    assert overview["state"]["saved_finding_count"] == 2
 
 
 def test_large_finding_catalog_item_is_losslessly_paged() -> None:
@@ -825,7 +825,7 @@ async def test_review_page_is_counted_only_after_provider_delivery(
 
 
 @pytest.mark.asyncio
-async def test_question_workbench_tool_stages_the_exact_model_visible_page(
+async def test_question_workbench_is_not_available_to_set_agent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.generation_v2 import source_triage_model_delivery as model_delivery
@@ -861,36 +861,13 @@ async def test_question_workbench_tool_stages_the_exact_model_visible_page(
         }
     )
 
-    assert payload["accepted"] is True
-    assert payload["workbench_receipt_ref"].startswith("workbench_receipt:")
-    assert payload["_runtime_receipt_delivery"] == {
-        "receipt_refs": [payload["workbench_receipt_ref"]]
-    }
-    delivery = workspace["source_triage_question_workbench_deliveries"][0]
-    assert delivery["receipt_ref"] == payload["workbench_receipt_ref"]
-    assert delivery["returned_count"] == payload["page"]["returned_count"]
-    assert question_workbench_is_fully_delivered(
-        workspace,
-        set_id="set-1",
-        question_id="q1",
-        snapshot_id=payload["workbench_snapshot_id"],
-    ) is False
-    acknowledged = await mark_runtime_delivery_receipts_delivered(
-        None,
-        generation_run_id="run-1",
-        receipt_refs=[payload["workbench_receipt_ref"]],
-    )
-    assert acknowledged == 1
-    assert question_workbench_is_fully_delivered(
-        workspace,
-        set_id="set-1",
-        question_id="q1",
-        snapshot_id=payload["workbench_snapshot_id"],
-    ) is True
+    assert payload["accepted"] is False
+    assert payload["error"] == "triage_workspace_section_not_available_to_agent"
+    assert "question_workbench" not in payload["allowed_sections"]
 
 
 @pytest.mark.asyncio
-async def test_finding_catalog_tool_reserves_receipt_space_before_paging(
+async def test_finding_list_is_available_without_catalog_delivery_gate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.generation_v2 import source_triage_workspace_tools as workspace_tools
@@ -921,7 +898,7 @@ async def test_finding_catalog_tool_reserves_receipt_space_before_paging(
 
     payload = await tool.handler(
         {
-            "section": "finding_catalog",
+            "section": "finding_list",
             "set_id": "set-1",
             "question_id": "",
             "source_ref": "",
@@ -931,9 +908,7 @@ async def test_finding_catalog_tool_reserves_receipt_space_before_paging(
     )
 
     assert payload["accepted"] is True
-    assert payload["finding_catalog_receipt_ref"].startswith(
-        "finding_catalog_receipt:"
-    )
+    assert "finding_catalog_receipt_ref" not in payload
     model_payload = {
         key: value
         for key, value in payload.items()

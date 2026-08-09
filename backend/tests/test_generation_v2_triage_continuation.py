@@ -381,12 +381,12 @@ async def test_stage_does_not_advance_to_next_set_after_set_failure(
     async def run_set(**kwargs):
         set_id = str(kwargs["source_set"]["set_id"])
         executed.append(set_id)
-        return SourceTriageCompletion(ready=False, summary=f"{set_id} did not finish.", notes=[])
+        return [SourceTriageCompletion(ready=False, summary=f"{set_id} did not finish.", notes=[])]
 
     monkeypatch.setattr(source_triage_stage, "build_workspace_tools", lambda **_kwargs: [])
     monkeypatch.setattr(source_triage_stage, "build_source_triage_planner_agent", planner)
     monkeypatch.setattr(source_triage_stage, "load_source_triage_workspace", load)
-    monkeypatch.setattr(source_triage_stage, "run_source_triage_set", run_set)
+    monkeypatch.setattr(source_triage_stage, "run_source_mapper_for_set", run_set)
     monkeypatch.setattr(source_triage_stage, "assert_step_not_stopped", _noop_stop_check)
 
     runner = source_triage_stage.SourceTriageStageRunner(
@@ -402,7 +402,7 @@ async def test_stage_does_not_advance_to_next_set_after_set_failure(
         workspace=deepcopy(stored),
     )
 
-    with pytest.raises(SourceTriageSetOperationalError):
+    with pytest.raises(source_triage_stage.SourceMapperOperationalError):
         await runner.run_planner_and_sets(context)
 
     assert executed == ["set-1"]

@@ -17,16 +17,18 @@ finalize_triage_workspace_plan."""
 
 
 TRIAGE_SET_RESUME_CONTRACT = """Continue only the current source set from fresh durable state.
-Restore set_overview (current_set_state is its compatibility alias) and unfinished_work, then open source_memory or
-question_workbench only for the relevant item and follow every page before resolving that question.
+Restore set_overview and unfinished_work, then open source_memory for the current source, question_index for
+question/requirement orientation, coverage_hints for saved hints, or finding_list only when needed.
 Execute persisted retries for pending reads and replay_required_after_activation before advancing beyond those ranges. Never recreate completed source
-analyses or outcomes. Continue under the original prompt and finish only through finish_triage_source_set."""
+analyses or hints. Do not answer coverage questions. Continue under the original prompt and finish only through
+finish_triage_source_set."""
 
 
 TRIAGE_FINALIZER_RESUME_CONTRACT = """Continue only the current source-triage finalization attempt.
-Treat fresh persisted questions, findings, outcomes, and map records as authoritative; page every section marked
-incomplete and never recreate accepted writes. Continue the unfinished finalization under the original prompt and
-finish only through finalize_source_map."""
+Treat fresh persisted questions, findings, coverage hints, and map records as authoritative; page every section marked
+incomplete and never recreate accepted writes. Do not answer coverage questions or create outcomes/syntheses.
+Continue the unfinished source-mapping finalization under the original prompt and finish only through
+finalize_source_map."""
 
 
 RESEARCH_PLANNER_RESUME_CONTRACT = """Continue editorial-research planning only.

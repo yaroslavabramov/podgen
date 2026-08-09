@@ -55,7 +55,7 @@ def coverage_finalization_payload(
     *,
     model_summary: str,
 ) -> dict[str, Any]:
-    """Build the lossless backend-owned question gap ledger for finalization."""
+    """Build backend-owned source-triage finalization metadata."""
 
     from app.generation_v2.source_triage_canonical import coverage_synthesis_input_hash
 
@@ -65,6 +65,21 @@ def coverage_finalization_payload(
     syntheses = [
         item for item in workspace.get("coverage_syntheses") or [] if isinstance(item, dict)
     ]
+    if not syntheses:
+        summary = str(model_summary or "")
+        return {
+            "ready": True,
+            "model_summary": summary,
+            "summary": summary,
+            "handoff_mode": "source_mapping",
+            "coverage_question_count": len(questions),
+            "source_finding_count": len(
+                [item for item in workspace.get("source_findings") or [] if isinstance(item, dict)]
+            ),
+            "coverage_hint_count": len(
+                [item for item in workspace.get("coverage_hints") or [] if isinstance(item, dict)]
+            ),
+        }
     question_ids = [str(item.get("question_id") or "").strip() for item in questions]
     synthesis_ids = [str(item.get("question_id") or "").strip() for item in syntheses]
     if (

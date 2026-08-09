@@ -40,7 +40,6 @@ from app.generation_v2.pipeline.source_triage_repair_context import (
 )
 from app.generation_v2.pipeline.source_triage_set_flow import (
     mark_source_triage_set_unfinished as _mark_source_triage_set_unfinished,
-    run_source_triage_set as _run_source_triage_set,
 )
 from app.generation_v2.pipeline.validation import (
     apply_forbidden_phrase_gate as _apply_forbidden_phrase_gate,
@@ -92,7 +91,6 @@ __all__ = [
     "_merge_source_cards",
     "_research_audit_target_steps",
     "_research_memo_evidence_ids",
-    "_run_source_triage_set",
     "_save_and_reload_workspace",
     "_save_claim_bundle",
     "_save_episode_critique_artifact",

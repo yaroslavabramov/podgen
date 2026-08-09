@@ -10,14 +10,8 @@ from sqlalchemy import select
 
 from app.database import async_session_factory
 from app.generation_v2.artifact_costs import summarize_tool_trace_costs
-from app.generation_v2.pipeline.source_triage_set_flow import run_source_triage_set
-from app.generation_v2.pipeline.source_triage_stage import SourceTriageStageRunner
-from app.generation_v2.agents.tool_sets import TRIAGE_SEMANTIC_EVAL_TOOL_NAMES
-from app.generation_v2.runtime import V2Runtime
-from app.generation_v2.source_corpus_run_view import load_current_run_corpus_view
 from app.generation_v2.source_triage_workspace import (
     load_source_triage_workspace,
-    save_source_triage_workspace,
 )
 from app.generation_v2.source_triage_workspace_state import (
     uncheckpointed_source_read_replays,
@@ -28,8 +22,6 @@ from app.generation_v2.source_triage_read_checkpointing import (
     source_refs_with_reads_newer_than_analysis,
 )
 from app.generation_v2.triage_eval_support import (
-    EvalBudgetExceeded,
-    EvalCostGuard,
     emit,
     execute_monitored_eval,
 )
@@ -37,13 +29,10 @@ from app.generation_v2.triage_semantic_eval_state import (
     build_semantic_eval_workspace,
     semantic_eval_evidence_ids,
 )
-from app.generation_v2.triage_semantic_eval_evidence import (
-    clone_semantic_evidence,
-    parsed_evidence_ids,
-)
+from app.generation_v2.triage_semantic_eval_evidence import parsed_evidence_ids
 from app.generation_v2.triage_semantic_eval_report import semantic_eval_report
 from app.models.generation_run import GenerationRun, GenerationStatus
-from app.models.generation_v2 import EvidenceItem, V2ToolTrace
+from app.models.generation_v2 import EvidenceItem
 
 
 TRIAGE_SEMANTIC_EVAL_MAX_COST_USD = 1.70
@@ -77,6 +66,16 @@ async def preflight_semantic_eval(
             issues.append("unknown question_ids: " + ", ".join(missing_questions))
         if source_set is not None:
             source_refs = {str(value) for value in source_set.get("source_refs") or []}
+            analysis_refs = {
+                str(item.get("source_ref") or "")
+                for item in workspace.get("source_analyses") or []
+                if isinstance(item, dict)
+                and str(item.get("source_ref") or "") in source_refs
+                and item.get("current") is not False
+                and item.get("accepted") is not False
+            }
+            if analysis_refs != source_refs:
+                issues.append("source-mapping eval requires one current SourceAnalysis for every source")
             assessed_refs = {
                 str(item.get("source_ref") or "")
                 for item in workspace.get("source_assessments") or []
@@ -135,6 +134,8 @@ async def run_semantic_eval(
     expected_question_statuses: dict[str, str],
     expected_requirement_statuses: dict[tuple[str, str], str],
     max_cost_usd: float,
+    expected_salient_facts: list[dict[str, Any]] | None = None,
+    expected_gaps: list[dict[str, Any]] | None = None,
     poll_seconds: float = 0.5,
 ) -> dict[str, Any]:
     if max_cost_usd <= 0 or max_cost_usd > TRIAGE_SEMANTIC_EVAL_MAX_COST_USD:
@@ -164,6 +165,8 @@ async def run_semantic_eval(
             question_ids=question_ids,
             expected_question_statuses=expected_question_statuses,
             expected_requirement_statuses=expected_requirement_statuses,
+            expected_salient_facts=expected_salient_facts or [],
+            expected_gaps=expected_gaps or [],
             max_cost_usd=max_cost_usd,
         ),
         max_cost_usd=max_cost_usd,
@@ -187,7 +190,7 @@ async def _clone_semantic_eval_run(
             "source_run_id": str(source_run_id),
             "set_id": set_id,
             "question_ids": list(question_ids),
-            "input_mode": "frozen_post_reading_state",
+            "input_mode": "source_analysis_postflight",
             "max_cost_usd": max_cost_usd,
         }
         run = GenerationRun(
@@ -199,7 +202,7 @@ async def _clone_semantic_eval_run(
             estimated_cost=source.estimated_cost,
             started_at=datetime.utcnow(),
             current_phase="v2_source_triage",
-            current_step="triage semantic eval: preparing frozen state",
+            current_step="triage semantic eval: source analysis postflight",
             progress_pct=0,
         )
         db.add(run)
@@ -223,97 +226,39 @@ async def _execute_semantic_eval(
     question_ids: list[str],
     expected_question_statuses: dict[str, str],
     expected_requirement_statuses: dict[tuple[str, str], str],
+    expected_salient_facts: list[dict[str, Any]],
+    expected_gaps: list[dict[str, Any]],
     max_cost_usd: float,
 ) -> dict[str, Any]:
     async with async_session_factory() as db:
         run = await db.get(GenerationRun, eval_run_id)
         if run is None:
             raise RuntimeError("Semantic evaluation run disappeared before execution")
-        runner = SourceTriageStageRunner(
-            run,
-            db,
-            V2Runtime(before_provider_call=EvalCostGuard(max_cost_usd=max_cost_usd)),
-        )
-        context = await runner.prepare_context()
-        source_view = await load_current_run_corpus_view(db, source_run_id)
-        if source_view is None:
-            raise RuntimeError("Source run has no pinned corpus view")
-        if context.corpus.run_view.manifest_hash != source_view.manifest_hash:
-            raise RuntimeError("Current project corpus differs from the frozen semantic eval corpus")
         source_workspace = await load_source_triage_workspace(db, source_run_id)
         if source_workspace is None:
             raise RuntimeError("Source run has no triage workspace")
-        raw_workspace = build_semantic_eval_workspace(
-            fresh_workspace=context.workspace,
-            source_workspace=source_workspace,
-            set_id=set_id,
-            question_ids=question_ids,
-        )
-        evidence_id_map = await clone_semantic_evidence(
-            db=db,
-            source_run_id=source_run_id,
-            target_run=run,
-            target_evidence_toolset=context.evidence_toolset,
-            evidence_ids=semantic_eval_evidence_ids(raw_workspace),
-        )
-        workspace = build_semantic_eval_workspace(
-            fresh_workspace=context.workspace,
-            source_workspace=source_workspace,
-            set_id=set_id,
-            question_ids=question_ids,
-            evidence_id_map=evidence_id_map,
-        )
-        await save_source_triage_workspace(
-            db,
-            generation_run_id=run.id,
-            workspace=workspace,
-        )
-        source_set = _workspace_set(workspace, set_id)
+        source_set = _workspace_set(source_workspace, set_id)
         if source_set is None:
-            raise RuntimeError("Prepared semantic eval set disappeared")
+            raise RuntimeError("Semantic eval set disappeared")
         emit(
             "semantic_state_ready",
             run_id=str(run.id),
             set_id=set_id,
             source_count=len(source_set.get("source_refs") or []),
-            finding_count=len(workspace.get("source_findings") or []),
-            evidence_count=len(evidence_id_map),
+            source_analysis_count=len(source_workspace.get("source_analyses") or []),
+            evidence_count=len(semantic_eval_evidence_ids(source_workspace)),
             question_ids=question_ids,
         )
-        completion = await run_source_triage_set(
-            run=run,
-            db=db,
-            runtime=runner.runtime,
-            corpus=context.corpus,
-            source_inventory=context.source_inventory,
-            workspace=workspace,
-            source_set=source_set,
-            allowed_tool_names=TRIAGE_SEMANTIC_EVAL_TOOL_NAMES,
-        )
-        workspace = await load_source_triage_workspace(db, run.id) or workspace
-        source_set = _workspace_set(workspace, set_id) or source_set
         cost = await summarize_tool_trace_costs(db, run.id)
-        observed_cost = float(cost["totals"].get("estimated_token_cost_usd") or 0.0)
-        if observed_cost > max_cost_usd:
-            raise EvalBudgetExceeded(
-                f"Semantic eval exceeded cost ceiling ${max_cost_usd:.2f} at ${observed_cost:.8f}"
-            )
-        traces = list(
-            (
-                await db.execute(
-                    select(V2ToolTrace)
-                    .where(V2ToolTrace.generation_run_id == run.id)
-                    .order_by(V2ToolTrace.created_at.asc())
-                )
-            ).scalars()
-        )
         report = semantic_eval_report(
-            workspace=workspace,
+            workspace=source_workspace,
             source_set=source_set,
-            traces=traces,
+            traces=[],
             question_ids=question_ids,
             expected_question_statuses=expected_question_statuses,
             expected_requirement_statuses=expected_requirement_statuses,
+            expected_salient_facts=expected_salient_facts,
+            expected_gaps=expected_gaps,
         )
         run.actual_cost = cost
         run.completed_at = datetime.utcnow()
@@ -329,7 +274,11 @@ async def _execute_semantic_eval(
         result = {
             "run_id": str(run.id),
             "set_id": set_id,
-            "completion": completion.model_dump(mode="json"),
+            "completion": {
+                "ready": report["passed"],
+                "summary": "No-model source-mapping semantic postflight.",
+                "notes": [],
+            },
             "cost": cost["totals"],
             "semantic_report": report,
         }
@@ -360,15 +309,77 @@ def _parse_mapping(values: list[str], *, label: str) -> dict[str, str]:
     return result
 
 
+def _parse_salient_facts(values: list[str]) -> list[dict[str, Any]]:
+    facts: list[dict[str, Any]] = []
+    for value in values:
+        parts = [part.strip() for part in value.split("|")]
+        if len(parts) == 4:
+            label, source_ref, question_id, terms = parts
+            requirement_id = ""
+        elif len(parts) == 5:
+            label, source_ref, question_id, requirement_id, terms = parts
+        else:
+            raise ValueError("--expect-salient-fact must use 4 or 5 pipe-separated fields")
+        required_terms = [term.strip() for term in terms.split(",") if term.strip()]
+        if not label or not source_ref or not question_id or not required_terms:
+            raise ValueError("--expect-salient-fact requires label, source_ref, question_id, and terms")
+        facts.append(
+            {
+                "label": label,
+                "source_ref": source_ref,
+                "question_id": question_id,
+                "requirement_id": requirement_id,
+                "required_terms": required_terms,
+            }
+        )
+    return facts
+
+
+def _parse_expected_gaps(values: list[str]) -> list[dict[str, Any]]:
+    gaps: list[dict[str, Any]] = []
+    for value in values:
+        parts = [part.strip() for part in value.split("|")]
+        if len(parts) != 4:
+            raise ValueError("--expect-gap must use label|source_ref|question_id|term1,term2")
+        label, source_ref, question_id, terms = parts
+        required_terms = [term.strip() for term in terms.split(",") if term.strip()]
+        if not label or not source_ref or not question_id or not required_terms:
+            raise ValueError("--expect-gap requires label, source_ref, question_id, and terms")
+        gaps.append(
+            {
+                "label": label,
+                "source_ref": source_ref,
+                "question_id": question_id,
+                "required_terms": required_terms,
+            }
+        )
+    return gaps
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run one triage set agent on frozen post-reading semantic state."
+        description="Run no-model source-mapping semantic postflight on persisted SourceAnalysis state."
     )
     parser.add_argument("--source-run-id", type=uuid.UUID, required=True)
     parser.add_argument("--set-id", required=True)
     parser.add_argument("--question-id", action="append", required=True)
     parser.add_argument("--expect-question-status", action="append", default=[])
     parser.add_argument("--expect-requirement-status", action="append", default=[])
+    parser.add_argument(
+        "--expect-salient-fact",
+        action="append",
+        default=[],
+        help=(
+            "Format: label|source_ref|question_id|term1,term2 or "
+            "label|source_ref|question_id|requirement_id|term1,term2"
+        ),
+    )
+    parser.add_argument(
+        "--expect-gap",
+        action="append",
+        default=[],
+        help="Format: label|source_ref|question_id|term1,term2",
+    )
     parser.add_argument("--max-cost-usd", type=float, default=TRIAGE_SEMANTIC_EVAL_MAX_COST_USD)
     parser.add_argument("--poll-seconds", type=float, default=0.5)
     parser.add_argument("--preflight-only", action="store_true")
@@ -391,6 +402,8 @@ def main() -> None:
         if not separator:
             raise SystemExit("--expect-requirement-status key must be question_id:requirement_id")
         expected_requirement_statuses[(question_id, requirement_id)] = status
+    expected_salient_facts = _parse_salient_facts(args.expect_salient_fact)
+    expected_gaps = _parse_expected_gaps(args.expect_gap)
     try:
         if args.preflight_only:
             result = asyncio.run(
@@ -408,6 +421,8 @@ def main() -> None:
                     question_ids=args.question_id,
                     expected_question_statuses=expected_question_statuses,
                     expected_requirement_statuses=expected_requirement_statuses,
+                    expected_salient_facts=expected_salient_facts,
+                    expected_gaps=expected_gaps,
                     max_cost_usd=args.max_cost_usd,
                     poll_seconds=max(0.1, args.poll_seconds),
                 )

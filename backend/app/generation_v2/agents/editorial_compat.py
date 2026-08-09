@@ -45,6 +45,7 @@ from app.generation_v2.agents.research_agents import (
 from app.generation_v2.agents.research_memo_agent import build_research_memo_ephemeral as _build_research_memo_ephemeral
 from app.generation_v2.agents.source_agents import (
     build_source_acquisition_agent,
+    build_source_mapper_agent,
     build_source_triage_finalizer_agent,
     build_source_triage_planner_agent,
     build_source_triage_set_agent,
@@ -119,6 +120,7 @@ __all__ = [
     "build_research_planner_agent",
     "build_research_workspace_tools",
     "build_source_acquisition_agent",
+    "build_source_mapper_agent",
     "build_source_triage_finalizer_agent",
     "build_source_triage_planner_agent",
     "build_source_triage_set_agent",

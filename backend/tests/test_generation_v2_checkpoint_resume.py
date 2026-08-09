@@ -274,7 +274,7 @@ def test_large_catalog_checkpoint_resumes_only_from_omitted_page() -> None:
     assert "complete catalog" not in instructions
 
 
-def test_finalizer_checkpoint_requires_missing_or_invalidated_syntheses_before_finalize() -> None:
+def test_finalizer_checkpoint_keeps_source_mapping_boundary_before_finalize() -> None:
     instructions = checkpoint_restart_instructions(
         {
             "phase": "v2_source_triage",
@@ -282,12 +282,13 @@ def test_finalizer_checkpoint_requires_missing_or_invalidated_syntheses_before_f
         }
     )
 
-    assert "coverage_question_packets" in instructions
     assert "Page every source_findings record" in instructions
-    assert "repair missing or unsupported links" in instructions
-    assert "refresh affected local outcomes" in instructions
-    assert "another set's findings close each local gap" in instructions
-    assert instructions.index("coverage_question_packets") < instructions.index("finalize_source_map")
+    assert "source-mapping links" in instructions
+    assert "Do not answer questions" in instructions
+    assert "local outcomes" in instructions
+    assert "write run-wide results" in instructions
+    assert "coverage_question_packets" not in instructions
+    assert instructions.index("source-mapping links") < instructions.index("finalize_source_map")
 
 
 def test_triage_resume_contracts_only_restore_technical_execution_state() -> None:
@@ -297,11 +298,13 @@ def test_triage_resume_contracts_only_restore_technical_execution_state() -> Non
 
     assert "fresh durable workspace pages" in planner_contract
     assert "never recreate accepted writes" in planner_contract
-    assert "current_set_state" in set_contract
+    assert "set_overview" in set_contract
     assert "pending reads" in set_contract
     assert "replay_required_after_activation" in set_contract
     assert "original prompt" in set_contract
-    assert "fresh persisted questions, findings, outcomes, and map records" in finalizer_contract
+    assert "fresh persisted questions, findings, coverage hints, and map records" in finalizer_contract
+    assert "Do not answer coverage questions" in finalizer_contract
+    assert "outcomes/syntheses" in finalizer_contract
     assert "original prompt" in finalizer_contract
     assert "every question/requirement link" not in set_contract
     assert "another set's findings close a local gap" not in finalizer_contract

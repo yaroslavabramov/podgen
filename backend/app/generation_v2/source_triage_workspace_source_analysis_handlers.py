@@ -19,6 +19,9 @@ from app.generation_v2.source_triage_workspace_handler_helpers import (
     semantic_json as _semantic_json,
 )
 from app.generation_v2.source_triage_workspace_state import invalidate_coverage_syntheses
+from app.generation_v2.source_triage_workspace_coverage_hint_handlers import (
+    retire_coverage_hints_for_source_analysis,
+)
 from app.generation_v2.source_triage_source_analysis_contract import (
     attach_evidence_previews,
     validate_reading_basis,
@@ -27,6 +30,12 @@ from app.generation_v2.source_triage_read_checkpointing import (
     clear_pending_comparison_read,
     clear_pending_exact_read,
     source_refs_with_reads_newer_than_analysis,
+)
+from app.generation_v2.source_triage_source_analysis_state import (
+    has_delivered_source_eof,
+    has_delivered_source_read,
+    has_source_representation_failure,
+    source_read_complete_from_backend,
 )
 from app.generation_v2.source_triage_passage_analysis import (
     normalize_passage_analysis_args,
@@ -42,6 +51,8 @@ from app.ingestion.web_quality import assess_web_fetch_health
 
 class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
     async def upsert_source_assessment_tool(self, args: dict[str, Any]) -> dict[str, Any]:
+        if "status" in args and "read_state" in args:
+            return await self._upsert_source_analysis_record(args)
         public_api = workspace_api
         current = await public_api.load_source_triage_workspace(self.db, self.run.id) or self.workspace
         set_id = str(
@@ -584,6 +595,7 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
                 grounding_audits.pop(finding_id, None)
             current["source_finding_grounding_audits"] = grounding_audits
             next_revision = int(current.get("triage_semantic_revision") or 0) + 1
+            current["triage_semantic_revision"] = next_revision
             for finding in findings:
                 finding["semantic_revision"] = next_revision
             affected_question_ids = {
@@ -619,10 +631,19 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
                 )
             ]
             current["source_findings"].extend(findings)
+            retired_coverage_hint_ids = retire_coverage_hints_for_source_analysis(
+                current,
+                set_id=set_id,
+                source_ref=source_ref,
+                reason="source_analysis_changed",
+            )
         elif analysis_mode:
             # Preserve existing revision/timestamps on a semantic no-op.
             findings = old_findings
             assessment["finding_ids"] = [str(item.get("finding_id") or "") for item in old_findings]
+            retired_coverage_hint_ids = []
+        else:
+            retired_coverage_hint_ids = []
         current["source_assessments"] = [
             item
             for item in current.get("source_assessments") or []
@@ -630,17 +651,20 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
         ]
         current["source_assessments"].append(assessment)
         if v3_analysis:
-            planned_question_ids = {
-                str(value)
-                for value in source_set.get("planned_question_ids", source_set.get("question_ids") or [])
-            }
-            source_set["question_ids"] = public_api._dedupe(
-                [*(source_set.get("question_ids") or []), *question_ids]
+            assigned_question_ids = public_api._dedupe(
+                [
+                    str(value)
+                    for value in source_set.get("assigned_question_ids", source_set.get("question_ids") or [])
+                    if str(value)
+                ]
             )
+            source_set["assigned_question_ids"] = assigned_question_ids
+            source_set["planned_question_ids"] = assigned_question_ids
+            source_set["question_ids"] = assigned_question_ids
             source_set["cross_question_ids"] = public_api._dedupe(
                 [
                     *(source_set.get("cross_question_ids") or []),
-                    *(question_id for question_id in question_ids if question_id not in planned_question_ids),
+                    *(question_id for question_id in question_ids if question_id not in set(assigned_question_ids)),
                 ]
             )
         clear_pending_exact_read(source_set, source_ref=source_ref)
@@ -666,17 +690,6 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
             )
         await public_api.save_source_triage_workspace(self.db, generation_run_id=self.run.id, workspace=current)
         pending_work = _pending_set_work(current, source_set)
-        invalidated_workbench_question_ids = (
-            public_api._dedupe(
-                [
-                    *pending_work.get("required_question_ids", []),
-                    *pending_work.get("missing_outcome_question_ids", []),
-                    *pending_work.get("stale_outcome_question_ids", []),
-                ]
-            )
-            if analysis_changed
-            else []
-        )
         return {
             "accepted": True,
             "source_ref": source_ref,
@@ -685,15 +698,410 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
             "disposition": values["disposition"],
             "finding_ids": list(assessment.get("finding_ids") or []),
             "analysis_changed": analysis_changed,
-            "invalidated_question_workbench_question_ids": invalidated_workbench_question_ids,
+            "retired_coverage_hint_ids": retired_coverage_hint_ids,
             "next_action": (
-                "Continue unresolved source work. If you already read any question_workbench for a listed "
-                "invalidated question, discard that old snapshot; after source work is done, reread the current "
-                "finding_catalog and the exact question_workbench before resolve_triage_question."
-                if invalidated_workbench_question_ids
-                else "Continue unresolved source work or resolve the current questions from fresh state."
+                "Continue source mapping. Add coverage hints for materially relevant questions, or read the next "
+                "unresolved source."
             ),
             **pending_work,
+        }
+
+    async def _upsert_source_analysis_record(self, args: dict[str, Any]) -> dict[str, Any]:
+        public_api = workspace_api
+        current = await public_api.load_source_triage_workspace(self.db, self.run.id) or self.workspace
+        set_id = str(
+            args.get("set_id") or self.current_set_id or (current.get("current_set") or {}).get("set_id") or ""
+        )
+        source_set = public_api._workspace_set(current, set_id)
+        if source_set is None:
+            return {"accepted": False, "error": "Unknown source triage set", "set_id": set_id}
+        source_ref = str(args.get("source_ref") or "").strip()
+        if source_ref not in {str(item) for item in source_set.get("source_refs") or []}:
+            return {
+                "accepted": False,
+                "error": "source_ref must belong to the current source set",
+                "source_ref": source_ref,
+            }
+        source_id = resolve_source_ref(source_ref, build_source_ref_context(self.inventory))
+        if not source_id:
+            return {"accepted": False, "error": "Unknown source_ref", "source_ref": source_ref}
+
+        status = str(args.get("status") or "").strip()
+        if status not in {"usable", "deferred", "not_target_content"}:
+            return {
+                "accepted": False,
+                "error": "status must be usable, deferred, or not_target_content",
+                "source_ref": source_ref,
+            }
+        status_reason = str(args.get("status_reason") or "").strip()
+        summary = str(args.get("summary") or "").strip()
+        if status != "usable" and not status_reason:
+            return {"accepted": False, "error": "deferred/not_target_content requires status_reason"}
+        if status == "usable" and not summary:
+            return {"accepted": False, "error": "usable source analysis requires summary"}
+        duplicate_of_source_ref = str(args.get("duplicate_of_source_ref") or "").strip()
+        duplicate_allowed = bool(
+            duplicate_of_source_ref
+            and _backend_duplicate_allowed(
+                current,
+                source_ref=source_ref,
+                duplicate_of_source_ref=duplicate_of_source_ref,
+            )
+        )
+        if duplicate_of_source_ref and not duplicate_allowed:
+            return {
+                "accepted": False,
+                "error": "duplicate_of_source_ref must come from backend exact-duplicate metadata",
+                "source_ref": source_ref,
+                "duplicate_of_source_ref": duplicate_of_source_ref,
+            }
+        representation_failure = has_source_representation_failure(
+            self.inventory,
+            source_id,
+            workspace=current,
+            set_id=set_id,
+            source_ref=source_ref,
+        )
+        source_limitations = [str(item).strip() for item in args.get("source_limitations") or [] if str(item).strip()]
+        list_error = semantic_list_error(
+            field="source_limitations",
+            values=source_limitations,
+            max_items=TRIAGE_LIMITATION_LIMIT,
+            item_limit=TRIAGE_SEMANTIC_FIELD_LIMITS["assessment_limitation"],
+        )
+        if list_error:
+            return list_error
+        field_error = semantic_field_error(
+            {
+                "status_reason": status_reason,
+                "source_summary": summary,
+            },
+            {
+                "status_reason": TRIAGE_SEMANTIC_FIELD_LIMITS["assessment_reason"],
+                "source_summary": TRIAGE_SEMANTIC_FIELD_LIMITS["findings_summary"],
+            },
+            ["status_reason", "source_summary"],
+        )
+        if field_error:
+            return field_error
+
+        read_state = args.get("read_state") if isinstance(args.get("read_state"), dict) else {}
+        model_claimed_complete = bool(read_state.get("complete"))
+        backend_read_complete = source_read_complete_from_backend(
+            current,
+            set_id=set_id,
+            source_ref=source_ref,
+            exact_duplicate=duplicate_allowed,
+            representation_failure=representation_failure and status == "deferred",
+        )
+        if model_claimed_complete and not backend_read_complete:
+            return {
+                "accepted": False,
+                "error": "read_state.complete requires delivered read_source EOF",
+                "source_ref": source_ref,
+                "next_action": "Continue read_source to eof, or set complete=false with unread_regions and stopping_reason.",
+            }
+        read_complete = model_claimed_complete
+        unread_regions = [str(item).strip() for item in read_state.get("unread_regions") or [] if str(item).strip()]
+        stopping_reason = str(read_state.get("stopping_reason") or "").strip()
+        if not read_complete and (not unread_regions or not stopping_reason):
+            return {
+                "accepted": False,
+                "error": "read_state.complete=false requires unread_regions and stopping_reason",
+                "source_ref": source_ref,
+            }
+        if status == "not_target_content" and not has_delivered_source_read(
+            current,
+            set_id=set_id,
+            source_ref=source_ref,
+        ):
+            return {
+                "accepted": False,
+                "error": "not_target_content requires a delivered read_source receipt",
+                "source_ref": source_ref,
+                "next_action": "Read enough target text with read_source, then save not_target_content with boundaries.",
+            }
+        if status == "deferred" and not (
+            has_delivered_source_read(current, set_id=set_id, source_ref=source_ref)
+            or representation_failure
+        ):
+            return {
+                "accepted": False,
+                "error": "deferred requires delivered read_source evidence or backend representation failure",
+                "source_ref": source_ref,
+                "next_action": "Use read_source if text exists; defer only when backend has no usable representation.",
+            }
+
+        known_leaf_question_ids = _leaf_question_ids(current)
+        raw_findings = args.get("findings") or []
+        if not isinstance(raw_findings, list):
+            return {"accepted": False, "error": "findings must be an array"}
+        if status != "usable" and raw_findings:
+            return {
+                "accepted": False,
+                "error": "deferred/not_target_content source analysis cannot contain findings",
+                "source_ref": source_ref,
+            }
+        findings: list[dict[str, Any]] = []
+        evidence_ids: list[str] = []
+        for index, raw_finding in enumerate(raw_findings):
+            if not isinstance(raw_finding, dict):
+                return {"accepted": False, "error": "Each finding must be an object", "finding_index": index}
+            statement = str(raw_finding.get("statement") or "").strip()
+            if not statement:
+                return {
+                    "accepted": False,
+                    "error": "Each finding requires a statement",
+                    "finding_index": index,
+                }
+            field_error = semantic_field_error(
+                {"finding_statement": statement},
+                TRIAGE_SEMANTIC_FIELD_LIMITS,
+                ["finding_statement"],
+            )
+            if field_error:
+                return field_error
+            finding_evidence_ids = public_api._dedupe(
+                [str(item) for item in raw_finding.get("evidence_ids") or [] if str(item).strip()]
+            )
+            finding_passage_refs = public_api._dedupe(
+                [str(item) for item in raw_finding.get("passage_refs") or [] if str(item).strip()]
+            )
+            if finding_passage_refs:
+                if self.evidence_toolset is None or not hasattr(
+                    self.evidence_toolset,
+                    "materialize_source_passages",
+                ):
+                    return {
+                        "accepted": False,
+                        "error": "source passage materialization is unavailable",
+                        "finding_index": index,
+                        "next_action": "Retry after read_source returned delivered passage_refs in this source mapping run.",
+                    }
+                passage_result = await self.evidence_toolset.materialize_source_passages(
+                    source_ref=source_ref,
+                    passage_refs=finding_passage_refs,
+                    allowed_read_kinds={"sequential"},
+                )
+                if not passage_result.get("accepted"):
+                    return {**passage_result, "finding_index": index}
+                finding_evidence_ids = public_api._dedupe(
+                    [
+                        *finding_evidence_ids,
+                        *[
+                            str(item)
+                            for item in passage_result.get("evidence_ids") or []
+                            if str(item).strip()
+                        ],
+                    ]
+                )
+            if not finding_evidence_ids:
+                return {
+                    "accepted": False,
+                    "error": "Each finding requires at least one evidence_id or passage_ref",
+                    "finding_index": index,
+                }
+            evidence_error = await self._validate_set_evidence_ids(
+                source_set=source_set,
+                evidence_ids=finding_evidence_ids,
+                required_source_id=source_id,
+                selection_purpose="source_mapping",
+                selection_role="triage_source_mapping",
+            )
+            if evidence_error:
+                return {**evidence_error, "finding_index": index}
+            blocked_evidence_ids = await self._blocked_shell_evidence_ids(finding_evidence_ids)
+            if blocked_evidence_ids:
+                return {
+                    "accepted": False,
+                    "error": "Shell/error/access-page evidence cannot support a source mapping finding",
+                    "finding_index": index,
+                    "invalid_evidence_ids": blocked_evidence_ids,
+                }
+            question_ids = public_api._dedupe(
+                [str(item) for item in raw_finding.get("question_ids") or [] if str(item).strip()]
+            )
+            invalid_question_ids = sorted(set(question_ids) - known_leaf_question_ids)
+            if invalid_question_ids:
+                return {
+                    "accepted": False,
+                    "error": "finding question_ids must be valid leaf question IDs",
+                    "finding_index": index,
+                    "invalid_question_ids": invalid_question_ids,
+                    "allowed_question_ids": sorted(known_leaf_question_ids),
+                }
+            limitations = [
+                str(item).strip() for item in raw_finding.get("limitations") or [] if str(item).strip()
+            ]
+            limitations_error = semantic_list_error(
+                field="finding_limitations",
+                values=limitations,
+                max_items=TRIAGE_LIMITATION_LIMIT,
+                item_limit=TRIAGE_SEMANTIC_FIELD_LIMITS["assessment_limitation"],
+            )
+            if limitations_error:
+                return limitations_error
+            finding_id = str(raw_finding.get("finding_id") or "").strip() or f"finding:{source_ref}:{index + 1}"
+            findings.append(
+                {
+                    "finding_id": finding_id,
+                    "source_ref": source_ref,
+                    "source_id": source_id,
+                    "source_version_ids": _source_version_ids(self.inventory, source_id),
+                    "assessment_id": f"analysis:{source_ref}",
+                    "statement": statement,
+                    "support_explanation": "",
+                    "evidence_ids": finding_evidence_ids,
+                    "passage_refs": finding_passage_refs,
+                    "scope": {"actor": "", "period": "", "geography": "", "qualifiers": []},
+                    "limitations": limitations,
+                    "possible_question_ids": question_ids,
+                    "question_links": [],
+                    "source_relations": [],
+                    "semantic_revision": int(current.get("triage_semantic_revision") or 0) + 1,
+                    "set_id": set_id,
+                    "created_at": public_api._now(),
+                    "updated_at": public_api._now(),
+                }
+            )
+            evidence_ids.extend(finding_evidence_ids)
+
+        raw_gaps = args.get("gaps") or []
+        if not isinstance(raw_gaps, list):
+            return {"accepted": False, "error": "gaps must be an array"}
+        gaps: list[dict[str, str]] = []
+        for index, raw_gap in enumerate(raw_gaps):
+            if not isinstance(raw_gap, dict):
+                return {"accepted": False, "error": "Each gap must be an object", "gap_index": index}
+            question_id = str(raw_gap.get("question_id") or "").strip()
+            if question_id not in known_leaf_question_ids:
+                return {
+                    "accepted": False,
+                    "error": "gap question_id must be a valid leaf question ID",
+                    "gap_index": index,
+                    "question_id": question_id,
+                    "allowed_question_ids": sorted(known_leaf_question_ids),
+                }
+            description = str(raw_gap.get("description") or "").strip()
+            if not description:
+                return {"accepted": False, "error": "Each gap requires description", "gap_index": index}
+            field_error = semantic_field_error(
+                {"gap_description": description},
+                {"gap_description": TRIAGE_SEMANTIC_FIELD_LIMITS["coverage_detail"]},
+                ["gap_description"],
+            )
+            if field_error:
+                return field_error
+            gaps.append({"question_id": question_id, "description": description})
+
+        evidence_ids = public_api._dedupe(evidence_ids)
+        if status == "usable" and not evidence_ids and not duplicate_allowed and raw_findings:
+            return {
+                "accepted": False,
+                "error": "usable source analysis requires evidence-backed findings unless it is a backend exact duplicate",
+                "source_ref": source_ref,
+            }
+        if status == "usable" and not findings and not duplicate_allowed and not status_reason:
+            return {
+                "accepted": False,
+                "error": "usable source analysis with no findings requires status_reason",
+                "source_ref": source_ref,
+                "next_action": "If the readable source has no salient material, save usable with empty findings and a concrete status_reason.",
+            }
+        selection_error = await self._select_validated_evidence_ids(
+            evidence_ids=evidence_ids,
+            purpose="source_mapping",
+            role="triage_source_mapping",
+            rationale="Persisted by source mapper save_source_analysis.",
+        )
+        if selection_error:
+            return selection_error
+
+        previous_current = [
+            item
+            for item in current.get("source_analyses") or []
+            if isinstance(item, dict) and str(item.get("source_ref") or "") == source_ref
+        ]
+        history = [dict(item, current=False) for item in previous_current]
+        if history:
+            current.setdefault("source_analysis_history", []).extend(history)
+        current["source_analyses"] = [
+            item
+            for item in current.get("source_analyses") or []
+            if not (isinstance(item, dict) and str(item.get("source_ref") or "") == source_ref)
+        ]
+        now = public_api._now()
+        analysis = {
+            "analysis_id": f"analysis:{source_ref}",
+            "source_ref": source_ref,
+            "source_id": source_id,
+            "source_version_ids": _source_version_ids(self.inventory, source_id),
+            "set_id": set_id,
+            "status": status,
+            "status_reason": status_reason,
+            "summary": summary,
+            "source_limitations": source_limitations,
+            "read_state": {
+                "complete": read_complete,
+                "unread_regions": unread_regions,
+                "stopping_reason": stopping_reason,
+                "backend_complete": backend_read_complete,
+                "backend_eof": has_delivered_source_eof(current, set_id=set_id, source_ref=source_ref),
+                "backend_representation_failure": bool(representation_failure),
+            },
+            "findings": [
+                {
+                    "finding_id": item["finding_id"],
+                    "statement": item["statement"],
+                    "evidence_ids": item["evidence_ids"],
+                    "question_ids": item["possible_question_ids"],
+                    "limitations": item["limitations"],
+                }
+                for item in findings
+            ],
+            "gaps": gaps,
+            "duplicate_of_source_ref": duplicate_of_source_ref,
+            "current": True,
+            "accepted": True,
+            "attempt": int(current.get("attempt") or 1),
+            "created_at": now,
+            "updated_at": now,
+        }
+        current["source_analyses"].append(analysis)
+
+        current["source_findings"] = [
+            item
+            for item in current.get("source_findings") or []
+            if not (isinstance(item, dict) and str(item.get("source_ref") or "") == source_ref)
+        ]
+        current["source_findings"].extend(findings)
+        assessment = _legacy_assessment_from_source_analysis(
+            analysis,
+            evidence_ids=evidence_ids,
+            current=current,
+        )
+        current["source_assessments"] = [
+            item
+            for item in current.get("source_assessments") or []
+            if not (isinstance(item, dict) and str(item.get("source_ref") or "") == source_ref)
+        ]
+        current["source_assessments"].append(assessment)
+        _sync_source_analysis_deferred_index(current, analysis)
+        current["triage_semantic_revision"] = int(current.get("triage_semantic_revision") or 0) + 1
+        clear_pending_exact_read(source_set, source_ref=source_ref)
+        clear_pending_comparison_read(source_set, source_ref=source_ref)
+        source_set["updated_at"] = public_api._now()
+        public_api._replace_workspace_set(current, source_set)
+        self._recompute_all_set_evidence_ids(current)
+        await public_api.save_source_triage_workspace(self.db, generation_run_id=self.run.id, workspace=current)
+        return {
+            "accepted": True,
+            "analysis_id": analysis["analysis_id"],
+            "source_ref": source_ref,
+            "status": status,
+            "finding_ids": [item["finding_id"] for item in findings],
+            "gap_count": len(gaps),
+            "next_action": "finish_source_mapping for this source, or read/save the next source.",
         }
 
     async def _blocked_shell_evidence_ids(self, evidence_ids: list[str]) -> list[str]:
@@ -1241,6 +1649,137 @@ def _derived_relevance(
     if findings:
         return "contextual"
     return "out_of_scope"
+
+
+def _leaf_question_ids(workspace: dict[str, Any]) -> set[str]:
+    questions = [item for item in workspace.get("coverage_questions") or [] if isinstance(item, dict)]
+    parent_ids = {
+        str(item.get("parent_question_id") or "")
+        for item in questions
+        if str(item.get("parent_question_id") or "").strip()
+    }
+    question_ids = {
+        str(item.get("question_id") or "")
+        for item in questions
+        if str(item.get("question_id") or "").strip()
+    }
+    leaves = question_ids - parent_ids
+    return leaves or question_ids
+
+
+def _source_version_ids(inventory: Any, source_id: str) -> list[str]:
+    card = next((item for item in inventory.source_cards if str(item.source_id) == source_id), None)
+    return list(getattr(card, "source_version_ids", []) or [])
+
+
+def _legacy_assessment_from_source_analysis(
+    analysis: dict[str, Any],
+    *,
+    evidence_ids: list[str],
+    current: dict[str, Any],
+) -> dict[str, Any]:
+    status = str(analysis.get("status") or "")
+    source_ref = str(analysis.get("source_ref") or "")
+    source_id = str(analysis.get("source_id") or "")
+    question_ids = workspace_api._dedupe(
+        [
+            str(question_id)
+            for finding in analysis.get("findings") or []
+            if isinstance(finding, dict)
+            for question_id in finding.get("question_ids") or []
+            if str(question_id).strip()
+        ]
+    )
+    usable = status == "usable"
+    deferred = status in {"deferred", "not_target_content"}
+    return {
+        "assessment_id": f"assessment:{source_id}",
+        "analysis_id": analysis.get("analysis_id"),
+        "set_id": analysis.get("set_id") or "",
+        "source_ref": source_ref,
+        "source_id": source_id,
+        "source_version_ids": list(analysis.get("source_version_ids") or []),
+        "processing_status": "resolved",
+        "representation_status": "readable" if usable else ("not_target_content" if status == "not_target_content" else "partial"),
+        "representation_reason": str(analysis.get("status_reason") or ""),
+        "relevance": "supporting" if question_ids else ("contextual" if usable else "unknown"),
+        "relevance_reason": "",
+        "authority": "unknown",
+        "authority_reason": "",
+        "uniqueness": "duplicate" if analysis.get("duplicate_of_source_ref") else "unknown",
+        "uniqueness_reason": "",
+        "duplicate_of_source_ref": analysis.get("duplicate_of_source_ref") or "",
+        "disposition": "supporting" if question_ids else ("background" if usable else "deferred"),
+        "disposition_reason": str(analysis.get("status_reason") or "") if deferred else "",
+        "coverage_question_ids": question_ids,
+        "editorial_functions": [],
+        "evidence_ids": workspace_api._dedupe(evidence_ids),
+        "finding_ids": [
+            str(item.get("finding_id") or "")
+            for item in analysis.get("findings") or []
+            if isinstance(item, dict) and str(item.get("finding_id") or "")
+        ],
+        "reading_basis": {
+            "coverage_summary": analysis.get("summary") or "",
+            "unread_regions": "; ".join((analysis.get("read_state") or {}).get("unread_regions") or []),
+            "stopping_reason": (analysis.get("read_state") or {}).get("stopping_reason") or "",
+        },
+        "question_dispositions": [],
+        "source_summary": analysis.get("summary") or "",
+        "no_findings_reason": "" if analysis.get("findings") else (analysis.get("status_reason") or "No findings saved."),
+        "limitations": list(analysis.get("source_limitations") or []),
+        "confidence": 0.5,
+        "semantic_revision": int(current.get("triage_semantic_revision") or 0) + 1,
+        "updated_at": workspace_api._now(),
+    }
+
+
+def _backend_duplicate_allowed(
+    workspace: dict[str, Any],
+    *,
+    source_ref: str,
+    duplicate_of_source_ref: str,
+) -> bool:
+    if not duplicate_of_source_ref or duplicate_of_source_ref == source_ref:
+        return False
+    metadata = workspace.get("exact_duplicate_sources") or {}
+    if isinstance(metadata, dict) and str(metadata.get(source_ref) or "") == duplicate_of_source_ref:
+        return True
+    for item in workspace.get("source_capsules") or {}:
+        capsule = (workspace.get("source_capsules") or {}).get(item)
+        if (
+            str(item) == source_ref
+            and isinstance(capsule, dict)
+            and str(capsule.get("duplicate_of_source_ref") or "") == duplicate_of_source_ref
+        ):
+            return True
+    return False
+
+
+def _sync_source_analysis_deferred_index(
+    workspace: dict[str, Any],
+    analysis: dict[str, Any],
+) -> None:
+    source_ref = str(analysis.get("source_ref") or "")
+    if not source_ref:
+        return
+    status = str(analysis.get("status") or "")
+    deferred = status in {"deferred", "not_target_content"}
+    existing = [
+        item
+        for item in workspace.get("deferred_sources") or []
+        if not (isinstance(item, dict) and str(item.get("source_ref") or "") == source_ref)
+    ]
+    if deferred:
+        existing.append(
+            {
+                "source_ref": source_ref,
+                "reason": str(analysis.get("status_reason") or "Source mapping deferred.").strip(),
+                "status": status,
+                "analysis_id": analysis.get("analysis_id") or "",
+            }
+        )
+    workspace["deferred_sources"] = existing
 
 
 __all__ = ["SourceTriageWorkspaceSourceAnalysisHandlersMixin"]

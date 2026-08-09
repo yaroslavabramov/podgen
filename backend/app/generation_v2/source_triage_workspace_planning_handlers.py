@@ -469,9 +469,7 @@ class SourceTriageWorkspacePlanningHandlersMixin:
             requested_requirement_ids = public_api._dedupe(
                 [str(item) for item in raw_assignment.get("requirement_ids") or [] if str(item).strip()]
             )
-            # Compatibility for old internal callers: question_ids means all
-            # requirements of the question. New model calls are explicit.
-            requirement_ids = requested_requirement_ids or sorted(known_requirement_ids)
+            requirement_ids = requested_requirement_ids
             unknown_requirement_ids = sorted(set(requirement_ids) - known_requirement_ids)
             if unknown_requirement_ids:
                 return {
@@ -479,12 +477,6 @@ class SourceTriageWorkspacePlanningHandlersMixin:
                     "error": "requirement_ids must belong to their assigned question",
                     "question_id": question_id,
                     "unknown_requirement_ids": unknown_requirement_ids,
-                }
-            if not requirement_ids and known_requirement_ids:
-                return {
-                    "accepted": False,
-                    "error": "Each question assignment must include at least one answer requirement",
-                    "question_id": question_id,
                 }
             question_assignments.append({"question_id": question_id, "requirement_ids": requirement_ids})
         question_ids = public_api._dedupe([str(item.get("question_id") or "") for item in question_assignments])
@@ -499,11 +491,6 @@ class SourceTriageWorkspacePlanningHandlersMixin:
                 "accepted": False,
                 "error": "question_ids must reference persisted coverage questions",
                 "unknown_question_ids": unknown_question_ids,
-            }
-        if not question_ids:
-            return {
-                "accepted": False,
-                "error": "Every source set must be attached to at least one persisted coverage question",
             }
         set_id = public_api._stable_set_id(
             str(args.get("set_id") or ""), label, len(current.get("source_sets") or []) + 1

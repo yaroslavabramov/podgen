@@ -144,11 +144,15 @@ class SourceTriageWorkspaceSupportHandlersMixin:
         cross_question_ids = [
             question_id for question_id in assessment_question_ids if question_id not in set(planned_question_ids)
         ]
-        previous_question_ids = {str(item) for item in source_set.get("question_ids") or []}
         source_set["planned_question_ids"] = planned_question_ids
+        source_set["assigned_question_ids"] = planned_question_ids
         source_set["cross_question_ids"] = cross_question_ids
-        source_set["question_ids"] = workspace_api._dedupe([*planned_question_ids, *cross_question_ids])
-        removed_question_ids = previous_question_ids - set(source_set["question_ids"])
+        source_set["question_ids"] = planned_question_ids
+        removed_question_ids = {
+            str(item.get("question_id") or "")
+            for item in workspace.get("coverage_outcomes") or []
+            if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
+        } - set(planned_question_ids)
         if removed_question_ids:
             workspace["coverage_outcomes"] = [
                 item

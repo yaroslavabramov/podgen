@@ -95,25 +95,25 @@ def checkpoint_restart_instructions(state: dict[str, Any]) -> str:
         if agent_name.startswith("source_triage_set_agent_"):
             return instructions + (
                 "Continue only the current source set. Restore complete durable memory through "
-                "read_triage_set_state sections set_overview, source_memory, question_workbench, and unfinished_work. "
+                "read_triage_set_state sections set_overview, source_memory, question_index, coverage_hints, "
+                "finding_list, and unfinished_work. "
                 "Continue only from "
                 "delivered read ranges. Execute the persisted retry arguments for pending text reads; retry pending "
                 "native attachments. Use source reads only for unfinished work and do not reread completed "
                 "source analyses. Save useful partial "
                 "understanding as a reading note, then save the completed source analysis with "
-                "save_source_analysis. Resolve every current question from its complete question_workbench with "
-                "resolve_triage_question. Do not write "
+                "save_source_analysis. Save source-specific coverage hints when a source materially informs a "
+                "question. Do not answer questions and do not write "
                 "cards, clusters, quotes, or global gaps. Call finish_triage_source_set only when all source analyses "
-                "and assigned or discovered question outcomes are current; status is mapped or deferred only."
+                "are current; status is mapped or deferred only."
             )
         if agent_name == "source_triage_finalizer_agent":
             return instructions + (
                 "Review only persisted triage state. Page every source_findings record and every coverage question; "
-                "repair missing or unsupported links, then refresh affected local outcomes. Read the complete "
-                "coverage_question_packets stream and write one run-wide result per requirement and question. Check "
-                "whether another set's findings close each local gap. Only afterward build useful SourceMap entries "
-                "and genuine global gaps. Read exact evidence only for a concrete conflict or doubtful causal link, "
-                "resolve open source-map repairs, then call finalize_source_map."
+                "repair missing or unsupported source-mapping links and relations. Do not answer questions, refresh "
+                "local outcomes, or write run-wide results. Build only useful SourceMap entries and source-map gaps. "
+                "Read exact evidence only for a concrete doubtful source-mapping link or relation, resolve open "
+                "source-map repairs, then call finalize_source_map."
             )
         return instructions + "Continue only with tools exposed to this agent role."
     if state.get("phase") == "v2_editorial_research":

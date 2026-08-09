@@ -84,6 +84,7 @@ def build_semantic_eval_workspace(
             ],
             "current_set": None,
             "processed_sets": [],
+            "coverage_hints": [],
             "coverage_outcomes": [],
             "coverage_syntheses": [],
             "source_triage_semantic_review_deliveries": [],
@@ -146,6 +147,7 @@ def _semantic_eval_set(
         {
             "status": "planned",
             "question_ids": list(question_ids),
+            "assigned_question_ids": list(question_ids),
             "planned_question_ids": list(question_ids),
             "cross_question_ids": [],
             # This harness tests complete question resolution, not the planner's

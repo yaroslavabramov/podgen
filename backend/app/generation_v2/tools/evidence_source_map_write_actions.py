@@ -701,17 +701,7 @@ async def finalize_source_map(owner: Any, args: dict[str, Any]) -> dict[str, Any
         load_source_triage_workspace,
         save_source_triage_workspace,
     )
-    from app.generation_v2.source_triage_workspace_state import (
-        WORKSPACE_SCHEMA_VERSION,
-        is_structured_triage_workspace,
-    )
-    from app.generation_v2.source_triage_workspace_tools import (
-        finalizer_review_stream_violations,
-    )
-    from app.generation_v2.source_triage_grounding_audit_state import (
-        current_grounding_audit_violations,
-    )
-
+    from app.generation_v2.source_triage_workspace_state import is_structured_triage_workspace
     workspace = await load_source_triage_workspace(owner.db, owner.run.id)
     if workspace and is_structured_triage_workspace(workspace):
         open_repairs = [
@@ -725,15 +715,8 @@ async def finalize_source_map(owner: Any, args: dict[str, Any]) -> dict[str, Any
                 "error": "source_map_repairs_open",
                 "repair_refs": open_repairs,
             }
-        review_violations = (
-            finalizer_review_stream_violations(workspace)
-            if str(workspace.get("schema_version") or "") == WORKSPACE_SCHEMA_VERSION
-            else []
-        )
         violations = [
-            *review_violations,
-            *current_grounding_audit_violations(workspace),
-            *canonical_workspace_violations(workspace, require_syntheses=True),
+            *canonical_workspace_violations(workspace, require_syntheses=False),
         ]
         if violations:
             return {

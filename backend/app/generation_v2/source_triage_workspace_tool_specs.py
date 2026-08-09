@@ -164,24 +164,6 @@ def source_triage_planner_tools(
                     "purpose": {"type": "string", "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["purpose"]},
                     "source_refs": {"type": "array", "items": {"type": "string"}},
                     "rationale": {"type": "string", "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["rationale"]},
-                    "question_assignments": {
-                        "type": "array",
-                        "minItems": 1,
-                        "description": "Use exactly one assignment object per question_id.",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "question_id": {"type": "string"},
-                                "requirement_ids": {
-                                    "type": "array",
-                                    "minItems": 1,
-                                    "items": {"type": "string"},
-                                },
-                            },
-                            "required": ["question_id", "requirement_ids"],
-                            "additionalProperties": False,
-                        },
-                    },
                     "priority": {"type": "string", "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["priority"]},
                 },
                 "required": [
@@ -189,7 +171,6 @@ def source_triage_planner_tools(
                     "purpose",
                     "source_refs",
                     "rationale",
-                    "question_assignments",
                     "priority",
                 ],
                 "additionalProperties": False,
@@ -200,8 +181,7 @@ def source_triage_planner_tools(
             name="finalize_triage_workspace_plan",
             description=(
                 "Mark the source-set plan complete. Every source_ref must belong to exactly one set, "
-                "every substantive coverage question must be assigned to a coverage set, and the central root "
-                "question must be declared. Source deferral is decided only after reading."
+                "and the central root question must be declared. Source deferral is decided only after reading."
             ),
             parameters={
                 "type": "object",
@@ -226,7 +206,7 @@ def source_triage_planner_tools(
 
 def source_triage_set_tools(
     save_source_analysis_handler: ToolHandler,
-    upsert_coverage_outcome_handler: ToolHandler,
+    save_coverage_hint_handler: ToolHandler,
     finish_triage_source_set_handler: ToolHandler,
     *,
     save_reading_note_handler: ToolHandler | None = None,
@@ -241,8 +221,9 @@ def source_triage_set_tools(
             allowed_source_refs=allowed_source_refs,
             allowed_question_ids=allowed_question_ids,
         ),
-        question_resolution_tool(
-            upsert_coverage_outcome_handler,
+        coverage_hint_tool(
+            save_coverage_hint_handler,
+            allowed_source_refs=allowed_source_refs,
             allowed_question_ids=allowed_question_ids,
         ),
     ]
@@ -250,8 +231,8 @@ def source_triage_set_tools(
         finish_triage_source_set_tool(
             finish_triage_source_set_handler,
             description=(
-                "Finish the current source set after every source analysis is saved and every assigned or discovered "
-                "question has a current finding-backed outcome."
+                "Finish the current source set after every source has a saved analysis, duplicate, or representation "
+                "deferral, and all delivered source reading has been reconciled into durable memory."
             ),
             terminal=True,
             terminal_resume_loader=terminal_resume_loader,
@@ -269,27 +250,200 @@ def source_triage_set_tools(
     return tools
 
 
+def source_mapper_tools(
+    save_source_analysis_handler: ToolHandler,
+    finish_source_mapping_handler: ToolHandler,
+    *,
+    allowed_source_refs: list[str] | None = None,
+    allowed_question_ids: list[str] | None = None,
+    terminal_resume_loader=None,
+) -> list[AgentTool]:
+    return [
+        source_mapper_analysis_tool(
+            save_source_analysis_handler,
+            allowed_source_refs=allowed_source_refs,
+            allowed_question_ids=allowed_question_ids,
+        ),
+        finish_source_mapping_tool(
+            finish_source_mapping_handler,
+            terminal_resume_loader=terminal_resume_loader,
+        ),
+    ]
+
+
+def source_mapper_analysis_tool(
+    handler: ToolHandler,
+    *,
+    allowed_source_refs: list[str] | None = None,
+    allowed_question_ids: list[str] | None = None,
+) -> AgentTool:
+    return AgentTool(
+        name="save_source_analysis",
+        description=(
+            "Persist the current accepted SourceAnalysis for exactly one source. This is source mapping only: "
+            "findings use question_ids as relevance tags, not coverage decisions. A readable but irrelevant source "
+            "may be saved as usable with empty findings and a concrete status_reason."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "source_ref": _bounded_id_schema(allowed_source_refs),
+                "status": {"type": "string", "enum": ["usable", "deferred", "not_target_content"]},
+                "status_reason": {
+                    "type": "string",
+                    "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["assessment_reason"],
+                },
+                "summary": {
+                    "type": "string",
+                    "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["findings_summary"],
+                },
+                "source_limitations": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["assessment_limitation"],
+                    },
+                },
+                "read_state": {
+                    "type": "object",
+                    "properties": {
+                        "complete": {"type": "boolean"},
+                        "unread_regions": {"type": "array", "items": {"type": "string"}},
+                        "stopping_reason": {"type": "string"},
+                    },
+                    "required": ["complete", "unread_regions", "stopping_reason"],
+                    "additionalProperties": False,
+                },
+                "findings": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "finding_id": {
+                                "type": "string",
+                                "description": "Optional stable ID. Leave empty unless replacing a known finding.",
+                            },
+                            "statement": {
+                                "type": "string",
+                                "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["finding_statement"],
+                            },
+                            "evidence_ids": {
+                                "type": "array",
+                                "uniqueItems": True,
+                                "items": {"type": "string"},
+                            },
+                            "passage_refs": {
+                                "type": "array",
+                                "uniqueItems": True,
+                                "items": {"type": "string", "minLength": 1},
+                                "description": (
+                                    "Stable passage_ref values returned by read_source. Backend turns them into "
+                                    "EvidenceItems without another model read."
+                                ),
+                            },
+                            "question_ids": {
+                                "type": "array",
+                                "uniqueItems": True,
+                                "items": _bounded_id_schema(allowed_question_ids),
+                            },
+                            "limitations": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["assessment_limitation"],
+                                },
+                            },
+                        },
+                        "required": [
+                            "statement",
+                            "evidence_ids",
+                            "passage_refs",
+                            "question_ids",
+                            "limitations",
+                        ],
+                        "additionalProperties": False,
+                    },
+                },
+                "gaps": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "question_id": _bounded_id_schema(allowed_question_ids),
+                            "description": {
+                                "type": "string",
+                                "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["coverage_detail"],
+                            },
+                        },
+                        "required": ["question_id", "description"],
+                        "additionalProperties": False,
+                    },
+                },
+                "duplicate_of_source_ref": {
+                    "type": "string",
+                    "description": (
+                        "Only copy a backend-provided exact duplicate source_ref, usually from read_source guidance. "
+                        "Leave empty otherwise."
+                    ),
+                },
+            },
+            "required": [
+                "source_ref",
+                "status",
+                "status_reason",
+                "summary",
+                "source_limitations",
+                "read_state",
+                "findings",
+                "gaps",
+                "duplicate_of_source_ref",
+            ],
+            "additionalProperties": False,
+        },
+        handler=handler,
+    )
+
+
+def finish_source_mapping_tool(
+    handler: ToolHandler,
+    *,
+    terminal_resume_loader=None,
+) -> AgentTool:
+    return AgentTool(
+        name="finish_source_mapping",
+        description="Finish mapping one source after save_source_analysis has been accepted for that source_ref.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "source_ref": {"type": "string"},
+                "summary": {
+                    "type": "string",
+                    "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["findings_summary"],
+                },
+            },
+            "required": ["source_ref", "summary"],
+            "additionalProperties": False,
+        },
+        handler=handler,
+        terminal=True,
+        terminal_result_builder=lambda arguments, _output: SourceTriageCompletion(
+            ready=True,
+            summary=str(arguments.get("summary") or "Source mapping persisted."),
+            notes=[],
+        ),
+        terminal_resume_loader=terminal_resume_loader,
+    )
+
+
 def source_triage_finalizer_tools(
-    finish_triage_source_set_handler: ToolHandler,
     update_source_finding_links_handler: ToolHandler,
     update_source_finding_relations_handler: ToolHandler,
-    upsert_coverage_outcome_handler: ToolHandler,
-    upsert_coverage_synthesis_handler: ToolHandler,
     *,
     audit_source_finding_handler: ToolHandler | None = None,
 ) -> list[AgentTool]:
     tools = [
         update_source_finding_links_tool(update_source_finding_links_handler),
         update_source_finding_relations_tool(update_source_finding_relations_handler),
-        coverage_outcome_tool(upsert_coverage_outcome_handler),
-        coverage_synthesis_tool(upsert_coverage_synthesis_handler),
-        finish_triage_source_set_tool(
-            finish_triage_source_set_handler,
-            description=(
-                "Finish a repaired source set only after all source analyses and current outcomes are complete."
-            ),
-            terminal=False,
-        ),
     ]
     if audit_source_finding_handler is not None:
         tools.insert(0, source_finding_grounding_audit_tool(audit_source_finding_handler))
@@ -814,6 +968,79 @@ def source_assessment_tool(handler: ToolHandler) -> AgentTool:
     )
 
 
+def coverage_hint_tool(
+    handler: ToolHandler,
+    *,
+    allowed_source_refs: list[str] | None = None,
+    allowed_question_ids: list[str] | None = None,
+) -> AgentTool:
+    return AgentTool(
+        name="save_coverage_hint",
+        description=(
+            "Persist a source-specific coverage hint for downstream synthesis/research. This is not a question "
+            "answer and has no covered/partial/missing status."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "hint_id": {
+                    "type": "string",
+                    "description": "Existing hint_id to replace, or empty to create an idempotent hint.",
+                },
+                "set_id": {"type": "string"},
+                "source_ref": _bounded_id_schema(allowed_source_refs),
+                "question_id": _bounded_id_schema(allowed_question_ids),
+                "requirement_ids": {
+                    "type": "array",
+                    "uniqueItems": True,
+                    "items": {"type": "string", "minLength": 1},
+                },
+                "candidate_finding_ids": {
+                    "type": "array",
+                    "uniqueItems": True,
+                    "items": {"type": "string", "minLength": 1},
+                },
+                "candidate_evidence_ids": {
+                    "type": "array",
+                    "uniqueItems": True,
+                    "items": {"type": "string", "minLength": 1},
+                },
+                "observed_gap": {
+                    "type": "string",
+                    "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["coverage_detail"],
+                    "description": "Source-specific uncovered material or limitation; not a corpus-wide absence.",
+                },
+                "conflict_signal": {
+                    "type": "string",
+                    "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["coverage_synthesis_detail"],
+                    "description": "Potential conflict this source creates for the question.",
+                },
+                "notes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["coverage_hint_note"],
+                    },
+                },
+            },
+            "required": [
+                "hint_id",
+                "set_id",
+                "source_ref",
+                "question_id",
+                "requirement_ids",
+                "candidate_finding_ids",
+                "candidate_evidence_ids",
+                "observed_gap",
+                "conflict_signal",
+                "notes",
+            ],
+            "additionalProperties": False,
+        },
+        handler=handler,
+    )
+
+
 def question_resolution_tool(
     handler: ToolHandler,
     *,
@@ -822,14 +1049,8 @@ def question_resolution_tool(
     return AgentTool(
         name="resolve_triage_question",
         description=(
-            "Resolve one question from the current question_workbench snapshot. This single write creates the "
-            "finding-to-requirement links and the local outcome; do not edit source analyses to pre-authorize "
-            "links. Read the current finding_catalog first. Write at evidence strength: answer_points contain only "
-            "bounded propositions directly stated by selected saved findings. Context, chronology, later operation, "
-            "later preservation, or formalization can support background only; it cannot answer a requested cause, "
-            "origin, permission, motive, or mechanism unless a selected finding states that link. Covered requires "
-            "direct support for both the requirement criterion and the full question text. Otherwise use partial or "
-            "missing, preserve the supported fragment, and name the missing link."
+            "Resolve one question from the current question_workbench snapshot. This write creates "
+            "finding-to-requirement links and the local outcome. Read the current finding_catalog first."
         ),
         parameters={
             "type": "object",
@@ -848,15 +1069,7 @@ def question_resolution_tool(
                             },
                             "answer_points": {
                                 "type": "array",
-                                "description": (
-                                    "Atomic answer propositions for this requirement. Use one item per bounded "
-                                    "fact, cause, mechanism, period, actor, or exception that will appear in the "
-                                    "outcome. Each point must be stated by the selected saved findings; if a "
-                                    "needed point comes from source text but is not yet a saved finding, update "
-                                    "that source analysis first. Do not make a point stronger than its linked "
-                                    "findings: use causal wording only when those findings state that causal "
-                                    "relation. Required for covered/partial/conflicted; [] for missing/deferred."
-                                ),
+                                "description": "Atomic answer propositions for this requirement.",
                                 "items": {
                                     "type": "object",
                                     "properties": {
@@ -864,18 +1077,13 @@ def question_resolution_tool(
                                             "type": "string",
                                             "minLength": 1,
                                             "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["requirement_summary"],
-                                            "description": (
-                                                "One bounded proposition. Do not combine independent facts that "
-                                                "could need different finding support."
-                                            ),
+                                            "description": "One bounded proposition.",
                                         },
                                         "finding_ids": {
                                             "type": "array",
                                             "minItems": 1,
                                             "uniqueItems": True,
-                                            "description": (
-                                                "Saved findings that directly establish this exact point."
-                                            ),
+                                            "description": "Saved finding ids supporting this point.",
                                             "items": {"type": "string", "minLength": 1},
                                         },
                                     },
@@ -885,26 +1093,12 @@ def question_resolution_tool(
                             },
                             "criterion_match_reason": {
                                 "type": "string",
-                                "description": (
-                                    "For covered, identify the exact proposition in the selected finding statements "
-                                    "that satisfies both the persisted completion criterion and the full question "
-                                    "text. If the explanation requires an actor, period, causal choice, motive, "
-                                    "mechanism, comparison, or scope absent from those statements, use partial and "
-                                    "state that missing link in unresolved_remainder. For partial, name the exact "
-                                    "scope or relation boundary and do not describe the incomplete result as an "
-                                    "explanation of the whole criterion. Do not introduce factual content that is "
-                                    "not already present in answer_points. "
-                                ),
+                                "description": "Status justification.",
                                 "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["requirement_closure_basis"],
                             },
                             "unresolved_remainder": {
                                 "type": "string",
-                                "description": (
-                                    "Empty for covered/deferred; required for partial or missing and optional for "
-                                    "conflicted when uncertainty remains beyond the stated conflict. Name the exact "
-                                    "unsupported proposition or connecting relation, not merely a desirable extra "
-                                    "source."
-                                ),
+                                "description": "Unsupported remainder for partial, missing, or conflicted.",
                                 "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["coverage_detail"],
                             },
                             "conflict_summary": {
@@ -1225,11 +1419,10 @@ def finish_triage_source_set_tool(
                     "type": "string",
                     "enum": ["mapped", "deferred"],
                     "description": (
-                        "Both statuses require completed source analyses and current outcomes. Use mapped when at "
-                        "least one source was mapped; keep deferred_reason empty and list any individually "
-                        "representation-deferred sources in deferred_sources. Use deferred only when every source "
-                        "assessment and every assigned question outcome is representation-deferred; provide a "
-                        "set-level deferred_reason."
+                        "Both statuses require completed source analyses. Use mapped when at least one source was "
+                        "mapped; keep deferred_reason empty and list any individually representation-deferred "
+                        "sources in deferred_sources. Use deferred only when every source assessment is deferred; "
+                        "provide a set-level deferred_reason."
                     ),
                 },
                 "summary": {"type": "string", "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["findings_summary"]},

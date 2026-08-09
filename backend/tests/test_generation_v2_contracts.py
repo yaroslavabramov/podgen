@@ -346,9 +346,6 @@ def test_all_triage_workspace_write_tools_compile_to_openai_function_schema() ->
         *source_triage_finalizer_tools(
             handler,
             handler,
-            handler,
-            handler,
-            handler,
             audit_source_finding_handler=handler,
         ),
     ]
@@ -388,15 +385,9 @@ def test_set_language_rule_lives_in_prompt_not_tool_schema() -> None:
         "Summarize the source's contribution after reading it."
     )
 
-    resolution_properties = next(tool.parameters for tool in tools if tool.name == "resolve_triage_question")[
-        "properties"
-    ]
-    point_schema = resolution_properties["requirement_results"]["items"]["properties"]["answer_points"]["items"][
-        "properties"
-    ]["point"]
-    assert point_schema["description"] == (
-        "One bounded proposition. Do not combine independent facts that could need different finding support."
-    )
+    hint_properties = next(tool.parameters for tool in tools if tool.name == "save_coverage_hint")["properties"]
+    assert "status" not in hint_properties
+    assert "answer_points" not in str(hint_properties)
 
 
 def test_set_prompt_has_one_plain_language_rule() -> None:
@@ -449,8 +440,9 @@ def test_set_write_tools_expose_only_current_source_and_question_ids() -> None:
     ]
     assert "enum" not in finding_properties["passage_refs"]["items"]
 
-    resolution_properties = by_name["resolve_triage_question"].parameters["properties"]
-    assert resolution_properties["question_id"]["enum"] == ["q-history", "q-mechanism"]
+    hint_properties = by_name["save_coverage_hint"].parameters["properties"]
+    assert hint_properties["source_ref"]["enum"] == ["S01", "S02"]
+    assert hint_properties["question_id"]["enum"] == ["q-history", "q-mechanism"]
 
 
 def test_function_call_parser_accepts_sdk_objects_and_dicts() -> None:
@@ -1954,13 +1946,15 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert "Triage one source set as one continuous agent" in SOURCE_TRIAGE_SET_PROMPT
     assert "read_source returns the actual text as lossless" in SOURCE_TRIAGE_SET_PROMPT
     assert "search_source is navigation only, not proof" in SOURCE_TRIAGE_SET_PROMPT
-    assert "save a reading note or the completed source analysis" in SOURCE_TRIAGE_SET_PROMPT
-    assert "Stop only when further reading" in SOURCE_TRIAGE_SET_PROMPT
-    assert "question_workbench" in SOURCE_TRIAGE_SET_PROMPT
-    assert "resolve_triage_question" in SOURCE_TRIAGE_SET_PROMPT
-    assert "There are no quotas for reads, findings, or evidence" in SOURCE_TRIAGE_SET_PROMPT
+    assert "save either a reading note or the completed source analysis" in SOURCE_TRIAGE_SET_PROMPT
+    assert "save_coverage_hint" in SOURCE_TRIAGE_SET_PROMPT
+    assert "question_workbench" not in SOURCE_TRIAGE_SET_PROMPT
+    assert "resolve_triage_question" not in SOURCE_TRIAGE_SET_PROMPT
+    assert "There are no quotas for reads, findings, evidence, or hints" in SOURCE_TRIAGE_SET_PROMPT
     assert "Finalize source triage" in SOURCE_TRIAGE_FINALIZER_PROMPT
-    assert "Page every coverage question and every source finding" in SOURCE_TRIAGE_FINALIZER_PROMPT
+    assert "do not page the whole catalog by default" in SOURCE_TRIAGE_FINALIZER_PROMPT
+    assert "Do not answer coverage questions" in SOURCE_TRIAGE_FINALIZER_PROMPT
+    assert "do not create run-wide outcomes or syntheses" in SOURCE_TRIAGE_FINALIZER_PROMPT
     assert "select_evidence" not in SOURCE_TRIAGE_PLANNER_PROMPT
     assert "select_evidence" not in SOURCE_TRIAGE_SET_PROMPT
     assert "select_evidence" not in SOURCE_TRIAGE_FINALIZER_PROMPT
@@ -4637,7 +4631,7 @@ async def test_source_triage_workflow_agents_have_stage_specific_tools() -> None
         "read_evidence",
         "save_reading_note",
         "save_source_analysis",
-        "resolve_triage_question",
+        "save_coverage_hint",
         "finish_triage_source_set",
     }
     assert "list_sources" not in _CaptureRuntime.calls[set_agent_name]
@@ -4659,10 +4653,8 @@ async def test_source_triage_workflow_agents_have_stage_specific_tools() -> None
             == settings.generation_v2_triage_compaction_threshold
         )
         assert kwargs["checkpoint_policy"] == AgentCheckpointPolicy(enabled=False)
-    outcome_tool = next(
-        tool for tool in set_agent_kwargs["local_tools"] if tool.name == "resolve_triage_question"
-    )
-    assert "next_action" not in outcome_tool.parameters["properties"]
+    hint_tool = next(tool for tool in set_agent_kwargs["local_tools"] if tool.name == "save_coverage_hint")
+    assert "status" not in hint_tool.parameters["properties"]
     assert set(_CaptureRuntime.calls["source_triage_finalizer_agent"]) == {
         "list_triage_source_sets",
         "read_evidence",
@@ -4679,10 +4671,7 @@ async def test_source_triage_workflow_agents_have_stage_specific_tools() -> None
         "update_source_finding_links",
         "update_source_finding_relations",
         "audit_source_finding",
-        "upsert_coverage_outcome",
-        "upsert_coverage_synthesis",
         "finalize_source_map",
-        "finish_triage_source_set",
     }
     finalizer_prompt = _CaptureRuntime.kwargs_by_agent["source_triage_finalizer_agent"]["prompt"]
     planner_prompt = _CaptureRuntime.kwargs_by_agent["source_triage_planner_agent"]["prompt"]
@@ -4756,16 +4745,10 @@ def test_source_triage_prompts_keep_causal_claims_inside_the_saved_evidence_boun
     assert "Do not infer causation from chronology" in SOURCE_TRIAGE_SYSTEM
     assert "connecting mechanism" in SOURCE_TRIAGE_SYSTEM
     assert "one actor's action succeeded" in SOURCE_TRIAGE_SYSTEM
-    assert "Write the outcome at evidence strength, not narrative strength" in SOURCE_TRIAGE_SET_PROMPT
-    assert "Chronology" in SOURCE_TRIAGE_SET_PROMPT
+    assert "Do not answer coverage questions" in SOURCE_TRIAGE_SET_PROMPT
+    assert "Separate what the source says from your interpretation" in SOURCE_TRIAGE_SET_PROMPT
     assert "actor, period, geography, qualifiers" in SOURCE_TRIAGE_SET_PROMPT
-    assert "must not be stronger than its linked findings" in SOURCE_TRIAGE_SET_PROMPT
-    assert "directly establish from context-only material and from the missing link" in SOURCE_TRIAGE_SET_PROMPT
-    assert "not a tentative answer to the whole criterion" in SOURCE_TRIAGE_SET_PROMPT
-    assert "different actor, period, or geography remains context" in SOURCE_TRIAGE_SET_PROMPT
-    assert "do not write that as why or how it originated" in SOURCE_TRIAGE_SET_PROMPT
-    assert "Stop only when further reading" in SOURCE_TRIAGE_SET_PROMPT
-    assert "Finish only after unfinished_work is empty" in SOURCE_TRIAGE_SET_PROMPT
+    assert "Finish only when unfinished_work is empty" in SOURCE_TRIAGE_SET_PROMPT
 
 
 def test_source_triage_prompts_preserve_qualified_scope_and_cross_question_support() -> None:
@@ -4773,15 +4756,14 @@ def test_source_triage_prompts_preserve_qualified_scope_and_cross_question_suppo
     finalizer_prompt = " ".join(SOURCE_TRIAGE_FINALIZER_PROMPT.split())
 
     assert "actor, period, geography, qualifiers" in set_prompt
-    assert "possible question relevance" in set_prompt
-    assert "Chronology" in set_prompt
-    assert "requested mechanism" in set_prompt
-    assert "requested cause or origin" in set_prompt
-    assert "Check each finding against the full question list" in finalizer_prompt
-    assert "Check whether findings from one set close a gap reported by another" in finalizer_prompt
-    assert "A local absence is not corpus-wide absence" in finalizer_prompt
-    assert "Reread exact source text only for a specific unresolved conflict" in finalizer_prompt
-    assert "inaccessible representations alone do not prove absence" in finalizer_prompt
+    assert "Possible question relevance is source-mapping metadata only" in set_prompt
+    assert "not an outcome obligation" in set_prompt
+    assert "do not page the whole catalog by default" in finalizer_prompt
+    assert "Do not promote candidate question leads into final requirement links" in finalizer_prompt
+    assert "valid for findings to remain candidate leads" in finalizer_prompt
+    assert "source-specific absence" in finalizer_prompt
+    assert "Read exact evidence only for a concrete doubtful finding link" in finalizer_prompt
+    assert "Source acquisition is not decided in triage" in finalizer_prompt
 
 
 def test_triage_finalizer_synthesis_tool_derives_lineage_in_backend() -> None:
@@ -4796,8 +4778,9 @@ def test_triage_finalizer_synthesis_tool_derives_lineage_in_backend() -> None:
     assert "source_refs" not in tool.parameters["required"]
     assert "evidence_ids" not in tool.parameters["required"]
     assert "backend derives" in tool.description.lower()
-    assert "reconcile a result for each semantic requirement" in SOURCE_TRIAGE_FINALIZER_PROMPT
-    assert "all durable findings" in SOURCE_TRIAGE_FINALIZER_PROMPT
+    assert "reconcile a run-wide result for each semantic requirement" not in SOURCE_TRIAGE_FINALIZER_PROMPT
+    assert "Do not write coverage outcomes" in SOURCE_TRIAGE_FINALIZER_PROMPT
+    assert "coverage_hints" in SOURCE_TRIAGE_FINALIZER_PROMPT
 
 
 def test_triage_coverage_tool_descriptions_match_the_semantic_workflow() -> None:
@@ -4836,19 +4819,16 @@ def test_question_resolution_tool_keeps_partial_answer_inside_supported_boundary
         "properties"
     ]
 
-    assert "Each point must be stated by the selected saved findings" in (
-        requirement_properties["answer_points"]["description"]
+    assert requirement_properties["answer_points"]["description"] == (
+        "Atomic answer propositions for this requirement."
     )
-    assert "Do not make a point stronger than its linked findings" in (
-        requirement_properties["answer_points"]["description"]
-    )
-    assert "Write at evidence strength" in tool.description
-    assert "later preservation, or formalization" in tool.description
-    assert "name the missing link" in tool.description
+    assert "Write at evidence strength" not in tool.description
+    assert "later preservation, or formalization" not in tool.description
+    assert "name the missing link" not in tool.description
+    assert "Do not answer coverage questions" in SOURCE_TRIAGE_SET_PROMPT
+    assert "coverage status" in SOURCE_TRIAGE_SET_PROMPT
     assert "finding_ids" not in requirement_properties
-    assert "do not describe the incomplete result as an explanation" in (
-        requirement_properties["criterion_match_reason"]["description"]
-    )
+    assert requirement_properties["criterion_match_reason"]["description"] == "Status justification."
 
 
 @pytest.mark.asyncio
@@ -5173,10 +5153,10 @@ def test_source_triage_workflow_prompts_describe_stage_contracts() -> None:
     assert "source belongs to exactly one set" in SOURCE_TRIAGE_PLANNER_PROMPT
     assert "semantic requirements of a complete answer" in SOURCE_TRIAGE_PLANNER_PROMPT
     assert "one continuous agent" in SOURCE_TRIAGE_SET_PROMPT
-    assert "save a reading note or the completed source analysis" in SOURCE_TRIAGE_SET_PROMPT
-    assert "resolve_triage_question writes links" in SOURCE_TRIAGE_SET_PROMPT
-    assert "the outcome" in SOURCE_TRIAGE_SET_PROMPT
-    assert "Page every coverage question and every source finding" in SOURCE_TRIAGE_FINALIZER_PROMPT
+    assert "save either a reading note or the completed source analysis" in SOURCE_TRIAGE_SET_PROMPT
+    assert "save_coverage_hint" in SOURCE_TRIAGE_SET_PROMPT
+    assert "Do not answer coverage questions" in SOURCE_TRIAGE_SET_PROMPT
+    assert "do not page the whole catalog by default" in SOURCE_TRIAGE_FINALIZER_PROMPT
     assert "update_source_finding_links" in SOURCE_TRIAGE_FINALIZER_PROMPT
     assert "update_source_finding_relations" in SOURCE_TRIAGE_FINALIZER_PROMPT
     assert "list_sources" not in SOURCE_TRIAGE_PLANNER_PROMPT
@@ -9425,6 +9405,7 @@ def _workspace_triage_tools() -> list[AgentTool]:
             "save_reading_note",
             "acknowledge_semantic_review",
             "save_source_analysis",
+            "save_coverage_hint",
             "resolve_triage_question",
             "update_source_finding_links",
             "update_source_finding_relations",

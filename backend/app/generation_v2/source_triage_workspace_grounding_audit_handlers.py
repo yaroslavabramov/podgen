@@ -169,7 +169,6 @@ class SourceTriageWorkspaceGroundingAuditHandlersMixin:
             "finding_id": finding_id,
             "verdict": verdict,
             "changed": changed,
-            "stale_outcome_question_ids": sorted(affected_question_ids) if changed else [],
         }
 
     async def _apply_narrowed_finding(

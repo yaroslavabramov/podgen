@@ -6,6 +6,7 @@ from typing import Any
 from app.generation_v2.model_facing_pagination import fit_model_page
 from app.generation_v2.model_facing_record_parts import composite_record_parts
 from app.generation_v2.source_triage_model_views import (
+    model_safe_coverage_hint,
     model_safe_coverage_outcome,
     model_safe_coverage_question,
     model_safe_reading_note,
@@ -19,7 +20,6 @@ from app.generation_v2.source_triage_question_state import (
     dependent_question_results,
     finding_catalog_snapshot_id,
     question_input_snapshot_id,
-    question_outcome_is_current,
 )
 from app.generation_v2.source_triage_question_references import known_question_id_error
 from app.generation_v2.source_triage_read_checkpointing import (
@@ -43,7 +43,7 @@ def set_overview_page(
     set_id = str(source_set.get("set_id") or "")
     assessments = _set_records(workspace, "source_assessments", set_id)
     findings = _set_records(workspace, "source_findings", set_id)
-    outcomes = _set_records(workspace, "coverage_outcomes", set_id)
+    hints = _set_records(workspace, "coverage_hints", set_id)
     receipts = [
         item
         for item in workspace.get("source_read_receipts") or []
@@ -54,23 +54,32 @@ def set_overview_page(
     findings_by_ref: dict[str, list[dict[str, Any]]] = {}
     for finding in findings:
         findings_by_ref.setdefault(str(finding.get("source_ref") or ""), []).append(finding)
-    outcomes_by_question = {str(item.get("question_id") or ""): item for item in outcomes}
     questions_by_id = {
         str(item.get("question_id") or ""): item
         for item in workspace.get("coverage_questions") or []
         if isinstance(item, dict)
     }
-    required_question_ids = [str(value) for value in source_set.get("question_ids") or []]
+    assigned_question_ids = [
+        str(value)
+        for value in source_set.get("assigned_question_ids", source_set.get("question_ids") or [])
+        if str(value)
+    ]
+    cross_question_ids = [str(value) for value in source_set.get("cross_question_ids") or [] if str(value)]
     discovered_question_ids = sorted(
-        {
+        ({
             str(link.get("question_id") or "")
             for finding in findings
             for link in finding.get("question_links") or []
             if isinstance(link, dict) and str(link.get("question_id") or "")
         }
-        - set(required_question_ids)
+        | {
+            str(hint.get("question_id") or "")
+            for hint in hints
+            if isinstance(hint, dict) and str(hint.get("question_id") or "")
+        })
+        - set(assigned_question_ids)
     )
-    question_ids = [*required_question_ids, *discovered_question_ids]
+    question_ids = [*assigned_question_ids, *discovered_question_ids]
     resolved_refs = {
         source_ref
         for source_ref, item in assessments_by_ref.items()
@@ -89,74 +98,32 @@ def set_overview_page(
                 "representation_status": (assessment or {}).get("representation_status"),
                 "disposition": (assessment or {}).get("disposition"),
                 "finding_count": len(findings_by_ref.get(ref, [])),
+                "coverage_hint_count": sum(1 for hint in hints if str(hint.get("source_ref") or "") == ref),
                 "next_action": "source_memory" if assessment is not None else "read_source",
             }
         )
     for question_id in question_ids:
         question = questions_by_id.get(question_id) or {}
-        outcome = outcomes_by_question.get(question_id)
-        dependent_ids = sorted(
-            str(item.get("question_id") or "")
-            for item in workspace.get("coverage_questions") or []
-            if isinstance(item, dict)
-            and str(item.get("parent_question_id") or "") == question_id
-            and str(item.get("question_id") or "") in set(question_ids)
-        )
-        pending_dependent_ids = [
-            dependent_id
-            for dependent_id in dependent_ids
-            if not question_outcome_is_current(
-                outcomes_by_question.get(dependent_id),
-                workspace=workspace,
-                source_set=source_set,
-                question_id=dependent_id,
-            )
-        ]
         items.append(
             {
                 "item_kind": "question",
                 "question_id": question_id,
                 "parent_question_id": question.get("parent_question_id"),
-                "status": (outcome or {}).get("status") or "missing_outcome",
-                "is_stale": not question_outcome_is_current(
-                    outcome,
-                    workspace=workspace,
-                    source_set=source_set,
-                    question_id=question_id,
-                ),
+                "role": "assigned" if question_id in set(assigned_question_ids) else "discovered_hint",
                 "linked_finding_count": sum(
                     1
                     for finding in findings
                     if _finding_supports_question(finding, question_id)
                 ),
-                "dependent_question_ids": dependent_ids,
-                "pending_dependent_question_ids": pending_dependent_ids,
-                "next_action": "question_workbench",
+                "coverage_hint_count": sum(
+                    1 for hint in hints if str(hint.get("question_id") or "") == question_id
+                ),
+                "next_action": "question_index",
             }
         )
     pending_exact_refs = pending_exact_read_source_refs(workspace, source_set=source_set)
     pending_comparison_refs = pending_comparison_source_refs(source_set)
     stale_analysis_refs = source_refs_with_reads_newer_than_analysis(workspace, set_id=set_id)
-    stale_outcome_ids = sorted(
-        question_id
-        for question_id, outcome in outcomes_by_question.items()
-        if not question_outcome_is_current(
-            outcome,
-            workspace=workspace,
-            source_set=source_set,
-            question_id=question_id,
-        )
-    )
-    missing_outcome_ids = [
-        question_id
-        for question_id in question_ids
-        if not question_outcome_is_current(
-            outcomes_by_question.get(question_id),
-            workspace=workspace,
-            source_set=source_set,
-            question_id=question_id,
-        )
-    ]
     page_items = items[cursor : cursor + limit]
     return fit_model_page(
         {
@@ -171,10 +138,9 @@ def set_overview_page(
                 "pending_exact_read_source_refs": pending_exact_refs,
                 "pending_comparison_source_refs": pending_comparison_refs,
                 "stale_source_analysis_refs": stale_analysis_refs,
-                "required_question_ids": required_question_ids,
+                "assigned_question_ids": assigned_question_ids,
+                "cross_question_ids": cross_question_ids,
                 "discovered_question_ids": discovered_question_ids,
-                "missing_outcome_question_ids": missing_outcome_ids,
-                "stale_outcome_question_ids": stale_outcome_ids,
                 "saved_source_analysis_count": len(assessments),
                 "source_read_receipt_count": len(receipts),
                 "latest_source_read_receipts": [
@@ -183,7 +149,7 @@ def set_overview_page(
                 ],
                 "saved_reading_note_count": len(reading_notes),
                 "saved_finding_count": len(findings),
-                "saved_outcome_count": len(outcomes),
+                "saved_coverage_hint_count": len(hints),
             },
             "items": page_items,
             "page": _page_metadata(total=len(items), cursor=cursor, returned=len(page_items)),
@@ -533,6 +499,115 @@ def question_workbench_page(
     )
 
 
+def question_index_page(
+    workspace: dict[str, Any],
+    source_set: dict[str, Any],
+    *,
+    cursor: int,
+    limit: int,
+) -> dict[str, Any]:
+    set_id = str(source_set.get("set_id") or "")
+    assigned_question_ids = {
+        str(value)
+        for value in source_set.get("assigned_question_ids", source_set.get("question_ids") or [])
+        if str(value)
+    }
+    hinted_question_ids = {
+        str(item.get("question_id") or "")
+        for item in workspace.get("coverage_hints") or []
+        if isinstance(item, dict)
+        and str(item.get("set_id") or "") == set_id
+        and str(item.get("question_id") or "")
+    }
+    finding_question_ids = {
+        str(link.get("question_id") or "")
+        for finding in _set_records(workspace, "source_findings", set_id)
+        for link in finding.get("question_links") or []
+        if isinstance(link, dict) and str(link.get("question_id") or "")
+    }
+    records: list[dict[str, Any]] = []
+    for question in workspace.get("coverage_questions") or []:
+        if not isinstance(question, dict):
+            continue
+        question_id = str(question.get("question_id") or "")
+        if not question_id:
+            continue
+        payload = model_safe_coverage_question(question)
+        payload["set_role"] = (
+            "assigned"
+            if question_id in assigned_question_ids
+            else "linked_or_hinted"
+            if question_id in hinted_question_ids or question_id in finding_question_ids
+            else "available"
+        )
+        records.extend(
+            _tag_parts(
+                composite_record_parts(
+                    payload,
+                    record_kind="coverage_question",
+                    owner_ref=f"question:{question_id}",
+                ),
+                "question_index_item",
+            )
+        )
+    return _parts_page(
+        section="question_index",
+        set_id=set_id,
+        records=records,
+        cursor=cursor,
+        limit=limit,
+        metadata={
+            "output_language": _output_language(workspace),
+            "question_count": len(
+                [item for item in workspace.get("coverage_questions") or [] if isinstance(item, dict)]
+            ),
+        },
+    )
+
+
+def coverage_hints_page(
+    workspace: dict[str, Any],
+    source_set: dict[str, Any],
+    *,
+    source_ref: str = "",
+    question_id: str = "",
+    cursor: int,
+    limit: int,
+) -> dict[str, Any]:
+    set_id = str(source_set.get("set_id") or "")
+    hints = [
+        item
+        for item in _set_records(workspace, "coverage_hints", set_id)
+        if (not source_ref or str(item.get("source_ref") or "") == source_ref)
+        and (not question_id or str(item.get("question_id") or "") == question_id)
+    ]
+    records = [
+        part
+        for hint in hints
+        for part in _tag_parts(
+            composite_record_parts(
+                model_safe_coverage_hint(hint),
+                record_kind="coverage_hint",
+                owner_ref=str(hint.get("hint_id") or "coverage_hint:unknown"),
+            ),
+            "coverage_hint",
+        )
+    ]
+    return _parts_page(
+        section="coverage_hints",
+        set_id=set_id,
+        records=records,
+        cursor=cursor,
+        limit=limit,
+        metadata={
+            "source_ref": source_ref,
+            "question_id": question_id,
+            "output_language": _output_language(workspace),
+            "hint_count": len(hints),
+        },
+    )
+
+
 def unfinished_work_page(
     workspace: dict[str, Any],
     source_set: dict[str, Any],
@@ -550,20 +625,6 @@ def unfinished_work_page(
         ("stale_source_analysis_refs", "source_analysis_stale"),
     ):
         items.extend({"work_kind": kind, "source_ref": str(value)} for value in state.get(field) or [])
-    for field, kind in (
-        ("missing_outcome_question_ids", "question_outcome_missing"),
-        ("stale_outcome_question_ids", "question_outcome_stale"),
-    ):
-        items.extend({"work_kind": kind, "question_id": str(value)} for value in state.get(field) or [])
-    for item in source_set.get("pending_discovered_question_attempts") or []:
-        if isinstance(item, dict):
-            items.append(
-                {
-                    "work_kind": "discovered_question_lineage_pending",
-                    "question_id": str(item.get("question_id") or ""),
-                    "source_refs": [str(value) for value in item.get("source_refs") or []],
-                }
-            )
     page_items = items[cursor : cursor + limit]
     return fit_model_page(
         {
@@ -690,7 +751,7 @@ def _set_records(workspace: dict[str, Any], field: str, set_id: str) -> list[dic
         key=lambda item: json.dumps(
             {
                 key: item.get(key)
-                for key in ("source_ref", "question_id", "finding_id", "note_id", "receipt_ref")
+                for key in ("source_ref", "question_id", "finding_id", "hint_id", "note_id", "receipt_ref")
             },
             sort_keys=True,
             default=str,
@@ -777,7 +838,9 @@ def _page_metadata(*, total: int, cursor: int, returned: int) -> dict[str, Any]:
 
 
 __all__ = [
+    "coverage_hints_page",
     "finding_catalog_page",
+    "question_index_page",
     "question_memory_page",
     "question_workbench_page",
     "question_workbench_signature",

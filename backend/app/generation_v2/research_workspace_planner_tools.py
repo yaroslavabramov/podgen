@@ -63,7 +63,7 @@ def research_planner_tool_handlers(
                 "error": "source_refs must exist in this research workspace",
                 "invalid_source_refs": invalid,
             }
-        allow_broad_search = bool(args.get("allow_broad_search"))
+        allow_broad_search = bool(args.get("allow_broad_search")) or bool(existing_job.get("allow_broad_search"))
         if not source_refs and not allow_broad_search:
             return {
                 "accepted": False,
@@ -130,8 +130,125 @@ def research_planner_tool_handlers(
             ),
             **({"coverage_question_ids": coverage_question_ids} if coverage_question_ids else {}),
             **(
+                {
+                    "corpus_handoff_question_assignments": list(
+                        existing_job.get("corpus_handoff_question_assignments") or []
+                    )
+                }
+                if existing_job.get("corpus_handoff_question_assignments")
+                else {}
+            ),
+            **(
+                {"corpus_handoff_finding_ids": list(existing_job.get("corpus_handoff_finding_ids") or [])}
+                if existing_job.get("corpus_handoff_finding_ids")
+                else {}
+            ),
+            **(
+                {
+                    "corpus_handoff_final_finding_ids": list(
+                        existing_job.get("corpus_handoff_final_finding_ids") or []
+                    )
+                }
+                if existing_job.get("corpus_handoff_final_finding_ids")
+                else {}
+            ),
+            **(
+                {
+                    "corpus_handoff_candidate_finding_ids": list(
+                        existing_job.get("corpus_handoff_candidate_finding_ids") or []
+                    )
+                }
+                if existing_job.get("corpus_handoff_candidate_finding_ids")
+                else {}
+            ),
+            **(
+                {
+                    "corpus_handoff_allowed_source_refs": list(
+                        existing_job.get("corpus_handoff_allowed_source_refs") or []
+                    )
+                }
+                if existing_job.get("corpus_handoff_allowed_source_refs")
+                else {}
+            ),
+            **(
+                {
+                    "corpus_handoff_preferred_source_refs": list(
+                        existing_job.get("corpus_handoff_preferred_source_refs") or []
+                    )
+                }
+                if existing_job.get("corpus_handoff_preferred_source_refs")
+                else {}
+            ),
+            **(
+                {
+                    "corpus_handoff_candidate_source_refs": list(
+                        existing_job.get("corpus_handoff_candidate_source_refs") or []
+                    )
+                }
+                if existing_job.get("corpus_handoff_candidate_source_refs")
+                else {}
+            ),
+            **(
+                {
+                    "corpus_handoff_candidate_evidence_ids": list(
+                        existing_job.get("corpus_handoff_candidate_evidence_ids") or []
+                    )
+                }
+                if existing_job.get("corpus_handoff_candidate_evidence_ids")
+                else {}
+            ),
+            **(
+                {
+                    "corpus_handoff_coverage_hint_ids": list(
+                        existing_job.get("corpus_handoff_coverage_hint_ids") or []
+                    )
+                }
+                if existing_job.get("corpus_handoff_coverage_hint_ids")
+                else {}
+            ),
+            **(
+                {"corpus_handoff_source_refs": list(existing_job.get("corpus_handoff_source_refs") or [])}
+                if existing_job.get("corpus_handoff_source_refs")
+                else {}
+            ),
+            **(
+                {"corpus_handoff_evidence_ids": list(existing_job.get("corpus_handoff_evidence_ids") or [])}
+                if existing_job.get("corpus_handoff_evidence_ids")
+                else {}
+            ),
+            **(
+                {"corpus_handoff_gaps": list(existing_job.get("corpus_handoff_gaps") or [])}
+                if existing_job.get("corpus_handoff_gaps")
+                else {}
+            ),
+            **(
                 {"corpus_brief_outcomes": list(existing_job.get("corpus_brief_outcomes") or [])}
                 if existing_job.get("corpus_brief_outcomes")
+                else {}
+            ),
+            **(
+                {"coverage_requirements": list(existing_job.get("coverage_requirements") or [])}
+                if existing_job.get("coverage_requirements")
+                else {}
+            ),
+            **(
+                {"open_requirements": list(existing_job.get("open_requirements") or [])}
+                if existing_job.get("open_requirements")
+                else {}
+            ),
+            **(
+                {"source_findings": list(existing_job.get("source_findings") or [])}
+                if existing_job.get("source_findings")
+                else {}
+            ),
+            **(
+                {"source_gaps": list(existing_job.get("source_gaps") or [])}
+                if existing_job.get("source_gaps")
+                else {}
+            ),
+            **(
+                {"source_cards": list(existing_job.get("source_cards") or [])}
+                if existing_job.get("source_cards")
                 else {}
             ),
             "label": label,

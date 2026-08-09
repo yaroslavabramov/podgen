@@ -197,7 +197,6 @@ class SourceTriageWorkspaceOutcomeHandlersMixin:
                 source_set["cross_question_ids"] = public_api._dedupe(
                     [*(source_set.get("cross_question_ids") or []), question_id]
                 )
-                source_set["question_ids"] = public_api._dedupe([*(source_set.get("question_ids") or []), question_id])
             else:
                 attempted_finding_ids = _outcome_argument_finding_ids(args)
                 current_set_finding_ids = [

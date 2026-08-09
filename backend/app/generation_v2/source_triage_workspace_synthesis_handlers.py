@@ -76,21 +76,6 @@ class SourceTriageWorkspaceSynthesisHandlersMixin:
                 "stale_outcome_refs": stale_outcome_refs,
                 "next_action": "Update the affected local outcomes from current findings first.",
             }
-        outcome_statuses = {str(item.get("status") or "") for item in question_outcomes}
-        if status == "missing" and outcome_statuses != {"missing"}:
-            return {
-                "accepted": False,
-                "error": "missing_synthesis_requires_all_set_outcomes_missing",
-                "outcome_statuses": sorted(outcome_statuses),
-            }
-        if status == "deferred" and (
-            "deferred" not in outcome_statuses or not outcome_statuses.issubset({"missing", "deferred"})
-        ):
-            return {
-                "accepted": False,
-                "error": "deferred_synthesis_cannot_discard_active_set_outcomes",
-                "outcome_statuses": sorted(outcome_statuses),
-            }
         requested_next_action = str(args.get("next_action") or "research").strip()
         if requested_next_action not in {"research", "source_acquisition", "omit", "none"}:
             return {"accepted": False, "error": "invalid next_action"}
@@ -110,23 +95,16 @@ class SourceTriageWorkspaceSynthesisHandlersMixin:
                 if isinstance(item, dict) and question_id in {str(value) for value in item.get("question_ids") or []}
             ]
             assigned_set_ids = {str(item.get("set_id") or "") for item in assigned_sets}
-            outcome_set_ids = {
-                str(item.get("set_id") or "")
-                for item in current.get("coverage_outcomes") or []
-                if isinstance(item, dict) and str(item.get("question_id") or "") == question_id
-            }
             unfinished_set_ids = sorted(
                 str(item.get("set_id") or "")
                 for item in assigned_sets
                 if str(item.get("status") or "") not in {"mapped", "deferred"}
             )
-            missing_outcome_set_ids = sorted(assigned_set_ids - outcome_set_ids)
-            if not assigned_set_ids or unfinished_set_ids or missing_outcome_set_ids:
+            if not assigned_set_ids or unfinished_set_ids:
                 return {
                     "accepted": False,
-                    "error": "source_acquisition_requires_all_assigned_set_outcomes",
+                    "error": "source_acquisition_requires_all_assigned_sets_finished",
                     "unfinished_set_ids": unfinished_set_ids,
-                    "missing_outcome_set_ids": missing_outcome_set_ids,
                 }
 
         active_outcomes = [
@@ -183,16 +161,14 @@ class SourceTriageWorkspaceSynthesisHandlersMixin:
                 for source_id in outcome.get("source_ids") or []
             ],
         } - {""}
-        allowed_source_refs = (
-            active_outcome_source_refs
-            if status in {"covered", "partial", "conflicted"}
-            else set(material_lineage["source_refs"])
-        )
+        allowed_source_refs = set(material_lineage["source_refs"])
+        if status in {"covered", "partial", "conflicted"} and active_outcome_source_refs:
+            allowed_source_refs.update(active_outcome_source_refs)
         unlinked_source_refs = sorted(set(source_refs) - allowed_source_refs)
         if unlinked_source_refs:
             return {
                 "accepted": False,
-                "error": "coverage synthesis sources must be attached to this question by an assessment, source set, or per-set outcome",
+                "error": "coverage synthesis sources must be attached to this question by an assessment, finding, hint, source set, or legacy outcome",
                 "invalid_source_refs": unlinked_source_refs,
             }
 
@@ -227,16 +203,14 @@ class SourceTriageWorkspaceSynthesisHandlersMixin:
             for evidence_id in outcome.get("evidence_ids") or []
             if str(evidence_id).strip()
         }
-        allowed_evidence_ids = (
-            active_outcome_evidence_ids
-            if status in {"covered", "partial", "conflicted"}
-            else set(material_lineage["evidence_ids"])
-        )
+        allowed_evidence_ids = set(material_lineage["evidence_ids"])
+        if status in {"covered", "partial", "conflicted"} and active_outcome_evidence_ids:
+            allowed_evidence_ids.update(active_outcome_evidence_ids)
         unreviewed_evidence_ids = sorted(set(evidence_ids) - allowed_evidence_ids)
         if unreviewed_evidence_ids:
             return {
                 "accepted": False,
-                "error": "coverage synthesis may use only evidence attached to this question by an assessment or per-set outcome",
+                "error": "coverage synthesis may use only evidence attached to this question by an assessment, finding, hint, or legacy outcome",
                 "invalid_evidence_ids": unreviewed_evidence_ids,
             }
 
@@ -300,13 +274,21 @@ class SourceTriageWorkspaceSynthesisHandlersMixin:
             return {"accepted": False, "error": "deferred synthesis requires deferred_reason"}
         if status == "deferred" and not any(
             isinstance(item, dict)
-            and str(item.get("question_id") or "") == question_id
-            and str(item.get("status") or "") == "deferred"
-            for item in current.get("coverage_outcomes") or []
+            and str(item.get("representation_status") or "") in {"partial", "not_target_content", "unreadable"}
+            and (
+                question_id in {str(value) for value in item.get("coverage_question_ids") or []}
+                or any(
+                    isinstance(hint, dict)
+                    and str(hint.get("question_id") or "") == question_id
+                    and str(hint.get("source_ref") or "") == str(item.get("source_ref") or "")
+                    for hint in current.get("coverage_hints") or []
+                )
+            )
+            for item in current.get("source_assessments") or []
         ):
             return {
                 "accepted": False,
-                "error": "deferred synthesis requires at least one representation-blocked per-set outcome",
+                "error": "deferred synthesis requires at least one representation-blocked source assessment linked to this question",
             }
         contradictory_fields = {
             "covered": [semantic_fields["missing_detail"], semantic_fields["deferred_reason"]],

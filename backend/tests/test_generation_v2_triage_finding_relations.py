@@ -222,7 +222,6 @@ async def test_finalizer_replaces_cross_set_relation_without_staling_coverage(
         "finding_id": "finding:S01:change",
         "changed": True,
         "relation_count": 1,
-        "stale_outcome_question_ids": [],
     }
     assert finding["source_relations"][0]["relationship"] == "updates"
     assert finding["source_relations"][0]["related_source_id"] == relation_state["source_ids"][1]
@@ -350,9 +349,6 @@ def test_relation_repair_tool_is_finalizer_only_and_has_one_atomic_job() -> None
         for tool in source_triage_set_tools(handler, handler, handler)
     }
     finalizer_tools = source_triage_finalizer_tools(
-        handler,
-        handler,
-        handler,
         handler,
         handler,
     )

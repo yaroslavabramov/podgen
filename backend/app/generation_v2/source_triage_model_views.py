@@ -289,6 +289,26 @@ def model_safe_source_finding(item: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def model_safe_coverage_hint(item: dict[str, Any]) -> dict[str, Any]:
+    payload = {
+        "hint_id": str(item.get("hint_id") or ""),
+        "set_id": str(item.get("set_id") or ""),
+        "source_ref": str(item.get("source_ref") or ""),
+        "question_id": str(item.get("question_id") or ""),
+        "requirement_ids": [str(value) for value in item.get("requirement_ids") or []],
+        "candidate_finding_ids": [str(value) for value in item.get("candidate_finding_ids") or []],
+        "candidate_evidence_ids": [str(value) for value in item.get("candidate_evidence_ids") or []],
+        "observed_gap": str(item.get("observed_gap") or ""),
+        "conflict_signal": str(item.get("conflict_signal") or ""),
+        "notes": [str(value) for value in item.get("notes") or []],
+        "created_at": item.get("created_at"),
+        "updated_at": item.get("updated_at"),
+    }
+    if item.get("repair_baseline"):
+        payload["repair_baseline"] = True
+    return payload
+
+
 def model_safe_coverage_outcome(
     item: dict[str, Any],
     *,
@@ -362,6 +382,7 @@ def model_safe_coverage_outcome(
 
 __all__ = [
     "model_safe_coverage_outcome",
+    "model_safe_coverage_hint",
     "model_safe_coverage_question",
     "model_safe_reading_basis",
     "model_safe_reading_note",

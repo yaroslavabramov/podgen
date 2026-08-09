@@ -14,6 +14,10 @@ from app.generation_v2.source_triage_model_delivery import (
     source_structure_receipt_ref,
     stage_source_structure_page,
 )
+from app.generation_v2.source_triage_source_analysis_state import (
+    clear_source_mapping_terminal_failure,
+    record_source_mapping_terminal_failure,
+)
 from app.generation_v2.source_triage_exact_duplicates import (
     exact_duplicate_predecessor,
 )
@@ -173,8 +177,11 @@ class EvidenceSourceToolsMixin:
         requested_source_ref = str(args.get("source_ref") or "").strip()
         if not requested_source_ref:
             return {"found": False, "error": "source_ref_required"}
+        requested_max_chars = args.get("max_chars")
+        if requested_max_chars is None:
+            requested_max_chars = SOURCE_NAVIGATION_READ_MAX_CHARS
         max_chars, size_error = _validated_int(
-            args.get("max_chars", SOURCE_NAVIGATION_READ_MAX_CHARS),
+            requested_max_chars,
             field="max_chars",
             minimum=SOURCE_NAVIGATION_READ_MIN_CHARS,
             maximum=SOURCE_NAVIGATION_READ_MAX_CHARS,
@@ -227,7 +234,18 @@ class EvidenceSourceToolsMixin:
         if not page["text"]:
             load_error = _owner_source_version_text_error_payload(self, version)
             if load_error:
+                await self._record_source_mapping_read_failure(
+                    source_ref=source_ref,
+                    error=str(load_error.get("error") or "source_has_no_readable_text"),
+                    reason=str(load_error.get("message") or load_error.get("next_action") or ""),
+                    retryable=bool(load_error.get("retryable")),
+                )
                 return {"found": False, "source_ref": source_ref, **load_error}
+            await self._record_source_mapping_read_failure(
+                source_ref=source_ref,
+                error="source_has_no_readable_text",
+                reason="Source version has no readable local text.",
+            )
             return {"found": False, "error": "Source version has no readable local text."}
         receipts = await self._persist_source_read_receipts(
             version=version,
@@ -509,14 +527,70 @@ class EvidenceSourceToolsMixin:
         )
         if source_set is None:
             return None
+        ordered_source_refs = [
+            str(value)
+            for value in (workspace or {}).get("source_order") or []
+            if str(value)
+        ]
+        if not ordered_source_refs:
+            ordered_source_refs = [str(value) for value in source_set.get("source_refs") or []]
         context_loader = getattr(self, "_source_ref_context", None)
         if not callable(context_loader):
             return None
-        return await exact_duplicate_predecessor(
+        exact_duplicate = await exact_duplicate_predecessor(
             self.db,
             ref_context=await context_loader(),
-            ordered_source_refs=[str(value) for value in source_set.get("source_refs") or []],
+            ordered_source_refs=ordered_source_refs,
             source_ref=source_ref,
+        )
+        if exact_duplicate:
+            workspace.setdefault("exact_duplicate_sources", {})[source_ref] = exact_duplicate["source_ref"]
+            await save_source_triage_workspace(
+                self.db,
+                generation_run_id=self.run.id,
+                workspace=workspace,
+            )
+        return exact_duplicate
+
+    async def _record_source_mapping_read_failure(
+        self,
+        *,
+        source_ref: str,
+        error: str,
+        reason: str = "",
+        retryable: bool = False,
+    ) -> None:
+        if retryable:
+            return
+        set_id = str(getattr(self, "triage_current_set_id", None) or "")
+        if not set_id or not source_ref or not error:
+            return
+        workspace = await load_source_triage_workspace(self.db, self.run.id)
+        if workspace is None:
+            return
+        source_set = next(
+            (
+                item
+                for item in workspace.get("source_sets") or []
+                if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
+            ),
+            None,
+        )
+        if source_set is None or source_ref not in {str(item) for item in source_set.get("source_refs") or []}:
+            return
+        record_source_mapping_terminal_failure(
+            workspace,
+            set_id=set_id,
+            source_ref=source_ref,
+            error=error,
+            reason=reason,
+            retryable=retryable,
+            created_at=workspace_now(),
+        )
+        await save_source_triage_workspace(
+            self.db,
+            generation_run_id=self.run.id,
+            workspace=workspace,
         )
 
     async def _persist_source_read_receipts(
@@ -561,6 +635,11 @@ class EvidenceSourceToolsMixin:
             if load_error:
                 return load_error
             return {"error": "source_has_no_readable_text"}
+        clear_source_mapping_terminal_failure(
+            workspace,
+            set_id=set_id,
+            source_ref=source_ref,
+        )
         content_sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
         existing = {
             str(item.get("receipt_ref") or ""): item

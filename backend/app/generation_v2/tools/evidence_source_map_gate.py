@@ -46,7 +46,7 @@ async def validate_source_map_gate(
     scope = scope_for_run_view(run_view)
     is_v2_workspace = is_structured_triage_workspace(triage_workspace)
     workspace_violations = (
-        canonical_workspace_violations(triage_workspace or {}, require_syntheses=True)
+        canonical_workspace_violations(triage_workspace or {}, require_syntheses=False)
         if is_v2_workspace
         else []
     )
@@ -248,7 +248,7 @@ async def validate_source_map_gate(
     if unresolved_refs:
         summary += " Every run source must be mapped or explicitly deferred."
     if workspace_violations:
-        summary += " Canonical source assessments or coverage outcomes are incomplete."
+        summary += " Canonical source-mapping workspace records are incomplete."
     if completion_not_ready:
         summary += " Source triage workflow did not complete durably."
     return SourceTriageGate(

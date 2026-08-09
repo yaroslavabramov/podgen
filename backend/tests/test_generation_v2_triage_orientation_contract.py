@@ -204,7 +204,7 @@ async def test_orientation_route_requires_explicit_single_source_capsule_reads_a
 
 
 @pytest.mark.asyncio
-async def test_regular_source_set_path_always_creates_coverage_and_still_requires_questions(
+async def test_regular_source_set_path_allows_routing_without_question_assignments(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     inventory, refs = _inventory(1)
@@ -222,14 +222,16 @@ async def test_regular_source_set_path_always_creates_coverage_and_still_require
         "priority": "normal",
     }
 
-    rejected = await upsert.handler({**common, "question_ids": []})
-    accepted = await upsert.handler({**common, "question_ids": ["q_root"]})
+    accepted = await upsert.handler({**common, "question_ids": []})
 
-    assert rejected["accepted"] is False
     assert accepted["accepted"] is True
     assert len(state["workspace"]["source_sets"]) == 1
-    assert state["workspace"]["source_sets"][0]["set_kind"] == "coverage"
+    saved_set = state["workspace"]["source_sets"][0]
+    assert saved_set["set_kind"] == "coverage"
+    assert saved_set["question_ids"] == []
+    assert saved_set["question_assignments"] == []
     assert "set_kind" not in upsert.parameters["properties"]
+    assert "question_assignments" not in upsert.parameters["properties"]
 
 
 @pytest.mark.asyncio
@@ -243,6 +245,7 @@ async def test_finalize_accepts_questionless_orientation_set_when_coverage_quest
         _question("q_root"),
         _question("q_detail", importance="supporting", parent_question_id="q_root"),
     ]
+    workspace["coverage_questions"][0]["answer_requirements"][0]["synthesis_only"] = True
     workspace["source_sets"] = [
         _source_set(
             "orientation_set",
@@ -250,12 +253,12 @@ async def test_finalize_accepts_questionless_orientation_set_when_coverage_quest
             source_refs=[refs[0]],
             question_ids=[],
         ),
-        _source_set(
-            "coverage_set",
-            set_kind="coverage",
-            source_refs=[refs[1]],
-            question_ids=["q_root", "q_detail"],
-        ),
+            _source_set(
+                "coverage_set",
+                set_kind="coverage",
+                source_refs=[refs[1]],
+                question_ids=["q_detail"],
+            ),
     ]
     state = _install_workspace_store(monkeypatch, workspace)
     finalize = _tools(inventory=inventory, workspace=workspace, mode="planner")[
@@ -272,7 +275,7 @@ async def test_finalize_accepts_questionless_orientation_set_when_coverage_quest
 
 
 @pytest.mark.asyncio
-async def test_finalize_requires_every_real_question_in_a_coverage_set(
+async def test_finalize_allows_leaf_question_without_set_assignment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     inventory, refs = _inventory(2)
@@ -282,6 +285,9 @@ async def test_finalize_requires_every_real_question_in_a_coverage_set(
         _question("q_root"),
         _question("q_unassigned", importance="supporting", parent_question_id="q_root"),
     ]
+    workspace["coverage_questions"][1]["answer_requirements"][0]["delegated_root_requirement_ids"] = [
+        "q_root:r_core"
+    ]
     workspace["source_sets"] = [
         _source_set(
             "orientation_set",
@@ -289,12 +295,12 @@ async def test_finalize_requires_every_real_question_in_a_coverage_set(
             source_refs=[refs[0]],
             question_ids=[],
         ),
-        _source_set(
-            "coverage_set",
-            set_kind="coverage",
-            source_refs=[refs[1]],
-            question_ids=["q_root"],
-        ),
+            _source_set(
+                "coverage_set",
+                set_kind="coverage",
+                source_refs=[refs[1]],
+                question_ids=[],
+            ),
     ]
     _install_workspace_store(monkeypatch, workspace)
     finalize = _tools(inventory=inventory, workspace=workspace, mode="planner")[
@@ -305,8 +311,7 @@ async def test_finalize_requires_every_real_question_in_a_coverage_set(
         {"summary": "Incomplete plan.", "central_question_id": "q_root"}
     )
 
-    assert result["accepted"] is False
-    assert result["unassigned_question_ids"] == ["q_unassigned"]
+    assert result["accepted"] is True
 
 
 @pytest.mark.asyncio
@@ -400,10 +405,10 @@ def test_source_set_prompt_payload_marks_orientation_work_without_inventing_ques
     source_set = source_set_prompt_payload(workspace, "orientation_set")["set"]
 
     assert source_set["set_kind"] == "orientation"
-    assert source_set["assigned_questions"] == []
     assert source_set["assigned_question_count"] == 0
-    assert source_set["required_question_ids"] == []
-    assert source_set["missing_outcome_question_ids"] == []
+    assert source_set["assigned_question_ids"] == []
+    assert "required_question_ids" not in source_set
+    assert "missing_outcome_question_ids" not in source_set
     assert "independently" in source_set["execution_goal"]
 
 
@@ -634,11 +639,11 @@ async def test_orientation_set_finishes_after_assessments_without_outcomes(
         item for item in state["workspace"]["source_sets"] if item["set_id"] == "orientation_set"
     )
     assert orientation_set["question_ids"] == []
-    assert orientation_set["outcome_question_ids"] == []
+    assert "outcome_question_ids" not in orientation_set
 
 
 @pytest.mark.asyncio
-async def test_orientation_cross_question_requires_an_outcome_before_finish(
+async def test_orientation_cross_question_is_linked_without_requiring_an_outcome_before_finish(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     inventory, refs = _inventory(2)
@@ -672,60 +677,12 @@ async def test_orientation_cross_question_requires_an_outcome_before_finish(
     assert assessment["accepted"] is True
     assert orientation_set["planned_question_ids"] == []
     assert orientation_set["cross_question_ids"] == ["q_root"]
-    assert rejected_finish["accepted"] is False
-    assert rejected_finish["missing_question_ids"] == ["q_root"]
-
-    catalog = await tools["read_triage_set_state"].handler(
-        {
-            "section": "finding_catalog",
-            "cursor": "0",
-            "limit": 25,
-        }
-    )
-    assert catalog["page"]["next_cursor"] == ""
-    for delivery in state["workspace"]["source_triage_finding_catalog_deliveries"]:
-        delivery["delivery_status"] = "delivered"
-    workbench = await tools["read_triage_set_state"].handler(
-        {
-            "section": "question_workbench",
-            "question_id": "q_root",
-            "cursor": "0",
-            "limit": 25,
-        }
-    )
-    assert workbench["page"]["next_cursor"] == ""
-    for delivery in state["workspace"]["source_triage_question_workbench_deliveries"]:
-        delivery["delivery_status"] = "delivered"
-    outcome = await tools["resolve_triage_question"].handler(
-        {
-            "question_id": "q_root",
-            "workbench_snapshot_id": workbench["workbench_snapshot_id"],
-            "requirement_results": [
-                {
-                    "requirement_id": "q_root:r_core",
-                    "status": "covered",
-                    "answer_points": [
-                        {
-                            "point": "The finding establishes the answer component.",
-                            "finding_ids": assessment["finding_ids"],
-                        }
-                    ],
-                    "criterion_match_reason": "The finding directly satisfies the criterion.",
-                    "unresolved_remainder": "",
-                    "conflict_summary": "",
-                    "deferred_reason": "",
-                }
-            ],
-        }
-    )
-    accepted_finish = await tools["finish_triage_source_set"].handler(_finish_args())
-
-    assert outcome["accepted"] is True
-    assert accepted_finish["accepted"] is True
+    assert rejected_finish["accepted"] is True
+    assert state["workspace"]["coverage_outcomes"] == []
 
 
 @pytest.mark.asyncio
-async def test_resolved_question_preserves_aggregate_longer_than_one_requirement(
+async def test_source_analysis_preserves_multi_requirement_question_links(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     inventory, refs = _inventory(2)
@@ -769,56 +726,12 @@ async def test_resolved_question_preserves_aggregate_longer_than_one_requirement
     assessment = await tools["save_source_analysis"].handler(analysis_args)
     assert assessment["accepted"] is True
 
-    catalog = await tools["read_triage_set_state"].handler(
-        {"section": "finding_catalog", "cursor": "0", "limit": 25}
-    )
-    assert catalog["page"]["next_cursor"] == ""
-    for delivery in state["workspace"]["source_triage_finding_catalog_deliveries"]:
-        delivery["delivery_status"] = "delivered"
-    workbench = await tools["read_triage_set_state"].handler(
-        {
-            "section": "question_workbench",
-            "question_id": "q_root",
-            "cursor": "0",
-            "limit": 25,
-        }
-    )
-    assert workbench["page"]["next_cursor"] == ""
-    for delivery in state["workspace"]["source_triage_question_workbench_deliveries"]:
-        delivery["delivery_status"] = "delivered"
-
-    first = "А" * 1000
-    second = "Б" * 1000
-    outcome = await tools["resolve_triage_question"].handler(
-        {
-            "question_id": "q_root",
-            "workbench_snapshot_id": workbench["workbench_snapshot_id"],
-            "requirement_results": [
-                {
-                    "requirement_id": requirement_id,
-                    "status": "covered",
-                    "answer_points": [
-                        {
-                            "point": answer,
-                            "finding_ids": assessment["finding_ids"],
-                        }
-                    ],
-                    "criterion_match_reason": "Находка прямо закрывает этот критерий.",
-                    "unresolved_remainder": "",
-                    "conflict_summary": "",
-                    "deferred_reason": "",
-                }
-                for requirement_id, answer in (
-                    ("q_root:r_first", first),
-                    ("q_root:r_second", second),
-                )
-            ],
-        }
-    )
-
-    assert outcome["accepted"] is True
-    stored = state["workspace"]["coverage_outcomes"][0]
-    assert stored["orientation_summary"] == f"{first}\n{second}"
+    stored = state["workspace"]["source_findings"][0]
+    assert stored["question_links"][0]["requirement_ids"] == [
+        "q_root:r_first",
+        "q_root:r_second",
+    ]
+    assert state["workspace"]["coverage_outcomes"] == []
 
 
 

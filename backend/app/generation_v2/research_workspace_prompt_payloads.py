@@ -288,6 +288,9 @@ def current_job_prompt_payload(
                 for link in item.get("question_links") or []
                 if isinstance(link, dict)
             ],
+            "possible_question_ids": [
+                str(value) for value in item.get("possible_question_ids") or []
+            ],
             "limitation_count": len(item.get("limitations") or []),
         }
         for item in source_findings[:12]
@@ -302,6 +305,11 @@ def current_job_prompt_payload(
         "story_job": job.get("story_job"),
         **_preview_fields("purpose", job.get("purpose") or "", SEMANTIC_FIELD_LIMITS["purpose"]),
         "source_refs": job.get("source_refs") or [],
+        "preferred_source_refs": job.get("corpus_handoff_preferred_source_refs") or [],
+        "candidate_source_refs": job.get("corpus_handoff_candidate_source_refs") or [],
+        "source_mapping_findings": job.get("source_findings") or [],
+        "source_mapping_gaps": job.get("source_gaps") or [],
+        "source_mapping_cards": job.get("source_cards") or [],
         "required_atom_kinds": job.get("required_atom_kinds") or [],
         "priority": job.get("priority"),
         "allow_broad_search": bool(job.get("allow_broad_search")),
@@ -335,6 +343,16 @@ def current_job_prompt_payload(
         "corpus_brief_lineage": {
             "handoff_question_assignments": job.get("corpus_handoff_question_assignments") or [],
             "handoff_finding_ids": job.get("corpus_handoff_finding_ids") or [],
+            "handoff_final_finding_ids": job.get("corpus_handoff_final_finding_ids") or [],
+            "handoff_candidate_finding_ids": job.get("corpus_handoff_candidate_finding_ids") or [],
+            "handoff_allowed_source_refs": job.get("corpus_handoff_allowed_source_refs") or [],
+            "handoff_preferred_source_refs": job.get("corpus_handoff_preferred_source_refs") or [],
+            "handoff_candidate_source_refs": job.get("corpus_handoff_candidate_source_refs") or [],
+            "handoff_candidate_evidence_ids": job.get("corpus_handoff_candidate_evidence_ids") or [],
+            "handoff_coverage_hint_ids": job.get("corpus_handoff_coverage_hint_ids") or [],
+            "handoff_source_refs": job.get("corpus_handoff_source_refs") or [],
+            "handoff_evidence_ids": job.get("corpus_handoff_evidence_ids") or [],
+            "handoff_gaps": job.get("corpus_handoff_gaps") or [],
             "outcomes": brief_outcome_previews,
             "coverage_requirement_previews": requirement_previews,
             "coverage_requirement_count": len(coverage_requirements),

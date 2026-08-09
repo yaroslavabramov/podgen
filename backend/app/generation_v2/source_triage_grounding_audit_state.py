@@ -57,8 +57,8 @@ def current_grounding_audit_violations(workspace: dict[str, Any]) -> list[dict[s
             "finding_ids_preview": sorted(missing)[:20],
             "omitted_finding_id_count": max(0, len(missing) - 20),
             "next_action": (
-                "Page source_findings; each returned record part carries grounding_audit_status. "
-                "Audit every pending finding, then refresh stale outcomes."
+                "Audit only findings whose grounding is actually doubtful, or remove the obsolete blanket-audit "
+                "requirement from this workspace."
             ),
         }
     ]

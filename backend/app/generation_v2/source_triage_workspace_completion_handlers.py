@@ -16,11 +16,140 @@ from app.generation_v2.source_triage_read_checkpointing import (
     pending_exact_read_source_refs,
     source_refs_with_reads_newer_than_analysis,
 )
-from app.generation_v2.source_triage_question_state import question_outcome_is_current
+from app.generation_v2.source_triage_source_analysis_state import (
+    has_source_representation_failure,
+    source_read_complete_from_backend,
+)
 from app.generation_v2.tools.evidence_refs import build_source_ref_context, resolve_source_ref
 
 
 class SourceTriageWorkspaceCompletionHandlersMixin:
+    async def finish_source_mapping_tool(self, args: dict[str, Any]) -> dict[str, Any]:
+        public_api = workspace_api
+        current = await public_api.load_source_triage_workspace(self.db, self.run.id) or self.workspace
+        set_id = str(
+            args.get("set_id") or self.current_set_id or (current.get("current_set") or {}).get("set_id") or ""
+        )
+        source_set = public_api._workspace_set(current, set_id)
+        if source_set is None:
+            return {"accepted": False, "error": "Unknown source triage set", "set_id": set_id}
+        source_ref = str(args.get("source_ref") or "").strip()
+        if source_ref not in {str(item) for item in source_set.get("source_refs") or []}:
+            return {
+                "accepted": False,
+                "error": "source_ref must belong to the current source set",
+                "source_ref": source_ref,
+            }
+        analysis = next(
+            (
+                item
+                for item in current.get("source_analyses") or []
+                if isinstance(item, dict)
+                and str(item.get("source_ref") or "") == source_ref
+                and item.get("current") is not False
+                and item.get("accepted") is not False
+            ),
+            None,
+        )
+        if analysis is None:
+            return {
+                "accepted": False,
+                "error": "source_mapping_requires_accepted_source_analysis",
+                "source_ref": source_ref,
+                "next_action": "Read the source and call save_source_analysis for this exact source_ref.",
+            }
+        status = str(analysis.get("status") or "")
+        duplicate_of_source_ref = str(analysis.get("duplicate_of_source_ref") or "")
+        if (
+            status == "usable"
+            and not analysis.get("findings")
+            and not duplicate_of_source_ref
+            and not str(analysis.get("status_reason") or "").strip()
+        ):
+            return {
+                "accepted": False,
+                "error": "usable source mapping with no findings requires status_reason",
+                "source_ref": source_ref,
+                "next_action": "Either save salient source facts as findings, or explain why the readable source has no salient material.",
+            }
+        read_state = analysis.get("read_state") if isinstance(analysis.get("read_state"), dict) else {}
+        source_id = str(analysis.get("source_id") or "")
+        backend_complete = source_read_complete_from_backend(
+            current,
+            set_id=set_id,
+            source_ref=source_ref,
+            exact_duplicate=bool(duplicate_of_source_ref),
+            representation_failure=(
+                status == "deferred"
+                and has_source_representation_failure(
+                    self.inventory,
+                    source_id,
+                    workspace=current,
+                    set_id=set_id,
+                    source_ref=source_ref,
+                )
+            ),
+        )
+        if bool(read_state.get("complete")) and not backend_complete:
+            return {
+                "accepted": False,
+                "error": "source_mapping_complete_not_backed_by_eof",
+                "source_ref": source_ref,
+                "next_action": "Resave source analysis after read_source reaches eof, or mark it incomplete with boundaries.",
+            }
+        if not bool(read_state.get("complete")) and (
+            not read_state.get("unread_regions") or not str(read_state.get("stopping_reason") or "").strip()
+        ):
+            return {
+                "accepted": False,
+                "error": "incomplete_read_state_requires_boundaries",
+                "source_ref": source_ref,
+                "next_action": "Resave source analysis with unread_regions and stopping_reason.",
+            }
+        mapped_sources = [
+            item
+            for item in current.get("mapped_sources") or []
+            if not (isinstance(item, dict) and str(item.get("source_ref") or "") == source_ref)
+        ]
+        mapped_sources.append(
+            {
+                "source_ref": source_ref,
+                "set_id": set_id,
+                "analysis_id": analysis.get("analysis_id"),
+                "status": status,
+                "updated_at": public_api._now(),
+            }
+        )
+        current["mapped_sources"] = mapped_sources
+        mapped_refs = {
+            str(item.get("source_ref") or "")
+            for item in mapped_sources
+            if isinstance(item, dict) and str(item.get("source_ref") or "")
+        }
+        if set(source_set.get("source_refs") or []).issubset(mapped_refs):
+            source_set["status"] = "mapped"
+            source_set["findings_summary"] = "Source mapping completed for all sources in this routing set."
+            source_set["updated_at"] = public_api._now()
+            public_api._replace_workspace_set(current, source_set)
+            processed = [item for item in current.get("processed_sets") or [] if item.get("set_id") != set_id]
+            processed.append(
+                {
+                    "set_id": set_id,
+                    "status": "mapped",
+                    "summary": source_set["findings_summary"],
+                    "updated_at": public_api._now(),
+                }
+            )
+            current["processed_sets"] = processed
+        await public_api.save_source_triage_workspace(self.db, generation_run_id=self.run.id, workspace=current)
+        return {
+            "accepted": True,
+            "source_ref": source_ref,
+            "set_id": set_id,
+            "status": status,
+            "analysis_id": analysis.get("analysis_id"),
+        }
+
     async def finish_triage_source_set_tool(self, args: dict[str, Any]) -> dict[str, Any]:
         public_api = workspace_api
         current = await public_api.load_source_triage_workspace(self.db, self.run.id) or self.workspace
@@ -52,7 +181,7 @@ class SourceTriageWorkspaceCompletionHandlersMixin:
             return {
                 "accepted": False,
                 "error": "status must be mapped or deferred",
-                "next_action": "Persist the unfinished source analyses and outcomes, then retry this terminal tool.",
+                "next_action": "Persist the unfinished source mapping records, then retry this terminal tool.",
             }
         uncheckpointed_reads = uncheckpointed_source_read_replays(current, set_id=set_id)
         pending_exact_refs = pending_exact_read_source_refs(current, source_set=source_set)
@@ -94,7 +223,7 @@ class SourceTriageWorkspaceCompletionHandlersMixin:
                 ],
                 "next_action": (
                     "Save durable reading notes where reading is still in progress, and resave the complete source "
-                    "analysis for every source with newer exact or comparison material. Then refresh stale outcomes."
+                    "analysis for every source with newer exact or comparison material."
                 ),
             }
         summary = str(args.get("summary") or "").strip()
@@ -150,93 +279,11 @@ class SourceTriageWorkspaceCompletionHandlersMixin:
                 "source_refs": unfinished_assessment_refs,
                 "next_action": "Complete and persist these source analyses, then retry finish_triage_source_set.",
             }
-        pending_discovered_attempts = [
-            item
-            for item in source_set.get("pending_discovered_question_attempts") or []
-            if isinstance(item, dict) and str(item.get("question_id") or "")
-        ]
-        if pending_discovered_attempts:
-            return {
-                "accepted": False,
-                "error": "Rejected discovered-question lineage attempts still need a durable correction",
-                "pending_question_attempts": [
-                    {
-                        "question_id": str(item.get("question_id") or ""),
-                        "requirement_ids": [str(value) for value in item.get("requirement_ids") or []],
-                        "finding_ids": [str(value) for value in item.get("finding_ids") or []],
-                        "source_refs": [str(value) for value in item.get("source_refs") or []],
-                        "unreviewed_source_refs": sorted(
-                            {str(value) for value in item.get("source_refs") or []}
-                            - {str(value) for value in item.get("reviewed_source_refs") or []}
-                        ),
-                    }
-                    for item in pending_discovered_attempts
-                ],
-                "next_action": (
-                    "For each pending question, resave the listed owner source with the intended exact "
-                    "question/requirement links and then save its outcome. If the attempted link was wrong, "
-                    "resave every listed owner source with its complete reviewed analysis; an identical accepted "
-                    "analysis is valid confirmation that no such link exists."
-                ),
-            }
         outcomes_by_question = {
             str(item.get("question_id") or ""): item
             for item in current.get("coverage_outcomes") or []
             if isinstance(item, dict) and item.get("set_id") == set_id
         }
-        missing_outcome_ids = [
-            str(question_id)
-            for question_id in source_set.get("question_ids") or []
-            if str(question_id) not in outcomes_by_question
-        ]
-        if missing_outcome_ids:
-            return {
-                "accepted": False,
-                "error": "Every assigned coverage question needs a final outcome",
-                "missing_question_ids": missing_outcome_ids,
-            }
-        stale_outcome_ids = sorted(
-            question_id
-            for question_id, outcome in outcomes_by_question.items()
-            if not question_outcome_is_current(
-                outcome,
-                workspace=current,
-                source_set=source_set,
-                question_id=question_id,
-            )
-        )
-        if stale_outcome_ids:
-            return {
-                "accepted": False,
-                "error": "Every question outcome must be refreshed after later linked findings",
-                "stale_question_ids": stale_outcome_ids,
-                "next_action": "Update these outcomes from the current saved findings.",
-            }
-        has_representation_blocker = any(
-            str(assessment.get("representation_status") or "") in {"partial", "not_target_content", "unreadable"}
-            for assessment in assessments_by_ref.values()
-        )
-        unjustified_deferred_question_ids = sorted(
-            question_id
-            for question_id, outcome in outcomes_by_question.items()
-            if (
-                str(outcome.get("status") or "") == "deferred"
-                or any(
-                    isinstance(result, dict) and str(result.get("status") or "") == "deferred"
-                    for result in outcome.get("requirement_results") or []
-                )
-            )
-            and not has_representation_blocker
-        )
-        if unjustified_deferred_question_ids:
-            return {
-                "accepted": False,
-                "error": "Deferred outcomes no longer have a checked representation blocker",
-                "question_ids": unjustified_deferred_question_ids,
-                "next_action": (
-                    "Refresh these outcomes from the current source analyses, using missing only for checked absence."
-                ),
-            }
         if status == "mapped":
             has_semantic_state = bool(
                 source_set.get("observations")
@@ -299,43 +346,7 @@ class SourceTriageWorkspaceCompletionHandlersMixin:
                     "error": "A deferred set requires disposition=deferred for every source assessment",
                     "source_refs": nondeferred_assessment_refs,
                 }
-            active_outcome_question_ids = sorted(
-                question_id
-                for question_id, outcome in outcomes_by_question.items()
-                if str(outcome.get("status") or "") != "deferred"
-            )
-            if active_outcome_question_ids:
-                return {
-                    "accepted": False,
-                    "error": "A deferred set requires deferred outcomes for all assigned questions",
-                    "question_ids": active_outcome_question_ids,
-                }
 
-        ineligible_assessment_refs = {
-            source_ref
-            for source_ref, assessment in assessments_by_ref.items()
-            if str(assessment.get("representation_status") or "unchecked") not in {"readable", "partial"}
-            or str(assessment.get("relevance") or "unknown") == "out_of_scope"
-            or str(assessment.get("disposition") or "background") in {"unusable", "deferred"}
-        }
-        active_outcomes_using_ineligible: list[str] = []
-        for question_id, outcome in outcomes_by_question.items():
-            if str(outcome.get("status") or "") not in {"covered", "partial", "conflicted"}:
-                continue
-            outcome_refs = {str(item) for item in outcome.get("source_refs") or []}
-            outcome_source_ids = {str(item) for item in outcome.get("source_ids") or []}
-            outcome_refs.update(ref for ref, source_id in source_ids_by_ref.items() if source_id in outcome_source_ids)
-            if outcome_refs.intersection(ineligible_assessment_refs):
-                active_outcomes_using_ineligible.append(question_id)
-        if active_outcomes_using_ineligible:
-            return {
-                "accepted": False,
-                "error": (
-                    "Covered, partial, or conflicted outcomes cannot use not-target-content, unreadable, "
-                    "out-of-scope, unusable, or deferred sources"
-                ),
-                "question_ids": sorted(active_outcomes_using_ineligible),
-            }
         if status == "mapped":
             assessment_refs = set(assessments_by_ref) - assessment_deferred_refs
             covered_refs = {
@@ -367,7 +378,7 @@ class SourceTriageWorkspaceCompletionHandlersMixin:
         source_set["deferred_reason"] = deferred_reason
         source_set["assessment_source_refs"] = [ref for ref in source_ids_by_ref if ref not in assessment_deferred_refs]
         source_set["deferred_source_refs"] = [ref for ref in source_ids_by_ref if ref in assessment_deferred_refs]
-        source_set["outcome_question_ids"] = list(outcomes_by_question)
+        source_set.pop("outcome_question_ids", None)
         source_set["updated_at"] = public_api._now()
         public_api._replace_workspace_set(current, source_set)
         processed = [item for item in current.get("processed_sets") or [] if item.get("set_id") != set_id]
@@ -384,6 +395,8 @@ class SourceTriageWorkspaceCompletionHandlersMixin:
         if status in {"mapped", "deferred"}:
             for field in (
                 "repair_baseline_source_assessments",
+                "repair_baseline_source_findings",
+                "repair_baseline_coverage_hints",
                 "repair_baseline_coverage_outcomes",
             ):
                 if field in current:

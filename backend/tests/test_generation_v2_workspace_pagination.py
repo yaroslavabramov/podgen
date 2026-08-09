@@ -240,7 +240,7 @@ def test_triage_canonical_page_honors_requested_limit() -> None:
     assert page["page"]["output_budget_limited"] is False
 
 
-def test_large_finding_audit_state_stays_paginated_and_bounded() -> None:
+def test_large_finding_page_stays_paginated_bounded_and_has_no_pending_audit_state() -> None:
     findings = [
         {
             "finding_id": f"finding-{index:03d}",
@@ -265,10 +265,9 @@ def test_large_finding_audit_state_stays_paginated_and_bounded() -> None:
     )
 
     assert page["accepted"] is True
-    assert page["grounding_audit_state"] == {"current_count": 0, "pending_count": 200}
     assert page["items"]
-    assert all(item["grounding_audit_status"] == "pending" for item in page["items"])
-    assert "finding_ids" not in page["grounding_audit_state"]
+    assert "grounding_audit_state" not in page
+    assert all("grounding_audit_status" not in item for item in page["items"])
     assert len(json.dumps(page, ensure_ascii=False)) <= MODEL_TOOL_OUTPUT_MAX_CHARS
 
 
@@ -398,7 +397,7 @@ async def test_triage_handler_pages_ten_whole_records_without_gaps(
 
 
 @pytest.mark.asyncio
-async def test_only_finalizer_reads_current_question_and_finding_parts(
+async def test_finalizer_does_not_require_full_review_stream_before_edits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.generation_v2 import source_triage_workspace as workspace_api
@@ -498,7 +497,7 @@ async def test_only_finalizer_reads_current_question_and_finding_parts(
     await page_all("set", "source_memory")
     assert save_calls == 0
     assert "source_triage_finalizer_reads" not in workspace
-    assert finalizer_review_stream_violations(workspace)
+    assert finalizer_review_stream_violations(workspace) == []
 
     finalizer_tools = build_triage_workspace_tools(
         db=None,  # type: ignore[arg-type]
@@ -524,16 +523,7 @@ async def test_only_finalizer_reads_current_question_and_finding_parts(
     )
     assert update_before_read["accepted"] is True
     assert update_before_read["changed"] is True
-    assert finalizer_review_stream_violations(workspace)
-
-    await page_all("finalizer", "coverage_questions")
-    missing_findings = finalizer_review_stream_violations(workspace)[0]["sections"]
-    assert [item["section"] for item in missing_findings] == ["source_findings"]
-    assert missing_findings[0]["missing_part_count"] > 0
-    assert missing_findings[0]["missing_owner_refs"] == ["finding:S01:one"]
-    await page_all("finalizer", "source_findings")
     assert finalizer_review_stream_violations(workspace) == []
-    assert save_calls > 0
 
     update_after_read = await update_links.handler(
         {
@@ -552,10 +542,6 @@ async def test_only_finalizer_reads_current_question_and_finding_parts(
     assert finalizer_review_stream_violations(workspace) == []
 
     workspace["source_findings"][0]["statement"] = "The current finding changed after review."
-    violations = finalizer_review_stream_violations(workspace)
-    assert violations[0]["sections"][0]["section"] == "source_findings"
-
-    await page_all("finalizer", "source_findings")
     assert finalizer_review_stream_violations(workspace) == []
 
 
@@ -701,9 +687,9 @@ async def test_triage_finalizer_pages_complete_question_packets_with_derived_lin
     )
     page_tool = next(tool for tool in tools if tool.name == "list_triage_source_sets")
 
-    page = await page_tool.handler(
-        {"section": "coverage_question_packets", "cursor": "0", "limit": 20}
-    )
+    assert "coverage_question_packets" not in page_tool.parameters["properties"]["section"]["enum"]
+
+    page = _coverage_question_packet_page(workspace, cursor=0, limit=20)
 
     assert page["accepted"] is True
     assert page["packet_contract"] == "ordered_parts_v1"
@@ -733,7 +719,6 @@ async def test_triage_finalizer_pages_complete_question_packets_with_derived_lin
         ["evidence-1"],
         ["evidence-2"],
     ]
-    assert "coverage_question_packets" in page_tool.parameters["properties"]["section"]["enum"]
 
 
 @pytest.mark.asyncio
@@ -800,10 +785,9 @@ async def test_question_packets_expose_factual_cross_question_overlap(
         mode="finalizer",
     )
     page_tool = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+    assert "coverage_question_packets" not in page_tool.parameters["properties"]["section"]["enum"]
 
-    page = await page_tool.handler(
-        {"section": "coverage_question_packets", "cursor": "0", "limit": 20}
-    )
+    page = _coverage_question_packet_page(workspace, cursor=0, limit=20)
 
     parts = page["items"]
     assert [part["packet_ref"] for part in parts if part["part_kind"] == "question"] == [
@@ -881,13 +865,12 @@ async def test_cross_question_overlap_groups_shared_membership_instead_of_pairwi
         mode="finalizer",
     )
     page_tool = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+    assert "coverage_question_packets" not in page_tool.parameters["properties"]["section"]["enum"]
 
     pages = []
     cursor = "0"
     while True:
-        page = await page_tool.handler(
-            {"section": "coverage_question_packets", "cursor": cursor, "limit": 25}
-        )
+        page = _coverage_question_packet_page(workspace, cursor=int(cursor), limit=25)
         assert page["accepted"] is True
         pages.append(page)
         cursor = page["page"]["next_cursor"]
@@ -965,10 +948,9 @@ async def test_cross_question_overlap_keeps_distinct_memberships_in_distinct_gro
         mode="finalizer",
     )
     page_tool = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+    assert "coverage_question_packets" not in page_tool.parameters["properties"]["section"]["enum"]
 
-    page = await page_tool.handler(
-        {"section": "coverage_question_packets", "cursor": "0", "limit": 20}
-    )
+    page = _coverage_question_packet_page(workspace, cursor=0, limit=20)
 
     overlaps = [
         item
@@ -1052,13 +1034,12 @@ async def test_cross_question_overlap_splits_long_shared_lineage_without_loss(
         mode="finalizer",
     )
     page_tool = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+    assert "coverage_question_packets" not in page_tool.parameters["properties"]["section"]["enum"]
 
     pages = []
     cursor = "0"
     while True:
-        page = await page_tool.handler(
-            {"section": "coverage_question_packets", "cursor": cursor, "limit": 25}
-        )
+        page = _coverage_question_packet_page(workspace, cursor=int(cursor), limit=25)
         assert page["accepted"] is True
         assert len(json.dumps(page, ensure_ascii=False, default=str)) <= MODEL_TOOL_OUTPUT_MAX_CHARS
         pages.append(page)
@@ -1171,13 +1152,12 @@ async def test_large_question_packet_continues_without_cutting_semantic_fields(
         mode="finalizer",
     )
     page_tool = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+    assert "coverage_question_packets" not in page_tool.parameters["properties"]["section"]["enum"]
 
     pages = []
     cursor = "0"
     while True:
-        page = await page_tool.handler(
-            {"section": "coverage_question_packets", "cursor": cursor, "limit": 20}
-        )
+        page = _coverage_question_packet_page(workspace, cursor=int(cursor), limit=20)
         assert page["accepted"] is True
         assert len(json.dumps(page, ensure_ascii=False, default=str)) <= MODEL_TOOL_OUTPUT_MAX_CHARS
         pages.append(page)
@@ -1254,19 +1234,16 @@ async def test_question_packet_large_lineage_parts_use_the_real_page_budget(
         mode="finalizer",
     )
     page_tool = next(tool for tool in tools if tool.name == "list_triage_source_sets")
+    assert "coverage_question_packets" not in page_tool.parameters["properties"]["section"]["enum"]
 
-    cursor_three = await page_tool.handler(
-        {"section": "coverage_question_packets", "cursor": "3", "limit": 20}
-    )
+    cursor_three = _coverage_question_packet_page(workspace, cursor=3, limit=20)
     assert cursor_three["accepted"] is True
     assert len(json.dumps(cursor_three, ensure_ascii=False, default=str)) <= MODEL_TOOL_OUTPUT_MAX_CHARS
 
     pages = []
     cursor = "0"
     while True:
-        page = await page_tool.handler(
-            {"section": "coverage_question_packets", "cursor": cursor, "limit": 20}
-        )
+        page = _coverage_question_packet_page(workspace, cursor=int(cursor), limit=20)
         assert page["accepted"] is True
         assert len(json.dumps(page, ensure_ascii=False, default=str)) <= MODEL_TOOL_OUTPUT_MAX_CHARS
         pages.append(page)

@@ -299,6 +299,20 @@ def _target_existing_v2_sets(
             for item in workspace.get("source_assessments") or []
             if not isinstance(item, dict) or str(item.get("source_ref") or "") not in assessments_to_rebuild
         ]
+        _move_records_to_repair_baseline(
+            workspace,
+            active_field="source_findings",
+            baseline_field="repair_baseline_source_findings",
+            source_refs=assessments_to_rebuild,
+            identity_fields=("source_ref", "finding_id"),
+        )
+        _move_records_to_repair_baseline(
+            workspace,
+            active_field="coverage_hints",
+            baseline_field="repair_baseline_coverage_hints",
+            source_refs=assessments_to_rebuild,
+            identity_fields=("source_ref", "hint_id"),
+        )
     if outcomes_to_rebuild:
         baselines = []
         versions_by_pair: dict[tuple[str, str], int] = {}
@@ -359,6 +373,45 @@ def _target_existing_v2_sets(
     invalidate_coverage_syntheses(workspace)
     workspace["repair_unaddressable_violations"] = _dedupe_issue_dicts(unaddressable)
     return workspace
+
+
+def _move_records_to_repair_baseline(
+    workspace: dict[str, Any],
+    *,
+    active_field: str,
+    baseline_field: str,
+    source_refs: set[str],
+    identity_fields: tuple[str, ...],
+) -> None:
+    """Move source-scoped active records into repair baseline storage.
+
+    Targeted repair should see the previous source map, but old records must not
+    remain active in canonical handoff while the source is being rebuilt.
+    """
+
+    existing = [item for item in workspace.get(baseline_field) or [] if isinstance(item, dict)]
+    moved: list[dict[str, Any]] = []
+    kept: list[dict[str, Any]] = []
+    for raw in workspace.get(active_field) or []:
+        if not isinstance(raw, dict) or str(raw.get("source_ref") or "") not in source_refs:
+            kept.append(raw)
+            continue
+        baseline = dict(raw)
+        baseline["repair_baseline"] = True
+        moved.append(baseline)
+    workspace[active_field] = kept
+    if not moved and not existing:
+        return
+
+    merged: list[dict[str, Any]] = []
+    seen: set[tuple[str, ...]] = set()
+    for item in [*existing, *moved]:
+        key = tuple(str(item.get(field) or "") for field in identity_fields)
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(item)
+    workspace[baseline_field] = merged
 
 
 def _non_negative_int(value: Any) -> int:

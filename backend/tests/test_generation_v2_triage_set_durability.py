@@ -509,7 +509,7 @@ async def test_stale_question_workbench_rejection_points_to_same_question(
 
 
 @pytest.mark.asyncio
-async def test_source_analysis_warns_that_read_workbenches_are_invalidated(
+async def test_source_analysis_no_longer_invalidates_set_question_workbench(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     source_id = str(uuid.uuid4())
@@ -545,8 +545,8 @@ async def test_source_analysis_warns_that_read_workbenches_are_invalidated(
 
     assert saved["accepted"] is True
     assert saved["analysis_changed"] is True
-    assert saved["invalidated_question_workbench_question_ids"] == ["q1"]
-    assert "discard that old snapshot" in saved["next_action"]
+    assert "invalidated_question_workbench_question_ids" not in saved
+    assert "coverage hint" in saved["next_action"]
 
 
 @pytest.mark.asyncio
@@ -884,7 +884,7 @@ async def test_search_preview_cannot_be_persisted_as_finding_before_exact_read(
 
 
 @pytest.mark.asyncio
-async def test_discovered_question_attempt_requires_durable_link_or_explicit_reanalysis(
+async def test_legacy_discovered_question_attempt_does_not_block_source_mapping_finish(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     source_id = str(uuid.uuid4())
@@ -952,7 +952,7 @@ async def test_discovered_question_attempt_requires_durable_link_or_explicit_rea
     assert pending[0]["question_id"] == "q2"
     assert pending[0]["source_refs"] == ["S01"]
 
-    blocked_finish = await handler.finish_triage_source_set_tool(
+    finished = await handler.finish_triage_source_set_tool(
         {
             "set_id": "set-1",
             "status": "mapped",
@@ -961,9 +961,7 @@ async def test_discovered_question_attempt_requires_durable_link_or_explicit_rea
             "deferred_sources": [],
         }
     )
-    assert blocked_finish["accepted"] is False
-    assert blocked_finish["pending_question_attempts"][0]["question_id"] == "q2"
-    assert blocked_finish["pending_question_attempts"][0]["unreviewed_source_refs"] == ["S01"]
+    assert finished["accepted"] is True
 
     confirmed_absent = await handler.upsert_source_assessment_tool(
         _analysis_args(
@@ -1006,6 +1004,7 @@ async def test_discovered_question_attempt_requires_durable_link_or_explicit_rea
     )
 
     assert corrected["accepted"] is True
-    assert "q2" in state["workspace"]["source_sets"][0]["question_ids"]
+    assert "q2" not in state["workspace"]["source_sets"][0]["question_ids"]
+    assert state["workspace"]["source_sets"][0]["cross_question_ids"] == ["q2"]
     assert state["workspace"]["source_sets"][0]["pending_discovered_question_attempts"] == []
     assert accepted["accepted"] is True

@@ -127,6 +127,7 @@ class CorpusBriefSourceSetKind(StrEnum):
 
 
 class ResearchHandoffAction(StrEnum):
+    NONE = "none"
     DEEP_READ = "deep_read"
     COMPARE = "compare"
     CORROBORATE = "corroborate"

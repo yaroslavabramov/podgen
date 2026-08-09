@@ -21,7 +21,11 @@ Initial durable research workspace snapshot:
 Task:
 Create durable investigation jobs that will turn the SourceMap into source-grounded research findings. You are not writing the memo or planning the episode structure yet; you are assigning focused research work that later job agents can actually execute.
 
-The persisted CorpusBrief in the workspace is the authoritative handoff from triage. Start from its coverage questions, outcomes, and research_handoff items. Seeded jobs preserve those decisions; refine their scope or add a job only when the brief leaves a concrete unresolved investigation. Do not create generic jobs merely to fill a taxonomy or a target count.
+The persisted CorpusBrief in the workspace is the authoritative handoff from triage. Start from its coverage questions
+and research_handoff items. coverage_outcomes may be empty when triage only mapped sources; in that case handoff
+items are research queues, not answers or coverage decisions. Preserve any explicit legacy outcomes when present, but
+do not invent covered/partial/missing states in planning. Refine job scope or add a job only when the brief leaves a
+concrete unresolved investigation. Do not create generic jobs merely to fill a taxonomy or a target count.
 
 {atom_kind_block}
 
@@ -31,7 +35,8 @@ If CorpusBrief or SourceMap context reports omitted or truncated material, use l
 
 A good job has:
 - one clear research_job label, such as mechanism, context, change, tension_driver, impact, exception_or_gap, or synthesis_gap;
-- source_refs from SourceMap clusters/source cards when known;
+- source_refs as the allowed source scope for the job; preferred_source_refs/candidate_source_refs are starting leads,
+  not the whole answer;
 - concrete questions that can be answered by reading/searching those sources;
 - required_atom_kinds that the job is expected to produce;
 - enough scope to compare sources when comparison matters, but not a single mega-job that says "research everything";

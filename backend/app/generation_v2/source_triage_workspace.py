@@ -16,6 +16,7 @@ from app.generation_v2.source_triage_workspace_capsules import (
     source_order as _source_order,
 )
 from app.generation_v2.source_triage_workspace_state import (
+    TRIAGE_WORKFLOW_SOURCE_MAPPING,
     WORKSPACE_SCHEMA_VERSION,
     dedupe as _dedupe,
     merge_deferred as _merge_deferred,
@@ -109,6 +110,7 @@ async def ensure_source_triage_workspace(
     run_config = getattr(run, "config", None) or {}
     workspace = {
         "schema_version": WORKSPACE_SCHEMA_VERSION,
+        "triage_workflow_mode": TRIAGE_WORKFLOW_SOURCE_MAPPING,
         "_workspace_revision": int((existing or {}).get("_workspace_revision") or 0),
         "manifest_hash": manifest_hash,
         "corpus_revision": scope.revision,
@@ -123,8 +125,11 @@ async def ensure_source_triage_workspace(
             "duration_seconds": int(run_config.get("duration_target") or 0),
         },
         "coverage_questions": [],
+        "source_analyses": [],
+        "source_analysis_history": [],
         "source_assessments": [],
         "source_findings": [],
+        "coverage_hints": [],
         "source_read_receipts": [],
         "reading_notes": [],
         "coverage_outcomes": [],

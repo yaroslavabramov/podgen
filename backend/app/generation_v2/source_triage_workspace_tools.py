@@ -15,6 +15,7 @@ from app.generation_v2.runtime_tool_output import MODEL_TOOL_OUTPUT_MAX_CHARS
 from app.generation_v2.schemas import SourceMap
 from app.generation_v2.source_triage_lineage import coverage_synthesis_lineage
 from app.generation_v2.source_triage_model_views import (
+    model_safe_coverage_hint as _model_safe_coverage_hint,
     model_safe_coverage_outcome as _model_safe_coverage_outcome,
     model_safe_coverage_question as _model_safe_coverage_question,
     model_safe_reading_note as _model_safe_reading_note,
@@ -38,7 +39,9 @@ from app.generation_v2.source_triage_model_delivery import (
     stage_semantic_review_page,
 )
 from app.generation_v2.source_triage_set_state_views import (
+    coverage_hints_page,
     finding_catalog_page,
+    question_index_page,
     question_memory_page,
     question_workbench_page,
     set_overview_page,
@@ -48,6 +51,7 @@ from app.generation_v2.source_triage_set_state_views import (
 from app.generation_v2.tools.evidence_legacy_receipts import hydrate_legacy_source_receipts
 from app.generation_v2.source_triage_workspace_tool_handlers import SourceTriageWorkspaceToolHandlers
 from app.generation_v2.source_triage_workspace_tool_specs import (
+    source_mapper_tools,
     source_triage_finalizer_tools,
     source_triage_planner_tools,
     source_triage_set_tools,
@@ -57,7 +61,7 @@ from app.models.generation_run import GenerationRun
 
 TRIAGE_WORKSPACE_DEFAULT_PAGE_LIMIT = 20
 TRIAGE_WORKSPACE_MAX_PAGE_LIMIT = 25
-FINALIZER_REVIEW_SECTIONS = ("coverage_questions", "source_findings")
+FINALIZER_REVIEW_SECTIONS = ("coverage_questions", "source_findings", "coverage_hints")
 FINALIZER_READ_LEDGER_FIELD = "source_triage_finalizer_reads"
 
 
@@ -187,16 +191,6 @@ def _full_canonical_item_page(
         current_set_id=current_set_id,
     )
     page = parts[cursor : cursor + limit]
-    grounding_audit_state: dict[str, Any] | None = None
-    if section == "source_findings":
-        from app.generation_v2.source_triage_grounding_audit_state import (
-            annotate_finding_page_grounding_state,
-        )
-
-        page, grounding_audit_state = annotate_finding_page_grounding_state(
-            workspace,
-            page,
-        )
     payload = {
         "accepted": True,
         "section": section,
@@ -207,8 +201,6 @@ def _full_canonical_item_page(
             "unit": "record_part",
         }
     }
-    if grounding_audit_state is not None:
-        payload["grounding_audit_state"] = grounding_audit_state
     return fit_model_page(
         payload,
         requested_limit=limit,
@@ -229,6 +221,7 @@ def _canonical_section_record_parts(
         "reading_notes": "reading_notes",
         "source_assessments": "source_assessments",
         "source_findings": "source_findings",
+        "coverage_hints": "coverage_hints",
         "coverage_outcomes": "coverage_outcomes",
         "coverage_syntheses": "coverage_syntheses",
     }
@@ -239,6 +232,7 @@ def _canonical_section_record_parts(
         "reading_notes",
         "source_assessments",
         "source_findings",
+        "coverage_hints",
         "coverage_outcomes",
     }:
         values = [item for item in values if str(item.get("set_id") or "") == current_set_id]
@@ -247,6 +241,7 @@ def _canonical_section_record_parts(
             "reading_notes": "",
             "source_assessments": "repair_baseline_source_assessments",
             "source_findings": "repair_baseline_source_findings",
+            "coverage_hints": "repair_baseline_coverage_hints",
             "coverage_outcomes": "repair_baseline_coverage_outcomes",
         }[section]
         baselines = [
@@ -275,6 +270,8 @@ def _canonical_section_record_parts(
                 for item in baselines
                 if (str(item.get("set_id") or ""), str(item.get("question_id") or "")) not in current_keys
             )
+        elif section in {"source_findings", "coverage_hints"}:
+            values.extend(baselines)
     values.sort(key=lambda item: _canonical_item_identity(section, item))
     source_ref_by_id = {
         str(item.get("source_id") or ""): str(item.get("source_ref") or "")
@@ -290,6 +287,7 @@ def _canonical_section_record_parts(
         "reading_notes": _model_safe_reading_note,
         "source_assessments": _model_safe_source_assessment,
         "source_findings": _model_safe_source_finding,
+        "coverage_hints": _model_safe_coverage_hint,
         "coverage_outcomes": lambda item: _model_safe_coverage_outcome(
             item,
             source_ref_by_id=source_ref_by_id,
@@ -311,6 +309,7 @@ def _canonical_section_record_parts(
         "reading_notes": "reading_note",
         "source_assessments": "source_assessment",
         "source_findings": "source_finding",
+        "coverage_hints": "coverage_hint",
         "coverage_outcomes": "coverage_outcome",
         "coverage_syntheses": "coverage_synthesis",
     }
@@ -350,7 +349,15 @@ def _canonical_item_identity(section: str, item: dict[str, Any]) -> tuple[str, .
             "1" if item.get("repair_baseline") else "0",
         )
     if section == "source_findings":
-        return (str(item.get("finding_id") or ""),)
+        return (
+            str(item.get("finding_id") or ""),
+            "1" if item.get("repair_baseline") else "0",
+        )
+    if section == "coverage_hints":
+        return (
+            str(item.get("hint_id") or ""),
+            "1" if item.get("repair_baseline") else "0",
+        )
     if section == "coverage_outcomes":
         return (
             str(item.get("question_id") or ""),
@@ -381,7 +388,7 @@ def _record_finalizer_review_page(
     _, expected_parts = _canonical_section_record_parts(workspace, section=section)
     expected_keys = {_record_part_review_key(part) for part in expected_parts}
     returned_keys = {
-        _record_part_review_key(_reviewable_finding_part(part, section=section))
+        _record_part_review_key(part)
         for part in page_payload.get("items") or []
         if isinstance(part, dict)
     }
@@ -403,58 +410,13 @@ def _record_finalizer_review_page(
     workspace[FINALIZER_READ_LEDGER_FIELD] = ledger
 
 
-def _reviewable_finding_part(part: dict[str, Any], *, section: str) -> dict[str, Any]:
-    if section != "source_findings" or "grounding_audit_status" not in part:
-        return part
-    value = dict(part)
-    value.pop("grounding_audit_status", None)
-    return value
-
-
 def finalizer_review_stream_violations(workspace: dict[str, Any]) -> list[dict[str, Any]]:
-    ledger = workspace.get(FINALIZER_READ_LEDGER_FIELD)
-    ledger = ledger if isinstance(ledger, dict) else {}
-    incomplete_sections: list[dict[str, Any]] = []
-    for section in FINALIZER_REVIEW_SECTIONS:
-        _, expected_parts = _canonical_section_record_parts(workspace, section=section)
-        expected_by_key = {
-            _record_part_review_key(part): str(part.get("owner_ref") or "")
-            for part in expected_parts
-        }
-        section_ledger = ledger.get(section) if isinstance(ledger.get(section), dict) else {}
-        read_keys = {str(value) for value in section_ledger.get("read_part_keys") or []}
-        missing_keys = set(expected_by_key) - read_keys
-        if not missing_keys:
-            continue
-        incomplete_sections.append(
-            {
-                "section": section,
-                "missing_part_count": len(missing_keys),
-                "missing_owner_refs": sorted(
-                    {
-                        expected_by_key[key]
-                        for key in missing_keys
-                        if expected_by_key[key]
-                    }
-                ),
-            }
-        )
-    if not incomplete_sections:
-        return []
-    return [
-        {
-            "code": "finalizer_review_stream_incomplete",
-            "message": (
-                "The finalizer must read every durable coverage-question and source-finding record part "
-                "before finalizing."
-            ),
-            "sections": incomplete_sections,
-            "next_action": (
-                "Page each listed section from cursor 0 and follow page.next_cursor until empty, then retry "
-                "finalize_source_map."
-            ),
-        }
-    ]
+    """Legacy compatibility hook.
+
+    Source-mapping finalization no longer requires a full Q/F/H paging pass. The finalizer may read paged state
+    when it needs a concrete record, while backend readiness is enforced by canonical reference validation.
+    """
+    return []
 
 
 def carry_finalizer_finding_review_forward(
@@ -1067,6 +1029,7 @@ def _source_set_page_tool(
     workspace: dict[str, Any],
     current_set_id: str | None = None,
     include_evidence_ids: bool = False,
+    finalizer_mode: bool = False,
     track_finalizer_review: bool = False,
     evidence_toolset: Any | None = None,
 ) -> AgentTool:
@@ -1082,43 +1045,46 @@ def _source_set_page_tool(
         if current_set_id
         else None
     )
-    legacy_set_contract = isinstance(configured_set, dict) and "question_assignments" not in configured_set
-    set_agent_sections = (
-        [
+    allowed_sections = None
+    if current_set_id:
+        allowed_sections = [
             "set_overview",
             "source_memory",
-            "finding_catalog",
-            "question_workbench",
+            "question_index",
+            "coverage_hints",
+            "finding_list",
             "unfinished_work",
-            *(
+        ]
+        if configured_set and configured_set.get("repair_targeted"):
+            allowed_sections.extend(
                 [
-                    "question_memory",
-                    "current_set",
-                    "assigned_questions",
                     "source_assessments",
+                    "source_findings",
                     "coverage_outcomes",
                 ]
-                if (
-                    isinstance(configured_set, dict)
-                    and (configured_set.get("repair_targeted") or legacy_set_contract)
-                )
-                else []
-            ),
+            )
+    elif finalizer_mode or track_finalizer_review:
+        allowed_sections = [
+            "sets",
+            "plan_summary",
+            "deferred_sources",
+            "source_map_repairs",
+            "coverage_questions",
+            "source_assessments",
+            "source_findings",
+            "coverage_hints",
         ]
-        if current_set_id
-        else None
-    )
 
     async def handler(args: dict[str, Any]) -> dict[str, Any]:
         current = await load_source_triage_workspace(db, run.id) or workspace
         section = str(args.get("section") or ("set_overview" if current_set_id else "sets"))
-        if set_agent_sections is not None and section not in set_agent_sections:
+        if allowed_sections is not None and section not in allowed_sections:
             return {
                 "accepted": False,
-                "error": "section_not_available_to_set_agent",
+                "error": "triage_workspace_section_not_available_to_agent",
                 "section": section,
-                "allowed_sections": set_agent_sections,
-                "next_action": "Choose the narrow state page needed for the current set.",
+                "allowed_sections": allowed_sections,
+                "next_action": "Choose one allowed durable-state section for this agent role.",
             }
         cursor_text = str(args.get("cursor") or "0")
         cursor = max(0, int(cursor_text) if cursor_text.isdigit() else 0)
@@ -1143,6 +1109,7 @@ def _source_set_page_tool(
             "reading_notes",
             "source_assessments",
             "source_findings",
+            "coverage_hints",
             "coverage_outcomes",
             "coverage_syntheses",
         }:
@@ -1280,6 +1247,29 @@ def _source_set_page_tool(
                 )
                 payload["_runtime_receipt_delivery"] = {"receipt_refs": [receipt_ref]}
             return payload
+        if section == "finding_list":
+            return finding_catalog_page(
+                current,
+                source_set,
+                cursor=cursor,
+                limit=limit,
+            )
+        if section == "question_index":
+            return question_index_page(
+                current,
+                source_set,
+                cursor=cursor,
+                limit=limit,
+            )
+        if section == "coverage_hints":
+            return coverage_hints_page(
+                current,
+                source_set,
+                source_ref=str(args.get("source_ref") or ""),
+                question_id=str(args.get("question_id") or ""),
+                cursor=cursor,
+                limit=limit,
+            )
         if section == "question_workbench":
             question_id = str(args.get("question_id") or "")
             payload = question_workbench_page(
@@ -1440,13 +1430,16 @@ def _source_set_page_tool(
                 "reading_notes",
                 "source_assessments",
                 "source_findings",
+                "coverage_hints",
                 "coverage_outcomes",
                 "coverage_syntheses",
                 "current_set_state",
                 "set_overview",
                 "source_memory",
                 "finding_catalog",
+                "finding_list",
                 "question_memory",
+                "question_index",
                 "question_workbench",
                 "unfinished_work",
                 "semantic_review",
@@ -1455,6 +1448,12 @@ def _source_set_page_tool(
                 "assigned_questions",
             ],
         }
+
+    question_id_description = (
+        "Optional for filtering coverage_hints."
+        if current_set_id
+        else "Required for section=question_memory/question_workbench, or optional for filtering coverage_hints."
+    )
 
     return AgentTool(
         name="read_triage_set_state" if current_set_id else "list_triage_source_sets",
@@ -1480,7 +1479,7 @@ def _source_set_page_tool(
                 },
                 "section": {
                     "type": "string",
-                    "enum": set_agent_sections or [
+                    "enum": allowed_sections or [
                         "sets",
                         "plan_summary",
                         "deferred_sources",
@@ -1491,12 +1490,15 @@ def _source_set_page_tool(
                         "reading_notes",
                         "source_assessments",
                         "source_findings",
+                        "coverage_hints",
                         "coverage_outcomes",
                         "coverage_syntheses",
                         "current_set_state",
                         "set_overview",
                         "source_memory",
+                        "finding_list",
                         "question_memory",
+                        "question_index",
                         "unfinished_work",
                         "semantic_review",
                         "semantic_self_check",
@@ -1507,11 +1509,11 @@ def _source_set_page_tool(
                 "set_id": {"type": "string"},
                 "source_ref": {
                     "type": "string",
-                    "description": "Required only for section=source_memory.",
+                    "description": "Required only for section=source_memory or filtering coverage_hints.",
                 },
                 "question_id": {
                     "type": "string",
-                    "description": "Required for section=question_memory or question_workbench.",
+                    "description": question_id_description,
                 },
             },
             "required": ["cursor", "limit"],
@@ -1612,6 +1614,26 @@ def build_workspace_tools(
             ),
         )
 
+    async def source_mapper_resume_loader() -> AgentTerminalResult | None:
+        current = await load_source_triage_workspace(db, run.id) or workspace
+        source_ref = str((current.get("current_source_mapping") or {}).get("source_ref") or "")
+        if not source_ref:
+            return None
+        mapped = any(
+            isinstance(item, dict) and str(item.get("source_ref") or "") == source_ref
+            for item in current.get("mapped_sources") or []
+        )
+        if not mapped:
+            return None
+        return AgentTerminalResult(
+            accepted=True,
+            completion=SourceTriageCompletion(
+                ready=True,
+                summary=f"Source {source_ref} mapping already persisted.",
+                notes=[],
+            ),
+        )
+
     if mode == "planner":
         tools.append(_source_set_page_tool(db=db, run=run, workspace=workspace))
         tools.extend(
@@ -1647,12 +1669,28 @@ def build_workspace_tools(
         tools.extend(
             source_triage_set_tools(
                 handlers.upsert_source_assessment_tool,
-                handlers.upsert_coverage_outcome_tool,
+                handlers.save_coverage_hint_tool,
                 handlers.finish_triage_source_set_tool,
                 save_reading_note_handler=handlers.save_reading_note_tool,
                 allowed_source_refs=allowed_source_refs,
                 allowed_question_ids=allowed_question_ids,
                 terminal_resume_loader=set_resume_loader,
+            )
+        )
+    if mode == "source_mapper":
+        active_set = _workspace._workspace_set(workspace, str(current_set_id or "")) or {}
+        current_source_ref = str((workspace.get("current_source_mapping") or {}).get("source_ref") or "")
+        allowed_source_refs = [current_source_ref] if current_source_ref else [
+            str(value) for value in active_set.get("source_refs") or [] if str(value)
+        ]
+        leaf_question_ids = _leaf_question_ids_for_workspace(workspace)
+        tools.extend(
+            source_mapper_tools(
+                handlers.upsert_source_assessment_tool,
+                handlers.finish_source_mapping_tool,
+                allowed_source_refs=allowed_source_refs,
+                allowed_question_ids=leaf_question_ids,
+                terminal_resume_loader=source_mapper_resume_loader,
             )
         )
     if mode == "finalizer":
@@ -1661,17 +1699,30 @@ def build_workspace_tools(
                 db=db,
                 run=run,
                 workspace=workspace,
-                track_finalizer_review=True,
+                finalizer_mode=True,
             )
         )
         tools.extend(
             source_triage_finalizer_tools(
-                handlers.finish_triage_source_set_tool,
                 handlers.update_source_finding_links_tool,
                 handlers.update_source_finding_relations_tool,
-                handlers.upsert_coverage_outcome_tool,
-                handlers.upsert_coverage_synthesis_tool,
                 audit_source_finding_handler=handlers.audit_source_finding_tool,
             )
         )
     return tools
+
+
+def _leaf_question_ids_for_workspace(workspace: dict[str, Any]) -> list[str]:
+    questions = [item for item in workspace.get("coverage_questions") or [] if isinstance(item, dict)]
+    parent_ids = {
+        str(item.get("parent_question_id") or "")
+        for item in questions
+        if str(item.get("parent_question_id") or "").strip()
+    }
+    question_ids = [
+        str(item.get("question_id") or "")
+        for item in questions
+        if str(item.get("question_id") or "").strip()
+    ]
+    leaves = [question_id for question_id in question_ids if question_id not in parent_ids]
+    return leaves or question_ids

@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+import inspect
 
 import pytest
 
-from app.generation_v2.source_triage_set_state_views import (
-    question_workbench_signature,
-)
-from app.generation_v2.agents.tool_sets import TRIAGE_SEMANTIC_EVAL_TOOL_NAMES
+from app.generation_v2 import triage_semantic_eval_runner
 from app.generation_v2.source_triage_workspace_prompting import source_set_prompt_payload
 from app.generation_v2.runtime_tool_calls import _validated_private_runtime_directive
 from app.generation_v2.triage_semantic_eval_runner import semantic_eval_report
@@ -148,13 +146,11 @@ def test_semantic_eval_prompt_payload_declares_frozen_decision_mode() -> None:
     assert "do not read sources" in payload["set"]["execution_goal"]
 
 
-def test_semantic_eval_tool_contract_is_semantic_only() -> None:
-    assert TRIAGE_SEMANTIC_EVAL_TOOL_NAMES == {
-        "read_triage_set_state",
-        "read_evidence",
-        "resolve_triage_question",
-        "finish_triage_source_set",
-    }
+def test_semantic_eval_runner_does_not_call_legacy_set_agent() -> None:
+    source = inspect.getsource(triage_semantic_eval_runner)
+
+    assert "run_source_triage_set" not in source
+    assert "save_coverage_hint" not in source
 
 
 def test_semantic_eval_state_fails_closed_when_evidence_clone_is_incomplete() -> None:
@@ -189,7 +185,7 @@ def test_finding_catalog_page_can_schedule_same_chain_delivery() -> None:
     assert receipt_refs == ["finding_catalog_receipt:1234567890abcdef"]
 
 
-def test_semantic_eval_report_requires_current_partial_causal_answers_without_rereading() -> None:
+def test_semantic_eval_report_requires_mapping_hints_without_rereading_or_outcomes() -> None:
     workspace = build_semantic_eval_workspace(
         fresh_workspace={"source_order": ["S01"], "intent": {"language": "ru"}},
         source_workspace=_source_workspace(),
@@ -199,31 +195,32 @@ def test_semantic_eval_report_requires_current_partial_causal_answers_without_re
     )
     source_set = workspace["source_sets"][0]
     source_set["status"] = "mapped"
-    origin = _outcome("origin", "origin:mechanism")
-    origin["workbench_snapshot_id"] = question_workbench_signature(
-        workspace,
-        source_set,
-        question_id="origin",
-    )
-    workspace["coverage_outcomes"].append(origin)
-    root = _outcome("root", "root:cause")
-    root["requirement_results"].insert(
-        0,
+    workspace["coverage_hints"] = [
         {
-            "requirement_id": "root:history",
-            "status": "covered",
-            "finding_ids": ["finding-1"],
-            "summary": "Хронология установлена по сохранённым находкам.",
-            "closure_basis": "Находка прямо фиксирует исторический этап.",
-            "missing_detail": "",
+            "hint_id": "hint:root:set-1",
+            "set_id": "set-1",
+            "source_ref": "S01",
+            "question_id": "root",
+            "requirement_ids": ["root:cause"],
+            "candidate_finding_ids": ["finding-1"],
+            "candidate_evidence_ids": ["new-evidence"],
+            "observed_gap": "",
+            "conflict_signal": "",
+            "notes": ["Находка указывает на причинный критерий, но не является ответом."],
         },
-    )
-    root["workbench_snapshot_id"] = question_workbench_signature(
-        workspace,
-        source_set,
-        question_id="root",
-    )
-    workspace["coverage_outcomes"].append(root)
+        {
+            "hint_id": "hint:origin:set-1",
+            "set_id": "set-1",
+            "source_ref": "S01",
+            "question_id": "origin",
+            "requirement_ids": ["origin:mechanism"],
+            "candidate_finding_ids": ["finding-1"],
+            "candidate_evidence_ids": ["new-evidence"],
+            "observed_gap": "",
+            "conflict_signal": "",
+            "notes": ["Находка указывает на критерий происхождения."],
+        },
+    ]
     traces = [
         SimpleNamespace(
             tool_name="finish_triage_source_set",
@@ -236,38 +233,305 @@ def test_semantic_eval_report_requires_current_partial_causal_answers_without_re
         source_set=source_set,
         traces=traces,
         question_ids=["root", "origin"],
-        expected_question_statuses={"root": "partial", "origin": "partial"},
+        expected_question_statuses={"root": "hinted", "origin": "hinted"},
         expected_requirement_statuses={
-            ("root", "root:cause"): "partial",
-            ("origin", "origin:mechanism"): "partial",
+            ("root", "root:cause"): "hinted",
+            ("origin", "origin:mechanism"): "hinted",
         },
     )
 
     assert report["passed"] is True
     assert report["source_read_call_count"] == 0
     assert report["accepted_finish_count"] == 1
+    assert report["coverage_hint_count"] == 2
+    assert "outcomes" not in report
 
 
-def _outcome(question_id: str, requirement_id: str) -> dict:
-    return {
-        "outcome_id": f"outcome:{question_id}:set-1",
-        "set_id": "set-1",
-        "question_id": question_id,
-        "status": "partial",
-        "finding_ids": ["finding-1"],
-        "evidence_ids": ["new-evidence"],
-        "requirement_results": [
+def test_semantic_eval_report_checks_hk10_salient_fact_mapping() -> None:
+    fact_text = (
+        "HKMA restored the HK$10 note after an attempted coin replacement because of public demand."
+    )
+    workspace = build_semantic_eval_workspace(
+        fresh_workspace={"source_order": ["S01"], "intent": {"language": "ru"}},
+        source_workspace=_source_workspace(fact_text),
+        set_id="set-1",
+        question_ids=["root", "origin"],
+        evidence_id_map={"old-evidence": "new-evidence"},
+    )
+    source_set = workspace["source_sets"][0]
+    source_set["status"] = "mapped"
+    traces = [
+        SimpleNamespace(
+            tool_name="finish_triage_source_set",
+            output_json={"accepted": True},
+        )
+    ]
+    expected_salient_facts = [
+        {
+            "label": "hk10_public_demand_hkma",
+            "question_id": "root",
+            "requirement_id": "root:cause",
+            "source_ref": "S01",
+            "required_terms": ["HK$10", "public demand", "HKMA"],
+        }
+    ]
+
+    missing = semantic_eval_report(
+        workspace=workspace,
+        source_set=source_set,
+        traces=traces,
+        question_ids=["root"],
+        expected_question_statuses={},
+        expected_requirement_statuses={},
+        expected_salient_facts=expected_salient_facts,
+    )
+    workspace["coverage_hints"] = [
+        {
+            "hint_id": "hint:hk10",
+            "set_id": "set-1",
+            "source_ref": "S01",
+            "question_id": "root",
+            "requirement_ids": ["root:cause"],
+            "candidate_finding_ids": ["finding-1"],
+            "candidate_evidence_ids": ["new-evidence"],
+            "observed_gap": "",
+            "conflict_signal": "",
+            "notes": ["Use this as a research lead, not as a final answer."],
+        }
+    ]
+    mapped = semantic_eval_report(
+        workspace=workspace,
+        source_set=source_set,
+        traces=traces,
+        question_ids=["root"],
+        expected_question_statuses={},
+        expected_requirement_statuses={},
+        expected_salient_facts=expected_salient_facts,
+    )
+
+    assert missing["passed"] is False
+    assert missing["salient_facts"][0]["passed"] is False
+    assert mapped["passed"] is True
+    assert mapped["salient_facts"][0]["passed"] is True
+
+
+def test_semantic_eval_report_checks_source_analysis_salient_fact_without_hints() -> None:
+    workspace = {
+        "source_sets": [
+            {"set_id": "set-1", "status": "mapped", "source_refs": ["S03"], "question_ids": ["current"]}
+        ],
+        "source_analyses": [
             {
-                "requirement_id": requirement_id,
-                "status": "partial",
-                "finding_ids": ["finding-1"],
-                "summary": "Сохранённые находки устанавливают только более поздний контекст.",
-                "closure_basis": "Находка подтверждает контекст, но не исходный причинный механизм.",
-                "remaining_uncertainty": "Не установлен первоначальный механизм допуска.",
-                "missing_detail": "Не установлен первоначальный механизм допуска.",
+                "analysis_id": "analysis:S03",
+                "source_ref": "S03",
+                "status": "usable",
+                "current": True,
+                "accepted": True,
+                "findings": [
+                    {
+                        "finding_id": "finding:S03:hk10",
+                        "statement": (
+                            "HKMA restored the HK$10 note after attempted coin replacement because "
+                            "public demand continued."
+                        ),
+                        "question_ids": ["current"],
+                        "evidence_ids": ["evidence-hk10"],
+                        "limitations": [],
+                    }
+                ],
+                "gaps": [],
             }
         ],
-        "orientation_summary": "Установлен контекст, но причинная связь остаётся открытой.",
-        "missing_detail": "Не установлен первоначальный механизм допуска.",
-        "is_stale": False,
     }
+    source_set = workspace["source_sets"][0]
+
+    report = semantic_eval_report(
+        workspace=workspace,
+        source_set=source_set,
+        traces=[],
+        question_ids=["current"],
+        expected_question_statuses={"current": "mapped"},
+        expected_requirement_statuses={},
+        expected_salient_facts=[
+            {
+                "label": "hk10_public_demand_hkma",
+                "question_id": "current",
+                "source_ref": "S03",
+                "required_terms": ["HK$10", "public demand", "HKMA"],
+            }
+        ],
+    )
+
+    assert report["passed"] is True
+    assert report["source_analysis_count"] == 1
+    assert report["coverage_hint_count"] == 0
+    assert report["accepted_finish_count"] == 0
+
+
+def test_semantic_eval_report_requires_salient_fact_in_one_source_analysis_finding() -> None:
+    workspace = {
+        "source_sets": [
+            {"set_id": "set-1", "status": "mapped", "source_refs": ["S03"], "question_ids": ["current"]}
+        ],
+        "source_analyses": [
+            {
+                "analysis_id": "analysis:S03",
+                "source_ref": "S03",
+                "status": "usable",
+                "current": True,
+                "accepted": True,
+                "findings": [
+                    {
+                        "finding_id": "finding:S03:hk10",
+                        "statement": "The source says HK$10 notes returned because of public demand.",
+                        "question_ids": ["current"],
+                        "evidence_ids": ["evidence-hk10"],
+                        "limitations": [],
+                    },
+                    {
+                        "finding_id": "finding:S03:demand",
+                        "statement": "The source separately describes a later banknote programme.",
+                        "question_ids": ["current"],
+                        "evidence_ids": ["evidence-programme"],
+                        "limitations": [],
+                    },
+                ],
+                "gaps": [
+                    {
+                        "question_id": "current",
+                        "description": "HKMA appears in a gap, not in a salient finding.",
+                    }
+                ],
+            }
+        ],
+    }
+
+    report = semantic_eval_report(
+        workspace=workspace,
+        source_set=workspace["source_sets"][0],
+        traces=[],
+        question_ids=["current"],
+        expected_question_statuses={},
+        expected_requirement_statuses={},
+        expected_salient_facts=[
+            {
+                "label": "hk10_public_demand_hkma",
+                "question_id": "current",
+                "source_ref": "S03",
+                "required_terms": ["HK$10", "public demand", "HKMA"],
+            }
+        ],
+    )
+
+    assert report["passed"] is False
+    assert report["salient_facts"][0]["missing_terms"] == ["hkma"]
+
+
+def test_semantic_eval_report_requires_explicit_expectations() -> None:
+    workspace = {
+        "source_sets": [{"set_id": "set-1", "status": "mapped", "source_refs": ["S03"]}],
+        "source_analyses": [],
+    }
+
+    report = semantic_eval_report(
+        workspace=workspace,
+        source_set=workspace["source_sets"][0],
+        traces=[],
+        question_ids=["current"],
+        expected_question_statuses={},
+        expected_requirement_statuses={},
+    )
+
+    assert report["passed"] is False
+    assert "semantic eval requires at least one explicit expectation" in report["issues"]
+
+
+def test_semantic_eval_report_does_not_satisfy_salient_fact_from_limitations() -> None:
+    workspace = {
+        "source_sets": [
+            {"set_id": "set-1", "status": "mapped", "source_refs": ["S03"], "question_ids": ["current"]}
+        ],
+        "source_analyses": [
+            {
+                "analysis_id": "analysis:S03",
+                "source_ref": "S03",
+                "status": "usable",
+                "current": True,
+                "accepted": True,
+                "findings": [
+                    {
+                        "finding_id": "finding:S03:hk10",
+                        "statement": "The source says HK$10 notes returned because of public demand.",
+                        "question_ids": ["current"],
+                        "evidence_ids": ["evidence-hk10"],
+                        "limitations": ["The source does not say HKMA caused this demand."],
+                    }
+                ],
+                "gaps": [],
+            }
+        ],
+    }
+
+    report = semantic_eval_report(
+        workspace=workspace,
+        source_set=workspace["source_sets"][0],
+        traces=[],
+        question_ids=["current"],
+        expected_question_statuses={},
+        expected_requirement_statuses={},
+        expected_salient_facts=[
+            {
+                "label": "hk10_public_demand_hkma",
+                "question_id": "current",
+                "source_ref": "S03",
+                "required_terms": ["HK$10", "public demand", "HKMA"],
+            }
+        ],
+    )
+
+    assert report["passed"] is False
+    assert report["salient_facts"][0]["missing_terms"] == ["hkma"]
+
+
+def test_semantic_eval_report_checks_expected_source_specific_gap() -> None:
+    workspace = {
+        "source_sets": [
+            {"set_id": "set-1", "status": "mapped", "source_refs": ["S03"], "question_ids": ["origin"]}
+        ],
+        "source_analyses": [
+            {
+                "analysis_id": "analysis:S03",
+                "source_ref": "S03",
+                "status": "usable",
+                "current": True,
+                "accepted": True,
+                "findings": [],
+                "gaps": [
+                    {
+                        "question_id": "origin",
+                        "description": "The source describes practice but not the early legal basis.",
+                    }
+                ],
+            }
+        ],
+    }
+
+    report = semantic_eval_report(
+        workspace=workspace,
+        source_set=workspace["source_sets"][0],
+        traces=[],
+        question_ids=["origin"],
+        expected_question_statuses={},
+        expected_requirement_statuses={},
+        expected_gaps=[
+            {
+                "label": "early_legal_basis_gap",
+                "question_id": "origin",
+                "source_ref": "S03",
+                "required_terms": ["practice", "early legal basis"],
+            }
+        ],
+    )
+
+    assert report["passed"] is True
+    assert report["expected_gaps"][0]["passed"] is True

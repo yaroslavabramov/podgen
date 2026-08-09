@@ -9,14 +9,18 @@ from app.config import settings
 from app.generation_v2.agents.source_acquisition_agent import build_source_acquisition_agent
 from app.generation_v2.agents.fallbacks import allow_runtime_fallback as _allow_runtime_fallback
 from app.generation_v2.agents.tool_sets import (
+    SOURCE_MAPPER_TOOL_NAMES,
     TRIAGE_FINALIZER_TOOL_NAMES,
     TRIAGE_PLANNER_TOOL_NAMES,
     TRIAGE_SET_TOOL_NAMES,
     phase_tools,
 )
 from app.generation_v2.prompting import (
+    SOURCE_MAPPER_PROMPT,
+    SOURCE_MAPPER_SYSTEM,
     SOURCE_TRIAGE_FINALIZER_PROMPT,
     SOURCE_TRIAGE_FINALIZER_SYSTEM,
+    SOURCE_TRIAGE_MAPPING_RECALL_EVAL_PROMPT,
     SOURCE_TRIAGE_PLANNER_PROMPT,
     SOURCE_TRIAGE_PLANNER_SYSTEM,
     SOURCE_TRIAGE_SET_PROMPT,
@@ -105,12 +109,18 @@ async def build_source_triage_set_agent(
     allowed_tool_names: set[str] | None = None,
 ) -> SourceTriageCompletion:
     resolved_output_language = _output_language(run, explicit=output_language)
-    prompt = SOURCE_TRIAGE_SET_PROMPT.format(
+    source_set = (source_set_payload or {}).get("set") or {}
+    prompt_template = (
+        SOURCE_TRIAGE_MAPPING_RECALL_EVAL_PROMPT
+        if source_set.get("execution_mode") == "semantic_eval"
+        else SOURCE_TRIAGE_SET_PROMPT
+    )
+    prompt = prompt_template.format(
         user_prompt=(run.config or {}).get("user_prompt", ""),
         output_language=_json(resolved_output_language),
         source_set_json=_json(source_set_payload),
     )
-    set_id = ((source_set_payload or {}).get("set") or {}).get("set_id") or "unknown"
+    set_id = source_set.get("set_id") or "unknown"
     agent_name = f"source_triage_set_agent_{str(set_id)[:48]}"
     try:
         return await runtime.call_structured(
@@ -145,6 +155,63 @@ async def build_source_triage_set_agent(
         return SourceTriageCompletion(
             ready=False,
             summary=f"Runtime fallback was used; source set {set_id} was not mapped.",
+            notes=[],
+        )
+
+
+async def build_source_mapper_agent(
+    db: AsyncSession,
+    run: GenerationRun,
+    runtime: V2Runtime,
+    *,
+    source_payload: dict,
+    mapper_tools: list[AgentTool] | None = None,
+    vector_store_id: str | None = None,
+    hosted_file_search_handler=None,
+    output_language: str | None = None,
+    terminal_progress_loader=None,
+) -> SourceTriageCompletion:
+    resolved_output_language = _output_language(run, explicit=output_language)
+    source_ref = str((source_payload or {}).get("source_ref") or "unknown")
+    prompt = SOURCE_MAPPER_PROMPT.format(
+        user_prompt=(run.config or {}).get("user_prompt", ""),
+        output_language=_json(resolved_output_language),
+        source_payload_json=_json(source_payload),
+    )
+    agent_name = f"source_mapper_agent_{source_ref[:48]}"
+    try:
+        return await runtime.call_structured(
+            db=db,
+            generation_run_id=run.id,
+            phase=V2Phase.SOURCE_TRIAGE,
+            agent_name=agent_name,
+            schema_model=SourceTriageCompletion,
+            system=SOURCE_MAPPER_SYSTEM,
+            prompt=prompt,
+            vector_store_id=vector_store_id,
+            local_tools=_triage_phase_tools(mapper_tools, SOURCE_MAPPER_TOOL_NAMES),
+            tool_policy=ToolPolicy(
+                file_search=False,
+                web_search=False,
+                local_tools=True,
+                parallel_local_tool_calls=False,
+            ),
+            hosted_file_search_handler=hosted_file_search_handler,
+            max_output_tokens=None,
+            max_tool_rounds=0,
+            server_compaction_threshold=settings.generation_v2_triage_compaction_threshold,
+            checkpoint_policy=AgentCheckpointPolicy(enabled=False),
+            checkpoint_resume_context=build_checkpoint_resume_context(
+                run_config=_run_config_with_language(run, resolved_output_language),
+                workflow_contract=TRIAGE_SET_RESUME_CONTRACT,
+            ),
+            terminal_progress_loader=terminal_progress_loader,
+        )
+    except V2RuntimeUnavailable as exc:
+        _allow_runtime_fallback(runtime, "v2_source_triage", agent_name, exc)
+        return SourceTriageCompletion(
+            ready=False,
+            summary=f"Runtime fallback was used; source {source_ref} was not mapped.",
             notes=[],
         )
 
@@ -293,10 +360,10 @@ def _triage_error_next_action(
     if tool_name == V2ToolName.COMPARE_SOURCE_EVIDENCE:
         return (
             "Correct the source refs or comparison question and retry compare_source_evidence, then update only "
-            "the finding links, relations, outcomes, relationships, clusters, or gaps supported by the result."
+            "the source findings, source relations, coverage hints, relationships, clusters, or gaps supported by the result."
         )
     if tool_name == "finish_triage_source_set":
-        return "Complete the listed source analyses or outcomes, then retry finish_triage_source_set."
+        return "Complete the listed source analyses or reading checkpoints, then retry finish_triage_source_set."
     if tool_name == "finalize_triage_workspace_plan":
         return "Correct the listed questions or source sets, then retry finalize_triage_workspace_plan."
     if tool_name == "finalize_source_map":
@@ -319,4 +386,8 @@ def _run_config_with_language(run: GenerationRun, language: str) -> dict:
 
 __all__ = [
     "build_source_acquisition_agent",
+    "build_source_mapper_agent",
+    "build_source_triage_finalizer_agent",
+    "build_source_triage_planner_agent",
+    "build_source_triage_set_agent",
 ]

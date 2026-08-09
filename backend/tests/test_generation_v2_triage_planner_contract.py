@@ -170,7 +170,7 @@ async def test_planner_accepts_root_question_without_fake_parent(
 
 
 @pytest.mark.asyncio
-async def test_planner_finalization_rejects_stale_requirement_assignments(
+async def test_planner_finalization_ignores_legacy_requirement_assignments(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     workspace = {
@@ -208,8 +208,10 @@ async def test_planner_finalization_rejects_stale_requirement_assignments(
     async def _load(_db, _run_id):
         return workspace
 
-    async def _save(_db, **_kwargs):
-        raise AssertionError("Invalid plan must not be persisted as finalized")
+    saved: dict[str, object] = {}
+
+    async def _save(_db, **kwargs):
+        saved.update(kwargs)
 
     monkeypatch.setattr(triage_workspace_module, "load_source_triage_workspace", _load)
     monkeypatch.setattr(triage_workspace_module, "save_source_triage_workspace", _save)
@@ -227,13 +229,8 @@ async def test_planner_finalization_rejects_stale_requirement_assignments(
         {"summary": "Plan complete.", "central_question_id": "q_main"}
     )
 
-    assert result["accepted"] is False
-    assert result["unassigned_question_requirements"] == [
-        {"question_id": "q_main", "requirement_id": "q_main:new"}
-    ]
-    assert result["unknown_assigned_question_requirements"] == [
-        {"question_id": "q_main", "requirement_id": "q_main:removed"}
-    ]
+    assert result["accepted"] is True
+    assert saved["workspace"]["status"] == "planned"  # type: ignore[index]
 
 
 @pytest.mark.asyncio
@@ -556,13 +553,15 @@ def test_set_payload_keeps_only_compact_index_for_other_questions() -> None:
     assert "UNRELATED SET PURPOSE" not in encoded
     assert "source_sets" not in payload["workspace_progress"]
     assert "coverage_questions" not in payload["workspace_progress"]
-    assert payload["all_coverage_question_count"] == 2
-    assert [item["question_id"] for item in payload["set"]["assigned_questions"]] == ["q_main"]
-    assert [item["question_id"] for item in payload["other_coverage_question_index"]] == ["q_unrelated"]
-    unrelated = payload["other_coverage_question_index"][0]
+    assert payload["question_count"] == 2
+    assert payload["set"]["assigned_question_ids"] == ["q_main"]
+    assert [item["question_id"] for item in payload["question_index"]] == ["q_main", "q_unrelated"]
+    unrelated = payload["question_index"][1]
     assert unrelated["question"] == "UNRELATED QUESTION TEXT"
-    assert unrelated["requirement_count"] == 1
-    assert "answer_requirements" not in unrelated
+    assert unrelated["set_role"] == "available"
+    assert [item["requirement_id"] for item in unrelated["answer_requirements"]] == [
+        "q_unrelated:context"
+    ]
 
 
 def test_set_payload_exposes_backend_derived_pending_work() -> None:
@@ -581,8 +580,9 @@ def test_set_payload_exposes_backend_derived_pending_work() -> None:
     source_set = source_set_prompt_payload(workspace, "set_1")["set"]
 
     assert source_set["pending_source_refs"] == ["S01"]
-    assert source_set["required_question_ids"] == ["q_main"]
-    assert source_set["missing_outcome_question_ids"] == ["q_main"]
+    assert source_set["assigned_question_ids"] == ["q_main"]
+    assert "required_question_ids" not in source_set
+    assert "missing_outcome_question_ids" not in source_set
 
 
 def test_other_question_index_has_no_fixed_item_quota() -> None:
@@ -607,10 +607,10 @@ def test_other_question_index_has_no_fixed_item_quota() -> None:
 
     payload = source_set_prompt_payload(workspace, "set_1")
 
-    assert len(payload["other_coverage_question_index"]) == 100
-    assert payload["all_coverage_question_count"] == 101
-    assert payload["other_coverage_question_count"] == 100
-    assert payload["other_coverage_question_index"][-1]["question_id"] == "q_other_99"
+    assert len(payload["question_index"]) == 101
+    assert payload["question_count"] == 101
+    assert payload["question_index"][-1]["question_id"] == "q_other_99"
+    assert "other_coverage_question_index" not in payload
     assert "other_coverage_question_omitted_count" not in payload
 
 
@@ -639,7 +639,7 @@ def test_assigned_questions_have_no_fixed_three_item_quota() -> None:
 
     source_set = source_set_prompt_payload(workspace, "set_1")["set"]
 
-    assert len(source_set["assigned_questions"]) == 20
+    assert len(source_set["assigned_question_ids"]) == 20
     assert source_set["assigned_question_count"] == 20
 
 
@@ -656,13 +656,14 @@ def test_assigned_questions_include_only_assigned_requirement_details() -> None:
         {"question_id": "q_main", "requirement_ids": ["q_main:mechanism"]}
     ]
 
-    source_set = source_set_prompt_payload(workspace, "set_1")["set"]
-    assigned = source_set["assigned_questions"][0]
+    payload = source_set_prompt_payload(workspace, "set_1")
+    assigned = payload["question_index"][0]
 
     assert [item["requirement_id"] for item in assigned["answer_requirements"]] == [
-        "q_main:mechanism"
+        "q_main:mechanism",
+        "q_main:unassigned",
     ]
-    assert "This belongs to another set." not in str(source_set)
+    assert "This belongs to another set." in str(payload["question_index"])
 
 
 def test_set_payload_does_not_ship_preview_accounting_noise_or_duplicate_question_blocks() -> None:
@@ -674,7 +675,9 @@ def test_set_payload_does_not_ship_preview_accounting_noise_or_duplicate_questio
     assert "coverage_questions" not in payload["set"]
     assert "question_assignments" not in payload["set"]
     assert "all_coverage_question_index" not in payload
-    assert "assigned_questions" in payload["set"]
+    assert "assigned_questions" not in payload["set"]
+    assert "other_coverage_question_index" not in payload
+    assert "question_index" in payload
 
 
 @pytest.mark.parametrize("saved_work", ["assessment", "outcome", "observation"])
@@ -755,7 +758,7 @@ def test_set_prompt_uses_one_continuous_contract_without_mode_branches() -> None
         assert execution_mode not in prompt
     assert "one continuous agent" in prompt
     assert "read_triage_set_state" in prompt
-    assert "read_triage_set_state as durable external memory" in prompt
+    assert "durable source memory" in prompt
     assert "repair=true" not in prompt
     assert "repair_targeted=true" not in prompt
 
@@ -765,14 +768,14 @@ def test_set_prompt_requires_deep_reading_with_semantic_stopping_criteria() -> N
 
     assert "read_source returns the actual text as lossless passages" in prompt
     assert "search_source is navigation only, not proof" in prompt
-    assert "name the unread regions" in prompt
-    assert "why they are unlikely to change the result" in prompt
-    assert "Before switching sources, save a reading note or the completed source analysis" in prompt
-    assert "Findings must be atomic" in prompt
+    assert "name unread regions" in prompt
+    assert "why further reading is unlikely to change source findings" in prompt
+    assert "Before switching sources, save either a reading note or the completed source analysis" in prompt
+    assert "Findings are atomic" in prompt
     assert "actor, period, geography, qualifiers" in prompt
     assert "passage_refs" in prompt
-    assert "Stop only when further reading is not reasonably likely to change" in prompt
-    assert "There are no quotas for reads, findings, or evidence" in prompt
+    assert "Finish only when unfinished_work is empty" in prompt
+    assert "There are no quotas for reads, findings, evidence, or hints" in prompt
 
 
 def test_set_prompt_does_not_treat_navigation_or_read_counts_as_semantic_evidence() -> None:
@@ -780,7 +783,7 @@ def test_set_prompt_does_not_treat_navigation_or_read_counts_as_semantic_evidenc
 
     assert "search_source is navigation only, not proof" in prompt
     assert "Do not stop at the first match" in prompt
-    assert "Zero findings is valid only with a concrete reason after actual reading" in prompt
+    assert "Zero findings is valid only after real reading with a concrete reason" in prompt
     assert "do not open, search, or read a different unresolved source" not in prompt.casefold()
     assert "minimum number" not in prompt.casefold()
     assert "maximum number" not in prompt.casefold()

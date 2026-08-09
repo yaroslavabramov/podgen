@@ -7,6 +7,7 @@ class V2AgentName(StrEnum):
     SOURCE_TRIAGE = "source_triage_agent"
     SOURCE_TRIAGE_PLANNER = "source_triage_planner_agent"
     SOURCE_TRIAGE_FINALIZER = "source_triage_finalizer_agent"
+    SOURCE_MAPPER = "source_mapper_agent"
     CORPUS_BRIEF_AUDITOR = "corpus_brief_auditor"
     SOURCE_ACQUISITION = "source_acquisition_agent"
     RESEARCH_PLANNER = "research_planner_agent"
@@ -23,6 +24,7 @@ class V2AgentName(StrEnum):
     SOURCE_TRIAGE_WORKSPACE = "source_triage_workspace"
     SOURCE_TRIAGE_GATE = "source_triage_gate"
     SOURCE_TRIAGE_SET_WORKFLOW = "source_triage_set_workflow"
+    SOURCE_MAPPER_WORKFLOW = "source_mapper_workflow"
 
 
 class V2AgentPrefix(StrEnum):
@@ -59,6 +61,7 @@ class V2ToolName(StrEnum):
     RESOLVE_SOURCE_MAP_REPAIR = "resolve_source_map_repair"
     UPSERT_SOURCE_ASSESSMENT = "upsert_source_assessment"
     SAVE_SOURCE_ANALYSIS = "save_source_analysis"
+    SAVE_COVERAGE_HINT = "save_coverage_hint"
     SAVE_READING_NOTE = "save_reading_note"
     SAVE_SEMANTIC_REVIEW_SELF_CHECK = "save_semantic_review_self_check"
     ACKNOWLEDGE_SEMANTIC_REVIEW = "acknowledge_semantic_review"
@@ -69,6 +72,7 @@ class V2ToolName(StrEnum):
     RESOLVE_TRIAGE_QUESTION = "resolve_triage_question"
     UPSERT_COVERAGE_SYNTHESIS = "upsert_coverage_synthesis"
     FINISH_TRIAGE_SOURCE_SET = "finish_triage_source_set"
+    FINISH_SOURCE_MAPPING = "finish_source_mapping"
     FINALIZE_SOURCE_MAP = "finalize_source_map"
     UPSERT_RESEARCH_JOB = "upsert_research_job"
     FINALIZE_RESEARCH_PLAN = "finalize_research_plan"

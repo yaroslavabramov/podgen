@@ -10,7 +10,6 @@ from app.generation_v2.source_triage_read_checkpointing import (
     pending_source_checkpoint_requirements,
     source_refs_with_reads_newer_than_analysis,
 )
-from app.generation_v2.source_triage_question_state import question_outcome_is_current
 
 
 def pending_set_work(workspace: dict[str, Any], source_set: dict[str, Any]) -> dict[str, Any]:
@@ -23,41 +22,14 @@ def pending_set_work(workspace: dict[str, Any], source_set: dict[str, Any]) -> d
         and str(item.get("processing_status") or "resolved") == "resolved"
         and (item.get("finding_ids") or str(item.get("no_findings_reason") or "").strip())
     }
-    set_outcomes_by_question = {
-        str(item.get("question_id") or ""): item
-        for item in workspace.get("coverage_outcomes") or []
-        if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
-    }
-    completed_question_ids = {
-        question_id
-        for question_id, item in set_outcomes_by_question.items()
-        if str(item.get("status") or "") in {"covered", "partial", "missing", "conflicted", "deferred"}
-        and question_outcome_is_current(
-            item,
-            workspace=workspace,
-            source_set=source_set,
-            question_id=question_id,
-        )
-    }
-    required_question_ids = [str(item) for item in source_set.get("question_ids") or []]
-    stale_question_ids = [
-        question_id
-        for question_id, item in set_outcomes_by_question.items()
-        if not question_outcome_is_current(
-            item,
-            workspace=workspace,
-            source_set=source_set,
-            question_id=question_id,
-        )
-    ]
     set_findings = [
         item
         for item in workspace.get("source_findings") or []
         if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
     ]
-    set_outcomes = [
+    set_hints = [
         item
-        for item in workspace.get("coverage_outcomes") or []
+        for item in workspace.get("coverage_hints") or []
         if isinstance(item, dict) and str(item.get("set_id") or "") == set_id
     ]
     set_reading_notes = [
@@ -69,11 +41,11 @@ def pending_set_work(workspace: dict[str, Any], source_set: dict[str, Any]) -> d
         "pending_source_refs": [
             str(item) for item in source_set.get("source_refs") or [] if str(item) not in assessed_refs
         ],
-        "required_question_ids": required_question_ids,
-        "missing_outcome_question_ids": [
-            question_id for question_id in required_question_ids if question_id not in completed_question_ids
+        "assigned_question_ids": [
+            str(item)
+            for item in source_set.get("assigned_question_ids", source_set.get("question_ids") or [])
+            if str(item)
         ],
-        "stale_outcome_question_ids": workspace_api._dedupe(stale_question_ids),
         "pending_exact_read_source_refs": pending_exact_read_source_refs(
             workspace,
             source_set=source_set,
@@ -92,8 +64,8 @@ def pending_set_work(workspace: dict[str, Any], source_set: dict[str, Any]) -> d
             "finding_ids": sorted(
                 str(item.get("finding_id") or "") for item in set_findings if str(item.get("finding_id") or "")
             ),
-            "outcome_question_ids": sorted(
-                str(item.get("question_id") or "") for item in set_outcomes if str(item.get("question_id") or "")
+            "coverage_hint_ids": sorted(
+                str(item.get("hint_id") or "") for item in set_hints if str(item.get("hint_id") or "")
             ),
             "reading_note_ids": sorted(
                 str(item.get("note_id") or "") for item in set_reading_notes if str(item.get("note_id") or "")
@@ -101,7 +73,7 @@ def pending_set_work(workspace: dict[str, Any], source_set: dict[str, Any]) -> d
             "reading_note_count": len(set_reading_notes),
             "source_analysis_count": len(assessed_refs),
             "finding_count": len(set_findings),
-            "outcome_count": len(set_outcomes),
+            "coverage_hint_count": len(set_hints),
         },
     }
 

@@ -200,6 +200,8 @@ def carry_pending_triage_repair(
         "coverage_outcomes",
         "triage_semantic_revision",
         "repair_baseline_source_assessments",
+        "repair_baseline_source_findings",
+        "repair_baseline_coverage_hints",
         "repair_baseline_coverage_outcomes",
         "deferred_sources",
         "mapped_sources",
@@ -233,6 +235,8 @@ def triage_workspace_evidence_ids(workspace: dict[str, Any]) -> list[str]:
         "source_findings",
         "coverage_outcomes",
         "repair_baseline_source_assessments",
+        "repair_baseline_source_findings",
+        "repair_baseline_coverage_hints",
         "repair_baseline_coverage_outcomes",
         "source_sets",
         "processed_sets",
@@ -346,6 +350,33 @@ def reconcile_carried_triage_evidence(
         baseline_assessments.append(baseline)
     if "repair_baseline_source_assessments" in current:
         current["repair_baseline_source_assessments"] = baseline_assessments
+
+    for field in ("repair_baseline_source_findings", "repair_baseline_coverage_hints"):
+        baseline_records: list[dict[str, Any]] = []
+        for raw in current.get(field) or []:
+            if not isinstance(raw, dict):
+                continue
+            stale_ids = invalid.intersection(_nested_evidence_ids(raw))
+            baseline = _remap_nested_evidence(raw, mapping, invalid)
+            if stale_ids:
+                affect(
+                    str(raw.get("set_id") or ""),
+                    source_refs=[str(raw.get("source_ref") or "")],
+                    question_ids=[
+                        str(raw.get("question_id") or ""),
+                        *[
+                            str(link.get("question_id") or "")
+                            for link in raw.get("question_links") or []
+                            if isinstance(link, dict)
+                        ],
+                        *[str(item) for item in raw.get("possible_question_ids") or []],
+                    ],
+                )
+                baseline["repair_baseline_evidence_unavailable"] = True
+                baseline["repair_baseline_unavailable_evidence_count"] = len(stale_ids)
+            baseline_records.append(baseline)
+        if field in current:
+            current[field] = baseline_records
 
     baseline_outcomes: list[dict[str, Any]] = []
     for raw in current.get("repair_baseline_coverage_outcomes") or []:

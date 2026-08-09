@@ -68,6 +68,8 @@ class CoverageRequirement(BaseModel):
     description: str
     rationale: str = ""
     completion_criterion: str = ""
+    synthesis_only: bool = False
+    delegated_root_requirement_ids: list[str] = Field(default_factory=list)
 
 
 class CoverageQuestionAssignment(BaseModel):
@@ -137,6 +139,7 @@ class SourceFinding(BaseModel):
     evidence_ids: list[str] = Field(min_length=1)
     scope: FindingScope = Field(default_factory=FindingScope)
     limitations: list[str] = Field(default_factory=list)
+    possible_question_ids: list[str] = Field(default_factory=list)
     question_links: list[FindingQuestionLink] = Field(default_factory=list)
     source_relations: list[FindingSourceRelation] = Field(default_factory=list)
     semantic_revision: int = Field(default=0, ge=0)
@@ -176,6 +179,92 @@ class SourceAssessment(BaseModel):
     no_findings_reason: str = ""
     limitations: list[str] = Field(default_factory=list)
     confidence: float = Field(default=0.5, ge=0, le=1)
+
+
+class SourceAnalysisReadState(BaseModel):
+    complete: bool = True
+    unread_regions: list[str] = Field(default_factory=list)
+    stopping_reason: str = ""
+    backend_complete: bool = False
+    backend_eof: bool = False
+    backend_representation_failure: bool = False
+
+    @model_validator(mode="after")
+    def validate_incomplete_state(self) -> "SourceAnalysisReadState":
+        if not self.complete and (not self.unread_regions or not self.stopping_reason.strip()):
+            raise ValueError("incomplete source analysis read_state requires unread_regions and stopping_reason")
+        return self
+
+
+class SourceAnalysisFinding(BaseModel):
+    finding_id: str = ""
+    statement: str
+    evidence_ids: list[str] = Field(default_factory=list, min_length=1)
+    question_ids: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_source_mapping_finding(self) -> "SourceAnalysisFinding":
+        forbidden = {"covered", "partial", "missing"}
+        text_values = [self.statement, *self.limitations]
+        if any(str(value).strip().lower() in forbidden for value in text_values):
+            raise ValueError("source analysis findings cannot contain coverage status labels")
+        if len(self.evidence_ids) != len(set(self.evidence_ids)):
+            raise ValueError("source analysis finding evidence_ids must be unique")
+        if len(self.question_ids) != len(set(self.question_ids)):
+            raise ValueError("source analysis finding question_ids must be unique")
+        return self
+
+
+class SourceAnalysisGap(BaseModel):
+    question_id: str
+    description: str
+
+    @model_validator(mode="after")
+    def validate_source_mapping_gap(self) -> "SourceAnalysisGap":
+        forbidden = {"covered", "partial", "missing"}
+        if str(self.description).strip().lower() in forbidden:
+            raise ValueError("source analysis gaps cannot contain coverage status labels")
+        return self
+
+
+class SourceAnalysis(BaseModel):
+    """Durable one-source mapping record. It is not a question answer."""
+
+    analysis_id: str
+    source_ref: str
+    source_id: str = ""
+    source_version_ids: list[str] = Field(default_factory=list)
+    set_id: str = ""
+    status: str = "usable"
+    status_reason: str = ""
+    summary: str = ""
+    source_limitations: list[str] = Field(default_factory=list)
+    read_state: SourceAnalysisReadState = Field(default_factory=SourceAnalysisReadState)
+    findings: list[SourceAnalysisFinding] = Field(default_factory=list)
+    gaps: list[SourceAnalysisGap] = Field(default_factory=list)
+    duplicate_of_source_ref: str = ""
+    current: bool = True
+    accepted: bool = True
+    attempt: int = Field(default=1, ge=1)
+    created_at: str = ""
+    updated_at: str = ""
+
+    @model_validator(mode="after")
+    def validate_source_mapping_analysis(self) -> "SourceAnalysis":
+        allowed_statuses = {"usable", "deferred", "not_target_content"}
+        if self.status not in allowed_statuses:
+            raise ValueError("source analysis status must be usable, deferred, or not_target_content")
+        if self.status != "usable" and not self.status_reason.strip():
+            raise ValueError("deferred/not_target_content source analysis requires status_reason")
+        if self.status == "usable" and not self.summary.strip():
+            raise ValueError("usable source analysis requires summary")
+        if self.status in {"deferred", "not_target_content"} and self.findings:
+            raise ValueError("deferred/not_target_content source analysis cannot contain findings")
+        finding_ids = [item.finding_id for item in self.findings if item.finding_id]
+        if len(finding_ids) != len(set(finding_ids)):
+            raise ValueError("source analysis finding_ids must be unique")
+        return self
 
 
 class CoverageRequirementResult(BaseModel):
@@ -253,10 +342,26 @@ class ResearchHandoffItem(BaseModel):
     objective: str
     question_ids: list[str] = Field(default_factory=list)
     question_assignments: list[CoverageQuestionAssignment] = Field(default_factory=list)
+    question: str = ""
+    requirements: list[CoverageRequirement] = Field(default_factory=list)
+    findings: list[dict] = Field(default_factory=list)
+    gaps: list[dict] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+    source_refs: list[str] = Field(default_factory=list)
+    source_cards: list[dict] = Field(default_factory=list)
+    root_only: bool = False
+    synthesis_only: bool = False
+    # Legacy/read compatibility only. New source-mapping handoff does not write these.
     finding_ids: list[str] = Field(default_factory=list)
+    final_finding_ids: list[str] = Field(default_factory=list)
+    candidate_finding_ids: list[str] = Field(default_factory=list)
+    allowed_source_ids: list[str] = Field(default_factory=list)
     preferred_source_ids: list[str] = Field(default_factory=list)
+    candidate_source_ids: list[str] = Field(default_factory=list)
     starting_evidence_ids: list[str] = Field(default_factory=list)
-    action: ResearchHandoffAction = ResearchHandoffAction.DEEP_READ
+    candidate_evidence_ids: list[str] = Field(default_factory=list)
+    coverage_hint_ids: list[str] = Field(default_factory=list)
+    action: ResearchHandoffAction = ResearchHandoffAction.NONE
     reason: str = ""
 
 
@@ -283,6 +388,7 @@ class CorpusBrief(BaseModel):
     intent: CorpusBriefIntent
     coverage_questions: list[CoverageQuestion] = Field(default_factory=list)
     source_findings: list[SourceFinding] = Field(default_factory=list)
+    source_analyses: list[SourceAnalysis] = Field(default_factory=list)
     source_sets: list[CorpusBriefSourceSet] = Field(default_factory=list)
     coverage_outcomes: list[CoverageOutcome] = Field(default_factory=list)
     research_handoff: list[ResearchHandoffItem] = Field(default_factory=list)
@@ -296,6 +402,7 @@ class CorpusBrief(BaseModel):
         _unique_ids(self.source_sets, "set_id", "source set")
         _unique_ids(self.coverage_outcomes, "outcome_id", "coverage outcome")
         finding_ids = _unique_ids(self.source_findings, "finding_id", "source finding")
+        _unique_ids(self.source_analyses, "analysis_id", "source analysis")
         _validate_structured_outcome_finding_union(
             self.coverage_questions,
             self.coverage_outcomes,
@@ -379,6 +486,7 @@ class CorpusBrief(BaseModel):
                     )
         finding_links: dict[str, set[str]] = {}
         finding_requirement_links: dict[str, dict[str, set[str]]] = {}
+        finding_possible_links: dict[str, set[str]] = {}
         for finding in self.source_findings:
             linked_questions: set[str] = set()
             linked_requirements: dict[str, set[str]] = {}
@@ -396,6 +504,7 @@ class CorpusBrief(BaseModel):
                     )
             finding_links[finding.finding_id] = linked_questions
             finding_requirement_links[finding.finding_id] = linked_requirements
+            finding_possible_links[finding.finding_id] = set(finding.possible_question_ids)
         for outcome in self.coverage_outcomes:
             unknown_findings = sorted(set(outcome.finding_ids) - finding_ids)
             if unknown_findings:
@@ -439,18 +548,48 @@ class CorpusBrief(BaseModel):
                         + ", ".join(invalid_result_findings)
                     )
         for item in self.research_handoff:
-            unknown_findings = sorted(set(item.finding_ids) - finding_ids)
+            unknown_findings = sorted(
+                set(item.finding_ids + item.final_finding_ids + item.candidate_finding_ids)
+                - finding_ids
+            )
             if unknown_findings:
                 raise ValueError(f"unknown source finding ids: {', '.join(unknown_findings)}")
+            if not set(item.final_finding_ids).issubset(set(item.finding_ids)):
+                raise ValueError("research handoff final_finding_ids must be included in finding_ids")
+            if not set(item.candidate_finding_ids).issubset(set(item.finding_ids)):
+                raise ValueError("research handoff candidate_finding_ids must be included in finding_ids")
+            if item.allowed_source_ids:
+                allowed_source_ids = set(item.allowed_source_ids)
+                if not set(item.preferred_source_ids).issubset(allowed_source_ids):
+                    raise ValueError("research handoff preferred_source_ids must be included in allowed_source_ids")
+                if not set(item.candidate_source_ids).issubset(allowed_source_ids):
+                    raise ValueError("research handoff candidate_source_ids must be included in allowed_source_ids")
             unlinked_findings = sorted(
                 finding_id
                 for finding_id in item.finding_ids
                 if not finding_links.get(finding_id, set()).intersection(item.question_ids)
+                and not finding_possible_links.get(finding_id, set()).intersection(item.question_ids)
+                and finding_id not in set(item.candidate_finding_ids)
             )
             if unlinked_findings:
                 raise ValueError(
-                    "research handoff uses findings not linked to its questions: "
+                    "research handoff uses findings without final or candidate question linkage: "
                     + ", ".join(unlinked_findings)
+                )
+            unknown_embedded_evidence_ids = sorted(
+                {
+                    str(evidence_id)
+                    for finding in item.findings
+                    if isinstance(finding, dict)
+                    for evidence_id in finding.get("evidence_ids") or []
+                    if str(evidence_id)
+                }
+                - set(item.evidence_ids)
+            )
+            if unknown_embedded_evidence_ids:
+                raise ValueError(
+                    "research handoff embedded findings must use evidence_ids listed on the handoff: "
+                    + ", ".join(unknown_embedded_evidence_ids)
                 )
         return self
 
@@ -710,6 +849,7 @@ class SourceMap(BaseModel):
     gap_records: list[SourceGapRecord] = Field(default_factory=list)
     retrieval_notes: list[str] = Field(default_factory=list)
     source_assessments: list[SourceAssessment] = Field(default_factory=list)
+    source_analyses: list[SourceAnalysis] = Field(default_factory=list)
     coverage_questions: list[CoverageQuestion] = Field(default_factory=list)
     source_findings: list[SourceFinding] = Field(default_factory=list)
     coverage_outcomes: list[CoverageOutcome] = Field(default_factory=list)
@@ -718,6 +858,7 @@ class SourceMap(BaseModel):
     def validate_gap_records(self) -> "SourceMap":
         _unique_ids(self.gap_records, "gap_id", "gap record")
         _unique_ids(self.coverage_questions, "question_id", "coverage question")
+        _unique_ids(self.source_analyses, "analysis_id", "source analysis")
         finding_ids = _unique_ids(self.source_findings, "finding_id", "source finding")
         _unique_ids(self.coverage_outcomes, "outcome_id", "coverage outcome")
         finding_by_id = {item.finding_id: item for item in self.source_findings}
@@ -811,6 +952,10 @@ __all__ = [
     "ResearchHandoffItem",
     "ResearchWorkflowCompletion",
     "SourceAssessment",
+    "SourceAnalysis",
+    "SourceAnalysisFinding",
+    "SourceAnalysisGap",
+    "SourceAnalysisReadState",
     "SourceCard",
     "SourceCluster",
     "SourceGapRecord",

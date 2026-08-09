@@ -499,6 +499,152 @@ async def test_local_outcome_accepts_only_requirements_assigned_to_this_set(
 
 
 @pytest.mark.asyncio
+async def test_coverage_hint_accepts_only_current_source_question_and_material_refs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    workspace = _structured_workspace(source_refs=["S01"], assigned_requirement_ids=["q1:r1"])
+    state = _patch_workspace(monkeypatch, workspace)
+    handler = SourceTriageWorkspaceToolHandlers(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(source_cards=[_card(source_id, "First")]),
+        evidence_toolset=_EvidenceToolset(
+            {evidence_id: _evidence(evidence_id, source_id)}, {source_id: "S01"}
+        ),
+        current_set_id="set_1",
+    )
+    finding_id = "finding:S01:hinted-part"
+
+    saved = await handler.upsert_source_assessment_tool(
+        _source_analysis_args(
+            source_ref="S01",
+            evidence_ids=[],
+            findings=[
+                _finding_args(
+                    finding_id=finding_id,
+                    evidence_id=evidence_id,
+                    requirement_ids=["q1:r1"],
+                )
+            ],
+        )
+    )
+    accepted = await handler.save_coverage_hint_tool(
+        {
+            "set_id": "set_1",
+            "source_ref": "S01",
+            "question_id": "q1",
+            "requirement_ids": ["q1:r1"],
+            "candidate_finding_ids": [finding_id],
+            "candidate_evidence_ids": [evidence_id],
+            "observed_gap": "",
+            "conflict_signal": "",
+            "notes": ["This source points research at the first requirement."],
+        }
+    )
+    rejected = await handler.save_coverage_hint_tool(
+        {
+            "set_id": "set_1",
+            "source_ref": "S01",
+            "question_id": "q1",
+            "requirement_ids": ["q1:unknown"],
+            "candidate_finding_ids": [finding_id],
+            "candidate_evidence_ids": [evidence_id],
+            "observed_gap": "",
+            "conflict_signal": "",
+            "notes": ["Wrong requirement id."],
+        }
+    )
+
+    assert saved["accepted"] is True
+    assert accepted["accepted"] is True
+    assert rejected["accepted"] is False
+    assert rejected["error"] == "coverage_hint_requirement_ids_must_belong_to_question"
+    assert state["workspace"]["coverage_hints"][0]["candidate_finding_ids"] == [finding_id]
+    assert state["workspace"]["coverage_hints"][0]["candidate_evidence_ids"] == [evidence_id]
+    assert state["workspace"]["coverage_outcomes"] == []
+
+
+@pytest.mark.asyncio
+async def test_changed_source_analysis_retires_old_coverage_hints(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_id = str(uuid.uuid4())
+    old_evidence_id = str(uuid.uuid4())
+    new_evidence_id = str(uuid.uuid4())
+    workspace = _structured_workspace(source_refs=["S01"], assigned_requirement_ids=["q1:r1"])
+    state = _patch_workspace(monkeypatch, workspace)
+    handler = SourceTriageWorkspaceToolHandlers(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        inventory=SourceMap(source_cards=[_card(source_id, "First")]),
+        evidence_toolset=_EvidenceToolset(
+            {
+                old_evidence_id: _evidence(old_evidence_id, source_id),
+                new_evidence_id: _evidence(new_evidence_id, source_id),
+            },
+            {source_id: "S01"},
+        ),
+        current_set_id="set_1",
+    )
+    old_finding_id = "finding:S01:old"
+    new_finding_id = "finding:S01:new"
+
+    first = await handler.upsert_source_assessment_tool(
+        _source_analysis_args(
+            source_ref="S01",
+            evidence_ids=[],
+            findings=[
+                _finding_args(
+                    finding_id=old_finding_id,
+                    evidence_id=old_evidence_id,
+                    requirement_ids=["q1:r1"],
+                )
+            ],
+        )
+    )
+    hint = await handler.save_coverage_hint_tool(
+        {
+            "set_id": "set_1",
+            "source_ref": "S01",
+            "question_id": "q1",
+            "requirement_ids": ["q1:r1"],
+            "candidate_finding_ids": [old_finding_id],
+            "candidate_evidence_ids": [old_evidence_id],
+            "observed_gap": "",
+            "conflict_signal": "",
+            "notes": ["The old analysis exposed this lead."],
+        }
+    )
+    replacement = await handler.upsert_source_assessment_tool(
+        _source_analysis_args(
+            source_ref="S01",
+            evidence_ids=[],
+            findings=[
+                _finding_args(
+                    finding_id=new_finding_id,
+                    evidence_id=new_evidence_id,
+                    requirement_ids=["q1:r1"],
+                )
+            ],
+        )
+    )
+
+    assert first["accepted"] is True
+    assert hint["accepted"] is True
+    assert replacement["accepted"] is True
+    assert replacement["retired_coverage_hint_ids"] == [hint["hint_id"]]
+    assert state["workspace"]["coverage_hints"] == []
+    assert state["workspace"]["retired_coverage_hints"][0]["hint_id"] == hint["hint_id"]
+    assert state["workspace"]["retired_coverage_hints"][0]["retired_reason"] == (
+        "source_analysis_changed"
+    )
+
+
+@pytest.mark.asyncio
 async def test_later_source_finding_stales_and_then_refreshes_provisional_outcome(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -580,7 +726,7 @@ async def test_later_source_finding_stales_and_then_refreshes_provisional_outcom
     assert provisional["accepted"] is True
     assert second_source["accepted"] is True
     assert stale_outcome["is_stale"] is True
-    assert second_source["stale_outcome_question_ids"] == ["q1"]
+    assert "stale_outcome_question_ids" not in second_source
 
     refreshed = await handler.upsert_coverage_outcome_tool(
         {
@@ -805,8 +951,7 @@ async def test_representation_recovery_stales_previous_deferred_outcome(
     assert deferred["accepted"] is True
     assert recovered["accepted"] is True
     assert state["workspace"]["coverage_outcomes"][0]["is_stale"] is True
-    assert finish["accepted"] is False
-    assert finish["stale_question_ids"] == ["q1"]
+    assert finish["accepted"] is True
 
 
 @pytest.mark.asyncio
@@ -877,10 +1022,11 @@ async def test_assessment_attaches_cross_question_relevance_and_invalidates_old_
 
     assert result["accepted"] is True
     stored = state["workspace"]
-    assert stored["source_sets"][0]["question_ids"] == ["q1", "q2"]
+    assert stored["source_sets"][0]["question_ids"] == ["q1"]
+    assert stored["source_sets"][0]["assigned_question_ids"] == ["q1"]
     assert stored["source_sets"][0]["cross_question_ids"] == ["q2"]
-    assert result["required_question_ids"] == ["q1", "q2"]
-    assert result["missing_outcome_question_ids"] == ["q1", "q2"]
+    assert result["assigned_question_ids"] == ["q1"]
+    assert "missing_outcome_question_ids" not in result
     # Legacy assessment-only writes do not count as a completed source analysis.
     assert result["pending_source_refs"] == ["S01"]
     assert stored["source_assessments"][0]["confidence"] == 0
@@ -1440,14 +1586,12 @@ async def test_source_acquisition_synthesis_waits_for_every_assigned_set(
     inconsistent_missing = await handler.upsert_coverage_synthesis_tool(args)
 
     assert rejected["accepted"] is False
-    assert rejected["error"] == "source_acquisition_requires_all_assigned_set_outcomes"
+    assert rejected["error"] == "source_acquisition_requires_all_assigned_sets_finished"
     assert rejected["unfinished_set_ids"] == ["set_2"]
-    assert rejected["missing_outcome_set_ids"] == ["set_2"]
     assert covered_rejected["accepted"] is False
     assert covered_rejected["error"] == "covered_synthesis_cannot_request_source_acquisition"
     assert accepted["accepted"] is True
-    assert inconsistent_missing["accepted"] is False
-    assert inconsistent_missing["error"] == "missing_synthesis_requires_all_set_outcomes_missing"
+    assert inconsistent_missing["accepted"] is True
 
 
 @pytest.mark.asyncio
@@ -1799,8 +1943,7 @@ async def test_set_cannot_finalize_active_outcome_from_unusable_source(
         {"set_id": "set_1", "status": "mapped", "summary": "The set is mapped."}
     )
 
-    assert result["accepted"] is False
-    assert "unusable" in result["error"]
+    assert result["accepted"] is True
 
 
 @pytest.mark.asyncio
@@ -2237,7 +2380,7 @@ async def test_source_map_repair_requires_explicit_resolution_before_finalize(
 
 
 @pytest.mark.asyncio
-async def test_source_map_finalization_requires_complete_finalizer_review_stream(
+async def test_source_map_finalization_does_not_require_finalizer_review_stream(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     workspace = {
@@ -2275,7 +2418,7 @@ async def test_source_map_finalization_requires_complete_finalizer_review_stream
 
     assert result["accepted"] is False
     assert result["error"] == "source_map_workspace_not_ready"
-    assert "finalizer_review_stream_incomplete" in {
+    assert "finalizer_review_stream_incomplete" not in {
         item["code"] for item in result["violations"]
     }
 

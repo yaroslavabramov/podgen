@@ -435,7 +435,8 @@ def test_materialization_derives_outcome_sources_and_evidence_from_findings() ->
         "r_actor",
         "r_mechanism",
     ]
-    assert brief.research_handoff[0].finding_ids == ["finding-1"]
+    assert [item["finding_id"] for item in brief.research_handoff[0].findings] == ["finding-1"]
+    assert brief.research_handoff[0].finding_ids == []
     assert brief.research_handoff[0].question_assignments[0].requirement_ids == [
         "r_actor",
         "r_mechanism",

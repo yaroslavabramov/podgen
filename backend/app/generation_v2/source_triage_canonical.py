@@ -12,8 +12,14 @@ from app.generation_v2.corpus_brief_actions import (
 from app.generation_v2.source_triage_workspace_state import (
     SOURCE_SET_KIND_COVERAGE,
     SOURCE_SET_KIND_ORIENTATION,
+    TRIAGE_WORKFLOW_SOURCE_MAPPING,
     is_structured_triage_workspace,
+    triage_workflow_mode,
 )
+from app.generation_v2.source_triage_research_handoff import (
+    build_source_mapping_research_handoff,
+)
+from app.generation_v2.source_triage_source_analysis_state import has_delivered_source_read
 from app.generation_v2.contracts import SourceCardCoverageStatus
 from app.generation_v2.schemas import (
     CorpusBrief,
@@ -25,12 +31,14 @@ from app.generation_v2.schemas import (
     CoverageQuestion,
     ResearchHandoffItem,
     SourceAssessment,
+    SourceAnalysis,
     SourceFinding,
     SourceCard,
     SourceMap,
     SourceTriageItem,
 )
 from app.generation_v2.tools.evidence_source_map_ids import source_map_evidence_ids
+from app.generation_v2.tools.evidence_refs import build_source_ref_context, source_ref_for_id
 
 
 FINAL_OUTCOME_STATUSES = {"covered", "partial", "missing", "conflicted", "deferred"}
@@ -110,6 +118,11 @@ def coverage_question_material_lineage(
             for link in item.get("question_links") or []
         )
     ]
+    linked_hints = [
+        item
+        for item in workspace.get("coverage_hints") or []
+        if isinstance(item, dict) and str(item.get("question_id") or "") == question_id
+    ]
     assigned_refs = {
         str(source_ref)
         for source_set in workspace.get("source_sets") or []
@@ -150,7 +163,8 @@ def coverage_question_material_lineage(
         source_ref_by_id.get(str(item.get("source_id") or ""), "")
         for item in linked_findings
     }
-    allowed_ref_set = {ref for ref in linked_assessment_refs | outcome_refs | finding_refs if ref}
+    hint_refs = {str(item.get("source_ref") or "") for item in linked_hints}
+    allowed_ref_set = {ref for ref in linked_assessment_refs | outcome_refs | finding_refs | hint_refs if ref}
     source_order = [str(item) for item in workspace.get("source_order") or []]
     source_refs = [ref for ref in source_order if ref in allowed_ref_set]
     source_refs.extend(sorted(allowed_ref_set - set(source_refs)))
@@ -170,6 +184,11 @@ def coverage_question_material_lineage(
                 str(evidence_id)
                 for finding in linked_findings
                 for evidence_id in finding.get("evidence_ids") or []
+            ],
+            *[
+                str(evidence_id)
+                for hint in linked_hints
+                for evidence_id in hint.get("candidate_evidence_ids") or []
             ],
         ]
     )
@@ -216,6 +235,11 @@ def coverage_synthesis_input_hash(workspace: dict[str, Any], question_id: str) -
             for link in item.get("question_links") or []
         )
     ]
+    linked_hints = [
+        item
+        for item in workspace.get("coverage_hints") or []
+        if isinstance(item, dict) and str(item.get("question_id") or "") == question_id
+    ]
     payload = {
         "semantic_revision": int(workspace.get("triage_semantic_revision") or 0),
         "question": next(
@@ -242,6 +266,10 @@ def coverage_synthesis_input_hash(workspace: dict[str, Any], question_id: str) -
         "source_findings": sorted(
             (_coverage_input_source_finding(item) for item in linked_findings),
             key=lambda item: str(item.get("finding_id") or ""),
+        ),
+        "coverage_hints": sorted(
+            (_without_volatile_fields(item) for item in linked_hints),
+            key=lambda item: str(item.get("hint_id") or ""),
         ),
     }
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
@@ -287,6 +315,11 @@ def canonical_workspace_violations(
     violations: list[dict[str, Any]] = []
 
     question_ids = [str(item.get("question_id") or "") for item in questions]
+    questions_by_id = {
+        str(item.get("question_id") or ""): item
+        for item in questions
+        if str(item.get("question_id") or "")
+    }
     if not question_ids:
         violations.append({"code": "missing_coverage_questions", "message": "No coverage questions were persisted."})
     elif any(not question_id for question_id in question_ids):
@@ -330,6 +363,13 @@ def canonical_workspace_violations(
                 "question_ids": hierarchy_cycle,
             }
         )
+    leaf_question_ids = known_question_ids - {
+        str(item.get("parent_question_id") or "")
+        for item in questions
+        if str(item.get("parent_question_id") or "").strip()
+    }
+    if not leaf_question_ids:
+        leaf_question_ids = set(known_question_ids)
     central_question_id = str(workspace.get("central_question_id") or "").strip()
     if central_question_id:
         central_question = next(
@@ -491,7 +531,7 @@ def canonical_workspace_violations(
                 "question_ids": sorted(unknown_set_question_ids),
             }
         )
-    unassigned_question_ids = sorted(known_question_ids - assigned_question_ids)
+    unassigned_question_ids = sorted(leaf_question_ids - assigned_question_ids)
     if unassigned_question_ids:
         violations.append(
             {
@@ -647,6 +687,11 @@ def canonical_workspace_violations(
                 or (
                     str(assessment.get("representation_status") or "") == "not_target_content"
                     and not bool(assessment.get("evidence_ids"))
+                    and not has_delivered_source_read(
+                        workspace,
+                        set_id=str(assessment.get("set_id") or ""),
+                        source_ref=source_ref,
+                    )
                 )
             )
         )
@@ -701,16 +746,6 @@ def canonical_workspace_violations(
             }
         )
 
-    expected_outcomes = {
-        (str(source_set.get("set_id") or ""), str(question_id))
-        for source_set in source_sets
-        for question_id in source_set.get("question_ids") or []
-    }
-    final_outcomes = {
-        (str(item.get("set_id") or ""), str(item.get("question_id") or ""))
-        for item in outcomes
-        if str(item.get("status") or "") in FINAL_OUTCOME_STATUSES
-    }
     all_outcome_pairs = [(str(item.get("set_id") or ""), str(item.get("question_id") or "")) for item in outcomes]
     duplicate_outcome_pairs = sorted(pair for pair, count in _counts(all_outcome_pairs).items() if count > 1)
     if duplicate_outcome_pairs:
@@ -719,24 +754,6 @@ def canonical_workspace_violations(
                 "code": "duplicate_coverage_outcomes",
                 "message": "Each source-set/question pair needs exactly one current outcome.",
                 "set_question_pairs": [list(item) for item in duplicate_outcome_pairs],
-            }
-        )
-    unexpected_outcome_pairs = sorted(set(all_outcome_pairs) - expected_outcomes)
-    if unexpected_outcome_pairs:
-        violations.append(
-            {
-                "code": "unexpected_coverage_outcomes",
-                "message": "A coverage outcome must belong to an assigned source-set/question pair.",
-                "set_question_pairs": [list(item) for item in unexpected_outcome_pairs],
-            }
-        )
-    missing_outcomes = sorted(expected_outcomes - final_outcomes)
-    if missing_outcomes:
-        violations.append(
-            {
-                "code": "unresolved_coverage_questions",
-                "message": "Every question assigned to a source set needs a final outcome.",
-                "set_question_pairs": [list(item) for item in missing_outcomes],
             }
         )
     unknown_outcome_question_ids = sorted(
@@ -836,12 +853,20 @@ def canonical_workspace_violations(
                 "set_question_pairs": deferred_set_active_outcomes,
             }
         )
-    incomplete_outcomes: list[list[str]] = []
     source_set_by_id = {
         str(item.get("set_id") or ""): item
         for item in source_sets
         if str(item.get("set_id") or "")
     }
+    hint_violations = _coverage_hint_violations(
+        workspace,
+        source_set_by_id=source_set_by_id,
+        questions_by_id=questions_by_id,
+        current_assessment_by_ref=current_assessment_by_ref,
+    )
+    violations.extend(hint_violations)
+
+    incomplete_outcomes: list[list[str]] = []
     for item in outcomes:
         status = str(item.get("status") or "")
         orientation_summary = str(item.get("orientation_summary") or "").strip()
@@ -916,11 +941,137 @@ def canonical_workspace_violations(
     return violations
 
 
+def _coverage_hint_violations(
+    workspace: dict[str, Any],
+    *,
+    source_set_by_id: dict[str, dict[str, Any]],
+    questions_by_id: dict[str, dict[str, Any]],
+    current_assessment_by_ref: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Validate coverage hints as mechanical pointers, not as semantic answers."""
+
+    hints = [item for item in workspace.get("coverage_hints") or [] if isinstance(item, dict)]
+    if not hints:
+        return []
+
+    finding_by_id = {
+        str(item.get("finding_id") or ""): item
+        for item in workspace.get("source_findings") or []
+        if isinstance(item, dict) and str(item.get("finding_id") or "")
+    }
+    evidence_ids_by_set_source: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for assessment in workspace.get("source_assessments") or []:
+        if not isinstance(assessment, dict):
+            continue
+        key = (str(assessment.get("set_id") or ""), str(assessment.get("source_ref") or ""))
+        evidence_ids_by_set_source[key].update(
+            str(item) for item in assessment.get("evidence_ids") or [] if str(item).strip()
+        )
+    for finding in workspace.get("source_findings") or []:
+        if not isinstance(finding, dict):
+            continue
+        key = (str(finding.get("set_id") or ""), str(finding.get("source_ref") or ""))
+        evidence_ids_by_set_source[key].update(
+            str(item) for item in finding.get("evidence_ids") or [] if str(item).strip()
+        )
+
+    duplicate_hint_ids = _duplicates(
+        [str(item.get("hint_id") or "") for item in hints if str(item.get("hint_id") or "")]
+    )
+    invalid_hint_ids: set[str] = set()
+    invalid_source_refs: set[str] = set()
+    invalid_question_ids: set[str] = set()
+    invalid_requirement_ids: set[str] = set()
+    invalid_finding_ids: set[str] = set()
+    invalid_evidence_ids: set[str] = set()
+
+    for hint in hints:
+        hint_id = str(hint.get("hint_id") or "")
+        set_id = str(hint.get("set_id") or "")
+        source_ref = str(hint.get("source_ref") or "")
+        question_id = str(hint.get("question_id") or "")
+        source_set = source_set_by_id.get(set_id)
+        if not hint_id:
+            invalid_hint_ids.add("<missing>")
+        if source_set is None or source_ref not in {str(item) for item in source_set.get("source_refs") or []}:
+            invalid_hint_ids.add(hint_id or "<missing>")
+            invalid_source_refs.add(source_ref or "<missing>")
+        if (
+            source_ref
+            and source_ref in current_assessment_by_ref
+            and str((current_assessment_by_ref.get(source_ref) or {}).get("set_id") or "") != set_id
+        ):
+            invalid_hint_ids.add(hint_id or "<missing>")
+            invalid_source_refs.add(source_ref)
+
+        question = questions_by_id.get(question_id)
+        if question is None:
+            invalid_hint_ids.add(hint_id or "<missing>")
+            invalid_question_ids.add(question_id or "<missing>")
+            known_requirement_ids: set[str] = set()
+        else:
+            known_requirement_ids = {
+                str(item.get("requirement_id") or "")
+                for item in question.get("answer_requirements") or []
+                if isinstance(item, dict) and str(item.get("requirement_id") or "")
+            }
+        for requirement_id in hint.get("requirement_ids") or []:
+            requirement_id = str(requirement_id)
+            if requirement_id and requirement_id not in known_requirement_ids:
+                invalid_hint_ids.add(hint_id or "<missing>")
+                invalid_requirement_ids.add(requirement_id)
+
+        key = (set_id, source_ref)
+        for finding_id in hint.get("candidate_finding_ids") or []:
+            finding_id = str(finding_id)
+            finding = finding_by_id.get(finding_id)
+            if (
+                finding is None
+                or str(finding.get("set_id") or "") != set_id
+                or str(finding.get("source_ref") or "") != source_ref
+            ):
+                invalid_hint_ids.add(hint_id or "<missing>")
+                invalid_finding_ids.add(finding_id or "<missing>")
+        for evidence_id in hint.get("candidate_evidence_ids") or []:
+            evidence_id = str(evidence_id)
+            if evidence_id and evidence_id not in evidence_ids_by_set_source.get(key, set()):
+                invalid_hint_ids.add(hint_id or "<missing>")
+                invalid_evidence_ids.add(evidence_id)
+
+        has_material_or_gap = bool(
+            [item for item in hint.get("candidate_finding_ids") or [] if str(item).strip()]
+            or [item for item in hint.get("candidate_evidence_ids") or [] if str(item).strip()]
+            or str(hint.get("observed_gap") or "").strip()
+            or str(hint.get("conflict_signal") or "").strip()
+            or [item for item in hint.get("notes") or [] if str(item).strip()]
+        )
+        if not has_material_or_gap:
+            invalid_hint_ids.add(hint_id or "<missing>")
+
+    if duplicate_hint_ids:
+        invalid_hint_ids.update(duplicate_hint_ids)
+    if not invalid_hint_ids:
+        return []
+    return [
+        {
+            "code": "invalid_coverage_hints",
+            "message": "Coverage hints must point only to current set/source/question/finding/evidence records.",
+            "hint_ids": sorted(invalid_hint_ids),
+            "source_refs": sorted(ref for ref in invalid_source_refs if ref),
+            "question_ids": sorted(question_id for question_id in invalid_question_ids if question_id),
+            "requirement_ids": sorted(requirement_id for requirement_id in invalid_requirement_ids if requirement_id),
+            "finding_ids": sorted(finding_id for finding_id in invalid_finding_ids if finding_id),
+            "evidence_ids": sorted(evidence_id for evidence_id in invalid_evidence_ids if evidence_id),
+        }
+    ]
+
+
 def _coverage_synthesis_violations(workspace: dict[str, Any]) -> list[dict[str, Any]]:
     """Validate only concrete structure of the run-wide question synthesis."""
 
     questions = [item for item in workspace.get("coverage_questions") or [] if isinstance(item, dict)]
     syntheses = [item for item in workspace.get("coverage_syntheses") or [] if isinstance(item, dict)]
+    outcomes = [item for item in workspace.get("coverage_outcomes") or [] if isinstance(item, dict)]
     question_ids = [str(item.get("question_id") or "") for item in questions if item.get("question_id")]
     known_question_ids = set(question_ids)
     synthesis_question_ids = [str(item.get("question_id") or "") for item in syntheses]
@@ -964,6 +1115,12 @@ def _coverage_synthesis_violations(workspace: dict[str, Any]) -> list[dict[str, 
         for source_ref, item in assessments_by_ref.items()
         if str(item.get("source_id") or "").strip()
     }
+    set_id_by_source_ref = {
+        str(source_ref): str(source_set.get("set_id") or "")
+        for source_set in workspace.get("source_sets") or []
+        if isinstance(source_set, dict)
+        for source_ref in source_set.get("source_refs") or []
+    }
     source_ref_by_id = {source_id: source_ref for source_ref, source_id in source_id_by_ref.items()}
     known_source_refs = {str(item) for item in workspace.get("source_order") or []}
     persisted_evidence_refs: dict[str, set[str]] = defaultdict(set)
@@ -992,9 +1149,7 @@ def _coverage_synthesis_violations(workspace: dict[str, Any]) -> list[dict[str, 
                     persisted_evidence_refs[str(evidence_id)].add(source_ref)
                 if related_ref:
                     persisted_evidence_refs[str(evidence_id)].add(related_ref)
-    for item in workspace.get("coverage_outcomes") or []:
-        if not isinstance(item, dict):
-            continue
+    for item in outcomes:
         outcome_refs = {
             *[str(value) for value in item.get("source_refs") or [] if str(value).strip()],
             *[
@@ -1010,36 +1165,43 @@ def _coverage_synthesis_violations(workspace: dict[str, Any]) -> list[dict[str, 
                 # back to the outcome's declared refs when no exact binding is
                 # available in the canonical workspace.
                 persisted_evidence_refs[evidence_id].update(outcome_refs)
+    for hint in workspace.get("coverage_hints") or []:
+        if not isinstance(hint, dict):
+            continue
+        source_ref = str(hint.get("source_ref") or "")
+        for evidence_id in hint.get("candidate_evidence_ids") or []:
+            evidence_id = str(evidence_id)
+            if evidence_id.strip() and source_ref:
+                persisted_evidence_refs[evidence_id].add(source_ref)
     persisted_evidence_ids = set(persisted_evidence_refs)
     invalid_syntheses: list[str] = []
     invalid_source_refs: set[str] = set()
     invalid_evidence_ids: set[str] = set()
     current_input_revision = int(workspace.get("triage_semantic_revision") or 0)
-    source_set_by_id = {
-        str(item.get("set_id") or ""): item
-        for item in workspace.get("source_sets") or []
-        if isinstance(item, dict) and str(item.get("set_id") or "")
-    }
-    deferred_outcome_question_ids: set[str] = set()
-    for outcome in workspace.get("coverage_outcomes") or []:
-        if not isinstance(outcome, dict) or str(outcome.get("status") or "") != "deferred":
+    deferred_question_ids: set[str] = set()
+    for assessment in assessments_by_ref.values():
+        if str(assessment.get("representation_status") or "") not in REPRESENTATION_DEFER_BLOCKERS:
             continue
-        relevant_refs = _dedupe(
-            [str(value) for value in outcome.get("source_refs") or []]
-        ) or _dedupe(
-            [
-                str(value)
-                for value in (
-                    source_set_by_id.get(str(outcome.get("set_id") or ""), {}).get("source_refs") or []
-                )
-            ]
-        )
-        if any(
-            str((assessments_by_ref.get(source_ref) or {}).get("representation_status") or "")
-            in REPRESENTATION_DEFER_BLOCKERS
-            for source_ref in relevant_refs
-        ):
-            deferred_outcome_question_ids.add(str(outcome.get("question_id") or ""))
+        source_ref = str(assessment.get("source_ref") or "")
+        for question_id in assessment.get("coverage_question_ids") or []:
+            if str(question_id):
+                deferred_question_ids.add(str(question_id))
+        for hint in workspace.get("coverage_hints") or []:
+            if (
+                isinstance(hint, dict)
+                and str(hint.get("source_ref") or "") == source_ref
+                and str(hint.get("question_id") or "")
+            ):
+                deferred_question_ids.add(str(hint.get("question_id") or ""))
+        for outcome in outcomes:
+            if (
+                isinstance(outcome, dict)
+                and str(outcome.get("status") or "") == "deferred"
+                and str(outcome.get("set_id") or "")
+                == str(set_id_by_source_ref.get(source_ref) or "")
+                and str(outcome.get("question_id") or "")
+            ):
+                deferred_question_ids.add(str(outcome.get("question_id") or ""))
     for item in syntheses:
         question_id = str(item.get("question_id") or "")
         status = str(item.get("status") or "")
@@ -1074,7 +1236,7 @@ def _coverage_synthesis_violations(workspace: dict[str, Any]) -> list[dict[str, 
                 and not orientation_summary
                 and not missing_detail
                 and not conflict_summary
-                and question_id in deferred_outcome_question_ids
+                and question_id in deferred_question_ids
             )
         if str(item.get("next_action") or "") not in {"research", "source_acquisition", "omit", "none"}:
             valid = False
@@ -1092,7 +1254,6 @@ def _coverage_synthesis_violations(workspace: dict[str, Any]) -> list[dict[str, 
             for outcome in workspace.get("coverage_outcomes") or []
             if isinstance(outcome, dict) and str(outcome.get("question_id") or "") == question_id
         ]
-        outcome_statuses = {str(outcome.get("status") or "") for outcome in question_outcomes}
         active_outcomes = [
             outcome
             for outcome in question_outcomes
@@ -1116,19 +1277,10 @@ def _coverage_synthesis_violations(workspace: dict[str, Any]) -> list[dict[str, 
             for evidence_id in outcome.get("evidence_ids") or []
             if str(evidence_id).strip()
         }
-        if status == "missing" and outcome_statuses != {"missing"}:
-            valid = False
-        if status == "deferred" and (
-            "deferred" not in outcome_statuses
-            or not outcome_statuses.issubset({"missing", "deferred"})
-        ):
-            valid = False
         unknown_refs = set(source_refs) - known_source_refs
-        allowed_refs = (
-            active_outcome_refs
-            if status in {"covered", "partial", "conflicted"}
-            else set(material_lineage["source_refs"])
-        )
+        allowed_refs = set(material_lineage["source_refs"])
+        if status in {"covered", "partial", "conflicted"} and active_outcome_refs:
+            allowed_refs.update(active_outcome_refs)
         unlinked_refs = set(source_refs) - allowed_refs
         ineligible_refs = {
             ref
@@ -1137,11 +1289,9 @@ def _coverage_synthesis_violations(workspace: dict[str, Any]) -> list[dict[str, 
             and (ref not in assessments_by_ref or not research_eligible(assessments_by_ref[ref]))
         }
         stale_evidence = set(evidence_ids) - persisted_evidence_ids
-        allowed_evidence = (
-            active_outcome_evidence_ids
-            if status in {"covered", "partial", "conflicted"}
-            else set(material_lineage["evidence_ids"])
-        )
+        allowed_evidence = set(material_lineage["evidence_ids"])
+        if status in {"covered", "partial", "conflicted"} and active_outcome_evidence_ids:
+            allowed_evidence.update(active_outcome_evidence_ids)
         unlinked_evidence = set(evidence_ids) - allowed_evidence
         misbound_evidence = {
             evidence_id
@@ -1221,6 +1371,12 @@ def _canonical_workspace_evidence_ids(workspace: dict[str, Any]) -> list[str]:
         for item in workspace.get("coverage_outcomes") or []
         if isinstance(item, dict) and str(item.get("status") or "") in FINAL_OUTCOME_STATUSES
         for evidence_id in item.get("evidence_ids") or []
+    )
+    evidence_ids.extend(
+        str(evidence_id)
+        for item in workspace.get("coverage_hints") or []
+        if isinstance(item, dict)
+        for evidence_id in item.get("candidate_evidence_ids") or []
     )
     current_revision = int(workspace.get("triage_semantic_revision") or 0)
     for item in workspace.get("coverage_syntheses") or []:
@@ -1483,6 +1639,11 @@ def materialize_source_map_v2(
     """Make the workspace, not trace frequency, the canonical triage state."""
 
     findings = _source_findings_from_workspace(workspace)
+    source_analyses = [
+        SourceAnalysis.model_validate(item)
+        for item in workspace.get("source_analyses") or []
+        if isinstance(item, dict)
+    ]
     finding_ids_by_source: dict[str, list[str]] = defaultdict(list)
     finding_evidence_by_source: dict[str, list[str]] = defaultdict(list)
     for finding in findings:
@@ -1618,6 +1779,7 @@ def materialize_source_map_v2(
             "source_cards": cards,
             "source_triage": triage,
             "source_assessments": assessments,
+            "source_analyses": source_analyses,
             "coverage_questions": questions,
             "source_findings": findings,
             "coverage_outcomes": outcomes,
@@ -1660,6 +1822,11 @@ def aggregate_coverage_outcomes(workspace: dict[str, Any]) -> list[CoverageOutco
     finding_by_id = {
         item.finding_id: item for item in _source_findings_from_workspace(workspace)
     }
+    if (
+        is_structured_triage_workspace(workspace)
+        and triage_workflow_mode(workspace) == TRIAGE_WORKFLOW_SOURCE_MAPPING
+    ):
+        return []
     if fresh_syntheses:
         return [
             _outcome_with_finding_lineage(
@@ -1681,12 +1848,12 @@ def aggregate_coverage_outcomes(workspace: dict[str, Any]) -> list[CoverageOutco
     if syntheses:
         raise ValueError("Run-wide coverage syntheses are incomplete or stale; finalization must rebuild them.")
 
+    legacy_outcomes = [item for item in workspace.get("coverage_outcomes") or [] if isinstance(item, dict)]
     # Compatibility for completed workspaces created before run-wide
-    # question synthesis existed. New finalization requires syntheses.
+    # question synthesis existed.
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for item in workspace.get("coverage_outcomes") or []:
-        if isinstance(item, dict):
-            grouped[str(item.get("question_id") or "")].append(item)
+    for item in legacy_outcomes:
+        grouped[str(item.get("question_id") or "")].append(item)
     results: list[CoverageOutcome] = []
     for question in questions:
         if not isinstance(question, dict):
@@ -1914,71 +2081,82 @@ def materialize_corpus_brief(
             )
         )
 
-    question_by_id = {item.question_id: item for item in questions}
-    handoff: list[ResearchHandoffItem] = []
-    for outcome in outcomes:
-        if str(outcome.status) == "deferred" or not outcome_routes_to_research(outcome):
-            continue
-        routed_source_ids = _research_source_ids(outcome, finding_by_id=finding_by_id)
-        preferred_source_ids = [
-            source_id
-            for source_id in routed_source_ids
-            if source_id in assessment_by_source
-            and source_id not in deferred_source_ids
-            and research_eligible(assessment_by_source[source_id])
-        ]
-        if routed_source_ids and not preferred_source_ids:
-            # A synthesis that cites only deferred/ineligible sources is not
-            # converted into an empty active handoff. A genuine run-wide gap
-            # has no source_ids and can still be handed off for research.
-            continue
-        question = question_by_id.get(outcome.question_id)
-        if str(outcome.status) == "conflicted":
-            action = "compare"
-        elif str(outcome.status) == "missing":
-            action = "close_gap"
-        elif str(outcome.status) == "partial":
-            action = "corroborate"
-        else:
-            action = "deep_read"
-        handoff.append(
-            ResearchHandoffItem(
-                handoff_id=f"handoff:{outcome.question_id}",
-                priority=str(getattr(question, "importance", "supporting")),
-                objective=str(getattr(question, "question", outcome.question_id)),
-                question_ids=[outcome.question_id],
-                question_assignments=(
-                    [
-                        {
-                            "question_id": outcome.question_id,
-                            "requirement_ids": _research_requirement_ids(question, outcome),
-                        }
-                    ]
-                    if question is not None and question.answer_requirements
-                    else []
-                ),
-                finding_ids=_handoff_finding_ids(
-                    outcome,
-                    preferred_source_ids=preferred_source_ids,
-                    finding_by_id=finding_by_id,
-                ),
-                preferred_source_ids=preferred_source_ids,
-                starting_evidence_ids=_research_handoff_evidence_ids(
-                    outcome,
-                    preferred_source_ids=preferred_source_ids,
-                    assessment_by_source=assessment_by_source,
-                    evidence_ids_by_source=evidence_ids_by_source,
-                    finding_by_id=finding_by_id,
-                ),
-                action=action,
-                reason=(
-                    outcome.conflict_summary
-                    or outcome.missing_detail
-                    or outcome.orientation_summary
-                    or outcome.deferred_reason
-                ),
-            )
+    if is_structured_triage_workspace(workspace):
+        ref_context = build_source_ref_context(source_map)
+        source_cards_by_ref = {
+            source_ref_for_id(card.source_id, ref_context): card for card in source_map.source_cards
+        }
+        handoff = build_source_mapping_research_handoff(
+            questions=questions,
+            workspace=workspace,
+            source_cards_by_ref=source_cards_by_ref,
         )
+    else:
+        question_by_id = {item.question_id: item for item in questions}
+        handoff = []
+        for outcome in outcomes:
+            if str(outcome.status) == "deferred" or not outcome_routes_to_research(outcome):
+                continue
+            routed_source_ids = _research_source_ids(outcome, finding_by_id=finding_by_id)
+            preferred_source_ids = [
+                source_id
+                for source_id in routed_source_ids
+                if source_id in assessment_by_source
+                and source_id not in deferred_source_ids
+                and research_eligible(assessment_by_source[source_id])
+            ]
+            if routed_source_ids and not preferred_source_ids:
+                # A synthesis that cites only deferred/ineligible sources is not
+                # converted into an empty active handoff. A genuine run-wide gap
+                # has no source_ids and can still be handed off for research.
+                continue
+            question = question_by_id.get(outcome.question_id)
+            if str(outcome.status) == "conflicted":
+                action = "compare"
+            elif str(outcome.status) == "missing":
+                action = "close_gap"
+            elif str(outcome.status) == "partial":
+                action = "corroborate"
+            else:
+                action = "deep_read"
+            handoff.append(
+                ResearchHandoffItem(
+                    handoff_id=f"handoff:{outcome.question_id}",
+                    priority=str(getattr(question, "importance", "supporting")),
+                    objective=str(getattr(question, "question", outcome.question_id)),
+                    question_ids=[outcome.question_id],
+                    question_assignments=(
+                        [
+                            {
+                                "question_id": outcome.question_id,
+                                "requirement_ids": _research_requirement_ids(question, outcome),
+                            }
+                        ]
+                        if question is not None and question.answer_requirements
+                        else []
+                    ),
+                    finding_ids=_handoff_finding_ids(
+                        outcome,
+                        preferred_source_ids=preferred_source_ids,
+                        finding_by_id=finding_by_id,
+                    ),
+                    preferred_source_ids=preferred_source_ids,
+                    starting_evidence_ids=_research_handoff_evidence_ids(
+                        outcome,
+                        preferred_source_ids=preferred_source_ids,
+                        assessment_by_source=assessment_by_source,
+                        evidence_ids_by_source=evidence_ids_by_source,
+                        finding_by_id=finding_by_id,
+                    ),
+                    action=action,
+                    reason=(
+                        outcome.conflict_summary
+                        or outcome.missing_detail
+                        or outcome.orientation_summary
+                        or outcome.deferred_reason
+                    ),
+                )
+            )
 
     intent_payload = dict(workspace.get("intent") or {})
     declared_central_question_id = str(workspace.get("central_question_id") or "")
@@ -2030,6 +2208,7 @@ def materialize_corpus_brief(
         ),
         coverage_questions=questions,
         source_findings=[item.model_copy(deep=True) for item in source_map.source_findings],
+        source_analyses=[item.model_copy(deep=True) for item in source_map.source_analyses],
         source_sets=source_sets,
         coverage_outcomes=outcomes,
         research_handoff=handoff,
@@ -2059,6 +2238,8 @@ def audit_corpus_brief(
     issues: list[CorpusBriefAuditIssue] = []
     valid_evidence_ids = set(source_map_evidence_ids(source_map))
     valid_question_ids = {item.question_id for item in brief.coverage_questions}
+    parent_question_ids = {item.parent_question_id for item in brief.coverage_questions if item.parent_question_id}
+    leaf_question_ids = valid_question_ids - parent_question_ids or valid_question_ids
     assessment_by_source = {item.source_id: item for item in source_map.source_assessments}
     evidence_ids_by_source = {card.source_id: set(card.evidence_ids) for card in source_map.source_cards}
     scope_mismatches = [
@@ -2086,7 +2267,9 @@ def audit_corpus_brief(
     referenced_source_ids = {
         *(source_id for source_set in brief.source_sets for source_id in source_set.source_ids),
         *(source_id for outcome in brief.coverage_outcomes for source_id in outcome.source_ids),
+        *(source_id for item in brief.research_handoff for source_id in item.allowed_source_ids),
         *(source_id for item in brief.research_handoff for source_id in item.preferred_source_ids),
+        *(source_id for item in brief.research_handoff for source_id in item.candidate_source_ids),
         *(source_id for item in brief.gap_records for source_id in item.source_ids),
         *(finding.source_id for finding in brief.source_findings),
         *(
@@ -2098,7 +2281,15 @@ def audit_corpus_brief(
     referenced_evidence_ids = {
         *(evidence_id for source_set in brief.source_sets for evidence_id in source_set.evidence_ids),
         *(evidence_id for outcome in brief.coverage_outcomes for evidence_id in outcome.evidence_ids),
+        *(evidence_id for item in brief.research_handoff for evidence_id in item.evidence_ids),
         *(evidence_id for item in brief.research_handoff for evidence_id in item.starting_evidence_ids),
+        *(
+            evidence_id
+            for item in brief.research_handoff
+            for finding in item.findings
+            if isinstance(finding, dict)
+            for evidence_id in finding.get("evidence_ids") or []
+        ),
         *(evidence_id for item in brief.gap_records for evidence_id in item.evidence_ids),
         *(
             evidence_id
@@ -2173,23 +2364,39 @@ def audit_corpus_brief(
                 suggested_repair="Rebuild source sets from the completed triage workspace.",
             )
         )
-    outcome_question_ids = {item.question_id for item in brief.coverage_outcomes}
-    unresolved_question_ids = sorted(valid_question_ids - outcome_question_ids)
-    unresolved_question_ids.extend(
-        item.question_id for item in brief.coverage_outcomes if str(item.status) == "unknown"
-    )
-    unresolved_question_ids = sorted(set(unresolved_question_ids))
-    if unresolved_question_ids:
-        issues.append(
-            CorpusBriefAuditIssue(
-                issue_id="objective:unresolved_question",
-                code="unresolved_question",
-                severity="blocking",
-                message="Every coverage question must have a final explicit outcome.",
-                question_ids=unresolved_question_ids,
-                suggested_repair="Finish or explicitly defer each unresolved coverage question.",
+    source_mapping_handoff = _uses_source_mapping_handoff(brief)
+    actual_handoff_question_ids = [question_id for item in brief.research_handoff for question_id in item.question_ids]
+    if source_mapping_handoff:
+        missing_handoff_question_ids = sorted(leaf_question_ids - set(actual_handoff_question_ids))
+        if missing_handoff_question_ids:
+            issues.append(
+                CorpusBriefAuditIssue(
+                    issue_id="objective:unresolved_question",
+                    code="unresolved_question",
+                    severity="blocking",
+                    message="Every coverage question must be handed off to research.",
+                    question_ids=missing_handoff_question_ids,
+                    suggested_repair="Rebuild research handoff from coverage questions and source mapping.",
+                )
             )
+    else:
+        outcome_question_ids = {item.question_id for item in brief.coverage_outcomes}
+        unresolved_question_ids = sorted(valid_question_ids - outcome_question_ids)
+        unresolved_question_ids.extend(
+            item.question_id for item in brief.coverage_outcomes if str(item.status) == "unknown"
         )
+        unresolved_question_ids = sorted(set(unresolved_question_ids))
+        if unresolved_question_ids:
+            issues.append(
+                CorpusBriefAuditIssue(
+                    issue_id="objective:unresolved_question",
+                    code="unresolved_question",
+                    severity="blocking",
+                    message="Every coverage question must have a final explicit outcome.",
+                    question_ids=unresolved_question_ids,
+                    suggested_repair="Finish or explicitly defer each unresolved coverage question.",
+                )
+            )
     deferred_set_source_ids = {
         source_id
         for source_set in brief.source_sets
@@ -2200,7 +2407,11 @@ def audit_corpus_brief(
         {
             source_id
             for item in brief.research_handoff
-            for source_id in item.preferred_source_ids
+            for source_id in (
+                []
+                if source_mapping_handoff
+                else (item.allowed_source_ids or item.preferred_source_ids)
+            )
             if source_id in deferred_set_source_ids
             or source_id not in assessment_by_source
             or not research_eligible(assessment_by_source[source_id])
@@ -2221,18 +2432,32 @@ def audit_corpus_brief(
     finding_by_id = {item.finding_id: item for item in brief.source_findings}
     invalid_handoff_evidence_ids: set[str] = set()
     for item in brief.research_handoff:
-        allowed_evidence_ids = {
-            evidence_id
-            for question_id in item.question_ids
-            if (outcome := outcome_by_question.get(question_id)) is not None
-            for evidence_id in _research_handoff_evidence_ids(
-                outcome,
-                preferred_source_ids=item.preferred_source_ids,
-                assessment_by_source=assessment_by_source,
-                evidence_ids_by_source=evidence_ids_by_source,
-                finding_by_id=finding_by_id,
-            )
-        }
+        if source_mapping_handoff:
+            allowed_evidence_ids = set(item.evidence_ids)
+            referenced = {
+                str(evidence_id)
+                for finding in item.findings
+                if isinstance(finding, dict)
+                for evidence_id in finding.get("evidence_ids") or []
+                if str(evidence_id)
+            }
+            invalid_handoff_evidence_ids.update(referenced - allowed_evidence_ids)
+            invalid_handoff_evidence_ids.update(set(item.starting_evidence_ids) - allowed_evidence_ids)
+            invalid_handoff_evidence_ids.update(set(item.candidate_evidence_ids) - allowed_evidence_ids)
+            continue
+        else:
+            allowed_evidence_ids = {
+                evidence_id
+                for question_id in item.question_ids
+                if (outcome := outcome_by_question.get(question_id)) is not None
+                for evidence_id in _research_handoff_evidence_ids(
+                    outcome,
+                    preferred_source_ids=item.preferred_source_ids,
+                    assessment_by_source=assessment_by_source,
+                    evidence_ids_by_source=evidence_ids_by_source,
+                    finding_by_id=finding_by_id,
+                )
+            }
         invalid_handoff_evidence_ids.update(set(item.starting_evidence_ids) - allowed_evidence_ids)
     if invalid_handoff_evidence_ids:
         issues.append(
@@ -2240,30 +2465,40 @@ def audit_corpus_brief(
                 issue_id="objective:ineligible_evidence_in_handoff",
                 code="deferred_source_in_handoff",
                 severity="blocking",
-                message="Research handoff evidence must belong to an eligible finalized coverage outcome.",
+                message="Research handoff evidence must belong to eligible source-mapping material.",
                 evidence_ids=sorted(invalid_handoff_evidence_ids),
-                suggested_repair="Rebuild the handoff from the validated per-question coverage outcomes.",
+                suggested_repair="Rebuild the handoff from the current SourceMap and source-mapping workspace.",
             )
         )
-    expected_handoff_question_ids: set[str] = set()
-    for outcome in brief.coverage_outcomes:
-        if str(outcome.status) == "deferred" or not outcome_routes_to_research(outcome):
-            continue
-        routed_source_ids = _research_source_ids(outcome, finding_by_id=finding_by_id)
-        if routed_source_ids and not any(
-            source_id in assessment_by_source
-            and source_id not in deferred_set_source_ids
-            and research_eligible(assessment_by_source[source_id])
-            for source_id in routed_source_ids
-        ):
-            continue
-        expected_handoff_question_ids.add(outcome.question_id)
-    actual_handoff_question_ids = [question_id for item in brief.research_handoff for question_id in item.question_ids]
+    if source_mapping_handoff:
+        expected_handoff_question_ids = set(leaf_question_ids)
+    else:
+        expected_handoff_question_ids: set[str] = set()
+        for outcome in brief.coverage_outcomes:
+            if str(outcome.status) == "deferred" or not outcome_routes_to_research(outcome):
+                continue
+            routed_source_ids = _research_source_ids(outcome, finding_by_id=finding_by_id)
+            if routed_source_ids and not any(
+                source_id in assessment_by_source
+                and source_id not in deferred_set_source_ids
+                and research_eligible(assessment_by_source[source_id])
+                for source_id in routed_source_ids
+            ):
+                continue
+            expected_handoff_question_ids.add(outcome.question_id)
     mismatched_handoff_question_ids = sorted(
         expected_handoff_question_ids.symmetric_difference(actual_handoff_question_ids)
         | set(_duplicates(actual_handoff_question_ids))
     )
     for item in brief.research_handoff:
+        if source_mapping_handoff:
+            for finding in item.findings:
+                if not isinstance(finding, dict):
+                    mismatched_handoff_question_ids.extend(item.question_ids)
+                    continue
+                if str(finding.get("source_ref") or "") not in set(item.source_refs):
+                    mismatched_handoff_question_ids.extend(item.question_ids)
+            continue
         for question_id in item.question_ids:
             outcome = outcome_by_question.get(question_id)
             if outcome is None:
@@ -2320,9 +2555,9 @@ def audit_corpus_brief(
                 issue_id="objective:research_handoff",
                 code="unsupported_coverage",
                 severity="blocking",
-                message="Research handoff must match the final per-question coverage outcomes.",
+                message="Research handoff must match the current triage handoff contract.",
                 question_ids=mismatched_handoff_question_ids,
-                suggested_repair="Regenerate research handoff deterministically from coverage outcomes.",
+                suggested_repair="Regenerate research handoff deterministically from SourceMap and triage workspace.",
             )
         )
     expected_hash = hashlib.sha256(
@@ -2357,6 +2592,28 @@ def audit_corpus_brief(
         checked_source_count=len(referenced_source_ids),
         checked_question_count=len(valid_question_ids),
         checked_evidence_count=len(referenced_evidence_ids),
+    )
+
+
+def _uses_source_mapping_handoff(brief: CorpusBrief) -> bool:
+    if not brief.coverage_outcomes:
+        return True
+    if not brief.research_handoff:
+        return False
+    return all(
+        not item.allowed_source_ids
+        and not item.preferred_source_ids
+        and not item.candidate_source_ids
+        and bool(
+            item.question
+            or item.requirements
+            or item.findings
+            or item.gaps
+            or item.evidence_ids
+            or item.source_refs
+            or item.source_cards
+        )
+        for item in brief.research_handoff
     )
 
 

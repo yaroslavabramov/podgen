@@ -160,6 +160,43 @@ async def test_read_source_omitted_max_chars_uses_largest_stable_chunk(
     assert result["returned_chars"] == 20_000
 
 
+@pytest.mark.asyncio
+async def test_read_source_null_max_chars_is_treated_as_omitted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2.tools import evidence_local_source, evidence_source_tools
+
+    text = "A" * 30_000
+    version = _version()
+    workspace: dict[str, Any] = {
+        "current_set": {"set_id": "set-1"},
+        "source_sets": [{"set_id": "set-1", "source_refs": ["S01"]}],
+        "source_read_receipts": [],
+    }
+
+    async def load_workspace(_db: Any, _run_id: Any) -> dict[str, Any]:
+        return workspace
+
+    async def save_workspace(*_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    async def save_trace(*_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    monkeypatch.setattr(evidence_local_source, "_source_version_text", lambda _version: text)
+    monkeypatch.setattr(evidence_source_tools, "load_source_triage_workspace", load_workspace)
+    monkeypatch.setattr(evidence_source_tools, "save_source_triage_workspace", save_workspace)
+    monkeypatch.setattr(evidence_source_tools, "save_tool_trace", save_trace)
+
+    result = await _NavigationOwner(version).read_source_tool(
+        {"source_ref": "S01", "cursor": "", "max_chars": None}
+    )
+
+    assert result["found"] is True
+    assert result["range"]["end_offset"] == 20_000
+    assert result["returned_chars"] == 20_000
+
+
 def test_source_text_is_extracted_once_per_immutable_version(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

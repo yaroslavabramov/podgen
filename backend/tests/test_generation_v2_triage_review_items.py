@@ -170,6 +170,7 @@ def test_ranked_sources_include_only_research_eligible_assessments() -> None:
 
 def test_new_canonical_writes_are_trace_classifications_without_read_limits() -> None:
     assert "save_source_analysis" in TRIAGE_SEMANTIC_COMMIT_TOOLS
+    assert "save_coverage_hint" in TRIAGE_SEMANTIC_COMMIT_TOOLS
     assert "upsert_coverage_outcome" in TRIAGE_SEMANTIC_COMMIT_TOOLS
     assert "resolve_triage_question" in TRIAGE_SEMANTIC_COMMIT_TOOLS
     assert "update_source_finding_links" in TRIAGE_SEMANTIC_COMMIT_TOOLS
@@ -180,14 +181,17 @@ def test_new_canonical_writes_are_trace_classifications_without_read_limits() ->
 def test_triage_prompts_define_completed_unreadable_sources_and_scoped_evidence() -> None:
     assert "representation failures as" in SOURCE_TRIAGE_SET_PROMPT
     assert "representation limits instead of inferring content" in SOURCE_TRIAGE_SET_PROMPT
-    assert "There is no needs_repair" in SOURCE_TRIAGE_SET_PROMPT
+    assert "Finish only when unfinished_work is empty" in SOURCE_TRIAGE_SET_PROMPT
     assert "Evidence attachments are scoped to the map item that cites them" in CORPUS_BRIEF_SHADOW_AUDIT_PROMPT
     assert "does not also have to appear on every related" in CORPUS_BRIEF_SHADOW_AUDIT_PROMPT
     assert "never guess, abbreviate, or synthesize an evidence_id" in CORPUS_BRIEF_SHADOW_AUDIT_PROMPT
-    assert "every generated semantic field" in BASE_PODCAST_SYSTEM
-    assert "every\npersisted prose argument" in BASE_PODCAST_SYSTEM
-    assert "reconcile a result for each semantic requirement" in SOURCE_TRIAGE_FINALIZER_PROMPT
-    assert "A local absence is not corpus-wide absence" in SOURCE_TRIAGE_FINALIZER_PROMPT
+    assert "Write generated prose fields in that language" in BASE_PODCAST_SYSTEM
+    assert "schema keys, enum literals, IDs, source/evidence handles" in BASE_PODCAST_SYSTEM
+    assert "reconcile a run-wide result for each semantic requirement" not in SOURCE_TRIAGE_FINALIZER_PROMPT
+    assert "Do not write coverage outcomes" in SOURCE_TRIAGE_FINALIZER_PROMPT
+    assert "source-specific absence" in " ".join(
+        SOURCE_TRIAGE_FINALIZER_PROMPT.split()
+    )
 
 
 class _Result:
@@ -399,17 +403,12 @@ def test_shadow_audit_prompt_forbids_guesses_from_omitted_preview() -> None:
 
 
 def test_triage_set_prompt_separates_reading_navigation_and_final_evidence() -> None:
-    normalized_prompt = " ".join(SOURCE_TRIAGE_SET_PROMPT.split())
-
     assert "read_source returns the actual text as lossless" in SOURCE_TRIAGE_SET_PROMPT
     assert "search_source is navigation only, not proof" in SOURCE_TRIAGE_SET_PROMPT
-    assert "Before switching sources, save a reading note" in SOURCE_TRIAGE_SET_PROMPT
-    assert "its own read_source passage_refs and/or exact evidence_ids" in SOURCE_TRIAGE_SET_PROMPT
-    assert "inspect_source page until its next_cursor is empty" in SOURCE_TRIAGE_SET_PROMPT
-    assert "structure.next_structure_cursor is only for inspect_source.cursor" in SOURCE_TRIAGE_SET_PROMPT
-    assert "continue read_source to eof" in SOURCE_TRIAGE_SET_PROMPT
+    assert "Before switching sources, save either a reading note" in SOURCE_TRIAGE_SET_PROMPT
+    assert "passage_refs/evidence_ids" in SOURCE_TRIAGE_SET_PROMPT
+    assert "Use question_index" in SOURCE_TRIAGE_SET_PROMPT
     assert "For a mechanical rejection" in SOURCE_TRIAGE_SET_PROMPT
-    assert "attempted semantic decision is provisional" in SOURCE_TRIAGE_SET_PROMPT
-    assert "read the current finding_catalog once" in SOURCE_TRIAGE_SET_PROMPT
-    assert "a new child result makes an earlier parent result stale" in normalized_prompt
+    assert "Do not answer coverage questions" in SOURCE_TRIAGE_SET_PROMPT
+    assert "coverage_hints" in SOURCE_TRIAGE_SET_PROMPT
     assert "question_id values, never requirement_id values" in SOURCE_TRIAGE_SET_PROMPT

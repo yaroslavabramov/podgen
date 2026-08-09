@@ -30,7 +30,6 @@ def validate_triage_plan(
         for item in questions
         if str(item.get("question_id") or "")
     }
-    requirement_pairs: set[tuple[str, str]] = set()
     for question_id, question in questions_by_id.items():
         requirements = [
             item for item in question.get("answer_requirements") or [] if isinstance(item, dict)
@@ -43,11 +42,6 @@ def validate_triage_plan(
             issues,
             requirement_ids,
             label=f"requirement in question {question_id}",
-        )
-        requirement_pairs.update(
-            (question_id, requirement_id)
-            for requirement_id in requirement_ids
-            if requirement_id
         )
 
     hierarchy_cycle = question_parent_cycle(questions)
@@ -71,7 +65,6 @@ def validate_triage_plan(
     elif str(central_question.get("importance") or "") != "critical":
         central_error = "not_critical"
         issues.append("central_question_id does not reference a critical question")
-
     assigned_source_refs = [
         str(source_ref)
         for source_set in source_sets
@@ -97,8 +90,6 @@ def validate_triage_plan(
     inconsistent_question_assignment_set_ids: list[str] = []
     duplicate_question_assignments: list[dict[str, str]] = []
     unknown_question_ids: set[str] = set()
-    referenced_question_ids: set[str] = set()
-    assigned_requirement_pairs: set[tuple[str, str]] = set()
     inspected_refs = {str(value) for value in workspace.get("planner_inspected_source_refs") or []}
 
     for source_set in source_sets:
@@ -132,10 +123,6 @@ def validate_triage_plan(
                 if str(source_ref) not in inspected_refs
             )
             continue
-        if not planned_ids:
-            coverage_sets_without_question_ids.append(set_id)
-        if set(planned_ids) != set(declared_ids) or set(planned_ids) != set(assignment_ids):
-            inconsistent_question_assignment_set_ids.append(set_id)
         duplicate_ids = sorted(
             question_id
             for question_id, count in Counter(assignment_ids).items()
@@ -145,56 +132,22 @@ def validate_triage_plan(
             {"set_id": set_id, "question_id": question_id}
             for question_id in duplicate_ids
         )
-        referenced_question_ids.update(question_id for question_id in planned_ids if question_id)
         unknown_question_ids.update(
             set(planned_ids + declared_ids + assignment_ids) - set(questions_by_id)
         )
-        for assignment in assignments:
-            question_id = str(assignment.get("question_id") or "")
-            assigned_requirement_pairs.update(
-                (question_id, str(requirement_id))
-                for requirement_id in assignment.get("requirement_ids") or []
-            )
 
-    unassigned_question_ids = sorted(set(questions_by_id) - referenced_question_ids)
-    unassigned_requirements = sorted(requirement_pairs - assigned_requirement_pairs)
-    unknown_assigned_requirements = sorted(assigned_requirement_pairs - requirement_pairs)
     if invalid_source_set_ids:
         issues.append("source sets contain an invalid set_kind")
-    if coverage_sets_without_question_ids:
-        issues.append("coverage source sets have no questions")
     if orientation_source_sets_with_question_ids:
         issues.append("orientation source sets have question assignments")
     if uninspected_orientation_source_refs:
         issues.append("orientation sources were not inspected by the planner")
-    if inconsistent_question_assignment_set_ids:
-        issues.append("source sets have inconsistent question assignments")
     if duplicate_question_assignments:
         issues.append("source sets assign a question more than once")
     if unknown_question_ids:
         issues.append(
             "source sets reference unknown questions: "
             + ", ".join(sorted(unknown_question_ids))
-        )
-    if unassigned_question_ids:
-        issues.append(
-            "coverage questions are unassigned: " + ", ".join(unassigned_question_ids)
-        )
-    if unassigned_requirements:
-        issues.append(
-            "coverage requirements are unassigned: "
-            + ", ".join(
-                f"{question_id}/{requirement_id}"
-                for question_id, requirement_id in unassigned_requirements
-            )
-        )
-    if unknown_assigned_requirements:
-        issues.append(
-            "source sets assign unknown requirements: "
-            + ", ".join(
-                f"{question_id}/{requirement_id}"
-                for question_id, requirement_id in unknown_assigned_requirements
-            )
         )
 
     return {
@@ -210,15 +163,9 @@ def validate_triage_plan(
         "unknown_source_refs": unknown_source_refs,
         "invalid_source_set_ids": sorted(invalid_source_set_ids),
         "unknown_question_ids": sorted(unknown_question_ids),
-        "unassigned_question_ids": unassigned_question_ids,
-        "unassigned_question_requirements": [
-            {"question_id": question_id, "requirement_id": requirement_id}
-            for question_id, requirement_id in unassigned_requirements
-        ],
-        "unknown_assigned_question_requirements": [
-            {"question_id": question_id, "requirement_id": requirement_id}
-            for question_id, requirement_id in unknown_assigned_requirements
-        ],
+        "unassigned_question_ids": [],
+        "unassigned_question_requirements": [],
+        "unknown_assigned_question_requirements": [],
         "coverage_source_sets_without_question_ids": sorted(
             coverage_sets_without_question_ids
         ),

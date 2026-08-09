@@ -171,7 +171,6 @@ class SourceTriageWorkspaceFindingHandlersMixin:
             "finding_id": finding_id,
             "changed": True,
             "question_ids": [str(item.get("question_id") or "") for item in normalized_links],
-            "stale_outcome_question_ids": sorted(affected_question_ids),
         }
 
     async def update_source_finding_relations_tool(self, args: dict[str, Any]) -> dict[str, Any]:
@@ -407,7 +406,6 @@ class SourceTriageWorkspaceFindingHandlersMixin:
             "finding_id": finding_id,
             "changed": True,
             "relation_count": len(normalized_relations),
-            "stale_outcome_question_ids": [],
         }
 
 

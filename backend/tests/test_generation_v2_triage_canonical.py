@@ -77,6 +77,29 @@ def _workspace(
     source_order = [str(item["source_ref"]) for item in assessments]
     source_ids = [str(item["source_id"]) for item in assessments]
     evidence_ids = [str(value) for item in assessments for value in item.get("evidence_ids") or []]
+    resolved_source_sets = source_sets
+    if resolved_source_sets is None:
+        resolved_source_sets = [
+            {
+                "set_id": "set_main",
+                "label": "Mechanism",
+                "purpose": "Map the mechanism sources.",
+                "rationale": "These sources must be compared.",
+                "source_refs": source_order,
+                "question_ids": ["q_main"],
+                "priority": "critical",
+                "status": "mapped",
+                "findings_summary": "The group has been mapped.",
+                "evidence_ids": evidence_ids,
+            }
+        ]
+    set_id_by_source_ref = {
+        str(source_ref): str(source_set.get("set_id") or "")
+        for source_set in resolved_source_sets
+        for source_ref in source_set.get("source_refs") or []
+    }
+    for assessment in assessments:
+        assessment.setdefault("set_id", set_id_by_source_ref.get(str(assessment.get("source_ref") or ""), ""))
     return {
         "schema_version": "source_triage_workspace.v2",
         "intent": {
@@ -95,22 +118,7 @@ def _workspace(
                 "origin": "planned",
             }
         ],
-        "source_sets": source_sets
-        if source_sets is not None
-        else [
-            {
-                "set_id": "set_main",
-                "label": "Mechanism",
-                "purpose": "Map the mechanism sources.",
-                "rationale": "These sources must be compared.",
-                "source_refs": source_order,
-                "question_ids": ["q_main"],
-                "priority": "critical",
-                "status": "mapped",
-                "findings_summary": "The group has been mapped.",
-                "evidence_ids": evidence_ids,
-            }
-        ],
+        "source_sets": resolved_source_sets,
         "source_assessments": assessments,
         "coverage_outcomes": outcomes
         if outcomes is not None
@@ -128,6 +136,25 @@ def _workspace(
         ],
         "source_map_finalization": {"summary": "Canonical triage handoff."},
     }
+
+
+def _source_mapping_workspace(
+    assessments: list[dict],
+    *,
+    source_sets: list[dict] | None = None,
+    question_text: str = "How does the mechanism work?",
+) -> dict:
+    workspace = _workspace(
+        assessments,
+        source_sets=source_sets,
+        outcomes=[],
+        question_text=question_text,
+    )
+    workspace["schema_version"] = "source_triage_workspace.v3"
+    workspace["triage_workflow_mode"] = "source_mapping"
+    workspace["coverage_outcomes"] = []
+    workspace["coverage_syntheses"] = []
+    return workspace
 
 
 def test_unreadable_representation_cannot_carry_unseen_source_judgments() -> None:
@@ -218,7 +245,7 @@ def test_canonical_workspace_rejects_duplicate_question_assignments() -> None:
     ]
 
 
-def test_canonical_workspace_requires_outcome_for_each_set_question_pair() -> None:
+def test_canonical_workspace_does_not_require_set_question_outcomes() -> None:
     first = _assessment("S01", "source-1", ["evidence-1"])
     second = _assessment("S02", "source-2", ["evidence-2"])
     source_sets = [
@@ -245,9 +272,46 @@ def test_canonical_workspace_requires_outcome_for_each_set_question_pair() -> No
     workspace = _workspace([first, second], source_sets=source_sets, outcomes=outcomes)
 
     violations = canonical_workspace_violations(workspace)
-    unresolved = next(item for item in violations if item["code"] == "unresolved_coverage_questions")
+    codes = {item["code"] for item in violations}
 
-    assert unresolved["set_question_pairs"] == [["set_2", "q_main"]]
+    assert "unresolved_coverage_questions" not in codes
+
+
+def test_canonical_workspace_rejects_dangling_coverage_hints() -> None:
+    assessment = _assessment("S01", "source-1", ["evidence-current"])
+    workspace = _workspace([assessment], outcomes=[])
+    workspace["source_findings"] = [
+        {
+            "set_id": "set_main",
+            "source_ref": "S01",
+            "source_id": "source-1",
+            "finding_id": "finding-current",
+            "statement": "The current source analysis supports a bounded lead.",
+            "evidence_ids": ["evidence-current"],
+            "question_links": [{"question_id": "q_main", "requirement_ids": []}],
+        }
+    ]
+    workspace["coverage_hints"] = [
+        {
+            "hint_id": "hint-stale",
+            "set_id": "set_main",
+            "source_ref": "S01",
+            "question_id": "q_main",
+            "requirement_ids": [],
+            "candidate_finding_ids": ["finding-old"],
+            "candidate_evidence_ids": ["evidence-old"],
+            "observed_gap": "",
+            "conflict_signal": "",
+            "notes": ["This hint points at retired material."],
+        }
+    ]
+
+    violations = canonical_workspace_violations(workspace)
+    by_code = {item["code"]: item for item in violations}
+
+    assert by_code["invalid_coverage_hints"]["hint_ids"] == ["hint-stale"]
+    assert by_code["invalid_coverage_hints"]["finding_ids"] == ["finding-old"]
+    assert by_code["invalid_coverage_hints"]["evidence_ids"] == ["evidence-old"]
 
 
 def test_canonical_workspace_blocks_unfinished_set_and_source_processing() -> None:
@@ -997,8 +1061,282 @@ def test_run_wide_synthesis_from_another_mapped_set_reaches_research_handoff() -
     )
 
     assert [item.question_ids for item in brief.research_handoff] == [["q_main"]]
-    assert brief.research_handoff[0].preferred_source_ids == ["source-2"]
+    assert brief.research_handoff[0].source_refs == ["S02"]
     assert audit.passed is True
+
+
+def test_source_mapping_handoff_does_not_require_coverage_outcomes() -> None:
+    assessment = _assessment("S01", "source-1", ["evidence-1"])
+    workspace = _source_mapping_workspace([assessment])
+    workspace["coverage_questions"][0]["answer_requirements"] = [
+        {
+            "requirement_id": "req_mechanism",
+            "description": "Establish the mechanism.",
+            "completion_criterion": "Research answers the mechanism from source evidence.",
+        }
+    ]
+    workspace["source_findings"] = [
+        {
+            "finding_id": "finding-1",
+            "source_id": "source-1",
+            "source_version_ids": ["version:source-1"],
+            "statement": "The source describes a concrete mechanism.",
+            "evidence_ids": ["evidence-1"],
+            "question_links": [
+                {
+                    "question_id": "q_main",
+                    "requirement_ids": ["req_mechanism"],
+                    "rationale": "This is candidate material for research.",
+                }
+            ],
+        }
+    ]
+    workspace["coverage_hints"] = [
+        {
+            "hint_id": "hint-1",
+            "set_id": "set_main",
+            "source_ref": "S01",
+            "question_id": "q_main",
+            "requirement_ids": ["req_mechanism"],
+            "candidate_finding_ids": ["finding-1"],
+            "candidate_evidence_ids": ["evidence-1"],
+        }
+    ]
+
+    source_map = _materialized_map(workspace)
+    brief = _materialized_brief(workspace, source_map)
+    audit = audit_corpus_brief(
+        corpus_brief_artifact_id=str(uuid.uuid4()),
+        brief=brief,
+        source_map=source_map,
+        selected_source_ids={"source-1"},
+        expected_generation_run_id=brief.generation_run_id,
+        expected_project_id=brief.project_id,
+        expected_run_corpus_view_id=brief.run_corpus_view_id,
+        expected_corpus_revision=brief.corpus_revision,
+        expected_attempt=brief.attempt,
+        expected_source_map_artifact_id=brief.source_map_artifact_id,
+    )
+
+    assert source_map.coverage_outcomes == []
+    assert brief.coverage_outcomes == []
+    assert len(brief.research_handoff) == 1
+    handoff = brief.research_handoff[0]
+    assert handoff.question_ids == ["q_main"]
+    assert [finding["finding_id"] for finding in handoff.findings] == ["finding-1"]
+    assert handoff.source_refs == ["S01"]
+    assert handoff.evidence_ids == ["evidence-1"]
+    assert handoff.question_assignments[0].requirement_ids == ["req_mechanism"]
+    assert audit.passed is True
+
+
+def test_source_mapping_handoff_keeps_unlinked_possible_question_finding() -> None:
+    assessment = _assessment("S03", "source-3", ["evidence-hkd-10"])
+    workspace = _source_mapping_workspace([assessment], question_text="How does HK$10 work today?")
+    workspace["source_findings"] = [
+        {
+            "finding_id": "finding-hkd-10-demand",
+            "source_id": "source-3",
+            "source_version_ids": ["version:source-3"],
+            "statement": "The source says HK$10 notes returned because of public demand and are issued by HKMA.",
+            "evidence_ids": ["evidence-hkd-10"],
+            "possible_question_ids": ["q_main"],
+            "question_links": [],
+        }
+    ]
+
+    source_map = _materialized_map(workspace)
+    brief = _materialized_brief(workspace, source_map)
+    jobs = research_workspace_module._jobs_from_corpus_brief(brief, source_map)
+
+    assert source_map.source_findings[0].possible_question_ids == ["q_main"]
+    handoff = brief.research_handoff[0]
+    assert brief.coverage_outcomes == []
+    assert [finding["finding_id"] for finding in handoff.findings] == ["finding-hkd-10-demand"]
+    assert handoff.final_finding_ids == []
+    assert handoff.candidate_finding_ids == []
+    assert handoff.source_refs == ["S03"]
+    assert handoff.evidence_ids == ["evidence-hkd-10"]
+    assert jobs[0]["source_findings"][0]["question_ids"] == ["q_main"]
+    assert jobs[0]["corpus_handoff_finding_ids"] == ["finding-hkd-10-demand"]
+
+
+def test_source_mapping_handoff_keeps_hinted_finding_without_final_question_link() -> None:
+    assessment = _assessment("S03", "source-3", ["evidence-hinted"])
+    workspace = _source_mapping_workspace([assessment])
+    workspace["source_findings"] = [
+        {
+            "finding_id": "finding-hinted",
+            "source_id": "source-3",
+            "source_version_ids": ["version:source-3"],
+            "statement": "The source contains candidate material for the question.",
+            "evidence_ids": ["evidence-hinted"],
+            "possible_question_ids": [],
+            "question_links": [],
+        }
+    ]
+    workspace["coverage_hints"] = [
+        {
+            "hint_id": "hint-to-unlinked-finding",
+            "set_id": "set_main",
+            "source_ref": "S03",
+            "question_id": "q_main",
+            "requirement_ids": [],
+            "candidate_finding_ids": ["finding-hinted"],
+            "candidate_evidence_ids": [],
+        }
+    ]
+
+    source_map = _materialized_map(workspace)
+    brief = _materialized_brief(workspace, source_map)
+    jobs = research_workspace_module._jobs_from_corpus_brief(brief, source_map)
+    handoff = brief.research_handoff[0]
+
+    assert handoff.finding_ids == []
+    assert handoff.final_finding_ids == []
+    assert handoff.candidate_finding_ids == []
+    assert handoff.coverage_hint_ids == []
+    assert handoff.evidence_ids == []
+    assert jobs[0]["source_findings"] == []
+    assert jobs[0].get("corpus_handoff_candidate_finding_ids") in (None, [])
+
+
+def test_source_mapping_handoff_keeps_sparse_hint_without_candidate_finding() -> None:
+    assessment = _assessment("S03", "source-3", ["evidence-hint-only"])
+    workspace = _source_mapping_workspace([assessment])
+    workspace["source_findings"] = []
+    workspace["coverage_hints"] = [
+        {
+            "hint_id": "hint-hkd-10",
+            "set_id": "set_main",
+            "source_ref": "S03",
+            "question_id": "q_main",
+            "requirement_ids": [],
+            "candidate_finding_ids": [],
+            "candidate_evidence_ids": ["evidence-hint-only"],
+            "notes": ["The source may contain material for this question."],
+        }
+    ]
+
+    source_map = _materialized_map(workspace)
+    brief = _materialized_brief(workspace, source_map)
+    handoff = brief.research_handoff[0]
+
+    assert handoff.finding_ids == []
+    assert handoff.coverage_hint_ids == []
+    assert handoff.source_refs == ["S03"]
+    assert handoff.evidence_ids == []
+    assert handoff.candidate_evidence_ids == []
+
+
+def test_source_mapping_handoff_sparse_hint_keeps_assigned_fallback_sources() -> None:
+    hinted = _assessment("S03", "source-3", ["evidence-hint-only"])
+    fallback = _assessment("S14", "source-14", ["evidence-assigned"])
+    hinted["coverage_question_ids"] = []
+    fallback["coverage_question_ids"] = []
+    source_sets = [
+        {
+            "set_id": "set_main",
+            "label": "Question queue",
+            "purpose": "Read sources that may affect the question.",
+            "source_refs": ["S03", "S14"],
+            "question_ids": ["q_main"],
+            "assigned_question_ids": ["q_main"],
+            "cross_question_ids": [],
+            "priority": "normal",
+            "status": "mapped",
+            "findings_summary": "Mapped.",
+        }
+    ]
+    workspace = _source_mapping_workspace([hinted, fallback], source_sets=source_sets)
+    workspace["source_findings"] = []
+    workspace["coverage_hints"] = [
+        {
+            "hint_id": "hint-hkd-10",
+            "set_id": "set_main",
+            "source_ref": "S03",
+            "question_id": "q_main",
+            "candidate_evidence_ids": ["evidence-hint-only"],
+        }
+    ]
+
+    source_map = _materialized_map(workspace)
+    brief = _materialized_brief(workspace, source_map)
+    jobs = research_workspace_module._jobs_from_corpus_brief(brief, source_map)
+
+    assert brief.research_handoff[0].source_refs == []
+    assert brief.research_handoff[0].candidate_source_ids == []
+    assert brief.research_handoff[0].allowed_source_ids == []
+    assert brief.research_handoff[0].evidence_ids == []
+    assert jobs[0]["source_refs"] == []
+    assert jobs[0].get("corpus_handoff_preferred_source_refs") in (None, [])
+    assert jobs[0].get("corpus_handoff_candidate_source_refs") in (None, [])
+
+
+def test_source_mapping_handoff_uses_cross_question_set_fallback_when_no_links_exist() -> None:
+    assessment = _assessment("S02", "source-2", ["evidence-2"])
+    assessment["coverage_question_ids"] = []
+    source_sets = [
+        {
+            "set_id": "set_cross",
+            "label": "Cross-check",
+            "purpose": "Check a source that may affect a non-assigned question.",
+            "source_refs": ["S02"],
+            "question_ids": [],
+            "assigned_question_ids": [],
+            "cross_question_ids": ["q_main"],
+            "priority": "normal",
+            "status": "mapped",
+            "findings_summary": "Mapped.",
+        }
+    ]
+    workspace = _source_mapping_workspace([assessment], source_sets=source_sets)
+
+    source_map = _materialized_map(workspace)
+    brief = _materialized_brief(workspace, source_map)
+
+    assert brief.research_handoff[0].source_refs == []
+    assert brief.research_handoff[0].finding_ids == []
+
+
+def test_source_mapping_handoff_ignores_stale_legacy_outcomes() -> None:
+    stale_assessment = _assessment("S22", "source-22", ["evidence-stale"])
+    stale_assessment["coverage_question_ids"] = []
+    current_assessment = _assessment("S03", "source-3", ["evidence-current"])
+    workspace = _source_mapping_workspace([stale_assessment, current_assessment])
+    workspace["coverage_outcomes"] = [
+        {
+            "outcome_id": "legacy:q_main:set_main",
+            "set_id": "set_main",
+            "question_id": "q_main",
+            "status": "covered",
+            "source_ids": ["source-22"],
+            "evidence_ids": ["evidence-stale"],
+            "finding_ids": [],
+            "orientation_summary": "Stale legacy answer.",
+            "is_stale": True,
+        }
+    ]
+    workspace["source_findings"] = [
+        {
+            "finding_id": "finding-current",
+            "source_id": "source-3",
+            "source_version_ids": ["version:source-3"],
+            "statement": "Current source mapping candidate.",
+            "evidence_ids": ["evidence-current"],
+            "possible_question_ids": ["q_main"],
+            "question_links": [],
+        }
+    ]
+
+    source_map = _materialized_map(workspace)
+    brief = _materialized_brief(workspace, source_map)
+
+    assert aggregate_coverage_outcomes(workspace) == []
+    assert brief.coverage_outcomes == []
+    assert brief.research_handoff[0].source_refs == ["S03"]
+    assert [finding["finding_id"] for finding in brief.research_handoff[0].findings] == ["finding-current"]
+    assert "S22" not in brief.research_handoff[0].source_refs
 
 
 def test_canonical_workspace_rejects_active_outcome_for_deferred_source_and_set() -> None:
@@ -1217,8 +1555,8 @@ def test_materialize_corpus_brief_excludes_deferred_and_unreadable_inputs_from_h
 
     assert len(brief.research_handoff) == 1
     handoff = brief.research_handoff[0]
-    assert handoff.preferred_source_ids == ["source-eligible"]
-    assert handoff.starting_evidence_ids == ["evidence-eligible"]
+    assert handoff.source_refs == ["S01"]
+    assert handoff.evidence_ids == []
 
 
 def test_corpus_brief_keeps_outcome_evidence_without_requiring_assessment_duplication() -> None:
@@ -1248,7 +1586,7 @@ def test_corpus_brief_keeps_outcome_evidence_without_requiring_assessment_duplic
     )
 
     assert "evidence-outcome" in source_map.evidence_ids
-    assert brief.research_handoff[0].starting_evidence_ids == ["evidence-outcome"]
+    assert brief.research_handoff[0].evidence_ids == []
     assert report.passed is True
 
 
@@ -1300,7 +1638,7 @@ def test_materialize_corpus_brief_never_activates_a_deferred_set() -> None:
 
     brief = _materialized_brief(workspace, source_map)
 
-    assert brief.research_handoff == []
+    assert brief.research_handoff[0].source_refs == []
 
 
 def test_backend_audit_blocks_source_from_deferred_set_even_if_assessment_is_active() -> None:
@@ -1486,7 +1824,7 @@ async def test_research_workspace_seeds_jobs_from_corpus_brief_and_persists_full
     assert job["coverage_question_ids"] == ["q_main"]
     assert job["source_refs"] == ["S01"]
     assert job["questions"] == [long_question]
-    assert job["starting_evidence_ids"] == ["evidence-1"]
+    assert job["starting_evidence_ids"] == []
     assert job["evidence_ids"] == []
 
 

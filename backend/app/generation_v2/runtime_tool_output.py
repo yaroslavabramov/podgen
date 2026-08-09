@@ -88,6 +88,7 @@ def tool_model_facing_schema(tool_name: str) -> str:
         "save_semantic_review_self_check": "write_ack",
         "acknowledge_semantic_review": "write_ack",
         "save_source_analysis": "write_ack",
+        "save_coverage_hint": "write_ack",
         "upsert_coverage_outcome": "write_ack",
         "resolve_triage_question": "write_ack",
         "finish_triage_source_set": "write_ack",

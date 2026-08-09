@@ -7,6 +7,8 @@ WORKSPACE_SCHEMA_VERSION = "source_triage_workspace.v3"
 STRUCTURED_WORKSPACE_SCHEMA_VERSIONS = frozenset(
     {"source_triage_workspace.v2", WORKSPACE_SCHEMA_VERSION}
 )
+TRIAGE_WORKFLOW_SOURCE_MAPPING = "source_mapping"
+TRIAGE_WORKFLOW_LEGACY_OUTCOMES = "legacy_outcomes"
 SOURCE_SET_KIND_COVERAGE = "coverage"
 SOURCE_SET_KIND_ORIENTATION = "orientation"
 READ_RECEIPT_DELIVERY_PENDING = "pending"
@@ -38,9 +40,24 @@ def is_structured_triage_workspace(workspace: dict[str, Any] | None) -> bool:
     return str((workspace or {}).get("schema_version") or "") in STRUCTURED_WORKSPACE_SCHEMA_VERSIONS
 
 
+def triage_workflow_mode(workspace: dict[str, Any] | None) -> str:
+    workspace = workspace or {}
+    mode = str(workspace.get("triage_workflow_mode") or "").strip()
+    if mode:
+        return mode
+    if not is_structured_triage_workspace(workspace):
+        return TRIAGE_WORKFLOW_LEGACY_OUTCOMES
+    if str(workspace.get("schema_version") or "") == "source_triage_workspace.v2":
+        return TRIAGE_WORKFLOW_LEGACY_OUTCOMES
+    if workspace.get("coverage_syntheses"):
+        return TRIAGE_WORKFLOW_LEGACY_OUTCOMES
+    return TRIAGE_WORKFLOW_SOURCE_MAPPING
+
+
 def normalize_workspace(workspace: dict[str, Any]) -> dict[str, Any]:
     workspace = dict(workspace or {})
     workspace.setdefault("schema_version", WORKSPACE_SCHEMA_VERSION)
+    workspace.setdefault("triage_workflow_mode", triage_workflow_mode(workspace))
     workspace.setdefault("_workspace_revision", 0)
     workspace.setdefault("source_order", [])
     workspace.setdefault("source_capsules", {})
@@ -49,6 +66,7 @@ def normalize_workspace(workspace: dict[str, Any]) -> dict[str, Any]:
     workspace.setdefault("coverage_questions", [])
     workspace.setdefault("source_assessments", [])
     workspace.setdefault("source_findings", [])
+    workspace.setdefault("coverage_hints", [])
     workspace.setdefault("source_read_receipts", [])
     workspace.setdefault("reading_notes", [])
     workspace.setdefault("coverage_outcomes", [])
@@ -98,9 +116,10 @@ def normalize_workspace(workspace: dict[str, Any]) -> dict[str, Any]:
             for question_id in current_question_ids
             if question_id not in set(planned_question_ids)
         ]
+        source_set["assigned_question_ids"] = planned_question_ids
         source_set["planned_question_ids"] = planned_question_ids
         source_set["cross_question_ids"] = cross_question_ids
-        source_set["question_ids"] = dedupe([*planned_question_ids, *cross_question_ids])
+        source_set["question_ids"] = planned_question_ids
         source_set.setdefault("question_assignments", [])
         normalized_sets.append(source_set)
     workspace["source_sets"] = normalized_sets
