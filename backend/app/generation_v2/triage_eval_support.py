@@ -20,9 +20,11 @@ from app.models.generation_v2 import V2ToolTrace
 TRIAGE_EVAL_CONTEXT_WINDOW_TOKENS = 400_000
 TRIAGE_EVAL_NATIVE_MAX_OUTPUT_TOKENS = 128_000
 TRIAGE_EVAL_ALLOWED_MODELS = {
+    "gpt-5.4",
     "gpt-5.4-mini",
     "gpt-5.4-mini-2026-03-17",
 }
+TRIAGE_EVAL_ALLOWED_MODELS_LABEL = "gpt-5.4-mini or gpt-5.4"
 
 
 class EvalBudgetExceeded(RuntimeError):
@@ -48,7 +50,7 @@ class EvalCostGuard:
         normalized_model = str(requested_model or "").casefold()
         if normalized_model not in TRIAGE_EVAL_ALLOWED_MODELS:
             raise EvalBudgetExceeded(
-                "Triage eval budget contract supports only gpt-5.4-mini; "
+                f"Triage eval budget contract supports only {TRIAGE_EVAL_ALLOWED_MODELS_LABEL}; "
                 f"received {requested_model or '<missing>'}"
             )
         effective_output_limit = (

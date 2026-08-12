@@ -299,6 +299,10 @@ def source_mapper_analysis_tool(
                 },
                 "source_limitations": {
                     "type": "array",
+                    "description": (
+                        "Limits of the source's authority, representation, or overall scope only. Use [] when none. "
+                        "Do not hide unanswered research-question parts here; put those in gaps."
+                    ),
                     "items": {
                         "type": "string",
                         "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["assessment_limitation"],
@@ -325,11 +329,23 @@ def source_mapper_analysis_tool(
                             },
                             "statement": {
                                 "type": "string",
+                                "description": (
+                                    "Self-contained source proposition in the requested output language, not a quote. "
+                                    "Preserve every source-stated material actor, action, period, object, and named "
+                                    "cause/motive/mechanism; do not invent missing fields or write 'in response' "
+                                    "without naming the trigger."
+                                ),
                                 "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["finding_statement"],
                             },
                             "evidence_ids": {
                                 "type": "array",
                                 "uniqueItems": True,
+                                "description": (
+                                    "Only exact evidence_id values returned by tools such as read_source_window or "
+                                    "existing accepted records. Do not put read_source passage_ref handles here; "
+                                    "when grounding from read_source passages, leave evidence_ids empty and put those "
+                                    "P:<source_ref>:<n> handles in passage_refs."
+                                ),
                                 "items": {"type": "string"},
                             },
                             "passage_refs": {
@@ -348,6 +364,10 @@ def source_mapper_analysis_tool(
                             },
                             "limitations": {
                                 "type": "array",
+                                "description": (
+                                    "Limits of this finding's own scope or certainty only. Use [] when none. "
+                                    "Do not hide unanswered research-question parts here; put those in gaps."
+                                ),
                                 "items": {
                                     "type": "string",
                                     "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["assessment_limitation"],
@@ -359,7 +379,6 @@ def source_mapper_analysis_tool(
                             "evidence_ids",
                             "passage_refs",
                             "question_ids",
-                            "limitations",
                         ],
                         "additionalProperties": False,
                     },
@@ -372,6 +391,14 @@ def source_mapper_analysis_tool(
                             "question_id": _bounded_id_schema(allowed_question_ids),
                             "description": {
                                 "type": "string",
+                                "description": (
+                                    "Source-specific unanswered part of a linked leaf question. Use only when the source "
+                                    "materially touches the same specific object, actor, change, exception, or "
+                                    "mechanism named by the question; do not write generic absence spam. A question_id "
+                                    "tag alone is not a gap obligation. Use this when the source gives only a different "
+                                    "cause, immediate trigger, current status, chronology, or context and leaves the "
+                                    "required reason/mechanism unstated."
+                                ),
                                 "maxLength": TRIAGE_SEMANTIC_FIELD_LIMITS["coverage_detail"],
                             },
                         },
@@ -382,8 +409,9 @@ def source_mapper_analysis_tool(
                 "duplicate_of_source_ref": {
                     "type": "string",
                     "description": (
-                        "Only copy a backend-provided exact duplicate source_ref, usually from read_source guidance. "
-                        "Leave empty otherwise."
+                        "Only copy a backend-provided exact duplicate source_ref from read_source guidance. When set, "
+                        "this SourceAnalysis must short-circuit the duplicate with findings=[] and gaps=[]. Leave "
+                        "empty otherwise."
                     ),
                 },
             },
@@ -392,7 +420,6 @@ def source_mapper_analysis_tool(
                 "status",
                 "status_reason",
                 "summary",
-                "source_limitations",
                 "read_state",
                 "findings",
                 "gaps",

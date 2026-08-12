@@ -269,9 +269,29 @@ async def load_current_run_corpus_view(
     return result.scalar_one_or_none()
 
 
+async def load_run_corpus_view(
+    db: AsyncSession,
+    generation_run_id: Any,
+    *,
+    revision: int,
+    attempt: int,
+) -> RunCorpusView | None:
+    result = await db.execute(
+        select(RunCorpusView)
+        .where(
+            RunCorpusView.generation_run_id == generation_run_id,
+            RunCorpusView.revision == revision,
+            RunCorpusView.attempt == attempt,
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 __all__ = [
     "corpus_manifest_hash",
     "create_run_corpus_view",
     "current_attempt_has_triage_history",
     "load_current_run_corpus_view",
+    "load_run_corpus_view",
 ]

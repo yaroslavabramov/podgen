@@ -204,10 +204,17 @@ def semantic_eval_report(
         label = str(expected_gap.get("label") or "expected_gap")
         question_id = str(expected_gap.get("question_id") or "")
         source_ref = str(expected_gap.get("source_ref") or "")
+        scope = str(expected_gap.get("scope") or "source").strip().casefold()
+        set_level = scope == "set"
         required_term_groups = _required_term_groups(expected_gap)
         candidate_records: list[list[str]] = []
+        matched_source_refs: list[str] = []
         for analysis in source_analyses:
-            if source_ref and str(analysis.get("source_ref") or "") != source_ref:
+            analysis_source_ref = str(analysis.get("source_ref") or "")
+            if set_level:
+                if analysis.get("accepted") is not True or str(analysis.get("status") or "") != "usable":
+                    continue
+            elif source_ref and analysis_source_ref != source_ref:
                 continue
             for gap in analysis.get("gaps") or []:
                 if not isinstance(gap, dict):
@@ -215,6 +222,8 @@ def semantic_eval_report(
                 if question_id and str(gap.get("question_id") or "") != question_id:
                     continue
                 candidate_records.append([str(gap.get("description") or "")])
+                if analysis_source_ref:
+                    matched_source_refs.append(analysis_source_ref)
         record_missing_terms = [_missing_terms(record, required_term_groups) for record in candidate_records]
         missing_terms = min(record_missing_terms, key=len) if record_missing_terms else _missing_group_labels(
             required_term_groups
@@ -225,13 +234,16 @@ def semantic_eval_report(
                 "label": label,
                 "question_id": question_id,
                 "source_ref": source_ref,
+                "scope": "set" if set_level else "source",
                 "passed": passed,
                 "missing_terms": missing_terms,
+                "matched_source_refs": sorted(set(matched_source_refs)),
             }
         )
         if not passed:
+            expected_scope = "set-level" if set_level else "source-specific"
             issues.append(
-                f"gap {label} expected source-specific gap material"
+                f"gap {label} expected {expected_scope} gap material"
                 + (f"; missing terms: {', '.join(missing_terms)}" if missing_terms else "")
             )
 

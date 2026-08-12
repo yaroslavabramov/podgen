@@ -14,6 +14,7 @@ from app.generation_v2.source_triage_workspace_state import (
     SOURCE_SET_KIND_ORIENTATION,
     TRIAGE_WORKFLOW_SOURCE_MAPPING,
     is_structured_triage_workspace,
+    stable_set_id,
     triage_workflow_mode,
 )
 from app.generation_v2.source_triage_research_handoff import (
@@ -45,6 +46,7 @@ FINAL_OUTCOME_STATUSES = {"covered", "partial", "missing", "conflicted", "deferr
 FINAL_SET_STATUSES = {"mapped", "deferred"}
 REPRESENTATION_DEFER_BLOCKERS = {"partial", "not_target_content", "unreadable"}
 TARGET_CONTENT_ABSENT_STATUSES = {"not_target_content", "unreadable"}
+LEGACY_FINALIZE_SOURCE_MAP_GAP = "Triage did not call finalize_source_map."
 
 _DISPOSITION_PRIORITY = {
     "anchor": 4,
@@ -1591,11 +1593,50 @@ def _research_handoff_evidence_ids(
 
 
 def _source_findings_from_workspace(workspace: dict[str, Any]) -> list[SourceFinding]:
-    return [
-        SourceFinding.model_validate(item)
-        for item in workspace.get("source_findings") or []
-        if isinstance(item, dict)
-    ]
+    raw_findings = [item for item in workspace.get("source_findings") or [] if isinstance(item, dict)]
+    id_counts: dict[str, int] = defaultdict(int)
+    for item in raw_findings:
+        finding_id = str(item.get("finding_id") or "").strip()
+        if finding_id:
+            id_counts[finding_id] += 1
+    findings: list[SourceFinding] = []
+    for index, item in enumerate(raw_findings, 1):
+        payload = dict(item)
+        raw_finding_id = str(payload.get("finding_id") or "").strip()
+        payload["finding_id"] = _canonical_source_mapping_finding_id(
+            payload,
+            index=index,
+            force=not raw_finding_id or id_counts[raw_finding_id] > 1,
+        )
+        findings.append(SourceFinding.model_validate(payload))
+    return findings
+
+
+def _canonical_source_mapping_finding_id(payload: dict[str, Any], *, index: int, force: bool) -> str:
+    finding_id = str(payload.get("finding_id") or "").strip()
+    if finding_id and not force:
+        return finding_id
+    source_ref = str(payload.get("source_ref") or "").strip()
+    if not source_ref:
+        return finding_id or f"finding:{index}"
+    prefix = f"finding:{source_ref}:"
+    if finding_id.startswith(prefix):
+        return finding_id
+    suffix = (
+        stable_set_id(finding_id, str(payload.get("statement") or ""), index)
+        if finding_id
+        else hashlib.sha256(
+            json.dumps(
+                [
+                    str(payload.get("statement") or ""),
+                    [str(item) for item in payload.get("evidence_ids") or [] if str(item)],
+                ],
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()[:12]
+    )
+    return f"{prefix}{suffix}"
 
 
 def _outcome_with_finding_lineage(
@@ -1654,11 +1695,14 @@ def materialize_source_map_v2(
         for item in workspace.get("source_assessments") or []
         if isinstance(item, dict)
     ]
+    source_mapping_mode = triage_workflow_mode(workspace) == TRIAGE_WORKFLOW_SOURCE_MAPPING
     assessments = [
         item.model_copy(
             update={
                 "finding_ids": _dedupe(
-                    [*item.finding_ids, *finding_ids_by_source.get(item.source_id, [])]
+                    finding_ids_by_source.get(item.source_id, [])
+                    if source_mapping_mode
+                    else [*item.finding_ids, *finding_ids_by_source.get(item.source_id, [])]
                 )
             }
         )
@@ -1767,6 +1811,18 @@ def materialize_source_map_v2(
     triage.ranked_sources = ranked
     triage.top_sources_by_function = {key: _dedupe(value) for key, value in top_sources_by_function.items()}
     triage.top_evidence_by_function = {key: _dedupe(value) for key, value in top_evidence_by_function.items()}
+    materialized_gaps = list(source_map.gaps)
+    if source_mapping_mode:
+        materialized_gaps = [
+            str(gap)
+            for gap in materialized_gaps
+            if str(gap) != LEGACY_FINALIZE_SOURCE_MAP_GAP
+        ]
+        triage.gaps = [
+            str(gap)
+            for gap in triage.gaps
+            if str(gap) != LEGACY_FINALIZE_SOURCE_MAP_GAP
+        ]
     questions = [
         CoverageQuestion.model_validate(item)
         for item in workspace.get("coverage_questions") or []
@@ -1784,6 +1840,7 @@ def materialize_source_map_v2(
             "source_findings": findings,
             "coverage_outcomes": outcomes,
             "evidence_ids": _dedupe(all_evidence_ids),
+            "gaps": _dedupe(materialized_gaps),
             "retrieval_notes": _dedupe(
                 [
                     *source_map.retrieval_notes,

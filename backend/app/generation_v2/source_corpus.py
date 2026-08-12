@@ -269,8 +269,18 @@ async def load_current_v2_corpus(db: AsyncSession, run: GenerationRun) -> Corpus
     run_view = await load_current_run_corpus_view(db, run.id)
     if run_view is None:
         raise RuntimeError("V2 run has no prepared corpus view")
+    return await load_v2_corpus_for_run_view(db, run, run_view)
+
+
+async def load_v2_corpus_for_run_view(
+    db: AsyncSession,
+    run: GenerationRun,
+    run_view: RunCorpusView,
+) -> CorpusPreparationResult:
+    """Hydrate a specific immutable corpus view without changing current attempt."""
+
     if str(run_view.status) != "ready":
-        raise RuntimeError("V2 current corpus view is not ready")
+        raise RuntimeError("V2 corpus view is not ready")
 
     source_ids = [uuid.UUID(str(value)) for value in run_view.selected_source_ids]
     version_ids = [uuid.UUID(str(value)) for value in run_view.selected_source_version_ids]
@@ -441,6 +451,7 @@ __all__ = [
     "ensure_project_provider_index",
     "ensure_source_versions",
     "load_current_v2_corpus",
+    "load_v2_corpus_for_run_view",
     "prepare_v2_corpus",
     "preview_v2_corpus_manifest_hash",
     "resolve_v2_corpus_selection",

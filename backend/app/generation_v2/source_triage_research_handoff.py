@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-from collections import defaultdict
+import hashlib
+import json
+from collections import Counter, defaultdict
 from typing import Any
 
 from app.generation_v2.schemas import CoverageQuestion, ResearchHandoffItem, SourceCard
+from app.generation_v2.source_triage_workspace_state import stable_set_id
 
 
 def build_source_mapping_research_handoff(
@@ -23,13 +26,19 @@ def build_source_mapping_research_handoff(
     source_cards_by_question: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
     analyses = _current_accepted_analyses(workspace) or _legacy_analyses_from_workspace(workspace)
+    finding_id_counts = Counter(
+        str(finding.get("finding_id") or "").strip()
+        for analysis in analyses
+        for finding in analysis.get("findings") or []
+        if isinstance(finding, dict) and str(finding.get("finding_id") or "").strip()
+    )
     for analysis in analyses:
         source_ref = str(analysis.get("source_ref") or "")
         if not source_ref:
             continue
         card = source_cards_by_ref.get(source_ref)
         source_card_payload = _source_card_payload(card, source_ref=source_ref)
-        for finding in analysis.get("findings") or []:
+        for finding_index, finding in enumerate(analysis.get("findings") or [], 1):
             if not isinstance(finding, dict):
                 continue
             finding_question_ids = [
@@ -40,7 +49,15 @@ def build_source_mapping_research_handoff(
             if not finding_question_ids:
                 continue
             finding_payload = {
-                "finding_id": str(finding.get("finding_id") or ""),
+                "finding_id": _canonical_source_mapping_finding_id(
+                    finding,
+                    source_ref=source_ref,
+                    index=finding_index,
+                    force=(
+                        not str(finding.get("finding_id") or "").strip()
+                        or finding_id_counts[str(finding.get("finding_id") or "").strip()] > 1
+                    ),
+                ),
                 "source_ref": source_ref,
                 "statement": str(finding.get("statement") or ""),
                 "evidence_ids": _dedupe([str(item) for item in finding.get("evidence_ids") or [] if str(item)]),
@@ -113,6 +130,38 @@ def build_source_mapping_research_handoff(
             )
         )
     return handoff
+
+
+def _canonical_source_mapping_finding_id(
+    finding: dict[str, Any],
+    *,
+    source_ref: str,
+    index: int,
+    force: bool,
+) -> str:
+    finding_id = str(finding.get("finding_id") or "").strip()
+    if finding_id and not force:
+        return finding_id
+    if not source_ref:
+        return finding_id or f"finding:{index}"
+    prefix = f"finding:{source_ref}:"
+    if finding_id.startswith(prefix):
+        return finding_id
+    suffix = (
+        stable_set_id(finding_id, str(finding.get("statement") or ""), index)
+        if finding_id
+        else hashlib.sha256(
+            json.dumps(
+                [
+                    str(finding.get("statement") or ""),
+                    [str(item) for item in finding.get("evidence_ids") or [] if str(item)],
+                ],
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()[:12]
+    )
+    return f"{prefix}{suffix}"
 
 
 def _current_accepted_analyses(workspace: dict[str, Any]) -> list[dict[str, Any]]:

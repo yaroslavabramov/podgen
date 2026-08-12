@@ -467,9 +467,25 @@ def source_set_covered_refs(source_set: dict[str, Any]) -> list[str]:
     return dedupe(refs)
 
 
+def mapped_source_refs(workspace: dict[str, Any], *, set_id: str | None = None) -> list[str]:
+    refs: list[str] = []
+    for item in normalize_workspace(workspace).get("mapped_sources") or []:
+        if isinstance(item, dict):
+            if set_id is not None and str(item.get("set_id") or "") != set_id:
+                continue
+            refs.append(str(item.get("source_ref") or ""))
+        elif set_id is None:
+            refs.append(str(item or ""))
+        else:
+            # Legacy workspaces stored only source refs. They did not carry set_id,
+            # so keep them usable for per-set completeness checks.
+            refs.append(str(item or ""))
+    return dedupe(refs)
+
+
 def unresolved_source_refs(workspace: dict[str, Any]) -> list[str]:
     current = normalize_workspace(workspace)
-    resolved = set(str(item) for item in current.get("mapped_sources") or [])
+    resolved = set(mapped_source_refs(current))
     resolved.update(
         str(item.get("source_ref") or "")
         for item in current.get("deferred_sources") or []
@@ -486,7 +502,9 @@ def unresolved_source_refs(workspace: dict[str, Any]) -> list[str]:
 def source_set_has_unresolved_refs(workspace: dict[str, Any], source_set: dict[str, Any]) -> bool:
     if source_set.get("status") != "mapped":
         return False
+    set_id = str(source_set.get("set_id") or "")
     covered = set(source_set_covered_refs(source_set))
+    covered.update(mapped_source_refs(workspace, set_id=set_id))
     deferred = {
         str(item.get("source_ref") or "")
         for item in normalize_workspace(workspace).get("deferred_sources") or []

@@ -13,10 +13,10 @@ from app.generation_v2.pipeline.source_triage_stage import SourceTriageStageRunn
 from app.generation_v2.pipeline.source_triage_source_mapper_flow import run_source_mapper_for_set
 from app.generation_v2.runtime import V2Runtime
 from app.generation_v2.source_corpus import (
-    load_current_v2_corpus,
+    load_v2_corpus_for_run_view,
     preview_v2_corpus_manifest_hash,
 )
-from app.generation_v2.source_corpus_run_view import load_current_run_corpus_view
+from app.generation_v2.source_corpus_run_view import load_current_run_corpus_view, load_run_corpus_view
 from app.generation_v2.source_triage_workspace import (
     load_source_triage_workspace,
     save_source_triage_workspace,
@@ -40,8 +40,9 @@ TRIAGE_EVAL_STOP_FIRST_SET = "first_set"
 TRIAGE_EVAL_STOP_FULL_TRIAGE = "full_triage"
 TRIAGE_EVAL_GOLDEN_HONG_KONG = "hong_kong"
 HONG_KONG_GOLDEN_MANIFEST_HASH = "4edb09781e1950b4b2cc3e690975b6af34d24fdd773555565ed5449824559c03"
-HONG_KONG_GOLDEN_FIRST_SET_SOURCE_REFS = ["S03"]
-HONG_KONG_GOLDEN_FULL_SOURCE_REFS = ["S01", "S03"]
+HONG_KONG_GOLDEN_FIRST_SET_SOURCE_REFS = ["S03", "S29"]
+HONG_KONG_GOLDEN_FULL_SOURCE_REFS = ["S01", "S03", "S29"]
+HONG_KONG_HK10_TERMS = ["HK$10", "$10", "10 доллар", "10-доллар"]
 HONG_KONG_GOLDEN_FIRST_SET_SALIENT_FACTS = [
     {
         "label": "s03_private_notes_coins_demand_hkma_chain",
@@ -49,21 +50,30 @@ HONG_KONG_GOLDEN_FIRST_SET_SALIENT_FACTS = [
         "question_id": "q_hkd_current_mechanics",
         "required_term_groups": [
             ["частн", "private"],
-            ["банкнот", "notes"],
+            ["банкнот", "купюр", "notes"],
             ["монет", "coin"],
             ["спрос", "demand"],
             ["HKMA"],
-            ["HK$10", "$10"],
+            HONG_KONG_HK10_TERMS,
         ],
     },
     {
-        "label": "s03_ci_exchange_fund_lers_mechanism",
+        "label": "s03_ci_exchange_fund_certificates_mechanism",
         "source_ref": "S03",
         "question_id": "q_hkd_current_mechanics",
         "required_term_groups": [
             ["certificate", "сертификат", "CI"],
             ["exchange fund"],
+        ],
+    },
+    {
+        "label": "s03_exchange_fund_lers_conversion_mechanism",
+        "source_ref": "S03",
+        "question_id": "q_hkd_current_mechanics",
+        "required_term_groups": [
+            ["exchange fund"],
             ["LERS", "linked exchange rate", "связанн"],
+            ["7.80", "7,80", "HK$7.80", "HK$7,80"],
         ],
     },
 ]
@@ -73,7 +83,7 @@ HONG_KONG_GOLDEN_FULL_ONLY_SALIENT_FACTS = [
         "source_ref": "S01",
         "question_id": "q_hkd_current_mechanics",
         "required_term_groups": [
-            ["HK$10", "$10"],
+            HONG_KONG_HK10_TERMS,
             ["правитель", "государств", "government"],
             ["выпуска", "issue", "issued"],
         ],
@@ -81,22 +91,73 @@ HONG_KONG_GOLDEN_FULL_ONLY_SALIENT_FACTS = [
 ]
 HONG_KONG_GOLDEN_GAPS = [
     {
-        "label": "s03_hk10_specific_exception_gap",
+        "label": "first_set_hk10_specific_exception_gap",
         "source_ref": "S03",
+        "scope": "set",
         "question_id": "q_hkd_current_mechanics",
         "required_term_groups": [
-            ["HK$10", "$10"],
-            ["почему", "причин", "объясн", "мотив"],
+            HONG_KONG_HK10_TERMS,
+            ["HKMA", "правительств", "государств", "government"],
+            [
+                "банки",
+                "банков",
+                "банками",
+                "банкам",
+                "commercial bank",
+                "private bank",
+                "banks",
+                "частн",
+                "private",
+                "исключ",
+                "сохран",
+                "остал",
+            ],
+            ["почему", "причин", "объясн", "мотив", "логик"],
         ],
     },
     {
-        "label": "early_private_note_legal_basis_gap",
+        "label": "first_set_early_private_note_legal_basis_gap",
         "source_ref": "S03",
+        "scope": "set",
         "question_id": "q_hkd_origin_private_notes",
         "required_term_groups": [
-            ["правов", "юрид", "legal"],
-            ["основан", "баз", "basis"],
+            [
+                "банки",
+                "банков",
+                "банками",
+                "банкам",
+                "commercial bank",
+                "private bank",
+                "banks",
+                "частн",
+                "private",
+            ],
+            ["эмисс", "выпуск", "issue", "issuance"],
+            [
+                "право",
+                "права",
+                "праву",
+                "правом",
+                "правов",
+                "юрид",
+                "legal",
+                "механизм",
+                "разреш",
+                "правил",
+                "практик",
+                "институциональ",
+                "оформ",
+            ],
         ],
+    },
+]
+HONG_KONG_GOLDEN_DUPLICATES = [
+    {
+        "label": "s29_exact_duplicate_s14",
+        "source_ref": "S29",
+        "duplicate_of_source_ref": "S14",
+        "max_finding_count": 0,
+        "max_gap_count": 0,
     },
 ]
 
@@ -109,6 +170,7 @@ async def preflight_first_set_eval(
     expected_source_refs: list[str] | None = None,
     expected_salient_facts: list[dict[str, Any]] | None = None,
     expected_gaps: list[dict[str, Any]] | None = None,
+    expected_duplicates: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Validate a frozen-plan canary without cloning a run or calling a model."""
 
@@ -139,6 +201,7 @@ async def preflight_first_set_eval(
             expected_source_refs=expected_source_refs or [],
             expected_salient_facts=expected_salient_facts or [],
             expected_gaps=expected_gaps or [],
+            expected_duplicates=expected_duplicates or [],
         )
         return report
 
@@ -149,12 +212,13 @@ async def run_first_set_eval(
     max_cost_usd: float,
     expected_salient_facts: list[dict[str, Any]] | None = None,
     expected_gaps: list[dict[str, Any]] | None = None,
+    expected_duplicates: list[dict[str, Any]] | None = None,
     expected_manifest_hash: str = "",
     expected_source_refs: list[str] | None = None,
     poll_seconds: float = 0.5,
 ) -> dict[str, Any]:
-    if not (expected_salient_facts or expected_gaps):
-        raise ValueError("triage eval requires --expect-salient-fact or --expect-gap")
+    if not (expected_salient_facts or expected_gaps or expected_duplicates):
+        raise ValueError("triage eval requires --expect-salient-fact, --expect-gap, or golden duplicate expectations")
     if max_cost_usd <= 0 or max_cost_usd > TRIAGE_FIRST_SET_EVAL_MAX_COST_USD:
         raise ValueError(
             f"max_cost_usd must be within (0, {TRIAGE_FIRST_SET_EVAL_MAX_COST_USD:.2f}]"
@@ -166,6 +230,7 @@ async def run_first_set_eval(
         expected_source_refs=expected_source_refs or [],
         expected_salient_facts=expected_salient_facts or [],
         expected_gaps=expected_gaps or [],
+        expected_duplicates=expected_duplicates or [],
     )
     _emit("eval_preflight", **readiness)
     if readiness["ready"] is not True:
@@ -176,6 +241,7 @@ async def run_first_set_eval(
         stop_after=TRIAGE_EVAL_STOP_FIRST_SET,
         expected_salient_facts=expected_salient_facts or [],
         expected_gaps=expected_gaps or [],
+        expected_duplicates=expected_duplicates or [],
         expected_manifest_hash=expected_manifest_hash,
         expected_source_refs=expected_source_refs or [],
     )
@@ -232,12 +298,13 @@ async def run_full_triage_eval(
     max_cost_usd: float,
     expected_salient_facts: list[dict[str, Any]] | None = None,
     expected_gaps: list[dict[str, Any]] | None = None,
+    expected_duplicates: list[dict[str, Any]] | None = None,
     expected_manifest_hash: str = "",
     expected_source_refs: list[str] | None = None,
     poll_seconds: float = 0.5,
 ) -> dict[str, Any]:
-    if not (expected_salient_facts or expected_gaps):
-        raise ValueError("triage eval requires --expect-salient-fact or --expect-gap")
+    if not (expected_salient_facts or expected_gaps or expected_duplicates):
+        raise ValueError("triage eval requires --expect-salient-fact, --expect-gap, or golden duplicate expectations")
     if max_cost_usd <= 0 or max_cost_usd > TRIAGE_FULL_TRIAGE_EVAL_MAX_COST_USD:
         raise ValueError(
             f"max_cost_usd must be within (0, {TRIAGE_FULL_TRIAGE_EVAL_MAX_COST_USD:.2f}]"
@@ -249,6 +316,7 @@ async def run_full_triage_eval(
         expected_source_refs=expected_source_refs or [],
         expected_salient_facts=expected_salient_facts or [],
         expected_gaps=expected_gaps or [],
+        expected_duplicates=expected_duplicates or [],
     )
     _emit("eval_preflight", **readiness)
     if readiness["ready"] is not True:
@@ -259,6 +327,7 @@ async def run_full_triage_eval(
         stop_after=TRIAGE_EVAL_STOP_FULL_TRIAGE,
         expected_salient_facts=expected_salient_facts or [],
         expected_gaps=expected_gaps or [],
+        expected_duplicates=expected_duplicates or [],
         expected_manifest_hash=expected_manifest_hash,
         expected_source_refs=expected_source_refs or [],
     )
@@ -314,6 +383,7 @@ async def _clone_eval_run(
     stop_after: str,
     expected_salient_facts: list[dict[str, Any]] | None = None,
     expected_gaps: list[dict[str, Any]] | None = None,
+    expected_duplicates: list[dict[str, Any]] | None = None,
     expected_manifest_hash: str = "",
     expected_source_refs: list[str] | None = None,
 ) -> GenerationRun:
@@ -329,6 +399,7 @@ async def _clone_eval_run(
             "max_cost_usd": max_cost_usd,
             "expected_salient_facts": expected_salient_facts or [],
             "expected_gaps": expected_gaps or [],
+            "expected_duplicates": expected_duplicates or [],
             "expected_manifest_hash": expected_manifest_hash,
             "expected_source_refs": expected_source_refs or [],
         }
@@ -409,15 +480,12 @@ async def _execute_first_set(
             persisted_workspace = await load_source_triage_workspace(db, run.id)
             if persisted_workspace is None or not persisted_workspace.get("source_sets"):
                 raise RuntimeError("Evaluation run lost its persisted set state")
-            current_eval_view = await load_current_run_corpus_view(db, run.id)
-            if current_eval_view is None or not _workspace_matches_run_view(
+            prepared_corpus = await _load_eval_corpus_for_workspace_scope(
+                db,
+                run,
                 persisted_workspace,
-                current_eval_view,
-            ):
-                raise RuntimeError(
-                    "Evaluation run's current corpus scope no longer matches its persisted set state"
-                )
-            prepared_corpus = await load_current_v2_corpus(db, run)
+                state_label="persisted set state",
+            )
         runner = SourceTriageStageRunner(
             run,
             db,
@@ -496,6 +564,7 @@ async def _execute_first_set(
             workspace,
             expected_salient_facts=eval_config.get("expected_salient_facts") or [],
             expected_gaps=eval_config.get("expected_gaps") or [],
+            expected_duplicates=eval_config.get("expected_duplicates") or [],
             research_handoff=[],
         )
         if semantic_report["passed"] is not True:
@@ -549,15 +618,12 @@ async def _execute_full_triage(
             persisted_workspace = await load_source_triage_workspace(db, run.id)
             if persisted_workspace is None or not persisted_workspace.get("source_sets"):
                 raise RuntimeError("Evaluation run lost its persisted triage state")
-            current_eval_view = await load_current_run_corpus_view(db, run.id)
-            if current_eval_view is None or not _workspace_matches_run_view(
+            prepared_corpus = await _load_eval_corpus_for_workspace_scope(
+                db,
+                run,
                 persisted_workspace,
-                current_eval_view,
-            ):
-                raise RuntimeError(
-                    "Evaluation run's current corpus scope no longer matches its persisted triage state"
-                )
-            prepared_corpus = await load_current_v2_corpus(db, run)
+                state_label="persisted triage state",
+            )
         runner = SourceTriageStageRunner(
             run,
             db,
@@ -677,6 +743,7 @@ async def _execute_full_triage(
             workspace,
             expected_salient_facts=eval_config.get("expected_salient_facts") or [],
             expected_gaps=eval_config.get("expected_gaps") or [],
+            expected_duplicates=eval_config.get("expected_duplicates") or [],
             research_handoff=list(getattr(corpus_brief, "research_handoff", []) or []) if corpus_brief is not None else [],
         )
         if semantic_report["passed"] is not True:
@@ -714,6 +781,24 @@ def _workspace_matches_run_view(
         and str(workspace.get("manifest_hash") or "")
         == str(getattr(run_view, "manifest_hash", "") or "")
     )
+
+
+async def _load_eval_corpus_for_workspace_scope(
+    db: Any,
+    run: GenerationRun,
+    workspace: dict[str, Any],
+    *,
+    state_label: str,
+) -> Any:
+    revision = int(workspace.get("corpus_revision") or 1)
+    attempt = int(workspace.get("attempt") or 1)
+    run_view = await load_run_corpus_view(db, run.id, revision=revision, attempt=attempt)
+    if run_view is None or not _workspace_matches_run_view(workspace, run_view):
+        raise RuntimeError(
+            "Evaluation run has no corpus view matching its "
+            f"{state_label} scope: revision={revision}, attempt={attempt}"
+        )
+    return await load_v2_corpus_for_run_view(db, run, run_view)
 
 
 def _clean_plan_workspace(
@@ -876,6 +961,7 @@ def _append_golden_preflight_issues(
     expected_source_refs: list[str],
     expected_salient_facts: list[dict[str, Any]],
     expected_gaps: list[dict[str, Any]],
+    expected_duplicates: list[dict[str, Any]],
 ) -> dict[str, Any]:
     if expected_manifest_hash and source_manifest_hash != expected_manifest_hash:
         report = _append_readiness_issue(
@@ -886,10 +972,16 @@ def _append_golden_preflight_issues(
     source_order = {str(value) for value in workspace.get("source_order") or [] if str(value)}
     expected_refs_from_expectations = {
         str(item.get("source_ref") or "")
-        for item in [*expected_salient_facts, *expected_gaps]
+        for item in [*expected_salient_facts, *expected_gaps, *expected_duplicates]
         if str(item.get("source_ref") or "")
     }
+    expected_refs_from_duplicates = {
+        str(item.get("duplicate_of_source_ref") or "")
+        for item in expected_duplicates
+        if str(item.get("duplicate_of_source_ref") or "")
+    }
     missing_source_refs = sorted((set(expected_source_refs) | expected_refs_from_expectations) - source_order)
+    missing_source_refs = sorted(set(missing_source_refs) | (expected_refs_from_duplicates - source_order))
     if missing_source_refs:
         report = _append_readiness_issue(
             report,
@@ -919,7 +1011,7 @@ def _append_golden_preflight_issues(
         first_set_refs = {str(value) for value in first_set.get("source_refs") or [] if str(value)}
         expected_refs = {
             str(item.get("source_ref") or "")
-            for item in [*expected_salient_facts, *expected_gaps]
+            for item in [*expected_salient_facts, *expected_gaps, *expected_duplicates]
             if str(item.get("source_ref") or "")
         }
         outside_first_set = sorted(expected_refs - first_set_refs)
@@ -1041,9 +1133,11 @@ def _source_mapping_semantic_expectation_report(
     *,
     expected_salient_facts: list[dict[str, Any]],
     expected_gaps: list[dict[str, Any]],
+    expected_duplicates: list[dict[str, Any]] | None = None,
     research_handoff: list[Any] | None = None,
 ) -> dict[str, Any]:
-    expectations = [*expected_salient_facts, *expected_gaps]
+    expected_duplicates = expected_duplicates or []
+    expectations = [*expected_salient_facts, *expected_gaps, *expected_duplicates]
     if not expectations:
         return {
             "passed": False,
@@ -1101,10 +1195,91 @@ def _source_mapping_semantic_expectation_report(
     handoff_report = _research_handoff_expectation_report(
         research_handoff or [],
         expected_salient_facts=expected_salient_facts,
+        expected_gaps=expected_gaps,
     )
     if research_handoff:
         issues.extend(handoff_report["issues"])
-    return {"passed": not issues, "issues": issues, "reports": reports, "handoff_report": handoff_report}
+    duplicate_report = _source_mapping_duplicate_expectation_report(
+        workspace,
+        expected_duplicates=expected_duplicates,
+    )
+    issues.extend(duplicate_report["issues"])
+    return {
+        "passed": not issues,
+        "issues": issues,
+        "reports": reports,
+        "handoff_report": handoff_report,
+        "duplicate_report": duplicate_report,
+    }
+
+
+def _source_mapping_duplicate_expectation_report(
+    workspace: dict[str, Any],
+    *,
+    expected_duplicates: list[dict[str, Any]],
+) -> dict[str, Any]:
+    if not expected_duplicates:
+        return {"checked": False, "issues": [], "duplicates": []}
+    source_analyses = [
+        item
+        for item in workspace.get("source_analyses") or []
+        if isinstance(item, dict)
+        and item.get("current") is not False
+        and not item.get("retired_at")
+    ]
+    analysis_by_ref = {
+        str(item.get("source_ref") or ""): item
+        for item in source_analyses
+        if str(item.get("source_ref") or "")
+    }
+    issues: list[str] = []
+    reports: list[dict[str, Any]] = []
+    for expectation in expected_duplicates:
+        label = str(expectation.get("label") or "duplicate")
+        source_ref = str(expectation.get("source_ref") or "")
+        expected_duplicate = str(expectation.get("duplicate_of_source_ref") or "")
+        max_finding_count = int(expectation.get("max_finding_count") or 0)
+        max_gap_count = int(expectation.get("max_gap_count") or 0)
+        analysis = analysis_by_ref.get(source_ref)
+        accepted = bool((analysis or {}).get("accepted"))
+        status = str((analysis or {}).get("status") or "")
+        actual_duplicate = str((analysis or {}).get("duplicate_of_source_ref") or "")
+        findings = list((analysis or {}).get("findings") or [])
+        finding_ids = list((analysis or {}).get("finding_ids") or [])
+        gaps = list((analysis or {}).get("gaps") or [])
+        finding_count = len(findings) if findings else len(finding_ids)
+        passed = bool(analysis) and accepted and status == "usable" and actual_duplicate == expected_duplicate
+        passed = passed and finding_count <= max_finding_count and len(gaps) <= max_gap_count
+        reports.append(
+            {
+                "label": label,
+                "source_ref": source_ref,
+                "passed": passed,
+                "accepted": accepted,
+                "status": status,
+                "expected_duplicate_of_source_ref": expected_duplicate,
+                "actual_duplicate_of_source_ref": actual_duplicate,
+                "finding_count": finding_count,
+                "gap_count": len(gaps),
+            }
+        )
+        if analysis is None:
+            issues.append(f"expected duplicate source has no current analysis: {source_ref}")
+        elif not accepted:
+            issues.append(f"expected duplicate {label} to have accepted SourceAnalysis")
+        elif status != "usable":
+            issues.append(f"expected duplicate {label} to use status=usable, got {status or '<missing>'}")
+        elif actual_duplicate != expected_duplicate:
+            issues.append(
+                f"expected duplicate {label} to reference {expected_duplicate}, got "
+                f"{actual_duplicate or '<none>'}"
+            )
+        elif finding_count > max_finding_count or len(gaps) > max_gap_count:
+            issues.append(
+                f"expected duplicate {label} to have <= {max_finding_count} findings and <= "
+                f"{max_gap_count} gaps, got {finding_count} findings and {len(gaps)} gaps"
+            )
+    return {"checked": True, "issues": issues, "duplicates": reports}
 
 
 def _raise_for_golden_workspace_mismatch(workspace: dict[str, Any], eval_config: dict[str, Any]) -> None:
@@ -1126,11 +1301,13 @@ def _research_handoff_expectation_report(
     research_handoff: list[Any],
     *,
     expected_salient_facts: list[dict[str, Any]],
+    expected_gaps: list[dict[str, Any]],
 ) -> dict[str, Any]:
     if not research_handoff:
-        return {"checked": False, "issues": [], "salient_facts": []}
+        return {"checked": False, "issues": [], "salient_facts": [], "gaps": []}
     items = [_handoff_item_dict(item) for item in research_handoff]
-    reports: list[dict[str, Any]] = []
+    fact_reports: list[dict[str, Any]] = []
+    gap_reports: list[dict[str, Any]] = []
     issues: list[str] = []
     for fact in expected_salient_facts:
         label = str(fact.get("label") or "salient_fact")
@@ -1153,7 +1330,7 @@ def _research_handoff_expectation_report(
             required_term_groups
         )
         passed = bool(record_missing_terms) and any(not missing for missing in record_missing_terms)
-        reports.append(
+        fact_reports.append(
             {
                 "label": label,
                 "question_id": question_id,
@@ -1167,7 +1344,47 @@ def _research_handoff_expectation_report(
                 f"research handoff missing salient fact {label}"
                 + (f"; missing terms: {', '.join(missing_terms)}" if missing_terms else "")
             )
-    return {"checked": True, "issues": issues, "salient_facts": reports}
+    for gap in expected_gaps:
+        label = str(gap.get("label") or "expected_gap")
+        question_id = str(gap.get("question_id") or "")
+        required_term_groups = _required_term_groups(gap)
+        candidate_gaps = [
+            handoff_gap
+            for item in items
+            if question_id in {str(value) for value in item.get("question_ids") or []}
+            for handoff_gap in item.get("gaps") or []
+            if isinstance(handoff_gap, dict)
+        ]
+        record_missing_terms = [
+            _missing_terms([str(handoff_gap.get("description") or "")], required_term_groups)
+            for handoff_gap in candidate_gaps
+        ]
+        missing_terms = min(record_missing_terms, key=len) if record_missing_terms else _missing_group_labels(
+            required_term_groups
+        )
+        passed = bool(record_missing_terms) and any(not missing for missing in record_missing_terms)
+        matched_source_refs = sorted(
+            {
+                str(handoff_gap.get("source_ref") or "")
+                for handoff_gap in candidate_gaps
+                if str(handoff_gap.get("source_ref") or "")
+            }
+        )
+        gap_reports.append(
+            {
+                "label": label,
+                "question_id": question_id,
+                "passed": passed,
+                "missing_terms": missing_terms,
+                "matched_source_refs": matched_source_refs,
+            }
+        )
+        if not passed:
+            issues.append(
+                f"research handoff missing expected gap {label}"
+                + (f"; missing terms: {', '.join(missing_terms)}" if missing_terms else "")
+            )
+    return {"checked": True, "issues": issues, "salient_facts": fact_reports, "gaps": gap_reports}
 
 
 def _handoff_item_dict(item: Any) -> dict[str, Any]:
@@ -1179,6 +1396,7 @@ def _handoff_item_dict(item: Any) -> dict[str, Any]:
     return {
         "question_ids": list(getattr(item, "question_ids", []) or []),
         "findings": list(getattr(item, "findings", []) or []),
+        "gaps": list(getattr(item, "gaps", []) or []),
     }
 
 
@@ -1270,6 +1488,14 @@ def _golden_expectations(name: str, mode: str) -> tuple[list[dict[str, Any]], li
     raise ValueError(f"Unknown triage eval golden fixture: {name}")
 
 
+def _golden_duplicate_expectations(name: str) -> list[dict[str, Any]]:
+    if not name:
+        return []
+    if name == TRIAGE_EVAL_GOLDEN_HONG_KONG:
+        return deepcopy(HONG_KONG_GOLDEN_DUPLICATES)
+    raise ValueError(f"Unknown triage eval golden fixture: {name}")
+
+
 def _golden_manifest_hash(name: str) -> str:
     return HONG_KONG_GOLDEN_MANIFEST_HASH if name == TRIAGE_EVAL_GOLDEN_HONG_KONG else ""
 
@@ -1332,8 +1558,10 @@ def main() -> None:
             f"--max-cost-usd must be within (0, {max_allowed_cost:.2f}] for mode={args.mode}"
         )
     golden_facts, golden_gaps = _golden_expectations(args.golden, args.mode)
+    golden_duplicates = _golden_duplicate_expectations(args.golden)
     expected_salient_facts = [*golden_facts, *_parse_salient_facts(args.expect_salient_fact)]
     expected_gaps = [*golden_gaps, *_parse_expected_gaps(args.expect_gap)]
+    expected_duplicates = [*golden_duplicates]
     expected_manifest_hash = _golden_manifest_hash(args.golden)
     expected_source_refs = _golden_source_refs(args.golden, args.mode)
     try:
@@ -1348,6 +1576,7 @@ def main() -> None:
                     expected_source_refs=expected_source_refs,
                     expected_salient_facts=expected_salient_facts,
                     expected_gaps=expected_gaps,
+                    expected_duplicates=expected_duplicates,
                 )
             )
         elif args.resume_run_id is not None:
@@ -1376,6 +1605,7 @@ def main() -> None:
                         max_cost_usd=max_cost_usd,
                         expected_salient_facts=expected_salient_facts,
                         expected_gaps=expected_gaps,
+                        expected_duplicates=expected_duplicates,
                         expected_manifest_hash=expected_manifest_hash,
                         expected_source_refs=expected_source_refs,
                         poll_seconds=max(0.1, args.poll_seconds),
@@ -1388,6 +1618,7 @@ def main() -> None:
                         max_cost_usd=max_cost_usd,
                         expected_salient_facts=expected_salient_facts,
                         expected_gaps=expected_gaps,
+                        expected_duplicates=expected_duplicates,
                         expected_manifest_hash=expected_manifest_hash,
                         expected_source_refs=expected_source_refs,
                         poll_seconds=max(0.1, args.poll_seconds),

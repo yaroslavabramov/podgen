@@ -755,6 +755,17 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
                 "source_ref": source_ref,
                 "duplicate_of_source_ref": duplicate_of_source_ref,
             }
+        if duplicate_allowed and status != "usable":
+            return {
+                "accepted": False,
+                "error": "backend exact duplicate source analysis must use status=usable",
+                "source_ref": source_ref,
+                "duplicate_of_source_ref": duplicate_of_source_ref,
+                "next_action": (
+                    "Retry save_source_analysis for this backend-confirmed exact duplicate with status=usable, "
+                    "findings=[], gaps=[], and duplicate_of_source_ref copied exactly."
+                ),
+            }
         representation_failure = has_source_representation_failure(
             self.inventory,
             source_id,
@@ -836,6 +847,20 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
         raw_findings = args.get("findings") or []
         if not isinstance(raw_findings, list):
             return {"accepted": False, "error": "findings must be an array"}
+        raw_gaps = args.get("gaps") or []
+        if not isinstance(raw_gaps, list):
+            return {"accepted": False, "error": "gaps must be an array"}
+        if duplicate_allowed and (raw_findings or raw_gaps):
+            return {
+                "accepted": False,
+                "error": "exact duplicate source analysis must not restate findings or gaps",
+                "source_ref": source_ref,
+                "duplicate_of_source_ref": duplicate_of_source_ref,
+                "next_action": (
+                    "Retry save_source_analysis for this backend-confirmed exact duplicate with findings=[] "
+                    "and gaps=[]; keep duplicate_of_source_ref copied exactly."
+                ),
+            }
         if status != "usable" and raw_findings:
             return {
                 "accepted": False,
@@ -843,6 +868,7 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
                 "source_ref": source_ref,
             }
         findings: list[dict[str, Any]] = []
+        seen_finding_ids: set[str] = set()
         evidence_ids: list[str] = []
         for index, raw_finding in enumerate(raw_findings):
             if not isinstance(raw_finding, dict):
@@ -941,7 +967,48 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
             )
             if limitations_error:
                 return limitations_error
-            finding_id = str(raw_finding.get("finding_id") or "").strip() or f"finding:{source_ref}:{index + 1}"
+            requested_finding_id = str(raw_finding.get("finding_id") or "").strip()
+            finding_prefix = f"finding:{source_ref}:"
+            if requested_finding_id.startswith("finding:") and not requested_finding_id.startswith(finding_prefix):
+                return {
+                    "accepted": False,
+                    "error": "finding_id belongs to another source",
+                    "finding_index": index,
+                    "finding_id": requested_finding_id,
+                    "source_ref": source_ref,
+                    "next_action": "Copy this source's exact finding_id or omit it to create a stable one.",
+                }
+            if requested_finding_id == finding_prefix:
+                return {
+                    "accepted": False,
+                    "error": "finding_id suffix is empty",
+                    "finding_index": index,
+                    "source_ref": source_ref,
+                    "next_action": "Omit finding_id to create a stable one.",
+                }
+            if requested_finding_id.startswith(finding_prefix):
+                finding_id = requested_finding_id
+            else:
+                suffix = (
+                    public_api._stable_set_id(requested_finding_id, statement, index + 1)
+                    if requested_finding_id
+                    else hashlib.sha256(
+                        json.dumps(
+                            [statement, finding_evidence_ids],
+                            ensure_ascii=False,
+                            separators=(",", ":"),
+                        ).encode("utf-8")
+                    ).hexdigest()[:12]
+                )
+                finding_id = f"{finding_prefix}{suffix}"
+            if finding_id in seen_finding_ids:
+                return {
+                    "accepted": False,
+                    "error": "finding ids must be unique for this source analysis",
+                    "finding_index": index,
+                    "finding_id": finding_id,
+                }
+            seen_finding_ids.add(finding_id)
             findings.append(
                 {
                     "finding_id": finding_id,
@@ -966,9 +1033,6 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
             )
             evidence_ids.extend(finding_evidence_ids)
 
-        raw_gaps = args.get("gaps") or []
-        if not isinstance(raw_gaps, list):
-            return {"accepted": False, "error": "gaps must be an array"}
         gaps: list[dict[str, str]] = []
         for index, raw_gap in enumerate(raw_gaps):
             if not isinstance(raw_gap, dict):

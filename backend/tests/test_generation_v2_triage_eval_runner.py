@@ -8,6 +8,7 @@ import pytest
 
 from app.generation_v2.triage_eval_runner import (
     HONG_KONG_GOLDEN_MANIFEST_HASH,
+    HONG_KONG_HK10_TERMS,
     TRIAGE_EVAL_GOLDEN_HONG_KONG,
     TRIAGE_EVAL_STOP_FIRST_SET,
     TRIAGE_EVAL_STOP_FULL_TRIAGE,
@@ -17,6 +18,7 @@ from app.generation_v2.triage_eval_runner import (
     _eval_readiness_report,
     _execute_first_set,
     _first_set_structural_report,
+    _golden_duplicate_expectations,
     _golden_expectations,
     _golden_source_refs,
     _source_mapping_semantic_expectation_report,
@@ -110,6 +112,151 @@ def test_triage_eval_semantic_postflight_requires_expectations() -> None:
     assert "source-mapping semantic postflight requires explicit expectations" in report["issues"]
 
 
+def test_triage_eval_semantic_postflight_checks_exact_duplicate_short_circuit() -> None:
+    workspace = {
+        "source_sets": [{"set_id": "set-1", "status": "mapped", "source_refs": ["S14", "S29"]}],
+        "source_analyses": [
+            {
+                "analysis_id": "analysis:S29",
+                "source_ref": "S29",
+                "status": "usable",
+                "current": True,
+                "accepted": True,
+                "duplicate_of_source_ref": "S14",
+                "finding_ids": [],
+                "gaps": [],
+            }
+        ],
+    }
+
+    report = _source_mapping_semantic_expectation_report(
+        workspace,
+        expected_salient_facts=[],
+        expected_gaps=[],
+        expected_duplicates=[
+            {
+                "label": "s29_exact_duplicate_s14",
+                "source_ref": "S29",
+                "duplicate_of_source_ref": "S14",
+                "max_finding_count": 0,
+                "max_gap_count": 0,
+            }
+        ],
+    )
+
+    assert report["passed"] is True
+    assert report["duplicate_report"]["checked"] is True
+
+
+def test_triage_eval_semantic_postflight_rejects_duplicate_with_restated_material() -> None:
+    workspace = {
+        "source_sets": [{"set_id": "set-1", "status": "mapped", "source_refs": ["S14", "S29"]}],
+        "source_analyses": [
+            {
+                "analysis_id": "analysis:S29",
+                "source_ref": "S29",
+                "status": "usable",
+                "current": True,
+                "accepted": True,
+                "duplicate_of_source_ref": "S14",
+                "findings": [{"finding_id": "finding:S29:1", "statement": "Restated duplicate fact."}],
+                "gaps": [{"question_id": "q_leaf", "description": "Restated duplicate gap."}],
+            }
+        ],
+    }
+
+    report = _source_mapping_semantic_expectation_report(
+        workspace,
+        expected_salient_facts=[],
+        expected_gaps=[],
+        expected_duplicates=[
+            {
+                "label": "s29_exact_duplicate_s14",
+                "source_ref": "S29",
+                "duplicate_of_source_ref": "S14",
+                "max_finding_count": 0,
+                "max_gap_count": 0,
+            }
+        ],
+    )
+
+    assert report["passed"] is False
+    assert "expected duplicate s29_exact_duplicate_s14" in report["issues"][0]
+
+
+def test_triage_eval_semantic_postflight_rejects_legacy_only_duplicate_record() -> None:
+    workspace = {
+        "source_sets": [{"set_id": "set-1", "status": "mapped", "source_refs": ["S14", "S29"]}],
+        "source_assessments": [
+            {
+                "analysis_id": "analysis:S29",
+                "source_ref": "S29",
+                "status": "usable",
+                "current": True,
+                "accepted": True,
+                "duplicate_of_source_ref": "S14",
+                "finding_ids": [],
+            }
+        ],
+    }
+
+    report = _source_mapping_semantic_expectation_report(
+        workspace,
+        expected_salient_facts=[],
+        expected_gaps=[],
+        expected_duplicates=[
+            {
+                "label": "s29_exact_duplicate_s14",
+                "source_ref": "S29",
+                "duplicate_of_source_ref": "S14",
+                "max_finding_count": 0,
+                "max_gap_count": 0,
+            }
+        ],
+    )
+
+    assert report["passed"] is False
+    assert report["issues"] == ["expected duplicate source has no current analysis: S29"]
+
+
+def test_triage_eval_semantic_postflight_rejects_duplicate_with_non_usable_status() -> None:
+    workspace = {
+        "source_sets": [{"set_id": "set-1", "status": "mapped", "source_refs": ["S14", "S29"]}],
+        "source_analyses": [
+            {
+                "analysis_id": "analysis:S29",
+                "source_ref": "S29",
+                "status": "not_target_content",
+                "current": True,
+                "accepted": True,
+                "duplicate_of_source_ref": "S14",
+                "findings": [],
+                "gaps": [],
+            }
+        ],
+    }
+
+    report = _source_mapping_semantic_expectation_report(
+        workspace,
+        expected_salient_facts=[],
+        expected_gaps=[],
+        expected_duplicates=[
+            {
+                "label": "s29_exact_duplicate_s14",
+                "source_ref": "S29",
+                "duplicate_of_source_ref": "S14",
+                "max_finding_count": 0,
+                "max_gap_count": 0,
+            }
+        ],
+    )
+
+    assert report["passed"] is False
+    assert report["issues"] == [
+        "expected duplicate s29_exact_duplicate_s14 to use status=usable, got not_target_content"
+    ]
+
+
 def test_triage_eval_semantic_postflight_accepts_gap_term_groups() -> None:
     workspace = {
         "source_sets": [{"set_id": "set-1", "status": "mapped", "source_refs": ["S03"]}],
@@ -124,11 +271,11 @@ def test_triage_eval_semantic_postflight_accepts_gap_term_groups() -> None:
                 "gaps": [
                     {
                         "question_id": "q_hkd_current_mechanics",
-                        "description": "Источник не раскрывает причину исключения HK$10.",
+                        "description": "Источник не раскрывает отдельную институциональную логику сохранения правительственного HK$10 вместо выпуска этой банкноты банками.",
                     },
                     {
                         "question_id": "q_hkd_origin_private_notes",
-                        "description": "Источник не раскрывает юридическую базу частной эмиссии.",
+                        "description": "Источник не раскрывает правовой механизм, по которому частные банки получили право на выпуск банкнот.",
                     },
                 ],
             }
@@ -140,27 +287,156 @@ def test_triage_eval_semantic_postflight_accepts_gap_term_groups() -> None:
         expected_salient_facts=[],
         expected_gaps=[
             {
-                "label": "s03_hk10_specific_exception_gap",
+                "label": "first_set_hk10_specific_exception_gap",
                 "source_ref": "S03",
+                "scope": "set",
                 "question_id": "q_hkd_current_mechanics",
                 "required_term_groups": [
                     ["HK$10", "$10"],
-                    ["почему", "причин", "объясн", "мотив"],
+                    ["HKMA", "правительств", "государств", "government"],
+                    [
+                        "банки",
+                        "банков",
+                        "банками",
+                        "банкам",
+                        "commercial bank",
+                        "private bank",
+                        "banks",
+                        "частн",
+                        "private",
+                        "исключ",
+                        "сохран",
+                        "остал",
+                    ],
+                    ["почему", "причин", "объясн", "мотив", "логик"],
                 ],
             },
             {
-                "label": "early_private_note_legal_basis_gap",
+                "label": "first_set_early_private_note_legal_basis_gap",
                 "source_ref": "S03",
+                "scope": "set",
                 "question_id": "q_hkd_origin_private_notes",
                 "required_term_groups": [
-                    ["правов", "юрид", "legal"],
-                    ["основан", "баз", "basis"],
+                    [
+                        "банки",
+                        "банков",
+                        "банками",
+                        "банкам",
+                        "commercial bank",
+                        "private bank",
+                        "banks",
+                        "частн",
+                        "private",
+                    ],
+                    ["эмисс", "выпуск", "issue", "issuance"],
+                    [
+                        "право",
+                        "права",
+                        "праву",
+                        "правом",
+                        "правов",
+                        "юрид",
+                        "legal",
+                        "механизм",
+                        "разреш",
+                        "правил",
+                        "практик",
+                        "институциональ",
+                        "оформ",
+                    ],
                 ],
             },
         ],
     )
 
     assert report["passed"] is True
+
+
+def test_triage_eval_semantic_postflight_rejects_false_early_legal_gap_match() -> None:
+    workspace = {
+        "source_sets": [{"set_id": "set-1", "status": "mapped", "source_refs": ["S03"]}],
+        "source_analyses": [
+            {
+                "analysis_id": "analysis:S03",
+                "source_ref": "S03",
+                "status": "usable",
+                "current": True,
+                "accepted": True,
+                "findings": [],
+                "gaps": [
+                    {
+                        "question_id": "q_hkd_origin_private_notes",
+                        "description": "Источник не объясняет выпуск банкнот правительством.",
+                    },
+                ],
+            }
+        ],
+    }
+
+    _first_facts, first_gaps = _golden_expectations(
+        TRIAGE_EVAL_GOLDEN_HONG_KONG,
+        TRIAGE_EVAL_STOP_FIRST_SET,
+    )
+    early_gap = [
+        item for item in first_gaps if item["label"] == "first_set_early_private_note_legal_basis_gap"
+    ]
+    report = _source_mapping_semantic_expectation_report(
+        workspace,
+        expected_salient_facts=[],
+        expected_gaps=early_gap,
+    )
+
+    assert report["passed"] is False
+    assert "first_set_early_private_note_legal_basis_gap" in report["issues"][0]
+
+
+def test_triage_eval_semantic_postflight_accepts_set_level_gap_from_another_source() -> None:
+    workspace = {
+        "source_sets": [{"set_id": "set-1", "status": "mapped", "source_refs": ["S03", "S23"]}],
+        "source_analyses": [
+            {
+                "analysis_id": "analysis:S03",
+                "source_ref": "S03",
+                "status": "usable",
+                "current": True,
+                "accepted": True,
+                "findings": [],
+                "gaps": [{"question_id": "current", "description": "public demand gap"}],
+            },
+            {
+                "analysis_id": "analysis:S23",
+                "source_ref": "S23",
+                "status": "usable",
+                "current": True,
+                "accepted": True,
+                "findings": [],
+                "gaps": [
+                    {
+                        "question_id": "q_hkd_current_mechanics",
+                        "description": (
+                            "Источник не объясняет, почему HK$10 сохранили как государственное "
+                            "исключение вместо выпуска этой банкноты частными банками."
+                        ),
+                    }
+                ],
+            },
+        ],
+    }
+    _first_facts, first_gaps = _golden_expectations(
+        TRIAGE_EVAL_GOLDEN_HONG_KONG,
+        TRIAGE_EVAL_STOP_FIRST_SET,
+    )
+    hk10_gap = [item for item in first_gaps if item["label"] == "first_set_hk10_specific_exception_gap"]
+
+    report = _source_mapping_semantic_expectation_report(
+        workspace,
+        expected_salient_facts=[],
+        expected_gaps=hk10_gap,
+    )
+
+    assert report["passed"] is True
+    assert report["reports"][0]["expected_gaps"][0]["scope"] == "set"
+    assert report["reports"][0]["expected_gaps"][0]["matched_source_refs"] == ["S23"]
 
 
 def test_triage_eval_semantic_postflight_checks_research_handoff() -> None:
@@ -184,7 +460,7 @@ def test_triage_eval_semantic_postflight_checks_research_handoff() -> None:
                         "limitations": [],
                     }
                 ],
-                "gaps": [],
+                "gaps": [{"question_id": "current", "description": "public demand gap"}],
             }
         ],
     }
@@ -199,7 +475,15 @@ def test_triage_eval_semantic_postflight_checks_research_handoff() -> None:
                 "required_terms": ["HK$10", "public demand", "HKMA"],
             }
         ],
-        expected_gaps=[],
+        expected_gaps=[
+            {
+                "label": "set_level_gap",
+                "source_ref": "S03",
+                "scope": "set",
+                "question_id": "current",
+                "required_terms": ["public demand gap"],
+            }
+        ],
         research_handoff=[
             {
                 "question_ids": ["current"],
@@ -210,12 +494,56 @@ def test_triage_eval_semantic_postflight_checks_research_handoff() -> None:
                         "evidence_ids": ["evidence-hk10"],
                     }
                 ],
+                "gaps": [{"source_ref": "S23", "description": "public demand gap"}],
             }
         ],
     )
 
     assert report["passed"] is True
     assert report["handoff_report"]["checked"] is True
+    assert report["handoff_report"]["gaps"][0]["matched_source_refs"] == ["S23"]
+
+
+def test_triage_eval_semantic_postflight_rejects_missing_handoff_gap() -> None:
+    workspace = {
+        "source_sets": [{"set_id": "set-1", "status": "mapped", "source_refs": ["S03", "S23"]}],
+        "source_analyses": [
+            {
+                "analysis_id": "analysis:S23",
+                "source_ref": "S23",
+                "status": "usable",
+                "current": True,
+                "accepted": True,
+                "findings": [],
+                "gaps": [
+                    {
+                        "question_id": "current",
+                        "description": "public demand gap",
+                    }
+                ],
+            }
+        ],
+    }
+
+    report = _source_mapping_semantic_expectation_report(
+        workspace,
+        expected_salient_facts=[],
+        expected_gaps=[
+            {
+                "label": "set_level_gap",
+                "source_ref": "S03",
+                "scope": "set",
+                "question_id": "current",
+                "required_terms": ["public demand gap"],
+            }
+        ],
+        research_handoff=[{"question_ids": ["current"], "findings": [], "gaps": []}],
+    )
+
+    assert report["passed"] is False
+    assert report["handoff_report"]["issues"] == [
+        "research handoff missing expected gap set_level_gap; missing terms: public demand gap"
+    ]
 
 
 def test_hong_kong_golden_expectations_are_scoped_by_eval_mode() -> None:
@@ -227,17 +555,38 @@ def test_hong_kong_golden_expectations_are_scoped_by_eval_mode() -> None:
         TRIAGE_EVAL_GOLDEN_HONG_KONG,
         TRIAGE_EVAL_STOP_FULL_TRIAGE,
     )
+    golden_duplicates = _golden_duplicate_expectations(TRIAGE_EVAL_GOLDEN_HONG_KONG)
 
     assert HONG_KONG_GOLDEN_MANIFEST_HASH == (
         "4edb09781e1950b4b2cc3e690975b6af34d24fdd773555565ed5449824559c03"
     )
+    assert HONG_KONG_HK10_TERMS == ["HK$10", "$10", "10 доллар", "10-доллар"]
     assert {item["source_ref"] for item in first_facts + first_gaps} == {"S03"}
     assert {item["source_ref"] for item in full_facts + full_gaps} == {"S01", "S03"}
+    assert {item["scope"] for item in first_gaps} == {"set"}
+    assert {item["scope"] for item in full_gaps} == {"set"}
+    assert golden_duplicates == [
+        {
+            "label": "s29_exact_duplicate_s14",
+            "source_ref": "S29",
+            "duplicate_of_source_ref": "S14",
+            "max_finding_count": 0,
+            "max_gap_count": 0,
+        }
+    ]
+    assert {
+        "s03_ci_exchange_fund_certificates_mechanism",
+        "s03_exchange_fund_lers_conversion_mechanism",
+    }.issubset({item["label"] for item in first_facts})
     assert "S33" not in {item["source_ref"] for item in full_facts + full_gaps}
-    assert _golden_source_refs(TRIAGE_EVAL_GOLDEN_HONG_KONG, TRIAGE_EVAL_STOP_FIRST_SET) == ["S03"]
+    assert _golden_source_refs(TRIAGE_EVAL_GOLDEN_HONG_KONG, TRIAGE_EVAL_STOP_FIRST_SET) == [
+        "S03",
+        "S29",
+    ]
     assert _golden_source_refs(TRIAGE_EVAL_GOLDEN_HONG_KONG, TRIAGE_EVAL_STOP_FULL_TRIAGE) == [
         "S01",
         "S03",
+        "S29",
     ]
 
 
@@ -381,7 +730,11 @@ async def test_resume_hydrates_pinned_corpus_without_preparing_a_new_revision(
     async def load_workspace(_db, _run_id):
         return workspace
 
-    async def load_pinned_corpus(_db, _run):
+    async def load_scope_view(_db, _run_id, *, revision, attempt):
+        assert (revision, attempt) == (1, 1)
+        return pinned_corpus.run_view
+
+    async def load_scope_corpus(_db, _run, _run_view):
         return pinned_corpus
 
     async def load_source_view(_db, _run_id):
@@ -431,8 +784,12 @@ async def test_resume_hydrates_pinned_corpus_without_preparing_a_new_revision(
         load_workspace,
     )
     monkeypatch.setattr(
-        "app.generation_v2.triage_eval_runner.load_current_v2_corpus",
-        load_pinned_corpus,
+        "app.generation_v2.triage_eval_runner.load_run_corpus_view",
+        load_scope_view,
+    )
+    monkeypatch.setattr(
+        "app.generation_v2.triage_eval_runner.load_v2_corpus_for_run_view",
+        load_scope_corpus,
     )
     monkeypatch.setattr(
         "app.generation_v2.triage_eval_runner.load_current_run_corpus_view",
@@ -1043,9 +1400,39 @@ async def test_eval_preflight_rejects_custom_expectation_unknown_source_ref(
     assert report["issues"][-1] == "golden corpus missing source_refs: S99"
 
 
+@pytest.mark.asyncio
+async def test_eval_preflight_rejects_unknown_duplicate_expectation_refs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = _golden_preflight_workspace()
+    workspace["source_order"] = ["S01", "S03"]
+    _install_preflight_mocks(monkeypatch, workspace=workspace, manifest_hash=HONG_KONG_GOLDEN_MANIFEST_HASH)
+
+    report = await preflight_first_set_eval(
+        uuid.UUID("10000000-0000-0000-0000-000000000001"),
+        mode=TRIAGE_EVAL_STOP_FIRST_SET,
+        expected_manifest_hash=HONG_KONG_GOLDEN_MANIFEST_HASH,
+        expected_source_refs=[],
+        expected_salient_facts=[],
+        expected_gaps=[],
+        expected_duplicates=[
+            {
+                "label": "s29_exact_duplicate_s14",
+                "source_ref": "S29",
+                "duplicate_of_source_ref": "S14",
+                "max_finding_count": 0,
+                "max_gap_count": 0,
+            }
+        ],
+    )
+
+    assert report["ready"] is False
+    assert report["issues"][-1] == "golden corpus missing source_refs: S14, S29"
+
+
 def _golden_preflight_workspace() -> dict:
     return {
-        "source_order": ["S01", "S03"],
+        "source_order": ["S01", "S03", "S14", "S29"],
         "central_question_id": "q_root",
         "coverage_questions": [
             {
@@ -1068,7 +1455,7 @@ def _golden_preflight_workspace() -> dict:
             {
                 "set_id": "set-1",
                 "set_kind": "coverage",
-                "source_refs": ["S03"],
+                "source_refs": ["S03", "S29"],
                 "question_ids": [],
                 "planned_question_ids": [],
                 "question_assignments": [],
@@ -1076,7 +1463,7 @@ def _golden_preflight_workspace() -> dict:
             {
                 "set_id": "set-2",
                 "set_kind": "coverage",
-                "source_refs": ["S01"],
+                "source_refs": ["S01", "S14"],
                 "question_ids": [],
                 "planned_question_ids": [],
                 "question_assignments": [],
@@ -1266,6 +1653,31 @@ async def test_eval_cost_guard_allows_headroom_above_observed_call(monkeypatch) 
 
 
 @pytest.mark.asyncio
+async def test_eval_cost_guard_allows_audited_gpt_54_b_run(monkeypatch) -> None:
+    async def costs(_db, _run_id):
+        return {
+            "totals": {
+                "call_count": 10,
+                "estimated_token_cost_usd": 0.80,
+                "max_call_cost_usd": 0.10,
+            }
+        }
+
+    monkeypatch.setattr(
+        "app.generation_v2.triage_eval_support.summarize_tool_trace_costs",
+        costs,
+    )
+
+    await EvalCostGuard(max_cost_usd=1.70)(
+        db=None,
+        generation_run_id="run-1",
+        requested_model="gpt-5.4",
+        max_output_tokens=None,
+        server_compaction_threshold=200_000,
+    )
+
+
+@pytest.mark.asyncio
 async def test_eval_cost_guard_fails_closed_for_an_unaudited_model(monkeypatch) -> None:
     async def costs(_db, _run_id):
         raise AssertionError("Unsupported model must be rejected before reading spend")
@@ -1275,11 +1687,11 @@ async def test_eval_cost_guard_fails_closed_for_an_unaudited_model(monkeypatch) 
         costs,
     )
 
-    with pytest.raises(EvalBudgetExceeded, match="supports only gpt-5.4-mini"):
+    with pytest.raises(EvalBudgetExceeded, match="supports only gpt-5.4-mini or gpt-5.4"):
         await EvalCostGuard(max_cost_usd=1.70)(
             db=None,
             generation_run_id="run-1",
-            requested_model="gpt-5.4",
+            requested_model="gpt-5.5",
             max_output_tokens=None,
             server_compaction_threshold=200_000,
         )
@@ -1295,7 +1707,7 @@ async def test_eval_cost_guard_rejects_unknown_future_mini_slug(monkeypatch) -> 
         costs,
     )
 
-    with pytest.raises(EvalBudgetExceeded, match="supports only gpt-5.4-mini"):
+    with pytest.raises(EvalBudgetExceeded, match="supports only gpt-5.4-mini or gpt-5.4"):
         await EvalCostGuard(max_cost_usd=1.70)(
             db=None,
             generation_run_id="run-1",

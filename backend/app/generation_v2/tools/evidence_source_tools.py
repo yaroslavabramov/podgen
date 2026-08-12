@@ -300,8 +300,9 @@ class EvidenceSourceToolsMixin:
                     "recommended_next_action": "save_source_analysis",
                     "reason": (
                         "This source has a byte-identical persisted representation in an earlier source. "
-                        "Record it as readable with uniqueness=duplicate and the returned "
-                        "duplicate_of_source_ref; do not classify a duplicate as not_target_content."
+                        "Stop reading this source and save SourceAnalysis as usable with duplicate_of_source_ref "
+                        "copied exactly, findings=[], and gaps=[]. Do not classify a duplicate as "
+                        "not_target_content and do not restate duplicate findings."
                     ),
                     "duplicate_of_source_ref": exact_duplicate["source_ref"],
                     "exact_duplicate_verified": True,
