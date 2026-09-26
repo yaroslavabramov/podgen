@@ -114,7 +114,18 @@ async def ensure_research_workspace(
         and int(existing.get("attempt") or 1) == scope.attempt
         and (existing.get("corpus_brief_artifact_id") or None) == corpus_brief_artifact_id
     ):
-        return _normalize_workspace(existing)
+        normalized = _normalize_workspace(existing)
+        if corpus_brief is not None:
+            seeded_jobs = _jobs_from_corpus_brief(corpus_brief, source_inventory, allowed_source_refs=source_order)
+            refreshed_jobs = _merge_corpus_handoff_jobs(
+                [dict(item) for item in normalized.get("investigation_jobs") or [] if isinstance(item, dict)],
+                seeded_jobs,
+            )
+            if refreshed_jobs != normalized.get("investigation_jobs"):
+                normalized["investigation_jobs"] = refreshed_jobs
+                normalized["updated_at"] = _now()
+                await save_research_workspace(db, generation_run_id=run.id, workspace=normalized)
+        return normalized
     repair_resume = _repair_resume_state(existing or {}, source_order=source_order)
     seeded_jobs = (
         _jobs_from_corpus_brief(corpus_brief, source_inventory, allowed_source_refs=source_order)
@@ -212,6 +223,11 @@ def _jobs_from_corpus_brief(
                     "description": requirement.description,
                     "rationale": requirement.rationale,
                     "completion_criterion": requirement.completion_criterion,
+                    "handoff_gap_previews": _explicit_requirement_handoff_gap_previews(
+                        item.gaps,
+                        requirement_id=requirement.requirement_id,
+                        question_id=item.question_ids[0] if item.question_ids else "",
+                    ),
                     "result": {"status": "unknown", "finding_ids": []},
                 }
                 for requirement in item.requirements
@@ -222,6 +238,11 @@ def _jobs_from_corpus_brief(
                     for question_id in item.question_ids
                     if question_id in question_by_id
                 ]
+            )
+            recommended_source_refs = _recommended_source_refs_for_handoff(
+                findings=item.findings,
+                gaps=item.gaps,
+                source_refs=source_refs,
             )
             jobs.append(
                 {
@@ -240,6 +261,10 @@ def _jobs_from_corpus_brief(
                     "corpus_handoff_source_refs": list(source_refs),
                     "corpus_handoff_evidence_ids": list(item.evidence_ids),
                     "corpus_handoff_gaps": deepcopy(item.gaps),
+                    "question_handoff_gap_previews": _question_handoff_gap_previews(
+                        item.gaps,
+                        question_id=item.question_ids[0] if item.question_ids else "",
+                    ),
                     "corpus_brief_outcomes": [],
                     "coverage_requirements": coverage_requirements,
                     "open_requirements": coverage_requirements,
@@ -250,10 +275,12 @@ def _jobs_from_corpus_brief(
                     "story_job": "deep_read",
                     "purpose": item.reason or item.objective,
                     "source_refs": _dedupe(source_refs),
+                    "recommended_source_refs": recommended_source_refs,
+                    "allowed_source_pool": _dedupe(source_refs),
                     "questions": questions or [item.objective],
                     "required_atom_kinds": required_atom_kinds,
                     "priority": item.priority,
-                    "allow_broad_search": True,
+                    "allow_broad_search": False,
                     "status": "planned",
                     "observations": [],
                     "atom_ids": [],
@@ -272,6 +299,7 @@ def _jobs_from_corpus_brief(
                     "summary": "",
                     "deferred_reason": "",
                     "question_outcomes": [],
+                    "requirement_outcomes": [],
                     "attempt": 0,
                     "updated_at": _now(),
                 }
@@ -412,6 +440,8 @@ def _jobs_from_corpus_brief(
                 "story_job": str(item.action),
                 "purpose": item.reason or item.objective,
                 "source_refs": _dedupe(source_refs),
+                "recommended_source_refs": _dedupe(preferred_source_refs or candidate_source_refs or source_refs)[:8],
+                "allowed_source_pool": _dedupe(source_refs),
                 "questions": questions or [item.objective],
                 "required_atom_kinds": required_atom_kinds,
                 "priority": item.priority,
@@ -436,11 +466,30 @@ def _jobs_from_corpus_brief(
                 "summary": "",
                 "deferred_reason": "",
                 "question_outcomes": [],
+                "requirement_outcomes": [],
                 "attempt": 0,
                 "updated_at": _now(),
             }
         )
     return jobs
+
+
+def _recommended_source_refs_for_handoff(
+    *,
+    findings: list[Any],
+    gaps: list[Any],
+    source_refs: list[str],
+    limit: int = 8,
+) -> list[str]:
+    refs: list[str] = []
+    for finding in findings:
+        if isinstance(finding, dict) and str(finding.get("source_ref") or ""):
+            refs.append(str(finding.get("source_ref") or ""))
+    for gap in gaps:
+        if isinstance(gap, dict) and str(gap.get("source_ref") or ""):
+            refs.append(str(gap.get("source_ref") or ""))
+    refs.extend(str(ref) for ref in source_refs)
+    return _dedupe(refs)[:limit]
 
 
 def _job_coverage_requirements(
@@ -469,6 +518,7 @@ def _job_coverage_requirements(
                     "description": requirement.description,
                     "rationale": requirement.rationale,
                     "completion_criterion": requirement.completion_criterion,
+                    "handoff_gap_previews": [],
                     "result": (
                         {
                             **result.model_dump(mode="json"),
@@ -484,6 +534,57 @@ def _job_coverage_requirements(
                 }
             )
     return values
+
+
+def _explicit_requirement_handoff_gap_previews(
+    gaps: list[Any],
+    *,
+    requirement_id: str,
+    question_id: str,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for gap in gaps:
+        if not isinstance(gap, dict):
+            continue
+        gap_requirement_id = str(gap.get("requirement_id") or "")
+        if not gap_requirement_id or gap_requirement_id != requirement_id:
+            continue
+        gap_question_id = str(gap.get("question_id") or "")
+        if question_id and gap_question_id and gap_question_id != question_id:
+            continue
+        rows.append(_handoff_gap_preview(gap))
+    return rows[:6]
+
+
+def _question_handoff_gap_previews(
+    gaps: list[Any],
+    *,
+    question_id: str,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for gap in gaps:
+        if not isinstance(gap, dict):
+            continue
+        if str(gap.get("requirement_id") or ""):
+            continue
+        gap_question_id = str(gap.get("question_id") or "")
+        if question_id and gap_question_id and gap_question_id != question_id:
+            continue
+        rows.append(_handoff_gap_preview(gap))
+    return rows[:8]
+
+
+def _handoff_gap_preview(gap: dict[str, Any]) -> dict[str, Any]:
+    payload = {
+        "source_ref": gap.get("source_ref"),
+        "question_id": gap.get("question_id"),
+        "description": str(gap.get("description") or ""),
+        "evidence_ids": [str(item) for item in gap.get("evidence_ids") or []],
+    }
+    requirement_id = str(gap.get("requirement_id") or "")
+    if requirement_id:
+        payload["requirement_id"] = requirement_id
+    return payload
 
 
 def _job_source_findings(
@@ -577,6 +678,8 @@ def _merge_corpus_handoff_jobs(
             "corpus_handoff_gaps",
             "source_gaps",
             "source_cards",
+            "recommended_source_refs",
+            "allowed_source_pool",
         ):
             if seed.get(field):
                 job[field] = deepcopy(seed.get(field))
@@ -617,6 +720,19 @@ def _merge_corpus_handoff_jobs(
                 *[str(item) for item in job.get("source_refs") or []],
             ]
         )
+        job["allowed_source_pool"] = _dedupe(
+            [
+                *[str(item) for item in seed.get("allowed_source_pool") or []],
+                *[str(item) for item in job.get("allowed_source_pool") or []],
+                *[str(item) for item in job.get("source_refs") or []],
+            ]
+        )
+        job["recommended_source_refs"] = _dedupe(
+            [
+                *[str(item) for item in seed.get("recommended_source_refs") or []],
+                *[str(item) for item in job.get("recommended_source_refs") or []],
+            ]
+        )[:8]
         job["questions"] = _dedupe_semantic_text(
             [
                 *[str(item) for item in seed.get("questions") or []],
@@ -632,6 +748,17 @@ def _merge_corpus_handoff_jobs(
         job["corpus_brief_outcomes"] = deepcopy(seed.get("corpus_brief_outcomes") or [])
         job["coverage_requirements"] = deepcopy(seed.get("coverage_requirements") or [])
         job["open_requirements"] = deepcopy(seed.get("open_requirements") or [])
+        valid_requirement_ids = {
+            str(item.get("requirement_id") or "")
+            for item in job.get("coverage_requirements") or []
+            if isinstance(item, dict) and str(item.get("requirement_id") or "")
+        }
+        job["requirement_outcomes"] = [
+            deepcopy(item)
+            for item in job.get("requirement_outcomes") or []
+            if isinstance(item, dict)
+            and str(item.get("requirement_id") or "") in valid_requirement_ids
+        ]
         job["source_findings"] = deepcopy(seed.get("source_findings") or [])
         merged.append(job)
     return [*merged, *remaining]
@@ -691,6 +818,14 @@ def _job_plan_for_new_attempt(job: dict[str, Any], *, source_order: list[str]) -
     current = deepcopy(job)
     valid_refs = set(source_order)
     current["source_refs"] = [str(ref) for ref in current.get("source_refs") or [] if str(ref) in valid_refs]
+    current["allowed_source_pool"] = [
+        str(ref)
+        for ref in current.get("allowed_source_pool") or current.get("source_refs") or []
+        if str(ref) in valid_refs
+    ]
+    current["recommended_source_refs"] = [
+        str(ref) for ref in current.get("recommended_source_refs") or [] if str(ref) in valid_refs
+    ][:8]
     if not current["source_refs"]:
         current["allow_broad_search"] = True
     current.update(
@@ -703,6 +838,7 @@ def _job_plan_for_new_attempt(job: dict[str, Any], *, source_order: list[str]) -
             "summary": "",
             "deferred_reason": "",
             "question_outcomes": [],
+            "requirement_outcomes": [],
             # CorpusBrief lineage belongs to one immutable corpus attempt.
             # A matching fresh handoff repopulates it during merge below.
             "corpus_brief_outcomes": [],

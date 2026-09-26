@@ -43,12 +43,14 @@ def gap_needs_source_acquisition(gap: Any) -> bool:
     if severity != "blocking" and treatment_relevance != "central":
         return False
     category = str(gap.get("category") or "")
-    if category == "missing_source":
-        return True
     text = " ".join(
         str(gap.get(key) or "")
         for key in ("question", "resolution_note", "category")
     ).lower()
+    if category == "open_requirement":
+        return any(marker in text for marker in SOURCE_ACQUISITION_GAP_MARKERS)
+    if category == "missing_source":
+        return True
     return any(marker in text for marker in SOURCE_ACQUISITION_GAP_MARKERS)
 
 

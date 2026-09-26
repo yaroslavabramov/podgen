@@ -1592,16 +1592,31 @@ def _research_handoff_evidence_ids(
     )
 
 
-def _source_findings_from_workspace(workspace: dict[str, Any]) -> list[SourceFinding]:
+def _source_findings_from_workspace(
+    workspace: dict[str, Any],
+    *,
+    assessment_id_by_source: dict[str, str] | None = None,
+) -> list[SourceFinding]:
     raw_findings = [item for item in workspace.get("source_findings") or [] if isinstance(item, dict)]
     id_counts: dict[str, int] = defaultdict(int)
     for item in raw_findings:
         finding_id = str(item.get("finding_id") or "").strip()
         if finding_id:
             id_counts[finding_id] += 1
+    assessment_id_by_source = assessment_id_by_source or {}
+    known_assessment_ids = set(assessment_id_by_source.values())
     findings: list[SourceFinding] = []
     for index, item in enumerate(raw_findings, 1):
         payload = dict(item)
+        source_id = str(payload.get("source_id") or "")
+        canonical_assessment_id = assessment_id_by_source.get(source_id)
+        current_assessment_id = str(payload.get("assessment_id") or "")
+        if canonical_assessment_id and (
+            not current_assessment_id
+            or current_assessment_id.startswith("analysis:")
+            or current_assessment_id not in known_assessment_ids
+        ):
+            payload["assessment_id"] = canonical_assessment_id
         raw_finding_id = str(payload.get("finding_id") or "").strip()
         payload["finding_id"] = _canonical_source_mapping_finding_id(
             payload,
@@ -1679,23 +1694,30 @@ def materialize_source_map_v2(
 ) -> SourceMap:
     """Make the workspace, not trace frequency, the canonical triage state."""
 
-    findings = _source_findings_from_workspace(workspace)
     source_analyses = [
         SourceAnalysis.model_validate(item)
         for item in workspace.get("source_analyses") or []
         if isinstance(item, dict)
     ]
-    finding_ids_by_source: dict[str, list[str]] = defaultdict(list)
-    finding_evidence_by_source: dict[str, list[str]] = defaultdict(list)
-    for finding in findings:
-        finding_ids_by_source[finding.source_id].append(finding.finding_id)
-        finding_evidence_by_source[finding.source_id].extend(finding.evidence_ids)
     assessments = [
         SourceAssessment.model_validate(item)
         for item in workspace.get("source_assessments") or []
         if isinstance(item, dict)
     ]
     source_mapping_mode = triage_workflow_mode(workspace) == TRIAGE_WORKFLOW_SOURCE_MAPPING
+    findings = _source_findings_from_workspace(
+        workspace,
+        assessment_id_by_source=(
+            {item.source_id: item.assessment_id for item in assessments}
+            if source_mapping_mode
+            else None
+        ),
+    )
+    finding_ids_by_source: dict[str, list[str]] = defaultdict(list)
+    finding_evidence_by_source: dict[str, list[str]] = defaultdict(list)
+    for finding in findings:
+        finding_ids_by_source[finding.source_id].append(finding.finding_id)
+        finding_evidence_by_source[finding.source_id].extend(finding.evidence_ids)
     assessments = [
         item.model_copy(
             update={

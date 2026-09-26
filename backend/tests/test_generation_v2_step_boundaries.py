@@ -68,6 +68,52 @@ def _patch_orchestrator_basics(monkeypatch: pytest.MonkeyPatch, module, calls: l
     return SimpleNamespace(runtime=runtime, show_bible=show_bible, calls=calls)
 
 
+def test_passed_triage_loader_normalizes_legacy_source_mapping_finding_lineage() -> None:
+    from app.generation_v2.pipeline import triage_state_loader
+
+    source_map = triage_state_loader._source_map_from_artifact_payload(
+        {
+            "schema_version": "source_map.v2",
+            "source_assessments": [
+                {
+                    "assessment_id": "assessment:source-03",
+                    "source_id": "source-03",
+                    "finding_ids": ["finding:S03:1"],
+                }
+            ],
+            "source_analyses": [
+                {
+                    "analysis_id": "analysis:S03",
+                    "source_ref": "S03",
+                    "source_id": "source-03",
+                    "status": "usable",
+                    "summary": "HKMA history source.",
+                    "read_state": {"complete": True},
+                    "findings": [
+                        {
+                            "finding_id": "finding:S03:1",
+                            "statement": "HKMA issued HK$10 notes.",
+                            "evidence_ids": ["ev-1"],
+                        }
+                    ],
+                    "gaps": [],
+                }
+            ],
+            "source_findings": [
+                {
+                    "finding_id": "finding:S03:1",
+                    "source_id": "source-03",
+                    "assessment_id": "analysis:S03",
+                    "statement": "HKMA issued HK$10 notes.",
+                    "evidence_ids": ["ev-1"],
+                }
+            ],
+        }
+    )
+
+    assert source_map.source_findings[0].assessment_id == "assessment:source-03"
+
+
 @pytest.mark.asyncio
 async def test_source_triage_step_reuses_prepared_corpus_without_new_attempt(
     monkeypatch: pytest.MonkeyPatch,
@@ -783,7 +829,13 @@ async def test_load_passed_triage_state_uses_current_revision_and_attempt(
     inventory = SourceMap(gaps=["inventory marker"])
 
     def artifact(payload: dict, *, status: str = V2ArtifactStatus.PASSED) -> SimpleNamespace:
-        return SimpleNamespace(id=uuid.uuid4(), payload=payload, status=status)
+        return SimpleNamespace(
+            id=uuid.uuid4(),
+            payload=payload,
+            status=status,
+            corpus_revision=5,
+            attempt=2,
+        )
 
     source_map_artifact = artifact({**source_map.model_dump(mode="json"), "_metadata": {"ignored": True}})
     gate_artifact = artifact(SourceTriageGate(passed=True, summary="passed").model_dump(mode="json"))
@@ -799,8 +851,12 @@ async def test_load_passed_triage_state_uses_current_revision_and_attempt(
     }
     artifact_calls: list[tuple[object, str, int, int]] = []
 
-    async def load_corpus(actual_db, actual_run):
-        assert (actual_db, actual_run) == (db, run)
+    async def load_run_view(actual_db, run_id, *, revision, attempt):
+        assert (actual_db, run_id, revision, attempt) == (db, run.id, 5, 2)
+        return run_view
+
+    async def load_corpus(actual_db, actual_run, actual_run_view):
+        assert (actual_db, actual_run, actual_run_view) == (db, run, run_view)
         return corpus
 
     async def load_artifact(
@@ -809,11 +865,12 @@ async def test_load_passed_triage_state_uses_current_revision_and_attempt(
         *,
         artifact_type,
         artifact_key,
-        corpus_revision,
-        attempt,
+        corpus_revision=None,
+        attempt=None,
     ):
         assert (actual_db, run_id) == (db, run.id)
-        artifact_calls.append((artifact_type, artifact_key, corpus_revision, attempt))
+        if corpus_revision is not None and attempt is not None:
+            artifact_calls.append((artifact_type, artifact_key, corpus_revision, attempt))
         return artifacts.get((artifact_type, artifact_key))
 
     async def build_inventory(actual_db, actual_run_view):
@@ -838,7 +895,8 @@ async def test_load_passed_triage_state_uses_current_revision_and_attempt(
     globals_db = db
     globals_run = run
     globals_run_view = run_view
-    monkeypatch.setattr(triage_state_loader, "load_current_v2_corpus", load_corpus)
+    monkeypatch.setattr(triage_state_loader, "load_run_corpus_view", load_run_view)
+    monkeypatch.setattr(triage_state_loader, "load_v2_corpus_for_run_view", load_corpus)
     monkeypatch.setattr(triage_state_loader, "load_current_artifact", load_artifact)
     monkeypatch.setattr(triage_state_loader, "build_source_inventory", build_inventory)
     monkeypatch.setattr(triage_state_loader, "_current_related_artifacts", related)
@@ -857,4 +915,4 @@ async def test_load_passed_triage_state_uses_current_revision_and_attempt(
     assert state.quote_artifact_ids == ["quote-1"]
     assert state.workspace_artifact_id == str(workspace_artifact.id)
     assert all(call[2:] == (5, 2) for call in artifact_calls)
-    assert len(artifact_calls) == 8
+    assert len(artifact_calls) == 7

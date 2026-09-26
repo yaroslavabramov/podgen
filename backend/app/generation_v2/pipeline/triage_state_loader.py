@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+from copy import deepcopy
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.generation_v2.artifacts import load_current_artifact
 from app.generation_v2.pipeline.state import TriageState
 from app.generation_v2.schemas import CorpusBrief, SourceMap, SourceTriageCompletion, SourceTriageGate
-from app.generation_v2.source_corpus import load_current_v2_corpus
+from app.generation_v2.source_corpus import load_v2_corpus_for_run_view
+from app.generation_v2.source_corpus_run_view import load_run_corpus_view
 from app.generation_v2.tools.evidence import EvidenceToolset, build_source_inventory
 from app.models.generation_run import GenerationRun
 from app.models.generation_v2 import V2Artifact, V2ArtifactStatus, V2ArtifactType
@@ -16,18 +19,21 @@ async def load_passed_triage_state(
     db: AsyncSession,
     run: GenerationRun,
 ) -> TriageState:
-    corpus = await load_current_v2_corpus(db, run)
-    revision = int(corpus.run_view.revision or 1)
-    attempt = int(corpus.run_view.attempt or 1)
-
     source_map_artifact = await load_current_artifact(
         db,
         run.id,
         artifact_type=V2ArtifactType.SOURCE_MAP,
         artifact_key="main",
-        corpus_revision=revision,
-        attempt=attempt,
     )
+    if source_map_artifact is None:
+        raise RuntimeError("V2 source triage SourceMap artifact is missing")
+    revision = int(source_map_artifact.corpus_revision or 1)
+    attempt = int(source_map_artifact.attempt or 1)
+    run_view = await load_run_corpus_view(db, run.id, revision=revision, attempt=attempt)
+    if run_view is None:
+        raise RuntimeError("V2 source triage corpus view is missing for the artifact scope")
+    corpus = await load_v2_corpus_for_run_view(db, run, run_view)
+
     triage_gate_artifact = await load_current_artifact(
         db,
         run.id,
@@ -93,7 +99,7 @@ async def load_passed_triage_state(
         ):
             raise RuntimeError("V2 CorpusBrief has not passed for the current corpus attempt")
 
-    source_map = SourceMap.model_validate(_payload_without_metadata(source_map_artifact.payload))
+    source_map = _source_map_from_artifact_payload(source_map_artifact.payload)
     triage_gate = SourceTriageGate.model_validate(_payload_without_metadata(triage_gate_artifact.payload))
     if not triage_gate.passed:
         raise RuntimeError("V2 source triage gate is not passed")
@@ -186,6 +192,43 @@ async def _current_related_artifacts(
 
 def _payload_without_metadata(payload: dict | None) -> dict:
     return {key: value for key, value in (payload or {}).items() if key != "_metadata"}
+
+
+def _source_map_from_artifact_payload(payload: dict | None) -> SourceMap:
+    return SourceMap.model_validate(_normalize_legacy_source_map_lineage(_payload_without_metadata(payload)))
+
+
+def _normalize_legacy_source_map_lineage(payload: dict) -> dict:
+    """Read-compatible fix for source-mapping artifacts saved before assessment lineage was canonicalized."""
+
+    normalized = deepcopy(payload)
+    assessments = [item for item in normalized.get("source_assessments") or [] if isinstance(item, dict)]
+    analyses = [item for item in normalized.get("source_analyses") or [] if isinstance(item, dict)]
+    assessment_id_by_source = {
+        str(item.get("source_id") or ""): str(item.get("assessment_id") or "")
+        for item in assessments
+        if str(item.get("source_id") or "") and str(item.get("assessment_id") or "")
+    }
+    source_id_by_analysis_id = {
+        str(item.get("analysis_id") or ""): str(item.get("source_id") or "")
+        for item in analyses
+        if str(item.get("analysis_id") or "") and str(item.get("source_id") or "")
+    }
+    if not assessment_id_by_source or not source_id_by_analysis_id:
+        return normalized
+    for finding in normalized.get("source_findings") or []:
+        if not isinstance(finding, dict):
+            continue
+        assessment_id = str(finding.get("assessment_id") or "")
+        source_id = str(finding.get("source_id") or "")
+        if not assessment_id.startswith("analysis:"):
+            continue
+        if source_id_by_analysis_id.get(assessment_id) != source_id:
+            continue
+        canonical_assessment_id = assessment_id_by_source.get(source_id)
+        if canonical_assessment_id:
+            finding["assessment_id"] = canonical_assessment_id
+    return normalized
 
 
 __all__ = ["load_passed_triage_state"]

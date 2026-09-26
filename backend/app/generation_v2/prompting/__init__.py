@@ -3,6 +3,7 @@ from app.generation_v2.prompting.research import (
     RESEARCH_AUDIT_PROMPT,
     RESEARCH_FINALIZER_PROMPT,
     RESEARCH_JOB_PROMPT,
+    RESEARCH_JOB_REPAIR_BLOCK,
     RESEARCH_PLANNER_PROMPT,
 )
 from app.generation_v2.prompting.source import (
@@ -60,6 +61,7 @@ __all__ = [
     "RESEARCH_FINALIZER_PROMPT",
     "RESEARCH_FINALIZER_SYSTEM",
     "RESEARCH_JOB_PROMPT",
+    "RESEARCH_JOB_REPAIR_BLOCK",
     "RESEARCH_JOB_SYSTEM",
     "RESEARCH_PLANNER_PROMPT",
     "RESEARCH_PLANNER_SYSTEM",

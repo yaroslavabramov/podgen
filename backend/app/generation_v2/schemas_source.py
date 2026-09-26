@@ -218,6 +218,7 @@ class SourceAnalysisFinding(BaseModel):
 
 class SourceAnalysisGap(BaseModel):
     question_id: str
+    requirement_id: str = ""
     description: str
 
     @model_validator(mode="after")

@@ -83,9 +83,12 @@ def _investigation_job_preview(
     required_evidence_refs: set[str],
 ) -> dict[str, Any]:
     outcomes = [value for value in item.get("question_outcomes") or [] if isinstance(value, dict)]
+    requirement_outcomes = [
+        value for value in item.get("requirement_outcomes") or [] if isinstance(value, dict)
+    ]
     outcome_refs = {
         evidence_ref
-        for outcome in outcomes
+        for outcome in [*outcomes, *requirement_outcomes]
         for evidence_ref in _outcome_evidence_refs(outcome, evidence_ref_by_id)
     }
     return {
@@ -95,8 +98,12 @@ def _investigation_job_preview(
         "status": item.get("status"),
         "question_count": len(item.get("questions") or []),
         "question_outcome_count": len(outcomes),
+        "coverage_requirement_count": len(item.get("coverage_requirements") or []),
+        "requirement_outcome_count": len(requirement_outcomes),
         "answered_question_count": sum(1 for outcome in outcomes if outcome.get("status") == "answered"),
         "deferred_question_count": sum(1 for outcome in outcomes if outcome.get("status") == "deferred"),
+        "answered_requirement_count": sum(1 for outcome in requirement_outcomes if outcome.get("status") == "answered"),
+        "deferred_requirement_count": sum(1 for outcome in requirement_outcomes if outcome.get("status") == "deferred"),
         "outcome_evidence_ref_count": len(outcome_refs),
         "required_outcome_evidence_ref_count": len(outcome_refs & required_evidence_refs),
         **_preview_fields("summary", item.get("summary") or "", 500),
@@ -347,6 +354,8 @@ def _audit_job_page_item(
             "deferred_reason": str(item.get("deferred_reason") or ""),
             "question_count": len(item.get("questions") or []),
             "question_outcome_count": len(item.get("question_outcomes") or []),
+            "coverage_requirement_count": len(item.get("coverage_requirements") or []),
+            "requirement_outcome_count": len(item.get("requirement_outcomes") or []),
         }
     if section == "job_questions":
         job_id, question = item
@@ -361,6 +370,26 @@ def _audit_job_page_item(
             "status": outcome.get("status"),
             "note": str(outcome.get("note") or ""),
             "evidence_count": len(outcome.get("evidence_ids") or []),
+            "evidence_refs": evidence_refs,
+            "required_evidence_refs": [
+                evidence_ref for evidence_ref in evidence_refs if evidence_ref in required_evidence_refs
+            ],
+            "unavailable_evidence_count": max(
+                0,
+                len(outcome.get("evidence_ids") or []) - len(evidence_refs),
+            ),
+        }
+    if section == "job_requirement_outcomes":
+        job_id, outcome = item
+        evidence_refs = _outcome_evidence_refs(outcome, evidence_ref_by_id)
+        return {
+            "job_id": job_id,
+            "outcome_number": index + 1,
+            "requirement_id": str(outcome.get("requirement_id") or ""),
+            "status": outcome.get("status"),
+            "note": str(outcome.get("note") or ""),
+            "evidence_count": len(outcome.get("evidence_ids") or []),
+            "supporting_atom_ids": [str(item) for item in outcome.get("supporting_atom_ids") or []],
             "evidence_refs": evidence_refs,
             "required_evidence_refs": [
                 evidence_ref for evidence_ref in evidence_refs if evidence_ref in required_evidence_refs
@@ -512,7 +541,7 @@ def audit_workspace_page_tool(
         investigation_jobs = [
             item for item in workspace.get("investigation_jobs") or [] if isinstance(item, dict)
         ]
-        if section in {"jobs", "job_questions", "job_question_outcomes"}:
+        if section in {"jobs", "job_questions", "job_question_outcomes", "job_requirement_outcomes"}:
             if section == "jobs":
                 values = investigation_jobs
             elif section == "job_questions":
@@ -522,12 +551,20 @@ def audit_workspace_page_tool(
                     if not job_id or str(job.get("job_id") or "") == job_id
                     for question in job.get("questions") or []
                 ]
-            else:
+            elif section == "job_question_outcomes":
                 values = [
                     (str(job.get("job_id") or ""), outcome)
                     for job in investigation_jobs
                     if not job_id or str(job.get("job_id") or "") == job_id
                     for outcome in job.get("question_outcomes") or []
+                    if isinstance(outcome, dict)
+                ]
+            else:
+                values = [
+                    (str(job.get("job_id") or ""), outcome)
+                    for job in investigation_jobs
+                    if not job_id or str(job.get("job_id") or "") == job_id
+                    for outcome in job.get("requirement_outcomes") or []
                     if isinstance(outcome, dict)
                 ]
             page_values = values[cursor : cursor + requested_limit]
@@ -622,6 +659,7 @@ def audit_workspace_page_tool(
                         "jobs",
                         "job_questions",
                         "job_question_outcomes",
+                        "job_requirement_outcomes",
                         "corpus_brief_questions",
                         "corpus_brief_findings",
                         "corpus_brief_outcomes",
@@ -684,10 +722,13 @@ def research_audit_input(
     job_question_outcome_count = sum(
         len(item.get("question_outcomes") or []) for item in investigation_jobs
     )
+    job_requirement_outcome_count = sum(
+        len(item.get("requirement_outcomes") or []) for item in investigation_jobs
+    )
     job_outcome_evidence_refs = {
         evidence_ref
         for job in investigation_jobs
-        for outcome in job.get("question_outcomes") or []
+        for outcome in [*(job.get("question_outcomes") or []), *(job.get("requirement_outcomes") or [])]
         if isinstance(outcome, dict)
         for evidence_ref in _outcome_evidence_refs(outcome, evidence_ref_by_id)
     }
@@ -794,6 +835,11 @@ def research_audit_input(
                 ),
                 "job_question_outcomes": _page_metadata(
                     total=job_question_outcome_count,
+                    cursor=0,
+                    returned=0,
+                ),
+                "job_requirement_outcomes": _page_metadata(
+                    total=job_requirement_outcome_count,
                     cursor=0,
                     returned=0,
                 ),

@@ -132,54 +132,19 @@ async def build_research_memo(
             job_id = str(job.get("job_id") or "")
             if not job_id:
                 continue
-            workspace = await start_research_job(db, run=run, workspace=workspace, job_id=job_id)
-            current_job = next(
-                (item for item in workspace.get("investigation_jobs") or [] if item.get("job_id") == job_id), job
-            )
-            scoped_toolset: EvidenceToolset | None = None
-            if evidence_toolset is not None:
-                allow_broad_search = bool(current_job.get("allow_broad_search"))
-                allowed_refs = (
-                    {str(ref) for ref in workspace.get("source_order") or []}
-                    if allow_broad_search
-                    else {str(ref) for ref in current_job.get("source_refs") or []}
-                )
-                scoped_toolset = EvidenceToolset(
-                    db=db,
-                    run=run,
-                    run_view=evidence_toolset.run_view,
-                    provider_index=evidence_toolset.provider_index,
-                    research_allowed_source_refs=allowed_refs,
-                    research_allow_broad_search=allow_broad_search,
-                    research_current_job_id=job_id,
-                )
-            job_workspace_tools = build_research_workspace_tools(
-                db=db,
-                run=run,
-                workspace=workspace,
-                source_inventory=full_source_inventory,
-                source_map=source_map,
-                evidence_toolset=scoped_toolset or evidence_toolset,
-                mode="job",
-                current_job_id=job_id,
-            )
-            job_tools = [
-                *((scoped_toolset.agent_tools() if scoped_toolset is not None else evidence_tools) or []),
-                *job_workspace_tools,
-            ]
-            await build_research_job_agent(
+            workspace = await run_research_job(
                 db=db,
                 run=run,
                 runtime=runtime,
-                job_payload=research_job_prompt_payload(
-                    workspace,
-                    job_id,
-                    source_map_summary=job_source_map_summary,
-                ),
-                job_tools=job_tools,
+                workspace=workspace,
+                job_id=job_id,
+                source_map=source_map,
+                source_inventory=full_source_inventory,
+                source_map_summary=job_source_map_summary,
+                evidence_tools=evidence_tools,
+                evidence_toolset=evidence_toolset,
                 hosted_file_search_handler=hosted_file_search_handler,
             )
-            workspace = await load_research_workspace(db, run.id) or workspace
             refreshed_job = next(
                 (item for item in workspace.get("investigation_jobs") or [] if item.get("job_id") == job_id), {}
             )
@@ -224,6 +189,73 @@ async def build_research_memo(
     except V2RuntimeUnavailable as exc:
         _allow_runtime_fallback(runtime, "v2_editorial_research", "research_planner_agent", exc)
         return _fallback_research_memo(run, source_cards, quote_cards)
+
+
+async def run_research_job(
+    *,
+    db: AsyncSession,
+    run: GenerationRun,
+    runtime: V2Runtime,
+    workspace: dict,
+    job_id: str,
+    source_map: SourceMap,
+    source_inventory: SourceMap,
+    source_map_summary: dict | None = None,
+    evidence_tools: list[AgentTool] | None = None,
+    evidence_toolset: EvidenceToolset | None = None,
+    hosted_file_search_handler=None,
+) -> dict:
+    workspace = await start_research_job(db, run=run, workspace=workspace, job_id=job_id)
+    current_job = next(
+        (item for item in workspace.get("investigation_jobs") or [] if item.get("job_id") == job_id),
+        {},
+    )
+    scoped_toolset: EvidenceToolset | None = None
+    if evidence_toolset is not None:
+        allow_broad_search = bool(current_job.get("allow_broad_search"))
+        allowed_pool = current_job.get("allowed_source_pool") or current_job.get("source_refs") or []
+        allowed_refs = (
+            {str(ref) for ref in workspace.get("source_order") or []}
+            if allow_broad_search
+            else {str(ref) for ref in allowed_pool}
+        )
+        scoped_toolset = EvidenceToolset(
+            db=db,
+            run=run,
+            run_view=evidence_toolset.run_view,
+            provider_index=evidence_toolset.provider_index,
+            research_allowed_source_refs=allowed_refs,
+            research_allow_broad_search=allow_broad_search,
+            research_current_job_id=job_id,
+        )
+    job_workspace_tools = build_research_workspace_tools(
+        db=db,
+        run=run,
+        workspace=workspace,
+        source_inventory=source_inventory,
+        source_map=source_map,
+        evidence_toolset=scoped_toolset or evidence_toolset,
+        mode="job",
+        current_job_id=job_id,
+    )
+    job_tools = [
+        *((scoped_toolset.agent_tools() if scoped_toolset is not None else evidence_tools) or []),
+        *job_workspace_tools,
+    ]
+    await build_research_job_agent(
+        db=db,
+        run=run,
+        runtime=runtime,
+        job_payload=research_job_prompt_payload(
+            workspace,
+            job_id,
+            source_map_summary=source_map_summary
+            or source_map_research_summary(source_map, source_inventory, include_evidence_ids=True),
+        ),
+        job_tools=job_tools,
+        hosted_file_search_handler=hosted_file_search_handler,
+    )
+    return await load_research_workspace(db, run.id) or workspace
 
 
 async def build_research_memo_ephemeral(

@@ -569,7 +569,8 @@ def source_map_planner_summary(
 
 def source_map_summary_for_job(source_map_summary: dict[str, Any], job: dict[str, Any]) -> dict[str, Any]:
     refs = set(str(item) for item in job.get("source_refs") or [] if str(item).strip())
-    base = {
+    catalog_pages = _job_catalog_pages(source_map_summary.get("pages") or {})
+    return {
         "source_card_count": source_map_summary.get("source_card_count", 0),
         "quote_card_count": source_map_summary.get("quote_card_count", 0),
         "source_assessment_count": source_map_summary.get("source_assessment_count", 0),
@@ -583,60 +584,48 @@ def source_map_summary_for_job(source_map_summary: dict[str, Any], job: dict[str
         "includes_evidence_ids": bool(source_map_summary.get("includes_evidence_ids")),
         "filtered_for_source_refs": sorted(refs),
         "allow_broad_search": bool(job.get("allow_broad_search")),
-        "pages": source_map_summary.get("pages") or {},
+        "pages": catalog_pages,
+        "usage_note": (
+            "Job prompt intentionally carries counts/page metadata only. Use list_research_workspace_items "
+            "source_map_* sections on demand for a specific source, requirement, or conflict."
+        ),
     }
-    if not refs:
-        return {
-            **base,
-            "source_cards": [],
-            "source_assessments": [],
-            "quote_cards": [],
-            "clusters": [compact_cluster_for_prompt(item) for item in (source_map_summary.get("clusters") or [])[:16]],
-            "relationships": [],
-            "gaps": (source_map_summary.get("gaps") or [])[:10],
-            "gap_records": (source_map_summary.get("gap_records") or [])[:10],
+
+
+def _job_catalog_pages(pages: dict[str, Any]) -> dict[str, Any]:
+    section_by_key = {
+        "source_cards": "source_map_cards",
+        "source_map_cards": "source_map_cards",
+        "source_assessments": "source_map_assessments",
+        "source_map_assessments": "source_map_assessments",
+        "quote_cards": "source_map_quotes",
+        "source_map_quotes": "source_map_quotes",
+        "clusters": "source_map_clusters",
+        "source_map_clusters": "source_map_clusters",
+        "relationships": "source_map_relationships",
+        "source_map_relationships": "source_map_relationships",
+        "gaps": "source_map_gaps",
+        "source_map_gaps": "source_map_gaps",
+        "source_map_gap_records": "source_map_gap_records",
+    }
+    result: dict[str, Any] = {}
+    for key, section in section_by_key.items():
+        page = pages.get(key)
+        if not isinstance(page, dict) or section in result:
+            continue
+        total = int(page.get("total_count") or 0)
+        page_limit = min(40, max(1, int(page.get("page_limit") or page.get("requested_limit") or 40)))
+        result[section] = {
+            **page,
+            "total_count": total,
+            "returned_count": 0,
+            "omitted_count": total,
+            "cursor": "0",
+            "next_cursor": "0" if total > 0 else "",
+            "page_limit": page_limit,
+            "initial_payload_includes_items": False,
         }
-
-    def has_ref(item: dict[str, Any], keys: list[str]) -> bool:
-        item_refs: set[str] = set()
-        for key in keys:
-            value = item.get(key)
-            if isinstance(value, list):
-                item_refs.update(str(ref) for ref in value if str(ref).strip())
-            elif value:
-                item_refs.add(str(value))
-        return bool(item_refs & refs)
-
-    return {
-        **base,
-        "source_cards": [
-            item for item in source_map_summary.get("source_cards") or [] if str(item.get("source_ref") or "") in refs
-        ],
-        "source_assessments": [
-            item
-            for item in source_map_summary.get("source_assessments") or []
-            if str(item.get("source_ref") or "") in refs
-        ],
-        "quote_cards": [
-            item for item in source_map_summary.get("quote_cards") or [] if str(item.get("source_ref") or "") in refs
-        ],
-        "clusters": [
-            item
-            for item in source_map_summary.get("clusters") or []
-            if has_ref(item, ["source_refs", "primary_source_refs", "secondary_source_refs", "duplicate_source_refs"])
-        ],
-        "relationships": [
-            item
-            for item in source_map_summary.get("relationships") or []
-            if has_ref(item, ["source_ref", "related_source_ref"])
-        ],
-        "gaps": (source_map_summary.get("gaps") or [])[:10],
-        "gap_records": [
-            item
-            for item in source_map_summary.get("gap_records") or []
-            if not (item.get("source_refs") or []) or has_ref(item, ["source_refs"])
-        ],
-    }
+    return result
 
 
 def compact_cluster_for_prompt(cluster: dict[str, Any]) -> dict[str, Any]:

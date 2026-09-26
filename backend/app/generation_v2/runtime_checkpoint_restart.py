@@ -3,11 +3,21 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from app.generation_v2.model_context_text import model_preview_text
 from app.generation_v2.runtime_checkpoint import compact_checkpoint_value
 from app.generation_v2.runtime_checkpoint_context import validate_checkpoint_resume_context
 from app.generation_v2.runtime_contracts import CheckpointResumeContext
 
 CHECKPOINT_LAST_TOOL_RESULT_LIMIT = 12
+_EMBEDDED_READ_RESULT_PREVIEW_CHARS = 450
+_EMBEDDED_READ_TOOL_NAMES = {
+    "read_evidence",
+    "read_source_window",
+    "read_source_with_model",
+    "search_within_source",
+    "search_corpus",
+    "list_research_workspace_items",
+}
 
 
 def checkpoint_restart_message(
@@ -22,14 +32,20 @@ def checkpoint_restart_message(
 ) -> dict[str, str]:
     validate_checkpoint_resume_context(resume_context)
     tool_result_previews = last_tool_results[:CHECKPOINT_LAST_TOOL_RESULT_LIMIT]
-    compact_state, _ = _runtime_compact_checkpoint_value()(
+    state_for_prompt = _state_for_checkpoint_prompt(state, last_tool_results=tool_result_previews)
+    generic_tool_result_previews = _generic_tool_result_previews(
         state,
+        state_for_prompt=state_for_prompt,
+        tool_result_previews=tool_result_previews,
+    )
+    compact_state, _ = _runtime_compact_checkpoint_value()(
+        state_for_prompt,
         max_string_chars=1800,
         max_list_items=90,
         max_depth=6,
     )
     compact_tool_results, _ = _runtime_compact_checkpoint_value()(
-        tool_result_previews,
+        generic_tool_result_previews,
         max_string_chars=1800,
         max_list_items=CHECKPOINT_LAST_TOOL_RESULT_LIMIT,
         max_depth=5,
@@ -128,7 +144,13 @@ def checkpoint_restart_instructions(state: dict[str, Any]) -> str:
             )
         if agent_name.startswith("research_job_agent_"):
             return instructions + (
-                "Continue only the current investigation job. Persist new findings as observations/atoms/risks/gaps, resolve or defer every planned question, then call finish_research_job."
+                "Continue only the current investigation job and current requirement. Use "
+                "compact_state_from_db.research_workspace.current_job_detail.requirements, persisted_progress, "
+                "question_level_leads, recent_read_previews, and durable_paging_progress. Do not inspect other jobs "
+                "or reread the source catalog. Page broader SourceMap context only for a concrete missing link that "
+                "the included leads and targeted job lookups cannot resolve. Save an atom when the active requirement "
+                "is supported; save a structured gap and defer only that requirement when it remains unsupported. "
+                "Then move to the next requirement and finish only through finish_research_job."
             )
         if agent_name == "research_finalizer_agent":
             return instructions + (
@@ -142,6 +164,154 @@ def _runtime_compact_checkpoint_value() -> Any:
     from app.generation_v2 import runtime
 
     return getattr(runtime, "_compact_checkpoint_value", compact_checkpoint_value)
+
+
+def _state_for_checkpoint_prompt(
+    state: dict[str, Any],
+    *,
+    last_tool_results: list[dict[str, Any]],
+) -> dict[str, Any]:
+    if state.get("phase") == "v2_editorial_research" and str(state.get("agent_name") or "").startswith(
+        "research_job_agent_"
+    ):
+        from app.generation_v2.research_job_checkpoint_payloads import compact_research_checkpoint_root_state
+
+        return compact_research_checkpoint_root_state(state, last_tool_results=last_tool_results)
+    return state
+
+
+def _generic_tool_result_previews(
+    state: dict[str, Any],
+    *,
+    state_for_prompt: dict[str, Any],
+    tool_result_previews: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if not _research_job_checkpoint(state):
+        return tool_result_previews
+    embedded_read_keys = _embedded_recent_read_keys(state_for_prompt)
+    if not embedded_read_keys:
+        return tool_result_previews
+    return [
+        result
+        for result in tool_result_previews
+        if not _is_embedded_accepted_read_result(result, embedded_read_keys)
+    ]
+
+
+def _research_job_checkpoint(state: dict[str, Any]) -> bool:
+    return state.get("phase") == "v2_editorial_research" and str(state.get("agent_name") or "").startswith(
+        "research_job_agent_"
+    )
+
+
+def _embedded_recent_read_keys(state_for_prompt: dict[str, Any]) -> set[str]:
+    workspace = state_for_prompt.get("research_workspace")
+    if not isinstance(workspace, dict):
+        return set()
+    keys: set[str] = set()
+    for item in workspace.get("recent_read_previews") or []:
+        if not isinstance(item, dict):
+            continue
+        keys.add(
+            _read_result_key(
+                tool_name=str(item.get("tool_name") or ""),
+                requirement_id=str(item.get("requirement_id") or ""),
+                query=str(item.get("query") or ""),
+                source_ref=str(item.get("source_ref") or ""),
+                evidence_id=str(item.get("evidence_id") or ""),
+                result_preview=str(item.get("result_preview") or ""),
+            )
+        )
+    return keys
+
+
+def _is_embedded_accepted_read_result(result: dict[str, Any], embedded_read_keys: set[str]) -> bool:
+    tool_name = str(result.get("tool_name") or result.get("name") or "")
+    if tool_name not in _EMBEDDED_READ_TOOL_NAMES:
+        return False
+    arguments = _dict_payload(result.get("input_json") or result.get("arguments") or result.get("input"))
+    output_json = _dict_payload(result.get("output_json") or result.get("result") or result.get("output") or result)
+    if not _accepted_tool_output(output_json):
+        return False
+    filter_payload = output_json.get("filter") if isinstance(output_json.get("filter"), dict) else {}
+    evidence_payload = output_json.get("evidence") if isinstance(output_json.get("evidence"), dict) else {}
+    key = _read_result_key(
+        tool_name=tool_name,
+        requirement_id=_first_string(arguments, "requirement_id")
+        or _first_string(filter_payload, "requirement_id")
+        or _first_string(output_json, "requirement_id"),
+        query=_first_string(arguments, "query") or _first_string(filter_payload, "query"),
+        source_ref=_first_string(arguments, "source_ref")
+        or _first_string(output_json, "source_ref", "source")
+        or _first_string(evidence_payload, "source_ref"),
+        evidence_id=_first_string(arguments, "evidence_id")
+        or _first_string(output_json, "evidence_id", "selected_evidence_id")
+        or _first_string(evidence_payload, "evidence_id"),
+        result_preview=_tool_result_preview(output_json),
+    )
+    return key in embedded_read_keys
+
+
+def _accepted_tool_output(output_json: dict[str, Any]) -> bool:
+    if output_json.get("accepted") is False or output_json.get("found") is False:
+        return False
+    if output_json.get("error") and output_json.get("accepted") is not True:
+        return False
+    return True
+
+
+def _read_result_key(
+    *,
+    tool_name: str,
+    requirement_id: str,
+    query: str,
+    source_ref: str,
+    evidence_id: str,
+    result_preview: str,
+) -> str:
+    return json.dumps(
+        {
+            "tool_name": tool_name,
+            "requirement_id": requirement_id,
+            "query": query,
+            "source_ref": source_ref,
+            "evidence_id": evidence_id,
+            "result_preview": result_preview,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+
+
+def _tool_result_preview(output_json: dict[str, Any]) -> str:
+    text = model_preview_text(_json_safe(output_json), collapse_whitespace=True)
+    if len(text) <= _EMBEDDED_READ_RESULT_PREVIEW_CHARS:
+        return text
+    return text[: max(0, _EMBEDDED_READ_RESULT_PREVIEW_CHARS - 1)].rstrip() + "…"
+
+
+def _dict_payload(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    return {}
+
+
+def _first_string(payload: Any, *keys: str) -> str:
+    if not isinstance(payload, dict):
+        return ""
+    for key in keys:
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value
+    return ""
+
+
+def _json_safe(value: Any) -> Any:
+    try:
+        json.dumps(value, ensure_ascii=False)
+        return value
+    except TypeError:
+        return str(value)
 
 
 __all__ = [

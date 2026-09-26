@@ -83,6 +83,7 @@ def build_source_mapping_research_handoff(
                 {
                     "source_ref": source_ref,
                     "question_id": question_id,
+                    "requirement_id": str(gap.get("requirement_id") or ""),
                     "description": str(gap.get("description") or ""),
                     "source_summary": str(analysis.get("summary") or ""),
                 }

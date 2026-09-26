@@ -136,12 +136,23 @@ def prepare_workspace_jobs_for_resume(workspace: dict[str, Any]) -> tuple[dict[s
         questions = [str(question).strip() for question in job.get("questions") or [] if str(question).strip()]
         outcomes = [outcome for outcome in job.get("question_outcomes") or [] if isinstance(outcome, dict)]
         complete_outcomes = _outcomes_cover_questions(questions, outcomes)
-        if status == "in_progress" or (status in {"mapped", "deferred"} and not complete_outcomes):
+        requirements = [requirement for requirement in job.get("coverage_requirements") or [] if isinstance(requirement, dict)]
+        requirement_outcomes = [
+            outcome for outcome in job.get("requirement_outcomes") or [] if isinstance(outcome, dict)
+        ]
+        complete_requirements = _outcomes_cover_requirements(
+            requirements,
+            requirement_outcomes,
+            job_status=status,
+        )
+        if status == "in_progress" or (
+            status in {"mapped", "deferred"} and (not complete_outcomes or not complete_requirements)
+        ):
             job["status"] = "planned"
             job["resume_reason"] = (
                 "Previous research attempt stopped before durable completion."
                 if status == "in_progress"
-                else "Previous completion did not resolve or defer every planned question."
+                else "Previous completion did not resolve or defer every planned question and requirement."
             )
             job["updated_at"] = datetime.now(UTC).isoformat()
             resumed_job_ids.append(str(job.get("job_id") or ""))
@@ -173,6 +184,38 @@ def _outcomes_cover_questions(questions: list[str], outcomes: list[dict[str, Any
             for outcome in outcomes
         )
     )
+
+
+def _outcomes_cover_requirements(
+    requirements: list[dict[str, Any]],
+    outcomes: list[dict[str, Any]],
+    *,
+    job_status: str,
+) -> bool:
+    expected = {
+        str(requirement.get("requirement_id") or "").strip()
+        for requirement in requirements
+        if str(requirement.get("requirement_id") or "").strip()
+    }
+    if not expected:
+        return not outcomes
+    actual = [str(outcome.get("requirement_id") or "").strip() for outcome in outcomes]
+    if set(actual) != expected or len(actual) != len(set(actual)):
+        return False
+    statuses = {
+        str(outcome.get("status") or "").strip()
+        for outcome in outcomes
+        if str(outcome.get("requirement_id") or "").strip()
+    }
+    if not statuses <= {"answered", "deferred"}:
+        return False
+    if not all(str(outcome.get("note") or "").strip() for outcome in outcomes):
+        return False
+    if job_status == "mapped":
+        return statuses == {"answered"}
+    if job_status == "deferred":
+        return "deferred" in statuses
+    return False
 
 
 __all__ = [

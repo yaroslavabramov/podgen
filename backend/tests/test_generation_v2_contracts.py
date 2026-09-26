@@ -1994,17 +1994,31 @@ def test_prompt_contracts_explain_claim_refs_quote_refs_and_citation_schema() ->
     assert 'priority="high", allow_broad_search=false' in RESEARCH_PLANNER_PROMPT
     assert 'priority="normal", allow_broad_search=true' in RESEARCH_PLANNER_PROMPT
     assert "upsert_editorial_atom" in RESEARCH_JOB_PROMPT
-    assert "What success looks like:" in RESEARCH_JOB_PROMPT
-    assert "skim_source or inspect_source" in RESEARCH_JOB_PROMPT
-    assert "scope=all_sources" in RESEARCH_JOB_PROMPT
-    assert "record_research_observation or upsert_editorial_atom" in RESEARCH_JOB_PROMPT
-    assert "tool validates the refs" in RESEARCH_JOB_PROMPT
-    assert 'source_refs=["S01"], evidence_ids=[], status="open", resolution_note=""' in RESEARCH_JOB_PROMPT
+    assert "Main loop:" in RESEARCH_JOB_PROMPT
+    assert "Pick one unfinished requirement" in RESEARCH_JOB_PROMPT
+    assert "Treatment receives atoms, not observations or outcome notes" in RESEARCH_JOB_PROMPT
+    assert "required_atom_kinds" in RESEARCH_JOB_PROMPT
+    assert "Missing a required atom kind defers only a requirement whose completion criterion remains unmet" in RESEARCH_JOB_PROMPT
+    assert "do not invent a deferred requirement solely because an expected kind is absent" in RESEARCH_JOB_PROMPT
+    assert "save one or more editorial atoms with the substantive answer" in RESEARCH_JOB_PROMPT
+    assert "Evidence lists need not be identical" in RESEARCH_JOB_PROMPT
+    assert "must share only the evidence_ids that directly support that requirement" in RESEARCH_JOB_PROMPT
+    assert "Do not pool or swap citations" in RESEARCH_JOB_PROMPT
+    assert "directly support that atom's exact claim" in RESEARCH_JOB_PROMPT
+    assert "Compare each job-level residual gap to the current requirement by meaning" in RESEARCH_JOB_PROMPT
+    assert "defer only the affected requirement" in RESEARCH_JOB_PROMPT
+    assert "Do not duplicate a job-level gap across unrelated requirements" in RESEARCH_JOB_PROMPT
+    assert "A question_outcome is answered only when all requirements linked to that question are answered" in RESEARCH_JOB_PROMPT
+    assert "otherwise it is deferred" in RESEARCH_JOB_PROMPT
+    assert "Related requirements may share one atom" in RESEARCH_JOB_PROMPT
+    assert "unrelated requirements need separate atoms" in RESEARCH_JOB_PROMPT
+    assert "job's likely atom" not in RESEARCH_JOB_PROMPT
+    assert "Do not traverse the whole pool" in RESEARCH_JOB_PROMPT
+    assert "Escrow release is the operating mechanism" in RESEARCH_JOB_PROMPT
+    assert "customers pay into escrow first" in RESEARCH_JOB_PROMPT
     assert "source-owner" not in RESEARCH_JOB_PROMPT
-    assert "repair_for_gap_id or repair_gap" in RESEARCH_JOB_PROMPT
-    assert "same gap_id" in RESEARCH_JOB_PROMPT
-    assert 'status="resolved"' in RESEARCH_JOB_PROMPT
-    assert "evidence_ids from the resolving read" in RESEARCH_JOB_PROMPT
+    assert "Repair mode:" not in RESEARCH_JOB_PROMPT
+    assert "repair_instruction_block" in RESEARCH_JOB_PROMPT
     assert "finalize_research_memo" in RESEARCH_FINALIZER_PROMPT
     assert "merge_editorial_atoms" in RESEARCH_FINALIZER_PROMPT
     assert "Duplicate audit comes first" in RESEARCH_FINALIZER_PROMPT
@@ -6622,8 +6636,8 @@ def test_research_atom_missing_story_weight_defaults_to_supporting_not_core() ->
                 "source_coverage_status": "ready",
             }
         ],
-        "research_gaps": [],
-        "risk_register": [],
+        "research_gaps": [{"gap_id": "gap_1", "atom_refs": ["hk10_b"]}],
+        "risk_register": [{"risk": "Check duplicate atom.", "atom_refs": ["hk10_b"]}],
         "memo_fields": {
             "title": "Research title",
             "thesis": "Research thesis",
@@ -6783,6 +6797,20 @@ async def test_merge_editorial_atoms_tool_explicitly_merges_same_kind_drafts(mon
                 "priority": "normal",
                 "observations": [],
                 "atom_ids": ["hk10_a", "hk10_b"],
+                "coverage_requirements": [
+                    {
+                        "requirement_id": "r_exception",
+                        "result": {"status": "answered", "supporting_atom_ids": ["hk10_b"]},
+                    }
+                ],
+                "requirement_outcomes": [
+                    {
+                        "requirement_id": "r_exception",
+                        "status": "answered",
+                        "evidence_ids": [evidence_id_2],
+                        "supporting_atom_ids": ["hk10_b"],
+                    }
+                ],
                 "summary": "Mapped exception.",
             }
         ],
@@ -6816,8 +6844,8 @@ async def test_merge_editorial_atoms_tool_explicitly_merges_same_kind_drafts(mon
                 "source_coverage_status": "ready",
             },
         ],
-        "research_gaps": [],
-        "risk_register": [],
+        "research_gaps": [{"gap_id": "gap_1", "atom_refs": ["hk10_b"]}],
+        "risk_register": [{"risk": "Check duplicate atom.", "atom_refs": ["hk10_b"]}],
         "memo_fields": {
             "title": "Research title",
             "thesis": "Research thesis",
@@ -6859,7 +6887,101 @@ async def test_merge_editorial_atoms_tool_explicitly_merges_same_kind_drafts(mon
     assert memo.editorial_atoms[0].title == "Government-issued HK$10 note is the bounded exception"
     assert memo.editorial_atoms[0].evidence_ids == [evidence_id_1, evidence_id_2]
     assert workspace["atom_drafts"][1]["merged_into"] == "hk10_a"
+    assert workspace["investigation_jobs"][0]["atom_ids"] == ["hk10_a"]
+    assert workspace["investigation_jobs"][0]["requirement_outcomes"][0]["supporting_atom_ids"] == ["hk10_a"]
+    assert workspace["investigation_jobs"][0]["coverage_requirements"][0]["result"]["supporting_atom_ids"] == [
+        "hk10_a"
+    ]
+    assert workspace["research_gaps"][0]["atom_refs"] == ["hk10_a"]
+    assert workspace["risk_register"][0]["atom_refs"] == ["hk10_a"]
     assert summary["jobs"][0]["atom_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_merge_editorial_atoms_keeps_cross_job_owned_refs(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.generation_v2 import research_workspace as research_workspace_module
+
+    run = SimpleNamespace(id=uuid.uuid4(), config={"user_prompt": "Topic"})
+    workspace = {
+        "source_order": ["S01"],
+        "investigation_jobs": [
+            {
+                "job_id": "job_a",
+                "status": "mapped",
+                "atom_ids": ["a1"],
+                "coverage_requirements": [
+                    {"requirement_id": "r_a", "result": {"status": "answered", "supporting_atom_ids": ["a1"]}}
+                ],
+                "requirement_outcomes": [
+                    {"requirement_id": "r_a", "status": "answered", "evidence_ids": [], "supporting_atom_ids": ["a1"]}
+                ],
+            },
+            {
+                "job_id": "job_b",
+                "status": "mapped",
+                "atom_ids": ["b1"],
+                "coverage_requirements": [
+                    {"requirement_id": "r_b", "result": {"status": "answered", "supporting_atom_ids": ["b1"]}}
+                ],
+                "requirement_outcomes": [
+                    {"requirement_id": "r_b", "status": "answered", "evidence_ids": [], "supporting_atom_ids": ["b1"]}
+                ],
+            },
+        ],
+        "atom_drafts": [
+            {
+                "atom_id": "a1",
+                "job_id": "job_a",
+                "kind": "mechanism",
+                "title": "Atom A",
+                "claim": "Same mechanism.",
+                "evidence_ids": [],
+                "status": "draft",
+            },
+            {
+                "atom_id": "b1",
+                "job_id": "job_b",
+                "kind": "mechanism",
+                "title": "Atom B",
+                "claim": "Same mechanism.",
+                "evidence_ids": [],
+                "status": "draft",
+            },
+        ],
+        "research_gaps": [{"gap_id": "gap_1", "atom_refs": ["b1"]}],
+        "risk_register": [{"risk": "Duplicate atom.", "atom_refs": ["b1"]}],
+    }
+
+    async def _load(_db, _run_id):
+        return workspace
+
+    async def _save(_db, *, generation_run_id, workspace: dict, status=None):
+        return SimpleNamespace(id=uuid.uuid4(), payload=workspace)
+
+    monkeypatch.setattr(research_workspace_module, "load_research_workspace", _load)
+    monkeypatch.setattr(research_workspace_module, "save_research_workspace", _save)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=run,  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=SourceMap(),
+        evidence_toolset=None,
+        mode="finalizer",
+    )
+    merge_tool = next(tool for tool in tools if tool.name == "merge_editorial_atoms")
+
+    result = await merge_tool.handler({"primary_atom_id": "a1", "duplicate_atom_ids": ["b1"]})
+
+    assert result["accepted"] is True
+    assert workspace["atom_drafts"][1]["merged_into"] == "a1"
+    assert workspace["investigation_jobs"][0]["atom_ids"] == ["a1"]
+    assert workspace["investigation_jobs"][1]["atom_ids"] == ["b1"]
+    assert workspace["investigation_jobs"][1]["requirement_outcomes"][0]["supporting_atom_ids"] == ["b1"]
+    assert workspace["investigation_jobs"][1]["coverage_requirements"][0]["result"]["supporting_atom_ids"] == [
+        "b1"
+    ]
+    assert workspace["research_gaps"][0]["atom_refs"] == ["a1"]
+    assert workspace["risk_register"][0]["atom_refs"] == ["a1"]
 
 
 @pytest.mark.asyncio
@@ -7072,6 +7194,50 @@ def test_open_missing_source_research_gap_routes_to_source_acquisition() -> None
     assert audit.issues[0].source_refs == ["S01"]
 
 
+def test_open_requirement_gap_does_not_route_to_source_acquisition_by_default() -> None:
+    audit = _source_acquisition_audit_from_research_gaps(
+        {
+            "research_gaps": [
+                {
+                    "gap_id": "gap_requirement",
+                    "question": "Need to explain the remaining critical requirement.",
+                    "category": "open_requirement",
+                    "severity": "non_blocking",
+                    "treatment_relevance": "central",
+                    "status": "deferred",
+                    "resolution_note": "The current evidence leaves the requirement unresolved.",
+                    "source_refs": ["S01"],
+                }
+            ]
+        }
+    )
+
+    assert audit is None
+
+
+def test_open_requirement_gap_routes_to_source_acquisition_when_corpus_lacks_source() -> None:
+    audit = _source_acquisition_audit_from_research_gaps(
+        {
+            "research_gaps": [
+                {
+                    "gap_id": "gap_requirement_missing_source",
+                    "question": "Need to explain the remaining critical requirement.",
+                    "category": "open_requirement",
+                    "severity": "non_blocking",
+                    "treatment_relevance": "central",
+                    "status": "deferred",
+                    "resolution_note": "Corpus lacks the necessary source to resolve this requirement.",
+                    "source_refs": ["S01"],
+                }
+            ]
+        }
+    )
+
+    assert audit is not None
+    assert audit.issues[0].issue_type == "source_acquisition_needed"
+    assert audit.issues[0].target_step == "source_acquisition"
+
+
 def test_research_workspace_signature_changes_when_sourcemap_content_changes() -> None:
     from app.generation_v2 import research_workspace as research_workspace_module
 
@@ -7158,18 +7324,17 @@ def test_research_job_prompt_payload_filters_sourcemap_to_current_job_refs() -> 
     }
 
     payload = research_job_prompt_payload(workspace, "job_1", source_map_summary=summary)
-    filtered = payload["source_map_summary"]
+    encoded = json.dumps(payload, ensure_ascii=False)
 
-    assert [item["title"] for item in filtered["source_cards"]] == ["Included"]
-    assert [item["evidence_id"] for item in filtered["quote_cards"]] == ["ev1"]
-    assert [item["cluster_id"] for item in filtered["clusters"]] == ["c1"]
-    assert [item["relationship"] for item in filtered["relationships"]] == ["contrast"]
-    assert filtered["source_card_count"] == 2
-    assert filtered["includes_evidence_ids"] is False
-    assert filtered["filtered_for_source_refs"] == ["S01"]
-    assert payload["workspace_progress"]["global_atom_count"] == 1
-    assert "atom_drafts" not in payload["workspace_progress"]
-    assert "global-ev" not in json.dumps(payload["workspace_progress"])
+    assert "source_map_summary" not in payload
+    assert "source_cards" not in encoded
+    assert "quote_cards" not in encoded
+    assert "clusters" not in encoded
+    assert "relationships" not in encoded
+    assert payload["job"]["source_scope"]["recommended_source_refs"] == ["S01"]
+    assert payload["job"]["source_scope"]["allowed_source_pool"]["source_count"] == 1
+    assert "workspace_progress" not in payload
+    assert "global-ev" not in encoded
 
 
 def test_research_memo_from_workspace_assembles_downstream_source_ids() -> None:

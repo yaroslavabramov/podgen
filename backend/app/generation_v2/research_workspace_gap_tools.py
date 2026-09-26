@@ -39,6 +39,24 @@ def record_research_gap_handler(
         current = await _workspace.load_research_workspace(db, run.id) or workspace
         job_id = str(args.get("job_id") or current_job_id or (current.get("current_job") or {}).get("job_id") or "")
         job = _workspace._workspace_job(current, job_id) if job_id else None
+        requirement_id = str(args.get("requirement_id") or "").strip()
+        question_id = ""
+        if requirement_id:
+            if job is None:
+                return {
+                    "accepted": False,
+                    "error": "gap requirement_id requires a current research job",
+                    "requirement_id": requirement_id,
+                }
+            requirement = _job_requirement(job, requirement_id)
+            if requirement is None:
+                return {
+                    "accepted": False,
+                    "error": "gap requirement_id must belong to the current research job",
+                    "requirement_id": requirement_id,
+                    "available_requirement_ids": sorted(_job_requirement_ids(job)),
+                }
+            question_id = str(requirement.get("question_id") or "")
         question = str(args.get("question") or "").strip()
         if not question:
             return {"accepted": False, "error": "gap question is required"}
@@ -91,7 +109,13 @@ def record_research_gap_handler(
             return field_error
         if status == ResearchGapStatus.RESOLVED.value and not resolution_note:
             return {"accepted": False, "error": "resolved research gaps require resolution_note"}
-        normalized_key = _gap_key(category, question)
+        normalized_key = _research_gap_identity_key(
+            category=category,
+            question=question,
+            job_id=job_id,
+            question_id=question_id,
+            requirement_id=requirement_id,
+        )
         requested_gap_id = str(args.get("gap_id") or "").strip()
         current_gaps = [item for item in current.get("research_gaps") or [] if isinstance(item, dict)]
         existing_by_id = next(
@@ -102,7 +126,16 @@ def record_research_gap_handler(
             (
                 item
                 for item in current_gaps
-                if str(item.get("normalized_key") or _gap_key(item.get("category") or "", item.get("question") or ""))
+                if str(
+                    item.get("normalized_key")
+                    or _research_gap_identity_key(
+                        category=str(item.get("category") or ""),
+                        question=str(item.get("question") or ""),
+                        job_id=str(item.get("job_id") or ""),
+                        question_id=str(item.get("question_id") or ""),
+                        requirement_id=str(item.get("requirement_id") or ""),
+                    )
+                )
                 == normalized_key
             ),
             None,
@@ -110,7 +143,13 @@ def record_research_gap_handler(
         if existing_by_id is not None:
             existing_key = str(
                 existing_by_id.get("normalized_key")
-                or _gap_key(existing_by_id.get("category") or "", existing_by_id.get("question") or "")
+                or _research_gap_identity_key(
+                    category=str(existing_by_id.get("category") or ""),
+                    question=str(existing_by_id.get("question") or ""),
+                    job_id=str(existing_by_id.get("job_id") or ""),
+                    question_id=str(existing_by_id.get("question_id") or ""),
+                    requirement_id=str(existing_by_id.get("requirement_id") or ""),
+                )
             )
             if existing_key != normalized_key:
                 return {
@@ -130,6 +169,10 @@ def record_research_gap_handler(
         ))
         gap = {
             "gap_id": gap_id,
+            "job_id": job_id,
+            "job_ids": [job_id] if job_id else [],
+            "requirement_id": requirement_id,
+            "question_id": question_id,
             "question": question,
             "category": category,
             "severity": severity,
@@ -167,11 +210,24 @@ def record_research_gap_handler(
             item
             for item in current_gaps
             if str(item.get("gap_id") or "") != replaced_gap_id
-            and str(item.get("normalized_key") or _gap_key(item.get("category") or "", item.get("question") or ""))
+            and str(
+                item.get("normalized_key")
+                or _research_gap_identity_key(
+                    category=str(item.get("category") or ""),
+                    question=str(item.get("question") or ""),
+                    job_id=str(item.get("job_id") or ""),
+                    question_id=str(item.get("question_id") or ""),
+                    requirement_id=str(item.get("requirement_id") or ""),
+                )
+            )
             != normalized_key
         ]
         gaps.append(gap)
         current["research_gaps"] = gaps
+        if job is not None and requirement_id:
+            job["last_targeted_requirement_id"] = requirement_id
+            job["updated_at"] = _now()
+            _workspace._replace_workspace_job(current, job)
         _workspace._mark_research_progress(current, source_refs=source_refs, evidence_ids=evidence_ids)
         _workspace._reset_research_read_advisory(current)
         await _workspace.save_research_workspace(db, generation_run_id=run.id, workspace=current)
@@ -184,3 +240,31 @@ def record_research_gap_handler(
         }
 
     return record_research_gap_tool
+
+
+def _job_requirement(job: dict[str, Any], requirement_id: str) -> dict[str, Any] | None:
+    for requirement in job.get("coverage_requirements") or []:
+        if isinstance(requirement, dict) and str(requirement.get("requirement_id") or "") == requirement_id:
+            return requirement
+    return None
+
+
+def _job_requirement_ids(job: dict[str, Any]) -> set[str]:
+    return {
+        str(requirement.get("requirement_id") or "")
+        for requirement in job.get("coverage_requirements") or []
+        if isinstance(requirement, dict) and str(requirement.get("requirement_id") or "")
+    }
+
+
+def _research_gap_identity_key(
+    *,
+    category: str,
+    question: str,
+    job_id: str,
+    question_id: str,
+    requirement_id: str,
+) -> str:
+    if job_id or requirement_id or question_id:
+        return _gap_key(category, "\x1f".join([job_id, question_id, requirement_id, question]))
+    return _gap_key(category, question)

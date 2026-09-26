@@ -54,7 +54,14 @@ Successfully calling finalize_research_plan ends this agent immediately. Do not 
 )
 
 
-RESEARCH_JOB_PROMPT = """Run one editorial research investigation job.
+RESEARCH_JOB_REPAIR_BLOCK = """Repair mode:
+- This job is repairing the exact gap in job.repair.
+- If evidence resolves it, persist the resolving observation/atom first, then update the same gap_id as resolved.
+- If it remains unresolved, update the same gap_id as open or deferred with the concrete remaining problem.
+"""
+
+
+RESEARCH_JOB_PROMPT = """Run one editorial research leaf job.
 
 Topic/user prompt:
 {user_prompt}
@@ -66,54 +73,51 @@ Initial job and durable workspace snapshot:
 {job_payload_json}
 
 Task:
-Investigate this job's question(s) and persist useful findings.
+Answer this leaf question by working through its requirements. Persist material that later treatment can use.
 
-What success looks like:
-- You understand the relevant source(s) enough to decide whether the job's likely atom is supported, contradicted, partial, or unsupported.
-- You save durable research_observation notes for intermediate findings.
-- You save editorial atoms only when they are grounded research findings useful for later editorial planning.
-- If the job stays weak, you preserve the reason as an observation and finish it as deferred.
+Main loop:
+1. Pick one unfinished requirement.
+2. Start from that requirement's finding_leads and residual_gap_leads. If it has no explicit leads, use job.question_level_leads as a compact index and choose the relevant leads yourself.
+3. Read only the evidence/source text needed for this requirement. Open extra sources from the allowed pool only for a concrete missing link, weak support, or conflict. Do not traverse the whole pool and do not seek ideal completeness.
+4. If a useful read advances the requirement but one more source/read is needed before deciding, first save an observation for this requirement, then continue the same requirement.
+5. If the completion_criterion is met, immediately save one or more editorial atoms with the substantive answer. Treatment receives atoms, not observations or outcome notes.
+6. If the criterion is not met, save a structured research gap and defer only the affected requirement.
+7. Only after a durable write for the current requirement, move to the next requirement.
+8. Finish after every requirement is answered or honestly deferred.
 
-How to work:
-1. Orient to the current job payload: questions, source_refs, CorpusBrief lineage, seed source cards/quotes, clusters, relationships, and gaps. workspace_progress is routing state only; other agents' findings are deliberately not copied into this job. coverage_question_ids and corpus_handoff_id preserve the exact triage assignment. For partial or conflicted CorpusBrief outcomes, follow corpus_brief_lineage.paging_instruction before researching; preserve what triage already established, what remains missing, and the exact conflict instead of restarting the question from scratch.
-2. For named source_refs, start with skim_source or inspect_source when you do not yet understand the source's structure or role. Use search_within_source and read_source_window for targeted support after that.
-3. For broad jobs, use targeted search_corpus calls with scope=all_sources, then narrow follow-up reads to relevant returned source_refs. Stop searching when the assigned questions are answered or honestly deferred; do not fill a call quota.
-4. starting_evidence_ids are triage reading leads, not completed research evidence. Call read_evidence for each seed you intend to use; only then may you attach it to an observation or atom. If job.pages.starting_evidence has next_cursor, page current_job_starting_evidence first. Use read_evidence for search results that look important. Use read_source_with_model for important PDF/document claims or when local windows are not enough to support a precise atom.
-5. Use compare_evidence_for_question when multiple job sources need to be weighed together.
-6. After meaningful reading, immediately call record_research_observation or upsert_editorial_atom to persist progress. Use record_research_risk for non-blocking source-quality or uncertainty risks, and record_research_gap for unresolved research gaps.
-7. upsert_editorial_atom is only for substantive findings that later treatment can use as material. The tool validates the refs and attaches included evidence automatically. It is not for source-quality warnings, missing-source notes, weak-corroboration notes, or general cautions.
-8. If a job cannot produce a strong atom, record the reason as an observation or research_gap, then finish it as deferred with a concrete reason.
-9. If job.pages.questions, job.pages.observations, or job.pages.starting_evidence has next_cursor, page it with list_research_workspace_items using current_job_questions, current_job_observations, or current_job_starting_evidence.
-   If an existing atom_draft or global observation reports a truncated semantic field, page atom_drafts or observations from cursor 0; those sections return whole validated items and may reduce a page to stay inside the output budget.
-10. Finish the job with finish_research_job. Include exactly one question_outcome for every planned question, preserving the supplied question text; each outcome must be answered with job evidence_ids or explicitly deferred with a concrete note.
+Evidence discipline:
+- Triage findings/gaps are leads to verify, not finished answers.
+- Call read_evidence for every evidence_id you use in an atom or outcome.
+- Evidence IDs are meaningful only next to the finding/atom/outcome they support.
+- Do not pool or swap citations: each atom's evidence_ids must directly support that atom's exact claim; each requirement_outcome's evidence_ids must support that requirement's answer.
+- Evidence lists need not be identical. A requirement_outcome and its supporting atoms must share only the evidence_ids that directly support that requirement.
 
-Repair jobs:
-- If the current job payload has repair_for_gap_id or repair_gap, the job is repairing that exact blocking gap.
-- If you resolve it, persist the substantive finding first with upsert_editorial_atom or record_research_observation, then call record_research_gap with the same gap_id, original category/severity/treatment_relevance, status="resolved", evidence_ids from the resolving read(s), and a resolution_note.
-- If you cannot resolve it, call record_research_gap with the same gap_id, status="open" or "deferred", original or stronger severity/treatment_relevance, and a resolution_note explaining what is still missing; then finish the job as deferred.
+Gap handling:
+- Compare each job-level residual gap to the current requirement by meaning. If evidence resolves it, reflect that in an atom and the requirement_outcome.
+- If a residual gap remains open, save one structured gap and defer only the affected requirement.
+- Do not duplicate a job-level gap across unrelated requirements.
 
-A strong editorial atom is not a topic and not an act outline. It states a source-grounded finding: context, mechanism, change, tension, driver, impact, exception, or genuinely unresolved open question.
-open_question is only for findings that remain unresolved or weak after reading. Supported claims with caveats belong in an atom plus risk or source_coverage_status.
-Atom weight:
-- story_weight="core" only for findings strong enough to anchor a treatment act.
-- story_weight="supporting" for material that supports a larger act but should not be the main act anchor.
-- story_weight="caveat" for exceptions, unresolved questions, and bounded warnings.
-- treatment_role_hint should explain in one sentence how treatment may use the atom.
-Research gap relevance:
-- treatment_relevance="central" only when the episode cannot responsibly proceed without resolving or tightly bounding the gap.
-- treatment_relevance="supporting" when it affects a segment or caution.
-- treatment_relevance="minor" when it should not shape treatment.
+Atoms:
+- upsert_editorial_atom is for substantive source-grounded findings: context, mechanism, change, tension, driver, impact, exception, or a genuinely unresolved open question.
+- A job can produce zero, one, or multiple atoms. Related requirements may share one atom when the same claim and evidence answer them; unrelated requirements need separate atoms.
+- If required_atom_kinds are listed, create those kinds when evidence supports them. Missing a required atom kind defers only a requirement whose completion criterion remains unmet; do not invent a deferred requirement solely because an expected kind is absent.
+- Write every author-written atom field in the requested Language. Examples show structure, not output language.
+
+Finish contract:
+- Include exactly one question_outcome for every supplied question.
+- Include exactly one requirement_outcome for every coverage requirement.
+- For each answered requirement_outcome, set supporting_atom_ids to atom_id values whose claims directly answer that requirement; those atoms must share at least one supporting evidence_id with the outcome.
+- A question_outcome is answered only when all requirements linked to that question are answered; otherwise it is deferred.
+- Use status="mapped" only when every requirement is answered. If any requirement remains unresolved, use job status="deferred" with a concrete deferred_reason.
+
+{repair_instruction_block}
 
 {atom_kind_block}
 
 Mini-examples:
 - Bad atom: title="Background", claim="Several sources discuss this topic.", story_value="Useful context."
 - Bad atom: title="Source quality warning", claim="This source needs corroboration.", story_value="Be careful with this source." Use record_research_risk or record_research_gap instead.
-- Good atom: kind="mechanism", story_weight="core", title="The process depends on two linked constraints", claim="The source evidence shows a concrete process with parts, dependencies, and constraints; the episode can explain that process before judging its impact.", story_value="Gives the listener the operating model needed for the rest of the episode.", treatment_role_hint="Can anchor a mechanism act."
-- Good risk: "S01 is close to an actor being described; use it for that actor's own account, but avoid making it the only support for a contested claim."
-- Good gap: category="weak_corroboration", severity="non_blocking", treatment_relevance="supporting", question="Do independent sources corroborate this source's explanation?", source_refs=["S01"], evidence_ids=[], status="open", resolution_note="".
-- Good repaired gap: gap_id="gap_timing", category="chronology_detail", severity="blocking", treatment_relevance="central", status="resolved", evidence_ids=["ev_123"], resolution_note="The cited source directly resolves the timing question."
-- Good observation: "S01 and S02 disagree on timing. One is closer to the event, while the other is a later interpretation. Need one more read before turning this into a change atom."
+- Good atom: kind="mechanism", story_weight="core", title="Escrow release is the operating mechanism", claim="The evidence says customers pay into escrow first, the provider verifies delivery, and funds are released only after verification; the mechanism is the sequence of payment, verification, and release.", story_value="Gives the listener the operating model needed before judging impact.", treatment_role_hint="Can anchor a mechanism act.", evidence_ids=["ev_mechanism_1"]
 
 Successfully calling finish_research_job ends this agent immediately. Do not produce a trailing JSON response after that tool is accepted.""".replace(
     "{atom_kind_block}", ATOM_KIND_PROMPT_BLOCK
@@ -136,7 +140,7 @@ Initial durable research workspace snapshot:
 
 Task:
 Review the persisted investigation jobs, atom_index, research_gaps, and risks. Observations are available on demand; they are not copied into the initial prompt.
-If any workspace or SourceMap page reports next_cursor, use list_research_workspace_items with that section until the material needed for finalization is covered. The jobs, job_questions, job_question_outcomes, research_gaps, workspace_risks, and audit_feedback sections return whole persisted semantic fields up to the requested limit; always continue from the returned next_cursor and pass job_id when paging one job's questions or outcomes.
+If any workspace or SourceMap page reports next_cursor, use list_research_workspace_items with that section until the material needed for finalization is covered. The jobs, job_questions, job_question_outcomes, job_requirement_outcomes, research_gaps, workspace_risks, and audit_feedback sections return whole persisted semantic fields up to the requested limit; always continue from the returned next_cursor and pass job_id when paging one job's questions or outcomes.
 Page atom_index until its next_cursor is empty so every active finding is included in the duplicate scan. If an index entry looks like a duplicate candidate or its preview is insufficient, fetch that exact full item with atom_drafts using the atom number as cursor (A01 -> cursor 0). Page observations only when a specific finding, gap, or risk cannot be understood without them.
 
 Duplicate audit comes first:
@@ -178,7 +182,7 @@ Task:
 Decide whether treatment can safely plan from this research memo. Do not write treatment, acts, outline, script, or new research atoms.
 
 Check:
-- Assigned work: every persisted research question is answered or explicitly deferred, and every CorpusBrief handoff item remains represented by a linked job and outcome.
+- Assigned work: every persisted research question and every coverage_requirement is answered or explicitly deferred, and every CorpusBrief handoff item remains represented by a linked job and outcome.
 - Distinct editorial atoms: persisted findings are specific and do not contain unmerged drafts of the same point.
 - Grounding: important claims have evidence_previews with locators/snippets/source context.
 - Gaps and risks: blocking gaps should stop treatment; non-blocking cautions should be passed as risks.
@@ -191,9 +195,9 @@ Use tools deliberately:
 - The backend marks core atom grounding and suspicious previews as required: partial/weak coverage, single-source major claims, or open-question atoms.
 - Read recommended previews when they are likely to anchor treatment or clarify a risk.
 - read_evidence takes evidence_ref values such as E001 from audit_input_json, not backend UUIDs.
-- job_question_outcomes pages expose evidence_refs for the evidence behind each answer. Read every ref listed in required_evidence_refs before accepting that answer as grounded. If an answered outcome has unavailable_evidence_count > 0, treat the missing current-run evidence as a grounding problem.
+- job_question_outcomes and job_requirement_outcomes pages expose evidence_refs for the evidence behind each answer. Read every ref listed in required_evidence_refs before accepting that answer as grounded. If an answered outcome has unavailable_evidence_count > 0, treat the missing current-run evidence as a grounding problem.
 - If an atom reports evidence_preview_omitted_count > 0, use list_audit_evidence with its atom_ref and page through the omitted previews before deciding that its grounding is insufficient.
-- If audit_input_json reports omitted records or a truncated memo/workspace/CorpusBrief field, use list_research_workspace_items with the matching section and continue from its returned next_cursor until empty. Use jobs, job_questions, job_question_outcomes, corpus_brief_questions, corpus_brief_findings, corpus_brief_outcomes, corpus_brief_handoff, and corpus_brief_gap_records for the assigned-work audit; pass job_id when paging one job. Pages return whole records up to the requested limit and may be smaller under the output budget; list_audit_evidence pages atom evidence separately.
+- If audit_input_json reports omitted records or a truncated memo/workspace/CorpusBrief field, use list_research_workspace_items with the matching section and continue from its returned next_cursor until empty. Use jobs, job_questions, job_question_outcomes, job_requirement_outcomes, corpus_brief_questions, corpus_brief_findings, corpus_brief_outcomes, corpus_brief_handoff, and corpus_brief_gap_records for the assigned-work audit; pass job_id when paging one job. Pages return whole records up to the requested limit and may be smaller under the output budget; list_audit_evidence pages atom evidence separately.
 - search_corpus only when the memo likely missed material already present in the corpus.
 - Do not use tools to build new findings; this is an audit.
 

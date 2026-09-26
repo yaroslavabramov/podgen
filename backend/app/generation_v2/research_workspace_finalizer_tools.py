@@ -85,6 +85,11 @@ def research_finalizer_tool_handlers(
             else:
                 updated_drafts.append(draft)
         current["atom_drafts"] = updated_drafts
+        _replace_merged_atom_refs_in_workspace(
+            current,
+            primary_atom_id=primary_atom_id,
+            duplicate_atom_ids=set(duplicate_atom_ids),
+        )
         _workspace._reset_research_read_advisory(current)
         await _workspace.save_research_workspace(db, generation_run_id=run.id, workspace=current)
         return {
@@ -152,3 +157,97 @@ def research_finalizer_tool_handlers(
         return {"accepted": True, "status": "finalized", "atom_count": len(_active_atom_drafts(current.get("atom_drafts") or []))}
 
     return merge_editorial_atoms_tool, finalize_research_memo_tool
+
+
+def _replace_merged_atom_refs_in_workspace(
+    workspace: dict[str, Any],
+    *,
+    primary_atom_id: str,
+    duplicate_atom_ids: set[str],
+) -> None:
+    if not primary_atom_id or not duplicate_atom_ids:
+        return
+    atom_job_id_by_id = {
+        str(atom.get("atom_id") or ""): str(atom.get("job_id") or "")
+        for atom in workspace.get("atom_drafts") or []
+        if isinstance(atom, dict) and str(atom.get("atom_id") or "").strip()
+    }
+    primary_job_id = atom_job_id_by_id.get(primary_atom_id, "")
+
+    def _replace_global_atom_ids(values: Any) -> list[str]:
+        result: list[str] = []
+        for value in values or []:
+            atom_id = str(value or "").strip()
+            if not atom_id:
+                continue
+            if atom_id in duplicate_atom_ids:
+                atom_id = primary_atom_id
+            if atom_id not in result:
+                result.append(atom_id)
+        return result
+
+    def _replace_owned_atom_ids(
+        values: Any,
+        *,
+        owner_job_id: str,
+        owner_atom_ids: set[str],
+    ) -> list[str]:
+        result: list[str] = []
+        for value in values or []:
+            atom_id = str(value or "").strip()
+            if not atom_id:
+                continue
+            if atom_id in duplicate_atom_ids and _can_replace_owned_atom_ref(
+                primary_atom_id=primary_atom_id,
+                primary_job_id=primary_job_id,
+                owner_job_id=owner_job_id,
+                owner_atom_ids=owner_atom_ids,
+            ):
+                atom_id = primary_atom_id
+            if atom_id not in result:
+                result.append(atom_id)
+        return result
+
+    for job in workspace.get("investigation_jobs") or []:
+        if not isinstance(job, dict):
+            continue
+        owner_job_id = str(job.get("job_id") or "")
+        owner_atom_ids = {str(item) for item in job.get("atom_ids") or [] if str(item).strip()}
+        job["atom_ids"] = _replace_owned_atom_ids(
+            job.get("atom_ids") or [],
+            owner_job_id=owner_job_id,
+            owner_atom_ids=owner_atom_ids,
+        )
+        for outcome in job.get("requirement_outcomes") or []:
+            if isinstance(outcome, dict):
+                outcome["supporting_atom_ids"] = _replace_owned_atom_ids(
+                    outcome.get("supporting_atom_ids") or [],
+                    owner_job_id=owner_job_id,
+                    owner_atom_ids=owner_atom_ids,
+                )
+        for requirement in job.get("coverage_requirements") or []:
+            if not isinstance(requirement, dict):
+                continue
+            result = requirement.get("result")
+            if isinstance(result, dict):
+                result["supporting_atom_ids"] = _replace_owned_atom_ids(
+                    result.get("supporting_atom_ids") or [],
+                    owner_job_id=owner_job_id,
+                    owner_atom_ids=owner_atom_ids,
+                )
+    for collection_key in ("research_gaps", "risk_register"):
+        for record in workspace.get(collection_key) or []:
+            if isinstance(record, dict):
+                record["atom_refs"] = _replace_global_atom_ids(record.get("atom_refs") or [])
+
+
+def _can_replace_owned_atom_ref(
+    *,
+    primary_atom_id: str,
+    primary_job_id: str,
+    owner_job_id: str,
+    owner_atom_ids: set[str],
+) -> bool:
+    if primary_job_id and owner_job_id:
+        return primary_job_id == owner_job_id
+    return primary_atom_id in owner_atom_ids

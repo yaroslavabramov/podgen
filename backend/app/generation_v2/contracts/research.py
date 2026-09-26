@@ -22,6 +22,7 @@ class StoryWeight(StrEnum):
 
 class ResearchGapCategory(StrEnum):
     MISSING_SOURCE = "missing_source"
+    OPEN_REQUIREMENT = "open_requirement"
     WEAK_CORROBORATION = "weak_corroboration"
     CONTRADICTION = "contradiction"
     LEGAL_DETAIL = "legal_detail"

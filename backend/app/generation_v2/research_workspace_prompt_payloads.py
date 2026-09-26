@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.generation_v2.research_source_map_prompting import source_map_summary_for_job
 from app.generation_v2.model_context_text import model_preview_text
+from app.generation_v2.research_job_prompt_payloads import (
+    compact_research_job_prompt_payload as research_job_prompt_payload,
+)
 from app.generation_v2.research_workspace_contracts import (
     RESEARCH_READS_PER_COMMIT_ADVISORY,
     RESEARCH_READS_PER_COMMIT_WARNING,
@@ -129,6 +131,32 @@ def prompt_atom_index_payload(atom: dict[str, Any], *, atom_ref: str) -> dict[st
     }
 
 
+def prompt_source_gap_preview_payload(gap: dict[str, Any]) -> dict[str, Any]:
+    evidence_ids = gap.get("evidence_ids") or []
+    payload = {
+        "source_ref": gap.get("source_ref"),
+        "question_id": gap.get("question_id"),
+        **_preview_fields("description", gap.get("description") or "", 500),
+        "evidence_count": len(evidence_ids),
+    }
+    requirement_id = str(gap.get("requirement_id") or "")
+    if requirement_id:
+        payload["requirement_id"] = requirement_id
+    return payload
+
+
+def prompt_source_card_preview_payload(card: dict[str, Any]) -> dict[str, Any]:
+    evidence_ids = card.get("evidence_ids") or []
+    return {
+        "source_ref": card.get("source_ref"),
+        **_preview_fields("title", card.get("title") or "", 220),
+        **_preview_fields("summary", card.get("summary") or "", 360),
+        "source_type": card.get("source_type"),
+        "domain": card.get("domain"),
+        "evidence_count": len(evidence_ids),
+    }
+
+
 def _job_question_page(job: dict[str, Any], *, cursor: int, limit: int) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     questions = [str(item).strip() for item in job.get("questions") or [] if str(item).strip()]
     page = questions[cursor : cursor + limit]
@@ -173,244 +201,17 @@ def current_job_prompt_payload(
     observation_cursor: int = 0,
     max_observations: int = 12,
 ) -> dict[str, Any]:
-    questions, question_page = _job_question_page(
-        job,
-        cursor=max(0, question_cursor),
-        limit=max(1, max_questions),
-    )
-    observations, observation_page = _job_observation_page(
-        job,
-        cursor=max(0, observation_cursor),
-        limit=max(1, max_observations),
-    )
-    repair_gap = job.get("repair_gap") if isinstance(job.get("repair_gap"), dict) else None
-    coverage_question_ids = [
-        str(item) for item in job.get("coverage_question_ids") or [] if str(item).strip()
-    ]
-    brief_outcomes = [
-        item for item in job.get("corpus_brief_outcomes") or [] if isinstance(item, dict)
-    ]
-    brief_outcome_previews = [
-        {
-            "question_id": item.get("question_id"),
-            "status": item.get("status"),
-            "next_action": item.get("next_action"),
-            "source_refs": item.get("source_refs") or [],
-            "evidence_count": len(item.get("evidence_ids") or []),
-            "finding_ids": [str(value) for value in item.get("finding_ids") or []][:12],
-            "finding_count": len(item.get("finding_ids") or []),
-            "requirement_result_count": len(item.get("requirement_results") or []),
-            "semantic_revision": int(item.get("semantic_revision") or 0),
-            "is_stale": bool(item.get("is_stale")),
-            **_preview_fields("orientation_summary", item.get("orientation_summary") or "", 600),
-            **_preview_fields("missing_detail", item.get("missing_detail") or "", 500),
-            **_preview_fields("conflict_summary", item.get("conflict_summary") or "", 500),
-            **_preview_fields("deferred_reason", item.get("deferred_reason") or "", 400),
-            "confidence": item.get("confidence"),
-        }
-        for item in brief_outcomes
-    ]
-    coverage_requirements = [
-        item for item in job.get("coverage_requirements") or [] if isinstance(item, dict)
-    ]
-    requirement_previews = [
-        {
-            "question_id": item.get("question_id"),
-            "requirement_id": item.get("requirement_id"),
-            **_preview_fields("description", item.get("description") or "", 600),
-            **_preview_fields("rationale", item.get("rationale") or "", 400),
-            **_preview_fields(
-                "completion_criterion",
-                item.get("completion_criterion") or "",
-                500,
-            ),
-            "result": {
-                "status": (item.get("result") or {}).get("status"),
-                "finding_ids": [
-                    str(value) for value in (item.get("result") or {}).get("finding_ids") or []
-                ][:12],
-                "finding_count": len((item.get("result") or {}).get("finding_ids") or []),
-                **_preview_fields(
-                    "summary", (item.get("result") or {}).get("summary") or "", 500
-                ),
-                **_preview_fields(
-                    "closure_basis",
-                    (item.get("result") or {}).get("closure_basis") or "",
-                    500,
-                ),
-                **_preview_fields(
-                    "remaining_uncertainty",
-                    (item.get("result") or {}).get("remaining_uncertainty") or "",
-                    400,
-                ),
-                **_preview_fields(
-                    "missing_detail",
-                    (item.get("result") or {}).get("missing_detail") or "",
-                    400,
-                ),
-                **_preview_fields(
-                    "conflict_summary",
-                    (item.get("result") or {}).get("conflict_summary") or "",
-                    400,
-                ),
-            },
-        }
-        for item in coverage_requirements[:12]
-    ]
-    source_findings = [
-        item for item in job.get("source_findings") or [] if isinstance(item, dict)
-    ]
-    finding_previews = [
-        {
-            "finding_id": item.get("finding_id"),
-            "source_ref": item.get("source_ref"),
-            "evidence_count": len(item.get("evidence_ids") or []),
-            "semantic_revision": int(item.get("semantic_revision") or 0),
-            **_preview_fields("statement", item.get("statement") or "", 700),
-            **_preview_fields(
-                "support_explanation",
-                item.get("support_explanation") or "",
-                500,
-            ),
-            "scope": {
-                **_preview_fields("actor", (item.get("scope") or {}).get("actor") or "", 200),
-                **_preview_fields("period", (item.get("scope") or {}).get("period") or "", 200),
-                **_preview_fields(
-                    "geography", (item.get("scope") or {}).get("geography") or "", 200
-                ),
-                "qualifier_count": len((item.get("scope") or {}).get("qualifiers") or []),
-            },
-            "question_links": [
-                {
-                    "question_id": link.get("question_id"),
-                    "requirement_ids": link.get("requirement_ids") or [],
-                }
-                for link in item.get("question_links") or []
-                if isinstance(link, dict)
-            ],
-            "possible_question_ids": [
-                str(value) for value in item.get("possible_question_ids") or []
-            ],
-            "limitation_count": len(item.get("limitations") or []),
-        }
-        for item in source_findings[:12]
-    ]
-    starting_evidence_ids = [str(item) for item in job.get("starting_evidence_ids") or [] if str(item).strip()]
-    starting_evidence_page = starting_evidence_ids[:12]
-    payload: dict[str, Any] = {
-        "job_id": job.get("job_id"),
-        "corpus_handoff_id": job.get("corpus_handoff_id"),
-        "coverage_question_ids": coverage_question_ids,
-        **_preview_fields("label", job.get("label") or "", SEMANTIC_FIELD_LIMITS["label"]),
-        "story_job": job.get("story_job"),
-        **_preview_fields("purpose", job.get("purpose") or "", SEMANTIC_FIELD_LIMITS["purpose"]),
-        "source_refs": job.get("source_refs") or [],
-        "preferred_source_refs": job.get("corpus_handoff_preferred_source_refs") or [],
-        "candidate_source_refs": job.get("corpus_handoff_candidate_source_refs") or [],
-        "source_mapping_findings": job.get("source_findings") or [],
-        "source_mapping_gaps": job.get("source_gaps") or [],
-        "source_mapping_cards": job.get("source_cards") or [],
-        "required_atom_kinds": job.get("required_atom_kinds") or [],
-        "priority": job.get("priority"),
-        "allow_broad_search": bool(job.get("allow_broad_search")),
-        "status": job.get("status"),
-        "attempt": int(job.get("attempt") or 0),
-        "questions": questions,
-        "observations": observations,
-        "question_outcomes": [
-            {
-                **_preview_fields(
-                    "question",
-                    item.get("question") or "",
-                    SEMANTIC_FIELD_LIMITS["question"],
-                ),
-                "status": item.get("status"),
-                **_preview_fields("note", item.get("note") or "", 700),
-                "evidence_ids": item.get("evidence_ids") or [],
-            }
-            for item in job.get("question_outcomes") or []
-            if isinstance(item, dict)
-        ],
-        "starting_evidence_ids": starting_evidence_page,
-        "starting_evidence_count": len(starting_evidence_ids),
-        "evidence_count": len(job.get("evidence_ids") or []),
-        "atom_ids": job.get("atom_ids") or [],
-        "atom_count": len(job.get("atom_ids") or []),
-        **_preview_fields("summary", job.get("summary") or "", 700),
-        **_preview_fields("deferred_reason", job.get("deferred_reason") or "", 500),
-        **_preview_fields("resume_reason", job.get("resume_reason") or "", 500),
-        "repair_for_gap_id": job.get("repair_for_gap_id"),
-        "corpus_brief_lineage": {
-            "handoff_question_assignments": job.get("corpus_handoff_question_assignments") or [],
-            "handoff_finding_ids": job.get("corpus_handoff_finding_ids") or [],
-            "handoff_final_finding_ids": job.get("corpus_handoff_final_finding_ids") or [],
-            "handoff_candidate_finding_ids": job.get("corpus_handoff_candidate_finding_ids") or [],
-            "handoff_allowed_source_refs": job.get("corpus_handoff_allowed_source_refs") or [],
-            "handoff_preferred_source_refs": job.get("corpus_handoff_preferred_source_refs") or [],
-            "handoff_candidate_source_refs": job.get("corpus_handoff_candidate_source_refs") or [],
-            "handoff_candidate_evidence_ids": job.get("corpus_handoff_candidate_evidence_ids") or [],
-            "handoff_coverage_hint_ids": job.get("corpus_handoff_coverage_hint_ids") or [],
-            "handoff_source_refs": job.get("corpus_handoff_source_refs") or [],
-            "handoff_evidence_ids": job.get("corpus_handoff_evidence_ids") or [],
-            "handoff_gaps": job.get("corpus_handoff_gaps") or [],
-            "outcomes": brief_outcome_previews,
-            "coverage_requirement_previews": requirement_previews,
-            "coverage_requirement_count": len(coverage_requirements),
-            "coverage_requirement_omitted_count": max(
-                0, len(coverage_requirements) - len(requirement_previews)
-            ),
-            "open_requirement_count": len(job.get("open_requirements") or []),
-            "source_finding_previews": finding_previews,
-            "source_finding_count": len(source_findings),
-            "source_finding_omitted_count": max(
-                0, len(source_findings) - len(finding_previews)
-            ),
-            "requires_full_outcome_read": any(
-                str(item.get("status") or "") in {"partial", "conflicted"}
-                for item in brief_outcomes
-            ),
-            "paging_instruction": (
-                "Page corpus_brief_questions, corpus_brief_findings, and corpus_brief_outcomes from "
-                "cursor 0 until each next_cursor is empty whenever the counts above exceed the previews "
-                "or a preview is truncated. Preserve requirements, finding lineage, missing details, "
-                "and conflicts when investigating."
-            ),
-        },
-        "pages": {
-            "questions": question_page,
-            "observations": observation_page,
-            "coverage_requirements": {
-                **_page_metadata(
-                    total=len(coverage_requirements),
-                    cursor=0,
-                    returned=len(requirement_previews),
-                ),
-                "cursor_unit": "job_preview_record",
-                "full_section": "corpus_brief_questions",
-                "full_page_start_cursor": "0",
-                "full_page_unit": "record_part",
-            },
-            "source_findings": {
-                **_page_metadata(
-                    total=len(source_findings),
-                    cursor=0,
-                    returned=len(finding_previews),
-                ),
-                "cursor_unit": "job_preview_record",
-                "full_section": "corpus_brief_findings",
-                "full_page_start_cursor": "0",
-                "full_page_unit": "record_part",
-            },
-            "starting_evidence": _page_metadata(
-                total=len(starting_evidence_ids),
-                cursor=0,
-                returned=len(starting_evidence_page),
-            ),
-        },
-    }
-    if repair_gap is not None:
-        payload["repair_gap"] = prompt_gap_payload(repair_gap, include_evidence_ids=True)
-    return payload
+    """Legacy import wrapper for the active compact job payload.
+
+    Cursor arguments are kept for old callers. Job prompts now page only by a
+    concrete requirement/query, so the initial job view is no longer a catalog
+    page.
+    """
+
+    del question_cursor, max_questions, observation_cursor, max_observations
+    job_id = str(job.get("job_id") or "current")
+    workspace = {"investigation_jobs": [{**job, "job_id": job_id}], "atom_drafts": [], "research_gaps": []}
+    return research_job_prompt_payload(workspace, job_id, source_map_summary={})["job"]
 
 
 def research_workspace_summary_for_prompt(
@@ -608,66 +409,6 @@ def research_finalizer_payload_for_prompt(
     }
 
 
-def research_job_workspace_progress_for_prompt(
-    workspace: dict[str, Any],
-    *,
-    current_job_id: str,
-) -> dict[str, Any]:
-    """Return routing state, not other agents' semantic work."""
-
-    workspace = prompt_workspace(workspace)
-    jobs = [item for item in workspace.get("investigation_jobs") or [] if isinstance(item, dict)]
-    atoms = _active_atom_drafts(workspace.get("atom_drafts") or [])
-    gaps = _dedupe_gaps(workspace.get("research_gaps") or [])
-    status_counts: dict[str, int] = {}
-    for job in jobs:
-        status = str(job.get("status") or "unknown")
-        status_counts[status] = status_counts.get(status, 0) + 1
-    return {
-        "status": workspace.get("status"),
-        "job_count": len(jobs),
-        "job_status_counts": status_counts,
-        "current_job_id": current_job_id,
-        "other_job_index": [
-            {
-                "job_id": item.get("job_id"),
-                **_preview_fields("label", item.get("label") or "", 180),
-                "story_job": item.get("story_job"),
-                "status": item.get("status"),
-                "source_refs": item.get("source_refs") or [],
-                "required_atom_kinds": item.get("required_atom_kinds") or [],
-            }
-            for item in jobs
-            if str(item.get("job_id") or "") != current_job_id
-        ],
-        "global_atom_count": len(atoms),
-        "open_gap_count": sum(1 for item in gaps if item.get("status") in {"open", "deferred"}),
-        "risk_count": len(workspace.get("risk_register") or []),
-        "selected_evidence_count": len(workspace.get("selected_evidence_ids") or []),
-    }
-
-
-def research_job_prompt_payload(
-    workspace: dict[str, Any], job_id: str, *, source_map_summary: dict[str, Any]
-) -> dict[str, Any]:
-    workspace = prompt_workspace(workspace)
-    job = workspace_job(workspace, job_id) or {}
-    return {
-        "job": current_job_prompt_payload(job),
-        "workspace_progress": research_job_workspace_progress_for_prompt(
-            workspace,
-            current_job_id=job_id,
-        ),
-        "source_map_summary": source_map_summary_for_job(source_map_summary, job),
-        "commit_advisory": {
-            "reads_since_commit": workspace.get("reads_since_commit") or 0,
-            "warning_threshold": RESEARCH_READS_PER_COMMIT_WARNING,
-            "advisory_threshold": RESEARCH_READS_PER_COMMIT_ADVISORY,
-            "commit_recommended": bool(workspace.get("commit_recommended")),
-        },
-    }
-
-
 __all__ = [
     "current_job_prompt_payload",
     "prompt_atom_payload",
@@ -676,7 +417,6 @@ __all__ = [
     "prompt_workspace",
     "research_finalizer_payload_for_prompt",
     "research_job_prompt_payload",
-    "research_job_workspace_progress_for_prompt",
     "research_workspace_summary_for_prompt",
     "workspace_job",
 ]

@@ -71,6 +71,7 @@ def _full_job_page(workspace: dict[str, Any], *, cursor: int, limit: int) -> dic
             "repair_for_gap_id": job.get("repair_for_gap_id"),
             "question_count": len(job.get("questions") or []),
             "question_outcome_count": len(job.get("question_outcomes") or []),
+            "requirement_outcome_count": len(job.get("requirement_outcomes") or []),
             "observation_count": len(job.get("observations") or []),
             "atom_count": len(job.get("atom_ids") or []),
             "starting_evidence_ids": [str(item) for item in job.get("starting_evidence_ids") or []],
@@ -158,12 +159,53 @@ def _full_job_question_outcome_page(
     )
 
 
+def _full_job_requirement_outcome_page(
+    workspace: dict[str, Any],
+    *,
+    cursor: int,
+    job_id: str,
+    limit: int,
+) -> dict[str, Any]:
+    outcomes = [
+        (str(job.get("job_id") or ""), outcome)
+        for job in _workspace_jobs(workspace, job_id=job_id)
+        for outcome in job.get("requirement_outcomes") or []
+        if isinstance(outcome, dict)
+    ]
+    page = outcomes[cursor : cursor + limit]
+    items = [
+        {
+            "job_id": owner_job_id,
+            "outcome_number": cursor + index,
+            "requirement_id": str(outcome.get("requirement_id") or ""),
+            "status": outcome.get("status"),
+            "note": str(outcome.get("note") or ""),
+            "evidence_ids": [str(item) for item in outcome.get("evidence_ids") or []],
+            "supporting_atom_ids": [str(item) for item in outcome.get("supporting_atom_ids") or []],
+            "evidence_count": len(outcome.get("evidence_ids") or []),
+        }
+        for index, (owner_job_id, outcome) in enumerate(page, start=1)
+    ]
+    return fit_model_page(
+        {
+            "accepted": True,
+            "section": "job_requirement_outcomes",
+            "items": items,
+            "page": _page_metadata(total=len(outcomes), cursor=cursor, returned=len(items)),
+        },
+        requested_limit=limit,
+    )
+
+
 def _full_research_gap_page(workspace: dict[str, Any], *, cursor: int, limit: int) -> dict[str, Any]:
     gaps = [item for item in workspace.get("research_gaps") or [] if isinstance(item, dict)]
     page = gaps[cursor : cursor + limit]
     items = [
         {
             "gap_id": gap.get("gap_id"),
+            "job_id": str(gap.get("job_id") or ""),
+            "requirement_id": str(gap.get("requirement_id") or ""),
+            "question_id": str(gap.get("question_id") or ""),
             "question": str(gap.get("question") or ""),
             "category": gap.get("category"),
             "severity": gap.get("severity"),
@@ -481,6 +523,7 @@ def _full_observation_page(workspace: dict[str, Any], *, cursor: int, limit: int
             "observation_number": cursor + index,
             "job_id": job.get("job_id"),
             "job_label": job.get("label"),
+            "requirement_id": str(observation.get("requirement_id") or ""),
             "source_refs": observation.get("source_refs") or [],
             "evidence_ids": [str(item) for item in observation.get("evidence_ids") or []],
             "evidence_count": len(observation.get("evidence_ids") or []),
@@ -513,6 +556,7 @@ def _full_current_job_observation_page(
     items = [
         {
             "observation_number": cursor + index,
+            "requirement_id": str(observation.get("requirement_id") or ""),
             "source_refs": [str(item) for item in observation.get("source_refs") or []],
             "evidence_ids": [str(item) for item in observation.get("evidence_ids") or []],
             "evidence_count": len(observation.get("evidence_ids") or []),
@@ -528,6 +572,239 @@ def _full_current_job_observation_page(
             "section": "current_job_observations",
             "items": items,
             "page": _page_metadata(total=len(observations), cursor=cursor, returned=len(items)),
+        },
+        requested_limit=limit,
+    )
+
+
+def _full_current_job_source_gap_page(
+    job: dict[str, Any],
+    *,
+    cursor: int,
+    limit: int,
+    question_id: str = "",
+    requirement_id: str = "",
+    query: str = "",
+) -> dict[str, Any]:
+    query_tokens = _query_tokens(query)
+    has_query = bool(str(query or "").strip())
+    rows: list[tuple[int, int, int, dict[str, Any]]] = []
+    for index, gap in enumerate([item for item in job.get("source_gaps") or [] if isinstance(item, dict)]):
+        if question_id and str(gap.get("question_id") or "") != question_id:
+            continue
+        explicit_requirement_link = bool(
+            requirement_id and str(gap.get("requirement_id") or "") == requirement_id
+        )
+        if requirement_id and not explicit_requirement_link and not has_query:
+            continue
+        haystack = model_preview_text(str(gap.get("description") or "")).casefold()
+        score = sum(1 for token in query_tokens if token in haystack)
+        if has_query and score == 0 and not explicit_requirement_link:
+            continue
+        rows.append((0 if explicit_requirement_link else 1, -score, index, gap))
+    rows.sort(key=lambda item: (item[0], item[1], item[2]))
+    page = rows[cursor : cursor + limit]
+    items = [
+        {
+            "source_ref": gap.get("source_ref"),
+            "question_id": gap.get("question_id"),
+            **({"requirement_id": gap.get("requirement_id")} if gap.get("requirement_id") else {}),
+            "description": str(gap.get("description") or ""),
+            "evidence_ids": [str(item) for item in gap.get("evidence_ids") or []],
+            "evidence_count": len(gap.get("evidence_ids") or []),
+            "matched_term_count": -score,
+            "matched_by": (
+                "explicit_requirement_link"
+                if rank == 0
+                else ("query" if has_query else "question_tag")
+            ),
+        }
+        for rank, score, _index, gap in page
+    ]
+    return fit_model_page(
+        {
+            "accepted": True,
+            "section": "current_job_source_gaps",
+            "filter": {
+                "question_id": question_id,
+                "requirement_id": requirement_id,
+                "query": query,
+                "query_token_count": len(query_tokens),
+            },
+            "items": items,
+            "page": _page_metadata(total=len(rows), cursor=cursor, returned=len(items)),
+        },
+        requested_limit=limit,
+    )
+
+
+def _job_requirement_text(job: dict[str, Any], requirement_id: str) -> str:
+    if not requirement_id:
+        return ""
+    for requirement in job.get("coverage_requirements") or []:
+        if not isinstance(requirement, dict):
+            continue
+        if str(requirement.get("requirement_id") or "") != requirement_id:
+            continue
+        return " ".join(
+            str(requirement.get(key) or "")
+            for key in ("description", "rationale", "completion_criterion")
+        )
+    return ""
+
+
+def _requirement_linked_finding_ids(job: dict[str, Any], requirement_id: str) -> set[str]:
+    if not requirement_id:
+        return set()
+    for requirement in job.get("coverage_requirements") or []:
+        if not isinstance(requirement, dict):
+            continue
+        if str(requirement.get("requirement_id") or "") != requirement_id:
+            continue
+        return {str(value) for value in (requirement.get("result") or {}).get("finding_ids") or [] if str(value)}
+    return set()
+
+
+def _query_tokens(text: str) -> list[str]:
+    tokens: list[str] = []
+    for raw in model_preview_text(text).casefold().replace("/", " ").replace("-", " ").split():
+        token = "".join(ch for ch in raw if ch.isalnum() or ch in {"$", "£", "€"})
+        if len(token) >= 3 and token not in {"the", "and", "for", "with", "that", "this"}:
+            tokens.append(token)
+    return list(dict.fromkeys(tokens))
+
+
+def _finding_question_ids(finding: dict[str, Any]) -> set[str]:
+    ids = {str(item) for item in finding.get("question_ids") or [] if str(item)}
+    ids.update(str(item) for item in finding.get("possible_question_ids") or [] if str(item))
+    for link in finding.get("question_links") or []:
+        if isinstance(link, dict) and str(link.get("question_id") or ""):
+            ids.add(str(link.get("question_id") or ""))
+    return ids
+
+
+def _finding_requirement_ids(finding: dict[str, Any], *, question_id: str = "") -> set[str]:
+    ids: set[str] = set()
+    for link in finding.get("question_links") or []:
+        if not isinstance(link, dict):
+            continue
+        if question_id and str(link.get("question_id") or "") != question_id:
+            continue
+        ids.update(str(item) for item in link.get("requirement_ids") or [] if str(item))
+    return ids
+
+
+def _full_current_job_source_finding_page(
+    job: dict[str, Any],
+    *,
+    cursor: int,
+    limit: int,
+    question_id: str = "",
+    requirement_id: str = "",
+    query: str = "",
+) -> dict[str, Any]:
+    query_tokens = _query_tokens(query)
+    has_query = bool(str(query or "").strip())
+    linked_finding_ids = _requirement_linked_finding_ids(job, requirement_id)
+    rows: list[tuple[int, int, int, dict[str, Any]]] = []
+    for index, finding in enumerate(
+        [item for item in job.get("source_findings") or [] if isinstance(item, dict)]
+    ):
+        finding_question_ids = _finding_question_ids(finding)
+        if question_id and question_id not in finding_question_ids:
+            continue
+        finding_id = str(finding.get("finding_id") or "")
+        explicit_requirement_link = bool(
+            requirement_id
+            and (
+                requirement_id in _finding_requirement_ids(finding, question_id=question_id)
+                or finding_id in linked_finding_ids
+            )
+        )
+        if requirement_id and not explicit_requirement_link and not has_query:
+            continue
+        haystack = model_preview_text(
+            " ".join(
+                [
+                    str(finding.get("statement") or ""),
+                    " ".join(str(item) for item in finding.get("limitations") or []),
+                ]
+            )
+        ).casefold()
+        score = sum(1 for token in query_tokens if token in haystack)
+        if has_query and score == 0 and not explicit_requirement_link:
+            continue
+        rows.append((0 if explicit_requirement_link else 1, -score, index, finding))
+    rows.sort(key=lambda item: (item[0], item[1], item[2]))
+    page = rows[cursor : cursor + limit]
+    items = [
+        {
+            "finding_id": finding.get("finding_id"),
+            "source_ref": finding.get("source_ref"),
+            "statement": str(finding.get("statement") or ""),
+            "evidence_ids": [str(item) for item in finding.get("evidence_ids") or []],
+            "evidence_count": len(finding.get("evidence_ids") or []),
+            "question_ids": sorted(_finding_question_ids(finding)),
+            "requirement_ids": sorted(_finding_requirement_ids(finding, question_id=question_id)),
+            "limitations": [str(item) for item in finding.get("limitations") or []],
+            "matched_term_count": -score,
+            "matched_by": (
+                "explicit_requirement_link"
+                if rank == 0
+                else ("query" if has_query else "question_tag")
+            ),
+        }
+        for rank, score, _index, finding in page
+    ]
+    return fit_model_page(
+        {
+            "accepted": True,
+            "section": "current_job_source_findings",
+            "filter": {
+                "question_id": question_id,
+                "requirement_id": requirement_id,
+                "query": query,
+                "query_token_count": len(query_tokens),
+            },
+            "items": items,
+            "page": _page_metadata(total=len(rows), cursor=cursor, returned=len(items)),
+            "usage_note": (
+                "This page is for the current requirement/query. Do not page the whole catalog unless the "
+                "specific requirement remains unresolved after targeted reading."
+            ),
+        },
+        requested_limit=limit,
+    )
+
+
+def _full_current_job_source_card_page(
+    job: dict[str, Any],
+    *,
+    cursor: int,
+    limit: int,
+) -> dict[str, Any]:
+    cards = [item for item in job.get("source_cards") or [] if isinstance(item, dict)]
+    page = cards[cursor : cursor + limit]
+    items = [
+        {
+            "source_ref": card.get("source_ref"),
+            "title": str(card.get("title") or ""),
+            "summary": str(card.get("summary") or ""),
+            "source_type": card.get("source_type"),
+            "domain": card.get("domain"),
+            "useful_for": [str(item) for item in card.get("useful_for") or []],
+            "gaps_or_cautions": [str(item) for item in card.get("gaps_or_cautions") or []],
+            "evidence_ids": [str(item) for item in card.get("evidence_ids") or []],
+            "evidence_count": len(card.get("evidence_ids") or []),
+        }
+        for card in page
+    ]
+    return fit_model_page(
+        {
+            "accepted": True,
+            "section": "current_job_source_cards",
+            "items": items,
+            "page": _page_metadata(total=len(cards), cursor=cursor, returned=len(items)),
         },
         requested_limit=limit,
     )
@@ -599,6 +876,9 @@ def _research_workspace_page_tool(
             "current_job_questions",
             "current_job_observations",
             "current_job_starting_evidence",
+            "current_job_source_findings",
+            "current_job_source_gaps",
+            "current_job_source_cards",
         }:
             job = next(
                 (
@@ -634,7 +914,27 @@ def _research_workspace_page_tool(
                     limit=limit,
                     section=section,
                 )
-            return _full_current_job_observation_page(job, cursor=cursor, limit=limit)
+            if section == "current_job_observations":
+                return _full_current_job_observation_page(job, cursor=cursor, limit=limit)
+            if section == "current_job_source_findings":
+                return _full_current_job_source_finding_page(
+                    job,
+                    cursor=cursor,
+                    limit=limit,
+                    question_id=str(args.get("question_id") or ""),
+                    requirement_id=str(args.get("requirement_id") or ""),
+                    query=str(args.get("query") or ""),
+                )
+            if section == "current_job_source_gaps":
+                return _full_current_job_source_gap_page(
+                    job,
+                    cursor=cursor,
+                    limit=limit,
+                    question_id=str(args.get("question_id") or ""),
+                    requirement_id=str(args.get("requirement_id") or ""),
+                    query=str(args.get("query") or ""),
+                )
+            return _full_current_job_source_card_page(job, cursor=cursor, limit=limit)
         if section == "sources":
             cards = list(source_inventory.source_cards)
             page = cards[cursor : cursor + limit]
@@ -677,6 +977,8 @@ def _research_workspace_page_tool(
             return _full_job_question_page(current, cursor=cursor, job_id=job_id, limit=limit)
         if section == "job_question_outcomes":
             return _full_job_question_outcome_page(current, cursor=cursor, job_id=job_id, limit=limit)
+        if section == "job_requirement_outcomes":
+            return _full_job_requirement_outcome_page(current, cursor=cursor, job_id=job_id, limit=limit)
         if section == "research_gaps":
             return _full_research_gap_page(current, cursor=cursor, limit=limit)
         if section == "workspace_risks":
@@ -687,8 +989,10 @@ def _research_workspace_page_tool(
             "accepted": False,
             "error": (
                 "section must be sources, jobs, job_questions, job_question_outcomes, atom_index, atom_drafts, "
+                "job_requirement_outcomes, "
                 "research_gaps, workspace_risks, audit_feedback, observations, current_job_questions, "
-                "current_job_observations, current_job_starting_evidence, or a source_map_* section"
+                "current_job_observations, current_job_starting_evidence, current_job_source_findings, "
+                "current_job_source_gaps, current_job_source_cards, or a source_map_* section"
             ),
         }
 
@@ -710,6 +1014,7 @@ def _research_workspace_page_tool(
                         "jobs",
                         "job_questions",
                         "job_question_outcomes",
+                        "job_requirement_outcomes",
                         "atom_index",
                         "atom_drafts",
                         "research_gaps",
@@ -719,6 +1024,9 @@ def _research_workspace_page_tool(
                         "current_job_questions",
                         "current_job_observations",
                         "current_job_starting_evidence",
+                        "current_job_source_findings",
+                        "current_job_source_gaps",
+                        "current_job_source_cards",
                         "corpus_brief_summary",
                         "corpus_brief_intent",
                         "corpus_brief_cautions",
@@ -744,6 +1052,24 @@ def _research_workspace_page_tool(
                     "description": (
                         "Use the relevant job_id for job_questions or job_question_outcomes; "
                         "pass null for sections that do not use it."
+                    ),
+                },
+                "question_id": {
+                    "type": "string",
+                    "description": "Optional filter for current_job_source_findings or current_job_source_gaps.",
+                },
+                "requirement_id": {
+                    "type": "string",
+                    "description": (
+                        "Optional explicit coverage requirement filter for current_job_source_findings or "
+                        "current_job_source_gaps. It does not infer semantic relevance from requirement text."
+                    ),
+                },
+                "query": {
+                    "type": "string",
+                    "description": (
+                        "Optional targeted terms. Findings search only statement/limitations; gaps search only "
+                        "description. Zero-score records are omitted."
                     ),
                 },
             },

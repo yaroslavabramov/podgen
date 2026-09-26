@@ -119,7 +119,9 @@ def test_source_map_gap_context_is_structured_deduped_and_uses_public_refs() -> 
     assert planner["pages"]["source_map_gap_records"]["total_count"] == 1
     assert page["items"][0]["gap_ref"] == gap_ref
     assert page["items"][0]["description"] == "S01 leaves one mechanism unresolved."
-    assert job_summary["gap_records"][0]["evidence_ids"] == [evidence_id]
+    assert "gap_records" not in job_summary
+    assert job_summary["gap_record_count"] == 1
+    assert job_summary["usage_note"]
     model_json = json.dumps(
         {"summary": summary, "planner": planner, "page": page, "job": job_summary}
     )
@@ -1825,12 +1827,10 @@ def test_composite_preview_metadata_separates_preview_and_full_page_cursors() ->
             ],
         }
     )
-    for section in ("coverage_requirements", "source_findings"):
-        page = job_payload["pages"][section]
-        assert page["next_cursor"] == "12"
-        assert page["cursor_unit"] == "job_preview_record"
-        assert page["full_page_start_cursor"] == "0"
-        assert page["full_page_unit"] == "record_part"
+    assert "pages" not in job_payload
+    assert len(job_payload["requirements"]) == 13
+    assert job_payload["question_level_leads"]["finding_leads"] == []
+    assert job_payload["source_scope"]["allowed_source_pool"]["usage"]
 
 
 def test_valid_large_question_is_fully_readable_as_stable_parts() -> None:

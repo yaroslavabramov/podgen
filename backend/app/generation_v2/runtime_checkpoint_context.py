@@ -38,12 +38,13 @@ search sources, create findings or atoms, decide the memo thesis, or plan episod
 deferred work honestly. Finish only through finalize_research_plan."""
 
 
-RESEARCH_JOB_RESUME_CONTRACT = """Continue only the current editorial-research investigation job from fresh
-durable state. Restore omitted job questions, observations, starting evidence, and SourceMap material through the
-provided paging/read tools. Persist meaningful progress as observations, evidence-backed atoms, risks, or gaps.
-Resolve every planned question with saved job evidence or explicitly defer it with a concrete reason. Do not redesign
-the research plan, work on another job, finalize the memo, or write treatment. Finish only through
-finish_research_job."""
+RESEARCH_JOB_RESUME_CONTRACT = """Continue only the current editorial-research leaf job from compact durable state.
+Work requirement by requirement. Use the persisted current job, requirements, outcomes, observations, atoms, gaps,
+question-level leads, recent useful reads, and paging progress. Do not reload other jobs, corpus inventory, or full
+source catalogs. Page broader SourceMap lineage only for a concrete missing link that included leads and targeted job
+lookups cannot resolve. If the active requirement is supported, save the substantive answer as an evidence-backed
+atom; if it remains unsupported, save a structured gap and defer only that requirement. Do not redesign the research
+plan, finalize the memo, or write treatment. Finish only through finish_research_job."""
 
 
 RESEARCH_FINALIZER_RESUME_CONTRACT = """Continue editorial-research memo finalization from fresh persisted state.

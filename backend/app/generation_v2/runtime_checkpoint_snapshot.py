@@ -77,7 +77,19 @@ async def build_agent_checkpoint_state(
     if phase == "v2_source_triage":
         await _add_source_triage_workspace_state(db, state, generation_run_id=generation_run_id)
     if phase == "v2_editorial_research":
-        await _add_research_workspace_state(db, state, generation_run_id=generation_run_id)
+        await _add_research_workspace_state(
+            db,
+            state,
+            generation_run_id=generation_run_id,
+            agent_name=agent_name,
+            run_view=run_view,
+        )
+        if agent_name.startswith("research_job_agent_"):
+            corpus = state.get("corpus") if isinstance(state.get("corpus"), dict) else {}
+            state["corpus"] = {
+                "selected_source_count": corpus.get("selected_source_count"),
+                "checkpoint_note": "Full corpus inventory omitted for research-job checkpoint.",
+            }
     return state
 
 
@@ -278,13 +290,33 @@ async def _add_research_workspace_state(
     state: dict[str, Any],
     *,
     generation_run_id: uuid.UUID,
+    agent_name: str,
+    run_view: RunCorpusView | None,
 ) -> None:
     try:
         from app.generation_v2.research_workspace import load_research_workspace, research_workspace_summary_for_prompt
-        from app.generation_v2.research_workspace_prompt_payloads import current_job_prompt_payload
+        from app.generation_v2.research_job_checkpoint_payloads import compact_research_job_checkpoint_payload
 
         workspace = await load_research_workspace(db, generation_run_id)
         if workspace:
+            current_job_id = str(((workspace.get("current_job") or {}).get("job_id")) or "") or _job_id_from_agent_name(agent_name)
+            if agent_name.startswith("research_job_agent_"):
+                recent_tool_traces = await _recent_research_job_tool_traces(
+                    db,
+                    generation_run_id=generation_run_id,
+                    agent_name=agent_name,
+                    run_view=run_view,
+                )
+                state["research_workspace"] = compact_research_job_checkpoint_payload(
+                    workspace,
+                    current_job_id=current_job_id,
+                    durable_paging_progress=state.get("durable_paging_progress") or [],
+                    tool_call_counts=(
+                        state.get("tool_call_counts") if isinstance(state.get("tool_call_counts"), dict) else {}
+                    ),
+                    recent_tool_traces=recent_tool_traces,
+                )
+                return
             summary = research_workspace_summary_for_prompt(
                 workspace,
                 max_jobs=40,
@@ -292,7 +324,6 @@ async def _add_research_workspace_state(
                 include_atom_evidence_ids=False,
                 include_gap_evidence_ids=False,
             )
-            current_job_id = str(((workspace.get("current_job") or {}).get("job_id")) or "")
             current_job = next(
                 (
                     item
@@ -302,10 +333,43 @@ async def _add_research_workspace_state(
                 None,
             )
             if isinstance(current_job, dict):
-                summary["current_job_detail"] = current_job_prompt_payload(current_job)
+                summary["current_job_detail"] = compact_research_job_checkpoint_payload(
+                    workspace,
+                    current_job_id=current_job_id,
+                )["current_job_detail"]
             state["research_workspace"] = summary
     except Exception as exc:
         state["research_workspace_error"] = str(exc)
+
+
+def _job_id_from_agent_name(agent_name: str) -> str:
+    prefix = "research_job_agent_"
+    if not str(agent_name or "").startswith(prefix):
+        return ""
+    return str(agent_name)[len(prefix):]
+
+
+async def _recent_research_job_tool_traces(
+    db: AsyncSession,
+    *,
+    generation_run_id: uuid.UUID,
+    agent_name: str,
+    run_view: RunCorpusView | None,
+    limit: int = 128,
+) -> list[V2ToolTrace]:
+    query = select(V2ToolTrace).where(
+        V2ToolTrace.generation_run_id == generation_run_id,
+        V2ToolTrace.phase == "v2_editorial_research",
+        V2ToolTrace.agent_name == agent_name,
+    )
+    if run_view is not None:
+        scope = scope_for_run_view(run_view)
+        query = query.where(
+            V2ToolTrace.corpus_revision == scope.revision,
+            V2ToolTrace.attempt == scope.attempt,
+        )
+    result = await db.execute(query.order_by(V2ToolTrace.created_at.desc(), V2ToolTrace.id.desc()).limit(limit))
+    return list(reversed(list(result.scalars())))
 
 
 async def _add_source_triage_workspace_state(

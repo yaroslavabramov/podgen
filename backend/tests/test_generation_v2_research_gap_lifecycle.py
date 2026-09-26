@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import uuid
 from types import SimpleNamespace
 
@@ -156,7 +157,7 @@ def test_legacy_merged_blocking_resolution_without_support_fails_open() -> None:
     assert gaps[0]["status"] == "open"
 
 
-def test_seeded_job_preserves_structured_corpus_brief_outcome_lineage() -> None:
+def test_seeded_job_stores_but_does_not_prompt_structured_corpus_brief_outcome_lineage() -> None:
     source_id = str(uuid.uuid4())
     question = CoverageQuestion(
         question_id="q-mechanism",
@@ -212,10 +213,12 @@ def test_seeded_job_preserves_structured_corpus_brief_outcome_lineage() -> None:
     )
     assert payload["corpus_handoff_id"] == "handoff:q-mechanism"
     assert payload["coverage_question_ids"] == ["q-mechanism"]
-    assert payload["corpus_brief_lineage"]["outcomes"][0]["status"] == "partial"
-    assert payload["corpus_brief_lineage"]["requires_full_outcome_read"] is True
-    assert "corpus_brief_outcomes" in payload["corpus_brief_lineage"]["paging_instruction"]
-    assert "corpus_brief_lineage.paging_instruction" in RESEARCH_JOB_PROMPT
+    encoded = json.dumps(payload, ensure_ascii=False)
+    assert "corpus_brief_lineage" not in payload
+    assert "corpus_brief_outcomes" not in encoded
+    assert "corpus_brief_outcomes" not in RESEARCH_JOB_PROMPT
+    assert "partial or conflicted CorpusBrief outcomes" not in RESEARCH_JOB_PROMPT
+    assert "Do not traverse the whole pool" in RESEARCH_JOB_PROMPT
 
 
 def test_old_corpus_brief_lineage_is_not_carried_into_a_new_attempt() -> None:

@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.generation_v2.corpus_brief_preview import corpus_brief_preview
+from app.generation_v2.model_context_text import model_preview_text
 from app.generation_v2.research_workspace import _jobs_from_corpus_brief
 from app.generation_v2.research_workspace_prompt_payloads import current_job_prompt_payload
 from app.generation_v2.research_workspace_tools import _full_corpus_brief_page
@@ -527,10 +528,12 @@ def test_research_handoff_persists_full_findings_and_uses_separate_previews() ->
     ]
     assert [item["requirement_id"] for item in job["open_requirements"]] == ["r_mechanism"]
     assert job["starting_evidence_ids"] == ["evidence-1"]
-    finding_preview = payload["corpus_brief_lineage"]["source_finding_previews"][0]
-    assert finding_preview["statement_preview"] == long_statement[:700]
+    finding_preview = payload["requirements"][1]["finding_leads"][0]
+    assert finding_preview["statement_preview"].startswith("Unabridged finding.")
+    assert finding_preview["statement_preview"].endswith("…")
+    assert finding_preview["statement_chars"] == len(model_preview_text(long_statement, collapse_whitespace=True))
     assert finding_preview["statement_truncated"] is True
-    assert payload["pages"]["source_findings"]["full_section"] == "corpus_brief_findings"
+    assert payload["question_level_leads"]["finding_leads"][0]["evidence_ids"] == ["evidence-1"]
     assert brief_preview["source_findings"][0]["statement"]["preview"] == long_statement[:120]
     assert brief.source_findings[0].statement == long_statement
     full_page = _full_corpus_brief_page(

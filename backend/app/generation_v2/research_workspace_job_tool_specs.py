@@ -34,6 +34,10 @@ def research_job_tools(
                 "type": "object",
                 "properties": {
                     "job_id": {"type": "string"},
+                    "requirement_id": {
+                        "description": "Optional coverage requirement this observation advances within the current job.",
+                        "type": "string",
+                    },
                     "source_refs": {"type": "array", "items": {"type": "string"}},
                     "evidence_ids": {"type": "array", "items": {"type": "string"}},
                     "note": {"type": "string"},
@@ -49,7 +53,11 @@ def research_job_tools(
         ),
         AgentTool(
             name="upsert_editorial_atom",
-            description="Persist one source-grounded editorial atom draft. Included evidence_ids are selected automatically for research lineage.",
+            description=(
+                "Persist one source-grounded editorial atom draft. Included evidence_ids are selected automatically "
+                "for research lineage. All author-written fields must use the requested language; examples show "
+                "structure, not output language."
+            ),
             parameters={
                 "type": "object",
                 "properties": {
@@ -104,7 +112,11 @@ def research_job_tools(
         ),
         AgentTool(
             name="finish_research_job",
-            description="Finish the current investigation job after persisting observations or atom drafts.",
+            description=(
+                "Finish the current investigation job after persisting observations or atom drafts. "
+                "Use status=mapped only when every coverage requirement is answered; use status=deferred "
+                "when any requirement remains unresolved."
+            ),
             parameters={
                 "type": "object",
                 "properties": {
@@ -127,8 +139,45 @@ def research_job_tools(
                             "additionalProperties": False,
                         },
                     },
+                    "requirement_outcomes": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "requirement_id": {"type": "string"},
+                                "status": {"type": "string", "enum": ["answered", "deferred"]},
+                                "note": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["job_summary"]},
+                                "evidence_ids": {"type": "array", "items": {"type": "string"}},
+                                "supporting_atom_ids": {
+                                    "description": (
+                                        "For answered requirements, list the atom_id values whose claims directly "
+                                        "answer this requirement. Each listed atom must belong to this job and share "
+                                        "at least one evidence_id with this requirement outcome. Use [] for deferred "
+                                        "requirements unless a partial atom is explicitly relevant."
+                                    ),
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                },
+                            },
+                            "required": [
+                                "requirement_id",
+                                "status",
+                                "note",
+                                "evidence_ids",
+                                "supporting_atom_ids",
+                            ],
+                            "additionalProperties": False,
+                        },
+                    },
                 },
-                "required": ["job_id", "status", "summary", "deferred_reason", "question_outcomes"],
+                "required": [
+                    "job_id",
+                    "status",
+                    "summary",
+                    "deferred_reason",
+                    "question_outcomes",
+                    "requirement_outcomes",
+                ],
             },
             handler=finish_research_job_handler,
             terminal=True,
@@ -165,6 +214,11 @@ def research_job_tools(
                 "type": "object",
                 "properties": {
                     "gap_id": {"type": "string"},
+                    "job_id": {"type": "string"},
+                    "requirement_id": {
+                        "description": "Optional coverage requirement this gap leaves unresolved within the current job.",
+                        "type": "string",
+                    },
                     "question": {"type": "string", "maxLength": SEMANTIC_FIELD_LIMITS["question"]},
                     "category": {"type": "string", "enum": sorted(RESEARCH_GAP_CATEGORIES)},
                     "severity": {"type": "string", "enum": sorted(RESEARCH_GAP_SEVERITIES)},

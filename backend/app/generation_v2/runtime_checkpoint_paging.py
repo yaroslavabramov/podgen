@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import uuid
 from collections import defaultdict
 from typing import Any, Iterable
@@ -11,7 +12,7 @@ from app.generation_v2.corpus_scope import scope_for_run_view
 from app.models.generation_v2 import RunCorpusView, V2ToolTrace
 
 
-_PAGING_QUALIFIERS = ("section", "set_id", "job_id", "source_ref")
+_PAGING_QUALIFIERS = ("section", "set_id", "job_id", "source_ref", "question_id", "requirement_id")
 
 
 async def durable_paging_progress(
@@ -108,11 +109,21 @@ def _paging_key(tool_name: str, input_json: dict[str, Any]) -> tuple[str, dict[s
         for name in _PAGING_QUALIFIERS
         if str(input_json.get(name) or "")
     }
+    query_fingerprint = _normalized_query_fingerprint(input_json.get("query"))
+    if query_fingerprint:
+        qualifiers["query_fingerprint"] = query_fingerprint
     source_refs = [str(item) for item in input_json.get("source_refs") or [] if str(item)]
     if source_refs:
         qualifiers["source_refs"] = source_refs
     key_parts = [tool_name, *(f"{name}={qualifiers[name]}" for name in sorted(qualifiers))]
     return "|".join(key_parts), qualifiers
+
+
+def _normalized_query_fingerprint(value: Any) -> str:
+    normalized = " ".join(str(value or "").casefold().split())
+    if not normalized:
+        return ""
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
 
 
 def _returned_count(output_json: dict[str, Any], page: dict[str, Any]) -> int:

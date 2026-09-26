@@ -15,6 +15,7 @@ from app.generation_v2.prompting import (
     RESEARCH_FINALIZER_PROMPT,
     RESEARCH_FINALIZER_SYSTEM,
     RESEARCH_JOB_PROMPT,
+    RESEARCH_JOB_REPAIR_BLOCK,
     RESEARCH_JOB_SYSTEM,
     RESEARCH_PLANNER_PROMPT,
     RESEARCH_PLANNER_SYSTEM,
@@ -72,6 +73,13 @@ def noop_research_workspace_tools() -> list[AgentTool]:
     ]
 
 
+def _research_job_repair_instruction_block(job_payload: dict) -> str:
+    job = (job_payload or {}).get("job") if isinstance(job_payload, dict) else {}
+    if isinstance(job, dict) and job.get("repair"):
+        return RESEARCH_JOB_REPAIR_BLOCK.strip()
+    return ""
+
+
 async def build_research_planner_agent(
     db: AsyncSession,
     run: GenerationRun,
@@ -126,6 +134,7 @@ async def build_research_job_agent(
         duration_minutes=int((run.config or {}).get("duration_target", 1800)) // 60,
         language=(run.config or {}).get("language", "en"),
         job_payload_json=_json(job_payload),
+        repair_instruction_block=_research_job_repair_instruction_block(job_payload),
     )
     return await runtime.call_structured(
         db=db,

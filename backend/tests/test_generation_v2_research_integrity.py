@@ -58,7 +58,16 @@ from app.generation_v2.research_source_map_prompting import (
     source_map_research_page,
     source_map_research_summary,
 )
-from app.generation_v2.runtime_checkpoint_restart import checkpoint_restart_instructions
+from app.generation_v2.runtime_checkpoint_context import (
+    RESEARCH_JOB_RESUME_CONTRACT,
+    build_checkpoint_resume_context,
+)
+from app.generation_v2.research_job_checkpoint_payloads import compact_research_job_checkpoint_payload
+from app.generation_v2.runtime_checkpoint_restart import (
+    checkpoint_restart_instructions,
+    checkpoint_restart_message,
+)
+from app.generation_v2.runtime_checkpoint_paging import summarize_paginated_tool_traces
 from app.generation_v2.runtime_contracts import default_checkpoint_policy
 from app.generation_v2.runtime import AgentTool
 from app.generation_v2.runtime_tool_output import model_facing_tool_output
@@ -85,7 +94,7 @@ from app.generation_v2.source_triage_workspace_prompting import (
 )
 from app.generation_v2.tools.evidence_core_utils import exact_quote_text_matches
 from app.generation_v2.tools.evidence_model_read_persistence import EvidenceModelReadPersistenceMixin
-from app.models.generation_v2 import SourceRepresentationKind
+from app.models.generation_v2 import SourceRepresentationKind, V2ToolTrace
 
 
 def _source(source_id: str | None = None, *, title: str = "Source") -> SourceCard:
@@ -1055,16 +1064,1563 @@ def test_interrupted_or_legacy_incomplete_research_jobs_resume() -> None:
                     {"question": "Q3", "status": "answered", "note": "Answered.", "evidence_ids": ["ev-3"]}
                 ],
             },
+            {
+                "job_id": "stale-requirement",
+                "status": "mapped",
+                "questions": ["Q4"],
+                "coverage_requirements": [{"requirement_id": "r4", "description": "Requirement."}],
+                "question_outcomes": [
+                    {"question": "Q4", "status": "answered", "note": "Answered.", "evidence_ids": ["ev-4"]}
+                ],
+                "requirement_outcomes": [
+                    {"requirement_id": "r4", "status": "deferred", "note": "Still open.", "evidence_ids": []}
+                ],
+            },
         ],
     }
 
     resumed, job_ids = prepare_workspace_jobs_for_resume(workspace)
 
-    assert job_ids == ["running", "legacy"]
-    assert [job["status"] for job in resumed["investigation_jobs"]] == ["planned", "planned", "mapped"]
+    assert job_ids == ["running", "legacy", "stale-requirement"]
+    assert [job["status"] for job in resumed["investigation_jobs"]] == [
+        "planned",
+        "planned",
+        "mapped",
+        "planned",
+    ]
     assert resumed["current_job"] is None
     assert resumed["memo_fields"] == {}
     assert resumed["processed_jobs"] == [{"job_id": "complete"}]
+
+
+def test_leaf_research_eval_report_accepts_deferred_requirement_only_with_gap() -> None:
+    from app.generation_v2.research_leaf_eval_runner import _leaf_job_structural_report
+
+    job = {
+        "job_id": "job-1",
+        "status": "deferred",
+        "questions": ["Q"],
+        "coverage_requirements": [{"requirement_id": "req-hk10"}],
+        "question_outcomes": [
+            {"question": "Q", "status": "deferred", "note": "One requirement remains open.", "evidence_ids": []}
+        ],
+        "requirement_outcomes": [
+            {
+                "requirement_id": "req-hk10",
+                "status": "deferred",
+                "note": "HK$10 exception still unresolved.",
+                "evidence_ids": [],
+            }
+        ],
+        "atom_ids": [],
+        "observations": [{"note": "Observation.", "source_refs": ["S03"], "evidence_ids": ["ev-1"]}],
+    }
+
+    missing_gap_report = _leaf_job_structural_report({"atom_drafts": []}, job)
+    with_gap_report = _leaf_job_structural_report(
+        {
+            "atom_drafts": [],
+            "research_gaps": [
+                {
+                    "job_id": "job-1",
+                    "requirement_id": "req-hk10",
+                    "category": "open_requirement",
+                    "status": "deferred",
+                    "question": "Why HK$10 stays exceptional.",
+                }
+            ],
+        },
+        job,
+    )
+
+    assert missing_gap_report["passed"] is False
+    assert missing_gap_report["deferred_requirement_ids_without_gap"] == ["req-hk10"]
+    assert with_gap_report["passed"] is True
+    assert with_gap_report["deferred_requirement_ids"] == ["req-hk10"]
+    assert with_gap_report["requirement_outcomes"][0]["note"] == "HK$10 exception still unresolved."
+    assert with_gap_report["observation_previews"][0]["source_refs"] == ["S03"]
+
+
+@pytest.mark.asyncio
+async def test_research_leaf_eval_guard_uses_delta_budget_and_allows_missing_compaction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.generation_v2.research_leaf_eval_runner as runner
+    import app.generation_v2.research_leaf_eval_contract as contract
+    from app.generation_v2.triage_eval_support import EvalBudgetExceeded
+
+    async def within_budget(_db, _run_id):
+        return {"totals": {"estimated_token_cost_usd": 1.05, "max_call_cost_usd": 0.10}}
+
+    monkeypatch.setattr(contract, "summarize_tool_trace_costs", within_budget)
+    guard = runner.ResearchLeafEvalCostGuard(max_delta_cost_usd=0.25, baseline_cost_usd=0.95)
+
+    await guard(
+        db=None,
+        generation_run_id=uuid.uuid4(),
+        requested_model="gpt-5.4-mini",
+        max_output_tokens=None,
+        server_compaction_threshold=None,
+    )
+
+    async def over_budget(_db, _run_id):
+        return {"totals": {"estimated_token_cost_usd": 1.30, "max_call_cost_usd": 0.15}}
+
+    monkeypatch.setattr(contract, "summarize_tool_trace_costs", over_budget)
+    with pytest.raises(EvalBudgetExceeded):
+        await guard(
+            db=None,
+            generation_run_id=uuid.uuid4(),
+            requested_model="gpt-5.4-mini",
+            max_output_tokens=None,
+            server_compaction_threshold=None,
+        )
+
+
+def test_leaf_research_eval_rejects_zero_progress_all_deferred_hk_canary() -> None:
+    from app.generation_v2.research_leaf_eval_runner import _leaf_job_structural_report
+
+    job = {
+        "job_id": "brief_02",
+        "status": "deferred",
+        "questions": ["How are Hong Kong banknotes issued now?"],
+        "coverage_question_ids": ["q_hkd_current_mechanics"],
+        "coverage_requirements": [
+            {"requirement_id": "q_hkd_mech_r1", "description": "emitters"},
+            {"requirement_id": "q_hkd_mech_r2", "description": "HKMA / Exchange Fund"},
+            {"requirement_id": "q_hkd_mech_r3", "description": "LERS"},
+            {"requirement_id": "q_hkd_mech_r4", "description": "HK$10 exception"},
+        ],
+        "question_outcomes": [{"question": "How are Hong Kong banknotes issued now?", "status": "deferred", "note": "Deferred.", "evidence_ids": []}],
+        "requirement_outcomes": [
+            {"requirement_id": "q_hkd_mech_r1", "status": "deferred", "note": "Deferred.", "evidence_ids": []},
+            {"requirement_id": "q_hkd_mech_r2", "status": "deferred", "note": "Deferred.", "evidence_ids": []},
+            {"requirement_id": "q_hkd_mech_r3", "status": "deferred", "note": "Deferred.", "evidence_ids": []},
+            {"requirement_id": "q_hkd_mech_r4", "status": "deferred", "note": "HK$10 remains unresolved.", "evidence_ids": []},
+        ],
+        "evidence_ids": [],
+        "observations": [],
+        "atom_ids": [],
+    }
+    workspace = {
+        "atom_drafts": [],
+        "research_gaps": [
+            {
+                "job_id": "brief_02",
+                "requirement_id": requirement_id,
+                "category": "open_requirement",
+                "status": "deferred",
+                "question": f"{requirement_id} open",
+                "resolution_note": "HK$10 unresolved." if requirement_id == "q_hkd_mech_r4" else "Deferred.",
+            }
+            for requirement_id in ("q_hkd_mech_r1", "q_hkd_mech_r2", "q_hkd_mech_r3", "q_hkd_mech_r4")
+        ],
+    }
+
+    report = _leaf_job_structural_report(workspace, job)
+
+    assert report["passed"] is False
+    assert "leaf canary made no persisted research progress" in report["issues"]
+    assert "semantic canary: q_hkd_mech_r1 must be answered" in report["issues"]
+
+
+def _hk_current_mechanics_canary_fixture(*, emitters_text=None, r4_gap_note=None):
+    emitters_text = emitters_text or (
+        "HKMA выпускает HK$10, а HSBC, Standard Chartered и Bank of China выпускают HK$20, HK$50, "
+        "HK$100, HK$500 и HK$1000."
+    )
+    r4_gap_note = r4_gap_note or "HK$10: не объяснено, почему HKMA/правительство, а не частные банки, осталось эмитентом."
+    job = {
+        "job_id": "brief_02",
+        "status": "deferred",
+        "questions": ["How are Hong Kong banknotes issued now?"],
+        "coverage_question_ids": ["q_hkd_current_mechanics"],
+        "coverage_requirements": [
+            {"requirement_id": "q_hkd_mech_r1", "description": "emitters"},
+            {"requirement_id": "q_hkd_mech_r2", "description": "HKMA / Exchange Fund"},
+            {"requirement_id": "q_hkd_mech_r3", "description": "LERS"},
+            {"requirement_id": "q_hkd_mech_r4", "description": "HK$10 exception"},
+        ],
+        "question_outcomes": [{"question": "How are Hong Kong banknotes issued now?", "status": "deferred", "note": "HK$10 residual remains open.", "evidence_ids": []}],
+        "requirement_outcomes": [
+            {
+                "requirement_id": "q_hkd_mech_r1",
+                "status": "answered",
+                "note": "Answered.",
+                "evidence_ids": ["ev_emitters"],
+                "supporting_atom_ids": ["atom_emitters"],
+            },
+            {
+                "requirement_id": "q_hkd_mech_r2",
+                "status": "answered",
+                "note": "Answered.",
+                "evidence_ids": ["ev_ci"],
+                "supporting_atom_ids": ["atom_ci"],
+            },
+            {
+                "requirement_id": "q_hkd_mech_r3",
+                "status": "answered",
+                "note": "Answered.",
+                "evidence_ids": ["ev_lers"],
+                "supporting_atom_ids": ["atom_lers"],
+            },
+            {
+                "requirement_id": "q_hkd_mech_r4",
+                "status": "deferred",
+                "note": r4_gap_note,
+                "evidence_ids": [],
+                "supporting_atom_ids": [],
+            },
+        ],
+        "evidence_ids": ["ev_emitters", "ev_ci", "ev_lers"],
+        "observations": [{"note": "Research progress.", "source_refs": ["S03"], "evidence_ids": ["ev_emitters"]}],
+        "atom_ids": ["atom_emitters", "atom_ci", "atom_lers"],
+    }
+    workspace = {
+        "atom_drafts": [
+            {
+                "atom_id": "atom_emitters",
+                "job_id": "brief_02",
+                "kind": "context",
+                "title": "Текущие эмитенты",
+                "claim": emitters_text,
+                "explanation": "",
+                "story_value": "",
+                "evidence_ids": ["ev_emitters"],
+            },
+            {
+                "atom_id": "atom_ci",
+                "job_id": "brief_02",
+                "kind": "mechanism",
+                "title": "Обеспечение через сертификаты",
+                "claim": (
+                    "HKMA использует Exchange Fund и Certificates of Indebtedness как механизм "
+                    "обеспечения выпуска банкнот."
+                ),
+                "explanation": "",
+                "story_value": "",
+                "evidence_ids": ["ev_ci"],
+            },
+            {
+                "atom_id": "atom_lers",
+                "job_id": "brief_02",
+                "kind": "mechanism",
+                "title": "Ограничение LERS",
+                "claim": "Выпуск банкнот работает внутри LERS/currency board с курсом 7.80.",
+                "explanation": "",
+                "story_value": "",
+                "evidence_ids": ["ev_lers"],
+            },
+        ],
+        "research_gaps": [
+            {
+                "job_id": "brief_02",
+                "requirement_id": "q_hkd_mech_r4",
+                "category": "open_requirement",
+                "status": "deferred",
+                "question": "Why HK$10 remains government-issued.",
+                "resolution_note": r4_gap_note,
+            }
+        ],
+    }
+    evidence_text_by_id = {
+        "ev_emitters": emitters_text,
+        "ev_ci": "HKMA uses the Exchange Fund and Certificates of Indebtedness to back note issuance.",
+        "ev_lers": "Banknote issuance operates under the LERS currency board at 7.80.",
+    }
+    return workspace, job, evidence_text_by_id
+
+
+def test_leaf_research_eval_rejects_missing_exact_denominations() -> None:
+    from app.generation_v2.research_leaf_eval_runner import _leaf_job_structural_report
+
+    workspace, job, evidence_text_by_id = _hk_current_mechanics_canary_fixture(
+        emitters_text=(
+            "HSBC, Standard Chartered and Bank of China issue HK$20, HK$500 and HK$1000 denominations."
+        )
+    )
+
+    report = _leaf_job_structural_report(workspace, job, evidence_text_by_id=evidence_text_by_id)
+
+    assert report["passed"] is False
+    assert any("q_hkd_mech_r1 evidence-backed material is missing expected domain terms" in issue for issue in report["issues"])
+
+
+def test_leaf_research_eval_rejects_missing_exact_russian_denominations() -> None:
+    from app.generation_v2.research_leaf_eval_runner import _leaf_job_structural_report
+
+    workspace, job, evidence_text_by_id = _hk_current_mechanics_canary_fixture(
+        emitters_text=(
+            "HSBC, Standard Chartered and Bank of China issue номинал 20, номинал 500 and номинал 1000."
+        )
+    )
+
+    report = _leaf_job_structural_report(workspace, job, evidence_text_by_id=evidence_text_by_id)
+
+    assert report["passed"] is False
+    assert any("q_hkd_mech_r1 evidence-backed material is missing expected domain terms" in issue for issue in report["issues"])
+
+
+def test_leaf_research_eval_rejects_hk10_gap_without_private_bank_contrast() -> None:
+    from app.generation_v2.research_leaf_eval_runner import _leaf_job_structural_report
+
+    workspace, job, evidence_text_by_id = _hk_current_mechanics_canary_fixture(
+        r4_gap_note=(
+            "HK$10: not explained why HKMA keeps a government banknote / "
+            "не объяснено, почему HKMA сохраняет государственную банкноту."
+        )
+    )
+
+    report = _leaf_job_structural_report(workspace, job, evidence_text_by_id=evidence_text_by_id)
+
+    assert report["passed"] is False
+    assert any(
+        "q_hkd_mech_r4 deferred outcome/gap text is missing expected residual HK$10 terms" in issue
+        for issue in report["issues"]
+    )
+
+
+def test_leaf_research_eval_accepts_hk10_gap_with_private_bank_genitive() -> None:
+    from app.generation_v2.research_leaf_eval_runner import _leaf_job_structural_report
+
+    workspace, job, evidence_text_by_id = _hk_current_mechanics_canary_fixture(
+        r4_gap_note="HK$10: не объяснено, почему HKMA/правительство сохраняет выпуск вместо частных банков."
+    )
+
+    report = _leaf_job_structural_report(workspace, job, evidence_text_by_id=evidence_text_by_id)
+
+    assert report["passed"] is True
+
+
+def test_leaf_research_eval_rejects_english_authored_atom_prose() -> None:
+    from app.generation_v2.research_leaf_eval_runner import _leaf_job_structural_report
+
+    workspace, job, evidence_text_by_id = _hk_current_mechanics_canary_fixture()
+    workspace["atom_drafts"][0]["title"] = "Current issuers"
+    workspace["atom_drafts"][0]["claim"] = (
+        "HKMA issues HK$10, while HSBC, Standard Chartered and Bank of China issue HK$20, HK$50, "
+        "HK$100, HK$500 and HK$1000 denominations."
+    )
+
+    report = _leaf_job_structural_report(workspace, job, evidence_text_by_id=evidence_text_by_id)
+
+    assert report["passed"] is False
+    assert any("job atom prose should be written in requested Russian language" in issue for issue in report["issues"])
+
+
+def test_leaf_research_eval_requires_explicit_supporting_atom_ids_for_answered_requirement() -> None:
+    from app.generation_v2.research_leaf_eval_runner import _answered_requirement_atom_check
+
+    workspace = {
+        "atom_drafts": [
+            {
+                "atom_id": "atom_emitters",
+                "job_id": "brief_02",
+                "kind": "context",
+                "title": "Текущие эмитенты",
+                "claim": (
+                    "HKMA выпускает HK$10, а HSBC, Standard Chartered и Bank of China выпускают HK$20, HK$50, "
+                    "HK$100, HK$500 и HK$1000."
+                ),
+                "explanation": "",
+                "story_value": "",
+                "evidence_ids": ["ev_emitters"],
+            }
+        ]
+    }
+    job = {"job_id": "brief_02", "atom_ids": ["atom_emitters"]}
+    term_groups = [
+        ["HSBC"],
+        ["Standard Chartered"],
+        ["Bank of China"],
+        ["HK$20"],
+        ["HK$50"],
+        ["HK$100"],
+        ["HK$500"],
+        ["HK$1000"],
+    ]
+    evidence_text_by_id = {
+        "ev_emitters": (
+            "HKMA issues HK$10, while HSBC, Standard Chartered and Bank of China issue HK$20, HK$50, HK$100, "
+            "HK$500 and HK$1000."
+        )
+    }
+
+    missing_support = _answered_requirement_atom_check(
+        workspace,
+        job,
+        requirement_id="q_hkd_mech_r1",
+        evidence_ids=["ev_emitters"],
+        supporting_atom_ids=[],
+        evidence_text_by_id=evidence_text_by_id,
+        term_groups=term_groups,
+    )
+    explicit_support = _answered_requirement_atom_check(
+        workspace,
+        job,
+        requirement_id="q_hkd_mech_r1",
+        evidence_ids=["ev_emitters"],
+        supporting_atom_ids=["atom_emitters"],
+        evidence_text_by_id=evidence_text_by_id,
+        term_groups=term_groups,
+    )
+
+    assert missing_support["passed"] is False
+    assert missing_support["error"] == "answered requirement must list supporting_atom_ids explicitly"
+    assert explicit_support["passed"] is True
+
+
+def test_research_leaf_eval_runtime_overrides_only_research_job_model() -> None:
+    from app.generation_v2.contracts import V2AgentName, V2AgentPrefix, V2Phase
+    from app.generation_v2.research_leaf_eval_runner import (
+        ResearchLeafEvalRuntime,
+        _validate_eval_model_and_effort,
+    )
+
+    model, effort = _validate_eval_model_and_effort("gpt-5.4-2026-03-05", "medium")
+    runtime = ResearchLeafEvalRuntime(
+        model_override=model,
+        reasoning_effort=effort,
+        before_provider_call=None,
+    )
+
+    assert runtime.reasoning_effort == "medium"
+    assert _validate_eval_model_and_effort("gpt-5.4-mini-2026-03-17", "none")[1] == "none"
+    with pytest.raises(ValueError):
+        _validate_eval_model_and_effort("gpt-5.4-mini-2026-03-17", "max")
+    assert runtime.model_for(V2Phase.EDITORIAL_RESEARCH, V2AgentPrefix.RESEARCH_JOB.value + "brief_02") == (
+        "gpt-5.4-2026-03-05"
+    )
+    assert runtime.model_for(V2Phase.EDITORIAL_RESEARCH, V2AgentName.RESEARCH_PLANNER) != "gpt-5.4-2026-03-05"
+
+
+def test_research_leaf_eval_clone_payload_rewrites_lineage_ids() -> None:
+    from app.generation_v2.research_leaf_eval_runner import _rewrite_clone_payload
+
+    source_run_id = uuid.uuid4()
+    eval_run_id = uuid.uuid4()
+    source_view_id = uuid.uuid4()
+    eval_view_id = uuid.uuid4()
+    old_evidence_id = str(uuid.uuid4())
+    new_evidence_id = str(uuid.uuid4())
+    old_artifact_id = str(uuid.uuid4())
+    new_artifact_id = str(uuid.uuid4())
+
+    payload = {
+        "generation_run_id": str(source_run_id),
+        "run_view_id": str(source_view_id),
+        "evidence_ids": [old_evidence_id],
+        "nested": {"artifact_id": old_artifact_id},
+    }
+
+    rewritten = _rewrite_clone_payload(
+        payload,
+        evidence_id_map={old_evidence_id: new_evidence_id},
+        artifact_id_map={old_artifact_id: new_artifact_id},
+        source_run_id=source_run_id,
+        eval_run_id=eval_run_id,
+        source_view_id=source_view_id,
+        eval_view_id=eval_view_id,
+    )
+
+    assert rewritten["generation_run_id"] == str(eval_run_id)
+    assert rewritten["run_view_id"] == str(eval_view_id)
+    assert rewritten["evidence_ids"] == [new_evidence_id]
+    assert rewritten["nested"]["artifact_id"] == new_artifact_id
+
+
+def test_leaf_research_eval_accepts_hk_canary_with_answered_core_and_residual_gap() -> None:
+    from app.generation_v2.research_leaf_eval_runner import _leaf_job_structural_report
+
+    job = {
+        "job_id": "brief_02",
+        "status": "deferred",
+        "questions": ["How are Hong Kong banknotes issued now?"],
+        "coverage_question_ids": ["q_hkd_current_mechanics"],
+        "coverage_requirements": [
+            {"requirement_id": "q_hkd_mech_r1", "description": "emitters"},
+            {"requirement_id": "q_hkd_mech_r2", "description": "HKMA / Exchange Fund"},
+            {"requirement_id": "q_hkd_mech_r3", "description": "LERS"},
+            {"requirement_id": "q_hkd_mech_r4", "description": "HK$10 exception"},
+        ],
+        "question_outcomes": [{"question": "How are Hong Kong banknotes issued now?", "status": "deferred", "note": "HK$10 residual remains open.", "evidence_ids": []}],
+        "requirement_outcomes": [
+            {
+                "requirement_id": "q_hkd_mech_r1",
+                "status": "answered",
+                "note": "HSBC, Standard Chartered and Bank of China issue private banknotes.",
+                "evidence_ids": ["ev1"],
+                "supporting_atom_ids": ["atom_lers"],
+            },
+            {
+                "requirement_id": "q_hkd_mech_r2",
+                "status": "answered",
+                "note": "HKMA acts through the Exchange Fund.",
+                "evidence_ids": ["ev2"],
+                "supporting_atom_ids": ["atom_lers"],
+            },
+            {
+                "requirement_id": "q_hkd_mech_r3",
+                "status": "answered",
+                "note": "The LERS currency board keeps the rate at 7.80.",
+                "evidence_ids": ["ev3"],
+                "supporting_atom_ids": ["atom_lers"],
+            },
+            {
+                "requirement_id": "q_hkd_mech_r4",
+                "status": "deferred",
+                "note": "HK$10: не объяснено, почему HKMA/правительство, а не частные банки, осталось эмитентом.",
+                "evidence_ids": [],
+                "supporting_atom_ids": [],
+            },
+        ],
+        "evidence_ids": ["ev1", "ev2", "ev3"],
+        "source_findings": [
+            {
+                "finding_id": "f2",
+                "statement": "HKMA uses the Exchange Fund and Certificates of Indebtedness to back note issuance.",
+                "support_explanation": "",
+                "evidence_ids": ["ev2"],
+            },
+        ],
+        "observations": [
+            {
+                "note": "HSBC, Standard Chartered and Bank of China issue HK$20, HK$50, HK$100, HK$500 and HK$1,000 banknotes.",
+                "source_refs": ["S03"],
+                "evidence_ids": ["ev1"],
+            }
+        ],
+        "atom_ids": ["atom_lers"],
+    }
+    workspace = {
+        "atom_drafts": [
+            {
+                "atom_id": "atom_lers",
+                "job_id": "brief_02",
+                "kind": "mechanism",
+                "title": "Механизм текущей эмиссии банкнот Гонконга",
+                "claim": (
+                    "HSBC, Standard Chartered и Bank of China выпускают HK$20, HK$50, HK$100, HK$500 "
+                    "и HK$1,000 через механизм HKMA / Exchange Fund / Certificates of Indebtedness "
+                    "внутри LERS/currency board на уровне 7.80."
+                ),
+                "explanation": (
+                    "Атом связывает частных эмитентов, сертификаты задолженности, Exchange Fund и LERS "
+                    "в один проверенный механизм."
+                ),
+                "story_value": "",
+                "evidence_ids": ["ev1", "ev2", "ev3"],
+            }
+        ],
+        "research_gaps": [
+            {
+                "job_id": "brief_02",
+                "requirement_id": "q_hkd_mech_r4",
+                "category": "open_requirement",
+                "status": "deferred",
+                "question": "Why HK$10 remains government-issued.",
+                "resolution_note": "HK$10: не объяснено, почему HKMA/правительство, а не частные банки, осталось эмитентом.",
+            }
+        ],
+    }
+
+    report = _leaf_job_structural_report(
+        workspace,
+        job,
+        evidence_text_by_id={
+            "ev1": "HSBC, Standard Chartered and Bank of China issue HK$20, HK$50, HK$100, HK$500 and HK$1,000 denominations.",
+            "ev2": "HKMA uses the Exchange Fund and Certificates of Indebtedness to back note issuance.",
+            "ev3": "Banknote issuance operates under the LERS currency board at 7.80.",
+        },
+    )
+
+    assert report["passed"] is True
+    assert report["semantic_canary"]["applied"] is True
+
+
+def test_leaf_research_eval_accepts_separate_atoms_for_hk_core_requirements() -> None:
+    from app.generation_v2.research_leaf_eval_runner import _leaf_job_structural_report
+
+    job = {
+        "job_id": "brief_02",
+        "status": "deferred",
+        "questions": ["How are Hong Kong banknotes issued now?"],
+        "coverage_question_ids": ["q_hkd_current_mechanics"],
+        "coverage_requirements": [
+            {"requirement_id": "q_hkd_mech_r1", "description": "emitters"},
+            {"requirement_id": "q_hkd_mech_r2", "description": "HKMA / Exchange Fund"},
+            {"requirement_id": "q_hkd_mech_r3", "description": "LERS"},
+            {"requirement_id": "q_hkd_mech_r4", "description": "HK$10 exception"},
+        ],
+        "question_outcomes": [{"question": "How are Hong Kong banknotes issued now?", "status": "deferred", "note": "HK$10 residual remains open.", "evidence_ids": []}],
+        "requirement_outcomes": [
+            {
+                "requirement_id": "q_hkd_mech_r1",
+                "status": "answered",
+                "note": "Answered.",
+                "evidence_ids": ["ev1"],
+                "supporting_atom_ids": ["atom_emitters"],
+            },
+            {
+                "requirement_id": "q_hkd_mech_r2",
+                "status": "answered",
+                "note": "Answered.",
+                "evidence_ids": ["ev2"],
+                "supporting_atom_ids": ["atom_ci"],
+            },
+            {
+                "requirement_id": "q_hkd_mech_r3",
+                "status": "answered",
+                "note": "Answered.",
+                "evidence_ids": ["ev3"],
+                "supporting_atom_ids": ["atom_lers"],
+            },
+            {
+                "requirement_id": "q_hkd_mech_r4",
+                "status": "deferred",
+                "note": "HK$10: не объяснено, почему HKMA/правительство, а не частные банки, осталось эмитентом.",
+                "evidence_ids": [],
+                "supporting_atom_ids": [],
+            },
+        ],
+        "evidence_ids": ["ev1", "ev2", "ev3"],
+        "observations": [{"note": "Research progress.", "source_refs": ["S03"], "evidence_ids": ["ev1"]}],
+        "atom_ids": ["atom_emitters", "atom_ci", "atom_lers"],
+    }
+    workspace = {
+        "atom_drafts": [
+            {
+                "atom_id": "atom_emitters",
+                "job_id": "brief_02",
+                "kind": "context",
+                "title": "Текущие эмитенты",
+                "claim": (
+                    "HSBC, Standard Chartered и Bank of China выпускают HK$20, HK$50, HK$100, HK$500 "
+                    "и HK$1,000."
+                ),
+                "explanation": "",
+                "story_value": "",
+                "evidence_ids": ["ev1"],
+            },
+            {
+                "atom_id": "atom_ci",
+                "job_id": "brief_02",
+                "kind": "mechanism",
+                "title": "Обеспечение сертификатами",
+                "claim": (
+                    "HKMA использует Exchange Fund и Certificates of Indebtedness для обеспечения "
+                    "выпуска банкнот."
+                ),
+                "explanation": "",
+                "story_value": "",
+                "evidence_ids": ["ev2"],
+            },
+            {
+                "atom_id": "atom_lers",
+                "job_id": "brief_02",
+                "kind": "mechanism",
+                "title": "Ограничение LERS",
+                "claim": "Выпуск банкнот работает внутри LERS/currency board с курсом 7.80.",
+                "explanation": "",
+                "story_value": "",
+                "evidence_ids": ["ev3"],
+            },
+        ],
+        "research_gaps": [
+            {
+                "job_id": "brief_02",
+                "requirement_id": "q_hkd_mech_r4",
+                "category": "open_requirement",
+                "status": "deferred",
+                "question": "Why HK$10 remains government-issued.",
+                "resolution_note": "HK$10: не объяснено, почему HKMA/правительство, а не частные банки, осталось эмитентом.",
+            }
+        ],
+    }
+
+    report = _leaf_job_structural_report(
+        workspace,
+        job,
+        evidence_text_by_id={
+            "ev1": "HSBC, Standard Chartered and Bank of China issue HK$20, HK$50, HK$100, HK$500 and HK$1,000 denominations.",
+            "ev2": "HKMA uses the Exchange Fund and Certificates of Indebtedness to back note issuance.",
+            "ev3": "Banknote issuance operates under the LERS currency board at 7.80.",
+        },
+    )
+
+    assert report["passed"] is True
+
+
+def test_leaf_research_eval_rejects_answered_hk10_without_authored_atom() -> None:
+    from app.generation_v2.research_leaf_eval_runner import _leaf_job_structural_report
+
+    job = {
+        "job_id": "brief_02",
+        "status": "mapped",
+        "questions": ["How are Hong Kong banknotes issued now?"],
+        "coverage_question_ids": ["q_hkd_current_mechanics"],
+        "coverage_requirements": [
+            {"requirement_id": "q_hkd_mech_r1", "description": "emitters"},
+            {"requirement_id": "q_hkd_mech_r2", "description": "HKMA / Exchange Fund"},
+            {"requirement_id": "q_hkd_mech_r3", "description": "LERS"},
+            {"requirement_id": "q_hkd_mech_r4", "description": "HK$10 exception"},
+        ],
+        "question_outcomes": [{"question": "How are Hong Kong banknotes issued now?", "status": "answered", "note": "Answered.", "evidence_ids": ["ev1", "ev2", "ev3", "ev4"]}],
+        "requirement_outcomes": [
+            {"requirement_id": "q_hkd_mech_r1", "status": "answered", "note": "Answered.", "evidence_ids": ["ev1"]},
+            {"requirement_id": "q_hkd_mech_r2", "status": "answered", "note": "Answered.", "evidence_ids": ["ev2"]},
+            {"requirement_id": "q_hkd_mech_r3", "status": "answered", "note": "Answered.", "evidence_ids": ["ev3"]},
+            {"requirement_id": "q_hkd_mech_r4", "status": "answered", "note": "Answered.", "evidence_ids": ["ev4"]},
+        ],
+        "evidence_ids": ["ev1", "ev2", "ev3", "ev4"],
+        "observations": [{"note": "Research progress.", "source_refs": ["S03"], "evidence_ids": ["ev1"]}],
+        "atom_ids": ["atom_emitters", "atom_ci", "atom_lers"],
+    }
+    workspace = {
+        "atom_drafts": [
+            {
+                "atom_id": "atom_emitters",
+                "job_id": "brief_02",
+                "kind": "context",
+                "title": "Current issuers",
+                "claim": "HSBC, Standard Chartered and Bank of China issue HK$20, HK$50, HK$100, HK$500 and HK$1,000 denominations.",
+                "explanation": "",
+                "story_value": "",
+                "evidence_ids": ["ev1"],
+            },
+            {
+                "atom_id": "atom_ci",
+                "job_id": "brief_02",
+                "kind": "mechanism",
+                "title": "Certificate backing",
+                "claim": "HKMA uses the Exchange Fund and Certificates of Indebtedness to back banknote issuance.",
+                "explanation": "",
+                "story_value": "",
+                "evidence_ids": ["ev2"],
+            },
+            {
+                "atom_id": "atom_lers",
+                "job_id": "brief_02",
+                "kind": "mechanism",
+                "title": "LERS constraint",
+                "claim": "Banknote issuance operates under the LERS currency board at 7.80.",
+                "explanation": "",
+                "story_value": "",
+                "evidence_ids": ["ev3"],
+            },
+        ],
+        "research_gaps": [],
+    }
+
+    report = _leaf_job_structural_report(
+        workspace,
+        job,
+        evidence_text_by_id={
+            "ev1": "HSBC, Standard Chartered and Bank of China issue HK$20, HK$50, HK$100, HK$500 and HK$1,000 denominations.",
+            "ev2": "HKMA uses the Exchange Fund and Certificates of Indebtedness to back note issuance.",
+            "ev3": "Banknote issuance operates under the LERS currency board at 7.80.",
+            "ev4": "HK$10 was kept because the public demanded a 10-dollar banknote.",
+        },
+    )
+
+    assert report["passed"] is False
+    assert any(
+        "q_hkd_mech_r4 answered outcome needs an authored atom using the same evidence" in issue
+        for issue in report["issues"]
+    )
+
+
+def test_leaf_research_eval_rejects_answered_hk10_public_demand_as_residual_answer() -> None:
+    from app.generation_v2.research_leaf_eval_runner import _leaf_job_structural_report
+
+    job = {
+        "job_id": "brief_02",
+        "status": "mapped",
+        "questions": ["How are Hong Kong banknotes issued now?"],
+        "coverage_question_ids": ["q_hkd_current_mechanics"],
+        "coverage_requirements": [
+            {"requirement_id": "q_hkd_mech_r1", "description": "emitters"},
+            {"requirement_id": "q_hkd_mech_r2", "description": "HKMA / Exchange Fund"},
+            {"requirement_id": "q_hkd_mech_r3", "description": "LERS"},
+            {"requirement_id": "q_hkd_mech_r4", "description": "HK$10 exception"},
+        ],
+        "question_outcomes": [{"question": "How are Hong Kong banknotes issued now?", "status": "answered", "note": "Answered.", "evidence_ids": ["ev_emitters", "ev_ci", "ev_lers", "ev_hk10"]}],
+        "requirement_outcomes": [
+            {
+                "requirement_id": "q_hkd_mech_r1",
+                "status": "answered",
+                "note": "Answered.",
+                "evidence_ids": ["ev_emitters"],
+                "supporting_atom_ids": ["atom_emitters"],
+            },
+            {
+                "requirement_id": "q_hkd_mech_r2",
+                "status": "answered",
+                "note": "Answered.",
+                "evidence_ids": ["ev_ci"],
+                "supporting_atom_ids": ["atom_ci"],
+            },
+            {
+                "requirement_id": "q_hkd_mech_r3",
+                "status": "answered",
+                "note": "Answered.",
+                "evidence_ids": ["ev_lers"],
+                "supporting_atom_ids": ["atom_lers"],
+            },
+            {"requirement_id": "q_hkd_mech_r4", "status": "answered", "note": "Answered.", "evidence_ids": ["ev_hk10"]},
+        ],
+        "evidence_ids": ["ev_emitters", "ev_ci", "ev_lers", "ev_hk10"],
+        "observations": [{"note": "Research progress.", "source_refs": ["S03"], "evidence_ids": ["ev_emitters"]}],
+        "atom_ids": ["atom_emitters", "atom_ci", "atom_lers", "atom_hk10"],
+    }
+    workspace = {
+        "atom_drafts": [
+            {
+                "atom_id": "atom_emitters",
+                "job_id": "brief_02",
+                "kind": "context",
+                "title": "Current issuers",
+                "claim": "HKMA issues HK$10; The Hong Kong Shanghai Banking Corporation, Standard Chartered Hong Kong and Bank of China issue HK$20, HK$50, HK$100, HK$500 and HK$1,000 denominations.",
+                "explanation": "",
+                "story_value": "",
+                "evidence_ids": ["ev_emitters"],
+            },
+            {
+                "atom_id": "atom_ci",
+                "job_id": "brief_02",
+                "kind": "mechanism",
+                "title": "Certificate backing",
+                "claim": "HKMA uses the Exchange Fund and Certificates of Indebtedness to back banknote issuance.",
+                "explanation": "",
+                "story_value": "",
+                "evidence_ids": ["ev_ci"],
+            },
+            {
+                "atom_id": "atom_lers",
+                "job_id": "brief_02",
+                "kind": "mechanism",
+                "title": "LERS constraint",
+                "claim": "Banknote issuance operates under the LERS currency board at 7.80.",
+                "explanation": "",
+                "story_value": "",
+                "evidence_ids": ["ev_lers"],
+            },
+            {
+                "atom_id": "atom_hk10",
+                "job_id": "brief_02",
+                "kind": "exception",
+                "title": "HK$10 exception",
+                "claim": "HK$10 remained a government-issued banknote because HKMA issued its own HK$10 notes in response to public demand after the coin-replacement attempt.",
+                "explanation": "",
+                "story_value": "",
+                "evidence_ids": ["ev_hk10"],
+            },
+        ],
+        "research_gaps": [],
+    }
+
+    report = _leaf_job_structural_report(
+        workspace,
+        job,
+        evidence_text_by_id={
+            "ev_emitters": "The HKMA issues the 10-dollar note and the other three banks issue HK$20, HK$50, HK$100, HK$500 and HK$1,000 denominations: The Hong Kong Shanghai Banking Corporation, Standard Chartered Hong Kong and Bank of China.",
+            "ev_ci": "HKMA uses the Exchange Fund and Certificates of Indebtedness to back note issuance.",
+            "ev_lers": "Banknote issuance operates under the LERS currency board at 7.80.",
+            "ev_hk10": "Between 1994 and 2002 an attempt was made to replace privately issued HK$10 notes with coins. In response to public demand for the continuation of this note, the HKMA issued its own HK$10 notes.",
+        },
+    )
+
+    assert report["passed"] is False
+    assert any(
+        "q_hkd_mech_r4 evidence-backed material is missing expected residual HK$10 terms" in issue
+        for issue in report["issues"]
+    )
+
+
+def test_leaf_research_eval_accepts_hk10_public_demand_atom_with_residual_gap() -> None:
+    from app.generation_v2.research_leaf_eval_runner import _leaf_job_structural_report
+
+    job = {
+        "job_id": "brief_02",
+        "status": "deferred",
+        "questions": ["How are Hong Kong banknotes issued now?"],
+        "coverage_question_ids": ["q_hkd_current_mechanics"],
+        "coverage_requirements": [
+            {"requirement_id": "q_hkd_mech_r1", "description": "emitters"},
+            {"requirement_id": "q_hkd_mech_r2", "description": "HKMA / Exchange Fund"},
+            {"requirement_id": "q_hkd_mech_r3", "description": "LERS"},
+            {"requirement_id": "q_hkd_mech_r4", "description": "HK$10 exception"},
+        ],
+        "question_outcomes": [{"question": "How are Hong Kong banknotes issued now?", "status": "deferred", "note": "HK$10 residual remains open.", "evidence_ids": []}],
+        "requirement_outcomes": [
+            {
+                "requirement_id": "q_hkd_mech_r1",
+                "status": "answered",
+                "note": "Answered.",
+                "evidence_ids": ["ev_emitters"],
+                "supporting_atom_ids": ["atom_emitters"],
+            },
+            {
+                "requirement_id": "q_hkd_mech_r2",
+                "status": "answered",
+                "note": "Answered.",
+                "evidence_ids": ["ev_ci"],
+                "supporting_atom_ids": ["atom_ci"],
+            },
+            {
+                "requirement_id": "q_hkd_mech_r3",
+                "status": "answered",
+                "note": "Answered.",
+                "evidence_ids": ["ev_lers"],
+                "supporting_atom_ids": ["atom_lers"],
+            },
+            {
+                "requirement_id": "q_hkd_mech_r4",
+                "status": "deferred",
+                "note": "HK$10: не объяснено, почему HKMA/правительство, а не частные банки, осталось эмитентом.",
+                "evidence_ids": [],
+                "supporting_atom_ids": [],
+            },
+        ],
+        "evidence_ids": ["ev_emitters", "ev_ci", "ev_lers", "ev_hk10"],
+        "observations": [{"note": "Research progress.", "source_refs": ["S03"], "evidence_ids": ["ev_emitters"]}],
+        "atom_ids": ["atom_emitters", "atom_ci", "atom_lers", "atom_hk10"],
+    }
+    workspace = {
+        "atom_drafts": [
+            {
+                "atom_id": "atom_emitters",
+                "job_id": "brief_02",
+                "kind": "context",
+                "title": "Текущие эмитенты",
+                "claim": (
+                    "HKMA выпускает HK$10, а The Hong Kong Shanghai Banking Corporation, "
+                    "Standard Chartered Hong Kong и Bank of China выпускают HK$20, HK$50, HK$100, "
+                    "HK$500 и HK$1,000."
+                ),
+                "explanation": "",
+                "story_value": "",
+                "evidence_ids": ["ev_emitters"],
+            },
+            {
+                "atom_id": "atom_ci",
+                "job_id": "brief_02",
+                "kind": "mechanism",
+                "title": "Обеспечение сертификатами",
+                "claim": (
+                    "HKMA использует Exchange Fund и Certificates of Indebtedness для обеспечения "
+                    "выпуска банкнот."
+                ),
+                "explanation": "",
+                "story_value": "",
+                "evidence_ids": ["ev_ci"],
+            },
+            {
+                "atom_id": "atom_lers",
+                "job_id": "brief_02",
+                "kind": "mechanism",
+                "title": "Ограничение LERS",
+                "claim": "Выпуск банкнот работает внутри LERS/currency board с курсом 7.80.",
+                "explanation": "",
+                "story_value": "",
+                "evidence_ids": ["ev_lers"],
+            },
+            {
+                "atom_id": "atom_hk10",
+                "job_id": "brief_02",
+                "kind": "exception",
+                "title": "Эпизод HK$10",
+                "claim": (
+                    "После попытки заменить HK$10 монетами HKMA выпустила собственные HK$10 notes "
+                    "в ответ на общественный спрос на сохранение бумажной купюры."
+                ),
+                "explanation": (
+                    "Это сохраняет полезный эпизод public demand, но не закрывает остаточный вопрос, "
+                    "почему эмитентом остаётся HKMA/правительство, а не частные банки."
+                ),
+                "story_value": "",
+                "evidence_ids": ["ev_hk10"],
+            },
+        ],
+        "research_gaps": [
+            {
+                "job_id": "brief_02",
+                "requirement_id": "q_hkd_mech_r4",
+                "category": "open_requirement",
+                "status": "deferred",
+                "question": "Why HKMA/government, rather than private banks, remains the HK$10 issuer.",
+                "resolution_note": "HK$10: не объяснено, почему HKMA/правительство, а не частные банки, осталось эмитентом.",
+            }
+        ],
+    }
+
+    report = _leaf_job_structural_report(
+        workspace,
+        job,
+        evidence_text_by_id={
+            "ev_emitters": "The HKMA issues the 10-dollar note and the other three banks issue HK$20, HK$50, HK$100, HK$500 and HK$1,000 denominations: The Hong Kong Shanghai Banking Corporation, Standard Chartered Hong Kong and Bank of China.",
+            "ev_ci": "HKMA uses the Exchange Fund and Certificates of Indebtedness to back note issuance.",
+            "ev_lers": "Banknote issuance operates under the LERS currency board at 7.80.",
+            "ev_hk10": "Between 1994 and 2002 an attempt was made to replace privately issued HK$10 notes with coins. In response to public demand for the continuation of this note, the HKMA issued its own HK$10 notes.",
+        },
+    )
+
+    assert report["passed"] is True
+
+
+def test_leaf_research_eval_rejects_requirement_atoms_with_swapped_evidence() -> None:
+    from app.generation_v2.research_leaf_eval_runner import _leaf_job_structural_report
+
+    job = {
+        "job_id": "brief_02",
+        "status": "deferred",
+        "questions": ["How are Hong Kong banknotes issued now?"],
+        "coverage_question_ids": ["q_hkd_current_mechanics"],
+        "coverage_requirements": [
+            {"requirement_id": "q_hkd_mech_r1", "description": "emitters"},
+            {"requirement_id": "q_hkd_mech_r2", "description": "HKMA / Exchange Fund"},
+            {"requirement_id": "q_hkd_mech_r3", "description": "LERS"},
+            {"requirement_id": "q_hkd_mech_r4", "description": "HK$10 exception"},
+        ],
+        "question_outcomes": [{"question": "How are Hong Kong banknotes issued now?", "status": "deferred", "note": "HK$10 residual remains open.", "evidence_ids": []}],
+        "requirement_outcomes": [
+            {"requirement_id": "q_hkd_mech_r1", "status": "answered", "note": "Answered.", "evidence_ids": ["ev_emitters"]},
+            {"requirement_id": "q_hkd_mech_r2", "status": "answered", "note": "Answered.", "evidence_ids": ["ev_ci"]},
+            {"requirement_id": "q_hkd_mech_r3", "status": "answered", "note": "Answered.", "evidence_ids": ["ev_lers"]},
+            {
+                "requirement_id": "q_hkd_mech_r4",
+                "status": "deferred",
+                "note": "HK$10: не объяснено, почему HKMA/правительство, а не частные банки, осталось эмитентом.",
+                "evidence_ids": [],
+            },
+        ],
+        "evidence_ids": ["ev_emitters", "ev_ci", "ev_lers"],
+        "observations": [{"note": "Research progress.", "source_refs": ["S03"], "evidence_ids": ["ev_emitters"]}],
+        "atom_ids": ["atom_emitters", "atom_ci", "atom_lers"],
+    }
+    workspace = {
+        "atom_drafts": [
+            {
+                "atom_id": "atom_emitters",
+                "job_id": "brief_02",
+                "kind": "context",
+                "title": "Current issuers",
+                "claim": "HSBC, Standard Chartered and Bank of China issue HK$20, HK$50, HK$100, HK$500 and HK$1,000 denominations.",
+                "explanation": "",
+                "story_value": "",
+                "evidence_ids": ["ev_ci"],
+            },
+            {
+                "atom_id": "atom_ci",
+                "job_id": "brief_02",
+                "kind": "mechanism",
+                "title": "Certificate backing",
+                "claim": "HKMA uses the Exchange Fund and Certificates of Indebtedness to back banknote issuance.",
+                "explanation": "",
+                "story_value": "",
+                "evidence_ids": ["ev_emitters"],
+            },
+            {
+                "atom_id": "atom_lers",
+                "job_id": "brief_02",
+                "kind": "mechanism",
+                "title": "LERS constraint",
+                "claim": "Banknote issuance operates under the LERS currency board at 7.80.",
+                "explanation": "",
+                "story_value": "",
+                "evidence_ids": ["ev_lers"],
+            },
+        ],
+        "research_gaps": [
+            {
+                "job_id": "brief_02",
+                "requirement_id": "q_hkd_mech_r4",
+                "category": "open_requirement",
+                "status": "deferred",
+                "question": "Why HK$10 remains government-issued.",
+                "resolution_note": "HK$10: не объяснено, почему HKMA/правительство, а не частные банки, осталось эмитентом.",
+            }
+        ],
+    }
+
+    report = _leaf_job_structural_report(
+        workspace,
+        job,
+        evidence_text_by_id={
+            "ev_emitters": "HSBC, Standard Chartered and Bank of China issue HK$20, HK$50, HK$100, HK$500 and HK$1,000 denominations.",
+            "ev_ci": "HKMA uses the Exchange Fund and Certificates of Indebtedness to back note issuance.",
+            "ev_lers": "Banknote issuance operates under the LERS currency board at 7.80.",
+        },
+    )
+
+    assert report["passed"] is False
+    assert any(
+        "q_hkd_mech_r1 answered outcome needs an authored atom using the same evidence" in issue
+        for issue in report["issues"]
+    )
+    assert any(
+        "q_hkd_mech_r2 answered outcome needs an authored atom using the same evidence" in issue
+        for issue in report["issues"]
+    )
+
+
+def test_leaf_research_eval_rejects_keyword_only_hk_canary_without_evidence_backed_material() -> None:
+    from app.generation_v2.research_leaf_eval_runner import _leaf_job_structural_report
+
+    job = {
+        "job_id": "brief_02",
+        "status": "mapped",
+        "questions": ["How are Hong Kong banknotes issued now?"],
+        "coverage_question_ids": ["q_hkd_current_mechanics"],
+        "coverage_requirements": [
+            {"requirement_id": "q_hkd_mech_r1", "description": "emitters"},
+            {"requirement_id": "q_hkd_mech_r2", "description": "HKMA / Exchange Fund"},
+            {"requirement_id": "q_hkd_mech_r3", "description": "LERS"},
+            {"requirement_id": "q_hkd_mech_r4", "description": "HK$10 exception"},
+        ],
+        "question_outcomes": [{"question": "How are Hong Kong banknotes issued now?", "status": "answered", "note": "Answered.", "evidence_ids": ["ev_noise"]}],
+        "requirement_outcomes": [
+            {
+                "requirement_id": "q_hkd_mech_r1",
+                "status": "answered",
+                "note": "Гонконгские банкноты: Standard Chartered, Bank of China.",
+                "evidence_ids": ["ev_noise"],
+            },
+            {
+                "requirement_id": "q_hkd_mech_r2",
+                "status": "answered",
+                "note": "HKMA Exchange Fund.",
+                "evidence_ids": ["ev_noise"],
+            },
+            {
+                "requirement_id": "q_hkd_mech_r3",
+                "status": "answered",
+                "note": "LERS 7.80.",
+                "evidence_ids": ["ev_noise"],
+            },
+            {
+                "requirement_id": "q_hkd_mech_r4",
+                "status": "answered",
+                "note": "HK$10.",
+                "evidence_ids": ["ev_noise"],
+            },
+        ],
+        "evidence_ids": ["ev_noise"],
+        "source_findings": [
+            {
+                "finding_id": "noise",
+                "statement": "This evidence is about an unrelated archival note.",
+                "support_explanation": "",
+                "evidence_ids": ["ev_noise"],
+            }
+        ],
+        "observations": [
+            {
+                "note": "HSBC, Standard Chartered, Bank of China, HKMA, Exchange Fund, LERS, 7.80 and HK$10.",
+                "source_refs": ["S99"],
+                "evidence_ids": ["ev_noise"],
+            }
+        ],
+        "atom_ids": [],
+    }
+
+    report = _leaf_job_structural_report(
+        {"atom_drafts": [], "research_gaps": []},
+        job,
+        evidence_text_by_id={"ev_noise": "This evidence is about an unrelated archival note."},
+    )
+
+    assert report["passed"] is False
+    assert any("q_hkd_mech_r1 evidence-backed material is missing expected domain terms" in issue for issue in report["issues"])
+    assert any(
+        "q_hkd_mech_r4 evidence-backed material is missing expected residual HK$10 terms" in issue
+        for issue in report["issues"]
+    )
+
+
+def test_leaf_research_eval_rejects_r4_gap_terms_copied_only_from_question() -> None:
+    from app.generation_v2.research_leaf_eval_runner import _leaf_job_structural_report
+
+    job = {
+        "job_id": "brief_02",
+        "status": "deferred",
+        "questions": ["How are Hong Kong banknotes issued now?"],
+        "coverage_question_ids": ["q_hkd_current_mechanics"],
+        "coverage_requirements": [
+            {"requirement_id": "q_hkd_mech_r1", "description": "emitters"},
+            {"requirement_id": "q_hkd_mech_r2", "description": "HKMA / Exchange Fund"},
+            {"requirement_id": "q_hkd_mech_r3", "description": "LERS"},
+            {"requirement_id": "q_hkd_mech_r4", "description": "HK$10 exception"},
+        ],
+        "question_outcomes": [{"question": "How are Hong Kong banknotes issued now?", "status": "deferred", "note": "Deferred.", "evidence_ids": []}],
+        "requirement_outcomes": [
+            {"requirement_id": "q_hkd_mech_r1", "status": "answered", "note": "Answered.", "evidence_ids": ["ev1"]},
+            {"requirement_id": "q_hkd_mech_r2", "status": "answered", "note": "Answered.", "evidence_ids": ["ev2"]},
+            {"requirement_id": "q_hkd_mech_r3", "status": "answered", "note": "Answered.", "evidence_ids": ["ev3"]},
+            {"requirement_id": "q_hkd_mech_r4", "status": "deferred", "note": "Deferred.", "evidence_ids": []},
+        ],
+        "evidence_ids": ["ev1", "ev2", "ev3"],
+        "observations": [{"note": "Research progress.", "source_refs": ["S03"], "evidence_ids": ["ev1"]}],
+        "atom_ids": ["atom_mech"],
+    }
+    workspace = {
+        "atom_drafts": [
+            {
+                "atom_id": "atom_mech",
+                "job_id": "brief_02",
+                "kind": "mechanism",
+                "title": "Current Hong Kong banknote issuance mechanism",
+                "claim": "HSBC, Standard Chartered and Bank of China issue denominations through an HKMA / Exchange Fund Certificate of Indebtedness mechanism inside the LERS currency board at 7.80.",
+                "explanation": "The mechanism links private banknote issuance, Certificates of Indebtedness, the Exchange Fund and LERS.",
+                "story_value": "",
+                "evidence_ids": ["ev1", "ev2", "ev3"],
+            }
+        ],
+        "research_gaps": [
+            {
+                "job_id": "brief_02",
+                "requirement_id": "q_hkd_mech_r4",
+                "category": "open_requirement",
+                "status": "deferred",
+                "question": "Why HK$10 remains government-issued.",
+                "resolution_note": "Не нашел.",
+            }
+        ],
+    }
+
+    report = _leaf_job_structural_report(
+        workspace,
+        job,
+        evidence_text_by_id={
+            "ev1": "HSBC, Standard Chartered and Bank of China issue HK$20, HK$50, HK$100, HK$500 and HK$1,000 denominations.",
+            "ev2": "HKMA uses the Exchange Fund and Certificates of Indebtedness to back note issuance.",
+            "ev3": "Banknote issuance operates under the LERS currency board at 7.80.",
+        },
+    )
+
+    assert report["passed"] is False
+    assert any(
+        "q_hkd_mech_r4 deferred outcome/gap text is missing expected residual HK$10 terms" in issue
+        for issue in report["issues"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_research_leaf_eval_marks_eval_run_completed_on_green_report(monkeypatch: pytest.MonkeyPatch) -> None:
+    import app.generation_v2.research_leaf_eval_runner as runner
+
+    run_id = uuid.uuid4()
+    original_workspace = {
+        "investigation_jobs": [
+            {
+                "job_id": "brief_01",
+                "status": "planned",
+                "coverage_question_ids": ["q_other"],
+                "coverage_requirements": [],
+            }
+        ],
+        "atom_drafts": [],
+        "research_gaps": [],
+    }
+    green_workspace = deepcopy(original_workspace)
+    green_workspace["investigation_jobs"][0].update(
+        {
+            "status": "mapped",
+            "questions": ["Other question"],
+            "question_outcomes": [{"question": "Other question", "status": "answered", "note": "Answered.", "evidence_ids": []}],
+            "requirement_outcomes": [],
+            "observations": [{"note": "Progress.", "source_refs": ["S01"], "evidence_ids": []}],
+            "atom_ids": [],
+            "evidence_ids": [],
+        }
+    )
+    saved: dict[str, object] = {}
+    run_record = SimpleNamespace(id=run_id)
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def get(self, _model, _run_id):
+            return run_record
+
+        async def commit(self):
+            saved["committed"] = True
+
+    async def preflight(**_kwargs):
+        return {"ready": True, "issues": []}
+
+    async def load_state(_db, _run):
+        return SimpleNamespace(
+            corpus_brief={"ok": True},
+            corpus_brief_artifact_id=uuid.uuid4(),
+            source_map=SourceMap(),
+            source_inventory=SourceMap(),
+            corpus=SimpleNamespace(run_view={}),
+            evidence_tools=[],
+            evidence_toolset=None,
+        )
+
+    async def ensure_workspace(*_args, **_kwargs):
+        return deepcopy(original_workspace)
+
+    async def run_job(**_kwargs):
+        return deepcopy(green_workspace)
+
+    async def save_workspace(_db, *, workspace, **_kwargs):
+        saved["workspace"] = deepcopy(workspace)
+        return SimpleNamespace(payload=workspace)
+
+    async def costs(_db, _run_id):
+        return {"totals": {"estimated_token_cost_usd": 0.2, "max_call_cost_usd": 0.1}}
+
+    async def evidence_texts(*_args, **_kwargs):
+        return {}
+
+    async def clone_run(**_kwargs):
+        return SimpleNamespace(id=run_id)
+
+    async def trace_metrics(_db, _run_id):
+        return {
+            "observed_models": {"requested": [], "response": [], "billing": []},
+            "model_call_count": 0,
+            "latency_ms": {"total": 0.0, "max": 0.0, "average": 0.0},
+        }
+
+    monkeypatch.setattr(runner, "async_session_factory", lambda: FakeSession())
+    monkeypatch.setattr(runner, "preflight_leaf_research_eval", preflight)
+    monkeypatch.setattr(runner, "_clone_research_leaf_eval_run", clone_run)
+    monkeypatch.setattr(runner, "load_passed_triage_state", load_state)
+    monkeypatch.setattr(runner, "ensure_research_workspace", ensure_workspace)
+    monkeypatch.setattr(runner, "run_research_job", run_job)
+    monkeypatch.setattr(runner, "save_research_workspace", save_workspace)
+    monkeypatch.setattr(runner, "summarize_tool_trace_costs", costs)
+    monkeypatch.setattr(runner, "_load_evidence_text_by_id", evidence_texts)
+    monkeypatch.setattr(runner, "_research_leaf_trace_metrics", trace_metrics)
+
+    result = await runner.run_leaf_research_eval(
+        triage_run_id=run_id,
+        question_id="q_other",
+        max_cost_usd=1.0,
+    )
+
+    assert result["structural_report"]["passed"] is True
+    assert saved["workspace"] == green_workspace
+    assert saved["committed"] is True
+    assert run_record.status == runner.GenerationStatus.COMPLETED
+    assert run_record.actual_cost == {"totals": {"estimated_token_cost_usd": 0.2, "max_call_cost_usd": 0.1}}
+    assert run_record.completed_at is not None
+    assert run_record.error_message is None
+
+
+@pytest.mark.asyncio
+async def test_research_leaf_eval_marks_eval_run_failed_on_exception(monkeypatch: pytest.MonkeyPatch) -> None:
+    import app.generation_v2.research_leaf_eval_runner as runner
+
+    run_id = uuid.uuid4()
+    run_record = SimpleNamespace(id=run_id)
+    committed: dict[str, bool] = {}
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def get(self, _model, _run_id):
+            return run_record
+
+        async def commit(self):
+            committed["value"] = True
+
+    async def preflight(**_kwargs):
+        return {"ready": True, "issues": []}
+
+    async def clone_run(**_kwargs):
+        return SimpleNamespace(id=run_id)
+
+    async def execute(**_kwargs):
+        raise RuntimeError("provider exploded")
+
+    async def costs(_db, _run_id):
+        return {"totals": {"estimated_token_cost_usd": 0.3, "max_call_cost_usd": 0.1}}
+
+    monkeypatch.setattr(runner, "async_session_factory", lambda: FakeSession())
+    monkeypatch.setattr(runner, "preflight_leaf_research_eval", preflight)
+    monkeypatch.setattr(runner, "_clone_research_leaf_eval_run", clone_run)
+    monkeypatch.setattr(runner, "_execute_leaf_research_eval_run", execute)
+    monkeypatch.setattr(runner, "summarize_tool_trace_costs", costs)
+
+    with pytest.raises(RuntimeError, match="provider exploded"):
+        await runner.run_leaf_research_eval(
+            triage_run_id=run_id,
+            question_id="q_other",
+            max_cost_usd=1.0,
+        )
+
+    assert committed["value"] is True
+    assert run_record.status == runner.GenerationStatus.FAILED
+    assert run_record.actual_cost == {"totals": {"estimated_token_cost_usd": 0.3, "max_call_cost_usd": 0.1}}
+    assert run_record.completed_at is not None
+    assert run_record.error_message == "provider exploded"
+
+
+@pytest.mark.asyncio
+async def test_research_leaf_eval_restores_original_workspace_after_red_report(monkeypatch: pytest.MonkeyPatch) -> None:
+    import app.generation_v2.research_leaf_eval_runner as runner
+
+    run_id = uuid.uuid4()
+    original_workspace = {
+        "investigation_jobs": [
+            {
+                "job_id": "brief_02",
+                "status": "planned",
+                "coverage_question_ids": ["q_hkd_current_mechanics"],
+                "coverage_requirements": [
+                    {"requirement_id": "q_hkd_mech_r1", "description": "emitters"},
+                    {"requirement_id": "q_hkd_mech_r2", "description": "HKMA / Exchange Fund"},
+                    {"requirement_id": "q_hkd_mech_r3", "description": "LERS"},
+                    {"requirement_id": "q_hkd_mech_r4", "description": "HK$10 exception"},
+                ],
+            }
+        ],
+        "atom_drafts": [],
+        "research_gaps": [],
+    }
+    red_workspace = deepcopy(original_workspace)
+    red_workspace["investigation_jobs"][0].update(
+        {
+            "status": "deferred",
+            "questions": ["How are Hong Kong banknotes issued now?"],
+            "question_outcomes": [
+                {
+                    "question": "How are Hong Kong banknotes issued now?",
+                    "status": "deferred",
+                    "note": "Deferred.",
+                    "evidence_ids": [],
+                }
+            ],
+            "requirement_outcomes": [
+                {"requirement_id": "q_hkd_mech_r1", "status": "deferred", "note": "Deferred.", "evidence_ids": []},
+                {"requirement_id": "q_hkd_mech_r2", "status": "deferred", "note": "Deferred.", "evidence_ids": []},
+                {"requirement_id": "q_hkd_mech_r3", "status": "deferred", "note": "Deferred.", "evidence_ids": []},
+                {"requirement_id": "q_hkd_mech_r4", "status": "deferred", "note": "Deferred.", "evidence_ids": []},
+            ],
+            "observations": [],
+            "atom_ids": [],
+            "evidence_ids": [],
+        }
+    )
+    saved: dict[str, object] = {}
+    run_record = SimpleNamespace(id=run_id)
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def get(self, _model, _run_id):
+            return run_record
+
+        async def commit(self):
+            saved["committed"] = True
+
+    async def preflight(**_kwargs):
+        return {"ready": True, "issues": []}
+
+    async def load_state(_db, _run):
+        return SimpleNamespace(
+            corpus_brief={"ok": True},
+            corpus_brief_artifact_id=uuid.uuid4(),
+            source_map=SourceMap(),
+            source_inventory=SourceMap(),
+            corpus=SimpleNamespace(run_view={}),
+            evidence_tools=[],
+            evidence_toolset=None,
+        )
+
+    async def ensure_workspace(*_args, **_kwargs):
+        return deepcopy(original_workspace)
+
+    async def run_job(**_kwargs):
+        return deepcopy(red_workspace)
+
+    async def save_workspace(_db, *, workspace, **_kwargs):
+        saved["workspace"] = deepcopy(workspace)
+        return SimpleNamespace(payload=workspace)
+
+    async def costs(_db, _run_id):
+        return {"totals": {"estimated_token_cost_usd": 0.0, "max_call_cost_usd": 0.0}}
+
+    async def evidence_texts(*_args, **_kwargs):
+        return {}
+
+    async def clone_run(**_kwargs):
+        return SimpleNamespace(id=run_id)
+
+    async def trace_metrics(_db, _run_id):
+        return {
+            "observed_models": {"requested": [], "response": [], "billing": []},
+            "model_call_count": 0,
+            "latency_ms": {"total": 0.0, "max": 0.0, "average": 0.0},
+        }
+
+    monkeypatch.setattr(runner, "async_session_factory", lambda: FakeSession())
+    monkeypatch.setattr(runner, "preflight_leaf_research_eval", preflight)
+    monkeypatch.setattr(runner, "_clone_research_leaf_eval_run", clone_run)
+    monkeypatch.setattr(runner, "load_passed_triage_state", load_state)
+    monkeypatch.setattr(runner, "ensure_research_workspace", ensure_workspace)
+    monkeypatch.setattr(runner, "run_research_job", run_job)
+    monkeypatch.setattr(runner, "save_research_workspace", save_workspace)
+    monkeypatch.setattr(runner, "summarize_tool_trace_costs", costs)
+    monkeypatch.setattr(runner, "_load_evidence_text_by_id", evidence_texts)
+    monkeypatch.setattr(runner, "_research_leaf_trace_metrics", trace_metrics)
+
+    with pytest.raises(RuntimeError, match="Research leaf eval failed"):
+        await runner.run_leaf_research_eval(
+            triage_run_id=run_id,
+            question_id="q_hkd_current_mechanics",
+            max_cost_usd=1.0,
+        )
+
+    assert saved["workspace"] == original_workspace
+    assert saved["committed"] is True
+    assert run_record.status == runner.GenerationStatus.FAILED
+    assert run_record.actual_cost == {"totals": {"estimated_token_cost_usd": 0.0, "max_call_cost_usd": 0.0}}
+    assert run_record.completed_at is not None
+    assert str(run_record.error_message).startswith("Research leaf eval failed:")
+
+
+@pytest.mark.asyncio
+async def test_research_leaf_eval_cli_exits_nonzero_on_red_report(monkeypatch: pytest.MonkeyPatch) -> None:
+    import sys
+    import app.generation_v2.research_leaf_eval_runner as runner
+
+    async def red_run(**_kwargs):
+        return {"structural_report": {"passed": False}}
+
+    monkeypatch.setattr(runner, "run_leaf_research_eval", red_run)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "research_leaf_eval_runner",
+            "--triage-run-id",
+            str(uuid.uuid4()),
+            "--question-id",
+            "q_hkd_current_mechanics",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        await runner._main_async()
+    assert exc.value.code == 1
 
 
 @pytest.mark.asyncio
@@ -1080,14 +2636,37 @@ async def test_research_job_requires_outcome_for_every_planned_question(monkeypa
             {
                 "job_id": "job_1",
                 "status": "in_progress",
+                "priority": "critical",
                 "source_refs": ["S01"],
                 "questions": ["How?", "Why?"],
                 # Planner hints guide the agent; they must not become a semantic completion gate.
                 "required_atom_kinds": ["mechanism"],
                 "observations": [{"note": "Finding", "source_refs": ["S01"], "evidence_ids": [evidence_id]}],
-                "atom_ids": [],
+                "atom_ids": ["atom_emitters", "atom_hk10"],
                 "evidence_ids": [evidence_id],
             }
+        ],
+        "atom_drafts": [
+            {
+                "atom_id": "atom_emitters",
+                "job_id": "job_1",
+                "kind": "context",
+                "title": "Emitters",
+                "claim": "Evidence identifies the emitters.",
+                "explanation": "",
+                "story_value": "Useful research material.",
+                "evidence_ids": [evidence_id],
+            },
+            {
+                "atom_id": "atom_hk10",
+                "job_id": "job_1",
+                "kind": "exception",
+                "title": "HK$10 exception",
+                "claim": "Evidence explains why HK$10 stays exceptional.",
+                "explanation": "",
+                "story_value": "Useful research material.",
+                "evidence_ids": [evidence_id],
+            },
         ],
         "processed_jobs": [],
     }
@@ -1148,6 +2727,641 @@ async def test_research_job_requires_outcome_for_every_planned_question(monkeypa
     assert rejected["missing_questions"] == ["Why?"]
     assert accepted["accepted"] is True
     assert workspace["investigation_jobs"][0]["question_outcomes"][1]["status"] == "deferred"
+
+
+@pytest.mark.asyncio
+async def test_research_job_pages_source_findings_by_requirement_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.generation_v2.research_workspace as workspace_api
+
+    run = SimpleNamespace(id=uuid.uuid4())
+    workspace = {
+        "investigation_jobs": [
+            {
+                "job_id": "job_1",
+                "status": "in_progress",
+                "coverage_requirements": [
+                    {
+                        "question_id": "q_current",
+                        "requirement_id": "req_hk10",
+                        "description": "Explain the HK$10 exception and public demand.",
+                    }
+                ],
+                "source_findings": [
+                    {
+                        "finding_id": "f_noise",
+                        "source_ref": "S01",
+                        "statement": "The linked exchange rate system uses certificates of indebtedness.",
+                        "evidence_ids": ["ev_lers"],
+                        "question_ids": ["q_current"],
+                    },
+                    {
+                        "finding_id": "f_hk10",
+                        "source_ref": "S03",
+                        "statement": "Public demand led HKMA to issue HK$10 notes.",
+                        "evidence_ids": ["ev_hk10"],
+                        "question_ids": ["q_current"],
+                    },
+                ],
+            }
+        ],
+    }
+
+    async def load(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(workspace_api, "load_research_workspace", load)
+    page_tool = next(
+        tool
+        for tool in build_research_workspace_tools(
+            db=None,  # type: ignore[arg-type]
+            run=run,  # type: ignore[arg-type]
+            workspace=workspace,
+            source_inventory=SourceMap(),
+            mode="job",
+            current_job_id="job_1",
+        )
+        if tool.name == "list_research_workspace_items"
+    )
+
+    page = await page_tool.handler(
+        {
+            "section": "current_job_source_findings",
+            "cursor": "0",
+            "limit": 1,
+            "requirement_id": "req_hk10",
+            "query": "HK$10 public demand",
+        }
+    )
+
+    assert page["accepted"] is True
+    assert page["items"][0]["finding_id"] == "f_hk10"
+    assert page["items"][0]["evidence_ids"] == ["ev_hk10"]
+    assert page["page"]["total_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_finish_research_job_requires_requirement_outcomes_and_records_deferred_gap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.generation_v2.research_workspace as workspace_api
+
+    run = SimpleNamespace(id=uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    workspace = {
+        "source_order": ["S01"],
+        "research_gaps": [],
+        "atom_drafts": [
+            {
+                "atom_id": "atom_emitters",
+                "job_id": "job_1",
+                "kind": "mechanism",
+                "title": "Emitters",
+                "claim": "Evidence identifies the emitters.",
+                "explanation": "",
+                "story_value": "Useful research material.",
+                "evidence_ids": [evidence_id],
+            },
+            {
+                "atom_id": "atom_hk10",
+                "job_id": "job_1",
+                "kind": "mechanism",
+                "title": "HK$10",
+                "claim": "Evidence explains why HK$10 is exceptional.",
+                "explanation": "",
+                "story_value": "Useful research material.",
+                "evidence_ids": [evidence_id],
+            },
+        ],
+        "investigation_jobs": [
+            {
+                "job_id": "job_1",
+                "status": "in_progress",
+                "priority": "critical",
+                "source_refs": ["S01"],
+                "questions": ["How does it work?"],
+                "coverage_requirements": [
+                    {
+                        "question_id": "q_current",
+                        "requirement_id": "r_emitters",
+                        "description": "Identify the emitters.",
+                    },
+                    {
+                        "question_id": "q_current",
+                        "requirement_id": "r_hk10_why",
+                        "description": "Explain why HK$10 is exceptional.",
+                    },
+                ],
+                "observations": [{"note": "Finding", "source_refs": ["S01"], "evidence_ids": [evidence_id]}],
+                "atom_ids": ["atom_emitters", "atom_hk10"],
+                "evidence_ids": [evidence_id],
+            }
+        ],
+        "processed_jobs": [],
+    }
+
+    async def load(_db, _run_id):
+        return workspace
+
+    async def save(_db, **_kwargs):
+        return SimpleNamespace(payload=workspace)
+
+    monkeypatch.setattr(workspace_api, "load_research_workspace", load)
+    monkeypatch.setattr(workspace_api, "save_research_workspace", save)
+    finish = next(
+        tool
+        for tool in build_research_workspace_tools(
+            db=None,  # type: ignore[arg-type]
+            run=run,  # type: ignore[arg-type]
+            workspace=workspace,
+            source_inventory=SourceMap(),
+            mode="job",
+            current_job_id="job_1",
+        )
+        if tool.name == "finish_research_job"
+    )
+
+    missing = await finish.handler(
+        {
+            "job_id": "job_1",
+            "status": "mapped",
+            "summary": "Mapped.",
+            "deferred_reason": "",
+            "question_outcomes": [
+                {
+                    "question": "How does it work?",
+                    "status": "answered",
+                    "note": "Evidence answers it.",
+                    "evidence_ids": [evidence_id],
+                }
+            ],
+            "requirement_outcomes": [
+                {
+                    "requirement_id": "r_emitters",
+                    "status": "answered",
+                    "note": "Evidence identifies the emitters.",
+                    "evidence_ids": [evidence_id],
+                    "supporting_atom_ids": ["atom_emitters"],
+                }
+            ],
+        }
+    )
+    mapped_with_deferred_requirement = await finish.handler(
+        {
+            "job_id": "job_1",
+            "status": "mapped",
+            "summary": "Mapped with one open requirement.",
+            "deferred_reason": "",
+            "question_outcomes": [
+                {
+                    "question": "How does it work?",
+                    "status": "answered",
+                    "note": "Evidence answers it.",
+                    "evidence_ids": [evidence_id],
+                }
+            ],
+            "requirement_outcomes": [
+                {
+                    "requirement_id": "r_emitters",
+                    "status": "answered",
+                    "note": "Evidence identifies the emitters.",
+                    "evidence_ids": [evidence_id],
+                    "supporting_atom_ids": ["atom_emitters"],
+                },
+                {
+                    "requirement_id": "r_hk10_why",
+                    "status": "deferred",
+                    "note": "No source explains why HK$10 stays exceptional.",
+                    "evidence_ids": [],
+                    "supporting_atom_ids": [],
+                },
+            ],
+        }
+    )
+    answered_question_with_deferred_requirement = await finish.handler(
+        {
+            "job_id": "job_1",
+            "status": "deferred",
+            "summary": "Deferred with one open requirement.",
+            "deferred_reason": "One coverage requirement remains unresolved.",
+            "question_outcomes": [
+                {
+                    "question": "How does it work?",
+                    "status": "answered",
+                    "note": "Evidence answers only part of it.",
+                    "evidence_ids": [evidence_id],
+                }
+            ],
+            "requirement_outcomes": [
+                {
+                    "requirement_id": "r_emitters",
+                    "status": "answered",
+                    "note": "Evidence identifies the emitters.",
+                    "evidence_ids": [evidence_id],
+                    "supporting_atom_ids": ["atom_emitters"],
+                },
+                {
+                    "requirement_id": "r_hk10_why",
+                    "status": "deferred",
+                    "note": "No source explains why HK$10 stays exceptional.",
+                    "evidence_ids": [],
+                    "supporting_atom_ids": [],
+                },
+            ],
+        }
+    )
+    deferred_question_with_answered_requirements = await finish.handler(
+        {
+            "job_id": "job_1",
+            "status": "mapped",
+            "summary": "Mapped with all requirements answered.",
+            "deferred_reason": "",
+            "question_outcomes": [
+                {
+                    "question": "How does it work?",
+                    "status": "deferred",
+                    "note": "Incorrectly deferred despite all requirements being answered.",
+                    "evidence_ids": [],
+                }
+            ],
+            "requirement_outcomes": [
+                {
+                    "requirement_id": "r_emitters",
+                    "status": "answered",
+                    "note": "Evidence identifies the emitters.",
+                    "evidence_ids": [evidence_id],
+                    "supporting_atom_ids": ["atom_emitters"],
+                },
+                {
+                    "requirement_id": "r_hk10_why",
+                    "status": "answered",
+                    "note": "Evidence explains why HK$10 stays exceptional.",
+                    "evidence_ids": [evidence_id],
+                    "supporting_atom_ids": ["atom_hk10"],
+                },
+            ],
+        }
+    )
+    accepted = await finish.handler(
+        {
+            "job_id": "job_1",
+            "status": "deferred",
+            "summary": "Deferred with one open requirement.",
+            "deferred_reason": "One coverage requirement remains unresolved.",
+            "question_outcomes": [
+                {
+                    "question": "How does it work?",
+                    "status": "deferred",
+                    "note": "One required part remains unresolved.",
+                    "evidence_ids": [],
+                }
+            ],
+            "requirement_outcomes": [
+                {
+                    "requirement_id": "r_emitters",
+                    "status": "answered",
+                    "note": "Evidence identifies the emitters.",
+                    "evidence_ids": [evidence_id],
+                    "supporting_atom_ids": ["atom_emitters"],
+                },
+                {
+                    "requirement_id": "r_hk10_why",
+                    "status": "deferred",
+                    "note": "No source explains why HK$10 stays exceptional.",
+                    "evidence_ids": [],
+                    "supporting_atom_ids": [],
+                },
+            ],
+        }
+    )
+    assert missing["accepted"] is False
+    assert missing["missing_requirement_ids"] == ["r_hk10_why"]
+    assert mapped_with_deferred_requirement["accepted"] is False
+    assert mapped_with_deferred_requirement["deferred_requirement_ids"] == ["r_hk10_why"]
+    assert answered_question_with_deferred_requirement["accepted"] is False
+    assert answered_question_with_deferred_requirement["answered_questions_with_deferred_requirements"] == [
+        "How does it work?"
+    ]
+    assert deferred_question_with_answered_requirements["accepted"] is False
+    assert deferred_question_with_answered_requirements["deferred_questions_with_answered_requirements"] == [
+        "How does it work?"
+    ]
+    assert accepted["accepted"] is True
+    job = workspace["investigation_jobs"][0]
+    assert [item["requirement_id"] for item in job["requirement_outcomes"]] == [
+        "r_emitters",
+        "r_hk10_why",
+    ]
+    assert [item["requirement_id"] for item in job["open_requirements"]] == ["r_hk10_why"]
+    assert job["coverage_requirements"][0]["result"]["supporting_atom_ids"] == ["atom_emitters"]
+    assert workspace["research_gaps"][0]["question"] == "Explain why HK$10 is exceptional."
+    assert workspace["research_gaps"][0]["category"] == "open_requirement"
+    assert workspace["research_gaps"][0]["treatment_relevance"] == "central"
+    assert workspace["research_gaps"][0]["requirement_id"] == "r_hk10_why"
+    assert workspace["research_gaps"][0]["status"] == "deferred"
+    resolved = await finish.handler(
+        {
+            "job_id": "job_1",
+            "status": "mapped",
+            "summary": "Mapped with both requirements answered.",
+            "deferred_reason": "",
+            "question_outcomes": [
+                {
+                    "question": "How does it work?",
+                    "status": "answered",
+                    "note": "Evidence answers it.",
+                    "evidence_ids": [evidence_id],
+                }
+            ],
+            "requirement_outcomes": [
+                {
+                    "requirement_id": "r_emitters",
+                    "status": "answered",
+                    "note": "Evidence identifies the emitters.",
+                    "evidence_ids": [evidence_id],
+                    "supporting_atom_ids": ["atom_emitters"],
+                },
+                {
+                    "requirement_id": "r_hk10_why",
+                    "status": "answered",
+                    "note": "Evidence now explains why HK$10 stays exceptional.",
+                    "evidence_ids": [evidence_id],
+                    "supporting_atom_ids": ["atom_hk10"],
+                },
+            ],
+        }
+    )
+    assert resolved["accepted"] is True
+    assert workspace["research_gaps"][0]["status"] == "resolved"
+    assert workspace["research_gaps"][0]["evidence_ids"] == [evidence_id]
+
+
+@pytest.mark.asyncio
+async def test_finish_research_job_validates_answered_requirement_supporting_atoms(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.generation_v2.research_workspace as workspace_api
+
+    run = SimpleNamespace(id=uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    other_evidence_id = str(uuid.uuid4())
+    workspace = {
+        "source_order": ["S01"],
+        "research_gaps": [],
+        "atom_drafts": [
+            {
+                "atom_id": "atom_good",
+                "job_id": "job_1",
+                "kind": "mechanism",
+                "title": "Mechanism",
+                "claim": "Evidence answers the requirement.",
+                "explanation": "",
+                "story_value": "Useful research material.",
+                "evidence_ids": [evidence_id],
+            },
+            {
+                "atom_id": "atom_other_evidence",
+                "job_id": "job_1",
+                "kind": "mechanism",
+                "title": "Different evidence",
+                "claim": "Different evidence supports a different claim.",
+                "explanation": "",
+                "story_value": "Useful research material.",
+                "evidence_ids": [other_evidence_id],
+            },
+            {
+                "atom_id": "atom_other_job",
+                "job_id": "job_2",
+                "kind": "mechanism",
+                "title": "Wrong job",
+                "claim": "This belongs to another job.",
+                "explanation": "",
+                "story_value": "Useful research material.",
+                "evidence_ids": [evidence_id],
+            },
+            {
+                "atom_id": "atom_merged",
+                "job_id": "job_1",
+                "kind": "mechanism",
+                "title": "Merged",
+                "claim": "Inactive atom.",
+                "explanation": "",
+                "story_value": "Useful research material.",
+                "evidence_ids": [evidence_id],
+                "status": "merged",
+            },
+        ],
+        "investigation_jobs": [
+            {
+                "job_id": "job_1",
+                "status": "in_progress",
+                "priority": "critical",
+                "source_refs": ["S01"],
+                "questions": ["How does it work?"],
+                "coverage_requirements": [
+                    {"question_id": "q_current", "requirement_id": "r_mechanism", "description": "Explain it."}
+                ],
+                "observations": [{"note": "Finding", "source_refs": ["S01"], "evidence_ids": [evidence_id]}],
+                "atom_ids": ["atom_good", "atom_other_evidence", "atom_other_job", "atom_merged"],
+                "evidence_ids": [evidence_id, other_evidence_id],
+            }
+        ],
+        "processed_jobs": [],
+    }
+
+    async def load(_db, _run_id):
+        return workspace
+
+    async def save(_db, **_kwargs):
+        return SimpleNamespace(payload=workspace)
+
+    monkeypatch.setattr(workspace_api, "load_research_workspace", load)
+    monkeypatch.setattr(workspace_api, "save_research_workspace", save)
+    finish = next(
+        tool
+        for tool in build_research_workspace_tools(
+            db=None,  # type: ignore[arg-type]
+            run=run,  # type: ignore[arg-type]
+            workspace=workspace,
+            source_inventory=SourceMap(),
+            mode="job",
+            current_job_id="job_1",
+        )
+        if tool.name == "finish_research_job"
+    )
+
+    def args(supporting_atom_ids: list[str]):
+        return {
+            "job_id": "job_1",
+            "status": "mapped",
+            "summary": "Mapped.",
+            "deferred_reason": "",
+            "question_outcomes": [
+                {
+                    "question": "How does it work?",
+                    "status": "answered",
+                    "note": "Evidence answers it.",
+                    "evidence_ids": [evidence_id],
+                }
+            ],
+            "requirement_outcomes": [
+                {
+                    "requirement_id": "r_mechanism",
+                    "status": "answered",
+                    "note": "Evidence answers it.",
+                    "evidence_ids": [evidence_id],
+                    "supporting_atom_ids": supporting_atom_ids,
+                }
+            ],
+        }
+
+    missing = await finish.handler(args([]))
+    wrong_job = await finish.handler(args(["atom_other_job"]))
+    inactive = await finish.handler(args(["atom_merged"]))
+    no_shared_evidence = await finish.handler(args(["atom_other_evidence"]))
+    accepted = await finish.handler(args(["atom_good"]))
+
+    assert missing["accepted"] is False
+    assert missing["error"] == "answered requirement requires at least one supporting_atom_id"
+    assert wrong_job["accepted"] is False
+    assert wrong_job["invalid_supporting_atom_ids"] == ["atom_other_job"]
+    assert inactive["accepted"] is False
+    assert inactive["invalid_supporting_atom_ids"] == ["atom_merged"]
+    assert no_shared_evidence["accepted"] is False
+    assert no_shared_evidence["supporting_atom_ids_without_shared_evidence"] == ["atom_other_evidence"]
+    assert accepted["accepted"] is True
+    job = workspace["investigation_jobs"][0]
+    assert job["requirement_outcomes"][0]["supporting_atom_ids"] == ["atom_good"]
+    assert job["coverage_requirements"][0]["result"]["supporting_atom_ids"] == ["atom_good"]
+
+
+def test_finish_research_job_schema_does_not_cap_requirement_outcomes() -> None:
+    from app.generation_v2.runtime_schema import strict_json_schema
+
+    tool = next(
+        tool
+        for tool in build_research_workspace_tools(
+            db=None,  # type: ignore[arg-type]
+            run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+            workspace={"investigation_jobs": []},
+            source_inventory=SourceMap(),
+            mode="job",
+            current_job_id="job_1",
+        )
+        if tool.name == "finish_research_job"
+    )
+    schema = strict_json_schema(tool.parameters)
+
+    assert "maxItems" not in schema["properties"]["requirement_outcomes"]
+    requirement_schema = schema["properties"]["requirement_outcomes"]["items"]
+    assert "supporting_atom_ids" in requirement_schema["required"]
+
+
+@pytest.mark.asyncio
+async def test_deferred_requirement_gap_identity_includes_job_and_requirement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.generation_v2.research_workspace as workspace_api
+
+    run = SimpleNamespace(id=uuid.uuid4())
+    workspace = {
+        "source_order": ["S01", "S02"],
+        "research_gaps": [],
+        "investigation_jobs": [
+            {
+                "job_id": "job_1",
+                "status": "in_progress",
+                "priority": "critical",
+                "source_refs": ["S01"],
+                "questions": ["Q1"],
+                "coverage_question_ids": ["q1"],
+                "coverage_requirements": [
+                    {
+                        "question_id": "q1",
+                        "requirement_id": "r_same",
+                        "description": "Explain the mechanism.",
+                    }
+                ],
+                "observations": [],
+                "atom_ids": [],
+                "evidence_ids": [],
+            },
+            {
+                "job_id": "job_2",
+                "status": "in_progress",
+                "priority": "critical",
+                "source_refs": ["S02"],
+                "questions": ["Q2"],
+                "coverage_question_ids": ["q2"],
+                "coverage_requirements": [
+                    {
+                        "question_id": "q2",
+                        "requirement_id": "r_same",
+                        "description": "Explain the mechanism.",
+                    }
+                ],
+                "observations": [],
+                "atom_ids": [],
+                "evidence_ids": [],
+            },
+        ],
+        "processed_jobs": [],
+    }
+
+    async def load(_db, _run_id):
+        return workspace
+
+    async def save(_db, **_kwargs):
+        return SimpleNamespace(payload=workspace)
+
+    monkeypatch.setattr(workspace_api, "load_research_workspace", load)
+    monkeypatch.setattr(workspace_api, "save_research_workspace", save)
+
+    async def finish_job(job_id: str, question: str):
+        finish = next(
+            tool
+            for tool in build_research_workspace_tools(
+                db=None,  # type: ignore[arg-type]
+                run=run,  # type: ignore[arg-type]
+                workspace=workspace,
+                source_inventory=SourceMap(),
+                mode="job",
+                current_job_id=job_id,
+            )
+            if tool.name == "finish_research_job"
+        )
+        return await finish.handler(
+            {
+                "job_id": job_id,
+                "status": "deferred",
+                "summary": "Deferred.",
+                "deferred_reason": "Mechanism remains open.",
+                "question_outcomes": [
+                    {
+                        "question": question,
+                        "status": "deferred",
+                        "note": "Mechanism remains open.",
+                        "evidence_ids": [],
+                    }
+                ],
+                "requirement_outcomes": [
+                    {
+                        "requirement_id": "r_same",
+                        "status": "deferred",
+                        "note": "Mechanism remains open.",
+                        "evidence_ids": [],
+                    }
+                ],
+            }
+        )
+
+    assert (await finish_job("job_1", "Q1"))["accepted"] is True
+    assert (await finish_job("job_2", "Q2"))["accepted"] is True
+
+    assert len(workspace["research_gaps"]) == 2
+    assert {gap["job_id"] for gap in workspace["research_gaps"]} == {"job_1", "job_2"}
+    assert len({gap["normalized_key"] for gap in workspace["research_gaps"]}) == 2
 
 
 def _complete_set_semantic_review(workspace: dict, set_id: str) -> None:
@@ -1435,7 +3649,8 @@ def test_research_job_context_does_not_copy_foreign_semantic_work() -> None:
     payload = research_job_prompt_payload(workspace, "current", source_map_summary={})
     encoded = json.dumps(payload, ensure_ascii=False)
 
-    assert payload["workspace_progress"]["global_atom_count"] == 80
+    assert "workspace_progress" not in payload
+    assert "other_job_index" not in encoded
     assert "foreign semantic finding" not in encoded
     assert len(encoded) < 8000
 
@@ -1504,6 +3719,610 @@ def test_research_planner_gets_routing_index_not_quote_or_summary_dump() -> None
     assert len(encoded) < 30000
 
 
+def test_research_job_source_map_summary_metadata_matches_omitted_catalog() -> None:
+    cards = [_source(title=f"Source {idx}") for idx in range(3)]
+    source_map = SourceMap(source_cards=cards)
+    summary = source_map_research_summary(source_map, source_map)
+    workspace = {
+        "source_order": ["S01", "S02", "S03"],
+        "investigation_jobs": [{"job_id": "job_1", "source_refs": ["S01"], "status": "in_progress"}],
+    }
+
+    payload = research_job_prompt_payload(workspace, "job_1", source_map_summary=summary)
+    encoded = json.dumps(payload, ensure_ascii=False)
+
+    assert "source_map_summary" not in payload
+    assert "source_cards" not in encoded
+    assert payload["job"]["source_scope"]["allowed_source_pool"]["source_count"] == 1
+    assert payload["job"]["source_scope"]["recommended_source_refs"] == ["S01"]
+
+
+def test_research_job_payload_is_requirement_first_and_omits_lineage_catalogs() -> None:
+    evidence_ids = [f"ev-{idx:03d}" for idx in range(98)]
+    source_findings = [
+        {
+            "finding_id": f"finding-{idx:03d}",
+            "source_ref": f"S{(idx % 26) + 1:02d}",
+            "statement": f"Finding {idx} gives a compact lead for the question.",
+            "limitations": [],
+            "evidence_ids": [evidence_ids[idx % len(evidence_ids)]],
+            "question_ids": ["q_leaf"],
+        }
+        for idx in range(127)
+    ]
+    source_gaps = [
+        {
+            "source_ref": f"S{(idx % 26) + 1:02d}",
+            "question_id": "q_leaf",
+            "description": f"Residual gap {idx}.",
+            "evidence_ids": [evidence_ids[idx % len(evidence_ids)]],
+        }
+        for idx in range(21)
+    ]
+    job = {
+        "job_id": "brief_02",
+        "corpus_handoff_id": "handoff:q_leaf",
+        "coverage_question_ids": ["q_leaf"],
+        "source_refs": [f"S{idx:02d}" for idx in range(1, 27)],
+        "starting_evidence_ids": evidence_ids,
+        "source_findings": source_findings,
+        "source_gaps": source_gaps,
+        "source_cards": [{"source_ref": f"S{idx:02d}", "summary": "card"} for idx in range(1, 27)],
+        "coverage_requirements": [
+            {
+                "question_id": "q_leaf",
+                "requirement_id": f"r{idx}",
+                "description": f"Requirement {idx}",
+                "rationale": "Needed for the answer.",
+                "completion_criterion": "Supported or explicitly deferred.",
+                "result": {"status": "unknown", "finding_ids": []},
+            }
+            for idx in range(1, 5)
+        ],
+        "questions": ["How does the mechanism work?"],
+        "status": "in_progress",
+    }
+    workspace = {"investigation_jobs": [job], "atom_drafts": [], "research_gaps": []}
+
+    payload = research_job_prompt_payload(workspace, "brief_02", source_map_summary={})
+    encoded = json.dumps(payload, ensure_ascii=False)
+
+    assert len(job["source_findings"]) == 127
+    assert len(job["source_gaps"]) == 21
+    assert len(job["starting_evidence_ids"]) == 98
+    assert len(encoded) < 25_000
+    assert "handoff_finding_ids" not in encoded
+    assert "handoff_evidence_ids" not in encoded
+    assert "source_card_previews" not in encoded
+    assert "other_job_index" not in encoded
+    assert "source_map_summary" not in payload
+    assert "source_refs" not in payload["job"]
+    assert payload["job"]["source_scope"]["allowed_source_pool"]["source_count"] == 26
+    assert payload["job"]["source_scope"]["recommended_source_refs"]
+    assert all(
+        lead["evidence_ids"]
+        for lead in payload["job"]["question_level_leads"]["finding_leads"]
+    )
+
+
+def test_research_job_checkpoint_uses_compact_current_job_not_corpus_inventory() -> None:
+    workspace = {
+        "current_job": {"job_id": "brief_02"},
+        "investigation_jobs": [
+            {
+                "job_id": "brief_02",
+                "coverage_question_ids": ["q_leaf"],
+                "questions": ["How does it work?"],
+                "source_refs": ["S01"],
+                "coverage_requirements": [
+                    {
+                        "question_id": "q_leaf",
+                        "requirement_id": "r1",
+                        "description": "Explain the mechanism.",
+                        "rationale": "Needed.",
+                        "completion_criterion": "Mechanism is evidence-backed.",
+                    }
+                ],
+                "observations": [{"source_refs": ["S01"], "evidence_ids": ["ev1"], "note": "Useful read."}],
+                "status": "in_progress",
+            }
+        ],
+        "atom_drafts": [],
+        "research_gaps": [],
+    }
+    initial_payload = research_job_prompt_payload(workspace, "brief_02", source_map_summary={})
+    state = {
+        "phase": "v2_editorial_research",
+        "agent_name": "research_job_agent_brief_02",
+        "corpus": {"source_inventory": [{"title": "FULL_CORPUS_MARKER"} for _ in range(100)]},
+        "research_workspace": {
+            "current_job_detail": initial_payload["job"],
+            "corpus_brief_preview": "SHOULD_NOT_APPEAR",
+        },
+        "durable_paging_progress": {"current_job_source_findings": {"next_cursor": "20"}},
+    }
+
+    content = checkpoint_restart_message(
+        resume_context=build_checkpoint_resume_context(
+            run_config={"user_prompt": "Topic", "language": "ru", "duration_target": 1800},
+            workflow_contract=RESEARCH_JOB_RESUME_CONTRACT,
+        ),
+        reason="input_tokens>=60000",
+        previous_chain_id="chain-0",
+        next_chain_id="chain-1",
+        checkpoint_index=1,
+        state=state,
+        last_tool_results=[{"tool_name": "read_evidence", "output": {"accepted": True, "evidence_id": "ev1"}}],
+    )["content"]
+
+    assert len(content) < len(json.dumps(state, ensure_ascii=False)) + 3_000
+    assert "FULL_CORPUS_MARKER" not in content
+    assert "SHOULD_NOT_APPEAR" not in content
+    assert "current_job_detail" in content
+    assert "recent_read_previews" in content
+
+
+def test_research_job_checkpoint_uses_last_targeted_requirement_from_production_trace() -> None:
+    run_id = uuid.uuid4()
+    workspace = {
+        "current_job": {"job_id": "brief_02"},
+        "investigation_jobs": [
+            {
+                "job_id": "brief_02",
+                "coverage_question_ids": ["q_leaf"],
+                "questions": ["How does it work?"],
+                "source_refs": ["S03"],
+                "coverage_requirements": [
+                    {"question_id": "q_leaf", "requirement_id": "r1", "description": "Issuers."},
+                    {"question_id": "q_leaf", "requirement_id": "r4", "description": "Exception reason."},
+                ],
+                "status": "in_progress",
+            }
+        ],
+    }
+    traces = [
+        V2ToolTrace(
+            generation_run_id=run_id,
+            phase="v2_editorial_research",
+            agent_name="research_job_agent_brief_02",
+            tool_name="list_research_workspace_items",
+            input_json={
+                "section": "current_job_source_findings",
+                "cursor": "0",
+                "limit": 5,
+                "requirement_id": "r4",
+                "query": "HK$10 residual",
+            },
+            output_json={
+                "accepted": True,
+                "section": "current_job_source_findings",
+                "filter": {"requirement_id": "r4", "query": "HK$10 residual"},
+                "items": [{"finding_id": "f1", "source_ref": "S03", "evidence_ids": ["ev1"]}],
+                "page": {"cursor": "0", "next_cursor": "", "returned_count": 1, "total_count": 1},
+            },
+        )
+    ]
+
+    checkpoint = compact_research_job_checkpoint_payload(
+        workspace,
+        current_job_id="brief_02",
+        recent_tool_traces=traces,
+    )
+
+    assert checkpoint["current_job_detail"]["last_targeted_requirement_id"] == "r4"
+    assert checkpoint["recent_read_previews"][0]["requirement_id"] == "r4"
+    assert checkpoint["recent_read_previews"][0]["query"] == "HK$10 residual"
+    assert "result_preview" in checkpoint["recent_read_previews"][0]
+
+
+def test_research_job_checkpoint_does_not_default_active_requirement_to_first() -> None:
+    checkpoint = compact_research_job_checkpoint_payload(
+        {
+            "current_job": {"job_id": "brief_02"},
+            "investigation_jobs": [
+                {
+                    "job_id": "brief_02",
+                    "coverage_requirements": [
+                        {"question_id": "q", "requirement_id": "r1"},
+                        {"question_id": "q", "requirement_id": "r2"},
+                    ],
+                    "status": "in_progress",
+                }
+            ],
+        },
+        current_job_id="brief_02",
+    )
+
+    assert checkpoint["current_job_detail"]["last_targeted_requirement_id"] is None
+
+
+def test_research_job_checkpoint_keeps_actionable_leads_without_writes() -> None:
+    workspace = {
+        "current_job": {"job_id": "brief_02"},
+        "investigation_jobs": [
+            {
+                "job_id": "brief_02",
+                "coverage_question_ids": ["q_leaf"],
+                "questions": ["How does it work?"],
+                "source_refs": ["S03"],
+                "source_findings": [
+                    {
+                        "finding_id": "f1",
+                        "source_ref": "S03",
+                        "statement": "The source describes a concrete mechanism.",
+                        "limitations": [],
+                        "evidence_ids": ["ev1"],
+                        "question_ids": ["q_leaf"],
+                    }
+                ],
+                "coverage_requirements": [
+                    {"question_id": "q_leaf", "requirement_id": "r1", "description": "Mechanism."}
+                ],
+                "status": "in_progress",
+            }
+        ],
+        "research_gaps": [],
+        "atom_drafts": [],
+    }
+
+    checkpoint = compact_research_job_checkpoint_payload(workspace, current_job_id="brief_02")
+
+    assert checkpoint["current_job_detail"]["persisted_progress"]["observations"] == []
+    assert checkpoint["current_job_detail"]["question_level_leads"]["finding_leads"][0]["finding_id"] == "f1"
+    assert "lineage" not in checkpoint["checkpoint_usage"].lower()
+
+
+def test_research_job_paging_progress_separates_requirement_and_query_fingerprint() -> None:
+    run_id = uuid.uuid4()
+    traces = [
+        V2ToolTrace(
+            generation_run_id=run_id,
+            phase="v2_editorial_research",
+            agent_name="research_job_agent_brief_02",
+            tool_name="list_research_workspace_items",
+            input_json={
+                "section": "current_job_source_findings",
+                "cursor": "0",
+                "limit": 5,
+                "question_id": "q_leaf",
+                "requirement_id": requirement_id,
+                "query": f"lookup {requirement_id}",
+            },
+            output_json={
+                "accepted": True,
+                "items": [{"finding_id": f"f-{requirement_id}"}],
+                "page": {"cursor": "0", "next_cursor": "1", "returned_count": 1, "total_count": 2},
+            },
+        )
+        for requirement_id in ("r1", "r2", "r3", "r4")
+    ]
+
+    progress = summarize_paginated_tool_traces(traces)
+
+    assert len(progress) == 4
+    assert {item["requirement_id"] for item in progress} == {"r1", "r2", "r3", "r4"}
+    assert all(item["question_id"] == "q_leaf" for item in progress)
+    assert all(item.get("query_fingerprint") for item in progress)
+
+
+def test_research_job_persisted_progress_filters_gaps_by_job_not_shared_sources() -> None:
+    workspace = {
+        "investigation_jobs": [
+            {"job_id": "job_a", "source_refs": ["S01"], "status": "in_progress"},
+            {"job_id": "job_b", "source_refs": ["S01"], "status": "in_progress"},
+        ],
+        "research_gaps": [
+            {
+                "gap_id": "gap_a",
+                "job_id": "job_a",
+                "job_ids": ["job_a"],
+                "requirement_id": "r1",
+                "question": "Job A only.",
+                "source_refs": ["S01"],
+            }
+        ],
+        "atom_drafts": [],
+    }
+
+    payload = research_job_prompt_payload(workspace, "job_b", source_map_summary={})
+
+    assert payload["job"]["persisted_progress"]["research_gaps"] == []
+
+
+@pytest.mark.asyncio
+async def test_research_observation_persists_and_validates_requirement_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import research_workspace as workspace_api
+
+    workspace = {
+        "current_job": {"job_id": "job_1"},
+        "source_order": ["S01"],
+        "investigation_jobs": [
+            {
+                "job_id": "job_1",
+                "source_refs": ["S01"],
+                "coverage_requirements": [{"question_id": "q", "requirement_id": "r1"}],
+                "status": "in_progress",
+            }
+        ],
+    }
+
+    async def load(_db, _run_id):
+        return workspace
+
+    async def save(_db, *, generation_run_id, workspace):  # noqa: ARG001
+        return None
+
+    monkeypatch.setattr(workspace_api, "load_research_workspace", load)
+    monkeypatch.setattr(workspace_api, "save_research_workspace", save)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=SourceMap(source_cards=[_source(title="Source")]),
+        mode="job",
+        current_job_id="job_1",
+    )
+    observation_tool = next(tool for tool in tools if tool.name == "record_research_observation")
+
+    accepted = await observation_tool.handler(
+        {
+            "job_id": "job_1",
+            "requirement_id": "r1",
+            "source_refs": ["S01"],
+            "evidence_ids": [],
+            "note": "Useful read advanced the requirement.",
+            "pending_questions": [],
+        }
+    )
+    rejected = await observation_tool.handler(
+        {
+            "job_id": "job_1",
+            "requirement_id": "missing",
+            "source_refs": ["S01"],
+            "evidence_ids": [],
+            "note": "Invalid requirement.",
+            "pending_questions": [],
+        }
+    )
+
+    job = workspace["investigation_jobs"][0]
+    assert accepted["accepted"] is True
+    assert job["observations"][0]["requirement_id"] == "r1"
+    assert job["last_targeted_requirement_id"] == "r1"
+    assert rejected["accepted"] is False
+    assert rejected["error"] == "observation requirement_id must belong to the current research job"
+
+
+@pytest.mark.asyncio
+async def test_research_gap_persists_requirement_scope_without_cross_job_merge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import research_workspace as workspace_api
+
+    workspace = {
+        "current_job": {"job_id": "job_a"},
+        "source_order": ["S01"],
+        "investigation_jobs": [
+            {
+                "job_id": "job_a",
+                "source_refs": ["S01"],
+                "coverage_requirements": [{"question_id": "q", "requirement_id": "r1"}],
+                "status": "in_progress",
+            },
+            {
+                "job_id": "job_b",
+                "source_refs": ["S01"],
+                "coverage_requirements": [{"question_id": "q", "requirement_id": "r1"}],
+                "status": "in_progress",
+            },
+        ],
+        "research_gaps": [
+            {
+                "gap_id": "gap_b",
+                "job_id": "job_b",
+                "job_ids": ["job_b"],
+                "question_id": "q",
+                "requirement_id": "r1",
+                "question": "Same wording.",
+                "category": "open_requirement",
+                "normalized_key": "open_requirement:job_b:q:r1:same wording",
+                "source_refs": ["S01"],
+                "evidence_ids": [],
+                "atom_refs": [],
+            }
+        ],
+    }
+
+    async def load(_db, _run_id):
+        return workspace
+
+    async def save(_db, *, generation_run_id, workspace):  # noqa: ARG001
+        return None
+
+    monkeypatch.setattr(workspace_api, "load_research_workspace", load)
+    monkeypatch.setattr(workspace_api, "save_research_workspace", save)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=SourceMap(source_cards=[_source(title="Source")]),
+        mode="job",
+        current_job_id="job_a",
+    )
+    gap_tool = next(tool for tool in tools if tool.name == "record_research_gap")
+
+    accepted = await gap_tool.handler(
+        {
+            "job_id": "job_a",
+            "requirement_id": "r1",
+            "question": "Same wording.",
+            "category": "open_requirement",
+            "severity": "non_blocking",
+            "treatment_relevance": "central",
+            "source_refs": ["S01"],
+            "evidence_ids": [],
+            "status": "open",
+            "resolution_note": "Still unresolved.",
+        }
+    )
+
+    assert accepted["accepted"] is True
+    assert len(workspace["research_gaps"]) == 2
+    job_a_gap = next(item for item in workspace["research_gaps"] if item["job_id"] == "job_a")
+    assert job_a_gap["requirement_id"] == "r1"
+    assert workspace["investigation_jobs"][0]["last_targeted_requirement_id"] == "r1"
+
+
+def test_research_job_recommendations_start_with_persisted_recommendations() -> None:
+    workspace = {
+        "investigation_jobs": [
+            {
+                "job_id": "job_1",
+                "coverage_question_ids": ["q"],
+                "questions": ["Question"],
+                "recommended_source_refs": ["S09", "S08"],
+                "source_refs": ["S01", "S09", "S08"],
+                "source_findings": [
+                    {
+                        "finding_id": "f1",
+                        "source_ref": "S01",
+                        "statement": "Relevant lead.",
+                        "limitations": [],
+                        "evidence_ids": ["ev1"],
+                        "question_ids": ["q"],
+                    }
+                ],
+                "coverage_requirements": [],
+                "status": "in_progress",
+            }
+        ],
+        "research_gaps": [],
+        "atom_drafts": [],
+    }
+
+    payload = research_job_prompt_payload(workspace, "job_1", source_map_summary={})
+
+    assert payload["job"]["source_scope"]["recommended_source_refs"][:2] == ["S09", "S08"]
+
+
+def test_question_level_handoff_gaps_are_not_keyword_routed_to_requirements() -> None:
+    from app.generation_v2 import research_workspace as workspace_api
+
+    question_gap = {
+        "source_ref": "S03",
+        "question_id": "q_hkd_current_mechanics",
+        "description": "HK$10 residual question mentions HKMA, banks, Exchange Fund and denominations.",
+        "evidence_ids": ["ev_gap"],
+    }
+    explicit_gap = {
+        **question_gap,
+        "description": "Explicit r4 residual gap.",
+        "requirement_id": "q_hkd_mech_r4",
+    }
+
+    assert workspace_api._question_handoff_gap_previews(  # noqa: SLF001
+        [question_gap],
+        question_id="q_hkd_current_mechanics",
+    ) == [
+        {
+            "source_ref": "S03",
+            "question_id": "q_hkd_current_mechanics",
+            "description": question_gap["description"],
+            "evidence_ids": ["ev_gap"],
+        }
+    ]
+    assert (
+        workspace_api._explicit_requirement_handoff_gap_previews(  # noqa: SLF001
+            [question_gap],
+            requirement_id="q_hkd_mech_r1",
+            question_id="q_hkd_current_mechanics",
+        )
+        == []
+    )
+    assert (
+        workspace_api._explicit_requirement_handoff_gap_previews(  # noqa: SLF001
+            [explicit_gap],
+            requirement_id="q_hkd_mech_r1",
+            question_id="q_hkd_current_mechanics",
+        )
+        == []
+    )
+    assert workspace_api._explicit_requirement_handoff_gap_previews(  # noqa: SLF001
+        [explicit_gap],
+        requirement_id="q_hkd_mech_r4",
+        question_id="q_hkd_current_mechanics",
+    ) == [
+        {
+            "source_ref": "S03",
+            "question_id": "q_hkd_current_mechanics",
+            "requirement_id": "q_hkd_mech_r4",
+            "description": "Explicit r4 residual gap.",
+            "evidence_ids": ["ev_gap"],
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_requirement_supporting_atoms_are_visible_on_requirement_payload_and_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import research_workspace as workspace_api
+
+    workspace = {
+        "investigation_jobs": [
+            {
+                "job_id": "job_1",
+                "status": "mapped",
+                "questions": ["How does it work?"],
+                "question_outcomes": [
+                    {
+                        "question": "How does it work?",
+                        "status": "answered",
+                        "note": "Answered.",
+                        "evidence_ids": ["ev_1"],
+                        "supporting_atom_ids": ["wrong_level"],
+                    }
+                ],
+                "requirement_outcomes": [
+                    {
+                        "requirement_id": "r1",
+                        "status": "answered",
+                        "note": "Answered.",
+                        "evidence_ids": ["ev_1"],
+                        "supporting_atom_ids": ["atom_1"],
+                    }
+                ],
+            }
+        ]
+    }
+    payload = research_job_prompt_payload(workspace, "job_1", source_map_summary={})
+
+    progress = payload["job"]["persisted_progress"]
+    assert "supporting_atom_ids" not in progress["question_outcomes"][0]
+    assert progress["requirement_outcomes"][0]["supporting_atom_ids"] == ["atom_1"]
+
+    async def load(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(workspace_api, "load_research_workspace", load)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=SourceMap(),
+        mode="job",
+        current_job_id="job_1",
+    )
+    page_tool = next(tool for tool in tools if tool.name == "list_research_workspace_items")
+    question_page = await page_tool.handler({"section": "job_question_outcomes", "limit": 1})
+    requirement_page = await page_tool.handler({"section": "job_requirement_outcomes", "limit": 1})
+
+    assert "supporting_atom_ids" not in question_page["items"][0]
+    assert requirement_page["items"][0]["supporting_atom_ids"] == ["atom_1"]
+
+
 @pytest.mark.asyncio
 async def test_research_job_context_is_compact_and_pages_current_job_items(
     monkeypatch: pytest.MonkeyPatch,
@@ -1538,10 +4357,10 @@ async def test_research_job_context_is_compact_and_pages_current_job_items(
     }
     payload = research_job_prompt_payload(workspace, "job_1", source_map_summary={})
 
-    assert "note" not in payload["job"]["observations"][0]
-    assert payload["job"]["observations"][0]["note_truncated"] is True
-    assert "question" not in payload["job"]["questions"][0]
-    assert payload["job"]["pages"]["questions"]["omitted_count"] == 2
+    assert "observations" not in payload["job"]
+    assert payload["job"]["persisted_progress"]["observations"][0]["note_preview"].startswith("Observation 0")
+    assert payload["job"]["questions"][0]["question"] == "Question 0"
+    assert "pages" not in payload["job"]
 
     async def load(_db, _run_id):
         return workspace
@@ -1562,6 +4381,103 @@ async def test_research_job_context_is_compact_and_pages_current_job_items(
     assert all("question_preview" not in item for item in page["items"])
     assert page["page"]["next_cursor"] == ""
     assert page["page"]["omitted_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_current_job_source_lookup_uses_explicit_links_and_statement_query_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.generation_v2 import research_workspace as workspace_api
+
+    workspace = {
+        "investigation_jobs": [
+            {
+                "job_id": "job_1",
+                "status": "in_progress",
+                "coverage_question_ids": ["q"],
+                "coverage_requirements": [{"question_id": "q", "requirement_id": "r1"}],
+                "source_findings": [
+                    {
+                        "finding_id": "f-explicit",
+                        "source_ref": "S01",
+                        "statement": "Low lexical overlap.",
+                        "limitations": [],
+                        "evidence_ids": ["ev1"],
+                        "question_links": [{"question_id": "q", "requirement_ids": ["r1"]}],
+                    },
+                    {
+                        "finding_id": "f-query",
+                        "source_ref": "S02",
+                        "statement": "The operating mechanism is stated here.",
+                        "limitations": [],
+                        "evidence_ids": ["ev2"],
+                        "question_ids": ["q"],
+                    },
+                    {
+                        "finding_id": "f-summary-only",
+                        "source_ref": "S03",
+                        "statement": "Irrelevant statement.",
+                        "limitations": [],
+                        "source_summary": "mechanism appears only in the source summary",
+                        "evidence_ids": ["ev3"],
+                        "question_ids": ["q"],
+                    },
+                ],
+                "source_gaps": [
+                    {
+                        "source_ref": "S01",
+                        "question_id": "q",
+                        "requirement_id": "r1",
+                        "description": "Explicit requirement gap.",
+                        "evidence_ids": [],
+                    },
+                    {
+                        "source_ref": "S02",
+                        "question_id": "q",
+                        "description": "Mechanism remains unresolved.",
+                        "evidence_ids": [],
+                    },
+                    {
+                        "source_ref": "S03",
+                        "question_id": "q",
+                        "description": "No useful text.",
+                        "source_summary": "mechanism appears only in summary",
+                        "evidence_ids": [],
+                    },
+                ],
+            }
+        ]
+    }
+
+    async def load(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(workspace_api, "load_research_workspace", load)
+    tools = build_research_workspace_tools(
+        db=None,  # type: ignore[arg-type]
+        run=SimpleNamespace(id=uuid.uuid4()),  # type: ignore[arg-type]
+        workspace=workspace,
+        source_inventory=SourceMap(),
+        mode="job",
+        current_job_id="job_1",
+    )
+    page_tool = next(tool for tool in tools if tool.name == "list_research_workspace_items")
+
+    explicit_page = await page_tool.handler(
+        {"section": "current_job_source_findings", "cursor": "0", "limit": 10, "requirement_id": "r1"}
+    )
+    query_page = await page_tool.handler(
+        {"section": "current_job_source_findings", "cursor": "0", "limit": 10, "query": "mechanism"}
+    )
+    gap_page = await page_tool.handler(
+        {"section": "current_job_source_gaps", "cursor": "0", "limit": 10, "query": "mechanism"}
+    )
+
+    assert [item["finding_id"] for item in explicit_page["items"]] == ["f-explicit"]
+    assert [item["finding_id"] for item in query_page["items"]] == ["f-query"]
+    assert "source_summary" not in query_page["items"][0]
+    assert [item["source_ref"] for item in gap_page["items"]] == ["S02"]
+    assert "source_summary" not in gap_page["items"][0]
 
 
 @pytest.mark.asyncio
@@ -2712,6 +5628,7 @@ async def test_audit_can_read_evidence_grounding_answered_job_outcome() -> None:
     source = _source()
     atom_evidence_id = str(uuid.uuid4())
     outcome_evidence_id = str(uuid.uuid4())
+    requirement_evidence_id = str(uuid.uuid4())
     memo = ResearchMemo(
         title="Memo",
         thesis="Supported answer.",
@@ -2741,6 +5658,14 @@ async def test_audit_can_read_evidence_grounding_answered_job_outcome() -> None:
                         "evidence_ids": [outcome_evidence_id],
                     }
                 ],
+                "requirement_outcomes": [
+                    {
+                        "requirement_id": "req_mechanism",
+                        "status": "answered",
+                        "note": "The third evidence item answers the requirement.",
+                        "evidence_ids": [requirement_evidence_id],
+                    }
+                ],
                 "status": "mapped",
             }
         ]
@@ -2758,6 +5683,12 @@ async def test_audit_can_read_evidence_grounding_answered_job_outcome() -> None:
             "locator_text": "section 2",
             "snippet_text": "Mechanism evidence.",
         },
+        {
+            "id": requirement_evidence_id,
+            "source_id": source.source_id,
+            "locator_text": "section 3",
+            "snippet_text": "Requirement evidence.",
+        },
     ]
     catalog, evidence_id_by_ref, required_refs = audit_evidence_catalog(
         research_memo=memo,
@@ -2768,6 +5699,7 @@ async def test_audit_can_read_evidence_grounding_answered_job_outcome() -> None:
     )
     evidence_ref_by_id = {evidence_id: evidence_ref for evidence_ref, evidence_id in evidence_id_by_ref.items()}
     outcome_ref = evidence_ref_by_id[outcome_evidence_id]
+    requirement_ref = evidence_ref_by_id[requirement_evidence_id]
 
     page_tool = audit_workspace_page_tool(
         research_memo=memo,
@@ -2781,6 +5713,14 @@ async def test_audit_can_read_evidence_grounding_answered_job_outcome() -> None:
     outcome_page = await page_tool.handler(
         {
             "section": "job_question_outcomes",
+            "cursor": "0",
+            "limit": 1,
+            "job_id": "job-mechanism",
+        }
+    )
+    requirement_page = await page_tool.handler(
+        {
+            "section": "job_requirement_outcomes",
             "cursor": "0",
             "limit": 1,
             "job_id": "job-mechanism",
@@ -2820,6 +5760,10 @@ async def test_audit_can_read_evidence_grounding_answered_job_outcome() -> None:
     assert outcome_page["items"][0]["unavailable_evidence_count"] == 0
     assert outcome_evidence_id not in str(outcome_page)
     assert outcome_ref in required_refs
+    assert requirement_page["items"][0]["evidence_refs"] == [requirement_ref]
+    assert requirement_page["items"][0]["required_evidence_refs"] == [requirement_ref]
+    assert requirement_evidence_id not in str(requirement_page)
+    assert requirement_ref in required_refs
     assert read_arguments == {"evidence_id": outcome_evidence_id}
     assert read_refs == {outcome_ref}
     assert outcome_evidence_id not in json.dumps(result)

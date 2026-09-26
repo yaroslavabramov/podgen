@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import uuid
 from copy import deepcopy
 from types import SimpleNamespace
@@ -217,22 +218,22 @@ def test_new_corpus_handoff_is_merged_into_resumed_repair_jobs() -> None:
     assert jobs[0]["evidence_ids"] == []
 
 
-def test_job_prompt_exposes_all_starting_evidence_through_preview_and_paging() -> None:
+def test_job_prompt_does_not_expose_standalone_starting_evidence_ids() -> None:
     evidence_ids = [f"evidence-{index}" for index in range(15)]
+    job = {
+        "job_id": "job_1",
+        "questions": ["What happened?"],
+        "observations": [],
+        "starting_evidence_ids": evidence_ids,
+        "evidence_ids": [],
+    }
     payload = current_job_prompt_payload(
-        {
-            "job_id": "job_1",
-            "questions": ["What happened?"],
-            "observations": [],
-            "starting_evidence_ids": evidence_ids,
-            "evidence_ids": [],
-        }
+        job
     )
 
-    assert payload["starting_evidence_ids"] == evidence_ids[:12]
-    assert payload["starting_evidence_count"] == 15
-    assert payload["pages"]["starting_evidence"]["omitted_count"] == 3
-    assert payload["pages"]["starting_evidence"]["next_cursor"] == "12"
+    assert job["starting_evidence_ids"] == evidence_ids
+    assert "starting_evidence_ids" not in payload
+    assert "starting_evidence" not in json.dumps(payload, ensure_ascii=False)
 
 
 def test_research_audit_does_not_enforce_duration_or_story_taxonomy_quotas() -> None:

@@ -1015,7 +1015,7 @@ class SourceTriageWorkspaceSourceAnalysisHandlersMixin:
                     "source_ref": source_ref,
                     "source_id": source_id,
                     "source_version_ids": _source_version_ids(self.inventory, source_id),
-                    "assessment_id": f"analysis:{source_ref}",
+                    "assessment_id": f"assessment:{source_id}",
                     "statement": statement,
                     "support_explanation": "",
                     "evidence_ids": finding_evidence_ids,

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import uuid
 from types import SimpleNamespace
 
 import pytest
@@ -29,10 +31,19 @@ from app.generation_v2.source_triage_workspace_prompting import (
     checkpoint_workspace_payload,
     planner_resume_payload,
 )
+from app.models.generation_v2 import V2ToolTrace
 
 
 def _trace(tool_name: str, input_json: dict, output_json: dict) -> SimpleNamespace:
     return SimpleNamespace(tool_name=tool_name, input_json=input_json, output_json=output_json)
+
+
+class _TraceResult:
+    def __init__(self, values: list):
+        self._values = values
+
+    def scalars(self):
+        return self._values
 
 
 def _resume_context(contract: str = TRIAGE_PLANNER_RESUME_CONTRACT):
@@ -413,6 +424,240 @@ async def test_restart_input_is_built_from_nonempty_durable_workspace(monkeypatc
     assert '"question_id": "q_mechanism"' in message
     assert '"tool_name": "upsert_triage_source_set"' in message
     assert '"source_refs_to_assign": ["S02", "S03"]' in message
+
+
+@pytest.mark.asyncio
+async def test_research_job_checkpoint_build_validate_and_restart_uses_job_scoped_production_traces(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_id = uuid.uuid4()
+    workspace = {
+        "investigation_jobs": [
+            {
+                "job_id": "brief_02",
+                "coverage_question_ids": ["q_hkd_current_mechanics"],
+                "questions": ["How does the current mechanism work?"],
+                "source_refs": ["S03"],
+                "recommended_source_refs": ["S03"],
+                "source_findings": [
+                    {
+                        "finding_id": "f1",
+                        "source_ref": "S03",
+                        "statement": "HK$10 demand lead.",
+                        "limitations": [],
+                        "evidence_ids": ["ev1"],
+                        "question_ids": ["q_hkd_current_mechanics"],
+                    }
+                ],
+                "coverage_requirements": [
+                    {
+                        "question_id": "q_hkd_current_mechanics",
+                        "requirement_id": "q_hkd_mech_r1",
+                        "description": "Issuers and denominations.",
+                    },
+                    {
+                        "question_id": "q_hkd_current_mechanics",
+                        "requirement_id": "q_hkd_mech_r4",
+                        "description": "Residual HK$10 exception.",
+                    },
+                ],
+                "status": "in_progress",
+            }
+        ],
+        "research_gaps": [],
+        "atom_drafts": [],
+    }
+    traces = [
+        V2ToolTrace(
+            generation_run_id=run_id,
+            phase="v2_editorial_research",
+            agent_name="research_job_agent_brief_02",
+            tool_name="list_research_workspace_items",
+            input_json={
+                "section": "current_job_source_findings",
+                "cursor": "0",
+                "limit": 5,
+                "question_id": "q_hkd_current_mechanics",
+                "requirement_id": "q_hkd_mech_r1",
+                "query": "issuers denominations",
+            },
+            output_json={
+                "accepted": True,
+                "items": [{"finding_id": "f1", "source_ref": "S03", "evidence_ids": ["ev1"]}],
+                "page": {"cursor": "0", "next_cursor": "1", "returned_count": 1, "total_count": 2},
+            },
+        ),
+        V2ToolTrace(
+            generation_run_id=run_id,
+            phase="v2_editorial_research",
+            agent_name="research_job_agent_brief_02",
+            tool_name="list_research_workspace_items",
+            input_json={
+                "section": "current_job_source_findings",
+                "cursor": "0",
+                "limit": 5,
+                "question_id": "q_hkd_current_mechanics",
+                "requirement_id": "q_hkd_mech_r4",
+                "query": "HK$10 residual exception",
+            },
+            output_json={
+                "accepted": True,
+                "items": [{"finding_id": "f1", "source_ref": "S03", "evidence_ids": ["ev1"]}],
+                "page": {"cursor": "0", "next_cursor": "", "returned_count": 1, "total_count": 1},
+            },
+        ),
+    ]
+
+    class _Db:
+        async def execute(self, _query):
+            return _TraceResult(list(reversed(traces)))
+
+    async def add_run_intent(_db, state, *, generation_run_id):  # noqa: ARG001
+        state["run_intent"] = {
+            "language": "ru",
+            "duration_seconds": 1800,
+            "user_prompt_preview": "HKD",
+            "user_prompt_chars": 3,
+            "user_prompt_truncated": False,
+        }
+
+    async def add_corpus(_db, state, *, generation_run_id):  # noqa: ARG001
+        state["corpus"] = {"selected_source_count": 1}
+        return None, {}
+
+    async def add_evidence(_db, state, *, generation_run_id, run_view, source_ref_by_id):  # noqa: ARG001
+        state["evidence"] = {"observed_count": 99, "selected_count": 99}
+
+    async def add_tool_counts(_db, state, *, generation_run_id, phase, agent_name, run_view):  # noqa: ARG001
+        state["tool_call_counts"] = {"list_research_workspace_items": 2}
+
+    async def add_source_inventory(_db, state, *, generation_run_id, phase, agent_name, run_view):  # noqa: ARG001
+        return None
+
+    async def durable_pages(_db, *, generation_run_id, phase, agent_name, run_view):  # noqa: ARG001
+        return summarize_paginated_tool_traces(traces)
+
+    async def load_workspace(_db, _run_id):
+        return workspace
+
+    monkeypatch.setattr(runtime_checkpoint_snapshot, "_add_run_intent_state", add_run_intent)
+    monkeypatch.setattr(runtime_checkpoint_snapshot, "_add_corpus_state", add_corpus)
+    monkeypatch.setattr(runtime_checkpoint_snapshot, "_add_evidence_state", add_evidence)
+    monkeypatch.setattr(runtime_checkpoint_snapshot, "_add_tool_call_counts", add_tool_counts)
+    monkeypatch.setattr(runtime_checkpoint_snapshot, "_add_source_inventory_progress", add_source_inventory)
+    monkeypatch.setattr(runtime_checkpoint_snapshot, "durable_paging_progress", durable_pages)
+    monkeypatch.setattr("app.generation_v2.research_workspace.load_research_workspace", load_workspace)
+
+    state = await runtime_checkpoint_snapshot.build_agent_checkpoint_state(
+        _Db(),  # type: ignore[arg-type]
+        generation_run_id=run_id,
+        phase="v2_editorial_research",
+        agent_name="research_job_agent_brief_02",
+    )
+    validate_durable_checkpoint_state(
+        state,
+        phase="v2_editorial_research",
+        agent_name="research_job_agent_brief_02",
+    )
+    duplicate_current_result = {
+        "tool_name": "list_research_workspace_items",
+        "arguments": traces[-1].input_json,
+        "result": traces[-1].output_json,
+    }
+    message = checkpoint_restart_message(
+        resume_context=_resume_context(RESEARCH_JOB_RESUME_CONTRACT),
+        reason="input_tokens>=60000",
+        previous_chain_id="chain-0",
+        next_chain_id="chain-1",
+        checkpoint_index=1,
+        state=state,
+        last_tool_results=[duplicate_current_result],
+    )["content"]
+
+    research_workspace = state["research_workspace"]
+    assert "research_workspace_error" not in state
+    assert research_workspace["current_job_detail"]["last_targeted_requirement_id"] == "q_hkd_mech_r4"
+    assert isinstance(research_workspace["durable_paging_progress"], list)
+    assert {item["requirement_id"] for item in research_workspace["durable_paging_progress"]} == {
+        "q_hkd_mech_r1",
+        "q_hkd_mech_r4",
+    }
+    assert len(research_workspace["recent_read_previews"]) == 2
+    assert message.count("HK$10 residual exception") == 1
+    assert "q_hkd_mech_r4" in message
+    assert "evidence_progress" not in message
+
+
+def test_checkpoint_restart_preserves_rejected_finish_when_read_result_is_embedded() -> None:
+    read_marker = "EMBEDDED_READ_RESULT_MARKER"
+    error_marker = "UNIQUE_REJECTED_FINISH_ERROR_MARKER"
+    state = {
+        "phase": "v2_editorial_research",
+        "agent_name": "research_job_agent_brief_02",
+        "run_intent": {
+            "language": "ru",
+            "duration_seconds": 1800,
+            "user_prompt_preview": "HKD",
+            "user_prompt_chars": 3,
+            "user_prompt_truncated": False,
+        },
+        "corpus": {
+            "selected_source_count": 1,
+            "checkpoint_note": "Full corpus inventory omitted for research-job checkpoint.",
+        },
+        "research_workspace": {
+            "current_job_detail": {
+                "job_id": "brief_02",
+                "requirements": [{"requirement_id": "q_hkd_mech_r4"}],
+                "persisted_progress": {},
+                "last_targeted_requirement_id": "q_hkd_mech_r4",
+            },
+            "recent_read_previews": [],
+            "durable_paging_progress": [],
+            "tool_call_counts": {},
+        },
+        "durable_paging_progress": [],
+        "tool_call_counts": {},
+    }
+    last_tool_results = [
+        {
+            "tool_name": "list_research_workspace_items",
+            "arguments": {
+                "section": "current_job_source_findings",
+                "requirement_id": "q_hkd_mech_r4",
+                "query": "HK$10 residual exception",
+                "cursor": "0",
+            },
+            "result": {
+                "accepted": True,
+                "filter": {"requirement_id": "q_hkd_mech_r4", "query": "HK$10 residual exception"},
+                "items": [{"finding_id": "f1", "statement": read_marker}],
+                "page": {"cursor": "0", "next_cursor": "", "returned_count": 1, "total_count": 1},
+            },
+        },
+        {
+            "tool_name": "finish_research_job",
+            "arguments": {"job_id": "brief_02"},
+            "result": {"accepted": False, "error": error_marker},
+        },
+    ]
+
+    message = checkpoint_restart_message(
+        resume_context=_resume_context(RESEARCH_JOB_RESUME_CONTRACT),
+        reason="input_tokens>=60000",
+        previous_chain_id="chain-0",
+        next_chain_id="chain-1",
+        checkpoint_index=1,
+        state=state,
+        last_tool_results=last_tool_results,
+    )["content"]
+    payload = json.loads(message.split("Continue from compact state:\n", 1)[1])
+    generic_previews = payload["last_tool_result_previews"]
+
+    assert error_marker in message
+    assert error_marker in json.dumps(generic_previews, ensure_ascii=False)
+    assert read_marker in json.dumps(payload["compact_state_from_db"], ensure_ascii=False)
+    assert read_marker not in json.dumps(generic_previews, ensure_ascii=False)
 
 
 @pytest.mark.parametrize(

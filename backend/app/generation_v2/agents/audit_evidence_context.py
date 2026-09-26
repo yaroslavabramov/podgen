@@ -84,15 +84,19 @@ def audit_evidence_catalog(
             first_ref_by_evidence_id.setdefault(str(evidence_id), evidence_ref)
         previews_by_atom_ref[atom_ref] = atom_previews
 
-    # Question outcomes are part of the research handoff even when their
-    # evidence was not promoted into a memo atom. Give that evidence the same
-    # public E-ref/read surface as atom evidence, while keeping backend ids out
-    # of model context. One available evidence item per answered question must
-    # be inspected before an audit can pass.
+    # Question and requirement outcomes are part of the research handoff even
+    # when their evidence was not promoted into a memo atom. Give that evidence
+    # the same public E-ref/read surface as atom evidence, while keeping backend
+    # ids out of model context. One available evidence item per answered
+    # outcome must be inspected before an audit can pass.
     for job in (workspace or {}).get("investigation_jobs") or []:
         if not isinstance(job, dict):
             continue
-        for outcome in job.get("question_outcomes") or []:
+        outcomes = [
+            *[item for item in job.get("question_outcomes") or [] if isinstance(item, dict)],
+            *[item for item in job.get("requirement_outcomes") or [] if isinstance(item, dict)],
+        ]
+        for outcome in outcomes:
             if not isinstance(outcome, dict):
                 continue
             available_refs: list[str] = []

@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from app.generation_v2.pipeline.source_triage_source_mapper_flow import source_mapper_evidence_tools
 from app.generation_v2.prompting.source import SOURCE_MAPPER_PROMPT
 from app.generation_v2.research_workspace import _jobs_from_corpus_brief
+from app.generation_v2.research_workspace_prompt_payloads import research_job_prompt_payload
 from app.generation_v2.runtime_schema import strict_json_schema
 from app.generation_v2.schemas import (
     CorpusBrief,
@@ -726,8 +727,8 @@ def test_source_mapping_materialization_namespaces_source_local_finding_ids() ->
         "source_order": ["S01", "S02"],
         "coverage_questions": [item.model_dump(mode="json") for item in _questions()],
         "source_assessments": [
-            {"assessment_id": "analysis:S01", "source_ref": "S01", "source_id": "source-01", "finding_ids": ["f1"]},
-            {"assessment_id": "analysis:S02", "source_ref": "S02", "source_id": "source-02", "finding_ids": ["f1"]},
+            {"assessment_id": "assessment:source-01", "source_ref": "S01", "source_id": "source-01", "finding_ids": ["f1"]},
+            {"assessment_id": "assessment:source-02", "source_ref": "S02", "source_id": "source-02", "finding_ids": ["f1"]},
         ],
         "source_findings": [
             {
@@ -764,6 +765,11 @@ def test_source_mapping_materialization_namespaces_source_local_finding_ids() ->
         ["finding:S01:f1"],
         ["finding:S02:f1"],
     ]
+    assert [finding.assessment_id for finding in source_map.source_findings] == [
+        "assessment:source-01",
+        "assessment:source-02",
+    ]
+    assert SourceMap.model_validate(source_map.model_dump(mode="json"))
 
 
 def test_source_mapping_materialization_removes_legacy_finalizer_gap() -> None:
@@ -851,8 +857,27 @@ def test_research_workspace_seed_uses_new_full_handoff_and_does_not_create_root_
     current = next(job for job in jobs if job["coverage_question_ids"] == ["q_current"])
     assert current["source_findings"][0]["statement"] == "HKMA issued its own HK$10 notes after demand persisted."
     assert current["source_refs"] == ["S03"]
+    assert current["recommended_source_refs"] == ["S03"]
+    assert current["allowed_source_pool"] == ["S03"]
     assert current["starting_evidence_ids"] == ["ev-hk10"]
-    assert current["allow_broad_search"] is True
+    assert current["allow_broad_search"] is False
+    payload = research_job_prompt_payload(
+        {
+            "investigation_jobs": jobs,
+            "current_job": {"job_id": current["job_id"]},
+        },
+        current["job_id"],
+        source_map_summary={},
+    )
+    job_payload = payload["job"]
+    assert "source_mapping_findings" not in job_payload
+    assert "source_mapping_gaps" not in job_payload
+    assert "source_mapping_cards" not in job_payload
+    assert "preferred_source_refs" not in job_payload
+    assert "candidate_source_refs" not in job_payload
+    assert "corpus_brief_lineage" not in job_payload
+    assert job_payload["question_level_leads"]["finding_leads"][0]["finding_id"] == "finding:S03:1"
+    assert job_payload["question_level_leads"]["finding_leads"][0]["evidence_ids"] == ["ev-hk10"]
 
 
 def test_root_requirements_do_not_require_set_level_delegation() -> None:
