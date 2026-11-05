@@ -8,7 +8,11 @@ from uuid import uuid5
 
 from podgen.domain.contracts.common import CodeProducer
 from podgen.persistence.repository import timestamp
-from podgen.writing.prompts import load_anchor_repair_instructions, load_instruction_set
+from podgen.writing.prompts import (
+    load_anchor_repair_instructions,
+    load_instruction_set,
+    load_plan_target_repair_instructions,
+)
 
 from .compiler import COMPILER_VERSION, materials_hash
 from .contracts import command_payload
@@ -83,4 +87,7 @@ def create_manifest(repo, generation, command, journal, materials):
             "technical script versions; canonical EpisodeSpec/StoryPlan/ScriptRevision mapping remains open",
         ],
     )
+    if command.plan_mode == "own-plan":
+        manifest["plan_review_target_catalog"] = "planning-output-pointers-v1"
+        manifest["plan_target_repair_instructions"] = asdict(load_plan_target_repair_instructions())
     return journal.create_run(command, manifest)

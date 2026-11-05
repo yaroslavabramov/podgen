@@ -31,6 +31,15 @@ def validate_lineage(rows, stage):
                     and parent["operation_kind"] == "role"
                     and repairs == 1
                 )
+            elif row["attempt_kind"] == "plan_target_repair":
+                repairs += 1
+                valid = (
+                    valid
+                    and stage in ("plan-review", "plan-review-revised")
+                    and row["operation_kind"] == "plan_target_repair"
+                    and parent["operation_kind"] == "role"
+                    and repairs == 1
+                )
             elif row["attempt_kind"] == "credit_retry":
                 valid = valid and parent["operation_kind"] == row["operation_kind"]
             else:
@@ -45,7 +54,10 @@ def attempt_identity(run_id, stage, index, kind, parent):
         return uuid5(run_id, "invocation:" + stage)
     if kind == "anchor_repair":
         return uuid5(run_id, "invocation:review:anchor-repair:1")
-    return uuid5(parent["invocation_id"], "credit-refusal-retry:1")
+    return uuid5(
+        parent["invocation_id"],
+        "plan-target-repair:1" if kind == "plan_target_repair" else "credit-refusal-retry:1",
+    )
 
 
 def validate_preparation(rows, stage, index, kind, operation, parent_id):
@@ -60,6 +72,14 @@ def validate_preparation(rows, stage, index, kind, operation, parent_id):
                 and parent["operation_kind"] == "role"
                 and parent["status"] == "validation_failed"
                 and not any(row["attempt_kind"] == "anchor_repair" for row in rows)
+            )
+        elif kind == "plan_target_repair":
+            valid = (
+                stage in ("plan-review", "plan-review-revised")
+                and operation == "plan_target_repair"
+                and parent["operation_kind"] == "role"
+                and parent["status"] == "validation_failed"
+                and not any(row["attempt_kind"] == "plan_target_repair" for row in rows)
             )
         else:
             valid = (

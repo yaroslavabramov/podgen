@@ -94,6 +94,7 @@ def export_run(repo, project, run_id, directory):
         semantic_acceptance=False,
         production_ready=False,
         invocations={},
+        additional_conditions=[],
         input_tokens=0,
         output_tokens_known=0,
         unknown_usage_invocations=[],
@@ -113,6 +114,15 @@ def export_run(repo, project, run_id, directory):
         if not attempts:
             continue
         for invocation in attempts:
+            if invocation["attempt_kind"] == "plan_target_repair":
+                result["additional_conditions"].append(
+                    dict(
+                        kind="plan-target-repair-v1",
+                        stage=stage,
+                        invocation_id=str(invocation["invocation_id"]),
+                        source_invocation_id=str(invocation["parent_invocation_id"]),
+                    )
+                )
             base = Path("archive") / stage
             if invocation["attempt_index"]:
                 base /= f"attempt-{invocation['attempt_index']}"

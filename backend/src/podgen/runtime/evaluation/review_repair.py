@@ -4,8 +4,6 @@ import json
 from copy import deepcopy
 from uuid import uuid5
 
-from pydantic import ValidationError
-
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import ContractError
@@ -14,6 +12,7 @@ from podgen.writing.roles import EditorialFeedback, WriteOutput
 
 from .compiler import indexed_script
 from .contracts import RunFailure
+from .rejected_output import rejected_output
 from .validation import load_unique_json
 
 # Frozen compatibility for manifests created before repair instructions were pinned.
@@ -28,39 +27,14 @@ LEGACY_REPAIR_INSTRUCTIONS_V1 = (
 
 
 def _rejected_feedback(journal, original, request):
-    if (
-        original["stage"] != "review"
-        or original["operation_kind"] != "role"
-        or original["status"] != "validation_failed"
-    ):
+    if original["stage"] != "review":
         raise RunFailure("review_anchor_repair_not_eligible")
-    raw = journal.last_response(original)
-    try:
-        response = json.loads(raw)
-        if (
-            response["status"] != "completed"
-            or response["id"] != original["provider_response_id"]
-            or response["model"] != request["model"]
-            or response["metadata"] != request["metadata"]
-        ):
-            raise ValueError()
-        text = ""
-        for item in response["output"]:
-            if item["type"] == "reasoning":
-                continue
-            if item["type"] != "message" or item["role"] != "assistant":
-                raise ValueError()
-            for content in item["content"]:
-                if content["type"] != "output_text":
-                    raise ValueError()
-                text += content["text"]
-        load_unique_json(text)
-        feedback = EditorialFeedback.model_validate_json(text)
-        if feedback.reading_mode != "informed":
-            raise ValueError()
-        return feedback
-    except (ValueError, TypeError, KeyError, ValidationError):
-        raise RunFailure("review_anchor_repair_not_eligible") from None
+    feedback, _, _ = rejected_output(
+        journal, original, EditorialFeedback, code="review_anchor_repair_not_eligible"
+    )
+    if feedback.reading_mode != "informed":
+        raise RunFailure("review_anchor_repair_not_eligible")
+    return feedback
 
 
 def _plan(journal, original, draft):

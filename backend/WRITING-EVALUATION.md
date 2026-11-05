@@ -149,3 +149,22 @@ UUID берётся из `run.json` → `invocations` → нужный этап 
 Оплаченные plan/draft/review не создаются заново. Сохраняются исходный manifest, prompts/model/schema, полные input/instructions и исходные request/wire/response bytes. У нового запроса меняется только metadata привязки к новой попытке. Проверяются прежние права и бюджеты, время run не начинается заново. Предыдущие preflight input counts остаются в консервативном общем input budget; у доказанного отказа без генерации нет output reservation. Это не подмена сохранённых usage: исходные поля и raw receipts остаются неизменными.
 
 `attempt_kind` различает `role`, один `anchor_repair` и явный `credit_retry`; `operation_kind` сохраняет исходную работу. Поэтому retry отказавшего anchor repair не создаёт второе смысловое исправление. Все предыдущие попытки экспортируются: первая в `archive/<stage>/`, остальные в `archive/<stage>/attempt-N/`; `run.json` перечисляет lineage, statuses и суммарные известные usage/counts. `resume --retry-credit-refusal ...` не включает repair policy молча: исходная policy run и явный `--repair-review-anchors` действуют как прежде.
+
+## Явное исправление адресов plan-review
+
+`0014_plan_target_repair` добавляет максимум одну address-only попытку на каждый отдельный этап `plan-review`/`plan-review-revised`. Новые own-plan manifest закрепляют capability `plan_review_target_catalog=planning-output-pointers-v1`: модель видит все существующие пути `PlanningOutput` и явный корень адресации. `/candidate_plan` — оболочка входного payload, не часть указателя. Старые manifest и уже сохранённые requests/prompts не переписываются.
+
+Если отдельно сохранённый complete review структурно корректен, но содержит несуществующие targets:
+
+```sh
+uv run --directory backend python -m podgen.writing_cli \
+  --env-file ../.env --project PROJECT_UUID --actor ACTOR_UUID --objects /ABS/STAGING_OBJECTS \
+  resume --run-id RUN_UUID --repair-plan-targets FAILED_REVIEW_INVOCATION_UUID \
+  --export-dir /tmp/TARGET_REPAIR_EXPORT
+```
+
+Это отдельное экспериментальное условие, а не повторное содержательное review. Исходный plan/ref/hash, полный raw невалидного ответа, decision, все суждения/приоритеты, research requests и уже валидные targets остаются прежними. Сервер перечисляет существующие адреса и только невалидные места. Модель возвращает `PlanTargetChoices {choices:[{target_id,selected_path}]}`; `selected_path` — точный предложенный адрес или `null`. Сервер не удаляет префиксы, не угадывает адреса и не назначает accept. `null`, отсутствующие/дублированные IDs, новые поля или несуществующий адрес честно останавливают цепочку без автора. Обычный `validate_against` остаётся строгим; общая `validate_context` используется и до выбора, и в окончательной полной проверке.
+
+Для нового run суффикс `current/plan-target-repair.md` закрепляется при старте. Для старого run первое явное действие закрепляет его отдельным PromptDefinition с точным content ID; далее даже при прерывании используются сохранённые bytes/definition. Базовые старые инструкции review не заменяются. После сохранённого request обычный `resume` может закончить разрешённую попытку; повтор operator-команды не создаёт вторую. Позднейший confirmed credit refusal именно этой попытки возобновляется отдельной `--retry-credit-refusal ITS_INVOCATION_UUID`, сохраняя `operation_kind=plan_target_repair`. В одной команде допускается одно адресное recovery action.
+
+`run.json` и planning clearance указывают `additional_conditions`, новые попытки — `archive/<stage>/attempt-N/`, выход содержит полные `repair_choices`. `generated-plan.md` прямо отмечает дополнительное исправление адресов. Author получает только exact candidate, прошедший полный валидатор после выбора; при исходном `revise`/`needs_research` сохраняется именно это решение. Все новые вызовы, live access, исходное время и бюджеты проверяются обычным gateway; новый plan для этого не генерируется.

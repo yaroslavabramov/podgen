@@ -11,10 +11,10 @@ from podgen.writing.materials import load_author_materials, load_own_plan_materi
 from .compiler import COMPILER_VERSION, materials_hash
 from .completion import completed_result
 from .contracts import STAGES, RunFailure, WritingRunCommand, command_payload
-from .credit_recovery import authorize_credit_retry
 from .journal import EvaluationJournal
 from .manifest import create_manifest
 from .planning import execute_planning
+from .recovery import authorize_recovery
 from .stage import execute_stage
 from .workflow import output_model, stages_for
 
@@ -31,7 +31,14 @@ class WritingEvaluation:
         loader = load_own_plan_materials if command.plan_mode == "own-plan" else self.materials_loader
         return loader(self.generation, command.project_id, command.author_ref, case_id=command.case_id)
 
-    def run(self, command: WritingRunCommand, *, repair_review_anchors=False, retry_credit_refusal=None):
+    def run(
+        self,
+        command: WritingRunCommand,
+        *,
+        repair_review_anchors=False,
+        retry_credit_refusal=None,
+        repair_plan_targets=None,
+    ):
         if command.actor_id != self.repo.actor_id:
             raise AccessDenied()
         journal = EvaluationJournal(self.repo, command.project_id)
@@ -45,21 +52,21 @@ class WritingEvaluation:
                 if existing["status"] == "completed_unaccepted" or all(
                     item and item["status"] == "completed" for item in saved
                 ):
-                    if retry_credit_refusal is not None:
-                        authorize_credit_retry(
-                            journal,
-                            command.run_id,
-                            retry_credit_refusal,
-                            guard=lambda: None,
-                            allow_create=False,
-                        )
+                    authorize_recovery(
+                        journal,
+                        command,
+                        credit_target=retry_credit_refusal,
+                        plan_target=repair_plan_targets,
+                        guard=lambda: None,
+                        allow_create=False,
+                    )
                     result = completed_result(self.generation, journal, command, manifest)
                     if existing["status"] != "completed_unaccepted":
                         journal.status(command.run_id, "completed_unaccepted")
                     return result
                 materials = self._materials(command)
             else:
-                if retry_credit_refusal is not None:
+                if retry_credit_refusal is not None or repair_plan_targets is not None:
                     raise RunFailure("credit_refusal_retry_not_eligible", run_id=command.run_id)
                 materials = self._materials(command)
                 manifest = create_manifest(self.repo, self.generation, command, journal, materials)
@@ -85,28 +92,13 @@ class WritingEvaluation:
                 if elapsed > command.limits.max_elapsed_seconds:
                     raise RunFailure("run_elapsed_budget_exceeded", run_id=command.run_id)
 
-            if retry_credit_refusal is not None:
-                admitted = authorize_credit_retry(journal, command.run_id, retry_credit_refusal, guard=guard)
-                if admitted["status"] in ("failed", "validation_failed", "outcome_unknown"):
-                    code = (
-                        "credit_refusal_retry_outcome_unknown"
-                        if admitted["status"] == "outcome_unknown"
-                        else "credit_refusal_retry_action_used"
-                    )
-                    raise RunFailure(code, run_id=command.run_id, invocation_id=admitted["invocation_id"])
-                if admitted["status"] == "completed":
-                    blocked = [journal.invocation(command.run_id, stage) for stage in stages_for(command)]
-                    blocked = [
-                        row
-                        for row in blocked
-                        if row and row["status"] in ("failed", "validation_failed", "outcome_unknown")
-                    ]
-                    if blocked:
-                        raise RunFailure(
-                            "credit_refusal_retry_action_used",
-                            run_id=command.run_id,
-                            invocation_id=blocked[-1]["invocation_id"],
-                        )
+            authorize_recovery(
+                journal,
+                command,
+                credit_target=retry_credit_refusal,
+                plan_target=repair_plan_targets,
+                guard=guard,
+            )
             journal.status(command.run_id, "running")
             try:
                 own_plan = None

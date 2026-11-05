@@ -83,7 +83,9 @@ def parser():
         command_parser.add_argument("--export-dir", type=Path, required=True)
         if command == "resume":
             command_parser.add_argument("--repair-review-anchors", action="store_true")
-            command_parser.add_argument("--retry-credit-refusal", type=UUID, metavar="INVOCATION_UUID")
+            action = command_parser.add_mutually_exclusive_group()
+            action.add_argument("--retry-credit-refusal", type=UUID, metavar="INVOCATION_UUID")
+            action.add_argument("--repair-plan-targets", type=UUID, metavar="INVOCATION_UUID")
     return root
 
 
@@ -183,6 +185,7 @@ def main(argv=None):
                 command,
                 repair_review_anchors=getattr(args, "repair_review_anchors", False),
                 retry_credit_refusal=getattr(args, "retry_credit_refusal", None),
+                repair_plan_targets=getattr(args, "repair_plan_targets", None),
             )
         finally:
             if journal.run(command.run_id):

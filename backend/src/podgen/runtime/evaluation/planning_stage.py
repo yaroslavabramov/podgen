@@ -10,6 +10,7 @@ from podgen.domain.errors import ContractError
 
 from .compiler import response_request
 from .contracts import RunFailure
+from .plan_target_recovery import apply_plan_target_repair
 from .profiles import load_profile
 from .stage import StageResult
 from .usage import prior_attempt_usage
@@ -57,6 +58,17 @@ def execute_planning_stage(
         payload.update(
             candidate_plan=candidate, candidate_plan_ref=candidate_ref, candidate_plan_hash=digest(candidate)
         )
+    if (
+        candidate is not None
+        and stage.startswith("plan-review")
+        and manifest.get("plan_review_target_catalog") == "planning-output-pointers-v1"
+    ):
+        from podgen.writing.plan_targets import allowed_review_targets
+
+        payload.update(
+            review_target_root="PlanningOutput inside candidate_plan; omit the enclosing /candidate_plan prefix.",
+            allowed_review_targets=allowed_review_targets(candidate),
+        )
     if review is not None:
         payload.update(plan_review=review, plan_review_ref=review_ref)
     invocation = journal.invocation(command.run_id, stage)
@@ -82,9 +94,15 @@ def execute_planning_stage(
     charged = {key: totals[key] + prior[key] for key in ("input", "output")}
     if invocation["status"] != "completed":
         raw = gateway.invoke(invocation, profile, limits=command.limits, totals=charged, guard=guard)
+        repair_choices = None
         try:
             load_unique_json(raw)
-            parsed = output_model(stage).model_validate_json(raw)
+            if invocation["operation_kind"] == "plan_target_repair":
+                parsed, repair_choices = apply_plan_target_repair(
+                    journal, invocation, raw, candidate=candidate, candidate_ref=candidate_ref
+                )
+            else:
+                parsed = output_model(stage).model_validate_json(raw)
             validate_planning(
                 parsed, stage, materials.as_payload()["material_catalog"], candidate, materials.speaker_labels
             )
@@ -96,7 +114,7 @@ def execute_planning_stage(
             )
             journal.transition(invocation, "validation_failed")
             raise RunFailure(
-                "planning_output_validation_failed",
+                getattr(error, "code", "planning_output_validation_failed"),
                 run_id=command.run_id,
                 invocation_id=invocation["invocation_id"],
             ) from None
@@ -110,6 +128,7 @@ def execute_planning_stage(
                 record_kind="tool_execution", record_id=invocation["request_record_id"]
             ).model_dump(mode="json"),
             output=output,
+            repair_choices=repair_choices,
             candidate_plan_ref=candidate_ref,
             candidate_plan_hash=digest(candidate) if candidate is not None else None,
             plan_review_ref=review_ref,

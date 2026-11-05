@@ -66,6 +66,14 @@ def load_anchor_repair_instructions() -> RoleInstructions:
     return RoleInstructions("anchor-repair/sha256:" + hashlib.sha256(raw).hexdigest(), raw.decode("utf-8"))
 
 
+def load_plan_target_repair_instructions() -> RoleInstructions:
+    """Pin a dedicated address-selector suffix; it does not alter ordinary review IDs."""
+    raw = files(__name__).joinpath("current").joinpath("plan-target-repair.md").read_bytes()
+    return RoleInstructions(
+        "plan-target-repair/sha256:" + hashlib.sha256(raw).hexdigest(), raw.decode("utf-8")
+    )
+
+
 def role_instructions(stage: Stage, format: Format) -> str:
     """Current complete body. Editing an applicable .md changes its content ID automatically."""
     _validate(stage, format)

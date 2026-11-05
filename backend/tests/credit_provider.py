@@ -28,7 +28,9 @@ class CreditProvider:
         return self.inner.count(body)
 
     def submit(self, body, *, client_request_id):
-        operation = "anchor_repair" if body["text"]["format"]["name"] == "anchor_choices" else "role"
+        operation = {"anchor_choices": "anchor_repair", "plan_target_choices": "plan_target_repair"}.get(
+            body["text"]["format"]["name"], "role"
+        )
         if body["metadata"]["podgen_stage"] == self.stage and operation == self.operation and self.remaining:
             self.requests.append(body)
             self.remaining -= 1

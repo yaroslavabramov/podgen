@@ -71,6 +71,17 @@ def execute_planning(
         semantic_acceptance=False,
         production_ready=False,
     )
+    target_repairs = [
+        row
+        for stage in records
+        for row in journal.attempts(command.run_id, stage)
+        if row["attempt_kind"] == "plan_target_repair"
+    ]
+    if target_repairs:
+        proof["additional_conditions"] = [
+            dict(kind="plan-target-repair-v1", invocation_id=str(row["invocation_id"]), stage=row["stage"])
+            for row in target_repairs
+        ]
     journal.record(proof, record_id=clearance_ref(command.run_id).record_id)
     return dict(
         plan_mode="own-plan",

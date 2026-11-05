@@ -202,12 +202,16 @@ class PlanReviewOutput(RoleOutput):
 
     def validate_against(self, plan: PlanningOutput, *, material_locators: Collection[str]) -> None:
         """Check addresses against this plan; the caller must bind its exact saved version."""
-        if self.decision == "accept" and plan.status != "ready":
-            raise ValueError("planning_accept_with_unresolved_research")
+        self.validate_context(plan, material_locators=material_locators)
         document = plan.model_dump(mode="json")
         for entry in (*self.strengths, *self.findings):
             for target in entry.targets:
                 _validate_target(document, target)
+
+    def validate_context(self, plan: PlanningOutput, *, material_locators: Collection[str]) -> None:
+        """Validate all non-address bindings; strict validate_against always also checks every target."""
+        if self.decision == "accept" and plan.status != "ready":
+            raise ValueError("planning_accept_with_unresolved_research")
         _validate_requests(
             self.research_requests, {act.act_id for act in plan.plan.acts} if plan.plan else set()
         )

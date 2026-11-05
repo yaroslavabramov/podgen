@@ -194,4 +194,11 @@ def export_planning(journal, run_id, *, language):
                 if record["candidate_plan_ref"]["record_id"] == str(selected["output_record_id"]):
                     review = record
                     break
-    return render_plan(candidate, review, proof is not None, language), proof
+    rendered = render_plan(candidate, review, proof is not None, language)
+    if proof and proof.get("additional_conditions"):
+        rendered += (
+            "\nАдреса отзыва исправлены отдельной модельной попыткой; это дополнительное условие оценки.\n"
+            if language.startswith("ru")
+            else "\nReview addresses were repaired in a separate model call: an additional evaluation condition.\n"
+        )
+    return rendered, proof

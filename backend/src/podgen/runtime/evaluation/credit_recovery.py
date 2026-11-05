@@ -133,6 +133,10 @@ def authorize_credit_retry(journal, run_id, target_id, *, guard, allow_create=Tr
 
 def recovery_hint(code):
     return {
+        "plan_target_repair_not_eligible": "Исправление адресов допустимо только для сохранённого plan-review с невалидными указателями и неизменённым планом; суждения и решение не переписываются.",
+        "plan_target_repair_action_used": "Отдельная попытка исправления адресов уже использована; нового исправления не создано. Подтверждённый отказ по балансу возобновляется отдельно через --retry-credit-refusal.",
+        "plan_target_repair_already_used": "Для этой версии plan-review попытка исправления адресов уже использована.",
+        "plan_target_repair_not_current": "Указанная попытка plan-review уже не текущая.",
         "credit_refusal_retry_not_eligible": "Повтор разрешён только для архивного отказа submit: HTTP 429, credit_balance_exhausted, без response ID и неоднозначности. Успешные ответы и другие ошибки не повторяются.",
         "credit_refusal_retry_outcome_unknown": "Исход запроса неизвестен либо уже имеется незавершённый ответ провайдера. Повторная генерация запрещена; требуется сверка сохранённого ответа/состояния у провайдера.",
         "credit_refusal_retry_not_current": "Указанная попытка уже не текущая. Используйте UUID конкретной последней отказавшей попытки.",
