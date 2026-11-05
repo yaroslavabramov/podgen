@@ -10,10 +10,10 @@
     "total": 617722
   },
   "new_visible_bytes": {
-    "instructions": 2235,
-    "input": 29429,
+    "instructions": 1262,
+    "input": 25782,
     "schema": 710,
-    "total": 32374
+    "total": 27754
   },
   "excerpt_characters": {
     "gps-clock": {
@@ -30,37 +30,55 @@
   "offline_previews": {
     "gps-clock/plan": {
       "visible_bytes": {
-        "instructions": 2789,
-        "input": 24025,
+        "instructions": 1914,
+        "input": 20373,
         "schema": 6471,
-        "total": 33285
+        "total": 28758
       },
       "endpoint_called": false
     },
     "gps-clock/draft": {
       "visible_bytes": {
-        "instructions": 2235,
-        "input": 29429,
+        "instructions": 1262,
+        "input": 25782,
         "schema": 710,
-        "total": 32374
+        "total": 27754
       },
       "endpoint_called": false
     },
     "gps-clock/plan-review": {
       "visible_bytes": {
-        "instructions": 3010,
-        "input": 47173,
+        "instructions": 2203,
+        "input": 43407,
         "schema": 2911,
-        "total": 53094
+        "total": 48521
       },
       "endpoint_called": false
     },
     "snow-pump/plan": {
       "visible_bytes": {
-        "instructions": 2625,
-        "input": 37075,
+        "instructions": 1851,
+        "input": 34177,
         "schema": 6471,
-        "total": 46171
+        "total": 42499
+      },
+      "endpoint_called": false
+    },
+    "gps-clock/fixed-draft": {
+      "visible_bytes": {
+        "instructions": 1262,
+        "input": 25376,
+        "schema": 710,
+        "total": 27348
+      },
+      "endpoint_called": false
+    },
+    "snow-pump/fixed-draft": {
+      "visible_bytes": {
+        "instructions": 1199,
+        "input": 36160,
+        "schema": 710,
+        "total": 38069
       },
       "endpoint_called": false
     }
@@ -76,23 +94,37 @@
       "Local documentation links",
       "git diff --check"
     ],
-    "offline_preview_utilities": "5 unit tests plus actual ordinary-CLI plan, draft and plan-review with data-only state and credential-free child environment; published draft visible JSON unchanged"
+    "offline_preview_utilities": "5 unit tests plus current ordinary-CLI plan, draft and plan-review with data-only state and credential-free child environment",
+    "editorial_update": "Practical assignments and nine ordinary prompt components revised; two selection repairs reviewed; exact source excerpts, frozen corpus, historical scenarios and before JSON unchanged.",
+    "fixed_inputs": "Both current fixed inputs admitted against updated shared digests and exact original plan documents; both draft previews compiled through ordinary CLI without provider calls."
   },
   "artifact_sha256": {
     "gps-author-before.visible.json": "141f2835090e6994000683aa31af8f033dfe0f13328a2b8080ab8308e338b45a",
-    "gps-author-after.visible.json": "8c3dcc3a14a7326806d1f16a7217903bd1b2146d2f18bba019ed45064135fd4a",
-    "fixtures/gps-conditional-own-plan.json": "c4c82f40b183221678d7073466c5cd2477c7958637e4c2ae1c5a906a50e635f3"
+    "gps-author-after.visible.json": "98d22c97e86efd93ef81c1be44b803491c815a045b2331893201bf03fefb9a51",
+    "fixtures/gps-conditional-own-plan.json": "139539a79cd89cc898cd89c86515d70e5006f9fb0bd105f0e20530c4c6a08e36"
   },
   "local_input_tokens": {
     "encoding": "o200k_base",
-    "measured_by": "Independent coordinator; supplied 2026-11-05",
+    "measured_by": "Editor; local @dqbd/tiktoken; baseline reproduces independent coordinator count",
     "artifacts": [
       "gps-author-before.visible.json",
       "gps-author-after.visible.json"
     ],
     "method": "instructions + text of every input content + JSON.stringify(strict schema); without provider framing",
     "before": 153429,
-    "after": 4784,
-    "provider_count_is_distinct": true
+    "after": 4173,
+    "provider_count_is_distinct": true,
+    "components": {
+      "before": {
+        "instructions": 993,
+        "input": 152274,
+        "schema": 162
+      },
+      "after": {
+        "instructions": 225,
+        "input": 3786,
+        "schema": 162
+      }
+    }
   }
 }

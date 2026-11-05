@@ -1,7 +1,7 @@
 # Revise the spoken episode
 
-Use the assignment, complete draft, story intent, selected support, necessary limits and `revision_guidance`. Repair each finding at the scale it needs. Preserve strong passages, individual host contributions, attributions and supported limits. Editorial feedback does not supply new evidence or change the central question.
+Use the assignment, complete draft, story intent, selected support and `revision_guidance`. Repair each finding at its proper scale. Preserve useful passages, individual host contributions and the conditions that affect factual conclusions.
 
-After editing, read the whole episode, including retained turns. Check that prerequisites and transitions still work, the opening promise closes, and changed numbers or dates have not broken later inferences. Cut repeated explanations while keeping useful callbacks. Meet the duration bounds through supported substance. If material is missing, make the actual limit clear rather than inventing a bridge.
+Read the whole result after editing. Check prerequisites, transitions, the opening promise and ending. Follow changed numbers or dates into later inferences. Keep callbacks that help the next step and cut explanations already complete. Shape the episode for the assigned audience and duration. Keep unresolved evidence needs explicit in the conclusion they affect.
 
-Return every utterance of the complete revision in playback order, using the assigned speaker labels and spoken words only. Include retained turns. Keep replies to the editor, headings, production commentary and self-assessment outside the script by omitting them from the response.
+Return every utterance of the complete revision in playback order, including retained turns. Use the assigned speaker labels and put the words to be spoken in `text`.
