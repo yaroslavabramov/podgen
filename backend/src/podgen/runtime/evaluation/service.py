@@ -12,7 +12,8 @@ from podgen.domain.errors import AccessDenied, Conflict, ContractError
 from podgen.persistence.repository import Repository, timestamp
 from podgen.runtime.models.gateway import ModelGateway
 from podgen.writing.materials import load_author_materials
-from podgen.writing.roles import EditorialFeedback, WriteOutput, role_instructions
+from podgen.writing.prompts import load_instruction_set
+from podgen.writing.roles import EditorialFeedback, WriteOutput
 
 from .compiler import COMPILER_VERSION, materials_hash
 from .completion import completed_result
@@ -46,16 +47,12 @@ class WritingEvaluation:
         prompts = {}
         schemas = {}
         prompt_versions = {}
+        instruction_set = load_instruction_set(materials.format)
         for stage in STAGES:
             profile_ref = command.reviewer_profile_ref if stage == "review" else command.writer_profile_ref
             load_profile(self.generation, command.project_id, profile_ref, stage)
-            instructions = role_instructions(stage, materials.format)
-            header = instructions.split("\n", 1)[0]
-            prompt_versions[stage] = (
-                header.removeprefix("Instructions: ").split(";", 1)[0]
-                if header.startswith("Instructions: ")
-                else "sha256:" + digest({"instructions": instructions})
-            )
+            instructions = instruction_set[stage].body
+            prompt_versions[stage] = instruction_set[stage].version
             prompt = self.repo.create(
                 command.project_id,
                 "PromptDefinition",
@@ -87,9 +84,6 @@ class WritingEvaluation:
             materials_hash=materials_hash(payload),
             prompt_refs=prompts,
             role_instructions_versions=prompt_versions,
-            role_instructions_version=next(iter(set(prompt_versions.values())))
-            if len(set(prompt_versions.values())) == 1
-            else "mixed",
             response_schemas=schemas,
             created_at=timestamp(),
             purpose="evaluation",

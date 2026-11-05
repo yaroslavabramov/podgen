@@ -385,7 +385,9 @@ def test_source_revoked_during_count_is_not_resubmitted_from_evaluator_request(
     assert not provider.requests and len(provider.counts) == 1
 
 
-def test_resume_uses_archived_prompts_after_editor_publishes_new_version(repo, setup_writer, monkeypatch):
+def test_resume_uses_archived_prompts_after_editor_publishes_new_version(
+    repo, setup_writer, monkeypatch, tmp_path
+):
     from podgen.runtime.evaluation import service
 
     command, loader, _ = setup_writer
@@ -404,10 +406,28 @@ def test_resume_uses_archived_prompts_after_editor_publishes_new_version(repo, s
     journal = EvaluationJournal(repo, command.project_id)
     manifest = journal.manifest(command.run_id)
     old_instructions = journal.request(journal.invocation(command.run_id, "draft"))["instructions"]
+    saved_revise_ref = manifest["prompt_refs"]["revise"]
+    from podgen.domain.contracts.common import ArtifactRef
+
+    saved_revise_body = repo.get(command.project_id, ArtifactRef.model_validate(saved_revise_ref)).payload[
+        "template"
+    ]
+    assert journal.invocation(command.run_id, "revise") is None
+    assert "role_instructions_version" not in manifest
+    import shutil
+
+    from podgen.writing import prompts
+
+    resources = tmp_path / "new-resources"
+    shutil.copytree(prompts.files("podgen.writing.prompts"), resources)
+    revise_file = resources / "current/revise.md"
+    revise_file.write_bytes(revise_file.read_bytes() + b"\nSYNTHETIC newly edited revision instructions.\n")
+    monkeypatch.setattr(prompts, "files", lambda _: resources)
+    assert prompts.role_instructions("revise", "dialogue") != saved_revise_body
     monkeypatch.setattr(
         service,
-        "role_instructions",
-        lambda *args: "Instructions: synthetic-new-version; stage=changed\nNEW PROMPT",
+        "load_instruction_set",
+        lambda *args: pytest.fail("must not read current resources for an existing run"),
     )
     # A complete stored run must not inspect the newly published role templates.
     # Reconcile the interrupted review only from its original archived provider response.
@@ -425,9 +445,11 @@ def test_resume_uses_archived_prompts_after_editor_publishes_new_version(repo, s
     assert len(provider.requests) == calls + 1  # only the previously unsent revision
     assert journal.request(journal.invocation(command.run_id, "draft"))["instructions"] == old_instructions
     revision = journal.request(journal.invocation(command.run_id, "revise"))
-    assert "synthetic-new-version" not in revision["instructions"]
+    assert revision["instructions"] == saved_revise_body
+    assert journal.manifest(command.run_id)["prompt_refs"]["revise"] == saved_revise_ref
     assert (
-        journal.manifest(command.run_id)["role_instructions_version"] == manifest["role_instructions_version"]
+        journal.manifest(command.run_id)["role_instructions_versions"]
+        == manifest["role_instructions_versions"]
     )
 
 
@@ -451,7 +473,9 @@ def test_late_completed_replay_ignores_new_budgets_compiler_and_prompts(
 
     monkeypatch.setattr(service, "datetime", FutureDatetime)
     monkeypatch.setattr(service, "COMPILER_VERSION", "some-future-compiler")
-    monkeypatch.setattr(service, "role_instructions", lambda *args: pytest.fail("must not read live prompts"))
+    monkeypatch.setattr(
+        service, "load_instruction_set", lambda *args: pytest.fail("must not read live prompts")
+    )
 
     def unavailable_loader(*args, **kwargs):
         pytest.fail("must not recompile materials for an already completed attempt")

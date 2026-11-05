@@ -1,1 +1,78 @@
-"""Packaged, versioned instruction resources. Published versions must not be overwritten."""
+"""Editable current components and byte-stable numbered historical instructions.
+
+Current content IDs identify assemblies; they are not a global revision archive.
+Resolve an older content ID through its run's archived PromptDefinition, not here.
+"""
+
+import hashlib
+import json
+from dataclasses import dataclass
+from importlib.resources import files
+from typing import Literal
+
+Stage = Literal["draft", "review", "revise"]
+Format = Literal["solo", "dialogue"]
+_STAGES = ("draft", "review", "revise")
+_FORMATS = ("solo", "dialogue")
+_HISTORICAL = {"whole-episode-a/1": "v1", "whole-episode-a/2": "v2", "whole-episode-a/3": "v3"}
+
+
+@dataclass(frozen=True)
+class RoleInstructions:
+    version: str
+    body: str
+
+
+def _validate(stage, format):
+    if stage not in _STAGES:
+        raise ValueError(f"unknown_writing_stage: {stage!r}")
+    if format not in _FORMATS:
+        raise ValueError(f"unknown_writing_format: {format!r}")
+
+
+def _read(root, names):
+    # read_bytes avoids newline normalization: CRLF, whitespace and Unicode are meaningful.
+    return {name: root.joinpath(name).read_bytes().decode("utf-8") for name in names}
+
+
+def _assemble(stage, format, components):
+    names = ("common.md", f"{format}.md", f"{stage}.md")
+    # Ordered, framed names/content; no generated version/header participates in its own hash.
+    source = json.dumps(
+        [stage, format, [[name, components[name]] for name in names]],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    version = "whole-episode-a/sha256:" + hashlib.sha256(source).hexdigest()
+    body = f"Instructions: {version}; stage={stage}; format={format}\n\n" + "\n\n".join(
+        components[name] for name in names
+    )
+    return RoleInstructions(version, body)
+
+
+def load_instruction_set(format: Format) -> dict[Stage, RoleInstructions]:
+    """Read each component once for a new run, then assemble all three stage bodies."""
+    _validate("draft", format)
+    names = ("common.md", f"{format}.md", *(f"{stage}.md" for stage in _STAGES))
+    components = _read(files(__name__).joinpath("current"), names)
+    return {stage: _assemble(stage, format, components) for stage in _STAGES}
+
+
+def role_instructions(stage: Stage, format: Format) -> str:
+    """Current complete body. Editing an applicable .md changes its content ID automatically."""
+    _validate(stage, format)
+    names = ("common.md", f"{format}.md", f"{stage}.md")
+    return _assemble(stage, format, _read(files(__name__).joinpath("current"), names)).body
+
+
+def role_instructions_for_version(stage: Stage, format: Format, *, version: str) -> str:
+    """Read only published numbered history /1, /2, /3, with no current-content fallback."""
+    _validate(stage, format)
+    if version not in _HISTORICAL:
+        raise ValueError(f"unknown_writing_instruction_version: {version!r}")
+    root = files(__name__).joinpath(_HISTORICAL[version])
+    names = ("common.md", f"{format}.md", f"{stage}.md")
+    parts = _read(root, names)
+    return f"Instructions: {version}; stage={stage}; format={format}\n\n" + "\n\n".join(
+        parts[name] for name in names
+    )

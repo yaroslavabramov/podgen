@@ -7,7 +7,6 @@ import pytest
 from pydantic import ValidationError
 
 from podgen.writing.roles import (
-    ROLE_INSTRUCTIONS_VERSION,
     EditorialFeedback,
     WriteOutput,
     role_instructions,
@@ -19,16 +18,15 @@ from podgen.writing.roles import (
 @pytest.mark.parametrize("format", ["solo", "dialogue"])
 def test_all_role_instructions_use_complete_packaged_resources(stage, format, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    root = files("podgen.writing.prompts").joinpath("v3")
+    root = files("podgen.writing.prompts").joinpath("current")
     result = role_instructions(stage, format)
-    assert ROLE_INSTRUCTIONS_VERSION in result
-    assert result == role_instructions_for_version(stage, format, version="whole-episode-a/3")
+    assert result.startswith("Instructions: whole-episode-a/sha256:")
     assert not re.search(r"[А-Яа-яЁё]", result)
     assert "output_language" in result
     assert f"stage={stage}; format={format}" in result
     for name in ("common.md", f"{format}.md", f"{stage}.md"):
-        assert root.joinpath(name).read_text(encoding="utf-8") in result
-    assert result.endswith(root.joinpath(f"{stage}.md").read_text(encoding="utf-8"))
+        assert root.joinpath(name).read_bytes().decode("utf-8") in result
+    assert result.endswith(root.joinpath(f"{stage}.md").read_bytes().decode("utf-8"))
 
 
 @pytest.mark.parametrize("stage,format", [("other", "solo"), ("draft", "other"), (None, "solo")])
@@ -189,3 +187,19 @@ def test_archived_v2_instructions_are_byte_identical(stage, format, expected_sha
 def test_unknown_version_never_falls_back_to_current(version):
     with pytest.raises(ValueError, match="unknown_writing_instruction_version"):
         role_instructions_for_version("draft", "solo", version=version)
+
+
+@pytest.mark.parametrize(
+    "stage,format,expected_sha256",
+    [
+        ("draft", "solo", "2fd6ee403e1ea3b4386fc80c1db210d15d848b65b50adc79f2be782a47106d94"),
+        ("draft", "dialogue", "4c46ac69d2f8f789d88ac280ebd40defd3c473fec6a05e0757144f9928872b3a"),
+        ("review", "solo", "8778691b8328f55c89760ec131bce6f2b96006cd996a7bd68fe6444d37728348"),
+        ("review", "dialogue", "2c67377bfd87d423cacd3be745d28582c98f8e3cc621724146da958a174afa37"),
+        ("revise", "solo", "a85e7c071cac4029d903ffa5d46f8e954b4487f2dcfce32c0b184d44a517d043"),
+        ("revise", "dialogue", "1d8c3f19b84bcabcf2e58b2e7b670b24f6415891ba23cec2462cfb321265bf22"),
+    ],
+)
+def test_archived_v3_instructions_are_byte_identical(stage, format, expected_sha256):
+    text = role_instructions_for_version(stage, format, version="whole-episode-a/3")
+    assert hashlib.sha256(text.encode()).hexdigest() == expected_sha256
