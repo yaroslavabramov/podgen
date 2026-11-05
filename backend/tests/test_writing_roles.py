@@ -1,3 +1,4 @@
+import hashlib
 import json
 from importlib.resources import files
 
@@ -9,6 +10,7 @@ from podgen.writing.roles import (
     EditorialFeedback,
     WriteOutput,
     role_instructions,
+    role_instructions_for_version,
 )
 
 
@@ -16,9 +18,10 @@ from podgen.writing.roles import (
 @pytest.mark.parametrize("format", ["solo", "dialogue"])
 def test_all_role_instructions_use_complete_packaged_resources(stage, format, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    root = files("podgen.writing.prompts").joinpath("v1")
+    root = files("podgen.writing.prompts").joinpath("v2")
     result = role_instructions(stage, format)
     assert ROLE_INSTRUCTIONS_VERSION in result
+    assert result == role_instructions_for_version(stage, format, version="whole-episode-a/2")
     assert f"stage={stage}; format={format}" in result
     for name in ("common.md", f"{format}.md", f"{stage}.md"):
         assert root.joinpath(name).read_text(encoding="utf-8") in result
@@ -139,3 +142,31 @@ def test_json_schema_is_closed_and_contains_no_text_length_limit(model):
             assert definition["additionalProperties"] is False
             assert set(definition["required"]) == set(definition["properties"])
     assert "maxLength" not in json.dumps(schema)
+    frozen_schema_hashes = {
+        "WriteOutput": "fbdd0f792bf1edf7a39dae39aa43f4c5d64de1cbc7809694eda6f3dd8b284bb5",
+        "EditorialFeedback": "9ba37e9851e7f6b142dfc65cbd84ae537f5291e0aa09cbe5fc1193eb0b797edc",
+    }
+    encoded = json.dumps(schema, sort_keys=True, ensure_ascii=False).encode()
+    assert hashlib.sha256(encoded).hexdigest() == frozen_schema_hashes[model.__name__]
+
+
+@pytest.mark.parametrize(
+    "stage,format,expected_sha256",
+    [
+        ("draft", "solo", "4e18d784d019d454c09ce3e7ec913b3f290e88ac024e8d1ba6a63b16f48a73d4"),
+        ("draft", "dialogue", "1e7b4169cadbc77d2cb95ef0cec65ae4e862cd2b96b83c2aec9a50bab01656fd"),
+        ("review", "solo", "5ce6a27af12e38467fed6fa616e80969c5b1f41c9923a7d5ab31e1044c2200fa"),
+        ("review", "dialogue", "bb60a7fa856cead50e21420fd7c8683bc9aa627059c2adb8273349a12562ed81"),
+        ("revise", "solo", "bc55e39c389569a73dd086667641bb460ea65d4f1c14aad72da8b3da948473c7"),
+        ("revise", "dialogue", "f4b083fe184994a73116f883b992a2de0f4e52b4bb7b9b756166ea2778bc71db"),
+    ],
+)
+def test_archived_v1_instructions_are_byte_identical(stage, format, expected_sha256):
+    text = role_instructions_for_version(stage, format, version="whole-episode-a/1")
+    assert hashlib.sha256(text.encode()).hexdigest() == expected_sha256
+
+
+@pytest.mark.parametrize("version", ["unpublished", "../v1", None])
+def test_unknown_version_never_falls_back_to_current(version):
+    with pytest.raises(ValueError, match="unknown_writing_instruction_version"):
+        role_instructions_for_version("draft", "solo", version=version)

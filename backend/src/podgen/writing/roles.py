@@ -11,7 +11,8 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
-ROLE_INSTRUCTIONS_VERSION = "whole-episode-a/1"
+ROLE_INSTRUCTIONS_VERSION = "whole-episode-a/2"
+_INSTRUCTION_VERSIONS = {"whole-episode-a/1": "v1", "whole-episode-a/2": "v2"}
 WritingStage = Literal["draft", "review", "revise"]
 WritingFormat = Literal["solo", "dialogue"]
 
@@ -111,21 +112,26 @@ class EditorialFeedback(RoleOutput):
 
 
 def role_instructions(stage: WritingStage, format: WritingFormat) -> str:
-    """Return full UTF-8 instructions from installed package resources.
+    """Return the current instructions; existing callers retain the two-argument API."""
+    return role_instructions_for_version(stage, format, version=ROLE_INSTRUCTIONS_VERSION)
+
+
+def role_instructions_for_version(stage: WritingStage, format: WritingFormat, *, version: str) -> str:
+    """Read a published instruction version without falling back to the current one.
 
     No episode content, evaluation answers or repository files are read here.
-    Change the version when publishing revised instructions; archive the returned
-    bytes with each real invocation. A prompt cannot enforce runtime isolation.
+    Archive the full returned bytes with each real invocation. A prompt cannot
+    enforce runtime isolation. Wire output schemas are unchanged across v1/v2.
     """
     if stage not in ("draft", "review", "revise"):
         raise ValueError(f"unknown_writing_stage: {stage!r}")
     if format not in ("solo", "dialogue"):
         raise ValueError(f"unknown_writing_format: {format!r}")
-    root = files("podgen.writing.prompts").joinpath("v1")
+    if version not in _INSTRUCTION_VERSIONS:
+        raise ValueError(f"unknown_writing_instruction_version: {version!r}")
+    root = files("podgen.writing.prompts").joinpath(_INSTRUCTION_VERSIONS[version])
     parts = [
         root.joinpath(name).read_text(encoding="utf-8")
         for name in ("common.md", f"{format}.md", f"{stage}.md")
     ]
-    return f"Instructions: {ROLE_INSTRUCTIONS_VERSION}; stage={stage}; format={format}\n\n" + "\n\n".join(
-        parts
-    )
+    return f"Instructions: {version}; stage={stage}; format={format}\n\n" + "\n\n".join(parts)
