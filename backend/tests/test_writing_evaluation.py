@@ -388,7 +388,6 @@ def test_source_revoked_during_count_is_not_resubmitted_from_evaluator_request(
 def test_resume_uses_archived_prompts_after_editor_publishes_new_version(
     repo, setup_writer, monkeypatch, tmp_path
 ):
-    from podgen.runtime.evaluation import service
 
     command, loader, _ = setup_writer
     provider = FakeProvider()
@@ -425,7 +424,7 @@ def test_resume_uses_archived_prompts_after_editor_publishes_new_version(
     monkeypatch.setattr(prompts, "files", lambda _: resources)
     assert prompts.role_instructions("revise", "dialogue") != saved_revise_body
     monkeypatch.setattr(
-        service,
+        __import__("podgen.runtime.evaluation.manifest", fromlist=["load_instruction_set"]),
         "load_instruction_set",
         lambda *args: pytest.fail("must not read current resources for an existing run"),
     )
@@ -474,7 +473,9 @@ def test_late_completed_replay_ignores_new_budgets_compiler_and_prompts(
     monkeypatch.setattr(service, "datetime", FutureDatetime)
     monkeypatch.setattr(service, "COMPILER_VERSION", "some-future-compiler")
     monkeypatch.setattr(
-        service, "load_instruction_set", lambda *args: pytest.fail("must not read live prompts")
+        __import__("podgen.runtime.evaluation.manifest", fromlist=["load_instruction_set"]),
+        "load_instruction_set",
+        lambda *args: pytest.fail("must not read live prompts"),
     )
 
     def unavailable_loader(*args, **kwargs):

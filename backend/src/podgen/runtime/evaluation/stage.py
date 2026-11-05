@@ -38,6 +38,7 @@ def execute_stage(
     totals,
     guard,
     repair_review_anchors=False,
+    own_plan=None,
 ):
     profile_ref = command.reviewer_profile_ref if stage == "review" else command.writer_profile_ref
     profile = load_profile(generation, command.project_id, profile_ref, stage)
@@ -53,6 +54,7 @@ def execute_stage(
         output_language=manifest.get("output_language"),
         draft=outputs.get("draft"),
         feedback=outputs.get("review"),
+        own_plan=own_plan,
     )
     context = dict(
         manifest_ref=RuntimeRef(
@@ -65,6 +67,11 @@ def execute_stage(
         draft_ref=records.get("draft"),
         feedback_ref=records.get("review") if stage == "revise" else None,
     )
+    if own_plan is not None:
+        context.update(
+            accepted_plan_ref=own_plan["accepted_plan_ref"],
+            planning_clearance_ref=own_plan["planning_clearance_ref"],
+        )
     invocation = journal.invocation(command.run_id, stage)
     if invocation is None:
         invocation = journal.prepare(command.run_id, stage, body, context)
@@ -136,6 +143,7 @@ def execute_stage(
             spoken_view=script_view(invocation["invocation_id"], output, previous)
             if stage != "review"
             else [],
+            accepted_plan_ref=own_plan["accepted_plan_ref"] if own_plan is not None else None,
             semantic_acceptance=False,
             production_ready=False,
         )

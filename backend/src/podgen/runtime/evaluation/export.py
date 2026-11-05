@@ -107,7 +107,7 @@ def export_run(repo, project, run_id, directory):
         directory / "inputs.json",
         journal.read_blob(manifest_ref, BlobRef.model_validate(manifest["materials_blob"])),
     )
-    for stage in STAGES:
+    for stage in manifest.get("stages", STAGES):
         attempts = journal.attempts(run_id, stage)
         if not attempts:
             continue
@@ -128,7 +128,7 @@ def export_run(repo, project, run_id, directory):
         if selected["output_record_id"]:
             output = journal.output(selected)
             write_json(Path(stage + ".json"), output)
-            if stage != "review":
+            if stage in ("draft", "revise"):
                 _write(
                     directory / (stage + ".txt"),
                     (
@@ -136,5 +136,13 @@ def export_run(repo, project, run_id, directory):
                         + "\n"
                     ).encode(),
                 )
+    if manifest.get("plan_mode") == "own-plan":
+        from .planning_export import export_planning
+
+        readable, proof = export_planning(journal, run_id, language=manifest["output_language"])
+        if readable is not None:
+            _write(directory / "generated-plan.md", readable.encode("utf-8"))
+        if proof is not None:
+            write_json(Path("planning-clearance.json"), proof)
     write_json(Path("run.json"), result)
     return result

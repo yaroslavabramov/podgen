@@ -1,27 +1,21 @@
 """Baseline A: complete draft -> independent informed review -> complete revision."""
 
-import json
-import platform
-from dataclasses import asdict
 from datetime import datetime, timezone
-from importlib.metadata import version
-from uuid import uuid5
 
 from podgen.domain.canonical import digest
-from podgen.domain.contracts.common import CodeProducer
 from podgen.domain.errors import AccessDenied, Conflict, ContractError
-from podgen.persistence.repository import Repository, timestamp
+from podgen.persistence.repository import Repository
 from podgen.runtime.models.gateway import ModelGateway
-from podgen.writing.materials import load_author_materials
-from podgen.writing.prompts import load_anchor_repair_instructions, load_instruction_set
-from podgen.writing.roles import EditorialFeedback, WriteOutput
+from podgen.writing.materials import load_author_materials, load_own_plan_materials
 
 from .compiler import COMPILER_VERSION, materials_hash
 from .completion import completed_result
 from .contracts import STAGES, RunFailure, WritingRunCommand, command_payload
 from .journal import EvaluationJournal
-from .profiles import load_profile
+from .manifest import create_manifest
+from .planning import execute_planning
 from .stage import execute_stage
+from .workflow import output_model, stages_for
 
 
 class WritingEvaluation:
@@ -33,73 +27,8 @@ class WritingEvaluation:
         self.generation = Repository(repo.database, repo.objects, repo.actor_id, purpose="generation")
 
     def _materials(self, command):
-        return self.materials_loader(
-            self.generation, command.project_id, command.author_ref, case_id=command.case_id
-        )
-
-    def _create_manifest(self, command, journal, materials):
-        payload = materials.as_payload()
-        producer = CodeProducer(
-            kind="code",
-            component="whole-episode-evaluation",
-            build_id=COMPILER_VERSION,
-            operation_id=command.run_id,
-        )
-        prompts = {}
-        schemas = {}
-        prompt_versions = {}
-        instruction_set = load_instruction_set(materials.format)
-        for stage in STAGES:
-            profile_ref = command.reviewer_profile_ref if stage == "review" else command.writer_profile_ref
-            load_profile(self.generation, command.project_id, profile_ref, stage)
-            instructions = instruction_set[stage].body
-            prompt_versions[stage] = instruction_set[stage].version
-            prompt = self.repo.create(
-                command.project_id,
-                "PromptDefinition",
-                dict(
-                    role=stage,
-                    template=instructions,
-                    placeholders=[],
-                    examples=[],
-                    compiler_version=COMPILER_VERSION,
-                ),
-                producer=producer,
-                operation_id=uuid5(command.run_id, "prompt:" + stage),
-            )
-            prompts[stage] = prompt.ref.model_dump(mode="json")
-            schemas[stage] = (EditorialFeedback if stage == "review" else WriteOutput).model_json_schema()
-        blob = journal.blob(
-            json.dumps(payload, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
-        )
-        manifest = dict(
-            contract="writing-evaluation-run-v1",
-            output_language=materials.output_language,
-            stages=list(STAGES),
-            runtime_versions={"python": platform.python_version(), "openai_sdk": version("openai")},
-            compiler_version=COMPILER_VERSION,
-            command=command_payload(command),
-            author_ref=command.author_ref.model_dump(mode="json"),
-            material_refs=[d.ref.model_dump(mode="json") for d in materials.documents],
-            materials_blob=blob.model_dump(mode="json"),
-            materials_hash=materials_hash(payload),
-            prompt_refs=prompts,
-            role_instructions_versions=prompt_versions,
-            anchor_repair_instructions=asdict(load_anchor_repair_instructions()),
-            response_schemas=schemas,
-            created_at=timestamp(),
-            purpose="evaluation",
-            semantic_acceptance=False,
-            production_ready=False,
-            strategy="A/whole-episode",
-            source_access="frozen-text-v1",
-            limitations=[
-                "unaccepted staged inputs",
-                "informed model review; not blind EXP-04 or independent fact-check",
-                "technical script versions; canonical EpisodeSpec/StoryPlan/ScriptRevision mapping remains open",
-            ],
-        )
-        return journal.create_run(command, manifest)
+        loader = load_own_plan_materials if command.plan_mode == "own-plan" else self.materials_loader
+        return loader(self.generation, command.project_id, command.author_ref, case_id=command.case_id)
 
     def run(self, command: WritingRunCommand, *, repair_review_anchors=False):
         if command.actor_id != self.repo.actor_id:
@@ -122,16 +51,13 @@ class WritingEvaluation:
                 materials = self._materials(command)
             else:
                 materials = self._materials(command)
-                manifest = self._create_manifest(command, journal, materials)
+                manifest = create_manifest(self.repo, self.generation, command, journal, materials)
             if manifest["compiler_version"] != COMPILER_VERSION:
                 raise ContractError("compiler_version_changed")
             if materials_hash(materials.as_payload()) != manifest["materials_hash"]:
                 raise Conflict("frozen_materials_changed")
-            for stage in STAGES:
-                if (
-                    manifest["response_schemas"][stage]
-                    != (EditorialFeedback if stage == "review" else WriteOutput).model_json_schema()
-                ):
+            for stage in stages_for(command):
+                if manifest["response_schemas"][stage] != output_model(stage).model_json_schema():
                     raise Conflict("role_output_contract_changed")
             gateway = ModelGateway(journal, self.provider_factory, **self.gateway_options)
             outputs = {}
@@ -150,6 +76,20 @@ class WritingEvaluation:
                     raise RunFailure("run_elapsed_budget_exceeded", run_id=command.run_id)
 
             try:
+                own_plan = None
+                if command.plan_mode == "own-plan":
+                    own_plan = execute_planning(
+                        journal=journal,
+                        gateway=gateway,
+                        generation=self.generation,
+                        command=command,
+                        manifest=manifest,
+                        materials=materials,
+                        outputs=outputs,
+                        records=records,
+                        totals=totals,
+                        guard=guard,
+                    )
                 for stage in STAGES:
                     guard()
                     result = execute_stage(
@@ -164,6 +104,7 @@ class WritingEvaluation:
                         records=records,
                         totals=totals,
                         guard=guard,
+                        own_plan=own_plan,
                         repair_review_anchors=(
                             repair_review_anchors or command.review_anchor_policy == "bounded-selection-v1"
                         ),

@@ -10,9 +10,10 @@ from dataclasses import dataclass
 from importlib.resources import files
 from typing import Literal
 
-Stage = Literal["draft", "review", "revise"]
+Stage = Literal["draft", "review", "revise", "plan", "plan-review", "plan-revise"]
 Format = Literal["solo", "dialogue"]
 _STAGES = ("draft", "review", "revise")
+_PLANNING_STAGES = ("plan", "plan-review", "plan-revise")
 _FORMATS = ("solo", "dialogue")
 _HISTORICAL = {"whole-episode-a/1": "v1", "whole-episode-a/2": "v2", "whole-episode-a/3": "v3"}
 
@@ -23,8 +24,8 @@ class RoleInstructions:
     body: str
 
 
-def _validate(stage, format):
-    if stage not in _STAGES:
+def _validate(stage, format, *, historical=False):
+    if stage not in (_STAGES if historical else (*_STAGES, *_PLANNING_STAGES)):
         raise ValueError(f"unknown_writing_stage: {stage!r}")
     if format not in _FORMATS:
         raise ValueError(f"unknown_writing_format: {format!r}")
@@ -50,12 +51,13 @@ def _assemble(stage, format, components):
     return RoleInstructions(version, body)
 
 
-def load_instruction_set(format: Format) -> dict[Stage, RoleInstructions]:
+def load_instruction_set(format: Format, *, include_planning=False) -> dict[str, RoleInstructions]:
     """Read each component once for a new run, then assemble all three stage bodies."""
     _validate("draft", format)
-    names = ("common.md", f"{format}.md", *(f"{stage}.md" for stage in _STAGES))
+    stages = (*_STAGES, *_PLANNING_STAGES) if include_planning else _STAGES
+    names = ("common.md", f"{format}.md", *(f"{stage}.md" for stage in stages))
     components = _read(files(__name__).joinpath("current"), names)
-    return {stage: _assemble(stage, format, components) for stage in _STAGES}
+    return {stage: _assemble(stage, format, components) for stage in stages}
 
 
 def load_anchor_repair_instructions() -> RoleInstructions:
@@ -73,7 +75,7 @@ def role_instructions(stage: Stage, format: Format) -> str:
 
 def role_instructions_for_version(stage: Stage, format: Format, *, version: str) -> str:
     """Read only published numbered history /1, /2, /3, with no current-content fallback."""
-    _validate(stage, format)
+    _validate(stage, format, historical=True)
     if version not in _HISTORICAL:
         raise ValueError(f"unknown_writing_instruction_version: {version!r}")
     root = files(__name__).joinpath(_HISTORICAL[version])

@@ -22,8 +22,16 @@ COUNT_FIELDS = {
 }
 
 
+def profile_role(stage):
+    if stage in ("plan", "plan-revise"):
+        return "planner"
+    if stage in ("plan-review", "plan-review-revised"):
+        return "plan_reviewer"
+    return "editorial_reviewer" if stage == "review" else "writer"
+
+
 def validate_profile(profile: ModelProfile, stage):
-    role = "editorial_reviewer" if stage == "review" else "writer"
+    role = profile_role(stage)
     if (
         profile.provider != "openai"
         or profile.api_family != "responses"
@@ -86,7 +94,17 @@ def indexed_script(output):
 
 
 def compile_request(
-    run_id, stage, profile, materials, instructions, schema, *, output_language, draft=None, feedback=None
+    run_id,
+    stage,
+    profile,
+    materials,
+    instructions,
+    schema,
+    *,
+    output_language,
+    draft=None,
+    feedback=None,
+    own_plan=None,
 ):
     validate_profile(profile, stage)
     payload = {"contract": "whole-episode-baseline-a/1", "stage": stage, "author_materials": materials}
@@ -101,11 +119,22 @@ def compile_request(
         if feedback is None:
             raise ContractError("full_feedback_required")
         payload["editorial_feedback"] = deepcopy(feedback)
+    if own_plan is not None:
+        payload.update(own_plan)
+    return response_request(run_id, stage, profile, payload, instructions, schema)
+
+
+def response_request(run_id, stage, profile, payload, instructions, schema):
+    validate_profile(profile, stage)
     parameters = deepcopy(profile.generation_parameters)
     text = parameters.pop("text", {})
     text["format"] = dict(
         type="json_schema",
-        name="editorial_feedback" if stage == "review" else "episode_script",
+        name="editorial_feedback"
+        if stage == "review"
+        else "episode_script"
+        if stage in ("draft", "revise")
+        else stage.replace("-", "_"),
         schema=deepcopy(schema),
         strict=True,
     )

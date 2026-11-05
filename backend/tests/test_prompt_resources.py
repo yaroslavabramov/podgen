@@ -152,7 +152,7 @@ def test_installed_resume_and_replay_use_archived_bodies_without_prompt_files(
 ):
     command, loader, _ = setup_writer
     if historical_version:
-        from podgen.runtime.evaluation import service
+        from podgen.runtime.evaluation import manifest as service
 
         monkeypatch.setattr(
             service,
@@ -253,3 +253,33 @@ def test_numbered_history_preserves_original_universal_newline_semantics(version
     monkeypatch.setattr(prompts, "files", lambda _: tmp_path)
     for (stage, format), body in before.items():
         assert prompts.role_instructions_for_version(stage, format, version=version) == body
+
+
+@pytest.mark.parametrize("stage", ["plan", "plan-review", "plan-revise"])
+@pytest.mark.parametrize("format", ["solo", "dialogue"])
+def test_planning_current_public_api_matches_run_assembly(stage, format):
+    assembled = prompts.load_instruction_set(format, include_planning=True)
+    assert prompts.role_instructions(stage, format) == assembled[stage].body
+    with pytest.raises(ValueError, match="unknown_writing_stage"):
+        prompts.role_instructions_for_version(stage, format, version="whole-episode-a/3")
+
+
+def test_edit_installed_plan_review_only_changes_plan_review_in_both_formats(installed_package):
+    script = """
+import json
+from podgen.writing.prompts import load_instruction_set
+print(json.dumps({stage+'/'+format:dict(version=p.version,body=p.body)
+for format in ('solo','dialogue') for stage,p in load_instruction_set(format,include_planning=True).items()}))
+"""
+    before = deployed_python(installed_package, script)
+    path = installed_package / "podgen/writing/prompts/current/plan-review.md"
+    original = path.read_bytes()
+    try:
+        path.write_bytes(original + b"\nSYNTHETIC revised plan editor guidance.\n")
+        after = deployed_python(installed_package, script)
+        assert {key for key in before if before[key] != after[key]} == {
+            "plan-review/solo",
+            "plan-review/dialogue",
+        }
+    finally:
+        path.write_bytes(original)

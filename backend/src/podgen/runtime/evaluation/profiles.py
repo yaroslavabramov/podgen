@@ -21,6 +21,7 @@ def create_profile(
     background=False,
     store=False,
     operation_id=None,
+    roles=None,
 ):
     operation_id = operation_id or uuid4()
     producer = CodeProducer(
@@ -56,7 +57,7 @@ def create_profile(
             model_id=model,
             model_revision_or_alias=model,
             adapter_version="openai-responses-v1",
-            allowed_roles=["writer", "editorial_reviewer"],
+            allowed_roles=roles if roles is not None else ["writer", "editorial_reviewer"],
             supported_modalities=["text"],
             context_limit=context_limit,
             output_limit=output_limit,

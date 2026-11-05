@@ -15,6 +15,14 @@ class Database:
         self.engine = create_engine(url, pool_pre_ping=True)
 
     @contextmanager
+    def read_transaction(self):
+        # One authorization sees one committed snapshot. A concurrent withdrawal applies to the next read.
+        # Never reuse the snapshot/memo for a later provider count/submit or another public operation.
+        with self.engine.begin() as connection:
+            connection.exec_driver_sql("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+            yield connection
+
+    @contextmanager
     def transaction(self):
         with self.engine.begin() as connection:
             yield connection

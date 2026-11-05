@@ -93,3 +93,39 @@ uv run --directory backend python -m podgen.writing_cli \
 Нужна миграция `0011_review_anchor_attempt`. Legacy manifest без policy читается как strict с прежним fingerprint. Явное восстановление фиксируется отдельным immutable событием, не переписывает исходный manifest и не создаёт новый draft. Сохранённый полный failed review, его request/response и usage остаются в `archive/review/`; дополнительная попытка — `archive/review/attempt-1/`. `run.json` содержит обе попытки и суммарный известный usage.
 
 Selector получает исходные материалы, draft и полный отклонённый feedback. Он выбирает только серверные IDs точных фрагментов для невалидных anchors. Сервер восстанавливает цитаты из draft; суждения и уже валидные anchors не меняются. `null`, неизвестные/пропущенные/повторные IDs останавливают цепочку без revise. Неоднозначный submit, malformed JSON, refusal/incomplete и прочие ошибки не получают такого retry. Повторный resume не создаёт второй repair; каждая отправка снова проверяет доступ к исходникам. Это дополнительное экспериментальное условие, не квалификация и не semantic acceptance.
+
+
+## Own-plan: свой план с отдельной проверкой
+
+`--plan-mode fixed-plan` — прежнее условие по умолчанию; прежние команды, fingerprints, сохранённые prompts и replay совместимы. `--plan-mode own-plan` использует полный бриф, досье и те же проверенные первичные представления источников, но исключает предоставленный `author/.../plan.md`, gold и прежние сценарии на всех этапах. Указания неизменённого брифа о предоставленном плане явно помечаются в payload как относящиеся только к fixed-plan.
+
+Нужна миграция `0012_own_plan_stages`; старые записи не изменяются. Планирование: `plan → plan-review`; при `revise` — максимум одна `plan-revise → plan-review-revised`. Ограничение явно задаётся `--max-plan-revisions 0|1` (по умолчанию 1). Только `accept` для точной сохранённой версии без blocking research даёт её автору `draft → review → revise`. Вопросы с `blocking=false` не требуют исследования автоматически. Исчерпанная правка и отсутствие материала завершаются `needs_attention`; исследователь не имитируется. Отзыв разрешённого источника закрывает сохранённые requests, raw responses, candidates, decisions и clearance через WP-01 provenance.
+
+Создайте отдельный **candidate** профиль с planning-ролями; существующие writer/reviewer refs менять не требуется:
+
+```sh
+uv run --directory backend python -m podgen.writing_cli \
+  --env-file ../.env --project PROJECT_UUID --actor ACTOR_UUID --objects /ABS/STAGING_OBJECTS \
+  profile-create --model gpt-5.4-2026-03-05 --context-limit 1050000 \
+  --output-limit 32768 --reasoning-effort medium --roles planner plan_reviewer \
+  --out /tmp/planning-profile.json
+
+uv run --directory backend python -m podgen.writing_cli \
+  --env-file ../.env --project PROJECT_UUID --actor ACTOR_UUID --objects /ABS/STAGING_OBJECTS \
+  run --run-id NEW_UUID --case gps-clock --author-ref @/tmp/gps-author-ref.json \
+  --writer-profile @/tmp/writer-profile-ref.json --reviewer-profile @/tmp/writer-profile-ref.json \
+  --plan-mode own-plan --planner-profile @/tmp/planning-profile.json \
+  --plan-reviewer-profile @/tmp/planning-profile.json --max-plan-revisions 1 \
+  --review-anchor-policy bounded-selection-v1 --max-total-input-tokens 2100000 \
+  --max-total-output-tokens 327680 --max-elapsed-seconds 7200 --export-dir /tmp/own-gps-NEW_UUID
+```
+
+Для Snow замените case, author ref, UUID и папку. Все planning-вызовы входят в общий token/time budget; settings и repeat_index не подменяются автоматически. `resume` и `inspect` прежние. Ambiguous submit не отправляется повторно.
+
+Модель получает явный `material_catalog`: точные labels из единственного разрешённого `evidence.json` темы и пути реально переданных документов. Labels связаны с проверенными полными представлениями и selectors. Review использует JSON Pointers к точному `PlanningOutput`. UUID кандидата назначает backend; JSON содержит ссылки на предыдущую версию, её hash и отдельное решение. Own-plan хранит широкий staging root как **селектор**, а зависимости manifest — как явные refs только выбранных документов. Это предотвращает обход через broad root или aliases и не делает неиспользованный fixed-plan источником полномочий.
+
+Экспорт включает полные `plan.json`, `plan-review.json`, при правке `plan-revise.json`/`plan-review-revised.json`, отдельный `planning-clearance.json` и полный архив каждого вызова. `generated-plan.md` показывает именно проверенную версию; при блоке — явно непринятый кандидат и конкретные вопросы/причины. Все эти результаты — evaluation-кандидаты, не принятый производственный StoryPlan и не независимый фактчек.
+
+Repository повторно использует успешно проверенные узлы только внутри одного публичного чтения в PostgreSQL read-only repeatable-read snapshot. Конкурирующий отзыв применяется к следующему чтению; snapshot и memo не живут между вызовами, транзакциями, проектами или purposes. Guard перед count/submit открывает новые чтения и снова проверяет живой доступ. Циклы проверяются отдельным active-path guard.
+
+Для `journal.record/create_run/prepare/event` используется отдельная короткая write-транзакция с repeatable-read снимком и memo на одну проверку графа. `FOR SHARE` проекта сериализует публикацию с обычным `DependencyLedger` access withdrawal, а блокировка строки членства — с удалением/понижением роли. Отзыв после публикации видит и новые рёбра/производные bytes; отзыв, выигравший гонку, приводит к новому снимку и отказу в записи. Повторяется только откатившаяся SQL-транзакция с `40001`, максимум три раза; provider calls внутри callback отсутствуют. Общая политика остальных write-транзакций не менялась.

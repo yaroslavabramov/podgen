@@ -48,6 +48,12 @@ def parser():
         action="store_true",
         help="Explicitly authorize provider response storage; required for background retrieval",
     )
+    profile.add_argument(
+        "--roles",
+        nargs="+",
+        choices=["writer", "editorial_reviewer", "planner", "plan_reviewer"],
+        default=["writer", "editorial_reviewer"],
+    )
     profile.add_argument("--operation-id", type=UUID)
     profile.add_argument("--out", type=Path, required=True)
     run = sub.add_parser("run")
@@ -60,6 +66,10 @@ def parser():
     )
     run.add_argument("--writer-profile", required=True)
     run.add_argument("--reviewer-profile", required=True)
+    run.add_argument("--plan-mode", choices=["fixed-plan", "own-plan"], default="fixed-plan")
+    run.add_argument("--planner-profile")
+    run.add_argument("--plan-reviewer-profile")
+    run.add_argument("--max-plan-revisions", type=int, choices=[0, 1], default=1)
     run.add_argument("--repeat-index", type=int, default=0)
     run.add_argument("--max-total-input-tokens", type=int, default=900000)
     run.add_argument("--max-total-output-tokens", type=int, default=196608)
@@ -104,6 +114,7 @@ def main(argv=None):
                 background=args.background,
                 store=args.store,
                 operation_id=args.operation_id,
+                roles=args.roles,
             )
             args.out.parent.mkdir(parents=True, exist_ok=True)
             args.out.write_text(json.dumps(profile.ref.model_dump(mode="json"), indent=2) + "\n")
@@ -135,6 +146,14 @@ def main(argv=None):
                 author_ref=wire_ref(args.author_ref, RuntimeRef),
                 writer_profile_ref=wire_ref(args.writer_profile, ArtifactRef),
                 reviewer_profile_ref=wire_ref(args.reviewer_profile, ArtifactRef),
+                plan_mode=args.plan_mode,
+                planner_profile_ref=wire_ref(args.planner_profile, ArtifactRef)
+                if args.planner_profile
+                else None,
+                plan_reviewer_profile_ref=wire_ref(args.plan_reviewer_profile, ArtifactRef)
+                if args.plan_reviewer_profile
+                else None,
+                max_plan_revisions=args.max_plan_revisions,
                 repeat_index=args.repeat_index,
                 review_anchor_policy=args.review_anchor_policy,
                 limits=RunLimits(

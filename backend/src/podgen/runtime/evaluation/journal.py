@@ -8,6 +8,7 @@ from uuid import uuid4, uuid5
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import BlobRef, RuntimeRef
 from podgen.domain.errors import AccessDenied, Conflict
+from podgen.persistence.archive_authorization import archive_write
 from podgen.persistence.database import one, query
 from podgen.persistence.runtime_records import append_runtime
 
@@ -48,9 +49,12 @@ class EvaluationJournal:
 
     def record(self, payload, *, record_id=None, kind="tool_execution"):
         ref = RuntimeRef(record_kind=kind, record_id=record_id or uuid4())
-        with self.repo.database.transaction() as tx:
+
+        def write(tx):
             self.authorize(tx)
             append_runtime(self.repo, tx, self.project, ref, payload, "evaluator", replay=True)
+
+        archive_write(self.repo, self.project, write)
         return ref
 
     def read(self, ref):
@@ -86,7 +90,8 @@ class EvaluationJournal:
                 raise Conflict("run_id_reused_with_different_input")
             return self.manifest(command.run_id)
         ref = RuntimeRef(record_kind="context_assembly", record_id=uuid5(command.run_id, "manifest"))
-        with self.repo.database.transaction() as tx:
+
+        def write(tx):
             self.authorize(tx)
             append_runtime(self.repo, tx, self.project, ref, manifest, "evaluator", replay=True)
             query(
@@ -99,6 +104,8 @@ class EvaluationJournal:
                 fp=fingerprint,
                 m=ref.record_id,
             )
+
+        archive_write(self.repo, self.project, write)
         return manifest
 
     def status(self, run_id, status, failure=None):
@@ -172,7 +179,8 @@ class EvaluationJournal:
             request_hash=blob.sha256,
             context=context,
         )
-        with self.repo.database.transaction() as tx:
+
+        def write(tx):
             self.authorize(tx)
             append_runtime(self.repo, tx, self.project, ref, record, "evaluator", replay=True)
             query(
@@ -187,6 +195,8 @@ class EvaluationJournal:
                 attempt=attempt_index,
                 parent=parent_invocation_id,
             )
+
+        archive_write(self.repo, self.project, write)
         return self.invocation(run_id, stage, attempt_index)
 
     def request(self, invocation):
@@ -216,7 +226,8 @@ class EvaluationJournal:
                 wire = self.blob(reply.request_body)
                 payload["wire_request_blob"] = wire.model_dump(mode="json")
         ref = RuntimeRef(record_kind="tool_execution", record_id=uuid4())
-        with self.repo.database.transaction() as tx:
+
+        def write(tx):
             self.authorize(tx)
             append_runtime(self.repo, tx, self.project, ref, payload, "evaluator")
             query(
@@ -236,6 +247,8 @@ class EvaluationJournal:
                     i=invocation["invocation_id"],
                     id=data["provider_response_id"],
                 )
+
+        archive_write(self.repo, self.project, write)
         return ref
 
     def last_response(self, invocation):

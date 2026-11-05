@@ -11,6 +11,7 @@ from podgen.domain.errors import AccessDenied, ContractError
 from podgen.domain.references import walk_values
 
 from .database import Database, one, query
+from .read_authorization import authorized_read, checked_node
 
 CONFIG_KINDS = {
     "PolicyBundle",
@@ -46,6 +47,7 @@ class Repository:
             raise ValueError("invalid_access_purpose")
         self.database, self.objects, self.actor_id = database, object_store, actor_id
         self.purpose, self.inline_limit = purpose, inline_limit
+        self._read_authorization = ContextVar("podgen_read_authorization", default=None)
         self._read_path = ContextVar("podgen_read_path", default=frozenset())
 
     @contextmanager
@@ -104,8 +106,9 @@ class Repository:
     def _resolve(self, tx, project_id, ref, seen=None):
         from .scope import ScopeAccess
 
-        with self._reading("artifact", ref.revision_id):
-            return ScopeAccess(self).resolve(tx, project_id, ref, seen)
+        with self._reading("artifact", (project_id, ref.revision_id)):
+            key = ("artifact", project_id, ref.kind, ref.artifact_id, ref.revision_id)
+            return checked_node(self, tx, key, lambda: ScopeAccess(self).resolve(tx, project_id, ref, seen))
 
     def _envelope(self, row):
         return ArtifactRevision(
@@ -139,7 +142,7 @@ class Repository:
             raise ContractError("artifact_integrity_error")
 
     def get(self, project_id, ref):
-        with self.database.transaction() as tx:
+        with self.database.read_transaction() as tx, authorized_read(self, tx):
             row = self._resolve(tx, project_id, ref)
             self._verify_hash(tx, row)
             return self._envelope(row)
@@ -209,7 +212,7 @@ class Repository:
             raise AccessDenied()
 
     def read_blob(self, project_id, artifact_ref, blob_ref):
-        with self.database.transaction() as tx:
+        with self.database.read_transaction() as tx, authorized_read(self, tx):
             row = self._resolve(tx, project_id, artifact_ref)
             if row["project_id"] != project_id:
                 raise AccessDenied()  # catalog audition has its own narrow projection
@@ -299,8 +302,9 @@ class Repository:
     def _runtime(self, tx, project_id, ref):
         from .scope import ScopeAccess
 
-        with self._reading("runtime", ref.record_id):
-            return ScopeAccess(self).runtime(tx, project_id, ref)
+        with self._reading("runtime", (project_id, ref.record_id)):
+            key = ("runtime", project_id, ref.record_kind, ref.record_id)
+            return checked_node(self, tx, key, lambda: ScopeAccess(self).runtime(tx, project_id, ref))
 
     def append_runtime(self, project_id, ref, payload, audience="project"):
         from .runtime_records import append_runtime
@@ -309,7 +313,7 @@ class Repository:
             return append_runtime(self, tx, project_id, ref, payload, audience)
 
     def get_runtime(self, project_id, ref):
-        with self.database.transaction() as tx:
+        with self.database.read_transaction() as tx, authorized_read(self, tx):
             row = self._runtime(tx, project_id, ref)
             for _, _, linked in walk_values(row["payload"]):
                 if isinstance(linked, ArtifactRef):
@@ -319,7 +323,7 @@ class Repository:
     def read_runtime_blob(self, project_id, runtime_ref, blob_ref):
         from podgen.domain.contracts.common import BlobRef
 
-        with self.database.transaction() as tx:
+        with self.database.read_transaction() as tx, authorized_read(self, tx):
             row = self._runtime(tx, project_id, runtime_ref)
             owned = [ref for _, _, ref in walk_values(row["payload"]) if isinstance(ref, BlobRef)]
             if blob_ref not in owned:
