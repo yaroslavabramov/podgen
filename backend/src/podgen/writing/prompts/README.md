@@ -9,6 +9,9 @@ Edit the relevant UTF-8 Markdown file in `current/`:
 | `common.md` | Every stage and format |
 | `solo.md`, `dialogue.md` | All stages of that format |
 | `draft.md`, `review.md`, `revise.md` | That stage in both formats |
+| `plan.md` | Initial own-plan proposal from the brief, dossier and permitted corpus |
+| `plan-review.md` | Independent review of the initial or revised planning candidate |
+| `plan-revise.md` | Complete replacement proposal after the plan editor requests revision |
 | `anchor-repair.md` | The additional call that repairs review citation anchors |
 
 For example, change `current/review.md` to change the editor's instructions.
@@ -50,8 +53,44 @@ once and builds all three stages. The runner saves each complete body in a
 (`prompt_refs`, `role_instructions_versions`). Resume uses these saved bodies,
 not `current/` or Git.
 
+Own-plan runs use `load_instruction_set(format, include_planning=True)`, which
+also assembles `plan`, `plan-review` and `plan-revise` from the same common and
+format components plus their individual files. The two-argument
+`role_instructions` API remains for `draft`, `review` and `revise` only.
+Editing a planning file changes only that instruction assembly in new runs.
+
 The repair appendix is pinned separately in the manifest's
 `anchor_repair_instructions`; editing it affects repair calls only.
+
+## Which plan and review apply
+
+`fixed-plan` reads the supplied `author/<case>/plan.md` and runs
+`draft -> review -> revise`; it does not invoke the new planning roles.
+`own-plan` reads the brief, dossier and permitted source corpus, without the
+supplied plan or evaluator answers. It starts with `plan`; an unblocked candidate
+then goes to `plan-review`. The editor reviews that exact saved candidate against
+the materials.
+
+An `accept` permits writing with that candidate. If the decision is `revise`
+and the revision budget allows it, `plan-revise` returns a complete new candidate.
+The separate `plan-review-revised` call checks this new version using the same
+`plan-review.md` body and content ID pinned at run creation. It receives the new
+candidate's exact reference and hash; the previous review does not approve it.
+The current runner permits at most one plan revision. A further required revision
+stops the run rather than starting the writer.
+
+All instruction bodies, including the optional revision and second review, are
+pinned before the first call. Editing `current/` during a run changes none of
+them. Every review is bound to the candidate it actually received.
+Any blocking research request from the planner or plan editor is preserved and
+prevents `draft`. The researcher is not implemented; recording a question does
+not answer it or launch another agent. `PlanningOutput` can represent this as
+`status=needs_research`, with `plan=null` when no meaningful plan is supported.
+An explainable uncertainty alone does not require a blocker. Only a complete
+`status=ready` proposal with an explicit editorial `accept` can reach the writer.
+This planning decision is not independent factual or production approval.
+
+## Read saved instructions
 
 To see instructions actually used in an exported attempt, read its request:
 
@@ -80,10 +119,14 @@ review separately, validates `EditorialFeedback` anchors against that exact draf
 and passes full feedback to revision. Anchors use zero-based utterance positions
 and exact quotes; they do not automatically transfer to the revised text.
 `WriteOutput` and `EditorialFeedback` schemas are unchanged.
+Planning uses `PlanningOutput` and `PlanReviewOutput` from `planning_roles.py`;
+review targets are JSON Pointers into the exact candidate, and material references
+must match the supplied permitted catalog. These wire outputs are not canonical
+production approvals.
 
 Access isolation, blind-reading phases and complete request/response archives
 are runtime responsibilities. A reviewer who sees the plan or dossier reports
-`reading_mode=informed`. For missing material, the editor can return
+`reading_mode=informed`. For missing material, the script editor can return
 `research_requests` and recommend `needs_material`; this does not invoke a
 research agent automatically. Incomplete provider output is a failed attempt.
 Schema checks establish contract integrity, not writing quality, independent
