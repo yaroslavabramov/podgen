@@ -15,8 +15,9 @@ def normalize(text):
 
 
 def main():
-    for name in ('sps-2020', 'nasa-introduction-2017'):
-        path = ROOT / 'sources/gps' / f'{name}.pdf'
+    for directory, name in [('gps', 'sps-2020'), ('gps', 'nasa-introduction-2017'),
+                            ('snow', 'parish-1855-b21363870')]:
+        path = ROOT / 'sources' / directory / f'{name}.pdf'
         pages = PdfReader(path).pages
         text = '\n\n'.join(f'=== PDF PAGE {i+1} ===\n' + page.extract_text()
                            for i, page in enumerate(pages))

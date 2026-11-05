@@ -1,0 +1,21 @@
+{
+  "requested_url": "https://archive.org/download/b21363870/b21363870.pdf",
+  "resolved_url": "https://ia801604.us.archive.org/3/items/b21363870/b21363870.pdf",
+  "status": 200,
+  "acquired_at": "2026-11-05T11:22:45.014794+00:00",
+  "headers": {
+    "Server": "nginx/1.31.3",
+    "Date": "Thu, 05 Nov 2026 11:22:42 GMT",
+    "Content-Type": "application/pdf",
+    "Content-Length": "9347085",
+    "Last-Modified": "Thu, 02 Nov 2023 19:14:55 GMT",
+    "Connection": "close",
+    "ETag": "\"6543f52f-8ea00d\"",
+    "Strict-Transport-Security": "max-age=15724800",
+    "Content-Security-Policy-Report-Only": "report-uri https://archive.org/services/csp-report; default-src *; img-src * data: blob:; object-src 'none'; media-src * blob:; connect-src * data:; style-src 'unsafe-inline' https://archive.org/ https://ia801604.us.archive.org https://esm.archive.org/ https://esm.ext.archive.org/ https://offshoot.prod.archive.org/ https://av.archive.org/css/ https://av.dev.archive.org/css/ https://accounts.google.com/gsi/ https://synerg.adp.com/; script-src 'nonce-995a59abc23940fa7311999638ce1149' https://archive.org/includes/ https://ia801604.us.archive.org/includes/ https://archive.org/components/ https://ia801604.us.archive.org/components/ https://archive.org/v/ https://ia801604.us.archive.org/v/ https://ia801604.us.archive.org/upload/app/ https://archive.org/offshoot_assets/ https://ia801604.us.archive.org/offshoot_assets/ https://esm.archive.org/ https://esm.ext.archive.org/ https://polyfill.archive.org/v3/polyfill.min.js https://offshoot.prod.archive.org/ https://av.archive.org/ https://av.dev.archive.org/ https://openlibrary.org/query.json https://emularity-engine.ux-b.archive.org/ https://emularity-config.ux-b.archive.org/ https://emularity-bios.ux-b.archive.org/ https://archive.org/services/emularity/ https://ia801604.us.archive.org/services/emularity/ 'wasm-unsafe-eval' 'sha256-CoX53XgCdkM1zegYEEpMUeYIZnv663inNm8bQv2VRbM=' https://accounts.google.com/gsi/ https://www.google.com/recaptcha/ https://www.recaptcha.net/recaptcha/ https://www.gstatic.com/recaptcha/ https://workforcenow.adp.com/ https://synerg.adp.com/ https://apollo.archive.org",
+    "Expires": "Thu, 05 Nov 2026 17:22:42 GMT",
+    "Cache-Control": "max-age=21600",
+    "Referrer-Policy": "no-referrer-when-downgrade",
+    "Accept-Ranges": "bytes"
+  }
+}

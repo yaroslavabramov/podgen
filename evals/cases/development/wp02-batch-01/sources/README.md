@@ -29,3 +29,7 @@ python3 tools/build_evidence.py
 This eBook is for the use of anyone anywhere in the United States and most other parts of the world at no cost and with almost no restrictions whatsoever. You may copy it, give it away or re-use it under the terms of the Project Gutenberg License included with this eBook or online at [www.gutenberg.org](https://www.gutenberg.org/policy/license.html). If you are not located in the United States, you’ll have to check the laws of the country where you are located before using this ebook.
 
 Полный локальный текст условий: [gutenberg-license.html](snow/gutenberg-license.html). Оригинал книги сохранён без изменений; извлечение — явно отдельный производный файл. Ссылка на PG в библиографии не обозначает спонсорство или одобрение наших текстов. Дата электронного выпуска 2024 и сообщение транскрибатора о молчаливой правке опечаток не скрыты; издательский текст 1855 и современная representation различаются.
+
+## Дополнение редакции 2
+
+Сноу: [snow-sources-2](snow/corpus-v2.json) добавляет IA-скан `parish-1855-b21363870.pdf` с PDM, полный текст и визуальные опоры. Прочитанные/просмотренные страницы, разные экземпляры Wellcome/IA, ошибки OCR и зависимость семейства — в [описании](snow/README.md) и досье v2. Титул July 1855 не подменяет запись о представлении 9 августа. Оригиналы и четыре representations первой партии сохранены; новый OCR не заменяет старую транскрипцию книги Сноу.

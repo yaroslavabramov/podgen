@@ -1,0 +1,51 @@
+{
+  "version": "snow-sources-2",
+  "split": "development",
+  "predecessor": {
+    "git_commit": "b449d4d",
+    "version": "snow-sources-1"
+  },
+  "path_base": "batch root; preserved in author export",
+  "files": {
+    "sources/snow/README.md": "b25efc2aa68a878fd4dcfe4ea682c85116fde86e51949c47a24ef63c60fa66df",
+    "sources/snow/catalog.html": "3caac70a3b650bbdfbb21ad10c49e4bcf467759116776333cda059a0d755e95b",
+    "sources/snow/catalog.html.acquisition.json": "8cfea86e95b515d3ade2d5622006837f202b87570fa86a87af2fb5430e23e6af",
+    "sources/snow/evidence.json": "5c9d07e922a69dab432f060f60c634d5a0d7edb9e18fd42d87b5f3798e810852",
+    "sources/snow/gutenberg-license.html": "8a5137aecb0911dc0700e4ff636834326f6eade4beb997229269658a5ccd82f7",
+    "sources/snow/gutenberg-license.html.acquisition.json": "3d419ba6336060933829c887c46a10df0c40aefe64f0c8623e141644dfdbe710",
+    "sources/snow/parish-1855-b21363870.pdf": "11bdd83261a1f8e86d7923b6e2dceee6b909eb7b41540d536fea70fbfbda006f",
+    "sources/snow/parish-1855-b21363870.pdf.acquisition.json": "689337d1cea1b37f8933914f8cb1f0948c1de0839b7aacbb303c6656c17267ed",
+    "sources/snow/parish-1855-b21363870.txt": "b793e19dfb610899a4c355afe9ac258d8d9304b5a998b1e616ddf11f22e7c546",
+    "sources/snow/parish-1855-ia-metadata.json": "c83eb844cd1d6b6b463f416685c3e6b58a8ddc3e79ce0f4bc19ddf5956bf256f",
+    "sources/snow/parish-1855-ia-metadata.json.acquisition.json": "b77d777ab6dd26530b51508bb1866f1878ec44c85b716ded740346cda37e3e90",
+    "sources/snow/parish-1855-renders/pdf-003.png": "2b19833981051df71f900936f597cecf6eef61862270d86eddcef7375353ef90",
+    "sources/snow/parish-1855-renders/pdf-005.png": "ea2e750bf8e99425d20d343f3d8fd4d26073664f20e50818cdb8a0708d355b7a",
+    "sources/snow/parish-1855-renders/pdf-093.png": "6fc83f873b2172ae0ec5d3fee2b52d45b0758b3956576c37989616dfc63c6ffe",
+    "sources/snow/parish-1855-renders/pdf-094.png": "05103faabb04bac72515cd689c07f959cd3f5974861c190fb75bbe1bae8d8c21",
+    "sources/snow/parish-1855-renders/pdf-126.png": "ab9fdc0f8435148a09b5433ac3054df77a1da127fe16beb4333c27b63b5952dd",
+    "sources/snow/parish-1855-renders/pdf-163.png": "d95ff199a30d346075f38a70119a12f09ab4f8d1abb4ba08e12c5de5c87c4570",
+    "sources/snow/parish-1855-renders/pdf-164.png": "57b4605926a49f862b982a753b46683ec64de92e7e068ea945ef331313d6353f",
+    "sources/snow/parish-1855-renders/pdf-167.png": "4bc9ceb575bdc3de7aaaad1c22ba294f3402aaee32c3e0913e1a95c675f29971",
+    "sources/snow/parish-1855-renders/pdf-168.png": "0ebaa76a62154eba3d355c83a1d8197d425dbb8beeca32bed233ddcf540a1894",
+    "sources/snow/parish-1855-renders/pdf-169.png": "72ffd36a8775403ba160fe6a394ff69a59111b8aa6eb54394e6817893746dfc8",
+    "sources/snow/parish-1855-renders/pdf-170.png": "502c9c025eb5f9e666bfb31ed066c0a429c1bf733983f4f8a85b8b4d0dbfcfa2",
+    "sources/snow/parish-1855-renders/pdf-171.png": "8c74ed0f272b5f5a216fe80829ce59f6f1c7a7ed0cddbc63e4459d1b7c36175b",
+    "sources/snow/parish-1855-renders/pdf-174.png": "ec3fce4bf4e1b60d39e88060ddad1f6719bf0d417b1a5d71651a615370873689",
+    "sources/snow/parish-1855-renders/pdf-179.png": "44864a07ce84912328cee758622f756a0d18ccad3dfef00e6cb36569ec499e7e",
+    "sources/snow/parish-1855-renders/pdf-180.png": "a91a9b1401267062174ba7461b80324319767e7fe9ce2a1da0c192a990dfb59c",
+    "sources/snow/parish-1855-renders/pdf-181.png": "1f1227c53eec6aa76f033efc426f04ec771efcc50319126707f162fd5d652b98",
+    "sources/snow/parish-1855-renders/pdf-182.png": "9c1bb6548b3bcf18c8bb1ebf6193b3a06fd1e4a4e6c72d7a375bdbdb7b8bdd55",
+    "sources/snow/parish-1855-renders/pdf-183.png": "bdda7f11f702d242ca2c63dcbd96e6a28218c27537caedae24ecdc3385e6b004",
+    "sources/snow/snow-1855.html": "38d4ea5d3e9047d9956d1e73f73b14332e84822e40ba91e51f64e7a4ccc861b6",
+    "sources/snow/snow-1855.html.acquisition.json": "c1bcad0f931ad2706220fc95820197aef5d96b9bd8e9a65bd25729f98932c79c",
+    "sources/snow/snow-1855.txt": "42e641eb17a9a3295e4846c3b5b76da7596475bd80d30b31e0d46f44fa4a95ca",
+    "sources/snow/wellcome-work.json": "96b641115cf28e9e041c1ef1a35a36825cbd0608dbdbd1b0f1a875b5dbe1547c",
+    "sources/snow/wellcome-work.json.acquisition.json": "550fb8d5bd39a3389f721d08ca1dbcc6a3d6b0d3b70d31e97fbf44fb22857835"
+  },
+  "author_inputs": {
+    "author/snow-pump/brief.md": "c3935086b3d4174886ccbde84173b7d99f9bd81ae1c58c169aff4b27954140ec",
+    "author/snow-pump/dossier.md": "5fc5bc54908b785f6ce8c7768884dc2b1ba987fbf19789bbcccc3b09d6c9a938",
+    "author/snow-pump/plan.md": "c2aa0dd65ed2fd97e99ca60d2d82fd63f19c882253c9fe8e54f31f6c1c6395ef"
+  },
+  "note": "Local file index for import; not canonical ArtifactRevision or controlled editorial experiment."
+}

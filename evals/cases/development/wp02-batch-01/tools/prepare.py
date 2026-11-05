@@ -1,11 +1,12 @@
 """Offline packaging/checks for WP-02 prose. Not an evaluation or artifact runner."""
 import argparse
-from decimal import Decimal
 import hashlib
 import json
 from pathlib import Path
 import re
 import shutil
+
+from validation import validate_calculations, validate_evidence
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = {'gps-clock': 'gps', 'snow-pump': 'snow'}
@@ -28,7 +29,11 @@ def utterances(case, stage, control=None):
             raise ValueError('Control belongs to a different case/stage')
         if text.count(recipe['find']) != 1:
             raise ValueError('Exact control selection must occur once')
+        if digest(ROOT / 'evaluator-only' / case / f'{stage}.txt') != recipe['base_sha256']:
+            raise ValueError('Control base hash mismatch')
         text = text.replace(recipe['find'], recipe['replace'], 1)
+        if hashlib.sha256(text.encode()).hexdigest() != recipe['mutated_sha256']:
+            raise ValueError('Control mutated hash mismatch')
     result = []
     for paragraph in text.strip().split('\n\n'):
         match = re.fullmatch(r'([А-ЯЁ]+): (.+)', paragraph)
@@ -56,27 +61,37 @@ def verify():
     for relative, sha in expected.items():
         if digest(verified_path(relative)) != sha:
             raise ValueError(f'Hash mismatch: {relative}')
+    corpus_path = ROOT / 'sources/snow/corpus-v2.json'
+    if corpus_path.exists():
+        corpus = json.loads(corpus_path.read_text())
+        for group in ('files', 'author_inputs'):
+            for relative, sha in corpus[group].items():
+                if digest(verified_path(relative)) != sha:
+                    raise ValueError(f'Corpus input hash mismatch: {relative}')
+    evidence_count = 0
+    gps_entries = None
     for directory in CASES.values():
         folder = ROOT / 'sources' / directory
         entries = json.loads((folder / 'evidence.json').read_text())
-        for entry in entries:
-            text = (folder / entry['representation']).read_text(encoding='utf-8')
-            exact = text[entry['start_codepoint']:entry['end_codepoint']]
-            if exact != entry['exact'] or hashlib.sha256(exact.encode()).hexdigest() != entry['exact_sha256']:
-                raise ValueError(f'Evidence mismatch: {entry["label"]}')
+        evidence_count += validate_evidence(folder, entries)
+        if directory == 'gps':
+            gps_entries = entries
+    calculation_count = validate_calculations(gps_entries)
     controls = json.loads((ROOT / 'evaluator-only/controls.json').read_text())
+    control_labels = set()
     for control in controls:
+        if control['label'] in control_labels:
+            raise ValueError('Duplicate control label')
         utterances(control['case'], control['stage'], control['label'])
-    assert Decimal('299792458') * Decimal('0.000001') == Decimal('299.792458')
-    assert (7 + 5 - 10) / 2 == 1 and 7 - 1 + 5 - 1 == 10
-    assert 61 + 6 + 6 + 10 == 83 and 28 > 20
+        control_labels.add(control['label'])
     for case in CASES:
         for stage in ('draft', 'final'):
             items = utterances(case, stage)
             count = sum(len(text.split()) for _, text in items)
             print(f'{case}/{stage}: {len(items)} utterances, {count} whitespace words; '
                   f'UNMEASURED estimate {count/145:.1f}–{count/115:.1f} min at assumed 115–145 words/min')
-    print(f'OK: {len(expected)} file hashes; 19 exact excerpts; 4 control recipes. No quality verdict.')
+    print(f'OK: {len(expected)} file hashes; {evidence_count} exact excerpts; '
+          f'{len(control_labels)} control recipes; {calculation_count} arithmetic/geometry checks. No quality verdict.')
 
 
 def export_author(case, output):

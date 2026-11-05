@@ -1,0 +1,26 @@
+{
+  "requested_url": "https://api.wellcomecollection.org/catalogue/v2/works/bhexqmr5?include=items",
+  "resolved_url": "https://api.wellcomecollection.org/catalogue/v2/works/bhexqmr5?include=items",
+  "status": 200,
+  "acquired_at": "2026-11-05T11:22:45.818853+00:00",
+  "headers": {
+    "Content-Type": "application/json",
+    "Content-Length": "1395",
+    "Connection": "close",
+    "Date": "Thu, 05 Nov 2026 11:22:46 GMT",
+    "Access-Control-Allow-Credentials": "true",
+    "x-amzn-RequestId": "f615bb60-4b58-4a41-ae5d-15b631954a77",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type",
+    "x-amzn-Remapped-Content-Length": "1395",
+    "x-amzn-Remapped-Connection": "keep-alive",
+    "x-amz-apigw-id": "GXUJCGJTDoEEjIg=",
+    "x-amzn-Remapped-Server": "nginx",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "x-amzn-Remapped-Date": "Thu, 05 Nov 2026 11:22:46 GMT",
+    "X-Cache": "Miss from cloudfront",
+    "Via": "1.1 8c580abdd29bb5d54c3206f51bd776bc.cloudfront.net (CloudFront)",
+    "X-Amz-Cf-Pop": "ATH51-P2",
+    "X-Amz-Cf-Id": "rUO-KteH8aChIYlRianBlnf33atfBoluuu2nkElTSt-qgTOa2_sgaQ=="
+  }
+}
