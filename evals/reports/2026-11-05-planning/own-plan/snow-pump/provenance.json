@@ -1,0 +1,140 @@
+{
+  "source_export": "tmp/planning-evaluation/own-funded-r1-snow-pump",
+  "run_id": "ef657ac5-e715-47de-923a-d0485267bbca",
+  "plan_mode": "own-plan",
+  "case_id": "snow-pump",
+  "status": "completed_unaccepted",
+  "compiler_version": "whole-episode-baseline-a/1",
+  "prompt_versions": {
+    "plan": "whole-episode-a/sha256:056456e8f401ce07d4c87099f415bf505574c899495a2d6e3ee0bda566514e0d",
+    "plan-review": "whole-episode-a/sha256:ad501f38dd4ee46894543cb08c99cd853720e3f1f5164ad6898418bc4592a889",
+    "plan-revise": "whole-episode-a/sha256:03372882ab11bf8549f0dfe352522f37135e7b4aa69506405fd11de0a902d71f",
+    "plan-review-revised": "whole-episode-a/sha256:ad501f38dd4ee46894543cb08c99cd853720e3f1f5164ad6898418bc4592a889",
+    "draft": "whole-episode-a/sha256:5a8931e70669beaef1c0918e541eb2c87ec06e09d93fb356b9dbd3d0a640638a",
+    "review": "whole-episode-a/sha256:b84f79276c320ef16d02fedf473fd9dc5b89a25c39d3ceb2610c2a1493d35a11",
+    "revise": "whole-episode-a/sha256:d7a5a5ed50b6912cec7eaa768d20d5dcd1ad1fe5e33b956580f1e23310be5a71"
+  },
+  "profiles": {
+    "writer_profile_ref": {
+      "artifact_id": "56a653b0-bdd1-435e-b810-4bf5b45d5d34",
+      "revision_id": "f881b5e3-1c57-4772-a178-0e30732b6c63",
+      "kind": "ModelProfile"
+    },
+    "reviewer_profile_ref": {
+      "artifact_id": "56a653b0-bdd1-435e-b810-4bf5b45d5d34",
+      "revision_id": "f881b5e3-1c57-4772-a178-0e30732b6c63",
+      "kind": "ModelProfile"
+    },
+    "planner_profile_ref": {
+      "artifact_id": "5040d1f2-82b7-498c-a746-b14d51249686",
+      "revision_id": "6a32ca0a-c4b8-407b-8f3f-6b2ece1cc066",
+      "kind": "ModelProfile"
+    },
+    "plan_reviewer_profile_ref": {
+      "artifact_id": "5040d1f2-82b7-498c-a746-b14d51249686",
+      "revision_id": "6a32ca0a-c4b8-407b-8f3f-6b2ece1cc066",
+      "kind": "ModelProfile"
+    }
+  },
+  "source_documents": {
+    "author/snow-pump/brief.md": "c3935086b3d4174886ccbde84173b7d99f9bd81ae1c58c169aff4b27954140ec",
+    "author/snow-pump/dossier.md": "5fc5bc54908b785f6ce8c7768884dc2b1ba987fbf19789bbcccc3b09d6c9a938",
+    "sources/snow/README.md": "b25efc2aa68a878fd4dcfe4ea682c85116fde86e51949c47a24ef63c60fa66df",
+    "sources/snow/evidence.json": "5c9d07e922a69dab432f060f60c634d5a0d7edb9e18fd42d87b5f3798e810852",
+    "sources/snow/snow-1855.txt": "42e641eb17a9a3295e4846c3b5b76da7596475bd80d30b31e0d46f44fa4a95ca",
+    "sources/snow/parish-1855-b21363870.txt": "b793e19dfb610899a4c355afe9ac258d8d9304b5a998b1e616ddf11f22e7c546"
+  },
+  "inputs_sha256": "3e60acda76497ad041a66d4eab2fb3c77fa049298794f7fd969dfc1cf95cf23e",
+  "rejected_reviews": [
+    {
+      "stage": "plan-review",
+      "attempt_index": 1,
+      "invocation_id": "708b423f-a717-52df-b8fe-e58b80c166ff",
+      "file": "rejected-plan-review.json",
+      "source": "tmp/planning-evaluation/own-funded-r1-snow-pump/archive/plan-review/attempt-1/003-provider_response-response_blob.json",
+      "source_sha256": "aba92bb37f6c7aa0e4d5e4987c8cedd3655424f5a6c6ba36e6817ca13fbf5e28"
+    },
+    {
+      "stage": "review",
+      "attempt_index": 0,
+      "invocation_id": "fa9381d0-62ed-5336-bc78-88b480cd84d1",
+      "file": "rejected-review.json",
+      "source": "tmp/planning-evaluation/own-funded-r1-snow-pump/archive/review/003-provider_response-response_blob.json",
+      "source_sha256": "541130b7148e91f21ae951fecab4065f770198ea4b5d5e65905a57d6d7c74bee"
+    }
+  ],
+  "selection_calls": [
+    {
+      "stage": "plan-review",
+      "attempt_index": 2,
+      "file": "plan-target-choices.json",
+      "invocation_id": "ba7e0e0d-27fc-5f68-b287-5a6ec7e28da5"
+    },
+    {
+      "stage": "review",
+      "attempt_index": 1,
+      "file": "script-anchor-choices.json",
+      "invocation_id": "73bf67b0-9c26-5b80-8f35-62cd595db0b4"
+    }
+  ],
+  "semantic_acceptance": false,
+  "production_ready": false,
+  "actual_request_settings": {
+    "archive/draft/request.json": {
+      "model": "gpt-5.4-2026-03-05",
+      "reasoning_effort": "medium",
+      "verbosity": "high",
+      "max_output_tokens": 32768,
+      "instructions_sha256": "919a517e6ef6189e31c5ac7870d670bf890ab48643d24c7b56096f6ca00addec"
+    },
+    "archive/plan/request.json": {
+      "model": "gpt-5.4-2026-03-05",
+      "reasoning_effort": "medium",
+      "verbosity": "high",
+      "max_output_tokens": 32768,
+      "instructions_sha256": "0f1162e7df9705941e6a5fffc3b786ac87465885850586e0047b49354c5fe0bc"
+    },
+    "archive/plan-review/attempt-1/request.json": {
+      "model": "gpt-5.4-2026-03-05",
+      "reasoning_effort": "medium",
+      "verbosity": "high",
+      "max_output_tokens": 32768,
+      "instructions_sha256": "ac08fe23185f945aaa215e241401071a4b71b1384d3ef5e51f977fe97ac737d4"
+    },
+    "archive/plan-review/attempt-2/request.json": {
+      "model": "gpt-5.4-2026-03-05",
+      "reasoning_effort": "medium",
+      "verbosity": "high",
+      "max_output_tokens": 32768,
+      "instructions_sha256": "187abd94f08e8d4fe45ca77d2a144a0bd3662cce0e627486f45ebbefd85e7b65"
+    },
+    "archive/plan-review/request.json": {
+      "model": "gpt-5.4-2026-03-05",
+      "reasoning_effort": "medium",
+      "verbosity": "high",
+      "max_output_tokens": 32768,
+      "instructions_sha256": "ac08fe23185f945aaa215e241401071a4b71b1384d3ef5e51f977fe97ac737d4"
+    },
+    "archive/review/attempt-1/request.json": {
+      "model": "gpt-5.4-2026-03-05",
+      "reasoning_effort": "medium",
+      "verbosity": "high",
+      "max_output_tokens": 32768,
+      "instructions_sha256": "aa2c95e9f42aeb470422410e2963b15f7fc67f7b34a5459add119643f01f958d"
+    },
+    "archive/review/request.json": {
+      "model": "gpt-5.4-2026-03-05",
+      "reasoning_effort": "medium",
+      "verbosity": "high",
+      "max_output_tokens": 32768,
+      "instructions_sha256": "7077be3bf5bdb5b484911574548ab958b041baf46fe1fa63e4a602d613b435d6"
+    },
+    "archive/revise/request.json": {
+      "model": "gpt-5.4-2026-03-05",
+      "reasoning_effort": "medium",
+      "verbosity": "high",
+      "max_output_tokens": 32768,
+      "instructions_sha256": "979ac5abedee4952f98de79b00d401e01ec0141db43b40a640dd3ad6b4db7141"
+    }
+  }
+}

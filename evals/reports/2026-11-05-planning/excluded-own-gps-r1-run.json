@@ -1,0 +1,47 @@
+{
+  "run_id": "4451b187-b26b-4f85-ae68-efda2b5c0d33",
+  "case_id": "gps-clock",
+  "status": "needs_attention",
+  "failure_code": "provider_http_429",
+  "semantic_acceptance": false,
+  "production_ready": false,
+  "invocations": {
+    "plan": {
+      "project_id": "b2779050-b3bb-4e41-9154-f560fa99b732",
+      "run_id": "4451b187-b26b-4f85-ae68-efda2b5c0d33",
+      "invocation_id": "c9383068-346c-50e0-a98b-00252fa2ed22",
+      "stage": "plan",
+      "status": "failed",
+      "request_record_id": "2d270c58-8bd9-522a-88ad-afe02005c6aa",
+      "provider_response_id": null,
+      "output_record_id": null,
+      "input_tokens": 149951,
+      "output_tokens": null,
+      "attempt_index": 0,
+      "parent_invocation_id": null,
+      "parent_attempt_index": null,
+      "attempts": [
+        {
+          "project_id": "b2779050-b3bb-4e41-9154-f560fa99b732",
+          "run_id": "4451b187-b26b-4f85-ae68-efda2b5c0d33",
+          "invocation_id": "c9383068-346c-50e0-a98b-00252fa2ed22",
+          "stage": "plan",
+          "status": "failed",
+          "request_record_id": "2d270c58-8bd9-522a-88ad-afe02005c6aa",
+          "provider_response_id": null,
+          "output_record_id": null,
+          "input_tokens": 149951,
+          "output_tokens": null,
+          "attempt_index": 0,
+          "parent_invocation_id": null,
+          "parent_attempt_index": null
+        }
+      ]
+    }
+  },
+  "input_tokens": 149951,
+  "output_tokens_known": 0,
+  "unknown_usage_invocations": [
+    "c9383068-346c-50e0-a98b-00252fa2ed22"
+  ]
+}

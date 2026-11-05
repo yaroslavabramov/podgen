@@ -1,0 +1,97 @@
+{
+  "source_export": "tmp/planning-evaluation/own-funded-r2-gps-clock",
+  "run_id": "07b07434-1aa5-4a8d-9d0b-4a5e7469354c",
+  "plan_mode": "own-plan",
+  "case_id": "gps-clock",
+  "status": "completed_unaccepted",
+  "compiler_version": "whole-episode-baseline-a/1",
+  "prompt_versions": {
+    "plan": "whole-episode-a/sha256:5994531bf8da0bc7ab67837e1b47792fda4c74ee44acdb3eb1b5d5f99832abf0",
+    "plan-review": "whole-episode-a/sha256:90fd35830be90ea6718bc847888758b39256bbd240c380d05715a73cc090b728",
+    "plan-revise": "whole-episode-a/sha256:6bbc2a3c7b27f4e1d4da6bb8bd9d24a99158cd68a2c685f5aaea2fb194822b36",
+    "plan-review-revised": "whole-episode-a/sha256:90fd35830be90ea6718bc847888758b39256bbd240c380d05715a73cc090b728",
+    "draft": "whole-episode-a/sha256:e20e12a8e16dbcbcdbf0a586b65e0493d89f4f7146cf372e3291be0a9f452ea0",
+    "review": "whole-episode-a/sha256:2685d0f7f9bf8bc5cfb82a3a1a17412b710ce9ae81a1bdea430e8511f08144d0",
+    "revise": "whole-episode-a/sha256:799051df921125434d097fd4b8ecdd6114a352029c4b14fe20b33ddaa8c0a2a5"
+  },
+  "profiles": {
+    "writer_profile_ref": {
+      "artifact_id": "56a653b0-bdd1-435e-b810-4bf5b45d5d34",
+      "revision_id": "f881b5e3-1c57-4772-a178-0e30732b6c63",
+      "kind": "ModelProfile"
+    },
+    "reviewer_profile_ref": {
+      "artifact_id": "56a653b0-bdd1-435e-b810-4bf5b45d5d34",
+      "revision_id": "f881b5e3-1c57-4772-a178-0e30732b6c63",
+      "kind": "ModelProfile"
+    },
+    "planner_profile_ref": {
+      "artifact_id": "5040d1f2-82b7-498c-a746-b14d51249686",
+      "revision_id": "6a32ca0a-c4b8-407b-8f3f-6b2ece1cc066",
+      "kind": "ModelProfile"
+    },
+    "plan_reviewer_profile_ref": {
+      "artifact_id": "5040d1f2-82b7-498c-a746-b14d51249686",
+      "revision_id": "6a32ca0a-c4b8-407b-8f3f-6b2ece1cc066",
+      "kind": "ModelProfile"
+    }
+  },
+  "source_documents": {
+    "author/gps-clock/brief.md": "434568639b15401a3c8dc2082be1293a0c992342533378ed10fad69ae3888e0f",
+    "author/gps-clock/dossier.md": "c3195e21b75f78ba5485880573239fe935062e30e820755678b3f9b55a69caeb",
+    "sources/gps/README.md": "ac558942e221a51b5b9a68249f56acc19b067d68ab533d85e8a6f9603c1c540f",
+    "sources/gps/evidence.json": "e8d0158a0ee8562b78a259a597299cf3bb86a7c6f1a239efc4df4d689cd3ff95",
+    "sources/gps/nasa-introduction-2017.txt": "92062e7aa1f6551ebe19f37f479dfd3c7479346a27b9f67b013753cdc9978e09",
+    "sources/gps/sps-2020.txt": "cb71e19581d0e5eb579c7d4f5013993ace1ca2f6231e54ae643dcc7af6a5eb02",
+    "sources/gps/faa-how-it-works.txt": "e38f525a066cd2deac1796c2c56a88c08cf23f2fa8fa68d1b93793e9f457af24"
+  },
+  "inputs_sha256": "accdec601bafe799bb7ee26c705569846f862730286cac29e12b7b8c2fbff0ce",
+  "rejected_reviews": [],
+  "selection_calls": [],
+  "semantic_acceptance": false,
+  "production_ready": false,
+  "actual_request_settings": {
+    "archive/draft/request.json": {
+      "model": "gpt-5.4-2026-03-05",
+      "reasoning_effort": "medium",
+      "verbosity": "high",
+      "max_output_tokens": 32768,
+      "instructions_sha256": "fdeb1628a6ce032730000480cd598a1a34aaf70873455a1e2b4963a4d39cec8f"
+    },
+    "archive/plan/request.json": {
+      "model": "gpt-5.4-2026-03-05",
+      "reasoning_effort": "medium",
+      "verbosity": "high",
+      "max_output_tokens": 32768,
+      "instructions_sha256": "773bb23a59818da2b45cb979406800a7a83723c7dbb51c3917b05654fd6f737c"
+    },
+    "archive/plan-review/request.json": {
+      "model": "gpt-5.4-2026-03-05",
+      "reasoning_effort": "medium",
+      "verbosity": "high",
+      "max_output_tokens": 32768,
+      "instructions_sha256": "6ba270ddb8adda30648f2477b62569ee18bc57e39a79424eb7022d056bfa6af6"
+    },
+    "archive/review/attempt-1/request.json": {
+      "model": "gpt-5.4-2026-03-05",
+      "reasoning_effort": "medium",
+      "verbosity": "high",
+      "max_output_tokens": 32768,
+      "instructions_sha256": "3c41ba1ef30b1ebf6607a8daf78cc1f52457521d5bcc9350bb62198f433ea6bb"
+    },
+    "archive/review/request.json": {
+      "model": "gpt-5.4-2026-03-05",
+      "reasoning_effort": "medium",
+      "verbosity": "high",
+      "max_output_tokens": 32768,
+      "instructions_sha256": "3c41ba1ef30b1ebf6607a8daf78cc1f52457521d5bcc9350bb62198f433ea6bb"
+    },
+    "archive/revise/request.json": {
+      "model": "gpt-5.4-2026-03-05",
+      "reasoning_effort": "medium",
+      "verbosity": "high",
+      "max_output_tokens": 32768,
+      "instructions_sha256": "74ce69460d6dcfda96c6f456d384605f46103eb066f2fb022f909a51dee8c999"
+    }
+  }
+}

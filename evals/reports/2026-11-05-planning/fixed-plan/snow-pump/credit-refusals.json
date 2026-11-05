@@ -1,0 +1,15 @@
+[
+  {
+    "stage": "review",
+    "attempt_index": 1,
+    "invocation_id": "fc208388-fccf-558a-a406-7f596f1bd983",
+    "error": {
+      "message": "You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.",
+      "type": "insufficient_quota",
+      "param": null,
+      "code": "credit_balance_exhausted"
+    },
+    "source": "tmp/planning-evaluation/fixed-funded-r1-snow-pump/archive/review/attempt-1/004-provider_error-response_blob.json",
+    "source_sha256": "48d9f03c6f9b357bc078fb3eb43d1a51aaa9a2c3257727dc310158e50b086fa3"
+  }
+]

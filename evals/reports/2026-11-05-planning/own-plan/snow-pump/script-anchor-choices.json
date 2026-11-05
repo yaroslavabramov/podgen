@@ -1,0 +1,16 @@
+{
+  "choices": [
+    {
+      "anchor_id": "strengths/1/anchors/1",
+      "selector_id": "u3:320-398"
+    },
+    {
+      "anchor_id": "findings/0/anchors/0",
+      "selector_id": "u8:191-234"
+    },
+    {
+      "anchor_id": "findings/0/anchors/3",
+      "selector_id": "u11:36-172"
+    }
+  ]
+}

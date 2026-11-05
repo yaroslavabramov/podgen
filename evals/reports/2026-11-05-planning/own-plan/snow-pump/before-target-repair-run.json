@@ -1,0 +1,102 @@
+{
+  "run_id": "ef657ac5-e715-47de-923a-d0485267bbca",
+  "case_id": "snow-pump",
+  "status": "needs_attention",
+  "failure_code": "planning_output_validation_failed",
+  "semantic_acceptance": false,
+  "production_ready": false,
+  "invocations": {
+    "plan": {
+      "project_id": "b2779050-b3bb-4e41-9154-f560fa99b732",
+      "run_id": "ef657ac5-e715-47de-923a-d0485267bbca",
+      "invocation_id": "87348181-c215-5e50-adea-f45ffb53cb9a",
+      "stage": "plan",
+      "status": "completed",
+      "request_record_id": "97726456-cede-5c79-8d03-b421c98c4a6b",
+      "provider_response_id": "resp_0db69d7aeb937b8f016aecafa503bc87d2a2c5c32013f49b6f",
+      "output_record_id": "9eb1701f-cafc-54ed-a4d4-12435d8ee308",
+      "input_tokens": 193292,
+      "output_tokens": 5720,
+      "attempt_index": 0,
+      "parent_invocation_id": null,
+      "parent_attempt_index": null,
+      "attempt_kind": "role",
+      "operation_kind": "role",
+      "attempts": [
+        {
+          "project_id": "b2779050-b3bb-4e41-9154-f560fa99b732",
+          "run_id": "ef657ac5-e715-47de-923a-d0485267bbca",
+          "invocation_id": "87348181-c215-5e50-adea-f45ffb53cb9a",
+          "stage": "plan",
+          "status": "completed",
+          "request_record_id": "97726456-cede-5c79-8d03-b421c98c4a6b",
+          "provider_response_id": "resp_0db69d7aeb937b8f016aecafa503bc87d2a2c5c32013f49b6f",
+          "output_record_id": "9eb1701f-cafc-54ed-a4d4-12435d8ee308",
+          "input_tokens": 193292,
+          "output_tokens": 5720,
+          "attempt_index": 0,
+          "parent_invocation_id": null,
+          "parent_attempt_index": null,
+          "attempt_kind": "role",
+          "operation_kind": "role"
+        }
+      ]
+    },
+    "plan-review": {
+      "project_id": "b2779050-b3bb-4e41-9154-f560fa99b732",
+      "run_id": "ef657ac5-e715-47de-923a-d0485267bbca",
+      "invocation_id": "708b423f-a717-52df-b8fe-e58b80c166ff",
+      "stage": "plan-review",
+      "status": "validation_failed",
+      "request_record_id": "6f15a2d5-a17b-5adc-abce-31466e040643",
+      "provider_response_id": "resp_0c73bfd2c2b5f972016aecb40c51ac87d281f08c681c205b03",
+      "output_record_id": null,
+      "input_tokens": 196959,
+      "output_tokens": 4587,
+      "attempt_index": 1,
+      "parent_invocation_id": "bf02785d-7767-5e47-ae54-24396cde5fb8",
+      "parent_attempt_index": 0,
+      "attempt_kind": "credit_retry",
+      "operation_kind": "role",
+      "attempts": [
+        {
+          "project_id": "b2779050-b3bb-4e41-9154-f560fa99b732",
+          "run_id": "ef657ac5-e715-47de-923a-d0485267bbca",
+          "invocation_id": "bf02785d-7767-5e47-ae54-24396cde5fb8",
+          "stage": "plan-review",
+          "status": "failed",
+          "request_record_id": "2f4e1ae3-1995-50de-a500-301ecc0201fc",
+          "provider_response_id": null,
+          "output_record_id": null,
+          "input_tokens": 196959,
+          "output_tokens": null,
+          "attempt_index": 0,
+          "parent_invocation_id": null,
+          "parent_attempt_index": null,
+          "attempt_kind": "role",
+          "operation_kind": "role"
+        },
+        {
+          "project_id": "b2779050-b3bb-4e41-9154-f560fa99b732",
+          "run_id": "ef657ac5-e715-47de-923a-d0485267bbca",
+          "invocation_id": "708b423f-a717-52df-b8fe-e58b80c166ff",
+          "stage": "plan-review",
+          "status": "validation_failed",
+          "request_record_id": "6f15a2d5-a17b-5adc-abce-31466e040643",
+          "provider_response_id": "resp_0c73bfd2c2b5f972016aecb40c51ac87d281f08c681c205b03",
+          "output_record_id": null,
+          "input_tokens": 196959,
+          "output_tokens": 4587,
+          "attempt_index": 1,
+          "parent_invocation_id": "bf02785d-7767-5e47-ae54-24396cde5fb8",
+          "parent_attempt_index": 0,
+          "attempt_kind": "credit_retry",
+          "operation_kind": "role"
+        }
+      ]
+    }
+  },
+  "input_tokens": 587210,
+  "output_tokens_known": 10307,
+  "unknown_usage_invocations": []
+}

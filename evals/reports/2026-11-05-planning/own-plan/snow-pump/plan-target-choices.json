@@ -1,0 +1,68 @@
+{
+  "choices": [
+    {
+      "target_id": "strengths/0/targets/0",
+      "selected_path": "/plan/route_summary"
+    },
+    {
+      "target_id": "strengths/0/targets/1",
+      "selected_path": "/plan/acts/0"
+    },
+    {
+      "target_id": "strengths/0/targets/2",
+      "selected_path": "/plan/acts/1"
+    },
+    {
+      "target_id": "strengths/0/targets/3",
+      "selected_path": "/plan/acts/2"
+    },
+    {
+      "target_id": "strengths/0/targets/4",
+      "selected_path": "/plan/acts/3"
+    },
+    {
+      "target_id": "strengths/0/targets/5",
+      "selected_path": "/plan/acts/4"
+    },
+    {
+      "target_id": "strengths/1/targets/0",
+      "selected_path": "/plan/acts/3"
+    },
+    {
+      "target_id": "strengths/1/targets/1",
+      "selected_path": "/plan/ending/answer_to_deliver"
+    },
+    {
+      "target_id": "strengths/2/targets/0",
+      "selected_path": "/plan/acts/4"
+    },
+    {
+      "target_id": "strengths/2/targets/1",
+      "selected_path": "/limitations"
+    },
+    {
+      "target_id": "strengths/3/targets/0",
+      "selected_path": "/plan/duration_strategy"
+    },
+    {
+      "target_id": "findings/0/targets/0",
+      "selected_path": "/plan/main_question"
+    },
+    {
+      "target_id": "findings/0/targets/1",
+      "selected_path": "/plan/opening/question_to_open"
+    },
+    {
+      "target_id": "findings/0/targets/2",
+      "selected_path": "/plan/ending/answer_to_deliver"
+    },
+    {
+      "target_id": "findings/1/targets/0",
+      "selected_path": "/plan/acts/4/intended_change_in_understanding"
+    },
+    {
+      "target_id": "findings/1/targets/1",
+      "selected_path": "/plan/acts/4/limitations_to_voice"
+    }
+  ]
+}
