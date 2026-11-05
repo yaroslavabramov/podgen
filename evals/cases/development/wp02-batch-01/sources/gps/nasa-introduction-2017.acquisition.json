@@ -1,0 +1,25 @@
+{
+  "requested_url": "https://ntrs.nasa.gov/api/citations/20170004590/downloads/20170004590.pdf",
+  "resolved_url": "https://ntrs.nasa.gov/api/citations/20170004590/downloads/20170004590.pdf",
+  "status": 200,
+  "acquired_at": "2026-11-05T10:45:46.543655+00:00",
+  "headers": {
+    "Date": "Thu, 05 Nov 2026 10:45:44 GMT",
+    "Content-Type": "application/pdf",
+    "Content-Length": "2671822",
+    "Connection": "close",
+    "X-Powered-By": "appdat",
+    "X-RateLimit-Limit": "500",
+    "X-RateLimit-Remaining": "499",
+    "X-RateLimit-Reset": "1793875996",
+    "last-modified": "Thu, 06 Aug 2020 21:38:28 GMT",
+    "etag": "\"b7f72cbbe16abc67892b85a8809febcf\"",
+    "Set-Cookie": "connect.sid=s%3AhkwCiq-VYStM0_g55NQev7-ubreDDPin.BXL1U4JibcY8MtU1IGvz8UE4lsjPriEG8OVg%2BkTnxlQ; Path=/; Expires=Thu, 05 Nov 2026 11:15:44 GMT; HttpOnly; Secure",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "SAMEORIGIN",
+    "X-Using-Nginx-Controller": "true",
+    "X-XSS-Protection": "1; mode=block"
+  }
+}

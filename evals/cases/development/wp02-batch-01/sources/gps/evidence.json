@@ -1,0 +1,92 @@
+[
+  {
+    "label": "G1",
+    "representation": "nasa-introduction-2017.txt",
+    "locator": "PDF/slide 30",
+    "start_codepoint": 13792,
+    "end_codepoint": 14071,
+    "exact": "The position solution involves an equation with \nfour unknowns:\n Three components of receiver position (x, y, z)\n Receiver clock bias\n Position accuracy of ~1 m implies knowledge of the receiver \nclock to within ~3 ns\n Requires simultaneous measurements from \nfour satellites",
+    "exact_sha256": "b0bdb5472a07e4376835c8453ad5c85f7c9f0781b2ec99b6ace7f2fb211444d2"
+  },
+  {
+    "label": "G2",
+    "representation": "nasa-introduction-2017.txt",
+    "locator": "PDF/slide 38; formula requires original visual inspection",
+    "start_codepoint": 17939,
+    "end_codepoint": 18524,
+    "exact": "Measurement Equation (cont)\n true range (satellite position, rk, known)\n satellite clock error (δtk, known)\n ionosphere and troposphere delays (Ik, Tk, estimated or measured)\n other errors (εk, satellite ephemeris and clock mis-modeling, measurement errors, multipath, receiver noise)\n Carrier phase measurement equation is similar, but \n Adds whole cycle integer ambiguity term Nλ\n Ionosphere delay has opposite sign\n Noise on the order of millimeters instead of meters\n Measured (code) pseudorange to GPS k comprises:\nReceiver position and \nclock error are to be \nsolved for",
+    "exact_sha256": "cb5d918a19e4182f8b751211f2c3f6318421ffc472d1632001002c9460b44c0c"
+  },
+  {
+    "label": "G3",
+    "representation": "sps-2020.txt",
+    "locator": "§2.2.2.1; printed 11 / PDF 21",
+    "start_codepoint": 50764,
+    "end_codepoint": 51468,
+    "exact": "Each satellite broadcasts LNAV message data to support the GPS receiver's PVT determination \nprocess.  Figure 2.2-1 provides an overview of the data contents and “fixed frame” structure within \nthe LNAV data stream.  It shows each master frame consists of 25 data frames and each data \nframe consists of 5 subframes.  Subframe 4 and 5 data is different (paged) for each data frame \nwithin a master frame.   Each subframe begins with a telemetry word (TLM) and handover word \n(HOW) pair.  The rest of the data in each subframe includes information required to determine \nthe following: \n \n Satellite time-of-transmission \n \n Satellite position \n \n Satellite (SIS) health \n \n Satellite clock correction",
+    "exact_sha256": "e84e59357d9a807cf92f2b7c8062b4183eb43d89132396e2d7b50dce6a0877b3"
+  },
+  {
+    "label": "G4",
+    "representation": "nasa-introduction-2017.txt",
+    "locator": "PDF/slide 35",
+    "start_codepoint": 16237,
+    "end_codepoint": 16763,
+    "exact": "To detect the GPS signal and recover the navigation data, receiver “correlates” received \n(downconverted and digitized) signal with locally generated replica of received signal\nGPS Receivers: Acquisition and Tracking\n PRN codes for satellites are known \nand “orthogonal” to other codes and \nself at non-zero time delay\n Acquisition involves search over \nrange of delay and Doppler, then \nsynchronization to data bits and \nframes\n Tracking uses coupled feedback \nloops to maintain lock on code and \ncarrier signal parameters",
+    "exact_sha256": "ae88cb9fced1d3c4cf398deb5b5d46bb5942f363bfa431ed92c45c8c67fdfed9"
+  },
+  {
+    "label": "G5",
+    "representation": "sps-2020.txt",
+    "locator": "C-4 / PDF 186",
+    "start_codepoint": 445661,
+    "end_codepoint": 446213,
+    "exact": "Pseudorange Measurement.   The difference between the PRN code time of reception (as \ndefined by the SPS receiver’s clock) and the PRN code time of transmission (as defined by the \nsatellite’s clock) multiplied by the speed of l ight.  May also be a short -hand reference to the  \ncorrected pseudorange measurement where the raw pseudorange measurement is adjusted to \nGPS system time using the broadcast satellite clock correction polynomial and related data.  The \ncorrected pseudorange measurement is also known as an SPS signal ranging measurement.",
+    "exact_sha256": "a4a4ceb775ea9d0d244f92c24857b877f571a4574b336890a90dfec88a74cdc2"
+  },
+  {
+    "label": "G6",
+    "representation": "sps-2020.txt",
+    "locator": "C-4 / PDF 186",
+    "start_codepoint": 446464,
+    "end_codepoint": 447005,
+    "exact": "PVT Solution.   The use of pseudorange data sets  from at least four SISs to solve for three \nposition coordinates and time offset relative to GPS time, plus three velocity coordinates and \nfrequency offset relative to GPS time.  In cases where the altitude is known (e.g., maritime GPS \nreceivers), the PVT solution only requires the use of  pseudorange data sets from at least three \nSISs to solve for two position coordinates and time offset relative to GPS time, pl us two velocity \ncoordinates and frequency offset relative to GPS time.",
+    "exact_sha256": "4ef1d305ee55b4dd8aa64c414c08e4c497d7aed8101a24cba2e0e564281fdc7d"
+  },
+  {
+    "label": "G7",
+    "representation": "sps-2020.txt",
+    "locator": "C-1 / PDF 183",
+    "start_codepoint": 436516,
+    "end_codepoint": 436943,
+    "exact": "Dilution of Precision (DOP).  The magnifying effect on GPS position error induced by mapping \nURE into a position solution within the specified coordinate system, through the relative satellite-\nto-receiver geometry.  The DOP may be expressed in any user local coordinate system desired.  \nExamples include HDOP for local horizontal, VDOP for local vertical, PDOP for local horizontal \nand vertical together, and TDOP for time.",
+    "exact_sha256": "4b5158de10e5b86d54005c42e6721a6429eccba2e2af7ef465bdea97985fbfd4"
+  },
+  {
+    "label": "G8",
+    "representation": "sps-2020.txt",
+    "locator": "C-8 / PDF 190",
+    "start_codepoint": 455867,
+    "end_codepoint": 455908,
+    "exact": "c   Speed of light (2.99792458x108 m/sec)",
+    "exact_sha256": "7f4173b4c9710948c13a9d655acd4d44b269b74cd18cbd63ba2ebef7406e5411"
+  },
+  {
+    "label": "G9",
+    "representation": "sps-2020.txt",
+    "locator": "§2.4.5; printed 32 / PDF 42",
+    "start_codepoint": 110226,
+    "end_codepoint": 110998,
+    "exact": "2.4.5  Excluded Errors \n \nThe performance standards in Section 3 of t his SPS PS do not take into consideration any error \nsource that is not under direct control of the Space Segment or Control Segment.  Specifically \nexcluded errors include those due to the effects of: \n \n         Signal distortions caused by ionospheric and/or tropospheric scintillation  \n \n         Residual receiver ionospheric delay compensation errors \n \n         Residual receiver tropospheric delay compensation errors \n \n         Receiver noise (including received signal power and interference power) and resolution \n \n         Receiver hardware/software faults \n \n         Multipath and receiver multipath mitigation \n \n         User antenna effects \n \n         Operator (user) error",
+    "exact_sha256": "cf569029468c7602adb6c489d87acc9c8c00d1549fa99d4f36d9d8e3f9b0677e"
+  },
+  {
+    "label": "G10",
+    "representation": "faa-how-it-works.txt",
+    "locator": "main: The basic GPS service paragraph",
+    "start_codepoint": 2302,
+    "end_codepoint": 3380,
+    "exact": "The time information is placed in the codes broadcast by the satellite so that a receiver can continuously determine the time the signal was broadcast. The signal contains data that a receiver uses to compute the locations of the satellites and to make other adjustments needed for accurate positioning. The receiver uses the time difference between the time of signal reception and the broadcast time to compute the distance, or range, from the receiver to the satellite. The receiver must account for propagation delays or decreases in the signal's speed caused by the ionosphere and the troposphere. With information about the ranges to three satellites and the location of the satellite when the signal was sent, the receiver can compute its own three-dimensional position. An atomic clock synchronized to GPS is required in order to compute ranges from these three signals. However, by taking a measurement from a fourth satellite, the receiver avoids the need for an atomic clock. Thus, the receiver uses four satellites to compute latitude, longitude, altitude, and time.",
+    "exact_sha256": "88a748147011283627ed8167a48463aa7d50be03aa473a542b0246dc5812cd06"
+  }
+]

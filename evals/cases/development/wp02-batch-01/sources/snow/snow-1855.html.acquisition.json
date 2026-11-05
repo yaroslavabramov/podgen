@@ -1,0 +1,18 @@
+{
+  "requested_url": "https://www.gutenberg.org/files/72894/72894-h/72894-h.htm",
+  "resolved_url": "https://www.gutenberg.org/files/72894/72894-h/72894-h.htm",
+  "status": 200,
+  "acquired_at": "2026-11-05T10:43:58.646092+00:00",
+  "headers": {
+    "date": "Thu, 05 Nov 2026 10:43:57 GMT",
+    "server": "Apache",
+    "strict-transport-security": "max-age=7776000; includeSubDomains",
+    "last-modified": "Wed, 07 Feb 2024 19:24:10 GMT",
+    "accept-ranges": "bytes",
+    "content-length": "557556",
+    "vary": "Accept-Encoding",
+    "x-backend": "gutenweb5",
+    "content-type": "text/html",
+    "connection": "close"
+  }
+}

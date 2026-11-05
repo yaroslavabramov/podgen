@@ -1,0 +1,83 @@
+[
+  {
+    "label": "S1",
+    "representation": "snow-1855.txt",
+    "locator": "printed 40; HTML #Page_40",
+    "start_codepoint": 78797,
+    "end_codepoint": 79046,
+    "exact": "I had an interview with the Board of Guardians of St.\nJames’s parish, on the evening of Thursday, 7th September,\nand represented the above circumstances to them. In\nconsequence of what I said, the handle of the pump was\nremoved on the following day.",
+    "exact_sha256": "d9270cc63abe13213dc3bf08a793a9dc661c70e80262891179a8b0017c6bc187"
+  },
+  {
+    "label": "S2",
+    "representation": "snow-1855.txt",
+    "locator": "printed 51–52; HTML #Page_51 / #Page_52",
+    "start_codepoint": 97696,
+    "end_codepoint": 98095,
+    "exact": "There is no doubt that the mortality was much diminished,\nas I said before, by the flight of the population,\nwhich commenced soon after the outbreak; but the attacks\nhad so far diminished before the use of the water was\nstopped, that it is impossible to decide whether the well\n52\nstill contained the cholera poison in an active state, or\nwhether, from some cause, the water had become free\nfrom it.",
+    "exact_sha256": "887b51af24a18208e6d9eaff3bdf843f935eca9c6a5395e5986d2df2f13ce0be"
+  },
+  {
+    "label": "S3",
+    "representation": "snow-1855.txt",
+    "locator": "printed 38–39",
+    "start_codepoint": 75358,
+    "end_codepoint": 76588,
+    "exact": "There were a few cases of cholera in the neighbourhood\nof Broad Street, Golden Square, in the latter part of\nAugust; and the so-called outbreak, which commenced in\nthe night between the 31st August and the 1st September,\nwas, as in all similar instances, only a violent increase of\nthe malady. As soon as I became acquainted with the\n39\nsituation and extent of this irruption of cholera, I suspected\nsome contamination of the water of the much-frequented\nstreet pump in Broad Street, near the end of\nCambridge Street; but on examining the water, on the\nevening of the 3rd September, I found so little impurity\nin it of an organic nature, that I hesitated to come to a\nconclusion. Further inquiry, however, showed me that\nthere was no other circumstance or agent common to the\ncircumscribed locality in which this sudden increase of\ncholera occurred, and not extending beyond it, except the\nwater of the above mentioned pump. I found, moreover,\nthat the water varied, during the next two days, in the\namount of organic impurity, visible to the naked eye, on\nclose inspection, in the form of small white, flocculent particles;\nand I concluded that, at the commencement of the\noutbreak, it might possibly have been still more impure.",
+    "exact_sha256": "b7badb54f8c30a2614915c4480805fba22c43a15f2bd3d5dcaaaa4daeb56f13d"
+  },
+  {
+    "label": "S4",
+    "representation": "snow-1855.txt",
+    "locator": "printed 39–40",
+    "start_codepoint": 76589,
+    "end_codepoint": 79046,
+    "exact": "I requested permission, therefore, to take a list, at the\nGeneral Register Office, of the deaths from cholera, registered\nduring the week ending 2nd September, in the sub-districts\nof Golden Square, Berwick Street, and St. Ann’s,\nSoho, which was kindly granted. Eighty-nine deaths\nfrom cholera were registered, during the week, in the three\nsub-districts. Of these, only six occurred in the four first\ndays of the week; four occurred on Thursday, the 31st\nAugust; and the remaining seventy-nine on Friday and\nSaturday. I considered, therefore, that the outbreak commenced\non the Thursday; and I made inquiry, in detail,\nrespecting the eighty-three deaths registered as having\ntaken place during the last three days of the week.\nOn proceeding to the spot, I found that nearly all the\ndeaths had taken place within a short distance of the\npump. There were only ten deaths in houses situated\ndecidedly nearer to another street pump. In five of these\ncases the families of the deceased persons informed me\n40\nthat they always sent to the pump in Broad Street, as\nthey preferred the water to that of the pump which was\nnearer. In three other cases, the deceased were children\nwho went to school near the pump in Broad Street. Two\nof them were known to drink the water; and the parents\nof the third think it probable that it did so. The other\ntwo deaths, beyond the district which this pump supplies,\nrepresent only the amount of mortality from cholera that\nwas occurring before the irruption took place.\nWith regard to the deaths occurring in the locality belonging\nto the pump, there were sixty-one instances in\nwhich I was informed that the deceased persons used to\ndrink the pump-water from Broad Street, either constantly\nor occasionally. In six instances I could get no information,\nowing to the death or departure of every one connected\nwith the deceased individuals; and in six cases I\nwas informed that the deceased persons did not drink the\npump-water before their illness.\nThe result of the inquiry then was, that there had been\nno particular outbreak or increase of cholera, in this\npart of London, except among the persons who were in\nthe habit of drinking the water of the above-mentioned\npump-well.\nI had an interview with the Board of Guardians of St.\nJames’s parish, on the evening of Thursday, 7th September,\nand represented the above circumstances to them. In\nconsequence of what I said, the handle of the pump was\nremoved on the following day.",
+    "exact_sha256": "f377007b40a0446ce5609b1b054072908beeca086e08bf6cfb402b12e277f307"
+  },
+  {
+    "label": "S5",
+    "representation": "snow-1855.txt",
+    "locator": "printed 42",
+    "start_codepoint": 81650,
+    "end_codepoint": 82098,
+    "exact": "The Workhouse in Poland Street is more than three-fourths\nsurrounded by houses in which deaths from cholera\noccurred, yet out of five hundred and thirty-five inmates\nonly five died of cholera, the other deaths which took\nplace being those of persons admitted after they were\nattacked. The workhouse has a pump-well on the premises,\nin addition to the supply from the Grand Junction\nWater Works, and the inmates never sent to Broad Street\nfor water.",
+    "exact_sha256": "e2d8ecc65b8eece304c88a8c4c2cacaa45b8a4598cd08e9bae0e71a7a9b4fdd4"
+  },
+  {
+    "label": "S6",
+    "representation": "snow-1855.txt",
+    "locator": "printed 42",
+    "start_codepoint": 82262,
+    "end_codepoint": 82960,
+    "exact": "There is a Brewery in Broad Street, near to the pump,\nand on perceiving that no brewer’s men were registered\nas having died of cholera, I called on Mr. Huggins, the\nproprietor. He informed me that there were above seventy\nworkmen employed in the brewery, and that none of them\nhad suffered from cholera,—at least in a severe form,—only\ntwo having been indisposed, and that not seriously,\nat the time the disease prevailed. The men are allowed a\ncertain quantity of malt liquor, and Mr. Huggins believes\nthey do not drink water at all; and he is quite certain\nthat the workmen never obtained water from the pump in\nthe street. There is a deep well in the brewery, in addition\nto the New River water.",
+    "exact_sha256": "3a093af541e0d0b70e0122d239c58ef3d6138c824d2ea852aa75ccdeece3dd6e"
+  },
+  {
+    "label": "S7",
+    "representation": "snow-1855.txt",
+    "locator": "printed 44–45",
+    "start_codepoint": 85375,
+    "end_codepoint": 87063,
+    "exact": "Dr. Fraser also first called my attention to the following\ncircumstances, which are perhaps the most conclusive of\nall in proving the connexion between the Broad Street\npump and the outbreak of cholera. In the “Weekly\nReturn of Births and Deaths” of September 9th, the following\ndeath is recorded as occurring in the Hampstead\ndistrict: “At West End, on 2nd September, the widow\nof a percussion-cap maker, aged 59 years, diarrhœa two\nhours, cholera epidemica sixteen hours.”\nI was informed by this lady’s son that she had not been\nin the neighbourhood of Broad Street for many months.\nA cart went from Broad Street to West End every day,\nand it was the custom to take out a large bottle of the\nwater from the pump in Broad Street, as she preferred it.\nThe water was taken on Thursday, 31st August, and she\ndrank of it in the evening, and also on Friday. She was\nseized with cholera on the evening of the latter day, and\ndied on Saturday, as the above quotation from the register\nshows. A niece, who was on a visit to this lady, also\ndrank of the water; she returned to her residence, in a\nhigh and healthy part of Islington, was attacked with\ncholera, and died also. There was no cholera at the time,\neither at West End or in the neighbourhood where the\nniece died. Besides these two persons, only one servant\npartook of the water at Hampstead West End, and she\ndid not suffer, or, at least, not severely. There were many\npersons who drank the water from Broad Street pump\nabout the time of the outbreak, without being attacked\nwith cholera; but this does not diminish the evidence\nrespecting the influence of the water, for reasons that will\nbe fully stated in another part of this work.",
+    "exact_sha256": "863aaec10570ec6ceec85fa396cd266b5191823ee0721a10813e1a5a1d2729c5"
+  },
+  {
+    "label": "S8",
+    "representation": "snow-1855.txt",
+    "locator": "printed 45–46",
+    "start_codepoint": 87074,
+    "end_codepoint": 89579,
+    "exact": "The deaths which occurred during this fatal outbreak\nof cholera are indicated in the accompanying map, as far\nas I could ascertain them. There are necessarily some\ndeficiencies, for in a few of the instances of persons who\ndied in the hospitals after their removal from the neighbourhood\nof Broad Street, the number of the house from\nwhich they had been removed was not registered. The\naddress of those who died after their removal to St. James’s\nWorkhouse was not registered; and I was only able to\nobtain it, in a part of the cases, on application at the\nMaster’s Office, for many of the persons were too ill, when\nadmitted, to give any account of themselves. In the case\nalso of some of the workpeople and others who contracted\nthe cholera in this neighbourhood, and died in different\nparts of London, the precise house from which they had\nremoved is not stated in the return of deaths. I have\nheard of some persons who died in the country shortly\nafter removing from the neighbourhood of Broad Street;\nand there must, no doubt, be several cases of this kind\nthat I have not heard of. Indeed, the full extent of the\ncalamity will probably never be known. The deficiencies\nI have mentioned, however, probably do not detract from\nthe correctness of the map as a diagram of the topography\nof the outbreak; for, if the locality of the few additional\ncases could be ascertained, they would probably be distributed\n46\nover the district of the outbreak in the same proportion\nas the large number which are known.\nThe dotted line on the map surrounds the sub-districts\nof Golden Square, St. James’s, and Berwick Street, St.\nJames’s, together with the adjoining portion of the sub-district\nof St. Anne, Soho, extending from Wardour Street\nto Dean Street, and a small part of the sub-district of St.\nJames’s Square enclosed by Marylebone Street, Titchfield\nStreet, Great Windmill Street, and Brewer Street. All\nthe deaths from cholera which were registered in the six\nweeks from 19th August to 30th September within this\nlocality, as well as those of persons removed into Middlesex\nHospital, are shown in the map\n[10]\nby a black line in\nthe situation of the house in which it occurred, or in\nwhich the fatal attack was contracted.\nIn addition to these the deaths of persons removed to\nUniversity College Hospital, to Charing Cross Hospital, and\nto various parts of London, are indicated in the map, where\nthe exact address was given in the “Weekly Return of\nDeaths,” or, when I could learn it by private inquiry.",
+    "exact_sha256": "860bfd63a695f0b0975106a3f04de3d6489b656d5729e17213c5cb67705bbb53"
+  },
+  {
+    "label": "S9",
+    "representation": "snow-1855.txt",
+    "locator": "printed 49–51; table headers and missing dates included",
+    "start_codepoint": 93786,
+    "end_codepoint": 97649,
+    "exact": "TABLE I.\nDate.\nNo. of Fatal Attacks.\nDeaths.\nAugust\n19\n1\n1\n„\n20\n1\n0\n„\n21\n1\n2\n„\n22\n0\n0\n„\n23\n1\n0\n„\n24\n1\n2\n„\n25\n0\n0\n„\n26\n1\n0\n„\n27\n1\n1\n„\n28\n1\n0\n„\n29\n1\n1\n„\n30\n8\n2\n„\n31\n56\n3\nSeptember\n1\n143\n70\n„\n2\n116\n127\n„\n3\n54\n76\n„\n4\n46\n71\n„\n5\n36\n45\n„\n6\n20\n37\n„\n7\n28\n32\n„\n8\n12\n30\n„\n9\n11\n24\n„\n10\n5\n18\n„\n11\n5\n15\n„\n12\n1\n6\n„\n13\n3\n13\n„\n14\n0\n6\n„\n15\n1\n8\n„\n16\n4\n6\n„\n17\n2\n5\n„\n18\n3\n2\n„\n19\n0\n3\n„\n20\n0\n0\n„\n21\n2\n0\n„\n22\n1\n2\n„\n23\n1\n3\n„\n24\n1\n0\n„\n25\n1\n0\n„\n26\n1\n2\n„\n27\n1\n0\n„\n28\n0\n2\n„\n29\n0\n1\n„\n30\n0\n0\nDate unknown\n45\n0\nTotal\n616\n616\n50\nThe deaths in the above table are compiled from the\nsources mentioned above in describing the map; but\nsome deaths which were omitted from the map on account\nof the number of the house not being known, are\nincluded in the table. As regards the date of attack, I\nwas able to obtain it with great precision, through the\nkindness of Mr. Sibley, in upwards of eighty deaths\nwhich occurred in Middlesex Hospital; for the hour of\nadmission was entered in the hospital books, as well as\nthe previous duration of the illness. In a few other cases\nalso I had exact information of the hour of attack, and in\nthe remainder I have calculated it by subtracting the\nduration of the illness from the date of death. Where\nthe illness did not exceed twelve hours, the attack was\nconsidered to have commenced the same day; where the\nillness exceeded twelve, and did not exceed thirty-six\nhours, the attack was put down to the previous day, and\nso on. Where the illness exceeded forty-eight hours, its\nduration is generally given in days, which were subtracted\nfrom the date of the attack. Although this plan\ndoes not always give the precise date of attack, it reaches\nwithin a few hours of it, and is as valuable perhaps as if\nthe exact day were given, unless the hour as well as the\nday could be introduced into the table. Where premonitory\ndiarrhœa is stated to have existed, the period of\nits duration is deducted from the date of death, and, in\nfact, the time of attack is fixed at the first commencement\nof indisposition, except in two or three instances in which\nthe patient was labouring under another disease, as\nphthisis or typhus fever. There are forty-five cases in\nwhich the duration of the illness was not certified, or\nentered in the books of the registrars, and the time of\nattack in these cases is consequently unknown. These\npersons nearly all died in the first days of September, in\n51\nthe height of the calamity, and it is almost certain that\nthey were cut off very quickly, like the others who died\nat this time.\nIt is pretty certain that very few of the fifty-six attacks\nplaced in the table to the 31st August occurred till late\nin the evening of that day. The irruption was extremely\nsudden, as I learn from the medical men living in the\nmidst of the district, and commenced in the night between\nthe 31st August and 1st September. There was hardly\nany premonitory diarrhœa in the cases which occurred\nduring the first three days of the outbreak; and I have\nbeen informed by several medical men, that very few of\nthe cases which they attended on those days ended in\nrecovery.\nThe greatest number of attacks in any one day occurred\non the 1st of September, immediately after the outbreak\ncommenced. The following day the attacks fell from one\nhundred and forty-three to one hundred and sixteen, and\nthe day afterwards to fifty-four. A glance at the above\ntable will show that the fresh attacks continued to become\nless numerous every day. On September the 8th—the\nday when the handle of the pump was removed—there\nwere twelve attacks; on the 9th, eleven; on the 10th, five;\non the 11th, five; on the 12th, only one; and after this\ntime, there were never more than four attacks on one day.\nDuring the decline of the epidemic the deaths were more\nnumerous than the attacks, owing to the decease of many\npersons who had lingered for several days in consecutive\nfever.",
+    "exact_sha256": "99cd6520fdc54dbd454843329bc0749dffa5fa91552d2ffc61cd39745ff9f913"
+  }
+]

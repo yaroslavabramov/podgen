@@ -1,0 +1,47 @@
+Home
+About FAA
+Offices
+Air Traffic Organization
+Navigation Programs
+In This Section
+Navigation Programs
+Satellite Navigation
+Satellite Navigation Overview
+Global Positioning System
+GPS How It Works
+GPS Contacts
+Ground Based Augmentation System (GBAS)
+GBAS How It Works
+Satellite Based Augmentation System (WAAS)
+WAAS How It Works
+WAAS Benefits
+WAAS Contacts
+Library
+SatNav News
+Briefings
+Fact Sheets
+Visual Guidance Lighting Systems
+Visual Guidance Lighting Systems Overview
+High Intensity Approach Lighting Systems (ALSF-2)
+Medium Intensity Approach Lighting System w/Runway Alignment Indicator Lights (MALSR)
+Runway End Identifier Lights (REIL)
+Precision Approach Path Indicator (PAPI)
+Runway Visual Range (RVR)
+Ground-Based Navigation
+Ground-Based Navigation Overview
+Instrument Landing System (ILS)
+Very High Frequency Omni-Directional Range (VOR)
+Very High Frequency Omnidirectional Range Minimum Operational Network (VOR MON)
+Distance Measuring Equipment (DME)
+Contact Us
+Satellite Navigation - GPS - How It Works
+Satellite Navigation is based on a global network of satellites that transmit radio signals from medium earth orbit. Users of Satellite Navigation are most familiar with the 31 Global Positioning System (GPS) satellites developed and operated by the United States. Three other constellations also provide similar services. Collectively, these constellations and their augmentations are called Global Navigation Satellite Systems (GNSS). The other constellations are GLONASS developed and operated by the Russian Federation, Galileo developed and operated by the European Union, and BeiDou, developed and operated by China. All providers have offered free use of their respective systems to the international community. All providers have developed International Civil Aviation Organization (ICAO) Standards and Recommended Practices to support use of these constellations for aviation.
+The basic
+GPS
+service provides users with approximately 7.0 meter accuracy, 95% of the time, anywhere on or near the surface of the earth. To accomplish this, each of the 31 satellites emits signals that enable receivers through a combination of signals from at least four satellites, to determine their location and time. GPS satellites carry atomic clocks that provide extremely accurate time. The time information is placed in the codes broadcast by the satellite so that a receiver can continuously determine the time the signal was broadcast. The signal contains data that a receiver uses to compute the locations of the satellites and to make other adjustments needed for accurate positioning. The receiver uses the time difference between the time of signal reception and the broadcast time to compute the distance, or range, from the receiver to the satellite. The receiver must account for propagation delays or decreases in the signal's speed caused by the ionosphere and the troposphere. With information about the ranges to three satellites and the location of the satellite when the signal was sent, the receiver can compute its own three-dimensional position. An atomic clock synchronized to GPS is required in order to compute ranges from these three signals. However, by taking a measurement from a fourth satellite, the receiver avoids the need for an atomic clock. Thus, the receiver uses four satellites to compute latitude, longitude, altitude, and time.
+GPS
+- How It Works
+This animation shows
+GPS
+satellites circling the earth and then being received by an aircraft in flight. The animation contains no audio.
+.

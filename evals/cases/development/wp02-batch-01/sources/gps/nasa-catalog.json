@@ -1,0 +1,147 @@
+{
+  "copyright": {
+    "thirdPartyPermissionsProduced": false,
+    "disclosedToPublic": false,
+    "containsIndication": false,
+    "publisherPermissionOrRightsToDistribute": false,
+    "belongsToUsGov": false,
+    "determinationType": "GOV_PUBLIC_USE_PERMITTED",
+    "thirdPartyContentCondition": "NOT_SET",
+    "belongsToContractor": false,
+    "disclosedInvention": false,
+    "submissionId": 20170004590,
+    "containsThirdPartyMaterial": false,
+    "belongsToPublisher": false,
+    "id": "b2d06603f0ef40cf95915c894f36b65e",
+    "belongsToAuthors": false
+  },
+  "subjectCategories": [
+    "Space Communications, Spacecraft Communications, Command And Tracking",
+    "Engineering (General)"
+  ],
+  "keywords": [
+    " Orbit Determination",
+    " GPS",
+    "Navigation",
+    " MMS",
+    " High Altitude"
+  ],
+  "exportControl": {
+    "isExportControl": "NO",
+    "submissionId": 20170004590,
+    "ear": "NO",
+    "id": "a11723d5f4f14c118afc607b2690ff34",
+    "itar": "NO"
+  },
+  "distributionDate": "2019-07-12T00:00:00.0000000+00:00",
+  "otherReportNumbers": [
+    "GSFC-E-DAA-TN42241",
+    "Report Number: GSFC-E-DAA-TN42241"
+  ],
+  "title": "Introduction to GPS and other Global Navigation Satellite Systems",
+  "stiType": "PRESENTATION",
+  "distribution": "PUBLIC",
+  "submittedDate": "2017-05-15T11:03:16.1570000+00:00",
+  "authorAffiliations": [
+    {
+      "sequence": 0,
+      "submissionId": 20170004590,
+      "meta": {
+        "author": {
+          "name": "Winternitz, Luke"
+        },
+        "organization": {
+          "name": "NASA Goddard Space Flight Center",
+          "location": "Greenbelt, MD United States"
+        }
+      },
+      "id": "c74b7337f5f747b88bee3e6829a64952"
+    }
+  ],
+  "stiTypeDetails": "Presentation",
+  "technicalReviewType": "TECHNICAL_REVIEW_TYPE_NONE",
+  "modified": "2025-08-31T18:39:21.7150190+00:00",
+  "id": 20170004590,
+  "legacyMeta": {
+    "__type": "LegacyMetaIndex, StrivesApi.ServiceModel",
+    "accessionNumber": ""
+  },
+  "created": "2017-05-15T11:03:16.1570000+00:00",
+  "center": {
+    "code": "GSFC",
+    "name": "Goddard Space Flight Center",
+    "id": "973fae00c3584b9fb4c762ae9870d0f6"
+  },
+  "onlyAbstract": false,
+  "sensitiveInformation": 2,
+  "abstract": "GPS tutorial presentation given by GSFC at NIST time and frequency seminar for more than the past 10 years. Minor updates from last year to keep current. ",
+  "isLessonsLearned": false,
+  "disseminated": "DOCUMENT_AND_METADATA",
+  "meetings": [
+    {
+      "country": "United States",
+      "submissionId": 20170004590,
+      "endDate": "2017-06-09T00:00:00.0000000+00:00",
+      "sponsors": [
+        {
+          "organizationId": "a5f5840f34ab4545ba0c8ccc2cbd2c5f",
+          "meta": {
+            "organization": {
+              "name": "National Inst. of Standards and Technology",
+              "location": "Gaithersburg, MD, United States"
+            }
+          },
+          "meetingId": "5c5789435bd24cac8b5d30ef6744c36f",
+          "id": "c1ee40a27d6f4fb69e3801556df56c84"
+        }
+      ],
+      "name": "Annual Time and Frequency Metrology Seminar",
+      "location": "Boulder, CO",
+      "id": "5c5789435bd24cac8b5d30ef6744c36f",
+      "startDate": "2017-06-06T00:00:00.0000000+00:00"
+    }
+  ],
+  "publications": [
+    {
+      "submissionId": 20170004590,
+      "id": "6218821b91c24fdfa1288eb876527767",
+      "publicationDate": "2017-06-08T00:00:00.0000000+00:00"
+    }
+  ],
+  "status": "CURATED",
+  "related": [
+    {
+      "disseminated": "DOCUMENT_AND_METADATA",
+      "id": 20120010317,
+      "type": "SEE_ALSO",
+      "title": "Introduction to GPS and Other Global Navigation Satellite Systems",
+      "stiType": "PRESENTATION",
+      "distribution": "PUBLIC",
+      "status": "CURATED"
+    },
+    {
+      "disseminated": "DOCUMENT_AND_METADATA",
+      "id": 20120002319,
+      "type": "SEE_ALSO",
+      "title": "Introduction to GPS and Other Global Navigation Satellite Systems",
+      "stiType": "PRESENTATION",
+      "distribution": "PUBLIC",
+      "status": "CURATED"
+    }
+  ],
+  "downloads": [
+    {
+      "draft": false,
+      "mimetype": "application/pdf",
+      "name": "20170004590.pdf",
+      "type": "STI",
+      "links": {
+        "original": "/api/citations/20170004590/downloads/20170004590.pdf",
+        "pdf": "/api/citations/20170004590/downloads/20170004590.pdf",
+        "fulltext": "/api/citations/20170004590/downloads/20170004590.txt"
+      }
+    }
+  ],
+  "downloadsAvailable": true,
+  "index": "submissions-2026-11-05-06-21"
+}

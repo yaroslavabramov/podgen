@@ -1,0 +1,21 @@
+{
+  "requested_url": "https://www.gps.gov/sites/default/files/2025-07/2020-SPS-performance-standard.pdf",
+  "resolved_url": "https://www.gps.gov/sites/default/files/2025-07/2020-SPS-performance-standard.pdf",
+  "status": 200,
+  "acquired_at": "2026-11-05T10:43:56.819432+00:00",
+  "headers": {
+    "Content-Type": "application/pdf",
+    "Content-Length": "2166466",
+    "Connection": "close",
+    "Date": "Thu, 05 Nov 2026 10:43:56 GMT",
+    "Server": "Apache/2.4.58 (Ubuntu)",
+    "Last-Modified": "Thu, 10 Jul 2025 16:43:41 GMT",
+    "ETag": "\"210ec2-63995e5592940\"",
+    "Accept-Ranges": "bytes",
+    "Strict-Transport-Security": "max-age=31536000",
+    "X-Cache": "Miss from cloudfront",
+    "Via": "1.1 6a2b0e55911d8afc135b9dbf1a0b20d0.cloudfront.net (CloudFront)",
+    "X-Amz-Cf-Pop": "MRS53-P1",
+    "X-Amz-Cf-Id": "_n5_iULvORXhO9slmv3NiyMhZM_mozxgjJ_6ZfJdmyriKl-vJnE4Qw=="
+  }
+}

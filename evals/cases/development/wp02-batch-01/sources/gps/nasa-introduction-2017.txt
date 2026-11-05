@@ -1,0 +1,1432 @@
+=== PDF PAGE 1 ===
+Introduction to GPS
+and other Global Navigation 
+Satellite Systems
+Luke Winternitz
+NASA/Goddard Space Flight Center Code 596
+(Acknowledgment to Mike Moreau NASA/GSFC Code 595)
+42nd Annual Time and Frequency Metrology Seminar
+8 June 2017
+
+=== PDF PAGE 2 ===
+2
+Outline
+ Introduction
+ The U.S. Global Positioning System
+ History 
+ Current Status
+ Modernization and New 
+Capabilities
+ Satellite Navigation System 
+Fundamentals:
+ Satellites & Signals
+ Solutions
+ Errors
+ Other Global Navigation 
+Satellite Systems and Augmentations:
+ GLONASS, GALILEO, BEIDOU (COMPASS), QZSS
+
+
+=== PDF PAGE 3 ===
+3
+Applications of Satellite Navigation 
+are Everywhere...
+ Military
+ Civilian
+ Transportation
+ Public services
+ Precise machine control
+ Timing and frequency
+ Surveying
+ Surveillance
+ Recreational
+ Space
+ Scientific applications
+ US spends annually about 
+$1.0B-1.5B on GPS
+ Annual direct economic benefit 
+has been estimated at about 
+$70B, 0.4% GDP*
+www.gps.gov/governance/advisory/meetings/2015-06/leveson.pdf
+
+=== PDF PAGE 4 ===
+Satellite Navigation Systems Provide:
+ Accuracy 
+ three dimensional accuracies of a few meters, and 
+down to the level of millimeters for users with 
+specialized equipment/processing
+ Availability 
+ signal available anywhere on Earth where the 
+user has a clear view of the sky
+ Integrity
+ the assurance that the expected performance will 
+be realized
+4
+
+=== PDF PAGE 5 ===
+5
+(Approximate)
+GNSS 
+Timeline
+
+=== PDF PAGE 6 ===
+The U.S. Global 
+Positioning System (GPS) -
+History, Status, and Future
+
+=== PDF PAGE 7 ===
+7
+GPS History
+• Developed by the US Department of Defense 
+ Early GPS program driver was Trident Missile Program 
+(Submarine launched ICBM)
+ Satellites carry a nuclear detonation detection payload
+• Early Satellite Navigation Systems
+ TRANSIT (Doppler positioning) 
+ Timation (first atomic frequency standards flown in space)
+ USAF 621B Program (use of PRN codes for ranging)
+• First prototype GPS satellite launched in 1978
+• First Block II (Operational) GPS satellite launched 
+1989
+• Full Operational Capability declared in 1994
+• First in series of “modernized” GPS satellites began 
+launching in 2005
+
+
+=== PDF PAGE 8 ===
+8
+GPS System Configuration –
+Three Segments
+SPACE SEGMENT
+CONTROL SEGMENT
+USER SEGMENT
+Monitor Station
+Master
+Control Station
+Ground
+Antenna
+
+=== PDF PAGE 9 ===
+9
+ Nominal 24 satellite constellation
+ Semi-synchronous, circular orbits 
+(~20,200 km/10,900 nautical 
+miles altitude)
+ Repeating ground tracks 
+(11 hours 58 minutes)
+ Six orbital planes, inclined at 55 
+degrees, four vehicles per plane
+ Designed for global coverage (at least 4 sats in view)
+ Redundant cesium and/or rubidium clocks on board 
+each satellite
+ There have been 1-4 replenishment launches per 
+year in recent years
+GPS Space Segment
+
+=== PDF PAGE 10 ===
+Current GPS Constellation Status
+ 31 space vehicles currently in 
+operation (2016 status in 
+parentheses)
+ 0 (0) GPS IIA 
+ 12 (12) GPS IIR
+ 7 (7) GPS IIR-M
+ 12 (12) IIF
+ several additional satellites in 
+residual status
+ Continuously assessing 
+constellation health to 
+determine launch need
+ Global GPS civil service 
+performance commitment met 
+continuously since Dec 1993
+10
+Block II/IIA
+Built by Boeing Aerospace
+Launched 1989 - 1997
+Block IIR/IIR-M
+Built by Lockheed Martin
+Launched 1997 - 2009
+Block IIF
+Built by Boeing Aerospace
+First Launch in 2010
+
+=== PDF PAGE 11 ===
+11
+SPACE VEHICLE
+Broadcasts the Signal in Space (SIS) PRN codes, 
+L-band carriers, and 50 Hz navigation message 
+(stored in memory)
+SPACE-TO-USER INTERFACE CONTROL-SPACE INTERFACE
+MONITOR STATION
+ Sends raw 
+observations to MCS
+MASTER CONTROL STATION
+ Checks for anomalies
+ Computes SIS portion of URE
+ Generates new orbit and clock 
+predictions
+ Builds new upload and sends to GA
+GROUND ANTENNA
+ Sends new 
+upload to SV
+GPS Control Segment
+
+=== PDF PAGE 12 ===
+12
+Control Segment – Map
+ The current operational control segment includes a master control station, 
+an alternate master control station, 12 command and control antennas, and 
+16 monitoring sites.
+ Data from Air Force and NGA monitor stations incorporated into Control 
+Segment Kalman filter solution.
+
+
+=== PDF PAGE 13 ===
+13
+GPS User Segment
+ GPS receivers are specialized “radios” that 
+track GPS signals and produce position and 
+velocity solutions
+ Wide range of cost/sophistication depending on 
+the application
+ Signals from 4 or more GPS satellites are 
+required, but 8-10 are typically available at 
+any time
+ Low cost civil (SPS) receivers typically track 
+only the L1 C/A signal.
+ PPS receivers have special keys that allow 
+tracking of the encrypted military codes 
+transmitted on L1 and L2 signals.
+ High performance civil receivers use special 
+codeless or semi-codeless techniques to track 
+the legacy military signals, and now track new 
+signals provided by GPS and other GNSS 
+systems.
+Consumer/Recreation 
+(~$100-500)
+Military Spacecraft 
+(~$2,000,000)
+
+
+=== PDF PAGE 14 ===
+14
+ Two L-band carrier frequencies
+L1 = 1575.42 MHz       L2 = 1227.60 MHz
+ Two PRN Codes – Uniquely Identify 
+Each Satellite
+ C/A: Coarse Acquisition (Civilian) Code
+ Broadcast only on L1 carrier
+ Available to all users
+ One millisecond repeat interval
+ P(Y): Military Code 
+ Y code is encrypted version of P code – code sequence not published
+ Available only to authorized (military) users on both L1 and L2 carriers
+ 267 day repeat interval, divided into week-long segments transmitted by 
+each satellite
+ PRN Codes are modulated with Navigation Message Data
+ Provides ephemeris data and clock corrections for the GPS 
+satellites
+ Low data rate (50 bps)
+Legacy GPS Signal Structure
+
+=== PDF PAGE 15 ===
+15
+ Goals
+ System-wide improvements in: 
+ Accuracy
+ Availability
+ Integrity
+ Robustness against interference
+ Improved indoor, mobile, and urban use
+ Interoperability with other GNSS constellations
+ Backward compatibility
+ Achieved through 
+ Modernized Space and Ground segments
+ New signals
+ Improved “CNAV” data message
+GPS Modernization 
+
+=== PDF PAGE 16 ===
+GPS IIF Status
+16
+ The Air Force launched GPS 
+IIF-12 on 5 Feb 2016
+ IIFs L1C/A, L2C, L5 + military 
+signal capable
+ Providing enhanced GPS clock 
+performance
+ All 12 total GPS IIFs on orbit
+ Best accuracies in constellation 
+ Demonstrated Flex Power 
+capability
+Image: NASA/Boeing
+Image: ULA, 
+http://www.schriever.af.mil/news/story.asp?id=123468589 
+
+=== PDF PAGE 17 ===
+GPS III Status
+17
+ Newest block of GPS satellites
+ First to broadcast common L1C signal
+ Multiple civil and military signals; 
+ L1 C/A, L1 P(Y), L1M, L1C, 
+ L2C, L2 P(Y), L2M, 
+ L5
+ Three Rubidium clocks
+ First launch in ~2018 timeframe
+ Lockheed Martin in Denver CO awarded 
+contract for two (SV01/02) development 
+and six operational satellites (SV03-08), 
+with option for two more (SV09-10) 
+exercised in 2016.
+ GPS III SV11+ is an open procurement; 
+awards expected in 2018. Will add:
+ Laser Retro-reflector Array
+ Search and Rescue payload
+http://gpsworld.com/2016-in-review-gps-navigates-the-future/
+
+=== PDF PAGE 18 ===
+GPS Modernization- new civil signals
+ L2C (1227.60 MHz= 120*10.23 MHz)
+ Allows ionospheric error removal
+ Two time-multiplexed PRN codes, one is dataless
+ 1st launch: Sep 2005 (GPS IIR-M)
+ L5 (1176.45MHz = 115*10.23 MHz)
+ Designed for safety of life applications
+ In highly protected ARNS band
+ First transmitted by GPS Block IIF (demo payload on SV49)
+ L1C (1575.42 MHz = 154*10.23 MHz)
+ Interoperable with other GNSS systems
+ Multiplexed Binary Offset Carrier modulation reduces interference with L1C/A, may allow 
+higher accuracy tracking
+ First transmitted by GPSIII
+ All modulated with improved CNAV or CNAV-2 packetized data message with 
+forward error coding. 
+ First demonstration conducted in Jun 2013. 
+ Pre-operational CNAV now continuously broadcast with daily updates.
+
+=== PDF PAGE 19 ===
+19
+GPS Modernization – Spectrum
+As of 4/2017:
+L2C broadcast 
+from 19 satellites
+L5 broadcast from 
+12 satellites
+Legacy 
+Signals
+Block IIF, 2010
+2017
+
+=== PDF PAGE 20 ===
+Spectrum of Other GNSS Systems
+1560 1570 1580 1590 1600 16101170 1180 1190 1200 1210 1220 1230 1240 1250 1260 1270 1280 1290 1300
+                                                      Frequency (MHz)
+Color code: Blue—open signals, Red—restricted or encrypted signals
+L1
+             
+L5 L2
+GPS
+Current 
+GLONASS
+SBAS
+Galileo
+QZSS
+IRNSS
+Proposed
+COMPASS
+Proposed
+GLONASS
+
+=== PDF PAGE 21 ===
+GPS Modernization – Ground
+ Legacy Accuracy Improvement Initiative (L-AII, completed 2008)
+ Added 10 NGA monitoring sites to bring total to 16
+ Architecture Evolution Plan (AEP, 2007-current)
+ Modern IT system, updated monitoring stations and ground antennas. 
+Manages current modernized constellation
+ Launch and early orbit, Anomaly resolution, and Disposal 
+Operations (LADO, fielded 2007)
+ Handles GPS satellites outside operational constellation
+ Next Generation Operational Control Segment (OCX, contract 
+awarded 2008) will eventually replace OCS, control GPS III
+ Multiphase rollout 2017-2021
+ OCS Contingency Ops program (delivery in 2019) will allows 
+management of GPS III’s “IIF features” of nav payload prior to OCX 
+Block 1 (2021) 
+www.gps.gov, http://gpsworld.com/2016-in-review-gps-navigates-the-future/
+
+=== PDF PAGE 22 ===
+GPS Modernization Summary
+GPS IIR-M
+2005
+• IIA/IIR capabilities 
+plus:
+o2nd civil signal 
+(L2C)
+oM-Code (L1M & 
+L2M)
+GPS IIA/GPS IIR
+1995
+• Standard Positioning 
+Service (SPS)
+oSingle frequency 
+(L1 C/A) coarse 
+acquisition code 
+navigation
+• Precise Positioning 
+Service (PPS) 
+oY-Code (L1 P(Y) & 
+L2 P(Y))
+GPS IIF
+2010
+• IIR-M capability 
+plus
+o3rd civil signal 
+(L5)
+o12 year design 
+life
+GPS III
+2017 - 2025
+• Backward compatible
+• 4th civil signal (L1C)
+• Increased accuracy
+• Increased integrity
+• Increased design life
+Ground Control 
+Segment
+Architecture Evolution 
+Plan
+(AEP)/ OCS COops
+Next Gen 
+Control Seg. 
+(OCX)
+Legacy
+Control
+System
+Space
+Segment
+Courtesy Thomas D. Powell, GPS Systems Engineering, The Aerospace Corporation, 18 April 2010 (with small updates)
+
+=== PDF PAGE 23 ===
+GPS Documentation
+ System technical docs available on www.gps.gov
+ GPS IS-200: 
+ Spec. of legacy C/A & P codes and NAV message
+ Rev E and beyond adds L2C and CNAV   
+ GPS IS-800: 
+ Specification of L5, and L5 CNAV 
+ SPS & PPS Performance standards
+ Defines the guaranteed level of performance in terms of Signal in 
+Space (SIS) accuracy and Constellation design
+ Current system performance surpasses minimum spec and is 
+improving.
+
+=== PDF PAGE 24 ===
+Satellite Navigation System 
+Fundamentals
+
+=== PDF PAGE 25 ===
+25
+ Precise timing is fundamental to realizing high 
+performance from satellite navigation systems
+ A typical GPS receiver provides user position estimates 
+accurate to a few meters by measuring the range (signal 
+delay) between the user and multiple GPS satellites
+ Assume the specified ranging error contribution from the satellite 
+clock is one meter: one meter / speed of light = 3.3x10-9 s
+ GPS control segment predicts GPS clock performance 
+over a 12 hour period (nominal frequency at which clock 
+data is uploaded to the GPS satellites)
+ 3.3 ns of 12 hours requires a clock with about one part in 1013
+stability: 3.3x10-9 s / 43200 s = 0.8x10-13
+Importance of Precise Timing to GPS
+
+=== PDF PAGE 26 ===
+26
+Atomic Clocks in Space
+ GPS satellites carry redundant rubidium or cesium 
+oscillators (or a combination)
+ Precise frequency standard provides a reference for 
+generating the ranging signals transmitted by the satellites
+ Clocks on the satellites are synchronized to GPS 
+time which is coarsely steered by GPS ground 
+controllers to Coordinated Universal Time (UTC) as 
+maintained by the US Naval Observatory (USNO)
+ A direct reference to UTC(USNO) can be made 
+automatically by most timing receivers by using corrections 
+included in the broadcast GPS NAV message.
+ By mutual agreement, UTC(USNO) and UTC(NIST) are 
+maintained within 100ns, but in practice much closer.
+ Traceability to UTC(USNO) enables precise time 
+and frequency transfer on a global scale.
+
+=== PDF PAGE 27 ===
+27
+ Atomic clocks in GPS satellites are given a fixed 
+fractional frequency offset of -4.46475x10-10 to 
+compensate for relativistic effects in the GPS 
+satellite orbits
+ Second-order Doppler shift – a clock moving in an inertial 
+frame runs slower than a clock at rest
+ Gravitational frequency shift – a clock at rest in a lower 
+gravitational potential runs slower than a clock at rest in a 
+higher gravitational potential
+ Without this offset, GPS satellite clocks would gain 
+~38 microseconds per day relative to clocks on the 
+ground (~11 km range error)
+ GPS receivers apply an additional correction of up 
+to 23 ns (~7 meters) to account for eccentricity in 
+the satellites’ orbit
+Modeling of Relativistic Effects in GPS
+
+=== PDF PAGE 28 ===
+28
+Satellite Navigation Basic Principles
+ Satellite navigation is based on:
+ Precise synchronization of radio beacons
+ The constancy of the speed of light connecting 
+signal transit-time to range regardless of relative 
+motion
+ GPS and other systems use the concept of 
+multi-lateration for position/time solution:
+ Satellite transmitter positions are known
+ Receiver position is unknown
+ Measured transit-time of signals constrains 
+receiver position relative to transmitters 
+
+=== PDF PAGE 29 ===
+29
+T1
+ρ1
+T2
+ρ2
+T3ρ3
+Trilateration Example: 
+3 Transmitters, 1 Receiver
+ Measurement of 
+range requires 
+precise knowledge of 
+the time the signal is 
+transmitted from the 
+satellite, and received 
+at the receiver
+ Range (ρ) or “time of 
+flight” measurement is 
+made using ranging 
+code on the signal
+Receiver 
+Location
+
+=== PDF PAGE 30 ===
+30
+ The position solution involves an equation with 
+four unknowns:
+ Three components of receiver position (x, y, z)
+ Receiver clock bias
+ Position accuracy of ~1 m implies knowledge of the receiver 
+clock to within ~3 ns
+ Requires simultaneous measurements from 
+four satellites
+ The receiver makes a range measurement to the 
+satellite by measuring the signal propagation delay
+ Data message modulated on the ranging signal 
+provides: 
+ precise location of the satellite (in WGS84 coord frame)
+ corrections for errors in the sat. clock (relative to GPStime)
+Position Solution
+
+=== PDF PAGE 31 ===
+3
+Legacy GPS signal design
+ L-band spread-spectrum digital communication system 
+using binary phase shift keying (BPSK) to modulate carrier 
+with Pseudo-Random Noise (PRN) code and low-rate data
+ Each transmitter uses unique PRN sequence enabling
+ Transmission in common freq. band: Code-Division Multiple Access 
+(CDMA) 
+ Precise synchronization of received signals: the basis of ranging
+ 37500 bit 50Hz binary data message
+ High accuracy orbits & clocks for individual satellite every 30s
+ Lower accuracy orbits and clocks for whole constellation in 12.5min
+ Constellation health, UTC correlation data, etc.
+ Same principles apply to modernized signals
+
+=== PDF PAGE 32 ===
+32
+GPS L1 C/A Signal (Time Domain)
+1.023Mbps
+)(td
+Carrier 
+ωL1 = 
+1.57542 GHz
+50bps
+Repeating 1023 Chip “PRN Spreading Code” (20 per data message bit)
+GPS Data Message
+20ms+1
+-1
++1
+-1
++1 -1 +1
+
+=== PDF PAGE 33 ===
+33
+GPS L1 C/A Signal (Frequency Domain)
+frequency
+frequency
+1. Data Message Spectrum
+2. Data*PRN Code Spectrum Signal is “Spread”
+3. Data*Code*Carrier Spectrum
+This is the transmitted signal
+0 Hz
+0 Hz
+0 Hz 1.57542 GHz
+50 Hz
+1.023 MHz
+1.023 MHz
+
+=== PDF PAGE 34 ===
+34
+ The signal collected by the receiver is attenuated and delayed 
+version of transmission. Noise from radio background and receiver 
+components add in.
+ Delay τ(t) given by path length over speed-of-light-in-vacuum plus
+additional terms due to reduced speed-of-light in ionosphere and 
+troposphere.
+ Frequency dependence of ionosphere delay (neglected above) 
+causes slight difference in code and carrier delay (“code-carrier 
+divergence”)
+ Doppler shift proportional to delay rate-of-change
+ Signal power below ambient noise power in received bandwidth 
+ May also receive the signal along multiple paths (multipath)
+GPS signal channel effects
+
+=== PDF PAGE 35 ===
+35
+ To detect the GPS signal and recover the navigation data, receiver “correlates” received 
+(downconverted and digitized) signal with locally generated replica of received signal
+GPS Receivers: Acquisition and Tracking
+ PRN codes for satellites are known 
+and “orthogonal” to other codes and 
+self at non-zero time delay
+ Acquisition involves search over 
+range of delay and Doppler, then 
+synchronization to data bits and 
+frames
+ Tracking uses coupled feedback 
+loops to maintain lock on code and 
+carrier signal parameters
+Receiver figs from Mike Moreau’s dissertation: https://ccar.colorado.edu/docs/dissertation/Moreau_2001.pdf (adapted there from P. Ward, Ch. 5 of Kaplan reference)
+
+=== PDF PAGE 36 ===
+36
+GPS Observables
+ Once tracking, GPS receivers typically report the 
+following measurements
+ Pseudorange
+ Propagation delay plus local clock bias measured using the transmitted 
+PRN code: measured to small fraction of code “chip”: ~meter level 
+accuracy
+ Doppler
+ Measured frequency shift of the received beat carrier signal
+ Carrier Phase
+ Measured fractional and accumulated whole cycle phase of the beat 
+carrier signal, can be measured to small fraction of 19cm cycle: mm 
+precision
+ C/N0
+ Carrier to noise spectral density estimate in dB-Hz
+
+=== PDF PAGE 37 ===
+37
+Generating pseudorange at receive time t
+ Adjust local code delay to maximize correlation Z
+ At receive time t, observe “code phase”                    of input-synchronized 
+replica. This is a direct estimate of the time-of-transmission
+ Receiver has only biased estimate of receive time
+ Compute a “Pseudorange” 
+GPS transmitted C/A-code
+Received and replicated C/A-codes
+t(GPS)
+
+
+=== PDF PAGE 38 ===
+38
+Measurement Equation (cont)
+ true range (satellite position, rk, known)
+ satellite clock error (δtk, known)
+ ionosphere and troposphere delays (Ik, Tk, estimated or measured)
+ other errors (εk, satellite ephemeris and clock mis-modeling, measurement errors, multipath, receiver noise)
+ Carrier phase measurement equation is similar, but 
+ Adds whole cycle integer ambiguity term Nλ
+ Ionosphere delay has opposite sign
+ Noise on the order of millimeters instead of meters
+ Measured (code) pseudorange to GPS k comprises:
+Receiver position and 
+clock error are to be 
+solved for
+
+=== PDF PAGE 39 ===
+39
+ Two primary factors affect the fundamental position and 
+time accuracy possible from the system:
+ Ranging error – a function of the quality of the broadcast 
+signal and data
+ Geometry – the distribution of satellites in the sky
+ The actual positioning accuracy achieved depends on 
+system performance plus many other factors:
+ The design of the receiver (receiver/antenna noise levels, 
+modeling errors, etc.)
+ Environmental effects such as ionosphere and troposphere 
+signal delays, field of view obstructions, multipath signals, 
+and jamming/interference.
+Solution Accuracy
+
+=== PDF PAGE 40 ===
+40
+ User Range Error
+ Signal-In-Space User Range Error (URE) 
+is the difference between a GPS satellite’s 
+navigation data (position and clock) and 
+the truth, projected on the line-of-sight to 
+the user.  
+ Indication of signal quality for an 
+individual satellite
+ Composite of several factors
+ stability of particular satellite’s clock
+ predictability of the satellite’s orbit
+Ranging Error
+URE
+
+
+=== PDF PAGE 41 ===
+41
+ Geometric Dilution of Precision (GDOP) is a measure 
+of the quality of the receiver-to-GPS satellite range 
+geometry
+ Related DOPs exist for position, horizontal, vertical, and time 
+dilutions of precision
+ Used in conjunction with the URE to forecast navigation 
+and timing performance, weight measurements
+ For GPS, DOP can range from 1 to infinity, with values 
+in the 2-3 range being typical for GPS
+Geometry – Dilution of Precision
+Good (Low) GDOP Poor (High) GDOP
+
+=== PDF PAGE 42 ===
+42
+Typical Error Budget (Based on GPS)
+Error Source Typical Error
+Ionosphere (< 1000 km) 1-5 m (single frequency, using 
+broadcast model)
+Troposphere (< 20 km) 0.1-1 m
+GPS orbits 2.0 m (RMS)
+GPS clocks 2.0 m (RMS)
+Multipath (“clean” 
+environment)
+0.5-1 m code
+0.5-1 cm carrier
+Receiver Noise 0.25-0.5 m (RMS) code
+1-2 mm (RMS) carrier
+
+=== PDF PAGE 43 ===
+43
+Differential Techniques
+ Receivers in close proximity can have 
+their common error sources cancel
+ Ionosphere and troposphere delays
+ Satellite orbit error
+ Satellite clock error
+ Single Differences (SD) – formed from 
+like measurements of the same GPS 
+satellite made from two receivers
+ Removes errors common to both receivers
+ Double Differences (DD) – formed by 
+differencing two SD measurements from 
+different satellites
+ Fixed Base Station
+ Broadcast corrections from a base station 
+at a known location
+base
+
+=== PDF PAGE 44 ===
+Other GNSS Systems and 
+Augmentations
+
+=== PDF PAGE 45 ===
+GPS
+US
+(24+)
+Galileo
+EU
+(27)
+GLONASS
+Russia
+(24)
+Global GNSS Constellations
+Beidou/Compass
+China
+(35)
+
+
+=== PDF PAGE 46 ===
+46
+GLONASS:  
+GLO
+bal 
+NA
+vigation 
+S
+atellite 
+S
+ystem
+ Radio-based satellite navigation 
+system operated by the Russian 
+Space Forces
+ 24 satellites in 3 orbital planes 
+ Each satellite transmits signal on 
+unique frequency (FDMA) 
+ First satellite launched in 1982
+ System fell into disrepair with 
+collapse of Soviet Union
+ Replenishment and modernization 
+of the constellation made a top 
+priority under the Putin Presidency
+ Constellation Status:
+ http://www.glonass-ianc.rsa.ru/en/
+GLONASS Satellite Constellation
+
+=== PDF PAGE 47 ===
+47
+GLONASS Status
+ GLONASS Constellation Status (24 Apr 2017)
+ 27 Total satellites in constellation
+ 24 Operational
+ - In Commissioning Phase
+ 1 In Maintenance
+ 1 Under check by Satellite Prime Contractor
+ 1 On-orbit spares
+ 1 Flight Test Phase
+ Most recent launch in 29 May 2016
+ GLONASS accuracy has improved significantly 
+over the past five years; approaching 
+performance of GPS
+https://www.glonass-iac.ru/en/GLONASS/
+
+=== PDF PAGE 48 ===
+48
+GLONASS Modernization
+ GLONASS modernization efforts include:
+ Introduction of new CDMA signals for improved interoperability 
+with other GNSS systems 
+ Continue to broadcast legacy FDMA signals
+ New GLONASS K satellites with improved accuracy and longer 
+design life
+ Improvements to ground control system
+For more information, see: GLONASS Status and Progress, Sergey Revnivykh, 19 September 2011
+http://www.navcen.uscg.gov/pdf/cgsicMeetings/51/3_GLONASS_CGSIC_Oleynik.pdf
+
+=== PDF PAGE 49 ===
+49
+ Galileo is a joint initiative of the European Commission 
+(EC) and the European Space Agency (ESA). 
+ It will be interoperable with GPS and GLONASS, the two 
+other global satellite navigation systems. 
+ Consists of 30 medium Earth 
+orbit satellites, associated 
+ground infrastructure, and 
+regional/local augmentations.
+ Will offer a basic service for free 
+(Open Service), but will charge 
+user fees for premium services.
+GALILEO
+http://www.esa.int/esaNA/galileo.html
+
+=== PDF PAGE 50 ===
+50
+Galileo Constellation Configuration
+
+
+=== PDF PAGE 51 ===
+Galileo Implementation Plan
+Galileo System Testbed v1
+Validation of critical algorithms
+Galileo System Testbed v2
+2 initial test satellites
+In-Orbit Validation
+4 IOV satellites plus
+ground segment
+Full Operational Capability
+27 (+3) Galileo satellites
+2003
+2005
+2011
+~2020
+From “European GNSS Programmes EGNOS and Galileo,” Paul Verhoef
+
+=== PDF PAGE 52 ===
+52
+Galileo Status
+ ESA’s first two navigation satellites, GIOVE-A and –B, were launched 
+in 2005 and 2008 respectively
+ Reserved radio frequencies set aside for Galileo by the International 
+Telecommunications Union
+ Tested key Galileo technologies
+ In-Orbit Validation (IOV) phase
+ First two of four operational satellites launched October 2011 to validate 
+the Galileo concept in both space and on Earth. 
+ Two more launched in October 2012. Galileo only solutions demonstrated 
+in 2013.
+ Full Operational Capability (FOC)
+ Fourteen FOC satellites launched so far, including six in 2016!
+ The first two were initially inserted into incorrect orbit, have been 
+recovered into usable orbit.
+ Fully deployed Galileo system consists of 30 satellites 
+(27 operational + 3 active spares), positioned in three circular Medium 
+Earth Orbit (MEO) planes ~2020
+http://www.esa.int/esaNA/galileo.html
+https://www.gsa.europa.eu/european-gnss/galileo/system-status
+
+=== PDF PAGE 53 ===
+53
+Chinese BeiDou System
+ The BeiDou system (also known as Compass) will include 5 
+geostationary orbit (GEO) satellites and 30 non-GEO satellites
+ BeiDou will provide three carrier frequencies foreseen to be 
+interoperable with other systems.
+ Demonstration Phase
+ Completed in 2003 with launch of 3 Geostationary satellites
+ Second Phase (BDS-2) – provision of satellite navigation services for 
+Asia-Pacific region
+ 16 satellites launched since 2007, with six launches in 2012
+ BeiDou’s current constellation providing regional navigation services
+ Consists of five geostationary (GEO), five inclined geosynchronous orbit 
+(IGSO), and four middle Earth orbiting (MEO) spacecraft
+ Third phase (BDS-3) extends to global coverage by 2020
+ Since 2015, 5 BDS-3 sats have been launched, most recent 29 March 
+2016
+http://en.beidou.gov.cn/
+http://www.unoosa.org/pdf/icg/2014/icg-9/icg9-04.pdf
+
+=== PDF PAGE 54 ===
+Regional Satellite Navigation Systems
+ Navigation with Indian Constellation (NAVIC); formerly 
+Indian Regional Navigational Satellite System (IRNSS)
+ Autonomous regional satellite navigation system consisting of 7 
+satellites and ground segment
+ Developed by Indian Space Research Organization
+ Seventh satellite launched 28 April 2016. 
+ Quasi-Zenith Satellite System (QZSS) – Japan
+ Will provide an augmentation service which, when used in 
+conjunction with GPS, GLONASS or Galileo, will provide 
+enhanced navigation in the Far East
+ Consists of three satellites in highly elliptical orbits - satellites 
+dwell at high elevations in the sky allowing enhanced coverage in 
+urban canyons.
+54
+
+=== PDF PAGE 55 ===
+55
+Satellite-Based Augmentation Systems 
+(SBAS)
+ Wide Area Augmentation System (WAAS)
+ Commissioned in 2003 and operated by the U.S. Federal 
+Aviation Administration (FAA), to enable aircraft navigation in the 
+U.S. National Airspace System (NAS)
+ European Geostationary Navigation Overlay System 
+(EGNOS)
+ Three geostationary satellites and a network of ground stations
+ Augments the US GPS satellite navigation system in Europe
+ Japan's Multifunction-Transport-Satellite Satellite 
+Augmentation System (MSAS)
+ MSAS for aviation use was commissioned in 2007
+ India's GPS and Geo-Augmented Navigation System 
+(GAGAN) 
+ Russian System of Differential Corrections and 
+Monitoring (SDCM)
+
+=== PDF PAGE 56 ===
+56
+Other GPS Augmentations
+ Nationwide Differential GPS System (NDGPS):
+ Ground-based augmentation system of ~80 sites operated by the 
+U.S. Coast Guard, Federal Railroad Administration, and Federal 
+Highway Administration, to provide increased accuracy and 
+integrity to U.S. users on land and water. 
+ Local Area Augmentation System (LAAS):
+ Augmentation to GPS that focuses its service on the airport area 
+(approximately a 20-30 mile radius) 
+ Broadcasts correction message via a very high frequency (VHF) 
+radio data link from a ground-based transmitter
+ LAAS is a US activity led by the FAA, but other nations are 
+developing their own ground based augmentation system 
+projects
+ NASA Global Differential GPS (GDGPS) System: 
+ GDGPS is a commercial high accuracy (~ 10cm) GPS 
+augmentation system, developed by the Jet Propulsion 
+Laboratory (JPL) to support real-time positioning, timing, and orbit 
+determination requirements.  
+
+=== PDF PAGE 57 ===
+International Coordination 
+ International coordination is critical to ensure 
+compatibility and interoperability
+ US has bilateral agreements or joint statements with all 
+major international GNSS service providers
+ International committee on GNSS (ICG) Established in 
+2005 under the umbrella of the United Nations to 
+provide forum for discussion
+ Purpose is to promote voluntary cooperation on matters of 
+mutual interest in order to ensure greater compatibility, 
+interoperability, and transparency among GNSS systems
+ 11th ICG held in Russia in Nov 2016, 10th held in Boulder/UCAR
+57
+http://www.gps.gov/cgsic/meetings/2014/clore.pdf
+http://www.unoosa.org/oosa/en/SAP/gnss/icg.html
+
+=== PDF PAGE 58 ===
+58
+Thank You.
+Luke Winternitz, Ph.D.
+Components and Hardware Systems Branch
+Code 596, NASA GSFC
+Greenbelt, MD 20771
+luke.b.winternitz@nasa.gov
+Michael C. Moreau, Ph.D.
+Navigation and Mission Design Branch
+Code 595, NASA GSFC
+Greenbelt, MD 20771
+mike.moreau@nasa.gov
+
+=== PDF PAGE 59 ===
+Backup Information and 
+References
+Subsequent charts provide additional 
+information and references that could 
+not be included in the presentation.
+
+=== PDF PAGE 60 ===
+60
+Acronyms and Definitions
+AEP – GPS Architecture Evolution Program
+ARNS – Aeronautical Radio Navigation Service spectrum 
+band
+CDMA – Code Division Multiple Access
+C/A – GPS Course Acquisition Code
+C/N0 - Carrier to Noise Spectral Density
+COMPASS – Chinese Satellite Navigation System
+CORS – Continuously Operating Reference Stations
+DoD – Department of Defense
+EC – European Commission
+ESA – European Space Agency
+FDMA – Frequency Division Multiple Access
+Galileo – European Satellite Navigation System
+GDGPS – NASA Global Differential GPS System
+GDOP – Geometric Dilution of Precision
+GNSS – Global Navigation Satellite Systems
+GPS – US Global Positioning System
+GLONASS – Russian GLObal NAvigation Satellite System
+GST – Galileo System Time
+GTRF – Galileo Terrestrial Reference Frame
+IERS – International Earth Rotation Service
+IGS – International GNSS Service
+ITRS – International Terrestrial Reference System
+LAAS – Local Area Augmentation System
+L1 C/A – GPS Course Acquisition Code at 1.57542 GHz
+L1 – GPS signals at 1.57542 GHz
+L1C – New GPS code planned for L1 signal
+L2 – GPS signals at 1.22760 GHz
+L2C – New GPS code on L2 signal
+L5 – New GPS signals at 1.17645 GHz
+MEO – Medium Earth Orbit
+NASA – National Aeronautics and Space Administration
+NDGPS – Nationwide Differential GPS System
+NIMA – National Imagery and Mapping Agency, currently 
+known as National Geospatial-Intelligence Agency 
+(NGA)
+NIST – National Institutes of Standards and Technology
+OCS – GPS Operational Control Segment
+OCX – Next Generation GPS Operational Control Segment
+PRN – Pseudo-Random Noise
+PNT – Position, Navigation, and Timing
+P(Y) – GPS precision code
+QZSS – Japanese Quazi-Zenith Satellite System
+RMS – Root Mean Square
+RNSS - Radio Navigation Satellite Service spectrum band
+SBAS – Space Based Augmentation System
+TAI – International Atomic Time
+USAF – United States Air Force
+USNO – United States Naval Observatory
+URE – User Range Error
+UTC – Universal Coordinated Time
+WAAS – Wide Area Augmentation System
+
+=== PDF PAGE 61 ===
+Official U.S. Government information about GPS
+61
+
+
+=== PDF PAGE 62 ===
+62
+ National Executive Committee for Space-Based Positioning, 
+Navigation, and Timing (PNT)
+ http://pnt.gov/
+ Federal Aviation Administration – Navigation Services
+ http://gps.faa.gov/index.htm
+ US Coast Guard Navigation Center
+ http://www.navcen.uscg.gov/
+ Civil GPS Service Interface Committee (CGSIC) Meetings
+ http://www.navcen.uscg.gov/?pageName=cgsicMeetings
+ NASA Global Differential GPS System
+ http://www.gdgps.net/
+GPS References
+
+=== PDF PAGE 63 ===
+63
+ Elliott D. Kaplan, Christopher J. Hegarty, Understanding 
+GPS: Principles and Applications, Artech House 
+Publishers, 2006.
+ P. Misra, P. Enge, Global Positioning System: Signals, 
+Measurements, and Performance, Ganga-Jamuna
+Press, 2001.
+ B.W. Parkinson et al. (editors), Global Positioning 
+System: Theory and Applications, Vol. 1&2, Progress 
+in Astronautics and Aeronautics, 1997.
+GPS References (continued)
+
+=== PDF PAGE 64 ===
+64
+
+
+=== PDF PAGE 65 ===
+65
+2004 U.S. Space-Based Positioning, 
+Navigation, and Timing Policy
+ Recognizes the changing international scene
+ Other nations implementing space-based 
+systems that provide PNT services
+ National Space-Based PNT Executive 
+Committee
+ Chaired by Deputy Secretaries of Defense and 
+Transportation
+ Membership includes: State, Commerce, 
+Homeland Security, JCS and NASA
+ Established National Coordination Office 
+(NCO) with staff from each member agency 
+
+=== PDF PAGE 66 ===
+GNSS Compatibility and Interoperability 
+Objectives 
+ Ensure compatibility - ability of U.S. and 
+non-U.S. space-based PNT services to be 
+used separately or together without 
+interfering with each individual service or 
+signal
+ Achieve interoperability – ability of civil U.S. 
+and non-U.S. space-based PNT services to 
+be used together to provide the user better 
+capabilities than would be achieved by 
+relying solely on one service or signal
+66
+
+=== PDF PAGE 67 ===
+GLONASS
+
+=== PDF PAGE 68 ===
+68
+ 24 satellites in 3 orbital planes 
+ ascending nodes 120 degrees apart
+ 8 satellites equally spaced in each plane
+ argument of latitude displacement of 45 degrees
+ planes have 15 degrees argument of latitude displacement
+ Circular 19,100 km orbit
+ inclination angle of 64.8 degrees
+ Complete one orbit in 11 h 15 min 44 s, minimum of 
+5 satellites are in view to users continuously, world-
+wide
+ Cesium clocks on board satellites
+GLONASS Constellation
+
+=== PDF PAGE 69 ===
+69
+GLONASS Signal Characteristics
+ Each satellite transmits signal on unique frequency (FDMA) 
+ Some satellites may use the same frequencies, but those 
+satellites are placed in antipodal slots of orbit planes and they do 
+not appear at the same time in a user’s view
+ Two frequency bands
+ L1 = 1602 + n*0.5625 MHz
+ L2 = 1246 + n*0.4375 MHz
+ Where n is frequency channel number (n=0,1,2,…)
+ Standard Precision (SP) Signal
+ PRN code clock rate 0.511 MHz 
+ repeats each millisecond
+ civilian use
+ High Precision (HP) Signal
+ PRN code clock rate 5.11 MHz
+ repeats each second
+ modulated by special code, includes anti-spoofing capability
+ military use
+
+=== PDF PAGE 70 ===
+70
+ Several Command Tracking Stations (CTS) throughout Russia
+ St. Petersburg, Ternopol, Yeniseisk, Komsomolsk, Balkhash
+ track satellites in view and accumulate ranging data and telemetry 
+from the satellite signals
+ transmit updated information to satellites, as well as other control 
+information
+ ranging data is periodically calibrated using laser ranging devices 
+at Quantum Optical Tracking Stations within GCS.  Each satellite 
+specially carries laser reflectors for this purpose.
+ System Control Center (SCC) in Krasnoznamensk (Moscow 
+region)
+ process CTS site information to determine satellite clock and orbit 
+states and update the navigation message for each satellite.
+GLONASS Control System
+
+=== PDF PAGE 71 ===
+71
+ GLONASS system time-scale 
+ based on high-precision hydrogen clocks 
+ relay signals to the phase control system (PCS) which 
+monitors satellite clock time/phase as transmitted by 
+the navigation signals and determines satellite 
+corrections for upload
+ synchronized with UTC(SU)
+ also synchronized with UTC(CIS), which is maintained 
+by the All Union Institute for Physical, Technical, and 
+Radio-Technical Measurements (VNIIFTRI) in 
+Mendeleevo, near Moscow
+ uses leap seconds
+ Ephemeris data in the Earth Parameter System 1990  
+(PZ-90), not GPS WGS-84
+GLONASS Control System (cont)
+
+=== PDF PAGE 72 ===
+Galileo
+
+=== PDF PAGE 73 ===
+73
+ Galileo is a joint initiative of the European Commission 
+(EC) and the European Space Agency (ESA). 
+ It will be interoperable with GPS and GLONASS, the two 
+operational global satellite navigation systems. 
+ Consists of 30 medium Earth 
+orbit satellites, associated 
+ground infrastructure, and 
+regional/local augmentations.
+ Will offer a basic service for free 
+(Open Service), but will charge 
+user fees for premium services.
+GALILEO
+
+
+=== PDF PAGE 74 ===
+74
+Galileo Constellation Configuration
+
+
+=== PDF PAGE 75 ===
+75
+Position, Velocity and Time Services:
+ Open Service - providing positioning, navigation and timing services, 
+free of charge, for mass market navigation applications (future GPS SPS)
+ Commercial Service - provides added value over the Open Service 
+providing commercial revenue, such as dissemination of encrypted 
+navigation related data (1 KBPS), ranging and timing for professional use 
+- with service guarantees
+ Safety of Life Service - Comparable with “Approach with Vertical 
+Guidance” (APV-II) as defined in the ICAO Standards and Recommended 
+practices (SARPs), and includes Integrity
+ Public Regulated Service - for applications devoted to 
+European/National security, regulated or critical applications and 
+activities of strategic importance - Robust signal, under Member States 
+control
+Support to Search and Rescue
+ Search and Rescue Service coordinated with COSPAS SARSAT
+The GALILEO Satellite Services
+
+=== PDF PAGE 76 ===
+Galileo Navigation Signals and Frequencies
+76
+http://www.esa.int/esaNA/SEM86CSMD6E_galileo_1.html
+Each Galileo Satellite will broadcast 10 navigation signals, making 
+up the open (OS), safety-of-life (SOL), commercial (CS) and public 
+regulated services (PRS)
+
+=== PDF PAGE 77 ===
+Galileo Navigation Signals and Frequencies
+77http://www.esa.int/esaNA/SEM86CSMD6E_galileo_1.html
+GPS L1GPS L2GPS L5
+ Galileo open services realized by using 
+the signals at L1, E5a and E5b. 
+ Various configurations of dual and 
+single frequency navigation use are 
+possible.
+ L1 and E5a Galileo signals 
+interoperability with GPS
+
+=== PDF PAGE 78 ===
+78
+Galileo System Design
+ Galileo Terrestrial Reference Frame (GTRF):
+ An independent realization of the International Terrestrial 
+Reference System (ITRS) established by the Central Bureau of 
+the International Earth Rotation Service (IERS).
+ Differences between WGS84 and GTRF ~ a few cm.
+ Galileo System Time (GST):
+ Shall be a continuous coordinate time scale steered towards the 
+International Atomic Time (TAI) with an offset of less then 33 ns.
+ Offset between GST and the GPS system time is monitored and 
+broadcast to users, but may also be estimated in the receiver.
+ Each Spacecraft will have 4 onboard clocks
+ 2 Rubidium Vapour
+ 2 Passive Hydrogen Maser
+
+=== PDF PAGE 79 ===
+79
+Agreement on GPS-Galileo Cooperation 
+ In 2004 the United States and the European Union established a 
+partnership to  ensure that GPS and Galileo will be interoperable at the 
+user level for the benefit of civil users around the world. 
+ Radio frequency compatibility and interoperability; 
+ Trade and civil applications; 
+ Design and development of the next generation of systems; and 
+ Security issues related to GPS and Galileo. 
+ The agreement:
+ Ensures that Galileo's signals will not harm the navigation 
+warfare capabilities of the United States and the North Atlantic 
+Treaty Organization military forces
+ Calls for non-discrimination and open markets in terms of trade 
+in civil satellite navigation-related goods and services
+ Includes an agreement to establish a common civil signal at the 
+L1 frequency
+ Additional availability, precision, and robustness provided by 
+complementary systems
+
+=== PDF PAGE 80 ===
+80
+ Further information can be found here: 
+ http://www.esa.int/esaNA/index.html
+GALILEO References
+
+
+=== PDF PAGE 81 ===
+Quasi-Zenith Satellite 
+System (
+QZSS)
+
+=== PDF PAGE 82 ===
+ QZSS is a GPS augmentation system serving Japan and 
+the Asia-Pacific region.
+ Consists of three (3) satellites in highly-inclined, 
+geostationary orbits so that one satellite always appears 
+near the zenith above the region of Japan.
+82
+http://www.jaxa.jp/pr/brochure/pdf/04/sat12.pdf
+Japanese Quasi-Zenith Satellite System 
+(QZSS)
+
+=== PDF PAGE 83 ===
+83
+QZSS - Continued
+ GPS Availability Enhancement
+ Improves availability of satellite positioning for areas such as 
+urban canyon and mountain terrain
+ The usage of the QZS at high elevation angles in combination 
+with GPS, 
+ GPS Performance Enhancement
+ Achieves high accuracy by transmitting position correction data
+ Achieves high reliability by sending integrity data
+ Based on 2006 agreement between the U.S. and Japan, 
+the navigation signals and messages of the QZSS offer 
+complete interoperability with those of GPS
+ First QZSS satellite (QZS-1) launched in Sept, 2010
+ Utilization demonstration during 2011
+http://qzss.jaxa.jp/is-qzss/index_e.html
+
+=== PDF PAGE 84 ===
+QZSS Planned Signals
+84
+http://www.navcen.uscg.gov/pdf/cgsicMeetings/50/%5B2%5DJAPAN_REPORT_50TH_CGSIC10_9.pdf
+
+=== PDF PAGE 85 ===
+Indian Regional Navigational 
+Satellite System (IRNSS)
+ Autonomous regional satellite navigation system being 
+developed by Indian Space Research Organization . 
+ The proposed system would consist of a constellation of 
+seven satellites and a support ground segment.
+ Three satellites in Geostationary orbits
+ Remaining satellites in highly elliptical orbits
+ Seventh satellite launched 28 April 2016.
+ Completed and operational in 2016
+85http://www.oosa.unvienna.org/pdf/icg/2008/expert/2-3.pdf http://www.irnssindia.com/
+
+=== PDF PAGE 86 ===
+Indian GPS Aided Geo Augmented 
+Navigation (GAGAN)
+ GAGAN is a Satellite Based Augmentation System 
+(SBAS) over the Indian Air-space primarily meant for civil 
+aviation
+ Jointly implemented by the Indian Space Research 
+Organization (ISRO) and the Airports Authority of India 
+(AAI)
+ Two signals: L1 and L5
+ Technology Demonstration Phase completed in 2007
+ Operational phase of GAGAN completed in 2013
+86
+http://www.oosa.unvienna.org/pdf/icg/2008/expert/2-3.pdf
+http://www.isro.gov.in/update/03-jan-2014/gagan-system-certified-rnp01-operations
+
+=== PDF PAGE 87 ===
+EGNOS
+ The European Geostationary Navigation Overlay Service 
+(EGNOS) augments the US GPS satellite navigation 
+system and makes it suitable for safety critical 
+applications such as flying aircraft or navigating ships 
+through narrow channels.
+EGNOS
+Service Area
+EGNOS Satellite
+Footprints
+http://www.esa.int/esaNA/GGG63950NDC_egnos_0.html
+
+=== PDF PAGE 88 ===
+EGNOS Continued
+ Consists of three geostationary satellites and a network 
+of ground stations
+ EGNOS is a joint project of ESA, the European 
+Commission and Eurocontrol, the European 
+Organisation for the Safety of Air Navigation.
+ The EGNOS Open Service has been available since 
+1 October 2009. 
+ EGNOS positioning data are freely available in Europe 
+through satellite signals to anyone equipped with an 
+EGNOS-enabled GPS receiver.
+
+=== PDF PAGE 89 ===
+MTSAT Space-based Augmentation 
+System (MSAS) 
+ Japanese SBAS (Satellite Based Augmentation System)
+ Supports differential GPS (DGPS) designed to 
+supplement the GPS system by reporting (then 
+improving) on the reliability and accuracy of those 
+signals
+ MSAS for aviation use was commissioned on September 
+27, 2007
+89
+
+=== PDF PAGE 90 ===
+System of Differential Corrections 
+and Monitoring (SDCM)
+ SBAS counterpart to the WAAS and the EGNOS 
+covering the Russian Federation.
+ The SDCM would perform integrity monitoring of both 
+GPS and GLONASS satellites as well as provide 
+differential corrections and a posteriori analyses of 
+GLONASS system performance.
+ Network of ground reference stations and geostationary 
+satellites
+90
