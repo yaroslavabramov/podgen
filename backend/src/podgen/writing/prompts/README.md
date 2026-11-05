@@ -19,7 +19,7 @@ Repair instructions are standalone. They do not inherit ordinary reviewer instru
 
 ## Inputs and decisions
 
-New `editorial-role-packets/1` runs use role-specific semantic views. Full original sources, inputs and outputs remain persisted. No file paths, hashes or technical identities belong in model-visible content. Natural support labels and exact response locations are supplied only where the task needs them. The author receives accepted creative decisions and selected claims with their context and limits; the positive plan review and source library are not writing inputs. No read/research tools are available in these calls.
+New `editorial-role-packets/1` runs use role-specific semantic views. Full original sources, inputs and outputs remain persisted. No file paths, hashes or technical identities belong in model-visible content. Natural support labels and exact response locations are supplied only where the task needs them. The planner chooses the route and way of explaining factual research material. The author receives accepted creative decisions and selected claims with their context and limits; the positive plan review and source library are not writing inputs. No read/research tools are available in these calls.
 
 Own-plan loads the shared assignment and dossier without the separate fixed outline. Only a complete ready proposal explicitly accepted by a separate plan editor reaches the writer. A required revision produces a full new proposal and a new review. A blocking evidence question stops writing; recording it does not obtain an answer. Fixed-plan uses its separately admitted structured outline and does not invoke planning roles.
 

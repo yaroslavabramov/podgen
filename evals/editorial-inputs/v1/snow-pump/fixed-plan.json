@@ -1,7 +1,7 @@
 {
   "contract": "fixed-editorial-input/1",
   "assignment_key": "snow-pump",
-  "shared_input_digest": "6ebea8c94eb863b2d00a6241ab7390208e2e93acc8406d8022ae3c4131affbfe",
+  "shared_input_digest": "5845a536adfe5c0c7cbd3a4fd8fdc9bc8434f3fb371f2c424b91f8ab2cc0536b",
   "document": {
     "source_path": "author/snow-pump/plan.md",
     "sha256": "c2aa0dd65ed2fd97e99ca60d2d82fd63f19c882253c9fe8e54f31f6c1c6395ef"

@@ -19,7 +19,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--case', required=True)
     parser.add_argument('--out', type=Path, required=True)
-    parser.add_argument('--approved-plan', type=Path, help='Conditional own-plan fixture or actual accepted output')
+    parser.add_argument('--approved-plan', type=Path, help='Manually supplied story for a technical writer preview, or an actual accepted output')
     args = parser.parse_args()
     try:
         environment = offline_environment()

@@ -1,7 +1,7 @@
 {
   "contract": "fixed-editorial-input/1",
   "assignment_key": "gps-clock",
-  "shared_input_digest": "a08e6e2a155549709f379974cb29027b94a9a9ee55d64623428e66f45ed7effb",
+  "shared_input_digest": "8930891c6b188745a43757930c25030850357e17762b8a83b225cecea6cd0fd2",
   "document": {
     "source_path": "author/gps-clock/plan.md",
     "sha256": "371b70b6724bd8d5497392d94a1d7782a7fa1a7356be4e12e4050b8d4d1060f6"
@@ -79,8 +79,8 @@
           "intended_change_in_understanding": "Представь два маяка в километре друг от друга и приёмник между ними. Показания 450 и 650 метров дают сумму 1100. Избыток 100 метров — две общие добавки по 50; после их вычитания расстояния равны 400 и 600 метрам.",
           "prerequisite_concepts": [],
           "material_refs": [
-            "Два маяка",
-            "Общие часы"
+            "Общие часы",
+            "Псевдодальность"
           ],
           "limitations_to_voice": [
             "Одна прямая, известные положения маяков и приёмник между ними.",
