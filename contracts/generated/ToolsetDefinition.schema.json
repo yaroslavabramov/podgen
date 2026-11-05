@@ -1,0 +1,64 @@
+{
+  "$defs": {
+    "JsonValue": {},
+    "ToolDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Parameters",
+          "type": "object"
+        },
+        "permissions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Permissions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "parameters",
+        "permissions"
+      ],
+      "title": "ToolDefinition",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "tools": {
+      "items": {
+        "$ref": "#/$defs/ToolDefinition"
+      },
+      "title": "Tools",
+      "type": "array"
+    },
+    "dispatcher_version": {
+      "minLength": 1,
+      "title": "Dispatcher Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "tools",
+    "dispatcher_version"
+  ],
+  "title": "ToolsetDefinition",
+  "type": "object",
+  "$id": "urn:podgen:ToolsetDefinition:1.0"
+}

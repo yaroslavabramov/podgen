@@ -1,0 +1,39 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "ordinal": {
+      "minimum": 0,
+      "title": "Ordinal",
+      "type": "integer"
+    },
+    "speaker_label": {
+      "minLength": 1,
+      "title": "Speaker Label",
+      "type": "string"
+    },
+    "text": {
+      "minLength": 1,
+      "title": "Text",
+      "type": "string"
+    },
+    "char_start": {
+      "minimum": 0,
+      "title": "Char Start",
+      "type": "integer"
+    },
+    "char_end": {
+      "minimum": 0,
+      "title": "Char End",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "ordinal",
+    "speaker_label",
+    "text",
+    "char_start",
+    "char_end"
+  ],
+  "title": "StagedUtterance",
+  "type": "object"
+}

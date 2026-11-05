@@ -1,0 +1,27 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "max_model_calls": {
+      "exclusiveMinimum": 0,
+      "title": "Max Model Calls",
+      "type": "integer"
+    },
+    "max_tool_calls": {
+      "exclusiveMinimum": 0,
+      "title": "Max Tool Calls",
+      "type": "integer"
+    },
+    "max_elapsed_seconds": {
+      "exclusiveMinimum": 0,
+      "title": "Max Elapsed Seconds",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "max_model_calls",
+    "max_tool_calls",
+    "max_elapsed_seconds"
+  ],
+  "title": "OperationalLimits",
+  "type": "object"
+}

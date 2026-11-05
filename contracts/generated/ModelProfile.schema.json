@@ -1,0 +1,205 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "JsonValue": {}
+  },
+  "additionalProperties": false,
+  "properties": {
+    "provider": {
+      "minLength": 1,
+      "title": "Provider",
+      "type": "string"
+    },
+    "api_family": {
+      "minLength": 1,
+      "title": "Api Family",
+      "type": "string"
+    },
+    "model_id": {
+      "minLength": 1,
+      "title": "Model Id",
+      "type": "string"
+    },
+    "model_revision_or_alias": {
+      "minLength": 1,
+      "title": "Model Revision Or Alias",
+      "type": "string"
+    },
+    "adapter_version": {
+      "minLength": 1,
+      "title": "Adapter Version",
+      "type": "string"
+    },
+    "allowed_roles": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Allowed Roles",
+      "type": "array"
+    },
+    "supported_modalities": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Supported Modalities",
+      "type": "array"
+    },
+    "context_limit": {
+      "exclusiveMinimum": 0,
+      "title": "Context Limit",
+      "type": "integer"
+    },
+    "output_limit": {
+      "exclusiveMinimum": 0,
+      "title": "Output Limit",
+      "type": "integer"
+    },
+    "structured_output_mode": {
+      "minLength": 1,
+      "title": "Structured Output Mode",
+      "type": "string"
+    },
+    "tool_call_mode": {
+      "minLength": 1,
+      "title": "Tool Call Mode",
+      "type": "string"
+    },
+    "parallel_tool_policy": {
+      "minLength": 1,
+      "title": "Parallel Tool Policy",
+      "type": "string"
+    },
+    "generation_parameters": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Generation Parameters",
+      "type": "object"
+    },
+    "timeout_policy": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Timeout Policy",
+      "type": "object"
+    },
+    "data_retention_policy_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "caching_policy": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Caching Policy",
+      "type": "object"
+    },
+    "fallback_profile_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Fallback Profile Refs",
+      "type": "array"
+    },
+    "configured_languages": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Configured Languages",
+      "type": "array"
+    }
+  },
+  "required": [
+    "provider",
+    "api_family",
+    "model_id",
+    "model_revision_or_alias",
+    "adapter_version",
+    "allowed_roles",
+    "supported_modalities",
+    "context_limit",
+    "output_limit",
+    "structured_output_mode",
+    "tool_call_mode",
+    "parallel_tool_policy",
+    "generation_parameters",
+    "timeout_policy",
+    "data_retention_policy_ref",
+    "caching_policy",
+    "fallback_profile_refs",
+    "configured_languages"
+  ],
+  "title": "ModelProfile",
+  "type": "object",
+  "$id": "urn:podgen:ModelProfile:1.0"
+}

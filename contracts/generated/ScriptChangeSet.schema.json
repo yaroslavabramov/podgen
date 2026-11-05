@@ -1,0 +1,391 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "AuthorDependencyProposal": {
+      "additionalProperties": false,
+      "properties": {
+        "input_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "proposed_action": {
+          "enum": [
+            "retained",
+            "replaced",
+            "removed"
+          ],
+          "title": "Proposed Action",
+          "type": "string"
+        },
+        "replacement_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Replacement Refs",
+          "type": "array"
+        },
+        "affected_selectors": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "Affected Selectors",
+          "type": "array"
+        },
+        "rationale": {
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "input_ref",
+        "proposed_action",
+        "replacement_refs",
+        "affected_selectors",
+        "rationale"
+      ],
+      "title": "AuthorDependencyProposal",
+      "type": "object"
+    },
+    "ChangeOperation": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "minLength": 1,
+          "title": "Kind",
+          "type": "string"
+        },
+        "before_selectors": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "Before Selectors",
+          "type": "array"
+        },
+        "after_selectors": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "After Selectors",
+          "type": "array"
+        },
+        "rationale": {
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "before_selectors",
+        "after_selectors",
+        "rationale"
+      ],
+      "title": "ChangeOperation",
+      "type": "object"
+    },
+    "DeclaredImpact": {
+      "additionalProperties": false,
+      "properties": {
+        "structure": {
+          "title": "Structure",
+          "type": "boolean"
+        },
+        "spoken_text": {
+          "title": "Spoken Text",
+          "type": "boolean"
+        },
+        "evidence_basis": {
+          "title": "Evidence Basis",
+          "type": "boolean"
+        },
+        "speaker_assignment": {
+          "title": "Speaker Assignment",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "structure",
+        "spoken_text",
+        "evidence_basis",
+        "speaker_assignment"
+      ],
+      "title": "DeclaredImpact",
+      "type": "object"
+    },
+    "IdentityMapping": {
+      "additionalProperties": false,
+      "properties": {
+        "old_item_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Old Item Ids",
+          "type": "array"
+        },
+        "new_item_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "New Item Ids",
+          "type": "array"
+        },
+        "relation": {
+          "enum": [
+            "retained",
+            "split",
+            "merged",
+            "removed",
+            "inserted"
+          ],
+          "title": "Relation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "old_item_ids",
+        "new_item_ids",
+        "relation"
+      ],
+      "title": "IdentityMapping",
+      "type": "object"
+    },
+    "LocalScriptSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "act_id": {
+          "format": "uuid",
+          "title": "Act Id",
+          "type": "string"
+        },
+        "block_id": {
+          "format": "uuid",
+          "title": "Block Id",
+          "type": "string"
+        },
+        "item_id": {
+          "format": "uuid",
+          "title": "Item Id",
+          "type": "string"
+        },
+        "char_start": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Char Start"
+        },
+        "char_end": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Char End"
+        }
+      },
+      "required": [
+        "act_id",
+        "block_id",
+        "item_id",
+        "char_start",
+        "char_end"
+      ],
+      "title": "LocalScriptSelector",
+      "type": "object"
+    },
+    "ScriptRequestDisposition": {
+      "additionalProperties": false,
+      "properties": {
+        "request_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "action": {
+          "enum": [
+            "still_open",
+            "addressed",
+            "obsolete"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "new_selectors": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "New Selectors",
+          "type": "array"
+        },
+        "rationale": {
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_ref",
+        "action",
+        "new_selectors",
+        "rationale"
+      ],
+      "title": "ScriptRequestDisposition",
+      "type": "object"
+    },
+    "ScriptSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "script_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "selector": {
+          "$ref": "#/$defs/LocalScriptSelector"
+        }
+      },
+      "required": [
+        "script_ref",
+        "selector"
+      ],
+      "title": "ScriptSelector",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "base_script_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "next_script_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "change_reason": {
+      "minLength": 1,
+      "title": "Change Reason",
+      "type": "string"
+    },
+    "operations": {
+      "items": {
+        "$ref": "#/$defs/ChangeOperation"
+      },
+      "title": "Operations",
+      "type": "array"
+    },
+    "identity_map": {
+      "items": {
+        "$ref": "#/$defs/IdentityMapping"
+      },
+      "title": "Identity Map",
+      "type": "array"
+    },
+    "research_request_dispositions": {
+      "items": {
+        "$ref": "#/$defs/ScriptRequestDisposition"
+      },
+      "title": "Research Request Dispositions",
+      "type": "array"
+    },
+    "dependency_dispositions": {
+      "items": {
+        "$ref": "#/$defs/AuthorDependencyProposal"
+      },
+      "title": "Dependency Dispositions",
+      "type": "array"
+    },
+    "declared_impact": {
+      "$ref": "#/$defs/DeclaredImpact"
+    }
+  },
+  "required": [
+    "base_script_ref",
+    "next_script_ref",
+    "change_reason",
+    "operations",
+    "identity_map",
+    "research_request_dispositions",
+    "dependency_dispositions",
+    "declared_impact"
+  ],
+  "title": "ScriptChangeSet",
+  "type": "object",
+  "$id": "urn:podgen:ScriptChangeSet:1.0"
+}

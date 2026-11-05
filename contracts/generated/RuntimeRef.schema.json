@@ -1,0 +1,28 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "record_kind": {
+      "enum": [
+        "search_record",
+        "tool_execution",
+        "context_assembly",
+        "user_input",
+        "acquisition_record",
+        "evaluation_reading"
+      ],
+      "title": "Record Kind",
+      "type": "string"
+    },
+    "record_id": {
+      "format": "uuid",
+      "title": "Record Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "record_kind",
+    "record_id"
+  ],
+  "title": "RuntimeRef",
+  "type": "object"
+}

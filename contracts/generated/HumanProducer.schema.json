@@ -1,0 +1,27 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "const": "human_review",
+      "title": "Kind",
+      "type": "string"
+    },
+    "review_session_id": {
+      "format": "uuid",
+      "title": "Review Session Id",
+      "type": "string"
+    },
+    "rater_id": {
+      "format": "uuid",
+      "title": "Rater Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "review_session_id",
+    "rater_id"
+  ],
+  "title": "HumanProducer",
+  "type": "object"
+}

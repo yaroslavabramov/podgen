@@ -1,0 +1,415 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "BlobRef": {
+      "additionalProperties": false,
+      "properties": {
+        "storage_key": {
+          "minLength": 1,
+          "title": "Storage Key",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "byte_length": {
+          "minimum": 0,
+          "title": "Byte Length",
+          "type": "integer"
+        },
+        "media_type": {
+          "minLength": 1,
+          "title": "Media Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "storage_key",
+        "sha256",
+        "byte_length",
+        "media_type"
+      ],
+      "title": "BlobRef",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "LocalScriptSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "act_id": {
+          "format": "uuid",
+          "title": "Act Id",
+          "type": "string"
+        },
+        "block_id": {
+          "format": "uuid",
+          "title": "Block Id",
+          "type": "string"
+        },
+        "item_id": {
+          "format": "uuid",
+          "title": "Item Id",
+          "type": "string"
+        },
+        "char_start": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Char Start"
+        },
+        "char_end": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Char End"
+        }
+      },
+      "required": [
+        "act_id",
+        "block_id",
+        "item_id",
+        "char_start",
+        "char_end"
+      ],
+      "title": "LocalScriptSelector",
+      "type": "object"
+    },
+    "NonSpeechInterval": {
+      "additionalProperties": false,
+      "properties": {
+        "start_frame": {
+          "minimum": 0,
+          "title": "Start Frame",
+          "type": "integer"
+        },
+        "end_frame": {
+          "minimum": 0,
+          "title": "End Frame",
+          "type": "integer"
+        },
+        "kind": {
+          "minLength": 1,
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start_frame",
+        "end_frame",
+        "kind"
+      ],
+      "title": "NonSpeechInterval",
+      "type": "object"
+    },
+    "ScriptSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "script_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "selector": {
+          "$ref": "#/$defs/LocalScriptSelector"
+        }
+      },
+      "required": [
+        "script_ref",
+        "selector"
+      ],
+      "title": "ScriptSelector",
+      "type": "object"
+    },
+    "TranscriptWord": {
+      "additionalProperties": false,
+      "properties": {
+        "word_id": {
+          "format": "uuid",
+          "title": "Word Id",
+          "type": "string"
+        },
+        "spoken_text": {
+          "minLength": 1,
+          "title": "Spoken Text",
+          "type": "string"
+        },
+        "start_frame": {
+          "minimum": 0,
+          "title": "Start Frame",
+          "type": "integer"
+        },
+        "end_frame": {
+          "minimum": 0,
+          "title": "End Frame",
+          "type": "integer"
+        },
+        "speaker_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Speaker Id"
+        },
+        "script_selectors": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "Script Selectors",
+          "type": "array"
+        },
+        "recognition_status": {
+          "minLength": 1,
+          "title": "Recognition Status",
+          "type": "string"
+        },
+        "alignment_status": {
+          "minLength": 1,
+          "title": "Alignment Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "word_id",
+        "spoken_text",
+        "start_frame",
+        "end_frame",
+        "speaker_id",
+        "script_selectors",
+        "recognition_status",
+        "alignment_status"
+      ],
+      "title": "TranscriptWord",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "scope": {
+      "enum": [
+        "segment",
+        "master"
+      ],
+      "title": "Scope",
+      "type": "string"
+    },
+    "script_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "performance_plan_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "audio_segment_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "audio_master_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sample_rate_hz": {
+      "exclusiveMinimum": 0,
+      "title": "Sample Rate Hz",
+      "type": "integer"
+    },
+    "sample_frames": {
+      "minimum": 0,
+      "title": "Sample Frames",
+      "type": "integer"
+    },
+    "recognition_profile_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Recognition Profile Refs",
+      "type": "array"
+    },
+    "raw_recognition_blobs": {
+      "items": {
+        "$ref": "#/$defs/BlobRef"
+      },
+      "title": "Raw Recognition Blobs",
+      "type": "array"
+    },
+    "alignment_profile_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "recognized_audio_sha256": {
+      "minLength": 1,
+      "title": "Recognized Audio Sha256",
+      "type": "string"
+    },
+    "decoder_profile_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "words": {
+      "items": {
+        "$ref": "#/$defs/TranscriptWord"
+      },
+      "title": "Words",
+      "type": "array"
+    },
+    "non_speech_intervals": {
+      "items": {
+        "$ref": "#/$defs/NonSpeechInterval"
+      },
+      "title": "Non Speech Intervals",
+      "type": "array"
+    },
+    "unresolved_intervals": {
+      "items": {
+        "additionalProperties": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "type": "object"
+      },
+      "title": "Unresolved Intervals",
+      "type": "array"
+    },
+    "display_mappings": {
+      "items": {
+        "additionalProperties": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "type": "object"
+      },
+      "title": "Display Mappings",
+      "type": "array"
+    },
+    "coverage_report": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Coverage Report",
+      "type": "object"
+    }
+  },
+  "required": [
+    "scope",
+    "script_ref",
+    "performance_plan_ref",
+    "audio_segment_ref",
+    "audio_master_ref",
+    "sample_rate_hz",
+    "sample_frames",
+    "recognition_profile_refs",
+    "raw_recognition_blobs",
+    "alignment_profile_ref",
+    "recognized_audio_sha256",
+    "decoder_profile_ref",
+    "words",
+    "non_speech_intervals",
+    "unresolved_intervals",
+    "display_mappings",
+    "coverage_report"
+  ],
+  "title": "Transcript",
+  "type": "object",
+  "$id": "urn:podgen:Transcript:1.0"
+}

@@ -1,0 +1,269 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "BlobRef": {
+      "additionalProperties": false,
+      "properties": {
+        "storage_key": {
+          "minLength": 1,
+          "title": "Storage Key",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "byte_length": {
+          "minimum": 0,
+          "title": "Byte Length",
+          "type": "integer"
+        },
+        "media_type": {
+          "minLength": 1,
+          "title": "Media Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "storage_key",
+        "sha256",
+        "byte_length",
+        "media_type"
+      ],
+      "title": "BlobRef",
+      "type": "object"
+    },
+    "EditDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "segment_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "source_start_frame": {
+          "minimum": 0,
+          "title": "Source Start Frame",
+          "type": "integer"
+        },
+        "source_end_frame": {
+          "minimum": 0,
+          "title": "Source End Frame",
+          "type": "integer"
+        },
+        "timeline_start_frame": {
+          "minimum": 0,
+          "title": "Timeline Start Frame",
+          "type": "integer"
+        },
+        "timeline_end_frame": {
+          "minimum": 0,
+          "title": "Timeline End Frame",
+          "type": "integer"
+        },
+        "resample_profile_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "gain_db": {
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "title": "Gain Db",
+          "type": "string"
+        },
+        "transition": {
+          "minLength": 1,
+          "title": "Transition",
+          "type": "string"
+        },
+        "transition_frames": {
+          "minimum": 0,
+          "title": "Transition Frames",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "segment_ref",
+        "source_start_frame",
+        "source_end_frame",
+        "timeline_start_frame",
+        "timeline_end_frame",
+        "resample_profile_ref",
+        "gain_db",
+        "transition",
+        "transition_frames"
+      ],
+      "title": "EditDecision",
+      "type": "object"
+    },
+    "JsonValue": {}
+  },
+  "additionalProperties": false,
+  "properties": {
+    "script_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "performance_plan_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "episode_spec_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "segment_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Segment Refs",
+      "type": "array"
+    },
+    "assembly_profile_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "delivery_profile_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "edit_decisions": {
+      "items": {
+        "$ref": "#/$defs/EditDecision"
+      },
+      "title": "Edit Decisions",
+      "type": "array"
+    },
+    "pcm_master_blob": {
+      "$ref": "#/$defs/BlobRef"
+    },
+    "playback_blob": {
+      "$ref": "#/$defs/BlobRef"
+    },
+    "additional_deliveries": {
+      "items": {
+        "$ref": "#/$defs/BlobRef"
+      },
+      "title": "Additional Deliveries",
+      "type": "array"
+    },
+    "sample_rate_hz": {
+      "exclusiveMinimum": 0,
+      "title": "Sample Rate Hz",
+      "type": "integer"
+    },
+    "channels": {
+      "exclusiveMinimum": 0,
+      "title": "Channels",
+      "type": "integer"
+    },
+    "sample_frames": {
+      "exclusiveMinimum": 0,
+      "title": "Sample Frames",
+      "type": "integer"
+    },
+    "measured_duration_seconds": {
+      "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+      "title": "Measured Duration Seconds",
+      "type": "string"
+    },
+    "playback_decode_map": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Playback Decode Map",
+      "type": "object"
+    },
+    "processing_manifest_blob": {
+      "$ref": "#/$defs/BlobRef"
+    },
+    "measurements_blob": {
+      "$ref": "#/$defs/BlobRef"
+    }
+  },
+  "required": [
+    "script_ref",
+    "performance_plan_ref",
+    "episode_spec_ref",
+    "segment_refs",
+    "assembly_profile_ref",
+    "delivery_profile_ref",
+    "edit_decisions",
+    "pcm_master_blob",
+    "playback_blob",
+    "additional_deliveries",
+    "sample_rate_hz",
+    "channels",
+    "sample_frames",
+    "measured_duration_seconds",
+    "playback_decode_map",
+    "processing_manifest_blob",
+    "measurements_blob"
+  ],
+  "title": "AudioMaster",
+  "type": "object",
+  "$id": "urn:podgen:AudioMaster:1.0"
+}

@@ -1,0 +1,465 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "BlobRef": {
+      "additionalProperties": false,
+      "properties": {
+        "storage_key": {
+          "minLength": 1,
+          "title": "Storage Key",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "byte_length": {
+          "minimum": 0,
+          "title": "Byte Length",
+          "type": "integer"
+        },
+        "media_type": {
+          "minLength": 1,
+          "title": "Media Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "storage_key",
+        "sha256",
+        "byte_length",
+        "media_type"
+      ],
+      "title": "BlobRef",
+      "type": "object"
+    },
+    "DatasetField": {
+      "additionalProperties": false,
+      "properties": {
+        "field_id": {
+          "minLength": 1,
+          "title": "Field Id",
+          "type": "string"
+        },
+        "source_name": {
+          "minLength": 1,
+          "title": "Source Name",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "string",
+            "integer",
+            "decimal",
+            "boolean",
+            "date",
+            "datetime",
+            "json"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "nullable": {
+          "title": "Nullable",
+          "type": "boolean"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "timezone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timezone"
+        }
+      },
+      "required": [
+        "field_id",
+        "source_name",
+        "type",
+        "nullable"
+      ],
+      "title": "DatasetField",
+      "type": "object"
+    },
+    "DatasetSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/DatasetField"
+          },
+          "title": "Fields",
+          "type": "array"
+        },
+        "null_rules": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Null Rules",
+          "type": "object"
+        },
+        "decimal_locale": {
+          "minLength": 1,
+          "title": "Decimal Locale",
+          "type": "string"
+        },
+        "record_identity_rule": {
+          "minLength": 1,
+          "title": "Record Identity Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fields",
+        "null_rules",
+        "decimal_locale",
+        "record_identity_rule"
+      ],
+      "title": "DatasetSchema",
+      "type": "object"
+    },
+    "ExtractionReport": {
+      "additionalProperties": false,
+      "properties": {
+        "coverage": {
+          "enum": [
+            "complete",
+            "partial",
+            "unknown"
+          ],
+          "title": "Coverage",
+          "type": "string"
+        },
+        "missing_regions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Missing Regions",
+          "type": "array"
+        },
+        "reading_order_issues": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reading Order Issues",
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "coverage",
+        "missing_regions",
+        "reading_order_issues",
+        "warnings"
+      ],
+      "title": "ExtractionReport",
+      "type": "object"
+    },
+    "Extractor": {
+      "additionalProperties": false,
+      "properties": {
+        "profile_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        },
+        "configuration_hash": {
+          "minLength": 1,
+          "title": "Configuration Hash",
+          "type": "string"
+        },
+        "model_profile_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "profile_ref",
+        "name",
+        "version",
+        "configuration_hash"
+      ],
+      "title": "Extractor",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "RepresentationBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "block_id": {
+          "format": "uuid",
+          "title": "Block Id",
+          "type": "string"
+        },
+        "kind": {
+          "minLength": 1,
+          "title": "Kind",
+          "type": "string"
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Id"
+        },
+        "text_range": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Text Range"
+        },
+        "original_anchor": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Original Anchor",
+          "type": "object"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "block_id",
+        "kind",
+        "original_anchor",
+        "warnings"
+      ],
+      "title": "RepresentationBlock",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "source_revision_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "representation_kind": {
+      "enum": [
+        "html_text",
+        "document_layout",
+        "table",
+        "dataset",
+        "transcript",
+        "translation"
+      ],
+      "title": "Representation Kind",
+      "type": "string"
+    },
+    "content_blob": {
+      "$ref": "#/$defs/BlobRef"
+    },
+    "canonical_text_blob": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BlobRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "extractor": {
+      "$ref": "#/$defs/Extractor"
+    },
+    "normalization_version": {
+      "minLength": 1,
+      "title": "Normalization Version",
+      "type": "string"
+    },
+    "blocks": {
+      "items": {
+        "$ref": "#/$defs/RepresentationBlock"
+      },
+      "title": "Blocks",
+      "type": "array"
+    },
+    "extraction_report": {
+      "$ref": "#/$defs/ExtractionReport"
+    },
+    "derived_from_representation_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "language": {
+      "minLength": 1,
+      "title": "Language",
+      "type": "string"
+    },
+    "is_transformation": {
+      "title": "Is Transformation",
+      "type": "boolean"
+    },
+    "dataset_schema": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DatasetSchema"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "source_revision_ref",
+    "representation_kind",
+    "content_blob",
+    "extractor",
+    "normalization_version",
+    "blocks",
+    "extraction_report",
+    "language",
+    "is_transformation"
+  ],
+  "title": "SourceRepresentation",
+  "type": "object",
+  "$id": "urn:podgen:SourceRepresentation:1.0"
+}

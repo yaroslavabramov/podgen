@@ -1,0 +1,261 @@
+{
+  "$defs": {
+    "AlternativeExplanation": {
+      "additionalProperties": false,
+      "properties": {
+        "local_id": {
+          "format": "uuid",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "statement": {
+          "minLength": 1,
+          "title": "Statement",
+          "type": "string"
+        },
+        "distinguishing_observations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Distinguishing Observations",
+          "type": "array"
+        },
+        "support_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Support Refs",
+          "type": "array"
+        },
+        "counter_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Counter Refs",
+          "type": "array"
+        },
+        "state": {
+          "enum": [
+            "open",
+            "supported",
+            "weakened",
+            "ruled_out"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "rationale": {
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "statement",
+        "distinguishing_observations",
+        "support_refs",
+        "counter_refs",
+        "state",
+        "rationale"
+      ],
+      "title": "AlternativeExplanation",
+      "type": "object"
+    },
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "episode_spec_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "dossier_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "main_question": {
+      "minLength": 1,
+      "title": "Main Question",
+      "type": "string"
+    },
+    "working_answer": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Working Answer"
+    },
+    "answer_basis_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Answer Basis Refs",
+      "type": "array"
+    },
+    "alternatives": {
+      "items": {
+        "$ref": "#/$defs/AlternativeExplanation"
+      },
+      "title": "Alternatives",
+      "type": "array"
+    },
+    "listener_promise": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Listener Promise"
+    },
+    "active_question_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Active Question Refs",
+      "type": "array"
+    },
+    "story_plan_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "script_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "current_decision_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Current Decision Refs",
+      "type": "array"
+    },
+    "phase": {
+      "enum": [
+        "orienting",
+        "researching",
+        "planning",
+        "drafting",
+        "editing",
+        "verifying",
+        "producing_audio",
+        "ready"
+      ],
+      "title": "Phase",
+      "type": "string"
+    }
+  },
+  "required": [
+    "episode_spec_ref",
+    "dossier_ref",
+    "main_question",
+    "working_answer",
+    "answer_basis_refs",
+    "alternatives",
+    "listener_promise",
+    "active_question_refs",
+    "story_plan_ref",
+    "script_ref",
+    "current_decision_refs",
+    "phase"
+  ],
+  "title": "EditorialState",
+  "type": "object",
+  "$id": "urn:podgen:EditorialState:1.0"
+}

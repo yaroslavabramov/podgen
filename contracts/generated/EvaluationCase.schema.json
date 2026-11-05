@@ -1,0 +1,202 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "SupportedCombination": {
+      "additionalProperties": false,
+      "properties": {
+        "language": {
+          "minLength": 1,
+          "title": "Language",
+          "type": "string"
+        },
+        "duration_seconds": {
+          "minimum": 0,
+          "title": "Duration Seconds",
+          "type": "integer"
+        },
+        "format": {
+          "enum": [
+            "solo",
+            "dialogue"
+          ],
+          "title": "Format",
+          "type": "string"
+        }
+      },
+      "required": [
+        "language",
+        "duration_seconds",
+        "format"
+      ],
+      "title": "SupportedCombination",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "case_family": {
+      "minLength": 1,
+      "title": "Case Family",
+      "type": "string"
+    },
+    "split": {
+      "enum": [
+        "development",
+        "calibration",
+        "holdout"
+      ],
+      "title": "Split",
+      "type": "string"
+    },
+    "topic_group_id": {
+      "minLength": 1,
+      "title": "Topic Group Id",
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "component",
+        "episode",
+        "failure_recovery"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "episode_spec_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "input_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Input Refs",
+      "type": "array"
+    },
+    "source_access_policy_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "reference_annotation_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "scoring_policy_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "allowed_candidate_profile_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Allowed Candidate Profile Refs",
+      "type": "array"
+    },
+    "supported_combination": {
+      "$ref": "#/$defs/SupportedCombination"
+    },
+    "perturbations": {
+      "items": {
+        "additionalProperties": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "type": "object"
+      },
+      "title": "Perturbations",
+      "type": "array"
+    },
+    "prohibited_shortcuts": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Prohibited Shortcuts",
+      "type": "array"
+    }
+  },
+  "required": [
+    "case_family",
+    "split",
+    "topic_group_id",
+    "mode",
+    "episode_spec_ref",
+    "input_refs",
+    "source_access_policy_ref",
+    "reference_annotation_ref",
+    "scoring_policy_ref",
+    "allowed_candidate_profile_refs",
+    "supported_combination",
+    "perturbations",
+    "prohibited_shortcuts"
+  ],
+  "title": "EvaluationCase",
+  "type": "object",
+  "$id": "urn:podgen:EvaluationCase:1.0"
+}

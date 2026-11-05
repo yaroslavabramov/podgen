@@ -1,0 +1,27 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "field": {
+      "const": "answer_markdown",
+      "title": "Field",
+      "type": "string"
+    },
+    "char_start": {
+      "minimum": 0,
+      "title": "Char Start",
+      "type": "integer"
+    },
+    "char_end": {
+      "minimum": 0,
+      "title": "Char End",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "field",
+    "char_start",
+    "char_end"
+  ],
+  "title": "NoteTextRange",
+  "type": "object"
+}

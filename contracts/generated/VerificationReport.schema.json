@@ -1,0 +1,713 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "AudioSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "audio_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "start_frame": {
+          "minimum": 0,
+          "title": "Start Frame",
+          "type": "integer"
+        },
+        "end_frame": {
+          "minimum": 0,
+          "title": "End Frame",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "audio_ref",
+        "start_frame",
+        "end_frame"
+      ],
+      "title": "AudioSelector",
+      "type": "object"
+    },
+    "ClaimReview": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "format": "uuid",
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "verdict": {
+          "enum": [
+            "supported",
+            "supported_with_limits",
+            "contradicted",
+            "insufficient",
+            "not_verifiable"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        },
+        "evidence_reviews": {
+          "items": {
+            "$ref": "#/$defs/EvidenceReview"
+          },
+          "title": "Evidence Reviews",
+          "type": "array"
+        },
+        "counterevidence_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Counterevidence Refs",
+          "type": "array"
+        },
+        "calculation_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Calculation Refs",
+          "type": "array"
+        },
+        "family_assessment_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Family Assessment Refs",
+          "type": "array"
+        },
+        "stated_limits": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Stated Limits",
+          "type": "array"
+        },
+        "audible_limit_selectors": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "Audible Limit Selectors",
+          "type": "array"
+        },
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/Finding"
+          },
+          "title": "Findings",
+          "type": "array"
+        },
+        "rationale": {
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        },
+        "reused_from_report_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "claim_id",
+        "verdict",
+        "evidence_reviews",
+        "counterevidence_refs",
+        "calculation_refs",
+        "family_assessment_refs",
+        "stated_limits",
+        "audible_limit_selectors",
+        "findings",
+        "rationale",
+        "reused_from_report_ref"
+      ],
+      "title": "ClaimReview",
+      "type": "object"
+    },
+    "CoverageAudit": {
+      "additionalProperties": false,
+      "properties": {
+        "reviewer_run_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Reviewer Run Ids",
+          "type": "array"
+        },
+        "reviewed_script_ranges": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "Reviewed Script Ranges",
+          "type": "array"
+        },
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/Finding"
+          },
+          "title": "Findings",
+          "type": "array"
+        },
+        "unresolved_omissions": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "Unresolved Omissions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "reviewer_run_ids",
+        "reviewed_script_ranges",
+        "findings",
+        "unresolved_omissions"
+      ],
+      "title": "CoverageAudit",
+      "type": "object"
+    },
+    "EvidenceReview": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "relation": {
+          "enum": [
+            "supports",
+            "qualifies",
+            "contradicts"
+          ],
+          "title": "Relation",
+          "type": "string"
+        },
+        "source_applicability": {
+          "minLength": 1,
+          "title": "Source Applicability",
+          "type": "string"
+        },
+        "original_inspection": {
+          "minLength": 1,
+          "title": "Original Inspection",
+          "type": "string"
+        },
+        "rationale": {
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_ref",
+        "relation",
+        "source_applicability",
+        "original_inspection",
+        "rationale"
+      ],
+      "title": "EvidenceReview",
+      "type": "object"
+    },
+    "Finding": {
+      "additionalProperties": false,
+      "properties": {
+        "finding_id": {
+          "format": "uuid",
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "category": {
+          "minLength": 1,
+          "title": "Category",
+          "type": "string"
+        },
+        "location_selectors": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WholeArtifactSelector"
+              },
+              {
+                "$ref": "#/$defs/ScriptSelector"
+              },
+              {
+                "$ref": "#/$defs/NoteSelector"
+              },
+              {
+                "$ref": "#/$defs/ShowNotesSelector"
+              },
+              {
+                "$ref": "#/$defs/AudioSelector"
+              }
+            ]
+          },
+          "title": "Location Selectors",
+          "type": "array"
+        },
+        "explanation": {
+          "minLength": 1,
+          "title": "Explanation",
+          "type": "string"
+        },
+        "basis_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Basis Refs",
+          "type": "array"
+        },
+        "severity": {
+          "enum": [
+            "critical",
+            "major",
+            "minor",
+            "advisory"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "blocking": {
+          "title": "Blocking",
+          "type": "boolean"
+        },
+        "policy_rule_id": {
+          "minLength": 1,
+          "title": "Policy Rule Id",
+          "type": "string"
+        },
+        "required_outcome": {
+          "minLength": 1,
+          "title": "Required Outcome",
+          "type": "string"
+        }
+      },
+      "required": [
+        "finding_id",
+        "category",
+        "location_selectors",
+        "explanation",
+        "basis_refs",
+        "severity",
+        "blocking",
+        "policy_rule_id",
+        "required_outcome"
+      ],
+      "title": "Finding",
+      "type": "object"
+    },
+    "LocalScriptSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "act_id": {
+          "format": "uuid",
+          "title": "Act Id",
+          "type": "string"
+        },
+        "block_id": {
+          "format": "uuid",
+          "title": "Block Id",
+          "type": "string"
+        },
+        "item_id": {
+          "format": "uuid",
+          "title": "Item Id",
+          "type": "string"
+        },
+        "char_start": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Char Start"
+        },
+        "char_end": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Char End"
+        }
+      },
+      "required": [
+        "act_id",
+        "block_id",
+        "item_id",
+        "char_start",
+        "char_end"
+      ],
+      "title": "LocalScriptSelector",
+      "type": "object"
+    },
+    "NoteSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "const": "answer_markdown",
+          "title": "Field",
+          "type": "string"
+        },
+        "char_start": {
+          "minimum": 0,
+          "title": "Char Start",
+          "type": "integer"
+        },
+        "char_end": {
+          "minimum": 0,
+          "title": "Char End",
+          "type": "integer"
+        },
+        "note_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        }
+      },
+      "required": [
+        "field",
+        "char_start",
+        "char_end",
+        "note_ref"
+      ],
+      "title": "NoteSelector",
+      "type": "object"
+    },
+    "RemainingWork": {
+      "additionalProperties": false,
+      "properties": {
+        "finding_id": {
+          "format": "uuid",
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "proposed_action": {
+          "minLength": 1,
+          "title": "Proposed Action",
+          "type": "string"
+        },
+        "research_request_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "finding_id",
+        "proposed_action",
+        "research_request_ref"
+      ],
+      "title": "RemainingWork",
+      "type": "object"
+    },
+    "ScriptDependencyDisposition": {
+      "additionalProperties": false,
+      "properties": {
+        "prior_input_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "current_input_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Current Input Refs",
+          "type": "array"
+        },
+        "affected_selectors": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "Affected Selectors",
+          "type": "array"
+        },
+        "disposition": {
+          "enum": [
+            "retained",
+            "replaced",
+            "removed",
+            "lineage_only"
+          ],
+          "title": "Disposition",
+          "type": "string"
+        },
+        "basis": {
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "checked_against_script_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "reviewer_run_id": {
+          "format": "uuid",
+          "title": "Reviewer Run Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "prior_input_ref",
+        "current_input_refs",
+        "affected_selectors",
+        "disposition",
+        "basis",
+        "checked_against_script_ref",
+        "reviewer_run_id"
+      ],
+      "title": "ScriptDependencyDisposition",
+      "type": "object"
+    },
+    "ScriptSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "script_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "selector": {
+          "$ref": "#/$defs/LocalScriptSelector"
+        }
+      },
+      "required": [
+        "script_ref",
+        "selector"
+      ],
+      "title": "ScriptSelector",
+      "type": "object"
+    },
+    "ShowNotesSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "show_notes_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "field": {
+          "enum": [
+            "title",
+            "description",
+            "chapter_title",
+            "chapter_summary",
+            "citation_metadata",
+            "disclosure",
+            "uncertainty_note"
+          ],
+          "title": "Field",
+          "type": "string"
+        },
+        "item_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Item Id"
+        },
+        "char_start": {
+          "minimum": 0,
+          "title": "Char Start",
+          "type": "integer"
+        },
+        "char_end": {
+          "minimum": 0,
+          "title": "Char End",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "show_notes_ref",
+        "field",
+        "item_id",
+        "char_start",
+        "char_end"
+      ],
+      "title": "ShowNotesSelector",
+      "type": "object"
+    },
+    "WholeArtifactSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "whole": {
+          "const": true,
+          "title": "Whole",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "artifact_ref",
+        "whole"
+      ],
+      "title": "WholeArtifactSelector",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "script_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "claim_set_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "coverage_audit": {
+      "$ref": "#/$defs/CoverageAudit"
+    },
+    "claim_reviews": {
+      "items": {
+        "$ref": "#/$defs/ClaimReview"
+      },
+      "title": "Claim Reviews",
+      "type": "array"
+    },
+    "cross_claim_findings": {
+      "items": {
+        "$ref": "#/$defs/Finding"
+      },
+      "title": "Cross Claim Findings",
+      "type": "array"
+    },
+    "source_family_assessment_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Source Family Assessment Refs",
+      "type": "array"
+    },
+    "calculation_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Calculation Refs",
+      "type": "array"
+    },
+    "policy_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "recommendation": {
+      "enum": [
+        "accepted",
+        "changes_required",
+        "rejected"
+      ],
+      "title": "Recommendation",
+      "type": "string"
+    },
+    "remaining_work": {
+      "items": {
+        "$ref": "#/$defs/RemainingWork"
+      },
+      "title": "Remaining Work",
+      "type": "array"
+    },
+    "dependency_dispositions": {
+      "items": {
+        "$ref": "#/$defs/ScriptDependencyDisposition"
+      },
+      "title": "Dependency Dispositions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "script_ref",
+    "claim_set_ref",
+    "coverage_audit",
+    "claim_reviews",
+    "cross_claim_findings",
+    "source_family_assessment_refs",
+    "calculation_refs",
+    "policy_ref",
+    "recommendation",
+    "remaining_work",
+    "dependency_dispositions"
+  ],
+  "title": "VerificationReport",
+  "type": "object",
+  "$id": "urn:podgen:VerificationReport:1.0"
+}

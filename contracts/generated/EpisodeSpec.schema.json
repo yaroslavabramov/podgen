@@ -1,0 +1,481 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "Audience": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "assumed_knowledge": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Assumed Knowledge",
+          "type": "array"
+        }
+      },
+      "required": [
+        "description",
+        "assumed_knowledge"
+      ],
+      "title": "Audience",
+      "type": "object"
+    },
+    "Delivery": {
+      "additionalProperties": false,
+      "properties": {
+        "audio_formats": {
+          "items": {
+            "enum": [
+              "mp3",
+              "wav"
+            ],
+            "type": "string"
+          },
+          "title": "Audio Formats",
+          "type": "array"
+        },
+        "transcript_formats": {
+          "items": {
+            "enum": [
+              "json",
+              "vtt"
+            ],
+            "type": "string"
+          },
+          "title": "Transcript Formats",
+          "type": "array"
+        }
+      },
+      "required": [
+        "audio_formats",
+        "transcript_formats"
+      ],
+      "title": "Delivery",
+      "type": "object"
+    },
+    "Duration": {
+      "additionalProperties": false,
+      "properties": {
+        "target_seconds": {
+          "exclusiveMinimum": 0,
+          "title": "Target Seconds",
+          "type": "integer"
+        },
+        "tolerance_seconds": {
+          "minimum": 0,
+          "title": "Tolerance Seconds",
+          "type": "integer"
+        },
+        "mode": {
+          "enum": [
+            "target",
+            "strict"
+          ],
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target_seconds",
+        "tolerance_seconds",
+        "mode"
+      ],
+      "title": "Duration",
+      "type": "object"
+    },
+    "SourceInput": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "source_revision",
+          "title": "Kind",
+          "type": "string"
+        },
+        "source_revision_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        }
+      },
+      "required": [
+        "kind",
+        "source_revision_ref"
+      ],
+      "title": "SourceInput",
+      "type": "object"
+    },
+    "Speaker": {
+      "additionalProperties": false,
+      "properties": {
+        "speaker_id": {
+          "format": "uuid",
+          "title": "Speaker Id",
+          "type": "string"
+        },
+        "display_name": {
+          "minLength": 1,
+          "title": "Display Name",
+          "type": "string"
+        },
+        "role_description": {
+          "minLength": 1,
+          "title": "Role Description",
+          "type": "string"
+        },
+        "voice_profile_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        }
+      },
+      "required": [
+        "speaker_id",
+        "display_name",
+        "role_description",
+        "voice_profile_ref"
+      ],
+      "title": "Speaker",
+      "type": "object"
+    },
+    "SubjectPeriod": {
+      "additionalProperties": false,
+      "properties": {
+        "through": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Through"
+        },
+        "from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "From"
+        }
+      },
+      "required": [
+        "through",
+        "from"
+      ],
+      "title": "SubjectPeriod",
+      "type": "object"
+    },
+    "SuppliedInput": {
+      "additionalProperties": false,
+      "properties": {
+        "input_id": {
+          "format": "uuid",
+          "title": "Input Id",
+          "type": "string"
+        },
+        "origin": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UrlInput"
+            },
+            {
+              "$ref": "#/$defs/UploadInput"
+            },
+            {
+              "$ref": "#/$defs/SourceInput"
+            }
+          ],
+          "title": "Origin"
+        }
+      },
+      "required": [
+        "input_id",
+        "origin"
+      ],
+      "title": "SuppliedInput",
+      "type": "object"
+    },
+    "Temporal": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": [
+            "current",
+            "historical_as_known",
+            "retrospective"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "requested_as_of": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Requested As Of"
+        },
+        "knowledge_as_of": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+          "title": "Knowledge As Of",
+          "type": "string"
+        },
+        "subject_period": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SubjectPeriod"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "mode",
+        "requested_as_of",
+        "knowledge_as_of",
+        "subject_period"
+      ],
+      "title": "Temporal",
+      "type": "object"
+    },
+    "UploadInput": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "upload",
+          "title": "Kind",
+          "type": "string"
+        },
+        "upload_id": {
+          "format": "uuid",
+          "title": "Upload Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "upload_id"
+      ],
+      "title": "UploadInput",
+      "type": "object"
+    },
+    "UrlInput": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "url",
+          "title": "Kind",
+          "type": "string"
+        },
+        "url": {
+          "minLength": 1,
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "url"
+      ],
+      "title": "UrlInput",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "topic": {
+      "minLength": 1,
+      "title": "Topic",
+      "type": "string"
+    },
+    "main_question": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Main Question"
+    },
+    "audience": {
+      "$ref": "#/$defs/Audience"
+    },
+    "language": {
+      "minLength": 1,
+      "title": "Language",
+      "type": "string"
+    },
+    "format": {
+      "enum": [
+        "solo",
+        "dialogue"
+      ],
+      "title": "Format",
+      "type": "string"
+    },
+    "speakers": {
+      "items": {
+        "$ref": "#/$defs/Speaker"
+      },
+      "title": "Speakers",
+      "type": "array"
+    },
+    "duration": {
+      "$ref": "#/$defs/Duration"
+    },
+    "temporal": {
+      "$ref": "#/$defs/Temporal"
+    },
+    "source_mode": {
+      "enum": [
+        "open_web",
+        "supplied_only"
+      ],
+      "title": "Source Mode",
+      "type": "string"
+    },
+    "supplied_inputs": {
+      "items": {
+        "$ref": "#/$defs/SuppliedInput"
+      },
+      "title": "Supplied Inputs",
+      "type": "array"
+    },
+    "preferences": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Preferences",
+      "type": "array"
+    },
+    "required_topics": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Required Topics",
+      "type": "array"
+    },
+    "excluded_topics": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Excluded Topics",
+      "type": "array"
+    },
+    "policy_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "source_policy_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "delivery": {
+      "$ref": "#/$defs/Delivery"
+    }
+  },
+  "required": [
+    "topic",
+    "main_question",
+    "audience",
+    "language",
+    "format",
+    "speakers",
+    "duration",
+    "temporal",
+    "source_mode",
+    "supplied_inputs",
+    "preferences",
+    "required_topics",
+    "excluded_topics",
+    "policy_ref",
+    "source_policy_ref",
+    "delivery"
+  ],
+  "title": "EpisodeSpec",
+  "type": "object",
+  "$id": "urn:podgen:EpisodeSpec:1.0"
+}

@@ -1,0 +1,51 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "const": "text",
+      "title": "Kind",
+      "type": "string"
+    },
+    "block_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Block Ids",
+      "type": "array"
+    },
+    "char_start": {
+      "minimum": 0,
+      "title": "Char Start",
+      "type": "integer"
+    },
+    "char_end": {
+      "minimum": 0,
+      "title": "Char End",
+      "type": "integer"
+    },
+    "exact": {
+      "title": "Exact",
+      "type": "string"
+    },
+    "prefix": {
+      "title": "Prefix",
+      "type": "string"
+    },
+    "suffix": {
+      "title": "Suffix",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "block_ids",
+    "char_start",
+    "char_end",
+    "exact",
+    "prefix",
+    "suffix"
+  ],
+  "title": "TextSelector",
+  "type": "object"
+}

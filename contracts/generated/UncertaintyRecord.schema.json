@@ -1,0 +1,174 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "question_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "description": {
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "acquisition_blocked",
+        "corpus_gap",
+        "research_incomplete",
+        "conflicting_evidence",
+        "world_unknown"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "basis_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Basis Refs",
+      "type": "array"
+    },
+    "search_attempt_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Search Attempt Ids",
+      "type": "array"
+    },
+    "affected_statement": {
+      "minLength": 1,
+      "title": "Affected Statement",
+      "type": "string"
+    },
+    "impact": {
+      "enum": [
+        "central_answer",
+        "local_passage",
+        "enrichment"
+      ],
+      "title": "Impact",
+      "type": "string"
+    },
+    "handling": {
+      "enum": [
+        "investigate",
+        "qualify",
+        "omit",
+        "explicit_unknown",
+        "defer"
+      ],
+      "title": "Handling",
+      "type": "string"
+    },
+    "next_action": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Next Action"
+    },
+    "resolution_note_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "question_ref",
+    "description",
+    "kind",
+    "basis_refs",
+    "search_attempt_ids",
+    "affected_statement",
+    "impact",
+    "handling",
+    "next_action",
+    "resolution_note_ref"
+  ],
+  "title": "UncertaintyRecord",
+  "type": "object",
+  "$id": "urn:podgen:UncertaintyRecord:1.0"
+}

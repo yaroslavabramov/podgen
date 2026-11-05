@@ -1,0 +1,557 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "BlobRef": {
+      "additionalProperties": false,
+      "properties": {
+        "storage_key": {
+          "minLength": 1,
+          "title": "Storage Key",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "byte_length": {
+          "minimum": 0,
+          "title": "Byte Length",
+          "type": "integer"
+        },
+        "media_type": {
+          "minLength": 1,
+          "title": "Media Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "storage_key",
+        "sha256",
+        "byte_length",
+        "media_type"
+      ],
+      "title": "BlobRef",
+      "type": "object"
+    },
+    "DatasetSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "dataset",
+          "title": "Kind",
+          "type": "string"
+        },
+        "record_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Record Ids",
+          "type": "array"
+        },
+        "field_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Field Ids",
+          "type": "array"
+        },
+        "original_record_locators": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Original Record Locators",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "record_ids",
+        "field_ids",
+        "original_record_locators"
+      ],
+      "title": "DatasetSelector",
+      "type": "object"
+    },
+    "MediaAnchor": {
+      "additionalProperties": false,
+      "properties": {
+        "blob_ref": {
+          "$ref": "#/$defs/BlobRef"
+        },
+        "selector": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TextSelector"
+            },
+            {
+              "$ref": "#/$defs/TableSelector"
+            },
+            {
+              "$ref": "#/$defs/DatasetSelector"
+            },
+            {
+              "$ref": "#/$defs/PageRegionSelector"
+            },
+            {
+              "$ref": "#/$defs/TimeSelector"
+            }
+          ],
+          "title": "Selector"
+        }
+      },
+      "required": [
+        "blob_ref",
+        "selector"
+      ],
+      "title": "MediaAnchor",
+      "type": "object"
+    },
+    "PageRegionSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "page_region",
+          "title": "Kind",
+          "type": "string"
+        },
+        "page_index": {
+          "minimum": 0,
+          "title": "Page Index",
+          "type": "integer"
+        },
+        "bbox": {
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Bbox",
+          "type": "array"
+        },
+        "coordinate_space": {
+          "const": "normalized_top_left",
+          "title": "Coordinate Space",
+          "type": "string"
+        },
+        "render_blob_ref": {
+          "$ref": "#/$defs/BlobRef"
+        },
+        "render_profile_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        }
+      },
+      "required": [
+        "kind",
+        "page_index",
+        "bbox",
+        "coordinate_space",
+        "render_blob_ref",
+        "render_profile_ref"
+      ],
+      "title": "PageRegionSelector",
+      "type": "object"
+    },
+    "TableCell": {
+      "additionalProperties": false,
+      "properties": {
+        "row_id": {
+          "minLength": 1,
+          "title": "Row Id",
+          "type": "string"
+        },
+        "column_id": {
+          "minLength": 1,
+          "title": "Column Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "row_id",
+        "column_id"
+      ],
+      "title": "TableCell",
+      "type": "object"
+    },
+    "TableSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "table",
+          "title": "Kind",
+          "type": "string"
+        },
+        "table_block_id": {
+          "format": "uuid",
+          "title": "Table Block Id",
+          "type": "string"
+        },
+        "cells": {
+          "items": {
+            "$ref": "#/$defs/TableCell"
+          },
+          "title": "Cells",
+          "type": "array"
+        },
+        "header_block_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Header Block Ids",
+          "type": "array"
+        },
+        "footnote_block_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Footnote Block Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "table_block_id",
+        "cells",
+        "header_block_ids",
+        "footnote_block_ids"
+      ],
+      "title": "TableSelector",
+      "type": "object"
+    },
+    "TextSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "text",
+          "title": "Kind",
+          "type": "string"
+        },
+        "block_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Block Ids",
+          "type": "array"
+        },
+        "char_start": {
+          "minimum": 0,
+          "title": "Char Start",
+          "type": "integer"
+        },
+        "char_end": {
+          "minimum": 0,
+          "title": "Char End",
+          "type": "integer"
+        },
+        "exact": {
+          "title": "Exact",
+          "type": "string"
+        },
+        "prefix": {
+          "title": "Prefix",
+          "type": "string"
+        },
+        "suffix": {
+          "title": "Suffix",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "block_ids",
+        "char_start",
+        "char_end",
+        "exact",
+        "prefix",
+        "suffix"
+      ],
+      "title": "TextSelector",
+      "type": "object"
+    },
+    "TimeBase": {
+      "additionalProperties": false,
+      "properties": {
+        "numerator": {
+          "exclusiveMinimum": 0,
+          "title": "Numerator",
+          "type": "integer"
+        },
+        "denominator": {
+          "exclusiveMinimum": 0,
+          "title": "Denominator",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "numerator",
+        "denominator"
+      ],
+      "title": "TimeBase",
+      "type": "object"
+    },
+    "TimeSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "time",
+          "title": "Kind",
+          "type": "string"
+        },
+        "track_id": {
+          "minLength": 1,
+          "title": "Track Id",
+          "type": "string"
+        },
+        "time_base": {
+          "$ref": "#/$defs/TimeBase"
+        },
+        "origin": {
+          "const": "decoded_track_start",
+          "title": "Origin",
+          "type": "string"
+        },
+        "start_tick": {
+          "minimum": 0,
+          "title": "Start Tick",
+          "type": "integer"
+        },
+        "end_tick": {
+          "minimum": 0,
+          "title": "End Tick",
+          "type": "integer"
+        },
+        "stream_offset_ticks": {
+          "title": "Stream Offset Ticks",
+          "type": "integer"
+        },
+        "alignment_kind": {
+          "enum": [
+            "decoder",
+            "asr_estimate",
+            "reviewed"
+          ],
+          "title": "Alignment Kind",
+          "type": "string"
+        },
+        "transcript_block_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Transcript Block Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "track_id",
+        "time_base",
+        "origin",
+        "start_tick",
+        "end_tick",
+        "stream_offset_ticks",
+        "alignment_kind",
+        "transcript_block_ids"
+      ],
+      "title": "TimeSelector",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "source_revision_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "representation_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "selector": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TextSelector"
+        },
+        {
+          "$ref": "#/$defs/TableSelector"
+        },
+        {
+          "$ref": "#/$defs/DatasetSelector"
+        },
+        {
+          "$ref": "#/$defs/PageRegionSelector"
+        },
+        {
+          "$ref": "#/$defs/TimeSelector"
+        }
+      ],
+      "title": "Selector"
+    },
+    "exact_text": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Exact Text"
+    },
+    "exact_text_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Exact Text Hash"
+    },
+    "media_anchor": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaAnchor"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "context_selector": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TextSelector"
+        },
+        {
+          "$ref": "#/$defs/TableSelector"
+        },
+        {
+          "$ref": "#/$defs/DatasetSelector"
+        },
+        {
+          "$ref": "#/$defs/PageRegionSelector"
+        },
+        {
+          "$ref": "#/$defs/TimeSelector"
+        }
+      ],
+      "title": "Context Selector"
+    },
+    "extraction_warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Extraction Warnings",
+      "type": "array"
+    },
+    "transformation": {
+      "enum": [
+        "none",
+        "ocr",
+        "asr",
+        "translation"
+      ],
+      "title": "Transformation",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_revision_ref",
+    "representation_ref",
+    "selector",
+    "context_selector",
+    "extraction_warnings",
+    "transformation"
+  ],
+  "title": "EvidenceSpan",
+  "type": "object",
+  "$id": "urn:podgen:EvidenceSpan:1.0"
+}

@@ -1,0 +1,118 @@
+{
+  "date": "2026-11-05",
+  "status": "implementation candidate; independent acceptance belongs to CTO/CPO",
+  "editorial_commit": "fdcbb23fc4f3ec6e12971ecde369640eeef4b3e1",
+  "schema_registry": {
+    "artifact_kinds": 44,
+    "generated_schemas": 90,
+    "schema_version": "1.0",
+    "hash_profile": "artifact-jcs-v1"
+  },
+  "database_migration_head": "0009_evaluator_bytes",
+  "checks": {
+    "pytest": {
+      "tests": 52,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0
+    },
+    "ruff_check": "passed",
+    "ruff_format_check": "74 files passed",
+    "uv_sync_locked": "passed",
+    "typescript": "5 Python/TypeScript hash vectors, 1 Unicode selector, invalid inputs passed",
+    "compose_config": "validated; main test DB was local PostgreSQL, not compose PostgreSQL"
+  },
+  "real_integrations": [
+    {
+      "component": "PostgreSQL",
+      "version": "17.11 Homebrew aarch64",
+      "endpoint": "127.0.0.1:55439/podgen_wp01",
+      "checks": [
+        "full repository suite",
+        "fresh database 0001->head migration and idempotent head",
+        "preexisting artifact/hash retention",
+        "backfill of historical privacy withdrawal with existing alias owners",
+        "all CTO regressions"
+      ]
+    },
+    {
+      "component": "MinIO S3",
+      "version": "RELEASE.2025-03-12T18-04-18Z",
+      "endpoint": "http://127.0.0.1:59090",
+      "image": "minio/minio@sha256:46b3009bf7041eefbd90bd0d2b38c6ddc24d20a35d609551a1802c558c1c958f",
+      "checks": [
+        "full bytes/checksum",
+        "read-after-write",
+        "bucket versioning and returned version ID",
+        "PostgreSQL+S3 repository SourceRevision round-trip"
+      ]
+    },
+    {
+      "component": "FileObjectStore",
+      "checks": [
+        "full bytes including NUL/emoji/combining marks",
+        "immutable atomic finalization and checksum",
+        "real editorial staging round-trip"
+      ]
+    },
+    {
+      "component": "Node.js",
+      "version": "22.15.0",
+      "checks": [
+        "independent TypeScript canonicalization/hash/Unicode selector comparison"
+      ]
+    }
+  ],
+  "editorial_roundtrip": {
+    "technical_fixture": true,
+    "semantic_acceptance": false,
+    "production_ready": false,
+    "package_hash": "0bbd6d089f0ec667322b000210afd906a2a72ca532b764d8e4faf8e635ad4aba",
+    "files": 82,
+    "script_utterance_counts": {
+      "evaluator-only/gps-clock/draft.txt": 45,
+      "evaluator-only/gps-clock/final.txt": 53,
+      "evaluator-only/snow-pump/draft.txt": 26,
+      "evaluator-only/snow-pump/final.txt": 36
+    },
+    "checks": [
+      "all bytes and full text round-trip",
+      "all draft/final utterances in exact code-point order",
+      "identical repeat without duplicate runtime records",
+      "generation reads only author/source projections",
+      "evaluator index and every evaluator-only file denied to generation"
+    ],
+    "report": "/tmp/podgen-wp01/editorial-fdcbb23-roundtrip.json",
+    "baseline_b449d4d_report": "/tmp/podgen-wp01/editorial-b449d4d-roundtrip.json",
+    "importer_version": "1.1"
+  },
+  "artifacts": {
+    "junit": "/tmp/podgen-wp01/wp01-junit.xml",
+    "synthetic_gps": "/tmp/podgen-wp01/gps-demo.json",
+    "postgres_data": "/tmp/podgen-wp01/pgdata"
+  },
+  "remaining": [
+    "EpisodeSpec: authorized policies, voice/profile refs, confirmed temporal and source scope",
+    "Sources: original acquisition runtime refs, rights policies, extraction profiles and original anchors",
+    "ResearchNote: local G/S citations -> exact EvidenceSpan refs, interpretation ranges and review",
+    "DossierSnapshot: canonical selected-note/source/evidence closure and independent acceptance",
+    "StoryPlan: exact dossier/spec/commission refs, options/acts/speaker IDs and host functions",
+    "ScriptRevision: canonical stable act/block/item/speaker IDs, exact plan/dossier refs and change identity mapping",
+    "EvaluationAnnotation: explicit schema fields, source refs, evaluation policy and isolated evaluator ACL",
+    "Independent semantic text/source acceptance, expert/human assessments, qualified audio and production release were not created by this implementation.",
+    "ModelGateway/Temporal/API/production auth and physical purge/orphan reconciliation are subsequent WP owners, not passed integrations.",
+    "Qualification duration intervals require a calibrated policy; this core accepts only exactly measured singleton duration cells.",
+    "Privacy regrant is not automatic: same-hash uploads remain denied within the revoked project. Storage administrators are outside the repository ACL boundary."
+  ],
+  "gold_byte_isolation": {
+    "status": "passed",
+    "checks": [
+      "raw gold bytes denied through artifact/runtime writers and old/new wrappers",
+      "byte dedup and another media type do not lower classification",
+      "generation cannot read staged candidate scripts/annotations",
+      "current evaluator role and purpose required",
+      "public author source remains readable when only referenced by gold",
+      "0009 backfill protects preexisting closed records and public wrappers"
+    ]
+  }
+}

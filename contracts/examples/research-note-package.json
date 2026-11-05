@@ -1,0 +1,28 @@
+{
+  "format": "podgen-fixture-v1",
+  "package_id": "b2a1d82f-6071-493c-9c62-9aec3ca397ad",
+  "test_data": true,
+  "description": "ТЕСТОВЫЙ инженерный пример импорта. Не экспертное досье.",
+  "artifacts": [
+    {
+      "key": "gps-note",
+      "kind": "ResearchNote",
+      "payload": {
+        "question_refs": [],
+        "title": "ТЕСТОВЫЙ пример: неточные часы GPS-приёмника",
+        "answer_markdown": "ТЕСТОВЫЕ инженерные данные. Приёмник совместно оценивает координаты и общее смещение своих часов. В обычной трёхмерной постановке это четыре неизвестных, поэтому нужны четыре независимых измерения. Геометрия спутников и ошибки измерений влияют на решение. Этот текст проверяет импорт; экспертная поддержка не заявлена.",
+        "citations": [],
+        "interpretations": [],
+        "limitations": ["Синтетический пример, не первоисточник и не экспертная приёмка"],
+        "uncertainty_refs": [],
+        "supersedes_note_refs": []
+      },
+      "input_keys": [],
+      "audience": "project",
+      "identity_of": null
+    }
+  ],
+  "runtime_records": [],
+  "blobs": [],
+  "external_refs": {}
+}

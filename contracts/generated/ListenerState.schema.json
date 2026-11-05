@@ -1,0 +1,443 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "AudienceAssumption": {
+      "additionalProperties": false,
+      "properties": {
+        "assumption": {
+          "minLength": 1,
+          "title": "Assumption",
+          "type": "string"
+        },
+        "basis": {
+          "const": "episode_spec",
+          "title": "Basis",
+          "type": "string"
+        }
+      },
+      "required": [
+        "assumption",
+        "basis"
+      ],
+      "title": "AudienceAssumption",
+      "type": "object"
+    },
+    "ComprehensionRisk": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "selectors": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "Selectors",
+          "type": "array"
+        },
+        "proposed_action": {
+          "minLength": 1,
+          "title": "Proposed Action",
+          "type": "string"
+        }
+      },
+      "required": [
+        "description",
+        "selectors",
+        "proposed_action"
+      ],
+      "title": "ComprehensionRisk",
+      "type": "object"
+    },
+    "CoveredPrefix": {
+      "additionalProperties": false,
+      "properties": {
+        "through_item_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Through Item Id"
+        },
+        "ordered_item_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Ordered Item Ids",
+          "type": "array"
+        },
+        "content_and_order_hash": {
+          "minLength": 1,
+          "title": "Content And Order Hash",
+          "type": "string"
+        }
+      },
+      "required": [
+        "through_item_id",
+        "ordered_item_ids",
+        "content_and_order_hash"
+      ],
+      "title": "CoveredPrefix",
+      "type": "object"
+    },
+    "EstablishedConnection": {
+      "additionalProperties": false,
+      "properties": {
+        "connection": {
+          "minLength": 1,
+          "title": "Connection",
+          "type": "string"
+        },
+        "supporting_selectors": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "Supporting Selectors",
+          "type": "array"
+        },
+        "qualification": {
+          "title": "Qualification",
+          "type": "string"
+        }
+      },
+      "required": [
+        "connection",
+        "supporting_selectors",
+        "qualification"
+      ],
+      "title": "EstablishedConnection",
+      "type": "object"
+    },
+    "ExplainedConcept": {
+      "additionalProperties": false,
+      "properties": {
+        "concept": {
+          "minLength": 1,
+          "title": "Concept",
+          "type": "string"
+        },
+        "explanation_summary": {
+          "minLength": 1,
+          "title": "Explanation Summary",
+          "type": "string"
+        },
+        "supporting_selectors": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "Supporting Selectors",
+          "type": "array"
+        },
+        "depth": {
+          "minLength": 1,
+          "title": "Depth",
+          "type": "string"
+        }
+      },
+      "required": [
+        "concept",
+        "explanation_summary",
+        "supporting_selectors",
+        "depth"
+      ],
+      "title": "ExplainedConcept",
+      "type": "object"
+    },
+    "IntroducedEntity": {
+      "additionalProperties": false,
+      "properties": {
+        "entity": {
+          "minLength": 1,
+          "title": "Entity",
+          "type": "string"
+        },
+        "aliases": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Aliases",
+          "type": "array"
+        },
+        "introduction_selectors": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "Introduction Selectors",
+          "type": "array"
+        }
+      },
+      "required": [
+        "entity",
+        "aliases",
+        "introduction_selectors"
+      ],
+      "title": "IntroducedEntity",
+      "type": "object"
+    },
+    "LocalScriptSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "act_id": {
+          "format": "uuid",
+          "title": "Act Id",
+          "type": "string"
+        },
+        "block_id": {
+          "format": "uuid",
+          "title": "Block Id",
+          "type": "string"
+        },
+        "item_id": {
+          "format": "uuid",
+          "title": "Item Id",
+          "type": "string"
+        },
+        "char_start": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Char Start"
+        },
+        "char_end": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Char End"
+        }
+      },
+      "required": [
+        "act_id",
+        "block_id",
+        "item_id",
+        "char_start",
+        "char_end"
+      ],
+      "title": "LocalScriptSelector",
+      "type": "object"
+    },
+    "QuestionPromise": {
+      "additionalProperties": false,
+      "properties": {
+        "statement": {
+          "minLength": 1,
+          "title": "Statement",
+          "type": "string"
+        },
+        "opened_at": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "Opened At",
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "open",
+            "partly_answered",
+            "answered",
+            "explicitly_unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "addressed_at": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "Addressed At",
+          "type": "array"
+        },
+        "rationale": {
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "statement",
+        "opened_at",
+        "status",
+        "addressed_at",
+        "rationale"
+      ],
+      "title": "QuestionPromise",
+      "type": "object"
+    },
+    "ScriptSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "script_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "selector": {
+          "$ref": "#/$defs/LocalScriptSelector"
+        }
+      },
+      "required": [
+        "script_ref",
+        "selector"
+      ],
+      "title": "ScriptSelector",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "script_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "covered_prefix": {
+      "$ref": "#/$defs/CoveredPrefix"
+    },
+    "audience_assumptions": {
+      "items": {
+        "$ref": "#/$defs/AudienceAssumption"
+      },
+      "title": "Audience Assumptions",
+      "type": "array"
+    },
+    "introduced_entities": {
+      "items": {
+        "$ref": "#/$defs/IntroducedEntity"
+      },
+      "title": "Introduced Entities",
+      "type": "array"
+    },
+    "explained_concepts": {
+      "items": {
+        "$ref": "#/$defs/ExplainedConcept"
+      },
+      "title": "Explained Concepts",
+      "type": "array"
+    },
+    "established_connections": {
+      "items": {
+        "$ref": "#/$defs/EstablishedConnection"
+      },
+      "title": "Established Connections",
+      "type": "array"
+    },
+    "questions_and_promises": {
+      "items": {
+        "$ref": "#/$defs/QuestionPromise"
+      },
+      "title": "Questions And Promises",
+      "type": "array"
+    },
+    "comprehension_risks": {
+      "items": {
+        "$ref": "#/$defs/ComprehensionRisk"
+      },
+      "title": "Comprehension Risks",
+      "type": "array"
+    },
+    "extractor_profile_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    }
+  },
+  "required": [
+    "script_ref",
+    "covered_prefix",
+    "audience_assumptions",
+    "introduced_entities",
+    "explained_concepts",
+    "established_connections",
+    "questions_and_promises",
+    "comprehension_risks",
+    "extractor_profile_ref"
+  ],
+  "title": "ListenerState",
+  "type": "object",
+  "$id": "urn:podgen:ListenerState:1.0"
+}

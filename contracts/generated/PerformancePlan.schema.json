@@ -1,0 +1,489 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "Direction": {
+      "additionalProperties": false,
+      "properties": {
+        "pace_intent": {
+          "minLength": 1,
+          "title": "Pace Intent",
+          "type": "string"
+        },
+        "emphasis": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Emphasis",
+          "type": "array"
+        },
+        "emotion": {
+          "minLength": 1,
+          "title": "Emotion",
+          "type": "string"
+        },
+        "pause_after_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Pause After Ms"
+        }
+      },
+      "required": [
+        "pace_intent",
+        "emphasis",
+        "emotion",
+        "pause_after_ms"
+      ],
+      "title": "Direction",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "LocalScriptSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "act_id": {
+          "format": "uuid",
+          "title": "Act Id",
+          "type": "string"
+        },
+        "block_id": {
+          "format": "uuid",
+          "title": "Block Id",
+          "type": "string"
+        },
+        "item_id": {
+          "format": "uuid",
+          "title": "Item Id",
+          "type": "string"
+        },
+        "char_start": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Char Start"
+        },
+        "char_end": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Char End"
+        }
+      },
+      "required": [
+        "act_id",
+        "block_id",
+        "item_id",
+        "char_start",
+        "char_end"
+      ],
+      "title": "LocalScriptSelector",
+      "type": "object"
+    },
+    "PerformanceUtterance": {
+      "additionalProperties": false,
+      "properties": {
+        "utterance_id": {
+          "format": "uuid",
+          "title": "Utterance Id",
+          "type": "string"
+        },
+        "script_selector": {
+          "$ref": "#/$defs/ScriptSelector"
+        },
+        "spoken_text": {
+          "minLength": 1,
+          "title": "Spoken Text",
+          "type": "string"
+        },
+        "mappings": {
+          "items": {
+            "$ref": "#/$defs/SpokenMapping"
+          },
+          "title": "Mappings",
+          "type": "array"
+        },
+        "direction": {
+          "$ref": "#/$defs/Direction"
+        }
+      },
+      "required": [
+        "utterance_id",
+        "script_selector",
+        "spoken_text",
+        "mappings",
+        "direction"
+      ],
+      "title": "PerformanceUtterance",
+      "type": "object"
+    },
+    "RenderUnit": {
+      "additionalProperties": false,
+      "properties": {
+        "unit_id": {
+          "format": "uuid",
+          "title": "Unit Id",
+          "type": "string"
+        },
+        "utterance_ranges": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "Utterance Ranges",
+          "type": "array"
+        },
+        "prior_context_selectors": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "Prior Context Selectors",
+          "type": "array"
+        },
+        "next_context_selectors": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "Next Context Selectors",
+          "type": "array"
+        },
+        "context_mode": {
+          "minLength": 1,
+          "title": "Context Mode",
+          "type": "string"
+        },
+        "boundary_reason": {
+          "minLength": 1,
+          "title": "Boundary Reason",
+          "type": "string"
+        },
+        "payload_template_hash": {
+          "minLength": 1,
+          "title": "Payload Template Hash",
+          "type": "string"
+        }
+      },
+      "required": [
+        "unit_id",
+        "utterance_ranges",
+        "prior_context_selectors",
+        "next_context_selectors",
+        "context_mode",
+        "boundary_reason",
+        "payload_template_hash"
+      ],
+      "title": "RenderUnit",
+      "type": "object"
+    },
+    "Scene": {
+      "additionalProperties": false,
+      "properties": {
+        "scene_id": {
+          "format": "uuid",
+          "title": "Scene Id",
+          "type": "string"
+        },
+        "script_selectors": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "Script Selectors",
+          "type": "array"
+        },
+        "dramatic_intent": {
+          "minLength": 1,
+          "title": "Dramatic Intent",
+          "type": "string"
+        },
+        "listening_context": {
+          "minLength": 1,
+          "title": "Listening Context",
+          "type": "string"
+        },
+        "utterances": {
+          "items": {
+            "$ref": "#/$defs/PerformanceUtterance"
+          },
+          "title": "Utterances",
+          "type": "array"
+        },
+        "render_units": {
+          "items": {
+            "$ref": "#/$defs/RenderUnit"
+          },
+          "title": "Render Units",
+          "type": "array"
+        }
+      },
+      "required": [
+        "scene_id",
+        "script_selectors",
+        "dramatic_intent",
+        "listening_context",
+        "utterances",
+        "render_units"
+      ],
+      "title": "Scene",
+      "type": "object"
+    },
+    "ScriptSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "script_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "selector": {
+          "$ref": "#/$defs/LocalScriptSelector"
+        }
+      },
+      "required": [
+        "script_ref",
+        "selector"
+      ],
+      "title": "ScriptSelector",
+      "type": "object"
+    },
+    "SpeakerBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "speaker_id": {
+          "format": "uuid",
+          "title": "Speaker Id",
+          "type": "string"
+        },
+        "voice_profile_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        }
+      },
+      "required": [
+        "speaker_id",
+        "voice_profile_ref"
+      ],
+      "title": "SpeakerBinding",
+      "type": "object"
+    },
+    "SpokenMapping": {
+      "additionalProperties": false,
+      "properties": {
+        "spoken_char_start": {
+          "minimum": 0,
+          "title": "Spoken Char Start",
+          "type": "integer"
+        },
+        "spoken_char_end": {
+          "minimum": 0,
+          "title": "Spoken Char End",
+          "type": "integer"
+        },
+        "script_selector": {
+          "$ref": "#/$defs/ScriptSelector"
+        },
+        "transformation": {
+          "enum": [
+            "identity",
+            "number_expansion",
+            "abbreviation",
+            "pronunciation"
+          ],
+          "title": "Transformation",
+          "type": "string"
+        },
+        "rule_id": {
+          "minLength": 1,
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "lexicon_entry_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Lexicon Entry Id"
+        },
+        "equivalence_basis": {
+          "minLength": 1,
+          "title": "Equivalence Basis",
+          "type": "string"
+        }
+      },
+      "required": [
+        "spoken_char_start",
+        "spoken_char_end",
+        "script_selector",
+        "transformation",
+        "rule_id",
+        "lexicon_entry_id",
+        "equivalence_basis"
+      ],
+      "title": "SpokenMapping",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "episode_spec_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "script_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "verification_report_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "editorial_review_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "speaker_bindings": {
+      "items": {
+        "$ref": "#/$defs/SpeakerBinding"
+      },
+      "title": "Speaker Bindings",
+      "type": "array"
+    },
+    "lexicon_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "model_profile_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "audio_policy_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "delivery_profile_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "scenes": {
+      "items": {
+        "$ref": "#/$defs/Scene"
+      },
+      "title": "Scenes",
+      "type": "array"
+    },
+    "normalization_decisions": {
+      "items": {
+        "additionalProperties": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "type": "object"
+      },
+      "title": "Normalization Decisions",
+      "type": "array"
+    },
+    "unresolved_issues": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Unresolved Issues",
+      "type": "array"
+    }
+  },
+  "required": [
+    "episode_spec_ref",
+    "script_ref",
+    "verification_report_ref",
+    "editorial_review_ref",
+    "speaker_bindings",
+    "lexicon_ref",
+    "model_profile_ref",
+    "audio_policy_ref",
+    "delivery_profile_ref",
+    "scenes",
+    "normalization_decisions",
+    "unresolved_issues"
+  ],
+  "title": "PerformancePlan",
+  "type": "object",
+  "$id": "urn:podgen:PerformancePlan:1.0"
+}

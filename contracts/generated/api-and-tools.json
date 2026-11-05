@@ -1,0 +1,178 @@
+{
+  "AudioMaster": {
+    "api_payload_schema": "AudioMaster.schema.json",
+    "model_payload_schema": "AudioMaster.schema.json"
+  },
+  "AudioQAReport": {
+    "api_payload_schema": "AudioQAReport.schema.json",
+    "model_payload_schema": "AudioQAReport.schema.json"
+  },
+  "AudioSegment": {
+    "api_payload_schema": "AudioSegment.schema.json",
+    "model_payload_schema": "AudioSegment.schema.json"
+  },
+  "CalculationRecord": {
+    "api_payload_schema": "CalculationRecord.schema.json",
+    "model_payload_schema": "CalculationRecord.schema.json"
+  },
+  "CapabilityReport": {
+    "api_payload_schema": "CapabilityReport.schema.json",
+    "model_payload_schema": "CapabilityReport.schema.json"
+  },
+  "ClaimSet": {
+    "api_payload_schema": "ClaimSet.schema.json",
+    "model_payload_schema": "ClaimSet.schema.json"
+  },
+  "DerivedPreview": {
+    "api_payload_schema": "DerivedPreview.schema.json",
+    "model_payload_schema": "DerivedPreview.schema.json"
+  },
+  "DiagnosticArtifact": {
+    "api_payload_schema": "DiagnosticArtifact.schema.json",
+    "model_payload_schema": "DiagnosticArtifact.schema.json"
+  },
+  "DossierSnapshot": {
+    "api_payload_schema": "DossierSnapshot.schema.json",
+    "model_payload_schema": "DossierSnapshot.schema.json"
+  },
+  "EditorialDecision": {
+    "api_payload_schema": "EditorialDecision.schema.json",
+    "model_payload_schema": "EditorialDecision.schema.json"
+  },
+  "EditorialReview": {
+    "api_payload_schema": "EditorialReview.schema.json",
+    "model_payload_schema": "EditorialReview.schema.json"
+  },
+  "EditorialState": {
+    "api_payload_schema": "EditorialState.schema.json",
+    "model_payload_schema": "EditorialState.schema.json"
+  },
+  "EpisodeSpec": {
+    "api_payload_schema": "EpisodeSpec.schema.json",
+    "model_payload_schema": "EpisodeSpec.schema.json"
+  },
+  "EvaluationAnnotation": {
+    "api_payload_schema": "EvaluationAnnotation.schema.json",
+    "model_payload_schema": "EvaluationAnnotation.schema.json"
+  },
+  "EvaluationCase": {
+    "api_payload_schema": "EvaluationCase.schema.json",
+    "model_payload_schema": "EvaluationCase.schema.json"
+  },
+  "EvaluationResult": {
+    "api_payload_schema": "EvaluationResult.schema.json",
+    "model_payload_schema": "EvaluationResult.schema.json"
+  },
+  "EvidenceSpan": {
+    "api_payload_schema": "EvidenceSpan.schema.json",
+    "model_payload_schema": "EvidenceSpan.schema.json"
+  },
+  "HumanAssessment": {
+    "api_payload_schema": "HumanAssessment.schema.json",
+    "model_payload_schema": "HumanAssessment.schema.json"
+  },
+  "ListenerState": {
+    "api_payload_schema": "ListenerState.schema.json",
+    "model_payload_schema": "ListenerState.schema.json"
+  },
+  "ModelProfile": {
+    "api_payload_schema": "ModelProfile.schema.json",
+    "model_payload_schema": "ModelProfile.schema.json"
+  },
+  "PerformancePlan": {
+    "api_payload_schema": "PerformancePlan.schema.json",
+    "model_payload_schema": "PerformancePlan.schema.json"
+  },
+  "Policy": {
+    "api_payload_schema": "Policy.schema.json",
+    "model_payload_schema": "Policy.schema.json"
+  },
+  "PolicyBundle": {
+    "api_payload_schema": "PolicyBundle.schema.json",
+    "model_payload_schema": "PolicyBundle.schema.json"
+  },
+  "ProcessingProfile": {
+    "api_payload_schema": "ProcessingProfile.schema.json",
+    "model_payload_schema": "ProcessingProfile.schema.json"
+  },
+  "PromptDefinition": {
+    "api_payload_schema": "PromptDefinition.schema.json",
+    "model_payload_schema": "PromptDefinition.schema.json"
+  },
+  "PronunciationLexicon": {
+    "api_payload_schema": "PronunciationLexicon.schema.json",
+    "model_payload_schema": "PronunciationLexicon.schema.json"
+  },
+  "QuestionRecord": {
+    "api_payload_schema": "QuestionRecord.schema.json",
+    "model_payload_schema": "QuestionRecord.schema.json"
+  },
+  "ReleaseManifest": {
+    "api_payload_schema": "ReleaseManifest.schema.json",
+    "model_payload_schema": "ReleaseManifest.schema.json"
+  },
+  "ResearchNote": {
+    "api_payload_schema": "ResearchNote.schema.json",
+    "model_payload_schema": "ResearchNote.schema.json"
+  },
+  "ResearchRequest": {
+    "api_payload_schema": "ResearchRequest.schema.json",
+    "model_payload_schema": "ResearchRequest.schema.json"
+  },
+  "ScriptChangeSet": {
+    "api_payload_schema": "ScriptChangeSet.schema.json",
+    "model_payload_schema": "ScriptChangeSet.schema.json"
+  },
+  "ScriptRevision": {
+    "api_payload_schema": "ScriptRevision.schema.json",
+    "model_payload_schema": "ScriptRevision.schema.json"
+  },
+  "ShowNotes": {
+    "api_payload_schema": "ShowNotes.schema.json",
+    "model_payload_schema": "ShowNotes.schema.json"
+  },
+  "ShowNotesReview": {
+    "api_payload_schema": "ShowNotesReview.schema.json",
+    "model_payload_schema": "ShowNotesReview.schema.json"
+  },
+  "SourceFamilyAssessment": {
+    "api_payload_schema": "SourceFamilyAssessment.schema.json",
+    "model_payload_schema": "SourceFamilyAssessment.schema.json"
+  },
+  "SourceRelation": {
+    "api_payload_schema": "SourceRelation.schema.json",
+    "model_payload_schema": "SourceRelation.schema.json"
+  },
+  "SourceRepresentation": {
+    "api_payload_schema": "SourceRepresentation.schema.json",
+    "model_payload_schema": "SourceRepresentation.schema.json"
+  },
+  "SourceRevision": {
+    "api_payload_schema": "SourceRevision.schema.json",
+    "model_payload_schema": "SourceRevision.schema.json"
+  },
+  "StoryPlan": {
+    "api_payload_schema": "StoryPlan.schema.json",
+    "model_payload_schema": "StoryPlan.schema.json"
+  },
+  "ToolsetDefinition": {
+    "api_payload_schema": "ToolsetDefinition.schema.json",
+    "model_payload_schema": "ToolsetDefinition.schema.json"
+  },
+  "Transcript": {
+    "api_payload_schema": "Transcript.schema.json",
+    "model_payload_schema": "Transcript.schema.json"
+  },
+  "UncertaintyRecord": {
+    "api_payload_schema": "UncertaintyRecord.schema.json",
+    "model_payload_schema": "UncertaintyRecord.schema.json"
+  },
+  "VerificationReport": {
+    "api_payload_schema": "VerificationReport.schema.json",
+    "model_payload_schema": "VerificationReport.schema.json"
+  },
+  "VoiceProfile": {
+    "api_payload_schema": "VoiceProfile.schema.json",
+    "model_payload_schema": "VoiceProfile.schema.json"
+  }
+}

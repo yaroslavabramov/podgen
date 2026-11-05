@@ -1,0 +1,375 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "Claim": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "format": "uuid",
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "statement": {
+          "minLength": 1,
+          "title": "Statement",
+          "type": "string"
+        },
+        "occurrences": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "Occurrences",
+          "type": "array"
+        },
+        "kind": {
+          "enum": [
+            "factual",
+            "quantitative",
+            "causal",
+            "historical",
+            "quotation",
+            "attribution",
+            "prediction"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "qualifiers": {
+          "$ref": "#/$defs/Qualifiers"
+        },
+        "importance": {
+          "enum": [
+            "central",
+            "supporting",
+            "incidental"
+          ],
+          "title": "Importance",
+          "type": "string"
+        },
+        "candidate_evidence_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Candidate Evidence Refs",
+          "type": "array"
+        },
+        "related_claim_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Related Claim Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "claim_id",
+        "statement",
+        "occurrences",
+        "kind",
+        "qualifiers",
+        "importance",
+        "candidate_evidence_refs",
+        "related_claim_ids"
+      ],
+      "title": "Claim",
+      "type": "object"
+    },
+    "CoverageUnit": {
+      "additionalProperties": false,
+      "properties": {
+        "selector": {
+          "$ref": "#/$defs/ScriptSelector"
+        },
+        "classification": {
+          "enum": [
+            "assertion",
+            "nonfactual"
+          ],
+          "title": "Classification",
+          "type": "string"
+        },
+        "claim_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "exclusion_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Exclusion Reason"
+        }
+      },
+      "required": [
+        "selector",
+        "classification",
+        "claim_ids",
+        "exclusion_reason"
+      ],
+      "title": "CoverageUnit",
+      "type": "object"
+    },
+    "ExtractionQuestion": {
+      "additionalProperties": false,
+      "properties": {
+        "selector": {
+          "$ref": "#/$defs/ScriptSelector"
+        },
+        "question": {
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        }
+      },
+      "required": [
+        "selector",
+        "question"
+      ],
+      "title": "ExtractionQuestion",
+      "type": "object"
+    },
+    "LocalScriptSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "act_id": {
+          "format": "uuid",
+          "title": "Act Id",
+          "type": "string"
+        },
+        "block_id": {
+          "format": "uuid",
+          "title": "Block Id",
+          "type": "string"
+        },
+        "item_id": {
+          "format": "uuid",
+          "title": "Item Id",
+          "type": "string"
+        },
+        "char_start": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Char Start"
+        },
+        "char_end": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Char End"
+        }
+      },
+      "required": [
+        "act_id",
+        "block_id",
+        "item_id",
+        "char_start",
+        "char_end"
+      ],
+      "title": "LocalScriptSelector",
+      "type": "object"
+    },
+    "Qualifiers": {
+      "additionalProperties": false,
+      "properties": {
+        "entities": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Entities",
+          "type": "array"
+        },
+        "time_scope": {
+          "title": "Time Scope",
+          "type": "string"
+        },
+        "geographic_scope": {
+          "title": "Geographic Scope",
+          "type": "string"
+        },
+        "conditions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Conditions",
+          "type": "array"
+        },
+        "modality": {
+          "minLength": 1,
+          "title": "Modality",
+          "type": "string"
+        },
+        "attribution": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Attribution"
+        }
+      },
+      "required": [
+        "entities",
+        "time_scope",
+        "geographic_scope",
+        "conditions",
+        "modality",
+        "attribution"
+      ],
+      "title": "Qualifiers",
+      "type": "object"
+    },
+    "ScriptSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "script_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "selector": {
+          "$ref": "#/$defs/LocalScriptSelector"
+        }
+      },
+      "required": [
+        "script_ref",
+        "selector"
+      ],
+      "title": "ScriptSelector",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "script_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "claims": {
+      "items": {
+        "$ref": "#/$defs/Claim"
+      },
+      "title": "Claims",
+      "type": "array"
+    },
+    "coverage": {
+      "items": {
+        "$ref": "#/$defs/CoverageUnit"
+      },
+      "title": "Coverage",
+      "type": "array"
+    },
+    "extraction_profile_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "unresolved_extraction_questions": {
+      "items": {
+        "$ref": "#/$defs/ExtractionQuestion"
+      },
+      "title": "Unresolved Extraction Questions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "script_ref",
+    "claims",
+    "coverage",
+    "extraction_profile_ref",
+    "unresolved_extraction_questions"
+  ],
+  "title": "ClaimSet",
+  "type": "object",
+  "$id": "urn:podgen:ClaimSet:1.0"
+}

@@ -1,0 +1,33 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "storage_key": {
+      "minLength": 1,
+      "title": "Storage Key",
+      "type": "string"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sha256",
+      "type": "string"
+    },
+    "byte_length": {
+      "minimum": 0,
+      "title": "Byte Length",
+      "type": "integer"
+    },
+    "media_type": {
+      "minLength": 1,
+      "title": "Media Type",
+      "type": "string"
+    }
+  },
+  "required": [
+    "storage_key",
+    "sha256",
+    "byte_length",
+    "media_type"
+  ],
+  "title": "BlobRef",
+  "type": "object"
+}

@@ -1,0 +1,360 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "PackageArtifact": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Payload",
+          "type": "object"
+        },
+        "input_keys": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Input Keys",
+          "type": "array"
+        },
+        "audience": {
+          "enum": [
+            "project",
+            "evaluator"
+          ],
+          "title": "Audience",
+          "type": "string"
+        },
+        "identity_of": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Identity Of"
+        }
+      },
+      "required": [
+        "key",
+        "kind",
+        "payload",
+        "input_keys",
+        "audience",
+        "identity_of"
+      ],
+      "title": "PackageArtifact",
+      "type": "object"
+    },
+    "PackageBlob": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "media_type": {
+          "minLength": 1,
+          "title": "Media Type",
+          "type": "string"
+        },
+        "sha256": {
+          "minLength": 1,
+          "title": "Sha256",
+          "type": "string"
+        },
+        "byte_length": {
+          "title": "Byte Length",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "key",
+        "path",
+        "media_type",
+        "sha256",
+        "byte_length"
+      ],
+      "title": "PackageBlob",
+      "type": "object"
+    },
+    "PackageRuntime": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "record_kind": {
+          "enum": [
+            "acquisition_record",
+            "search_record",
+            "tool_execution",
+            "context_assembly",
+            "user_input",
+            "evaluation_reading"
+          ],
+          "title": "Record Kind",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Payload",
+          "type": "object"
+        },
+        "audience": {
+          "enum": [
+            "project",
+            "evaluator"
+          ],
+          "title": "Audience",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "record_kind",
+        "payload",
+        "audience"
+      ],
+      "title": "PackageRuntime",
+      "type": "object"
+    },
+    "RuntimeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "record_kind": {
+          "enum": [
+            "search_record",
+            "tool_execution",
+            "context_assembly",
+            "user_input",
+            "acquisition_record",
+            "evaluation_reading"
+          ],
+          "title": "Record Kind",
+          "type": "string"
+        },
+        "record_id": {
+          "format": "uuid",
+          "title": "Record Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "record_kind",
+        "record_id"
+      ],
+      "title": "RuntimeRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "const": "podgen-fixture-v1",
+      "title": "Format",
+      "type": "string"
+    },
+    "package_id": {
+      "format": "uuid",
+      "title": "Package Id",
+      "type": "string"
+    },
+    "test_data": {
+      "title": "Test Data",
+      "type": "boolean"
+    },
+    "description": {
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+    },
+    "artifacts": {
+      "items": {
+        "$ref": "#/$defs/PackageArtifact"
+      },
+      "title": "Artifacts",
+      "type": "array"
+    },
+    "runtime_records": {
+      "items": {
+        "$ref": "#/$defs/PackageRuntime"
+      },
+      "title": "Runtime Records",
+      "type": "array"
+    },
+    "blobs": {
+      "items": {
+        "$ref": "#/$defs/PackageBlob"
+      },
+      "title": "Blobs",
+      "type": "array"
+    },
+    "external_refs": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "External Refs",
+      "type": "object"
+    },
+    "external_runtime_refs": {
+      "additionalProperties": {
+        "$ref": "#/$defs/RuntimeRef"
+      },
+      "title": "External Runtime Refs",
+      "type": "object"
+    }
+  },
+  "required": [
+    "format",
+    "package_id",
+    "test_data",
+    "description",
+    "artifacts",
+    "runtime_records",
+    "blobs",
+    "external_refs"
+  ],
+  "title": "ArtifactPackage",
+  "type": "object"
+}

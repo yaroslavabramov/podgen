@@ -1,0 +1,26 @@
+# Isolated WP-01 contract laboratory. Credentials below are local test data only.
+services:
+  postgres:
+    image: postgres@sha256:778d0b486d6daa02b77434d0358ec57a1b21fd8b6d22ac2eef56a33e816928f6
+    environment:
+      POSTGRES_USER: podgen
+      POSTGRES_PASSWORD: podgen-test-only-password
+      POSTGRES_DB: podgen_wp01
+    ports: ["127.0.0.1:55440:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U podgen -d podgen_wp01"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+  minio:
+    image: minio/minio@sha256:46b3009bf7041eefbd90bd0d2b38c6ddc24d20a35d609551a1802c558c1c958f
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: podgen-test
+      MINIO_ROOT_PASSWORD: podgen-test-only-password
+    ports: ["127.0.0.1:59091:9000"]
+    volumes: ["minio-data:/data"]
+volumes:
+  postgres-data:
+  minio-data:

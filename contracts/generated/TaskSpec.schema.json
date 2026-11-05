@@ -1,0 +1,147 @@
+{
+  "$defs": {
+    "OperationalLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "max_model_calls": {
+          "exclusiveMinimum": 0,
+          "title": "Max Model Calls",
+          "type": "integer"
+        },
+        "max_tool_calls": {
+          "exclusiveMinimum": 0,
+          "title": "Max Tool Calls",
+          "type": "integer"
+        },
+        "max_elapsed_seconds": {
+          "exclusiveMinimum": 0,
+          "title": "Max Elapsed Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_model_calls",
+        "max_tool_calls",
+        "max_elapsed_seconds"
+      ],
+      "title": "OperationalLimits",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "task_id": {
+      "format": "uuid",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "role": {
+      "minLength": 1,
+      "title": "Role",
+      "type": "string"
+    },
+    "objective": {
+      "minLength": 1,
+      "title": "Objective",
+      "type": "string"
+    },
+    "why_it_matters": {
+      "minLength": 1,
+      "title": "Why It Matters",
+      "type": "string"
+    },
+    "input_manifest_id": {
+      "format": "uuid",
+      "title": "Input Manifest Id",
+      "type": "string"
+    },
+    "acceptance_questions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Acceptance Questions",
+      "type": "array"
+    },
+    "allowed_actions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Allowed Actions",
+      "type": "array"
+    },
+    "output_kind": {
+      "enum": [
+        "EpisodeSpec",
+        "PolicyBundle",
+        "Policy",
+        "PromptDefinition",
+        "ToolsetDefinition",
+        "ModelProfile",
+        "CapabilityReport",
+        "ProcessingProfile",
+        "SourceRevision",
+        "SourceRepresentation",
+        "EvidenceSpan",
+        "SourceRelation",
+        "SourceFamilyAssessment",
+        "DerivedPreview",
+        "ResearchNote",
+        "QuestionRecord",
+        "UncertaintyRecord",
+        "DossierSnapshot",
+        "EditorialState",
+        "EditorialDecision",
+        "ResearchRequest",
+        "StoryPlan",
+        "ScriptRevision",
+        "ScriptChangeSet",
+        "ListenerState",
+        "ClaimSet",
+        "VerificationReport",
+        "EditorialReview",
+        "CalculationRecord",
+        "ShowNotes",
+        "ShowNotesReview",
+        "VoiceProfile",
+        "PronunciationLexicon",
+        "PerformancePlan",
+        "AudioSegment",
+        "AudioMaster",
+        "Transcript",
+        "AudioQAReport",
+        "ReleaseManifest",
+        "EvaluationCase",
+        "EvaluationResult",
+        "EvaluationAnnotation",
+        "HumanAssessment",
+        "DiagnosticArtifact"
+      ],
+      "title": "Output Kind",
+      "type": "string"
+    },
+    "unresolved_context": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Unresolved Context",
+      "type": "array"
+    },
+    "operational_limits": {
+      "$ref": "#/$defs/OperationalLimits"
+    }
+  },
+  "required": [
+    "task_id",
+    "role",
+    "objective",
+    "why_it_matters",
+    "input_manifest_id",
+    "acceptance_questions",
+    "allowed_actions",
+    "output_kind",
+    "unresolved_context",
+    "operational_limits"
+  ],
+  "title": "TaskSpec",
+  "type": "object"
+}

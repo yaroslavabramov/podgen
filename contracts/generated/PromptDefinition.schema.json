@@ -1,0 +1,44 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "role": {
+      "minLength": 1,
+      "title": "Role",
+      "type": "string"
+    },
+    "template": {
+      "minLength": 1,
+      "title": "Template",
+      "type": "string"
+    },
+    "placeholders": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Placeholders",
+      "type": "array"
+    },
+    "examples": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Examples",
+      "type": "array"
+    },
+    "compiler_version": {
+      "minLength": 1,
+      "title": "Compiler Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "role",
+    "template",
+    "placeholders",
+    "examples",
+    "compiler_version"
+  ],
+  "title": "PromptDefinition",
+  "type": "object",
+  "$id": "urn:podgen:PromptDefinition:1.0"
+}

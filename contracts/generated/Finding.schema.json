@@ -1,0 +1,358 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "AudioSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "audio_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "start_frame": {
+          "minimum": 0,
+          "title": "Start Frame",
+          "type": "integer"
+        },
+        "end_frame": {
+          "minimum": 0,
+          "title": "End Frame",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "audio_ref",
+        "start_frame",
+        "end_frame"
+      ],
+      "title": "AudioSelector",
+      "type": "object"
+    },
+    "LocalScriptSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "act_id": {
+          "format": "uuid",
+          "title": "Act Id",
+          "type": "string"
+        },
+        "block_id": {
+          "format": "uuid",
+          "title": "Block Id",
+          "type": "string"
+        },
+        "item_id": {
+          "format": "uuid",
+          "title": "Item Id",
+          "type": "string"
+        },
+        "char_start": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Char Start"
+        },
+        "char_end": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Char End"
+        }
+      },
+      "required": [
+        "act_id",
+        "block_id",
+        "item_id",
+        "char_start",
+        "char_end"
+      ],
+      "title": "LocalScriptSelector",
+      "type": "object"
+    },
+    "NoteSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "const": "answer_markdown",
+          "title": "Field",
+          "type": "string"
+        },
+        "char_start": {
+          "minimum": 0,
+          "title": "Char Start",
+          "type": "integer"
+        },
+        "char_end": {
+          "minimum": 0,
+          "title": "Char End",
+          "type": "integer"
+        },
+        "note_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        }
+      },
+      "required": [
+        "field",
+        "char_start",
+        "char_end",
+        "note_ref"
+      ],
+      "title": "NoteSelector",
+      "type": "object"
+    },
+    "ScriptSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "script_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "selector": {
+          "$ref": "#/$defs/LocalScriptSelector"
+        }
+      },
+      "required": [
+        "script_ref",
+        "selector"
+      ],
+      "title": "ScriptSelector",
+      "type": "object"
+    },
+    "ShowNotesSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "show_notes_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "field": {
+          "enum": [
+            "title",
+            "description",
+            "chapter_title",
+            "chapter_summary",
+            "citation_metadata",
+            "disclosure",
+            "uncertainty_note"
+          ],
+          "title": "Field",
+          "type": "string"
+        },
+        "item_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Item Id"
+        },
+        "char_start": {
+          "minimum": 0,
+          "title": "Char Start",
+          "type": "integer"
+        },
+        "char_end": {
+          "minimum": 0,
+          "title": "Char End",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "show_notes_ref",
+        "field",
+        "item_id",
+        "char_start",
+        "char_end"
+      ],
+      "title": "ShowNotesSelector",
+      "type": "object"
+    },
+    "WholeArtifactSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "whole": {
+          "const": true,
+          "title": "Whole",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "artifact_ref",
+        "whole"
+      ],
+      "title": "WholeArtifactSelector",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "finding_id": {
+      "format": "uuid",
+      "title": "Finding Id",
+      "type": "string"
+    },
+    "category": {
+      "minLength": 1,
+      "title": "Category",
+      "type": "string"
+    },
+    "location_selectors": {
+      "items": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/WholeArtifactSelector"
+          },
+          {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          {
+            "$ref": "#/$defs/NoteSelector"
+          },
+          {
+            "$ref": "#/$defs/ShowNotesSelector"
+          },
+          {
+            "$ref": "#/$defs/AudioSelector"
+          }
+        ]
+      },
+      "title": "Location Selectors",
+      "type": "array"
+    },
+    "explanation": {
+      "minLength": 1,
+      "title": "Explanation",
+      "type": "string"
+    },
+    "basis_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Basis Refs",
+      "type": "array"
+    },
+    "severity": {
+      "enum": [
+        "critical",
+        "major",
+        "minor",
+        "advisory"
+      ],
+      "title": "Severity",
+      "type": "string"
+    },
+    "blocking": {
+      "title": "Blocking",
+      "type": "boolean"
+    },
+    "policy_rule_id": {
+      "minLength": 1,
+      "title": "Policy Rule Id",
+      "type": "string"
+    },
+    "required_outcome": {
+      "minLength": 1,
+      "title": "Required Outcome",
+      "type": "string"
+    }
+  },
+  "required": [
+    "finding_id",
+    "category",
+    "location_selectors",
+    "explanation",
+    "basis_refs",
+    "severity",
+    "blocking",
+    "policy_rule_id",
+    "required_outcome"
+  ],
+  "title": "Finding",
+  "type": "object"
+}

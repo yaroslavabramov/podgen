@@ -1,0 +1,21 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "locator": {
+      "minLength": 1,
+      "title": "Locator",
+      "type": "string"
+    },
+    "reason_code": {
+      "minLength": 1,
+      "title": "Reason Code",
+      "type": "string"
+    }
+  },
+  "required": [
+    "locator",
+    "reason_code"
+  ],
+  "title": "RejectedCandidate",
+  "type": "object"
+}

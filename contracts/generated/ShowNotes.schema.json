@@ -1,0 +1,351 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "Chapter": {
+      "additionalProperties": false,
+      "properties": {
+        "chapter_id": {
+          "format": "uuid",
+          "title": "Chapter Id",
+          "type": "string"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "summary": {
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        },
+        "start_frame": {
+          "minimum": 0,
+          "title": "Start Frame",
+          "type": "integer"
+        },
+        "script_selectors": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "Script Selectors",
+          "type": "array"
+        }
+      },
+      "required": [
+        "chapter_id",
+        "title",
+        "summary",
+        "start_frame",
+        "script_selectors"
+      ],
+      "title": "Chapter",
+      "type": "object"
+    },
+    "Disclosure": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "minLength": 1,
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "text"
+      ],
+      "title": "Disclosure",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "LocalScriptSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "act_id": {
+          "format": "uuid",
+          "title": "Act Id",
+          "type": "string"
+        },
+        "block_id": {
+          "format": "uuid",
+          "title": "Block Id",
+          "type": "string"
+        },
+        "item_id": {
+          "format": "uuid",
+          "title": "Item Id",
+          "type": "string"
+        },
+        "char_start": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Char Start"
+        },
+        "char_end": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Char End"
+        }
+      },
+      "required": [
+        "act_id",
+        "block_id",
+        "item_id",
+        "char_start",
+        "char_end"
+      ],
+      "title": "LocalScriptSelector",
+      "type": "object"
+    },
+    "ScriptSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "script_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "selector": {
+          "$ref": "#/$defs/LocalScriptSelector"
+        }
+      },
+      "required": [
+        "script_ref",
+        "selector"
+      ],
+      "title": "ScriptSelector",
+      "type": "object"
+    },
+    "ShowCitation": {
+      "additionalProperties": false,
+      "properties": {
+        "citation_id": {
+          "format": "uuid",
+          "title": "Citation Id",
+          "type": "string"
+        },
+        "source_revision_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "evidence_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "display_metadata": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Display Metadata",
+          "type": "object"
+        },
+        "public_locator": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Public Locator"
+        },
+        "supported_script_selectors": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "Supported Script Selectors",
+          "type": "array"
+        }
+      },
+      "required": [
+        "citation_id",
+        "source_revision_ref",
+        "evidence_refs",
+        "display_metadata",
+        "public_locator",
+        "supported_script_selectors"
+      ],
+      "title": "ShowCitation",
+      "type": "object"
+    },
+    "UncertaintyNote": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "script_selectors": {
+          "items": {
+            "$ref": "#/$defs/ScriptSelector"
+          },
+          "title": "Script Selectors",
+          "type": "array"
+        }
+      },
+      "required": [
+        "text",
+        "script_selectors"
+      ],
+      "title": "UncertaintyNote",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "script_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "transcript_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "audio_master_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "title": {
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "description": {
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+    },
+    "chapters": {
+      "items": {
+        "$ref": "#/$defs/Chapter"
+      },
+      "title": "Chapters",
+      "type": "array"
+    },
+    "citations": {
+      "items": {
+        "$ref": "#/$defs/ShowCitation"
+      },
+      "title": "Citations",
+      "type": "array"
+    },
+    "disclosures": {
+      "items": {
+        "$ref": "#/$defs/Disclosure"
+      },
+      "title": "Disclosures",
+      "type": "array"
+    },
+    "uncertainty_notes": {
+      "items": {
+        "$ref": "#/$defs/UncertaintyNote"
+      },
+      "title": "Uncertainty Notes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "script_ref",
+    "transcript_ref",
+    "audio_master_ref",
+    "title",
+    "description",
+    "chapters",
+    "citations",
+    "disclosures",
+    "uncertainty_notes"
+  ],
+  "title": "ShowNotes",
+  "type": "object",
+  "$id": "urn:podgen:ShowNotes:1.0"
+}

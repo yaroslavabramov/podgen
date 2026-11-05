@@ -1,0 +1,156 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "purpose": {
+      "enum": [
+        "production",
+        "evaluation"
+      ],
+      "title": "Purpose",
+      "type": "string"
+    },
+    "evaluation_case_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "episode_spec_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "dossier_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "story_plan_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "script_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "verification_report_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "editorial_review_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "performance_plan_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "audio_master_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "audio_qa_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "transcript_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "show_notes_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "show_notes_review_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "policy_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    }
+  },
+  "required": [
+    "purpose",
+    "evaluation_case_ref",
+    "episode_spec_ref",
+    "dossier_ref",
+    "story_plan_ref",
+    "script_ref",
+    "verification_report_ref",
+    "editorial_review_ref",
+    "performance_plan_ref",
+    "audio_master_ref",
+    "audio_qa_ref",
+    "transcript_ref",
+    "show_notes_ref",
+    "show_notes_review_ref",
+    "policy_ref"
+  ],
+  "title": "ReleaseManifest",
+  "type": "object",
+  "$id": "urn:podgen:ReleaseManifest:1.0"
+}

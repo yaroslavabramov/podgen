@@ -1,0 +1,1100 @@
+{
+  "$defs": {
+    "AggregateExpression": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "aggregate",
+          "title": "Kind",
+          "type": "string"
+        },
+        "operation_id": {
+          "minLength": 1,
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "arguments": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "add": "#/$defs/BinaryExpression",
+                "aggregate": "#/$defs/AggregateExpression",
+                "convert": "#/$defs/ConversionExpression",
+                "decimal": "#/$defs/DecimalLiteral",
+                "div": "#/$defs/BinaryExpression",
+                "input": "#/$defs/NamedInput",
+                "mul": "#/$defs/BinaryExpression",
+                "sub": "#/$defs/BinaryExpression"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/DecimalLiteral"
+              },
+              {
+                "$ref": "#/$defs/NamedInput"
+              },
+              {
+                "$ref": "#/$defs/BinaryExpression"
+              },
+              {
+                "$ref": "#/$defs/AggregateExpression"
+              },
+              {
+                "$ref": "#/$defs/ConversionExpression"
+              }
+            ]
+          },
+          "title": "Arguments",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "operation_id",
+        "arguments"
+      ],
+      "title": "AggregateExpression",
+      "type": "object"
+    },
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "AudioSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "audio_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "start_frame": {
+          "minimum": 0,
+          "title": "Start Frame",
+          "type": "integer"
+        },
+        "end_frame": {
+          "minimum": 0,
+          "title": "End Frame",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "audio_ref",
+        "start_frame",
+        "end_frame"
+      ],
+      "title": "AudioSelector",
+      "type": "object"
+    },
+    "BinaryExpression": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "add",
+            "sub",
+            "mul",
+            "div"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "left": {
+          "discriminator": {
+            "mapping": {
+              "add": "#/$defs/BinaryExpression",
+              "aggregate": "#/$defs/AggregateExpression",
+              "convert": "#/$defs/ConversionExpression",
+              "decimal": "#/$defs/DecimalLiteral",
+              "div": "#/$defs/BinaryExpression",
+              "input": "#/$defs/NamedInput",
+              "mul": "#/$defs/BinaryExpression",
+              "sub": "#/$defs/BinaryExpression"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/DecimalLiteral"
+            },
+            {
+              "$ref": "#/$defs/NamedInput"
+            },
+            {
+              "$ref": "#/$defs/BinaryExpression"
+            },
+            {
+              "$ref": "#/$defs/AggregateExpression"
+            },
+            {
+              "$ref": "#/$defs/ConversionExpression"
+            }
+          ],
+          "title": "Left"
+        },
+        "right": {
+          "discriminator": {
+            "mapping": {
+              "add": "#/$defs/BinaryExpression",
+              "aggregate": "#/$defs/AggregateExpression",
+              "convert": "#/$defs/ConversionExpression",
+              "decimal": "#/$defs/DecimalLiteral",
+              "div": "#/$defs/BinaryExpression",
+              "input": "#/$defs/NamedInput",
+              "mul": "#/$defs/BinaryExpression",
+              "sub": "#/$defs/BinaryExpression"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/DecimalLiteral"
+            },
+            {
+              "$ref": "#/$defs/NamedInput"
+            },
+            {
+              "$ref": "#/$defs/BinaryExpression"
+            },
+            {
+              "$ref": "#/$defs/AggregateExpression"
+            },
+            {
+              "$ref": "#/$defs/ConversionExpression"
+            }
+          ],
+          "title": "Right"
+        }
+      },
+      "required": [
+        "kind",
+        "left",
+        "right"
+      ],
+      "title": "BinaryExpression",
+      "type": "object"
+    },
+    "BlobRef": {
+      "additionalProperties": false,
+      "properties": {
+        "storage_key": {
+          "minLength": 1,
+          "title": "Storage Key",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "byte_length": {
+          "minimum": 0,
+          "title": "Byte Length",
+          "type": "integer"
+        },
+        "media_type": {
+          "minLength": 1,
+          "title": "Media Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "storage_key",
+        "sha256",
+        "byte_length",
+        "media_type"
+      ],
+      "title": "BlobRef",
+      "type": "object"
+    },
+    "CalculationError": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "minLength": 1,
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "CalculationError",
+      "type": "object"
+    },
+    "CalculationInput": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "value_decimal": {
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "title": "Value Decimal",
+          "type": "string"
+        },
+        "unit": {
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        },
+        "evidence_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "source_selector": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WholeArtifactSelector"
+            },
+            {
+              "$ref": "#/$defs/ScriptSelector"
+            },
+            {
+              "$ref": "#/$defs/NoteSelector"
+            },
+            {
+              "$ref": "#/$defs/ShowNotesSelector"
+            },
+            {
+              "$ref": "#/$defs/AudioSelector"
+            },
+            {
+              "$ref": "#/$defs/TextSelector"
+            },
+            {
+              "$ref": "#/$defs/TableSelector"
+            },
+            {
+              "$ref": "#/$defs/DatasetSelector"
+            },
+            {
+              "$ref": "#/$defs/PageRegionSelector"
+            },
+            {
+              "$ref": "#/$defs/TimeSelector"
+            }
+          ],
+          "title": "Source Selector"
+        }
+      },
+      "required": [
+        "name",
+        "value_decimal",
+        "unit",
+        "evidence_refs",
+        "source_selector"
+      ],
+      "title": "CalculationInput",
+      "type": "object"
+    },
+    "CalculationResult": {
+      "additionalProperties": false,
+      "properties": {
+        "value_decimal": {
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "title": "Value Decimal",
+          "type": "string"
+        },
+        "unit": {
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        },
+        "display_text": {
+          "minLength": 1,
+          "title": "Display Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value_decimal",
+        "unit",
+        "display_text"
+      ],
+      "title": "CalculationResult",
+      "type": "object"
+    },
+    "ConversionExpression": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "convert",
+          "title": "Kind",
+          "type": "string"
+        },
+        "conversion_id": {
+          "minLength": 1,
+          "title": "Conversion Id",
+          "type": "string"
+        },
+        "value": {
+          "discriminator": {
+            "mapping": {
+              "add": "#/$defs/BinaryExpression",
+              "aggregate": "#/$defs/AggregateExpression",
+              "convert": "#/$defs/ConversionExpression",
+              "decimal": "#/$defs/DecimalLiteral",
+              "div": "#/$defs/BinaryExpression",
+              "input": "#/$defs/NamedInput",
+              "mul": "#/$defs/BinaryExpression",
+              "sub": "#/$defs/BinaryExpression"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/DecimalLiteral"
+            },
+            {
+              "$ref": "#/$defs/NamedInput"
+            },
+            {
+              "$ref": "#/$defs/BinaryExpression"
+            },
+            {
+              "$ref": "#/$defs/AggregateExpression"
+            },
+            {
+              "$ref": "#/$defs/ConversionExpression"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "kind",
+        "conversion_id",
+        "value"
+      ],
+      "title": "ConversionExpression",
+      "type": "object"
+    },
+    "DatasetSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "dataset",
+          "title": "Kind",
+          "type": "string"
+        },
+        "record_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Record Ids",
+          "type": "array"
+        },
+        "field_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Field Ids",
+          "type": "array"
+        },
+        "original_record_locators": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Original Record Locators",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "record_ids",
+        "field_ids",
+        "original_record_locators"
+      ],
+      "title": "DatasetSelector",
+      "type": "object"
+    },
+    "DecimalLiteral": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "decimal",
+          "title": "Kind",
+          "type": "string"
+        },
+        "value_decimal": {
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "title": "Value Decimal",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "value_decimal"
+      ],
+      "title": "DecimalLiteral",
+      "type": "object"
+    },
+    "LocalScriptSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "act_id": {
+          "format": "uuid",
+          "title": "Act Id",
+          "type": "string"
+        },
+        "block_id": {
+          "format": "uuid",
+          "title": "Block Id",
+          "type": "string"
+        },
+        "item_id": {
+          "format": "uuid",
+          "title": "Item Id",
+          "type": "string"
+        },
+        "char_start": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Char Start"
+        },
+        "char_end": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Char End"
+        }
+      },
+      "required": [
+        "act_id",
+        "block_id",
+        "item_id",
+        "char_start",
+        "char_end"
+      ],
+      "title": "LocalScriptSelector",
+      "type": "object"
+    },
+    "NamedInput": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "input",
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "name"
+      ],
+      "title": "NamedInput",
+      "type": "object"
+    },
+    "NoteSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "const": "answer_markdown",
+          "title": "Field",
+          "type": "string"
+        },
+        "char_start": {
+          "minimum": 0,
+          "title": "Char Start",
+          "type": "integer"
+        },
+        "char_end": {
+          "minimum": 0,
+          "title": "Char End",
+          "type": "integer"
+        },
+        "note_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        }
+      },
+      "required": [
+        "field",
+        "char_start",
+        "char_end",
+        "note_ref"
+      ],
+      "title": "NoteSelector",
+      "type": "object"
+    },
+    "PageRegionSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "page_region",
+          "title": "Kind",
+          "type": "string"
+        },
+        "page_index": {
+          "minimum": 0,
+          "title": "Page Index",
+          "type": "integer"
+        },
+        "bbox": {
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Bbox",
+          "type": "array"
+        },
+        "coordinate_space": {
+          "const": "normalized_top_left",
+          "title": "Coordinate Space",
+          "type": "string"
+        },
+        "render_blob_ref": {
+          "$ref": "#/$defs/BlobRef"
+        },
+        "render_profile_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        }
+      },
+      "required": [
+        "kind",
+        "page_index",
+        "bbox",
+        "coordinate_space",
+        "render_blob_ref",
+        "render_profile_ref"
+      ],
+      "title": "PageRegionSelector",
+      "type": "object"
+    },
+    "Rounding": {
+      "additionalProperties": false,
+      "properties": {
+        "precision": {
+          "minimum": 0,
+          "title": "Precision",
+          "type": "integer"
+        },
+        "mode": {
+          "minLength": 1,
+          "title": "Mode",
+          "type": "string"
+        },
+        "display_scale": {
+          "minimum": 0,
+          "title": "Display Scale",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "precision",
+        "mode",
+        "display_scale"
+      ],
+      "title": "Rounding",
+      "type": "object"
+    },
+    "ScriptSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "script_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "selector": {
+          "$ref": "#/$defs/LocalScriptSelector"
+        }
+      },
+      "required": [
+        "script_ref",
+        "selector"
+      ],
+      "title": "ScriptSelector",
+      "type": "object"
+    },
+    "ShowNotesSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "show_notes_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "field": {
+          "enum": [
+            "title",
+            "description",
+            "chapter_title",
+            "chapter_summary",
+            "citation_metadata",
+            "disclosure",
+            "uncertainty_note"
+          ],
+          "title": "Field",
+          "type": "string"
+        },
+        "item_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Item Id"
+        },
+        "char_start": {
+          "minimum": 0,
+          "title": "Char Start",
+          "type": "integer"
+        },
+        "char_end": {
+          "minimum": 0,
+          "title": "Char End",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "show_notes_ref",
+        "field",
+        "item_id",
+        "char_start",
+        "char_end"
+      ],
+      "title": "ShowNotesSelector",
+      "type": "object"
+    },
+    "TableCell": {
+      "additionalProperties": false,
+      "properties": {
+        "row_id": {
+          "minLength": 1,
+          "title": "Row Id",
+          "type": "string"
+        },
+        "column_id": {
+          "minLength": 1,
+          "title": "Column Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "row_id",
+        "column_id"
+      ],
+      "title": "TableCell",
+      "type": "object"
+    },
+    "TableSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "table",
+          "title": "Kind",
+          "type": "string"
+        },
+        "table_block_id": {
+          "format": "uuid",
+          "title": "Table Block Id",
+          "type": "string"
+        },
+        "cells": {
+          "items": {
+            "$ref": "#/$defs/TableCell"
+          },
+          "title": "Cells",
+          "type": "array"
+        },
+        "header_block_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Header Block Ids",
+          "type": "array"
+        },
+        "footnote_block_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Footnote Block Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "table_block_id",
+        "cells",
+        "header_block_ids",
+        "footnote_block_ids"
+      ],
+      "title": "TableSelector",
+      "type": "object"
+    },
+    "TextSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "text",
+          "title": "Kind",
+          "type": "string"
+        },
+        "block_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Block Ids",
+          "type": "array"
+        },
+        "char_start": {
+          "minimum": 0,
+          "title": "Char Start",
+          "type": "integer"
+        },
+        "char_end": {
+          "minimum": 0,
+          "title": "Char End",
+          "type": "integer"
+        },
+        "exact": {
+          "title": "Exact",
+          "type": "string"
+        },
+        "prefix": {
+          "title": "Prefix",
+          "type": "string"
+        },
+        "suffix": {
+          "title": "Suffix",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "block_ids",
+        "char_start",
+        "char_end",
+        "exact",
+        "prefix",
+        "suffix"
+      ],
+      "title": "TextSelector",
+      "type": "object"
+    },
+    "TimeBase": {
+      "additionalProperties": false,
+      "properties": {
+        "numerator": {
+          "exclusiveMinimum": 0,
+          "title": "Numerator",
+          "type": "integer"
+        },
+        "denominator": {
+          "exclusiveMinimum": 0,
+          "title": "Denominator",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "numerator",
+        "denominator"
+      ],
+      "title": "TimeBase",
+      "type": "object"
+    },
+    "TimeSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "time",
+          "title": "Kind",
+          "type": "string"
+        },
+        "track_id": {
+          "minLength": 1,
+          "title": "Track Id",
+          "type": "string"
+        },
+        "time_base": {
+          "$ref": "#/$defs/TimeBase"
+        },
+        "origin": {
+          "const": "decoded_track_start",
+          "title": "Origin",
+          "type": "string"
+        },
+        "start_tick": {
+          "minimum": 0,
+          "title": "Start Tick",
+          "type": "integer"
+        },
+        "end_tick": {
+          "minimum": 0,
+          "title": "End Tick",
+          "type": "integer"
+        },
+        "stream_offset_ticks": {
+          "title": "Stream Offset Ticks",
+          "type": "integer"
+        },
+        "alignment_kind": {
+          "enum": [
+            "decoder",
+            "asr_estimate",
+            "reviewed"
+          ],
+          "title": "Alignment Kind",
+          "type": "string"
+        },
+        "transcript_block_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Transcript Block Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "track_id",
+        "time_base",
+        "origin",
+        "start_tick",
+        "end_tick",
+        "stream_offset_ticks",
+        "alignment_kind",
+        "transcript_block_ids"
+      ],
+      "title": "TimeSelector",
+      "type": "object"
+    },
+    "WholeArtifactSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "whole": {
+          "const": true,
+          "title": "Whole",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "artifact_ref",
+        "whole"
+      ],
+      "title": "WholeArtifactSelector",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "purpose": {
+      "minLength": 1,
+      "title": "Purpose",
+      "type": "string"
+    },
+    "inputs": {
+      "items": {
+        "$ref": "#/$defs/CalculationInput"
+      },
+      "title": "Inputs",
+      "type": "array"
+    },
+    "expression": {
+      "discriminator": {
+        "mapping": {
+          "add": "#/$defs/BinaryExpression",
+          "aggregate": "#/$defs/AggregateExpression",
+          "convert": "#/$defs/ConversionExpression",
+          "decimal": "#/$defs/DecimalLiteral",
+          "div": "#/$defs/BinaryExpression",
+          "input": "#/$defs/NamedInput",
+          "mul": "#/$defs/BinaryExpression",
+          "sub": "#/$defs/BinaryExpression"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/DecimalLiteral"
+        },
+        {
+          "$ref": "#/$defs/NamedInput"
+        },
+        {
+          "$ref": "#/$defs/BinaryExpression"
+        },
+        {
+          "$ref": "#/$defs/AggregateExpression"
+        },
+        {
+          "$ref": "#/$defs/ConversionExpression"
+        }
+      ],
+      "title": "Expression"
+    },
+    "execution_profile_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "rounding": {
+      "$ref": "#/$defs/Rounding"
+    },
+    "result": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CalculationResult"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "status": {
+      "enum": [
+        "computed",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CalculationError"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Limitations",
+      "type": "array"
+    }
+  },
+  "required": [
+    "purpose",
+    "inputs",
+    "expression",
+    "execution_profile_ref",
+    "rounding",
+    "result",
+    "status",
+    "error",
+    "limitations"
+  ],
+  "title": "CalculationRecord",
+  "type": "object",
+  "$id": "urn:podgen:CalculationRecord:1.0"
+}

@@ -1,0 +1,38 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "key": {
+      "minLength": 1,
+      "title": "Key",
+      "type": "string"
+    },
+    "path": {
+      "minLength": 1,
+      "title": "Path",
+      "type": "string"
+    },
+    "media_type": {
+      "minLength": 1,
+      "title": "Media Type",
+      "type": "string"
+    },
+    "sha256": {
+      "minLength": 1,
+      "title": "Sha256",
+      "type": "string"
+    },
+    "byte_length": {
+      "title": "Byte Length",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "key",
+    "path",
+    "media_type",
+    "sha256",
+    "byte_length"
+  ],
+  "title": "PackageBlob",
+  "type": "object"
+}

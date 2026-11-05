@@ -1,0 +1,887 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "AssessmentAssignment": {
+      "additionalProperties": false,
+      "properties": {
+        "assignment_id": {
+          "format": "uuid",
+          "title": "Assignment Id",
+          "type": "string"
+        },
+        "anonymous_rater_id": {
+          "minLength": 1,
+          "title": "Anonymous Rater Id",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "factchecker",
+            "editor",
+            "listener"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "blind_candidate_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Blind Candidate Ids",
+          "type": "array"
+        },
+        "presentation_order": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Presentation Order",
+          "type": "array"
+        },
+        "task": {
+          "enum": [
+            "source_audit",
+            "editorial_review",
+            "full_comprehension",
+            "voluntary_interest",
+            "pairwise_preference"
+          ],
+          "title": "Task",
+          "type": "string"
+        }
+      },
+      "required": [
+        "assignment_id",
+        "anonymous_rater_id",
+        "role",
+        "blind_candidate_ids",
+        "presentation_order",
+        "task"
+      ],
+      "title": "AssessmentAssignment",
+      "type": "object"
+    },
+    "AudioSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "audio_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "start_frame": {
+          "minimum": 0,
+          "title": "Start Frame",
+          "type": "integer"
+        },
+        "end_frame": {
+          "minimum": 0,
+          "title": "End Frame",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "audio_ref",
+        "start_frame",
+        "end_frame"
+      ],
+      "title": "AudioSelector",
+      "type": "object"
+    },
+    "Comprehension": {
+      "additionalProperties": false,
+      "properties": {
+        "free_answer": {
+          "title": "Free Answer",
+          "type": "string"
+        },
+        "stated_limits": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Stated Limits",
+          "type": "array"
+        },
+        "transfer_answer": {
+          "title": "Transfer Answer",
+          "type": "string"
+        }
+      },
+      "required": [
+        "free_answer",
+        "stated_limits",
+        "transfer_answer"
+      ],
+      "title": "Comprehension",
+      "type": "object"
+    },
+    "FrameRange": {
+      "additionalProperties": false,
+      "properties": {
+        "start_frame": {
+          "minimum": 0,
+          "title": "Start Frame",
+          "type": "integer"
+        },
+        "end_frame": {
+          "minimum": 0,
+          "title": "End Frame",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start_frame",
+        "end_frame"
+      ],
+      "title": "FrameRange",
+      "type": "object"
+    },
+    "HumanAudioCoverage": {
+      "additionalProperties": false,
+      "properties": {
+        "subject": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MasterSubject"
+            },
+            {
+              "$ref": "#/$defs/ReadingSubject"
+            }
+          ],
+          "title": "Subject"
+        },
+        "sample_rate_hz": {
+          "minimum": 0,
+          "title": "Sample Rate Hz",
+          "type": "integer"
+        },
+        "sample_frames": {
+          "minimum": 0,
+          "title": "Sample Frames",
+          "type": "integer"
+        },
+        "listened_ranges": {
+          "items": {
+            "$ref": "#/$defs/FrameRange"
+          },
+          "title": "Listened Ranges",
+          "type": "array"
+        },
+        "completion": {
+          "enum": [
+            "full",
+            "partial"
+          ],
+          "title": "Completion",
+          "type": "string"
+        },
+        "omitted_ranges_with_reasons": {
+          "items": {
+            "$ref": "#/$defs/OmittedRange"
+          },
+          "title": "Omitted Ranges With Reasons",
+          "type": "array"
+        }
+      },
+      "required": [
+        "subject",
+        "sample_rate_hz",
+        "sample_frames",
+        "listened_ranges",
+        "completion",
+        "omitted_ranges_with_reasons"
+      ],
+      "title": "HumanAudioCoverage",
+      "type": "object"
+    },
+    "HumanFactCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "statement": {
+          "minLength": 1,
+          "title": "Statement",
+          "type": "string"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WholeArtifactSelector"
+            },
+            {
+              "$ref": "#/$defs/ScriptSelector"
+            },
+            {
+              "$ref": "#/$defs/NoteSelector"
+            },
+            {
+              "$ref": "#/$defs/ShowNotesSelector"
+            },
+            {
+              "$ref": "#/$defs/AudioSelector"
+            }
+          ],
+          "title": "Location"
+        },
+        "verdict": {
+          "enum": [
+            "supported",
+            "supported_with_limits",
+            "contradicted",
+            "insufficient",
+            "not_verifiable"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        },
+        "evidence_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "rationale": {
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "statement",
+        "location",
+        "verdict",
+        "evidence_refs",
+        "rationale"
+      ],
+      "title": "HumanFactCheck",
+      "type": "object"
+    },
+    "LocalScriptSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "act_id": {
+          "format": "uuid",
+          "title": "Act Id",
+          "type": "string"
+        },
+        "block_id": {
+          "format": "uuid",
+          "title": "Block Id",
+          "type": "string"
+        },
+        "item_id": {
+          "format": "uuid",
+          "title": "Item Id",
+          "type": "string"
+        },
+        "char_start": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Char Start"
+        },
+        "char_end": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Char End"
+        }
+      },
+      "required": [
+        "act_id",
+        "block_id",
+        "item_id",
+        "char_start",
+        "char_end"
+      ],
+      "title": "LocalScriptSelector",
+      "type": "object"
+    },
+    "MasterSubject": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "master",
+          "title": "Kind",
+          "type": "string"
+        },
+        "audio_master_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        }
+      },
+      "required": [
+        "kind",
+        "audio_master_ref"
+      ],
+      "title": "MasterSubject",
+      "type": "object"
+    },
+    "NoteSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "const": "answer_markdown",
+          "title": "Field",
+          "type": "string"
+        },
+        "char_start": {
+          "minimum": 0,
+          "title": "Char Start",
+          "type": "integer"
+        },
+        "char_end": {
+          "minimum": 0,
+          "title": "Char End",
+          "type": "integer"
+        },
+        "note_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        }
+      },
+      "required": [
+        "field",
+        "char_start",
+        "char_end",
+        "note_ref"
+      ],
+      "title": "NoteSelector",
+      "type": "object"
+    },
+    "OmittedRange": {
+      "additionalProperties": false,
+      "properties": {
+        "start_frame": {
+          "minimum": 0,
+          "title": "Start Frame",
+          "type": "integer"
+        },
+        "end_frame": {
+          "minimum": 0,
+          "title": "End Frame",
+          "type": "integer"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start_frame",
+        "end_frame",
+        "reason"
+      ],
+      "title": "OmittedRange",
+      "type": "object"
+    },
+    "PairwisePreference": {
+      "additionalProperties": false,
+      "properties": {
+        "winner_blind_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Winner Blind Id"
+        },
+        "outcome": {
+          "enum": [
+            "preferred",
+            "tie",
+            "abstain"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "rationale": {
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "winner_blind_id",
+        "outcome",
+        "rationale"
+      ],
+      "title": "PairwisePreference",
+      "type": "object"
+    },
+    "Rating": {
+      "additionalProperties": false,
+      "properties": {
+        "dimension": {
+          "minLength": 1,
+          "title": "Dimension",
+          "type": "string"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Score"
+        },
+        "abstain_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Abstain Reason"
+        },
+        "rationale": {
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        },
+        "evidence_selectors": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WholeArtifactSelector"
+              },
+              {
+                "$ref": "#/$defs/ScriptSelector"
+              },
+              {
+                "$ref": "#/$defs/NoteSelector"
+              },
+              {
+                "$ref": "#/$defs/ShowNotesSelector"
+              },
+              {
+                "$ref": "#/$defs/AudioSelector"
+              }
+            ]
+          },
+          "title": "Evidence Selectors",
+          "type": "array"
+        }
+      },
+      "required": [
+        "dimension",
+        "score",
+        "abstain_reason",
+        "rationale",
+        "evidence_selectors"
+      ],
+      "title": "Rating",
+      "type": "object"
+    },
+    "ReadingSubject": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "evaluation_reading",
+          "title": "Kind",
+          "type": "string"
+        },
+        "recording_ref": {
+          "$ref": "#/$defs/RuntimeRef"
+        },
+        "script_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "spoken_view_hash": {
+          "minLength": 1,
+          "title": "Spoken View Hash",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "recording_ref",
+        "script_ref",
+        "spoken_view_hash"
+      ],
+      "title": "ReadingSubject",
+      "type": "object"
+    },
+    "RuntimeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "record_kind": {
+          "enum": [
+            "search_record",
+            "tool_execution",
+            "context_assembly",
+            "user_input",
+            "acquisition_record",
+            "evaluation_reading"
+          ],
+          "title": "Record Kind",
+          "type": "string"
+        },
+        "record_id": {
+          "format": "uuid",
+          "title": "Record Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "record_kind",
+        "record_id"
+      ],
+      "title": "RuntimeRef",
+      "type": "object"
+    },
+    "ScriptSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "script_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "selector": {
+          "$ref": "#/$defs/LocalScriptSelector"
+        }
+      },
+      "required": [
+        "script_ref",
+        "selector"
+      ],
+      "title": "ScriptSelector",
+      "type": "object"
+    },
+    "ShowNotesSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "show_notes_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "field": {
+          "enum": [
+            "title",
+            "description",
+            "chapter_title",
+            "chapter_summary",
+            "citation_metadata",
+            "disclosure",
+            "uncertainty_note"
+          ],
+          "title": "Field",
+          "type": "string"
+        },
+        "item_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Item Id"
+        },
+        "char_start": {
+          "minimum": 0,
+          "title": "Char Start",
+          "type": "integer"
+        },
+        "char_end": {
+          "minimum": 0,
+          "title": "Char End",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "show_notes_ref",
+        "field",
+        "item_id",
+        "char_start",
+        "char_end"
+      ],
+      "title": "ShowNotesSelector",
+      "type": "object"
+    },
+    "VoluntaryObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "outcome": {
+          "enum": [
+            "not_started",
+            "completed",
+            "stopped_content",
+            "stopped_external",
+            "technical_failure",
+            "observation_end",
+            "lost_followup",
+            "unknown_reason"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "last_frame": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Last Frame"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScriptSelector"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stated_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Stated Reason"
+        },
+        "prior_topic_interest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Prior Topic Interest"
+        },
+        "prior_familiarity": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Prior Familiarity"
+        }
+      },
+      "required": [
+        "outcome",
+        "last_frame",
+        "location",
+        "stated_reason",
+        "prior_topic_interest",
+        "prior_familiarity"
+      ],
+      "title": "VoluntaryObservation",
+      "type": "object"
+    },
+    "WholeArtifactSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "whole": {
+          "const": true,
+          "title": "Whole",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "artifact_ref",
+        "whole"
+      ],
+      "title": "WholeArtifactSelector",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "case_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "evaluated_output_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Evaluated Output Refs",
+      "type": "array"
+    },
+    "rubric_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "assignment": {
+      "$ref": "#/$defs/AssessmentAssignment"
+    },
+    "ratings": {
+      "items": {
+        "$ref": "#/$defs/Rating"
+      },
+      "title": "Ratings",
+      "type": "array"
+    },
+    "fact_checks": {
+      "items": {
+        "$ref": "#/$defs/HumanFactCheck"
+      },
+      "title": "Fact Checks",
+      "type": "array"
+    },
+    "comprehension": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Comprehension"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "audio_coverage": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HumanAudioCoverage"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "voluntary_observation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/VoluntaryObservation"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "pairwise_preference": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PairwisePreference"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "completed_at": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+      "title": "Completed At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "case_ref",
+    "evaluated_output_refs",
+    "rubric_ref",
+    "assignment",
+    "ratings",
+    "fact_checks",
+    "comprehension",
+    "audio_coverage",
+    "voluntary_observation",
+    "pairwise_preference",
+    "completed_at"
+  ],
+  "title": "HumanAssessment",
+  "type": "object",
+  "$id": "urn:podgen:HumanAssessment:1.0"
+}

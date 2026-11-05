@@ -1,0 +1,506 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "LocalScriptSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "act_id": {
+          "format": "uuid",
+          "title": "Act Id",
+          "type": "string"
+        },
+        "block_id": {
+          "format": "uuid",
+          "title": "Block Id",
+          "type": "string"
+        },
+        "item_id": {
+          "format": "uuid",
+          "title": "Item Id",
+          "type": "string"
+        },
+        "char_start": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Char Start"
+        },
+        "char_end": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Char End"
+        }
+      },
+      "required": [
+        "act_id",
+        "block_id",
+        "item_id",
+        "char_start",
+        "char_end"
+      ],
+      "title": "LocalScriptSelector",
+      "type": "object"
+    },
+    "PlanDeparture": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "rationale": {
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        },
+        "affected_plan_act_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Affected Plan Act Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "description",
+        "rationale",
+        "affected_plan_act_ids"
+      ],
+      "title": "PlanDeparture",
+      "type": "object"
+    },
+    "ResearchPlaceholder": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "research_placeholder",
+          "title": "Kind",
+          "type": "string"
+        },
+        "placeholder_id": {
+          "format": "uuid",
+          "title": "Placeholder Id",
+          "type": "string"
+        },
+        "question": {
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "request_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "placeholder_id",
+        "question",
+        "request_ref"
+      ],
+      "title": "ResearchPlaceholder",
+      "type": "object"
+    },
+    "ScriptAct": {
+      "additionalProperties": false,
+      "properties": {
+        "act_id": {
+          "format": "uuid",
+          "title": "Act Id",
+          "type": "string"
+        },
+        "plan_act_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Plan Act Id"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "draft_tail": {
+          "enum": [
+            "open",
+            "closed"
+          ],
+          "title": "Draft Tail",
+          "type": "string"
+        },
+        "blocks": {
+          "items": {
+            "$ref": "#/$defs/ScriptBlock"
+          },
+          "title": "Blocks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "act_id",
+        "plan_act_id",
+        "title",
+        "draft_tail",
+        "blocks"
+      ],
+      "title": "ScriptAct",
+      "type": "object"
+    },
+    "ScriptBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "block_id": {
+          "format": "uuid",
+          "title": "Block Id",
+          "type": "string"
+        },
+        "function_note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Function Note"
+        },
+        "items": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "research_placeholder": "#/$defs/ResearchPlaceholder",
+                "stage_direction": "#/$defs/StageDirection",
+                "utterance": "#/$defs/Utterance"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/Utterance"
+              },
+              {
+                "$ref": "#/$defs/StageDirection"
+              },
+              {
+                "$ref": "#/$defs/ResearchPlaceholder"
+              }
+            ]
+          },
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "required": [
+        "block_id",
+        "function_note",
+        "items"
+      ],
+      "title": "ScriptBlock",
+      "type": "object"
+    },
+    "StageDirection": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "stage_direction",
+          "title": "Kind",
+          "type": "string"
+        },
+        "direction_id": {
+          "format": "uuid",
+          "title": "Direction Id",
+          "type": "string"
+        },
+        "purpose": {
+          "minLength": 1,
+          "title": "Purpose",
+          "type": "string"
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "direction_id",
+        "purpose",
+        "text"
+      ],
+      "title": "StageDirection",
+      "type": "object"
+    },
+    "SupportBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "selector": {
+          "$ref": "#/$defs/LocalScriptSelector"
+        },
+        "basis_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Basis Refs",
+          "type": "array"
+        },
+        "relation": {
+          "enum": [
+            "direct",
+            "interpretation",
+            "illustration"
+          ],
+          "title": "Relation",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Note"
+        }
+      },
+      "required": [
+        "selector",
+        "basis_refs",
+        "relation",
+        "note"
+      ],
+      "title": "SupportBinding",
+      "type": "object"
+    },
+    "Utterance": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "utterance",
+          "title": "Kind",
+          "type": "string"
+        },
+        "utterance_id": {
+          "format": "uuid",
+          "title": "Utterance Id",
+          "type": "string"
+        },
+        "speaker_id": {
+          "format": "uuid",
+          "title": "Speaker Id",
+          "type": "string"
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "utterance_id",
+        "speaker_id",
+        "text"
+      ],
+      "title": "Utterance",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "episode_spec_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "story_plan_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "dossier_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "parent_script_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "mode": {
+      "enum": [
+        "exploratory",
+        "production"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "completion": {
+      "enum": [
+        "fragment",
+        "draft",
+        "complete"
+      ],
+      "title": "Completion",
+      "type": "string"
+    },
+    "acts": {
+      "items": {
+        "$ref": "#/$defs/ScriptAct"
+      },
+      "title": "Acts",
+      "type": "array"
+    },
+    "author_support_bindings": {
+      "items": {
+        "$ref": "#/$defs/SupportBinding"
+      },
+      "title": "Author Support Bindings",
+      "type": "array"
+    },
+    "plan_departures": {
+      "items": {
+        "$ref": "#/$defs/PlanDeparture"
+      },
+      "title": "Plan Departures",
+      "type": "array"
+    },
+    "open_research_request_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Open Research Request Refs",
+      "type": "array"
+    }
+  },
+  "required": [
+    "episode_spec_ref",
+    "story_plan_ref",
+    "dossier_ref",
+    "parent_script_ref",
+    "mode",
+    "completion",
+    "acts",
+    "author_support_bindings",
+    "plan_departures",
+    "open_research_request_refs"
+  ],
+  "title": "ScriptRevision",
+  "type": "object",
+  "$id": "urn:podgen:ScriptRevision:1.0"
+}

@@ -1,0 +1,33 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "const": "code",
+      "title": "Kind",
+      "type": "string"
+    },
+    "component": {
+      "minLength": 1,
+      "title": "Component",
+      "type": "string"
+    },
+    "build_id": {
+      "minLength": 1,
+      "title": "Build Id",
+      "type": "string"
+    },
+    "operation_id": {
+      "format": "uuid",
+      "title": "Operation Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "component",
+    "build_id",
+    "operation_id"
+  ],
+  "title": "CodeProducer",
+  "type": "object"
+}

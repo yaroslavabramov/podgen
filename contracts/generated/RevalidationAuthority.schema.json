@@ -1,0 +1,24 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "enum": [
+        "acceptance_record",
+        "integration_event"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "record_id": {
+      "format": "uuid",
+      "title": "Record Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "record_id"
+  ],
+  "title": "RevalidationAuthority",
+  "type": "object"
+}

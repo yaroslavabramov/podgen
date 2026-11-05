@@ -1,0 +1,222 @@
+{
+  "AudioMaster": {
+    "owner": "05",
+    "schema_version": "1.0",
+    "file": "AudioMaster.schema.json"
+  },
+  "AudioQAReport": {
+    "owner": "05",
+    "schema_version": "1.0",
+    "file": "AudioQAReport.schema.json"
+  },
+  "AudioSegment": {
+    "owner": "05",
+    "schema_version": "1.0",
+    "file": "AudioSegment.schema.json"
+  },
+  "CalculationRecord": {
+    "owner": "04",
+    "schema_version": "1.0",
+    "file": "CalculationRecord.schema.json"
+  },
+  "CapabilityReport": {
+    "owner": "00/06",
+    "schema_version": "1.0",
+    "file": "CapabilityReport.schema.json"
+  },
+  "ClaimSet": {
+    "owner": "04",
+    "schema_version": "1.0",
+    "file": "ClaimSet.schema.json"
+  },
+  "DerivedPreview": {
+    "owner": "00/06",
+    "schema_version": "1.0",
+    "file": "DerivedPreview.schema.json"
+  },
+  "DiagnosticArtifact": {
+    "owner": "00/06",
+    "schema_version": "1.0",
+    "file": "DiagnosticArtifact.schema.json"
+  },
+  "DossierSnapshot": {
+    "owner": "02",
+    "schema_version": "1.0",
+    "file": "DossierSnapshot.schema.json"
+  },
+  "EditorialDecision": {
+    "owner": "02",
+    "schema_version": "1.0",
+    "file": "EditorialDecision.schema.json"
+  },
+  "EditorialReview": {
+    "owner": "04",
+    "schema_version": "1.0",
+    "file": "EditorialReview.schema.json"
+  },
+  "EditorialState": {
+    "owner": "02",
+    "schema_version": "1.0",
+    "file": "EditorialState.schema.json"
+  },
+  "EpisodeSpec": {
+    "owner": "00",
+    "schema_version": "1.0",
+    "file": "EpisodeSpec.schema.json"
+  },
+  "EvaluationAnnotation": {
+    "owner": "04",
+    "schema_version": "1.0",
+    "file": "EvaluationAnnotation.schema.json"
+  },
+  "EvaluationCase": {
+    "owner": "04",
+    "schema_version": "1.0",
+    "file": "EvaluationCase.schema.json"
+  },
+  "EvaluationResult": {
+    "owner": "04",
+    "schema_version": "1.0",
+    "file": "EvaluationResult.schema.json"
+  },
+  "EvidenceSpan": {
+    "owner": "01",
+    "schema_version": "1.0",
+    "file": "EvidenceSpan.schema.json"
+  },
+  "HumanAssessment": {
+    "owner": "04",
+    "schema_version": "1.0",
+    "file": "HumanAssessment.schema.json"
+  },
+  "ListenerState": {
+    "owner": "03",
+    "schema_version": "1.0",
+    "file": "ListenerState.schema.json"
+  },
+  "ModelProfile": {
+    "owner": "00/06",
+    "schema_version": "1.0",
+    "file": "ModelProfile.schema.json"
+  },
+  "PerformancePlan": {
+    "owner": "05",
+    "schema_version": "1.0",
+    "file": "PerformancePlan.schema.json"
+  },
+  "Policy": {
+    "owner": "00/06",
+    "schema_version": "1.0",
+    "file": "Policy.schema.json"
+  },
+  "PolicyBundle": {
+    "owner": "00/06",
+    "schema_version": "1.0",
+    "file": "PolicyBundle.schema.json"
+  },
+  "ProcessingProfile": {
+    "owner": "00/06",
+    "schema_version": "1.0",
+    "file": "ProcessingProfile.schema.json"
+  },
+  "PromptDefinition": {
+    "owner": "00/06",
+    "schema_version": "1.0",
+    "file": "PromptDefinition.schema.json"
+  },
+  "PronunciationLexicon": {
+    "owner": "00/06",
+    "schema_version": "1.0",
+    "file": "PronunciationLexicon.schema.json"
+  },
+  "QuestionRecord": {
+    "owner": "02",
+    "schema_version": "1.0",
+    "file": "QuestionRecord.schema.json"
+  },
+  "ReleaseManifest": {
+    "owner": "00",
+    "schema_version": "1.0",
+    "file": "ReleaseManifest.schema.json"
+  },
+  "ResearchNote": {
+    "owner": "02",
+    "schema_version": "1.0",
+    "file": "ResearchNote.schema.json"
+  },
+  "ResearchRequest": {
+    "owner": "02",
+    "schema_version": "1.0",
+    "file": "ResearchRequest.schema.json"
+  },
+  "ScriptChangeSet": {
+    "owner": "03",
+    "schema_version": "1.0",
+    "file": "ScriptChangeSet.schema.json"
+  },
+  "ScriptRevision": {
+    "owner": "03",
+    "schema_version": "1.0",
+    "file": "ScriptRevision.schema.json"
+  },
+  "ShowNotes": {
+    "owner": "04",
+    "schema_version": "1.0",
+    "file": "ShowNotes.schema.json"
+  },
+  "ShowNotesReview": {
+    "owner": "04",
+    "schema_version": "1.0",
+    "file": "ShowNotesReview.schema.json"
+  },
+  "SourceFamilyAssessment": {
+    "owner": "01",
+    "schema_version": "1.0",
+    "file": "SourceFamilyAssessment.schema.json"
+  },
+  "SourceRelation": {
+    "owner": "01",
+    "schema_version": "1.0",
+    "file": "SourceRelation.schema.json"
+  },
+  "SourceRepresentation": {
+    "owner": "01",
+    "schema_version": "1.0",
+    "file": "SourceRepresentation.schema.json"
+  },
+  "SourceRevision": {
+    "owner": "01",
+    "schema_version": "1.0",
+    "file": "SourceRevision.schema.json"
+  },
+  "StoryPlan": {
+    "owner": "03",
+    "schema_version": "1.0",
+    "file": "StoryPlan.schema.json"
+  },
+  "ToolsetDefinition": {
+    "owner": "00/06",
+    "schema_version": "1.0",
+    "file": "ToolsetDefinition.schema.json"
+  },
+  "Transcript": {
+    "owner": "05",
+    "schema_version": "1.0",
+    "file": "Transcript.schema.json"
+  },
+  "UncertaintyRecord": {
+    "owner": "02",
+    "schema_version": "1.0",
+    "file": "UncertaintyRecord.schema.json"
+  },
+  "VerificationReport": {
+    "owner": "04",
+    "schema_version": "1.0",
+    "file": "VerificationReport.schema.json"
+  },
+  "VoiceProfile": {
+    "owner": "00/06",
+    "schema_version": "1.0",
+    "file": "VoiceProfile.schema.json"
+  }
+}

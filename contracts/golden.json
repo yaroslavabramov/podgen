@@ -1,0 +1,147 @@
+{
+  "profile": "artifact-jcs-v1",
+  "cases": [
+    {
+      "document": {
+        "kind": "ResearchNote",
+        "schema_version": "1.0",
+        "payload": {
+          "answer": "Русский 🛰️ е́ 𐀀",
+          "decimal": "9007199254740993.00000000001",
+          "value": null
+        },
+        "input_refs": [
+          {
+            "kind": "ResearchNote",
+            "artifact_id": "00000000-0000-4000-8000-000000000001",
+            "revision_id": "00000000-0000-4000-8000-000000000002"
+          }
+        ],
+        "blob_hashes": [
+          {
+            "purpose": "/body",
+            "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ]
+      },
+      "canonical": "{\"blob_hashes\":[{\"hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"purpose\":\"/body\"}],\"input_refs\":[{\"artifact_id\":\"00000000-0000-4000-8000-000000000001\",\"kind\":\"ResearchNote\",\"revision_id\":\"00000000-0000-4000-8000-000000000002\"}],\"kind\":\"ResearchNote\",\"payload\":{\"answer\":\"Русский 🛰️ е́ 𐀀\",\"decimal\":\"9007199254740993.00000000001\",\"value\":null},\"schema_version\":\"1.0\"}",
+      "content_hash": "sha256:artifact-jcs-v1:955f9bfc064c56ed7b5a023924874883e2fe2fb01005d4330170569fd71b7d04"
+    },
+    {
+      "document": {
+        "kind": "ResearchNote",
+        "schema_version": "1.0",
+        "payload": {
+          "numbers": [
+            0.0,
+            -0.0,
+            1e-06,
+            1e-07,
+            4.5,
+            333333333.3333333
+          ],
+          "absent_is_not_null": {}
+        },
+        "input_refs": [
+          {
+            "kind": "ResearchNote",
+            "artifact_id": "00000000-0000-4000-8000-000000000001",
+            "revision_id": "00000000-0000-4000-8000-000000000002"
+          }
+        ],
+        "blob_hashes": [
+          {
+            "purpose": "/body",
+            "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ]
+      },
+      "canonical": "{\"blob_hashes\":[{\"hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"purpose\":\"/body\"}],\"input_refs\":[{\"artifact_id\":\"00000000-0000-4000-8000-000000000001\",\"kind\":\"ResearchNote\",\"revision_id\":\"00000000-0000-4000-8000-000000000002\"}],\"kind\":\"ResearchNote\",\"payload\":{\"absent_is_not_null\":{},\"numbers\":[0,0,0.000001,1e-7,4.5,333333333.3333333]},\"schema_version\":\"1.0\"}",
+      "content_hash": "sha256:artifact-jcs-v1:47e51367d204e066db7f9ea8cce7ffb4eb99971e9a50ca8efba30b8d9b0e31a2"
+    },
+    {
+      "document": {
+        "kind": "ResearchNote",
+        "schema_version": "1.0",
+        "payload": {
+          "": "BMP",
+          "😀": "astral",
+          "a": "\b\t\n\f\r\"\\",
+          "ordered": [
+            "second",
+            "first"
+          ]
+        },
+        "input_refs": [
+          {
+            "kind": "ResearchNote",
+            "artifact_id": "00000000-0000-4000-8000-000000000001",
+            "revision_id": "00000000-0000-4000-8000-000000000002"
+          }
+        ],
+        "blob_hashes": [
+          {
+            "purpose": "/body",
+            "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ]
+      },
+      "canonical": "{\"blob_hashes\":[{\"hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"purpose\":\"/body\"}],\"input_refs\":[{\"artifact_id\":\"00000000-0000-4000-8000-000000000001\",\"kind\":\"ResearchNote\",\"revision_id\":\"00000000-0000-4000-8000-000000000002\"}],\"kind\":\"ResearchNote\",\"payload\":{\"a\":\"\\b\\t\\n\\f\\r\\\"\\\\\",\"ordered\":[\"second\",\"first\"],\"😀\":\"astral\",\"\":\"BMP\"},\"schema_version\":\"1.0\"}",
+      "content_hash": "sha256:artifact-jcs-v1:c34cabe21d256c0d7b4ce3a429171853aca4e2469b190a82d567669364dff0e9"
+    },
+    {
+      "document": {
+        "kind": "ResearchNote",
+        "schema_version": "1.0",
+        "payload": {
+          "value": null
+        },
+        "input_refs": [
+          {
+            "kind": "ResearchNote",
+            "artifact_id": "00000000-0000-4000-8000-000000000001",
+            "revision_id": "00000000-0000-4000-8000-000000000002"
+          }
+        ],
+        "blob_hashes": [
+          {
+            "purpose": "/body",
+            "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ]
+      },
+      "canonical": "{\"blob_hashes\":[{\"hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"purpose\":\"/body\"}],\"input_refs\":[{\"artifact_id\":\"00000000-0000-4000-8000-000000000001\",\"kind\":\"ResearchNote\",\"revision_id\":\"00000000-0000-4000-8000-000000000002\"}],\"kind\":\"ResearchNote\",\"payload\":{\"value\":null},\"schema_version\":\"1.0\"}",
+      "content_hash": "sha256:artifact-jcs-v1:f5a6920ad3c997cd13813b778a4f3754c908a6e606711a8fae52209c392f4f5f"
+    },
+    {
+      "document": {
+        "kind": "ResearchNote",
+        "schema_version": "1.0",
+        "payload": {},
+        "input_refs": [
+          {
+            "kind": "ResearchNote",
+            "artifact_id": "00000000-0000-4000-8000-000000000001",
+            "revision_id": "00000000-0000-4000-8000-000000000002"
+          }
+        ],
+        "blob_hashes": [
+          {
+            "purpose": "/body",
+            "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ]
+      },
+      "canonical": "{\"blob_hashes\":[{\"hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"purpose\":\"/body\"}],\"input_refs\":[{\"artifact_id\":\"00000000-0000-4000-8000-000000000001\",\"kind\":\"ResearchNote\",\"revision_id\":\"00000000-0000-4000-8000-000000000002\"}],\"kind\":\"ResearchNote\",\"payload\":{},\"schema_version\":\"1.0\"}",
+      "content_hash": "sha256:artifact-jcs-v1:b37386350e6d61b79b32375b28ea3988bb1df4d2836b0793328bf81438313ef7"
+    }
+  ],
+  "selectors": [
+    {
+      "text": "A🛰️е́Z",
+      "start": 1,
+      "end": 5,
+      "exact": "🛰️е́"
+    }
+  ]
+}

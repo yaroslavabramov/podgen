@@ -1,0 +1,279 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "ExpectedUnderstanding": {
+      "additionalProperties": false,
+      "properties": {
+        "question": {
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "answer_criteria": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Answer Criteria",
+          "type": "array"
+        },
+        "acceptable_alternatives": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Acceptable Alternatives",
+          "type": "array"
+        },
+        "basis_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Basis Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "question",
+        "answer_criteria",
+        "acceptable_alternatives",
+        "basis_refs"
+      ],
+      "title": "ExpectedUnderstanding",
+      "type": "object"
+    },
+    "ForbiddenInference": {
+      "additionalProperties": false,
+      "properties": {
+        "statement": {
+          "minLength": 1,
+          "title": "Statement",
+          "type": "string"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "basis_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Basis Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "statement",
+        "reason",
+        "basis_refs"
+      ],
+      "title": "ForbiddenInference",
+      "type": "object"
+    },
+    "KnownUncertainty": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "basis_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Basis Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "description",
+        "basis_refs"
+      ],
+      "title": "KnownUncertainty",
+      "type": "object"
+    },
+    "SourceAssertion": {
+      "additionalProperties": false,
+      "properties": {
+        "annotation_id": {
+          "format": "uuid",
+          "title": "Annotation Id",
+          "type": "string"
+        },
+        "statement": {
+          "minLength": 1,
+          "title": "Statement",
+          "type": "string"
+        },
+        "evidence_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "required_qualifiers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Qualifiers",
+          "type": "array"
+        },
+        "importance": {
+          "enum": [
+            "central",
+            "supporting",
+            "incidental"
+          ],
+          "title": "Importance",
+          "type": "string"
+        }
+      },
+      "required": [
+        "annotation_id",
+        "statement",
+        "evidence_refs",
+        "required_qualifiers",
+        "importance"
+      ],
+      "title": "SourceAssertion",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "episode_spec_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "source_snapshot_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Source Snapshot Refs",
+      "type": "array"
+    },
+    "source_assertions": {
+      "items": {
+        "$ref": "#/$defs/SourceAssertion"
+      },
+      "title": "Source Assertions",
+      "type": "array"
+    },
+    "expected_understanding": {
+      "items": {
+        "$ref": "#/$defs/ExpectedUnderstanding"
+      },
+      "title": "Expected Understanding",
+      "type": "array"
+    },
+    "forbidden_inferences": {
+      "items": {
+        "$ref": "#/$defs/ForbiddenInference"
+      },
+      "title": "Forbidden Inferences",
+      "type": "array"
+    },
+    "known_uncertainties": {
+      "items": {
+        "$ref": "#/$defs/KnownUncertainty"
+      },
+      "title": "Known Uncertainties",
+      "type": "array"
+    },
+    "scoring_policy_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "annotator_assignment_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Annotator Assignment Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "episode_spec_ref",
+    "source_snapshot_refs",
+    "source_assertions",
+    "expected_understanding",
+    "forbidden_inferences",
+    "known_uncertainties",
+    "scoring_policy_ref",
+    "annotator_assignment_ids"
+  ],
+  "title": "EvaluationAnnotation",
+  "type": "object",
+  "$id": "urn:podgen:EvaluationAnnotation:1.0"
+}

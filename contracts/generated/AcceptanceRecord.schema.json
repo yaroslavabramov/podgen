@@ -1,0 +1,392 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "CodeProducer": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "code",
+          "title": "Kind",
+          "type": "string"
+        },
+        "component": {
+          "minLength": 1,
+          "title": "Component",
+          "type": "string"
+        },
+        "build_id": {
+          "minLength": 1,
+          "title": "Build Id",
+          "type": "string"
+        },
+        "operation_id": {
+          "format": "uuid",
+          "title": "Operation Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "component",
+        "build_id",
+        "operation_id"
+      ],
+      "title": "CodeProducer",
+      "type": "object"
+    },
+    "FindingRef": {
+      "additionalProperties": false,
+      "properties": {
+        "report_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "finding_id": {
+          "format": "uuid",
+          "title": "Finding Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "report_ref",
+        "finding_id"
+      ],
+      "title": "FindingRef",
+      "type": "object"
+    },
+    "HumanProducer": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "human_review",
+          "title": "Kind",
+          "type": "string"
+        },
+        "review_session_id": {
+          "format": "uuid",
+          "title": "Review Session Id",
+          "type": "string"
+        },
+        "rater_id": {
+          "format": "uuid",
+          "title": "Rater Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "review_session_id",
+        "rater_id"
+      ],
+      "title": "HumanProducer",
+      "type": "object"
+    },
+    "ModelProducer": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "model",
+          "title": "Kind",
+          "type": "string"
+        },
+        "invocation_id": {
+          "format": "uuid",
+          "title": "Invocation Id",
+          "type": "string"
+        },
+        "profile_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        }
+      },
+      "required": [
+        "kind",
+        "invocation_id",
+        "profile_ref"
+      ],
+      "title": "ModelProducer",
+      "type": "object"
+    },
+    "QualificationCell": {
+      "additionalProperties": false,
+      "properties": {
+        "roles": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Roles",
+          "type": "array"
+        },
+        "language": {
+          "minLength": 1,
+          "title": "Language",
+          "type": "string"
+        },
+        "format": {
+          "enum": [
+            "solo",
+            "dialogue"
+          ],
+          "title": "Format",
+          "type": "string"
+        },
+        "duration_interval": {
+          "$ref": "#/$defs/SecondsRange"
+        },
+        "companion_profile_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Companion Profile Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "roles",
+        "language",
+        "format",
+        "duration_interval",
+        "companion_profile_refs"
+      ],
+      "title": "QualificationCell",
+      "type": "object"
+    },
+    "QualificationScope": {
+      "additionalProperties": false,
+      "properties": {
+        "supported_cells": {
+          "items": {
+            "$ref": "#/$defs/QualificationCell"
+          },
+          "title": "Supported Cells",
+          "type": "array"
+        }
+      },
+      "required": [
+        "supported_cells"
+      ],
+      "title": "QualificationScope",
+      "type": "object"
+    },
+    "SecondsRange": {
+      "additionalProperties": false,
+      "properties": {
+        "min_seconds": {
+          "minimum": 0,
+          "title": "Min Seconds",
+          "type": "integer"
+        },
+        "max_seconds": {
+          "minimum": 0,
+          "title": "Max Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "min_seconds",
+        "max_seconds"
+      ],
+      "title": "SecondsRange",
+      "type": "object"
+    },
+    "UserProducer": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "user",
+          "title": "Kind",
+          "type": "string"
+        },
+        "actor_id": {
+          "format": "uuid",
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "command_id": {
+          "format": "uuid",
+          "title": "Command Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "actor_id",
+        "command_id"
+      ],
+      "title": "UserProducer",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "record_id": {
+      "format": "uuid",
+      "title": "Record Id",
+      "type": "string"
+    },
+    "subject_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "check_kind": {
+      "enum": [
+        "factual",
+        "editorial",
+        "audio",
+        "show_notes",
+        "profile_qualification"
+      ],
+      "title": "Check Kind",
+      "type": "string"
+    },
+    "decision": {
+      "enum": [
+        "accepted",
+        "changes_required",
+        "rejected"
+      ],
+      "title": "Decision",
+      "type": "string"
+    },
+    "policy_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "reviewed_input_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Reviewed Input Refs",
+      "type": "array"
+    },
+    "assessment_scope": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/QualificationScope"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "findings": {
+      "items": {
+        "$ref": "#/$defs/FindingRef"
+      },
+      "title": "Findings",
+      "type": "array"
+    },
+    "reviewer_ref": {
+      "discriminator": {
+        "mapping": {
+          "code": "#/$defs/CodeProducer",
+          "human_review": "#/$defs/HumanProducer",
+          "model": "#/$defs/ModelProducer",
+          "user": "#/$defs/UserProducer"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ModelProducer"
+        },
+        {
+          "$ref": "#/$defs/CodeProducer"
+        },
+        {
+          "$ref": "#/$defs/UserProducer"
+        },
+        {
+          "$ref": "#/$defs/HumanProducer"
+        }
+      ],
+      "title": "Reviewer Ref"
+    },
+    "created_at": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+      "title": "Created At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "record_id",
+    "subject_ref",
+    "check_kind",
+    "decision",
+    "policy_ref",
+    "reviewed_input_refs",
+    "assessment_scope",
+    "findings",
+    "reviewer_ref",
+    "created_at"
+  ],
+  "title": "AcceptanceRecord",
+  "type": "object"
+}

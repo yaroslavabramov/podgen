@@ -1,0 +1,27 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "const": "user",
+      "title": "Kind",
+      "type": "string"
+    },
+    "actor_id": {
+      "format": "uuid",
+      "title": "Actor Id",
+      "type": "string"
+    },
+    "command_id": {
+      "format": "uuid",
+      "title": "Command Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "actor_id",
+    "command_id"
+  ],
+  "title": "UserProducer",
+  "type": "object"
+}

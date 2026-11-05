@@ -1,0 +1,182 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "LexiconEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "entry_id": {
+          "format": "uuid",
+          "title": "Entry Id",
+          "type": "string"
+        },
+        "written_form": {
+          "minLength": 1,
+          "title": "Written Form",
+          "type": "string"
+        },
+        "context_rule": {
+          "title": "Context Rule",
+          "type": "string"
+        },
+        "spoken_form": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Spoken Form"
+        },
+        "phoneme_form": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Phoneme Form"
+        },
+        "phoneme_alphabet": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Phoneme Alphabet"
+        },
+        "basis_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Basis Refs",
+          "type": "array"
+        },
+        "ambiguity_notes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Ambiguity Notes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "entry_id",
+        "written_form",
+        "context_rule",
+        "spoken_form",
+        "phoneme_form",
+        "phoneme_alphabet",
+        "basis_refs",
+        "ambiguity_notes"
+      ],
+      "title": "LexiconEntry",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "language": {
+      "minLength": 1,
+      "title": "Language",
+      "type": "string"
+    },
+    "entries": {
+      "items": {
+        "$ref": "#/$defs/LexiconEntry"
+      },
+      "title": "Entries",
+      "type": "array"
+    },
+    "version_reason": {
+      "minLength": 1,
+      "title": "Version Reason",
+      "type": "string"
+    }
+  },
+  "required": [
+    "language",
+    "entries",
+    "version_reason"
+  ],
+  "title": "PronunciationLexicon",
+  "type": "object",
+  "$id": "urn:podgen:PronunciationLexicon:1.0"
+}

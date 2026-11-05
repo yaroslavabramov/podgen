@@ -1,0 +1,257 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "CandidateMaterial": {
+      "additionalProperties": false,
+      "properties": {
+        "note_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "text_selector": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NoteTextRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "use": {
+          "enum": [
+            "mechanism",
+            "scene",
+            "example",
+            "counterexample",
+            "quote"
+          ],
+          "title": "Use",
+          "type": "string"
+        }
+      },
+      "required": [
+        "note_ref",
+        "text_selector",
+        "use"
+      ],
+      "title": "CandidateMaterial",
+      "type": "object"
+    },
+    "ExcludedTopic": {
+      "additionalProperties": false,
+      "properties": {
+        "topic": {
+          "minLength": 1,
+          "title": "Topic",
+          "type": "string"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "decision_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        }
+      },
+      "required": [
+        "topic",
+        "reason",
+        "decision_ref"
+      ],
+      "title": "ExcludedTopic",
+      "type": "object"
+    },
+    "NoteTextRange": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "const": "answer_markdown",
+          "title": "Field",
+          "type": "string"
+        },
+        "char_start": {
+          "minimum": 0,
+          "title": "Char Start",
+          "type": "integer"
+        },
+        "char_end": {
+          "minimum": 0,
+          "title": "Char End",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "field",
+        "char_start",
+        "char_end"
+      ],
+      "title": "NoteTextRange",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "episode_spec_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "knowledge_as_of": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+      "title": "Knowledge As Of",
+      "type": "string"
+    },
+    "source_policy_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "overview_note_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "timeline_note_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "note_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Note Refs",
+      "type": "array"
+    },
+    "question_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Question Refs",
+      "type": "array"
+    },
+    "uncertainty_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Uncertainty Refs",
+      "type": "array"
+    },
+    "source_revision_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Source Revision Refs",
+      "type": "array"
+    },
+    "evidence_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Evidence Refs",
+      "type": "array"
+    },
+    "candidate_materials": {
+      "items": {
+        "$ref": "#/$defs/CandidateMaterial"
+      },
+      "title": "Candidate Materials",
+      "type": "array"
+    },
+    "excluded_topics": {
+      "items": {
+        "$ref": "#/$defs/ExcludedTopic"
+      },
+      "title": "Excluded Topics",
+      "type": "array"
+    }
+  },
+  "required": [
+    "episode_spec_ref",
+    "knowledge_as_of",
+    "source_policy_ref",
+    "overview_note_ref",
+    "timeline_note_ref",
+    "note_refs",
+    "question_refs",
+    "uncertainty_refs",
+    "source_revision_refs",
+    "evidence_refs",
+    "candidate_materials",
+    "excluded_topics"
+  ],
+  "title": "DossierSnapshot",
+  "type": "object",
+  "$id": "urn:podgen:DossierSnapshot:1.0"
+}

@@ -1,0 +1,184 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "CapabilityCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "capability": {
+          "minLength": 1,
+          "title": "Capability",
+          "type": "string"
+        },
+        "expected": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "observed": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "outcome": {
+          "enum": [
+            "pass",
+            "fail",
+            "inconclusive"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "diagnostic_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Diagnostic Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "capability",
+        "expected",
+        "observed",
+        "outcome",
+        "diagnostic_refs"
+      ],
+      "title": "CapabilityCheck",
+      "type": "object"
+    },
+    "JsonValue": {}
+  },
+  "additionalProperties": false,
+  "properties": {
+    "profile_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "tested_configuration_fingerprint": {
+      "minLength": 1,
+      "title": "Tested Configuration Fingerprint",
+      "type": "string"
+    },
+    "adapter_version": {
+      "minLength": 1,
+      "title": "Adapter Version",
+      "type": "string"
+    },
+    "checks": {
+      "items": {
+        "$ref": "#/$defs/CapabilityCheck"
+      },
+      "title": "Checks",
+      "type": "array"
+    },
+    "observed_limits": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Observed Limits",
+      "type": "object"
+    },
+    "probe_run_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Probe Run Ids",
+      "type": "array"
+    },
+    "probe_invocation_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Probe Invocation Ids",
+      "type": "array"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Limitations",
+      "type": "array"
+    }
+  },
+  "required": [
+    "profile_ref",
+    "tested_configuration_fingerprint",
+    "adapter_version",
+    "checks",
+    "observed_limits",
+    "probe_run_ids",
+    "probe_invocation_ids",
+    "limitations"
+  ],
+  "title": "CapabilityReport",
+  "type": "object",
+  "$id": "urn:podgen:CapabilityReport:1.0"
+}

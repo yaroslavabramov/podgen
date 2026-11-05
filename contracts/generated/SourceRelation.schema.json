@@ -1,0 +1,281 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "CodeProducer": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "code",
+          "title": "Kind",
+          "type": "string"
+        },
+        "component": {
+          "minLength": 1,
+          "title": "Component",
+          "type": "string"
+        },
+        "build_id": {
+          "minLength": 1,
+          "title": "Build Id",
+          "type": "string"
+        },
+        "operation_id": {
+          "format": "uuid",
+          "title": "Operation Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "component",
+        "build_id",
+        "operation_id"
+      ],
+      "title": "CodeProducer",
+      "type": "object"
+    },
+    "HumanProducer": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "human_review",
+          "title": "Kind",
+          "type": "string"
+        },
+        "review_session_id": {
+          "format": "uuid",
+          "title": "Review Session Id",
+          "type": "string"
+        },
+        "rater_id": {
+          "format": "uuid",
+          "title": "Rater Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "review_session_id",
+        "rater_id"
+      ],
+      "title": "HumanProducer",
+      "type": "object"
+    },
+    "ModelProducer": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "model",
+          "title": "Kind",
+          "type": "string"
+        },
+        "invocation_id": {
+          "format": "uuid",
+          "title": "Invocation Id",
+          "type": "string"
+        },
+        "profile_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        }
+      },
+      "required": [
+        "kind",
+        "invocation_id",
+        "profile_ref"
+      ],
+      "title": "ModelProducer",
+      "type": "object"
+    },
+    "UserProducer": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "user",
+          "title": "Kind",
+          "type": "string"
+        },
+        "actor_id": {
+          "format": "uuid",
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "command_id": {
+          "format": "uuid",
+          "title": "Command Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "actor_id",
+        "command_id"
+      ],
+      "title": "UserProducer",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "left_source_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "right_source_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "relation": {
+      "enum": [
+        "identical_content",
+        "mirrors",
+        "translates",
+        "republishes",
+        "cites",
+        "same_underlying_dataset"
+      ],
+      "title": "Relation",
+      "type": "string"
+    },
+    "basis_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Basis Refs",
+      "type": "array"
+    },
+    "method": {
+      "enum": [
+        "exact_hash",
+        "metadata",
+        "semantic_review"
+      ],
+      "title": "Method",
+      "type": "string"
+    },
+    "rationale": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Rationale"
+    },
+    "reviewer_ref": {
+      "anyOf": [
+        {
+          "discriminator": {
+            "mapping": {
+              "code": "#/$defs/CodeProducer",
+              "human_review": "#/$defs/HumanProducer",
+              "model": "#/$defs/ModelProducer",
+              "user": "#/$defs/UserProducer"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ModelProducer"
+            },
+            {
+              "$ref": "#/$defs/CodeProducer"
+            },
+            {
+              "$ref": "#/$defs/UserProducer"
+            },
+            {
+              "$ref": "#/$defs/HumanProducer"
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reviewer Ref"
+    }
+  },
+  "required": [
+    "left_source_ref",
+    "right_source_ref",
+    "relation",
+    "basis_refs",
+    "method"
+  ],
+  "title": "SourceRelation",
+  "type": "object",
+  "$id": "urn:podgen:SourceRelation:1.0"
+}

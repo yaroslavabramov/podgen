@@ -1,0 +1,218 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "RejectedCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "locator": {
+          "minLength": 1,
+          "title": "Locator",
+          "type": "string"
+        },
+        "reason_code": {
+          "minLength": 1,
+          "title": "Reason Code",
+          "type": "string"
+        }
+      },
+      "required": [
+        "locator",
+        "reason_code"
+      ],
+      "title": "RejectedCandidate",
+      "type": "object"
+    },
+    "RuntimeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "record_kind": {
+          "enum": [
+            "search_record",
+            "tool_execution",
+            "context_assembly",
+            "user_input",
+            "acquisition_record",
+            "evaluation_reading"
+          ],
+          "title": "Record Kind",
+          "type": "string"
+        },
+        "record_id": {
+          "format": "uuid",
+          "title": "Record Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "record_kind",
+        "record_id"
+      ],
+      "title": "RuntimeRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "admission_id": {
+      "format": "uuid",
+      "title": "Admission Id",
+      "type": "string"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "task_run_id": {
+      "format": "uuid",
+      "title": "Task Run Id",
+      "type": "string"
+    },
+    "parent_manifest_id": {
+      "format": "uuid",
+      "title": "Parent Manifest Id",
+      "type": "string"
+    },
+    "next_manifest_id": {
+      "format": "uuid",
+      "title": "Next Manifest Id",
+      "type": "string"
+    },
+    "admitted_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Admitted Refs",
+      "type": "array"
+    },
+    "admitted_runtime_refs": {
+      "items": {
+        "$ref": "#/$defs/RuntimeRef"
+      },
+      "title": "Admitted Runtime Refs",
+      "type": "array"
+    },
+    "rejected_candidates": {
+      "items": {
+        "$ref": "#/$defs/RejectedCandidate"
+      },
+      "title": "Rejected Candidates",
+      "type": "array"
+    },
+    "origin": {
+      "enum": [
+        "tool_result",
+        "editor_handoff",
+        "user_input"
+      ],
+      "title": "Origin",
+      "type": "string"
+    },
+    "origin_id": {
+      "format": "uuid",
+      "title": "Origin Id",
+      "type": "string"
+    },
+    "policy_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "scope_decision": {
+      "minLength": 1,
+      "title": "Scope Decision",
+      "type": "string"
+    },
+    "created_at": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+      "title": "Created At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "admission_id",
+    "project_id",
+    "task_run_id",
+    "parent_manifest_id",
+    "next_manifest_id",
+    "admitted_refs",
+    "admitted_runtime_refs",
+    "rejected_candidates",
+    "origin",
+    "origin_id",
+    "policy_ref",
+    "scope_decision",
+    "created_at"
+  ],
+  "title": "InputAdmissionRecord",
+  "type": "object"
+}

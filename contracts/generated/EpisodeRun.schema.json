@@ -1,0 +1,283 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "Failure": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "minLength": 1,
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "retryable": {
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "details_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "retryable",
+        "details_ref"
+      ],
+      "title": "Failure",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "episode_run_id": {
+      "format": "uuid",
+      "title": "Episode Run Id",
+      "type": "string"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "episode_id": {
+      "format": "uuid",
+      "title": "Episode Id",
+      "type": "string"
+    },
+    "episode_spec_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "purpose": {
+      "enum": [
+        "production",
+        "evaluation"
+      ],
+      "title": "Purpose",
+      "type": "string"
+    },
+    "evaluation_case_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "generation_epoch": {
+      "minimum": 0,
+      "title": "Generation Epoch",
+      "type": "integer"
+    },
+    "status": {
+      "enum": [
+        "queued",
+        "running",
+        "waiting",
+        "needs_attention",
+        "cancel_requested",
+        "cancelled",
+        "succeeded",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "phase": {
+      "anyOf": [
+        {
+          "enum": [
+            "orienting",
+            "researching",
+            "planning",
+            "drafting",
+            "editing",
+            "verifying",
+            "producing_audio",
+            "ready"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Phase"
+    },
+    "editorial_state_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "waiting_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Waiting Reason"
+    },
+    "failure": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Failure"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "checkpoint_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Checkpoint Refs",
+      "type": "array"
+    },
+    "result_release_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "created_at": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+      "title": "Created At",
+      "type": "string"
+    },
+    "started_at": {
+      "anyOf": [
+        {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Started At"
+    },
+    "ended_at": {
+      "anyOf": [
+        {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Ended At"
+    }
+  },
+  "required": [
+    "episode_run_id",
+    "project_id",
+    "episode_id",
+    "episode_spec_ref",
+    "purpose",
+    "evaluation_case_ref",
+    "generation_epoch",
+    "status",
+    "phase",
+    "editorial_state_ref",
+    "waiting_reason",
+    "failure",
+    "checkpoint_refs",
+    "result_release_ref",
+    "created_at",
+    "started_at",
+    "ended_at"
+  ],
+  "title": "EpisodeRun",
+  "type": "object"
+}

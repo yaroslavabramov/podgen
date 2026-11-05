@@ -1,0 +1,225 @@
+{
+  "$defs": {
+    "BlobRef": {
+      "additionalProperties": false,
+      "properties": {
+        "storage_key": {
+          "minLength": 1,
+          "title": "Storage Key",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "byte_length": {
+          "minimum": 0,
+          "title": "Byte Length",
+          "type": "integer"
+        },
+        "media_type": {
+          "minLength": 1,
+          "title": "Media Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "storage_key",
+        "sha256",
+        "byte_length",
+        "media_type"
+      ],
+      "title": "BlobRef",
+      "type": "object"
+    },
+    "RuntimeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "record_kind": {
+          "enum": [
+            "search_record",
+            "tool_execution",
+            "context_assembly",
+            "user_input",
+            "acquisition_record",
+            "evaluation_reading"
+          ],
+          "title": "Record Kind",
+          "type": "string"
+        },
+        "record_id": {
+          "format": "uuid",
+          "title": "Record Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "record_kind",
+        "record_id"
+      ],
+      "title": "RuntimeRef",
+      "type": "object"
+    },
+    "StagedUtterance": {
+      "additionalProperties": false,
+      "properties": {
+        "ordinal": {
+          "minimum": 0,
+          "title": "Ordinal",
+          "type": "integer"
+        },
+        "speaker_label": {
+          "minLength": 1,
+          "title": "Speaker Label",
+          "type": "string"
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "char_start": {
+          "minimum": 0,
+          "title": "Char Start",
+          "type": "integer"
+        },
+        "char_end": {
+          "minimum": 0,
+          "title": "Char End",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ordinal",
+        "speaker_label",
+        "text",
+        "char_start",
+        "char_end"
+      ],
+      "title": "StagedUtterance",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract": {
+      "const": "editorial-staging-v1",
+      "title": "Contract",
+      "type": "string"
+    },
+    "source_path": {
+      "minLength": 1,
+      "title": "Source Path",
+      "type": "string"
+    },
+    "material_kind": {
+      "enum": [
+        "author_input",
+        "source_material",
+        "script_draft",
+        "script_final",
+        "evaluator_material",
+        "provenance"
+      ],
+      "title": "Material Kind",
+      "type": "string"
+    },
+    "technical_fixture": {
+      "const": true,
+      "title": "Technical Fixture",
+      "type": "boolean"
+    },
+    "semantic_acceptance": {
+      "const": false,
+      "title": "Semantic Acceptance",
+      "type": "boolean"
+    },
+    "original_blob": {
+      "$ref": "#/$defs/BlobRef"
+    },
+    "full_text": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Full Text"
+    },
+    "staged_spoken_view": {
+      "items": {
+        "$ref": "#/$defs/StagedUtterance"
+      },
+      "title": "Staged Spoken View",
+      "type": "array"
+    },
+    "prior_staged_script_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RuntimeRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "original_author_kind": {
+      "enum": [
+        "model",
+        "external_source",
+        "mixed_package_metadata"
+      ],
+      "title": "Original Author Kind",
+      "type": "string"
+    },
+    "exact_model_id": {
+      "title": "Exact Model Id",
+      "type": "null"
+    },
+    "model_invocation_archive": {
+      "title": "Model Invocation Archive",
+      "type": "null"
+    },
+    "independent_approvals": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Independent Approvals",
+      "type": "array"
+    },
+    "mapping_status": {
+      "const": "unmapped",
+      "title": "Mapping Status",
+      "type": "string"
+    },
+    "remaining_mapping": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Remaining Mapping",
+      "type": "array"
+    }
+  },
+  "required": [
+    "contract",
+    "source_path",
+    "material_kind",
+    "technical_fixture",
+    "semantic_acceptance",
+    "original_blob",
+    "full_text",
+    "staged_spoken_view",
+    "prior_staged_script_ref",
+    "original_author_kind",
+    "exact_model_id",
+    "model_invocation_archive",
+    "independent_approvals",
+    "mapping_status",
+    "remaining_mapping"
+  ],
+  "title": "StagedEditorialFile",
+  "type": "object"
+}

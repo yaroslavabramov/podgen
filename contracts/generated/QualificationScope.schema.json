@@ -1,0 +1,156 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "QualificationCell": {
+      "additionalProperties": false,
+      "properties": {
+        "roles": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Roles",
+          "type": "array"
+        },
+        "language": {
+          "minLength": 1,
+          "title": "Language",
+          "type": "string"
+        },
+        "format": {
+          "enum": [
+            "solo",
+            "dialogue"
+          ],
+          "title": "Format",
+          "type": "string"
+        },
+        "duration_interval": {
+          "$ref": "#/$defs/SecondsRange"
+        },
+        "companion_profile_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Companion Profile Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "roles",
+        "language",
+        "format",
+        "duration_interval",
+        "companion_profile_refs"
+      ],
+      "title": "QualificationCell",
+      "type": "object"
+    },
+    "SecondsRange": {
+      "additionalProperties": false,
+      "properties": {
+        "min_seconds": {
+          "minimum": 0,
+          "title": "Min Seconds",
+          "type": "integer"
+        },
+        "max_seconds": {
+          "minimum": 0,
+          "title": "Max Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "min_seconds",
+        "max_seconds"
+      ],
+      "title": "SecondsRange",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "supported_cells": {
+      "items": {
+        "$ref": "#/$defs/QualificationCell"
+      },
+      "title": "Supported Cells",
+      "type": "array"
+    }
+  },
+  "required": [
+    "supported_cells"
+  ],
+  "title": "QualificationScope",
+  "type": "object"
+}

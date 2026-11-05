@@ -1,0 +1,262 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "InterpretationBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "text_selector": {
+          "$ref": "#/$defs/NoteTextRange"
+        },
+        "basis_markers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Basis Markers",
+          "type": "array"
+        },
+        "kind": {
+          "enum": [
+            "synthesis",
+            "causal_hypothesis",
+            "analogy",
+            "calculation"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "rationale": {
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        }
+      },
+      "required": [
+        "text_selector",
+        "basis_markers",
+        "kind",
+        "rationale",
+        "limitations"
+      ],
+      "title": "InterpretationBinding",
+      "type": "object"
+    },
+    "NoteCitation": {
+      "additionalProperties": false,
+      "properties": {
+        "marker": {
+          "minLength": 1,
+          "title": "Marker",
+          "type": "string"
+        },
+        "evidence_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "relation": {
+          "enum": [
+            "supports",
+            "qualifies",
+            "contradicts"
+          ],
+          "title": "Relation",
+          "type": "string"
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Explanation"
+        }
+      },
+      "required": [
+        "marker",
+        "evidence_refs",
+        "relation",
+        "explanation"
+      ],
+      "title": "NoteCitation",
+      "type": "object"
+    },
+    "NoteTextRange": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "const": "answer_markdown",
+          "title": "Field",
+          "type": "string"
+        },
+        "char_start": {
+          "minimum": 0,
+          "title": "Char Start",
+          "type": "integer"
+        },
+        "char_end": {
+          "minimum": 0,
+          "title": "Char End",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "field",
+        "char_start",
+        "char_end"
+      ],
+      "title": "NoteTextRange",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "question_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Question Refs",
+      "type": "array"
+    },
+    "title": {
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "answer_markdown": {
+      "minLength": 1,
+      "title": "Answer Markdown",
+      "type": "string"
+    },
+    "citations": {
+      "items": {
+        "$ref": "#/$defs/NoteCitation"
+      },
+      "title": "Citations",
+      "type": "array"
+    },
+    "interpretations": {
+      "items": {
+        "$ref": "#/$defs/InterpretationBinding"
+      },
+      "title": "Interpretations",
+      "type": "array"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Limitations",
+      "type": "array"
+    },
+    "uncertainty_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Uncertainty Refs",
+      "type": "array"
+    },
+    "supersedes_note_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Supersedes Note Refs",
+      "type": "array"
+    }
+  },
+  "required": [
+    "question_refs",
+    "title",
+    "answer_markdown",
+    "citations",
+    "interpretations",
+    "limitations",
+    "uncertainty_refs",
+    "supersedes_note_refs"
+  ],
+  "title": "ResearchNote",
+  "type": "object",
+  "$id": "urn:podgen:ResearchNote:1.0"
+}

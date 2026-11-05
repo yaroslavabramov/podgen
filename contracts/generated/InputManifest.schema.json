@@ -1,0 +1,235 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "RuntimeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "record_kind": {
+          "enum": [
+            "search_record",
+            "tool_execution",
+            "context_assembly",
+            "user_input",
+            "acquisition_record",
+            "evaluation_reading"
+          ],
+          "title": "Record Kind",
+          "type": "string"
+        },
+        "record_id": {
+          "format": "uuid",
+          "title": "Record Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "record_kind",
+        "record_id"
+      ],
+      "title": "RuntimeRef",
+      "type": "object"
+    },
+    "SourceScope": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": [
+            "open_web",
+            "supplied_only"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "source_policy_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "authorized_input_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Authorized Input Ids",
+          "type": "array"
+        },
+        "authorized_source_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Authorized Source Refs",
+          "type": "array"
+        },
+        "network_rule_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Network Rule Id"
+        },
+        "external_processing_rule_id": {
+          "minLength": 1,
+          "title": "External Processing Rule Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "mode",
+        "source_policy_ref",
+        "authorized_input_ids",
+        "authorized_source_refs",
+        "network_rule_id",
+        "external_processing_rule_id"
+      ],
+      "title": "SourceScope",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "manifest_id": {
+      "format": "uuid",
+      "title": "Manifest Id",
+      "type": "string"
+    },
+    "parent_manifest_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Parent Manifest Id"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "task_id": {
+      "format": "uuid",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "revision_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Revision Refs",
+      "type": "array"
+    },
+    "runtime_refs": {
+      "items": {
+        "$ref": "#/$defs/RuntimeRef"
+      },
+      "title": "Runtime Refs",
+      "type": "array"
+    },
+    "source_scope": {
+      "$ref": "#/$defs/SourceScope"
+    },
+    "policy_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "prompt_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "toolset_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "model_profile_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    }
+  },
+  "required": [
+    "manifest_id",
+    "parent_manifest_id",
+    "project_id",
+    "task_id",
+    "revision_refs",
+    "runtime_refs",
+    "source_scope",
+    "policy_ref",
+    "prompt_ref",
+    "toolset_ref",
+    "model_profile_ref"
+  ],
+  "title": "InputManifest",
+  "type": "object"
+}

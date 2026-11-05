@@ -1,0 +1,482 @@
+{
+  "$defs": {
+    "ActPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "plan_act_id": {
+          "format": "uuid",
+          "title": "Plan Act Id",
+          "type": "string"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "listener_question": {
+          "minLength": 1,
+          "title": "Listener Question",
+          "type": "string"
+        },
+        "intended_change_in_understanding": {
+          "minLength": 1,
+          "title": "Intended Change In Understanding",
+          "type": "string"
+        },
+        "prerequisite_concepts": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Prerequisite Concepts",
+          "type": "array"
+        },
+        "material_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Material Refs",
+          "type": "array"
+        },
+        "limitations_to_voice": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations To Voice",
+          "type": "array"
+        },
+        "transitions": {
+          "$ref": "#/$defs/Transitions"
+        },
+        "promises_opened": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Promises Opened",
+          "type": "array"
+        },
+        "promises_addressed": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Promises Addressed",
+          "type": "array"
+        },
+        "estimated_seconds_range": {
+          "$ref": "#/$defs/SecondsRange"
+        },
+        "priority": {
+          "enum": [
+            "essential",
+            "optional"
+          ],
+          "title": "Priority",
+          "type": "string"
+        }
+      },
+      "required": [
+        "plan_act_id",
+        "title",
+        "listener_question",
+        "intended_change_in_understanding",
+        "prerequisite_concepts",
+        "material_refs",
+        "limitations_to_voice",
+        "transitions",
+        "promises_opened",
+        "promises_addressed",
+        "estimated_seconds_range",
+        "priority"
+      ],
+      "title": "ActPlan",
+      "type": "object"
+    },
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "DurationStrategy": {
+      "additionalProperties": false,
+      "properties": {
+        "estimated_seconds_range": {
+          "$ref": "#/$defs/SecondsRange"
+        },
+        "assumptions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Assumptions",
+          "type": "array"
+        },
+        "optional_material": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Optional Material",
+          "type": "array"
+        }
+      },
+      "required": [
+        "estimated_seconds_range",
+        "assumptions",
+        "optional_material"
+      ],
+      "title": "DurationStrategy",
+      "type": "object"
+    },
+    "Ending": {
+      "additionalProperties": false,
+      "properties": {
+        "answer_to_deliver": {
+          "minLength": 1,
+          "title": "Answer To Deliver",
+          "type": "string"
+        },
+        "qualifications": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Qualifications",
+          "type": "array"
+        },
+        "promises_to_close": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Promises To Close",
+          "type": "array"
+        }
+      },
+      "required": [
+        "answer_to_deliver",
+        "qualifications",
+        "promises_to_close"
+      ],
+      "title": "Ending",
+      "type": "object"
+    },
+    "HostFunction": {
+      "additionalProperties": false,
+      "properties": {
+        "speaker_id": {
+          "format": "uuid",
+          "title": "Speaker Id",
+          "type": "string"
+        },
+        "contribution": {
+          "minLength": 1,
+          "title": "Contribution",
+          "type": "string"
+        },
+        "interaction_guidance": {
+          "minLength": 1,
+          "title": "Interaction Guidance",
+          "type": "string"
+        },
+        "speech_register": {
+          "minLength": 1,
+          "title": "Speech Register",
+          "type": "string"
+        }
+      },
+      "required": [
+        "speaker_id",
+        "contribution",
+        "interaction_guidance",
+        "speech_register"
+      ],
+      "title": "HostFunction",
+      "type": "object"
+    },
+    "Opening": {
+      "additionalProperties": false,
+      "properties": {
+        "approach": {
+          "minLength": 1,
+          "title": "Approach",
+          "type": "string"
+        },
+        "material_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Material Refs",
+          "type": "array"
+        },
+        "question_to_open": {
+          "minLength": 1,
+          "title": "Question To Open",
+          "type": "string"
+        }
+      },
+      "required": [
+        "approach",
+        "material_refs",
+        "question_to_open"
+      ],
+      "title": "Opening",
+      "type": "object"
+    },
+    "SecondsRange": {
+      "additionalProperties": false,
+      "properties": {
+        "min_seconds": {
+          "minimum": 0,
+          "title": "Min Seconds",
+          "type": "integer"
+        },
+        "max_seconds": {
+          "minimum": 0,
+          "title": "Max Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "min_seconds",
+        "max_seconds"
+      ],
+      "title": "SecondsRange",
+      "type": "object"
+    },
+    "StoryOption": {
+      "additionalProperties": false,
+      "properties": {
+        "option_id": {
+          "format": "uuid",
+          "title": "Option Id",
+          "type": "string"
+        },
+        "angle": {
+          "minLength": 1,
+          "title": "Angle",
+          "type": "string"
+        },
+        "route_summary": {
+          "minLength": 1,
+          "title": "Route Summary",
+          "type": "string"
+        },
+        "strongest_material_refs": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "title": "Strongest Material Refs",
+          "type": "array"
+        },
+        "listener_benefit": {
+          "minLength": 1,
+          "title": "Listener Benefit",
+          "type": "string"
+        },
+        "weakness": {
+          "title": "Weakness",
+          "type": "string"
+        },
+        "research_needed": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Research Needed",
+          "type": "array"
+        },
+        "selection_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Selection Reason"
+        }
+      },
+      "required": [
+        "option_id",
+        "angle",
+        "route_summary",
+        "strongest_material_refs",
+        "listener_benefit",
+        "weakness",
+        "research_needed",
+        "selection_reason"
+      ],
+      "title": "StoryOption",
+      "type": "object"
+    },
+    "Transitions": {
+      "additionalProperties": false,
+      "properties": {
+        "from_previous": {
+          "title": "From Previous",
+          "type": "string"
+        },
+        "toward_next": {
+          "title": "Toward Next",
+          "type": "string"
+        }
+      },
+      "required": [
+        "from_previous",
+        "toward_next"
+      ],
+      "title": "Transitions",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "episode_spec_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "dossier_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "editorial_decision_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "main_question": {
+      "minLength": 1,
+      "title": "Main Question",
+      "type": "string"
+    },
+    "listener_promise": {
+      "minLength": 1,
+      "title": "Listener Promise",
+      "type": "string"
+    },
+    "working_answer": {
+      "minLength": 1,
+      "title": "Working Answer",
+      "type": "string"
+    },
+    "selected_option_id": {
+      "format": "uuid",
+      "title": "Selected Option Id",
+      "type": "string"
+    },
+    "considered_options": {
+      "items": {
+        "$ref": "#/$defs/StoryOption"
+      },
+      "title": "Considered Options",
+      "type": "array"
+    },
+    "opening": {
+      "$ref": "#/$defs/Opening"
+    },
+    "acts": {
+      "items": {
+        "$ref": "#/$defs/ActPlan"
+      },
+      "title": "Acts",
+      "type": "array"
+    },
+    "ending": {
+      "$ref": "#/$defs/Ending"
+    },
+    "host_functions": {
+      "items": {
+        "$ref": "#/$defs/HostFunction"
+      },
+      "title": "Host Functions",
+      "type": "array"
+    },
+    "duration_strategy": {
+      "$ref": "#/$defs/DurationStrategy"
+    },
+    "unresolved_research_request_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Unresolved Research Request Refs",
+      "type": "array"
+    }
+  },
+  "required": [
+    "episode_spec_ref",
+    "dossier_ref",
+    "editorial_decision_ref",
+    "main_question",
+    "listener_promise",
+    "working_answer",
+    "selected_option_id",
+    "considered_options",
+    "opening",
+    "acts",
+    "ending",
+    "host_functions",
+    "duration_strategy",
+    "unresolved_research_request_refs"
+  ],
+  "title": "StoryPlan",
+  "type": "object",
+  "$id": "urn:podgen:StoryPlan:1.0"
+}

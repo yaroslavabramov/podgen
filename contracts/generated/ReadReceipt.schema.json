@@ -1,0 +1,220 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "JsonValue": {}
+  },
+  "additionalProperties": false,
+  "properties": {
+    "receipt_id": {
+      "format": "uuid",
+      "title": "Receipt Id",
+      "type": "string"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "task_run_id": {
+      "format": "uuid",
+      "title": "Task Run Id",
+      "type": "string"
+    },
+    "invocation_id": {
+      "format": "uuid",
+      "title": "Invocation Id",
+      "type": "string"
+    },
+    "tool_call_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Tool Call Id"
+    },
+    "manifest_id": {
+      "format": "uuid",
+      "title": "Manifest Id",
+      "type": "string"
+    },
+    "artifact_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "representation_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "preview_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "derived_from_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "requested_selector": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Requested Selector",
+      "type": "object"
+    },
+    "returned_selectors": {
+      "items": {
+        "additionalProperties": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "type": "object"
+      },
+      "title": "Returned Selectors",
+      "type": "array"
+    },
+    "display_kind": {
+      "enum": [
+        "preview",
+        "exact_text",
+        "rendered_page",
+        "audio"
+      ],
+      "title": "Display Kind",
+      "type": "string"
+    },
+    "returned_content_hash": {
+      "minLength": 1,
+      "title": "Returned Content Hash",
+      "type": "string"
+    },
+    "has_more": {
+      "title": "Has More",
+      "type": "boolean"
+    },
+    "continuation": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Continuation"
+    }
+  },
+  "required": [
+    "receipt_id",
+    "project_id",
+    "task_run_id",
+    "invocation_id",
+    "tool_call_id",
+    "manifest_id",
+    "artifact_ref",
+    "representation_ref",
+    "preview_ref",
+    "derived_from_ref",
+    "requested_selector",
+    "returned_selectors",
+    "display_kind",
+    "returned_content_hash",
+    "has_more",
+    "continuation"
+  ],
+  "title": "ReadReceipt",
+  "type": "object"
+}

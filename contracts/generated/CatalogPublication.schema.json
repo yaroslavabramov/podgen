@@ -1,0 +1,189 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "BlobRef": {
+      "additionalProperties": false,
+      "properties": {
+        "storage_key": {
+          "minLength": 1,
+          "title": "Storage Key",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "byte_length": {
+          "minimum": 0,
+          "title": "Byte Length",
+          "type": "integer"
+        },
+        "media_type": {
+          "minLength": 1,
+          "title": "Media Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "storage_key",
+        "sha256",
+        "byte_length",
+        "media_type"
+      ],
+      "title": "BlobRef",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "PublishedAsset": {
+      "additionalProperties": false,
+      "properties": {
+        "blob_ref": {
+          "$ref": "#/$defs/BlobRef"
+        },
+        "media_metadata": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Media Metadata",
+          "type": "object"
+        },
+        "allowed_roles": {
+          "items": {
+            "enum": [
+              "director",
+              "evaluator"
+            ],
+            "type": "string"
+          },
+          "title": "Allowed Roles",
+          "type": "array"
+        }
+      },
+      "required": [
+        "blob_ref",
+        "media_metadata",
+        "allowed_roles"
+      ],
+      "title": "PublishedAsset",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "publication_id": {
+      "format": "uuid",
+      "title": "Publication Id",
+      "type": "string"
+    },
+    "config_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "published_assets": {
+      "items": {
+        "$ref": "#/$defs/PublishedAsset"
+      },
+      "title": "Published Assets",
+      "type": "array"
+    },
+    "allowed_consumer_project_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Allowed Consumer Project Ids",
+      "type": "array"
+    },
+    "publisher_id": {
+      "format": "uuid",
+      "title": "Publisher Id",
+      "type": "string"
+    },
+    "created_at": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+      "title": "Created At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "publication_id",
+    "config_ref",
+    "published_assets",
+    "allowed_consumer_project_ids",
+    "publisher_id",
+    "created_at"
+  ],
+  "title": "CatalogPublication",
+  "type": "object"
+}

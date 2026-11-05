@@ -1,0 +1,53 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "act_id": {
+      "format": "uuid",
+      "title": "Act Id",
+      "type": "string"
+    },
+    "block_id": {
+      "format": "uuid",
+      "title": "Block Id",
+      "type": "string"
+    },
+    "item_id": {
+      "format": "uuid",
+      "title": "Item Id",
+      "type": "string"
+    },
+    "char_start": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Char Start"
+    },
+    "char_end": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Char End"
+    }
+  },
+  "required": [
+    "act_id",
+    "block_id",
+    "item_id",
+    "char_start",
+    "char_end"
+  ],
+  "title": "LocalScriptSelector",
+  "type": "object"
+}

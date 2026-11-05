@@ -1,0 +1,444 @@
+{
+  "$defs": {
+    "Applicability": {
+      "additionalProperties": false,
+      "properties": {
+        "valid_from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid From"
+        },
+        "valid_until": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid Until"
+        },
+        "geographic_scope": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Geographic Scope"
+        }
+      },
+      "title": "Applicability",
+      "type": "object"
+    },
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "BlobRef": {
+      "additionalProperties": false,
+      "properties": {
+        "storage_key": {
+          "minLength": 1,
+          "title": "Storage Key",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "byte_length": {
+          "minimum": 0,
+          "title": "Byte Length",
+          "type": "integer"
+        },
+        "media_type": {
+          "minLength": 1,
+          "title": "Media Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "storage_key",
+        "sha256",
+        "byte_length",
+        "media_type"
+      ],
+      "title": "BlobRef",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "ResponseMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "title": "Status",
+          "type": "integer"
+        },
+        "content_type": {
+          "minLength": 1,
+          "title": "Content Type",
+          "type": "string"
+        },
+        "etag": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Etag"
+        },
+        "last_modified": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Modified"
+        }
+      },
+      "required": [
+        "status",
+        "content_type"
+      ],
+      "title": "ResponseMetadata",
+      "type": "object"
+    },
+    "RuntimeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "record_kind": {
+          "enum": [
+            "search_record",
+            "tool_execution",
+            "context_assembly",
+            "user_input",
+            "acquisition_record",
+            "evaluation_reading"
+          ],
+          "title": "Record Kind",
+          "type": "string"
+        },
+        "record_id": {
+          "format": "uuid",
+          "title": "Record Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "record_kind",
+        "record_id"
+      ],
+      "title": "RuntimeRef",
+      "type": "object"
+    },
+    "SourceDate": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        },
+        "precision": {
+          "enum": [
+            "day",
+            "month",
+            "year",
+            "timestamp",
+            "unknown"
+          ],
+          "title": "Precision",
+          "type": "string"
+        },
+        "basis": {
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value",
+        "precision",
+        "basis"
+      ],
+      "title": "SourceDate",
+      "type": "object"
+    },
+    "SourceRights": {
+      "additionalProperties": false,
+      "properties": {
+        "access_class": {
+          "minLength": 1,
+          "title": "Access Class",
+          "type": "string"
+        },
+        "storage_policy_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "publication_policy_ref": {
+          "$ref": "#/$defs/ArtifactRef"
+        }
+      },
+      "required": [
+        "access_class",
+        "storage_policy_ref",
+        "publication_policy_ref"
+      ],
+      "title": "SourceRights",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "source_id": {
+      "format": "uuid",
+      "title": "Source Id",
+      "type": "string"
+    },
+    "original_blob": {
+      "$ref": "#/$defs/BlobRef"
+    },
+    "requested_uri": {
+      "minLength": 1,
+      "title": "Requested Uri",
+      "type": "string"
+    },
+    "resolved_uri": {
+      "minLength": 1,
+      "title": "Resolved Uri",
+      "type": "string"
+    },
+    "redirect_chain": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Redirect Chain",
+      "type": "array"
+    },
+    "acquired_at": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+      "title": "Acquired At",
+      "type": "string"
+    },
+    "response_metadata": {
+      "$ref": "#/$defs/ResponseMetadata"
+    },
+    "title": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Title"
+    },
+    "creators": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Creators",
+      "type": "array"
+    },
+    "publisher": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Publisher"
+    },
+    "language": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Language"
+    },
+    "published_at": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SourceDate"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "modified_at": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SourceDate"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "applicability": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Applicability"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "acquisition_kind": {
+      "enum": [
+        "http",
+        "browser_snapshot",
+        "upload",
+        "connector"
+      ],
+      "title": "Acquisition Kind",
+      "type": "string"
+    },
+    "acquisition_record_ref": {
+      "$ref": "#/$defs/RuntimeRef"
+    },
+    "rights": {
+      "$ref": "#/$defs/SourceRights"
+    },
+    "source_metadata_evidence": {
+      "items": {
+        "additionalProperties": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "type": "object"
+      },
+      "title": "Source Metadata Evidence",
+      "type": "array"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Limitations",
+      "type": "array"
+    }
+  },
+  "required": [
+    "source_id",
+    "original_blob",
+    "requested_uri",
+    "resolved_uri",
+    "redirect_chain",
+    "acquired_at",
+    "response_metadata",
+    "creators",
+    "acquisition_kind",
+    "acquisition_record_ref",
+    "rights",
+    "source_metadata_evidence",
+    "limitations"
+  ],
+  "title": "SourceRevision",
+  "type": "object",
+  "$id": "urn:podgen:SourceRevision:1.0"
+}

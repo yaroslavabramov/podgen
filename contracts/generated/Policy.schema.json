@@ -1,0 +1,34 @@
+{
+  "$defs": {
+    "JsonValue": {}
+  },
+  "additionalProperties": false,
+  "properties": {
+    "policy_kind": {
+      "enum": [
+        "source",
+        "quality",
+        "audio",
+        "data",
+        "operations",
+        "evaluation"
+      ],
+      "title": "Policy Kind",
+      "type": "string"
+    },
+    "rules": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Rules",
+      "type": "object"
+    }
+  },
+  "required": [
+    "policy_kind",
+    "rules"
+  ],
+  "title": "Policy",
+  "type": "object",
+  "$id": "urn:podgen:Policy:1.0"
+}

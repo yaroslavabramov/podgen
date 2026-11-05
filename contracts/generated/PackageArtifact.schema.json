@@ -1,0 +1,106 @@
+{
+  "$defs": {
+    "JsonValue": {}
+  },
+  "additionalProperties": false,
+  "properties": {
+    "key": {
+      "minLength": 1,
+      "title": "Key",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "EpisodeSpec",
+        "PolicyBundle",
+        "Policy",
+        "PromptDefinition",
+        "ToolsetDefinition",
+        "ModelProfile",
+        "CapabilityReport",
+        "ProcessingProfile",
+        "SourceRevision",
+        "SourceRepresentation",
+        "EvidenceSpan",
+        "SourceRelation",
+        "SourceFamilyAssessment",
+        "DerivedPreview",
+        "ResearchNote",
+        "QuestionRecord",
+        "UncertaintyRecord",
+        "DossierSnapshot",
+        "EditorialState",
+        "EditorialDecision",
+        "ResearchRequest",
+        "StoryPlan",
+        "ScriptRevision",
+        "ScriptChangeSet",
+        "ListenerState",
+        "ClaimSet",
+        "VerificationReport",
+        "EditorialReview",
+        "CalculationRecord",
+        "ShowNotes",
+        "ShowNotesReview",
+        "VoiceProfile",
+        "PronunciationLexicon",
+        "PerformancePlan",
+        "AudioSegment",
+        "AudioMaster",
+        "Transcript",
+        "AudioQAReport",
+        "ReleaseManifest",
+        "EvaluationCase",
+        "EvaluationResult",
+        "EvaluationAnnotation",
+        "HumanAssessment",
+        "DiagnosticArtifact"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "payload": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Payload",
+      "type": "object"
+    },
+    "input_keys": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Input Keys",
+      "type": "array"
+    },
+    "audience": {
+      "enum": [
+        "project",
+        "evaluator"
+      ],
+      "title": "Audience",
+      "type": "string"
+    },
+    "identity_of": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Identity Of"
+    }
+  },
+  "required": [
+    "key",
+    "kind",
+    "payload",
+    "input_keys",
+    "audience",
+    "identity_of"
+  ],
+  "title": "PackageArtifact",
+  "type": "object"
+}

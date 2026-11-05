@@ -1,0 +1,150 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "EpisodeSpec",
+            "PolicyBundle",
+            "Policy",
+            "PromptDefinition",
+            "ToolsetDefinition",
+            "ModelProfile",
+            "CapabilityReport",
+            "ProcessingProfile",
+            "SourceRevision",
+            "SourceRepresentation",
+            "EvidenceSpan",
+            "SourceRelation",
+            "SourceFamilyAssessment",
+            "DerivedPreview",
+            "ResearchNote",
+            "QuestionRecord",
+            "UncertaintyRecord",
+            "DossierSnapshot",
+            "EditorialState",
+            "EditorialDecision",
+            "ResearchRequest",
+            "StoryPlan",
+            "ScriptRevision",
+            "ScriptChangeSet",
+            "ListenerState",
+            "ClaimSet",
+            "VerificationReport",
+            "EditorialReview",
+            "CalculationRecord",
+            "ShowNotes",
+            "ShowNotesReview",
+            "VoiceProfile",
+            "PronunciationLexicon",
+            "PerformancePlan",
+            "AudioSegment",
+            "AudioMaster",
+            "Transcript",
+            "AudioQAReport",
+            "ReleaseManifest",
+            "EvaluationCase",
+            "EvaluationResult",
+            "EvaluationAnnotation",
+            "HumanAssessment",
+            "DiagnosticArtifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision_id",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "task_id": {
+      "format": "uuid",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "attempt": {
+      "exclusiveMinimum": 0,
+      "title": "Attempt",
+      "type": "integer"
+    },
+    "episode_run_id": {
+      "format": "uuid",
+      "title": "Episode Run Id",
+      "type": "string"
+    },
+    "purpose": {
+      "enum": [
+        "production",
+        "evaluation"
+      ],
+      "title": "Purpose",
+      "type": "string"
+    },
+    "generation_epoch": {
+      "minimum": 0,
+      "title": "Generation Epoch",
+      "type": "integer"
+    },
+    "current_manifest_id": {
+      "format": "uuid",
+      "title": "Current Manifest Id",
+      "type": "string"
+    },
+    "checkpoints": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Checkpoints",
+      "type": "array"
+    },
+    "status": {
+      "enum": [
+        "queued",
+        "running",
+        "waiting",
+        "cancel_requested",
+        "cancelled",
+        "succeeded",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "task_id",
+    "attempt",
+    "episode_run_id",
+    "purpose",
+    "generation_epoch",
+    "current_manifest_id",
+    "checkpoints",
+    "status"
+  ],
+  "title": "TaskRun",
+  "type": "object"
+}
