@@ -85,6 +85,16 @@ def execute(args, repo, wire_ref):
             )
         result = ref.model_dump(mode="json")
     else:
+        from podgen.runtime.evaluation.preview_inputs import validate_preview_inputs
+
+        validate_preview_inputs(
+            args.stage,
+            fixed=args.fixed_ref is not None,
+            inputs={
+                name: getattr(args, name)
+                for name in ("candidate", "plan_review", "approved_plan", "draft", "feedback")
+            },
+        )
         generation = generation_repo(repo)
         materials = load_editorial_materials(
             generation,

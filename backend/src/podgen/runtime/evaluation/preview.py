@@ -16,6 +16,10 @@ from .workflow import prompt_stage
 
 
 def preview_request(run_id, stage, profile, materials, **inputs):
+    from .preview_inputs import validate_preview_inputs, validate_preview_snapshots
+
+    validate_preview_inputs(stage, fixed=materials.fixed is not None, inputs=inputs)
+    validate_preview_snapshots(stage, materials, inputs)
     if stage not in ("anchor-repair", "plan-target-repair"):
         prompt = load_instruction_set(materials.format, include_planning=True)[prompt_stage(stage)]
         return compile_role_request(

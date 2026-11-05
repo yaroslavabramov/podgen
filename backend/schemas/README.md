@@ -38,6 +38,7 @@ preview --shared-ref @shared-ref.json --fixed-ref @fixed-ref.json --case ASSIGNM
 Для `plan-review` нужен `--candidate`; для `plan-revise` также `--plan-review`.
 Поддерживаются отдельные `anchor-repair` (`--draft`, `--feedback`) и `plan-target-repair` (`--candidate`, `--plan-review`).
 Это чистые объекты контрактов, без архивных обёрток `output`.
+Для каждой стадии обязательны ровно её входы: planning не принимает `--fixed-ref`; writer/review/revise требуют ровно один источник плана (`--fixed-ref` либо `--approved-plan`). Лишние/отсутствующие входы отклоняются до чтения источников. Preview правки после `keep` также отклоняется: такой модельный вызов runner не создаёт.
 Preview сохраняет полный wire и размеры instructions/input/schema; при превышении лимита файл остаётся доступен, команда возвращает validation error.
 
 Новые границы: 128 КиБ суммарного JSON представления instructions/input/schema до создания клиента;

@@ -89,6 +89,7 @@ def test_role_views_preserve_meaning_and_keep_backend_private(repo, editorial):
     assert "working_answer" not in wire and "route_summary" not in wire and "main_question" not in wire
     draft = {"utterances": [{"speaker": "ВЕДУЩИЙ", "text": "Весь сценарий без усечения."}]}
     feedback = dict(
+        reading_mode="informed",
         recommendation="keep",
         listener_answer="Ответ",
         important_limits=[],
@@ -590,9 +591,13 @@ def test_real_editorial_packets_bind_every_exact_source_and_fit(repo, scope, cas
     )
     parsed_profile = load_profile(generation, project, profile.ref, "draft")
     draft = dict(
-        utterances=[dict(speaker=materials.speaker_labels[0], text="Полный текст для структурной проверки.")]
+        utterances=[
+            dict(speaker=speaker, text="Полный текст для структурной проверки.")
+            for speaker in materials.speaker_labels
+        ]
     )
     feedback = dict(
+        reading_mode="informed",
         recommendation="keep",
         listener_answer="Ответ",
         important_limits=[],
@@ -602,7 +607,25 @@ def test_real_editorial_packets_bind_every_exact_source_and_fit(repo, scope, cas
         duration_note="Не измерена",
     )
     for stage in ("draft", "review", "revise"):
-        body = preview_request(uuid4(), stage, parsed_profile, materials, draft=draft, feedback=feedback)
+        values = {}
+        if stage in ("review", "revise"):
+            values["draft"] = draft
+        if stage == "revise":
+            values["feedback"] = dict(
+                feedback,
+                recommendation="revise",
+                findings=[
+                    dict(
+                        dimension="oral_style",
+                        priority="important",
+                        anchors=[dict(utterance_index=0, quote=draft["utterances"][0]["text"])],
+                        observation="Уточнить переход.",
+                        requested_change="Прояснить связь.",
+                        preserve=[],
+                    )
+                ],
+            )
+        body = preview_request(uuid4(), stage, parsed_profile, materials, **values)
         check_visible(body, "editorial-role-packets/1")
         assert visible_sizes(body)["total"] < 128 * 1024
     plan = preview_request(uuid4(), "plan", parsed_profile, own)
@@ -691,3 +714,89 @@ def test_default_cli_preview_and_keep_run_need_no_real_provider(repo, editorial,
         event["event_kind"] == "role_input_measurement"
         for event in journal.events(journal.invocation(run_id, "draft"))
     )
+
+
+@pytest.mark.parametrize(
+    "stage,options",
+    [
+        ("plan", dict(fixed_ref="unread-fixed")),
+        ("plan-review", {}),
+        ("plan-revise", dict(candidate=Path("/unread-candidate.json"))),
+        ("draft", dict(fixed_ref="unread-fixed", approved_plan=Path("/unread-plan.json"))),
+        ("draft", {}),
+        ("review", dict(fixed_ref="unread-fixed")),
+        (
+            "anchor-repair",
+            dict(
+                fixed_ref="unread-fixed",
+                draft=Path("/unread-draft.json"),
+                feedback=Path("/unread-review.json"),
+            ),
+        ),
+        (
+            "plan-target-repair",
+            dict(
+                fixed_ref="unread-fixed",
+                candidate=Path("/unread-candidate.json"),
+                plan_review=Path("/unread-review.json"),
+            ),
+        ),
+    ],
+)
+def test_impossible_preview_combinations_fail_before_source_loading(monkeypatch, stage, options):
+    from types import SimpleNamespace
+
+    from podgen import editorial_cli
+
+    args = SimpleNamespace(
+        command="preview",
+        stage=stage,
+        **(
+            dict(
+                fixed_ref=None,
+                candidate=None,
+                plan_review=None,
+                approved_plan=None,
+                draft=None,
+                feedback=None,
+            )
+            | options
+        ),
+    )
+    monkeypatch.setattr(
+        editorial_cli,
+        "generation_repo",
+        lambda _: pytest.fail("preview opened repository before input validation"),
+    )
+    with pytest.raises(ContractError, match="preview_"):
+        editorial_cli.execute(args, None, lambda *args: pytest.fail("preview opened a reference"))
+
+
+def test_keep_cannot_be_previewed_as_a_paid_revision(repo, editorial, monkeypatch):
+    from podgen.runtime.evaluation import preview
+    from podgen.runtime.evaluation.profiles import load_profile
+
+    project, data, _, shared, fixed, _ = editorial
+    materials = load_editorial_materials(
+        generation_repo(repo), project, shared, case_id=data["assignment"]["key"], fixed_ref=fixed
+    )
+    profile = create_profile(repo, project, model="local-double", context_limit=1050000, output_limit=32768)
+    parsed = load_profile(generation_repo(repo), project, profile.ref, "revise")
+    feedback = dict(
+        reading_mode="informed",
+        recommendation="keep",
+        listener_answer="Ответ",
+        important_limits=[],
+        strengths=[],
+        findings=[],
+        research_requests=[],
+        duration_note="Не измерена",
+    )
+    draft = dict(utterances=[dict(speaker="ВЕДУЩИЙ", text="Точный полный текст.")])
+    monkeypatch.setattr(
+        preview,
+        "load_instruction_set",
+        lambda *args, **kwargs: pytest.fail("impossible revision reached compiler"),
+    )
+    with pytest.raises(ContractError, match="preview_revision_not_required"):
+        preview.preview_request(uuid4(), "revise", parsed, materials, draft=draft, feedback=feedback)
