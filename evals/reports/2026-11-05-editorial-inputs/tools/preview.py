@@ -1,15 +1,12 @@
 """Admit originals and exercise the ordinary offline CLI. Never invokes run/count/provider."""
 import argparse
 import json
-import os
 from pathlib import Path
 import subprocess
-import sys
 from uuid import uuid4
 
-from dotenv import load_dotenv
+from preview_runtime import PreviewState, ROOT, cli_base, offline_environment
 
-ROOT = Path(__file__).resolve().parents[4]
 SOURCE = ROOT / 'evals/cases/development/wp02-batch-01'
 
 
@@ -19,14 +16,15 @@ def save(path, value):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--case', required=True)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--approved-plan', type=Path, help='Conditional own-plan fixture or actual accepted output')
     args = parser.parse_args()
-    load_dotenv(ROOT / '.env')
-    if not os.environ.get('PODGEN_DATABASE_URL'):
-        parser.error('Set PODGEN_DATABASE_URL to the migrated local evaluation database.')
+    try:
+        environment = offline_environment()
+    except ValueError as error:
+        parser.error(str(error))
     from podgen.persistence.database import Database, query
     from podgen.persistence.objects import FileObjectStore
     from podgen.persistence.repository import Repository
@@ -34,14 +32,14 @@ def main():
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     project, actor, run = uuid4(), uuid4(), uuid4()
-    repo = Repository(Database(os.environ['PODGEN_DATABASE_URL']), FileObjectStore(out / 'objects'), actor, purpose='evaluation')
+    repo = Repository(Database(environment['PODGEN_DATABASE_URL']), FileObjectStore(out / 'objects'), actor, purpose='evaluation')
     with repo.database.transaction() as tx:
         query(tx, "INSERT INTO projects(project_id,namespace_kind) VALUES(:p,'tenant')", p=project)
         query(tx, "INSERT INTO project_members VALUES(:p,:a,'owner')", p=project, a=actor)
-    base = [sys.executable, '-m', 'podgen.writing_cli', '--project', str(project), '--actor', str(actor), '--objects', str(out / 'objects')]
+    base = cli_base(str(project), str(actor), str(out / 'objects'))
 
     def cli(*values):
-        result = subprocess.run([*base, *map(str, values)], cwd=ROOT, text=True, capture_output=True)
+        result = subprocess.run([*base, *map(str, values)], cwd=ROOT, env=environment, text=True, capture_output=True)
         if result.returncode:
             raise RuntimeError(result.stderr or result.stdout)
         return json.loads(result.stdout)
@@ -67,7 +65,10 @@ def main():
         body = result['request']
         save(out / f'{stage}.visible.json', dict(instructions=body['instructions'], input=body['input'], schema=body['text']['format']['schema']))
         summary[stage] = result['visible_bytes']
-    save(out / 'state.json', dict(project=str(project), actor=str(actor), run_id=str(run), cli=base, preview=preview, previews=summary, endpoint_called=False))
+    state = PreviewState(project=str(project), actor=str(actor), run_id=str(run), case=args.case,
+                         objects=str(out / 'objects'), shared_ref_file=str(out / 'shared-ref.json'),
+                         profile_ref_file=str(out / 'profile-ref.json'))
+    save(out / 'state.json', state.as_payload(summary))
     print(json.dumps(dict(case=args.case, previews=summary, endpoint_called=False), ensure_ascii=False))
     repo.database.engine.dispose()
 

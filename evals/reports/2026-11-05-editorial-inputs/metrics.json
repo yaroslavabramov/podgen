@@ -75,11 +75,24 @@
       "Both fixed output schemas and support/speaker bindings",
       "Local documentation links",
       "git diff --check"
-    ]
+    ],
+    "offline_preview_utilities": "5 unit tests plus actual ordinary-CLI plan, draft and plan-review with data-only state and credential-free child environment; published draft visible JSON unchanged"
   },
   "artifact_sha256": {
     "gps-author-before.visible.json": "141f2835090e6994000683aa31af8f033dfe0f13328a2b8080ab8308e338b45a",
     "gps-author-after.visible.json": "8c3dcc3a14a7326806d1f16a7217903bd1b2146d2f18bba019ed45064135fd4a",
     "fixtures/gps-conditional-own-plan.json": "c4c82f40b183221678d7073466c5cd2477c7958637e4c2ae1c5a906a50e635f3"
+  },
+  "local_input_tokens": {
+    "encoding": "o200k_base",
+    "measured_by": "Independent coordinator; supplied 2026-11-05",
+    "artifacts": [
+      "gps-author-before.visible.json",
+      "gps-author-after.visible.json"
+    ],
+    "method": "instructions + text of every input content + JSON.stringify(strict schema); without provider framing",
+    "before": 153429,
+    "after": 4784,
+    "provider_count_is_distinct": true
   }
 }
