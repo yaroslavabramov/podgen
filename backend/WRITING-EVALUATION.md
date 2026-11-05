@@ -1,0 +1,95 @@
+# Авторская генерация: baseline A
+
+Рабочий evaluation-путь: полный frozen input → целый draft → отдельный informed editorial review → полная новая версия. Три самостоятельных Responses API вызова, без conversation carry-over, web/tools/filesystem. Один и тот же полный `AuthorMaterials.as_payload()` используется на всех стадиях. Исходные материалы загружает generation repository; runner не читает staging evaluator index, gold или прежние сценарии.
+
+Это baseline A на непринятом frozen writer input, **не** независимый EXP-04, фактчек, qualification, canonical ScriptRevision или production release. Результаты — явно помеченные `writing-evaluation-output-v1` runtime records, без AcceptanceRecord.
+
+## Подготовка
+
+```sh
+uv sync --directory backend --locked
+export PODGEN_DATABASE_URL='postgresql+psycopg://podgen:podgen-test-only-password@127.0.0.1:55440/podgen_wp01'
+uv run --directory backend alembic upgrade head
+```
+
+Миграции `0010_writing_evaluation` и `0011_review_anchor_attempt`. Не применять миграции к базе под активными live runs. `OPENAI_API_KEY` передаётся окружением либо через глобальный `--env-file ../.env`; ключ не входит в profile, prompt или архив headers. `--objects` должен указывать **тот же** каталог, где находятся blobs исходного staging.
+
+`--project`/`--actor` и отдельный author RuntimeRef берутся из assignments. Нельзя передавать полный staging report вместо ref. Оператор может сохранить только `report.author_inputs[case]` в отдельный JSON-файл; runner прочтёт именно его.
+
+## Явный candidate profile
+
+Пример для проверенного snapshot; все настройки сохраняются в immutable ModelProfile:
+
+```sh
+uv run --directory backend python -m podgen.writing_cli \
+  --env-file ../.env --project PROJECT_UUID --actor ACTOR_UUID --objects /ABS/STAGING_OBJECTS \
+  profile-create --model gpt-5.4-2026-03-05 --context-limit 1050000 \
+  --output-limit 32768 --reasoning-effort medium --verbosity high --timeout-seconds 1800 \
+  --out /tmp/writer-profile-ref.json
+```
+
+Без `--store` и `--background` оба значения false. Для сохранения provider response и polling с известным response ID **явно** добавляются `--store --background`. Квалификация не присваивается. Для reviewer можно создать другой профиль; если выбран тот же ref, независимы вызовы/роли, а не модель/провайдер.
+
+Контекст GPT-5.4 — 1 050 000, max output — 128 000 по [официальной модели](https://developers.openai.com/api/docs/models/gpt-5.4). Авторский корпус GPS/Snow занимает примерно 150–200k input tokens до draft/review. Output limit включает reasoning. Окно не сокращается ради цены: перед каждым submit выполняется [официальный input token count](https://developers.openai.com/api/docs/guides/token-counting). При `input + reserved output > context_limit` — явная ошибка без генерации и усечения.
+
+## Запуск обоих кейсов
+
+Для каждой независимой попытки нужен **новый UUID**. `repeat_index` — метка повтора, не ключ result cache.
+
+```sh
+uv run --directory backend python -m podgen.writing_cli \
+  --env-file ../.env --project PROJECT_UUID --actor ACTOR_UUID --objects /ABS/STAGING_OBJECTS \
+  run --run-id NEW_RUN_UUID --case gps-clock --author-ref @/tmp/gps-author-ref.json \
+  --writer-profile @/tmp/writer-profile-ref.json --reviewer-profile @/tmp/writer-profile-ref.json \
+  --repeat-index 0 --max-total-input-tokens 900000 --max-total-output-tokens 196608 \
+  --max-elapsed-seconds 7200 --export-dir /tmp/writing-gps-NEW_RUN_UUID
+```
+
+Для Snow: `--case snow-pump`, свой author ref, **другой** run UUID и export-dir. Полные документы, draft и feedback не сокращаются. Review получает явный `index` у каждой реплики. `EditorialFeedback.validate_against` проверяет zero-based indices и exact quotes; в strict-режиме невалидный feedback сохраняется в raw response, фиксируется конкретная ошибка, revision не вызывается. Никакого эвристического подбора цитат или скрытого repair-вызова.
+
+Сохраняются actual role instructions/version, JSON schemas, exact profile refs/settings, request intent, реальные wire JSON bodies и response bodies, provider/request IDs, usage, ошибки и outcome_unknown. Headers целиком не сохраняются: только `x-request-id`. Echo API key в error body редактируется с явным флагом. SDK transport retries отключены; model snapshot и возвращённый `response.model` обязаны совпасть, metadata и retrieve response ID проверяются до принятия текста.
+
+## Inspect и resume
+
+```sh
+uv run --directory backend python -m podgen.writing_cli \
+  --project PROJECT_UUID --actor ACTOR_UUID --objects /ABS/STAGING_OBJECTS \
+  inspect --run-id RUN_UUID --export-dir /tmp/NEW_EMPTY_EXPORT_DIR
+
+uv run --directory backend python -m podgen.writing_cli \
+  --env-file ../.env --project PROJECT_UUID --actor ACTOR_UUID --objects /ABS/STAGING_OBJECTS \
+  resume --run-id RUN_UUID --export-dir /tmp/NEW_EMPTY_EXPORT_DIR
+```
+
+Экспорт: `draft.txt`, `revise.txt` (speaker-labeled UTF-8), полные `draft.json`/`review.json`/`revise.json`, `manifest.json`, `inputs.json`, `run.json`, `archive/<stage>/request.json`, events и raw provider bodies. Скрытые поля feedback сохраняются целиком; AcceptanceRecord не создаётся. Папка закрепляется маркером за одним project/run. Чужая непустая папка и другой run отклоняются. Для legacy экспорта без маркера выберите новую пустую папку.
+
+Завершённый run возвращается без нового бюджета, компиляции или provider calls после перепроверки принадлежности, fingerprint и живых прав на исходные refs. Частичный run использует архивированные PromptDefinition; новые инструкции предназначены только новым run IDs. Перед каждой фактической отправкой исходные refs снова проверяются через generation scope, в том числе после token count. Архив evaluator request не даёт вечного права пересылать отозванный источник.
+
+После persisted submit intent без подтверждения/сохранённого ответа повторная генерация **запрещена** (`outcome_unknown`). Известный response ID и разрешённое provider storage допускают retrieve; уже записанный completed response повторно разбирается без submit. Если нет подтверждённого ID/ответа, автоматического reconciliation нет: сначала операторская проверка провайдера. HTTP/validation/refusal/incomplete ошибки не скрываются новым запуском. Новый run — новая независимая попытка; все старые данные остаются.
+
+## Проверки и границы
+
+```sh
+PODGEN_TEST_DATABASE_URL='postgresql+psycopg://podgen@127.0.0.1:55439/podgen_wp01' \
+  uv run --directory backend pytest -q tests/test_writing_evaluation.py tests/test_review_anchor_recovery.py tests/test_openai_provider.py tests/test_writing_cli.py tests/test_writing_migrations.py
+```
+
+Синтетические provider faults используют настоящий PostgreSQL и настоящий OpenAI SDK с HTTP mock transport. CLI-тест проходит оба реальных frozen author inputs целиком, но не вызывает live API. Автор этого изменения live episodes не дублировал; внешние реальные попытки запускает/reviews CTO/CPO отдельно.
+
+Открыты: полные WP-02/03 (controlled corpus, typed tool runtime, ReadReceipt/TaskRun integration, provider qualification/reconciliation), WP-05 (независимый factcheck/coverage/cold reading), остальной WP-06 (canonical plan/script mapping, continuity/acts/research loop), WP-07–14. Нет production approvals, аудио, human listener assessments, универсального восстановления неизвестного provider outcome или квалифицированной поддержки всей продуктовой матрицы.
+
+## Ограниченное исправление review anchors
+
+Новые запуски по умолчанию используют `--review-anchor-policy strict`: ошибка exact anchor останавливает цепочку. Явный `run --review-anchor-policy bounded-selection-v1` сохраняет политику в manifest/fingerprint и автоматически выполняет максимум один дополнительный selector-вызов после сохранённой ошибки review. Все исходные token/time/context limits остаются прежними; стоимость неудачного review входит в общий бюджет.
+
+Для уже остановленного строгого запуска:
+
+```sh
+uv run --directory backend python -m podgen.writing_cli \
+  --env-file ../.env --project PROJECT_UUID --actor ACTOR_UUID --objects /ABS/STAGING_OBJECTS \
+  resume --run-id RUN_UUID --repair-review-anchors --export-dir /tmp/NEW_EMPTY_EXPORT_DIR
+```
+
+Нужна миграция `0011_review_anchor_attempt`. Legacy manifest без policy читается как strict с прежним fingerprint. Явное восстановление фиксируется отдельным immutable событием, не переписывает исходный manifest и не создаёт новый draft. Сохранённый полный failed review, его request/response и usage остаются в `archive/review/`; дополнительная попытка — `archive/review/attempt-1/`. `run.json` содержит обе попытки и суммарный известный usage.
+
+Selector получает исходные материалы, draft и полный отклонённый feedback. Он выбирает только серверные IDs точных фрагментов для невалидных anchors. Сервер восстанавливает цитаты из draft; суждения и уже валидные anchors не меняются. `null`, неизвестные/пропущенные/повторные IDs останавливают цепочку без revise. Неоднозначный submit, malformed JSON, refusal/incomplete и прочие ошибки не получают такого retry. Повторный resume не создаёт второй repair; каждая отправка снова проверяет доступ к исходникам. Это дополнительное экспериментальное условие, не квалификация и не semantic acceptance.

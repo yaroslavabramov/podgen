@@ -74,3 +74,7 @@ Inline limit — 16 MiB; `create_from_stream` принимает полный JS
 - TaskRun имеет собственный manifest head. Чужая промежуточная ветка и замена model/prompt/toolset обычным admission отклоняются.
 
 Физический purge, orphan reconciliation, IAM/credential deployment, durable worker recovery, production authentication/API и model reviewer qualification относятся к WP-03/05/09/12. Здесь проверена доступность через repository; прямой административный доступ к DB/bucket не является пользовательским read path.
+
+## Запуск автора
+
+Работающий OpenAI evaluation CLI, явные profiles, draft → review → revise, полный архив и UTF-8 export: [WRITING-EVALUATION.md](WRITING-EVALUATION.md). Это отдельный ограниченный evaluation этап без production acceptance.

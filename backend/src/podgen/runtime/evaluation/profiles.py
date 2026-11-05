@@ -1,0 +1,88 @@
+"""Explicit candidate configuration creation, without qualification or production approval."""
+
+from uuid import uuid4, uuid5
+
+from podgen.domain.contracts.common import CodeProducer
+from podgen.domain.contracts.configuration import ModelProfile
+from podgen.domain.errors import ContractError
+from podgen.runtime.evaluation.compiler import COMPILER_VERSION, validate_profile
+
+
+def create_profile(
+    repo,
+    project,
+    *,
+    model,
+    context_limit,
+    output_limit=65536,
+    reasoning_effort="high",
+    verbosity="high",
+    timeout_seconds=1800,
+    background=False,
+    store=False,
+    operation_id=None,
+):
+    operation_id = operation_id or uuid4()
+    producer = CodeProducer(
+        kind="code",
+        component="candidate-openai-profile",
+        build_id=COMPILER_VERSION,
+        operation_id=operation_id,
+    )
+    if background and not store:
+        raise ValueError("background_requires_explicit_store")
+    policy = repo.create(
+        project,
+        "Policy",
+        dict(
+            policy_kind="data",
+            rules={
+                "configuration_only": True,
+                "external_provider": "openai",
+                "provider_response_storage": store,
+                "app_archive_audience": "evaluator",
+                "production_qualification": False,
+            },
+        ),
+        producer=producer,
+        operation_id=uuid5(operation_id, "data-policy"),
+    )
+    return repo.create(
+        project,
+        "ModelProfile",
+        dict(
+            provider="openai",
+            api_family="responses",
+            model_id=model,
+            model_revision_or_alias=model,
+            adapter_version="openai-responses-v1",
+            allowed_roles=["writer", "editorial_reviewer"],
+            supported_modalities=["text"],
+            context_limit=context_limit,
+            output_limit=output_limit,
+            structured_output_mode="json_schema",
+            tool_call_mode="none",
+            parallel_tool_policy="disabled",
+            generation_parameters=dict(
+                reasoning={"effort": reasoning_effort},
+                text={"verbosity": verbosity},
+                store=store,
+                background=background,
+            ),
+            timeout_policy=dict(rpc_timeout_seconds=timeout_seconds, poll_deadline_seconds=timeout_seconds),
+            data_retention_policy_ref=policy.ref.model_dump(mode="json"),
+            caching_policy={"application_result_reuse": "same_invocation_only"},
+            fallback_profile_refs=[],
+            configured_languages=["ru"],
+        ),
+        producer=producer,
+        operation_id=uuid5(operation_id, "model-profile"),
+    )
+
+
+def load_profile(generation, project, ref, stage):
+    if ref.kind != "ModelProfile":
+        raise ContractError("expected_model_profile")
+    profile = ModelProfile.model_validate(generation.get(project, ref).payload)
+    validate_profile(profile, stage)
+    return profile
