@@ -1,0 +1,70 @@
+{
+  "run_id": "6c498d7a-0a83-4ccc-8c0a-41076f4c5188",
+  "status": "completed_unaccepted",
+  "accepted_plan_output_hash": "eb33c77a9743a9a1881b99bee2a3e2019ae01fa7d93ebcaee127b0dabc387d75",
+  "accepted_plan_output_record": {
+    "record_kind": "tool_execution",
+    "record_id": "18c405d8-de68-5ce7-acc3-59a2cd920035"
+  },
+  "draft_and_final_outputs_equal": true,
+  "last_final_turn_matches_accepted_ending_with_prefix": "Да. ",
+  "speech_sha256": "ba5b1252808971a9d634e1f4a8a4edbeb4c9233246e7cc4900feb230d3032001",
+  "copies": {
+    "initial-plan.json": {
+      "source": "tmp/live-gps-2026-11-06/run/plan.json",
+      "sha256": "3568fad51fb913402530a0a0ac724a4025f4c843d2ab53591f75b0a92fb2a635"
+    },
+    "initial-plan-review.json": {
+      "source": "tmp/live-gps-2026-11-06/run/plan-review.json",
+      "sha256": "4ad7eeeeba4a2539ced2db70526caa4a7f69bfdd2867098e7b26d00297b94823"
+    },
+    "accepted-plan.json": {
+      "source": "tmp/live-gps-2026-11-06/run/plan-revise.json",
+      "sha256": "ccbb693fb29e9c572ac77e1f62e429e2c784c5cb3f4edb5cf5f3043f61568a19"
+    },
+    "accepted-plan.md": {
+      "source": "tmp/live-gps-2026-11-06/run/generated-plan.md",
+      "sha256": "527a038451408f396183a23d1bf9e14a10e891dcab201b498cb8050e1c8564d4"
+    },
+    "accepted-plan-review.json": {
+      "source": "tmp/live-gps-2026-11-06/run/plan-review-revised.json",
+      "sha256": "2e8da81ab4d4a5303a48f0baa3a94302bc9777aa2463ecb0e5601375c25e787c"
+    },
+    "script-review.json": {
+      "source": "tmp/live-gps-2026-11-06/run/review.json",
+      "sha256": "166f46c34409dfe06844a65db6b1711eb0715f6a77edaeaf0c8c9c632c39cc45"
+    },
+    "planning-clearance.json": {
+      "source": "tmp/live-gps-2026-11-06/run/planning-clearance.json",
+      "sha256": "ce3cd3b5e54a0a9fcb117071d0d672aa60053b5fed69012aaa6012c1fac8d63a"
+    },
+    "draft.json": {
+      "source": "tmp/live-gps-2026-11-06/run/draft.json",
+      "sha256": "c9659c23fa50b96e4d273b3586c132e0af5da1b32a89dc4af60c2302b04b574e"
+    },
+    "run.json": {
+      "source": "tmp/live-gps-2026-11-06/run/run.json",
+      "sha256": "a0f60dbaf3e69653ef9c4121a85a66d38dc9f46d9b431d0dade453b837c7d3f3"
+    },
+    "research-input.json": {
+      "source": "tmp/live-gps-2026-11-06/run/editorial-input-original.json",
+      "sha256": "922a3b0fb56003f4be1a9bf4bc943fe25d6bc5f98b05f582c3ccc45a8126152e"
+    },
+    "planner-request.json": {
+      "source": "tmp/live-gps-2026-11-06/run/archive/plan/request.json",
+      "sha256": "65a68dd45f6b5040818b964d41a25972a6f208f0e287b71d8708bc65a569309b"
+    },
+    "writer-request.json": {
+      "source": "tmp/live-gps-2026-11-06/run/archive/draft/request.json",
+      "sha256": "cccbb262591622ec134aef3092ddaea15a6b399c52cf8decd530e7f7b77d7482"
+    },
+    "final.json": {
+      "source": "tmp/live-gps-2026-11-06/run/final.json",
+      "sha256": "5cd6ea301370f71733c14c06318b5471de01acad991f03eb9eb45e5aa18d8927"
+    },
+    "final.txt": {
+      "source": "tmp/live-gps-2026-11-06/run/final.txt",
+      "sha256": "93723974d92557c2ac60115c2c99e6286b71eca27d89ac6e817d10a7d674b9e1"
+    }
+  }
+}

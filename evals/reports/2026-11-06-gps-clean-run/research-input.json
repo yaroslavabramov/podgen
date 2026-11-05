@@ -1,0 +1,252 @@
+{
+  "contract": "editorial-input/1",
+  "assignment": {
+    "key": "gps-clock",
+    "title": "Как GPS-приёмник определяет положение, если его собственные часы неточны?",
+    "question": "Как GPS-приёмник определяет положение, если его собственные часы неточны?",
+    "audience": "Взрослый неспециалист, знакомый с картой и обычными часами.",
+    "listener_outcome": "Объяснить, что GPS измеряет по сигналу, почему одни часы дают общую добавку к нескольким измерениям и как по ним вместе находятся место и поправка времени.",
+    "format": "dialogue",
+    "output_language": "ru",
+    "speakers": [
+      {
+        "label": "НИНА",
+        "function": "Объясняет механизм и связывает выводы с измерениями.",
+        "speech_register": "Спокойная, конкретная разговорная речь."
+      },
+      {
+        "label": "ИЛЬЯ",
+        "function": "Самостоятельно проверяет рассуждение и уточняет, что именно измерено. Его вопросы и выводы помогают собеседнице уточнять объяснение.",
+        "speech_register": "Доброжелательная, точная разговорная речь."
+      }
+    ],
+    "duration": {
+      "target_seconds": 900,
+      "min_seconds": 780,
+      "max_seconds": 1080
+    },
+    "knowledge_cutoff": "2026-11-05T00:00:00Z",
+    "required_topics": [
+      "Код и навигационное сообщение; измерение псевдодальности.",
+      "Общая добавка часов и совместное определение положения и времени при пригодной геометрии.",
+      "Одна микросекунда в измерении дальности; влияние расположения спутников и остаточных ошибок."
+    ],
+    "excluded_topics": [],
+    "style_guidance": []
+  },
+  "documents": [
+    {
+      "key": "D1",
+      "title": "Бриф: Как GPS-приёмник определяет положение, если его собственные часы неточны?",
+      "source_path": "author/gps-clock/brief.md",
+      "sha256": "434568639b15401a3c8dc2082be1293a0c992342533378ed10fad69ae3888e0f",
+      "purpose": "brief"
+    },
+    {
+      "key": "D2",
+      "title": "Исследовательское досье: Как GPS-приёмник определяет положение, если его собственные часы неточны?",
+      "source_path": "author/gps-clock/dossier.md",
+      "sha256": "c3195e21b75f78ba5485880573239fe935062e30e820755678b3f9b55a69caeb",
+      "purpose": "dossier"
+    },
+    {
+      "key": "D3",
+      "title": "Министерство обороны США. GPS Standard Positioning Service Performance Standard, 5-е издание, апрель 2020",
+      "source_path": "sources/gps/sps-2020.txt",
+      "sha256": "cb71e19581d0e5eb579c7d4f5013993ace1ca2f6231e54ae643dcc7af6a5eb02",
+      "purpose": "primary"
+    },
+    {
+      "key": "D4",
+      "title": "Luke Winternitz, NASA/GSFC. Introduction to GPS and other Global Navigation Satellite Systems, 2017",
+      "source_path": "sources/gps/nasa-introduction-2017.txt",
+      "sha256": "92062e7aa1f6551ebe19f37f479dfd3c7479346a27b9f67b013753cdc9978e09",
+      "purpose": "primary"
+    }
+  ],
+  "dossier": {
+    "summary": "Псевдодальность получается из разности времени приёма и передачи сигнала. После спутниковых поправок сдвиг одних часов приёмника вносит общую добавку в измерения одной эпохи. При пригодной геометрии три координаты и этот сдвиг оцениваются совместно. Ошибка псевдодальности и ошибка положения связаны через геометрию наблюдений.",
+    "summary_support_labels": [
+      "Псевдодальность",
+      "Общие часы",
+      "Совместное решение",
+      "Геометрия"
+    ],
+    "throughline_constraints": [
+      "Кодовые измерения GPS приведены к одной эпохе.",
+      "Три координаты и общий сдвиг часов определяются совместно; нужны независимые наблюдения и пригодная геометрия."
+    ],
+    "threads": [],
+    "knowledge_cards": [
+      {
+        "label": "Сигнал",
+        "title": "Из кода и сообщения получается временная привязка",
+        "claim": "Спутник передаёт известный код и навигационное сообщение. Сообщение позволяет определить время передачи, положение спутника и поправку его часов. Приёмник сопоставляет принятый код со своей копией, подбирая сдвиг. Код повторяется: одно совпадение рисунка не даёт полной временной привязки без синхронизации и данных сообщения. Сигнал широковещательный; приёмник не запрашивает у спутника свои координаты.",
+        "context": "Код сопоставляют с местной копией; навигационное сообщение даёт временную привязку, положение спутника и поправку его часов.",
+        "limitations": [
+          "Повторяющийся код требует синхронизации с битами и кадрами сообщения.",
+          "Поправки часов спутника и оцениваемый сдвиг часов приёмника — разные величины."
+        ],
+        "excerpts": [
+          {
+            "text": "Each satellite broadcasts LNAV message data to support the GPS receiver's PVT determination \nprocess.",
+            "document": "D3",
+            "start": 50764,
+            "end": 50865
+          },
+          {
+            "text": "The rest of the data in each subframe includes information required to determine \nthe following: \n \n Satellite time-of-transmission \n \n Satellite position \n \n Satellite (SIS) health \n \n Satellite clock correction",
+            "document": "D3",
+            "start": 51252,
+            "end": 51468
+          },
+          {
+            "text": "To detect the GPS signal and recover the navigation data, receiver “correlates” received \n(downconverted and digitized) signal with locally generated replica of received signal\nGPS Receivers: Acquisition and Tracking\n PRN codes for satellites are known \nand “orthogonal” to other codes and \nself at non-zero time delay\n Acquisition involves search over \nrange of delay and Doppler, then \nsynchronization to data bits and \nframes",
+            "document": "D4",
+            "start": 16237,
+            "end": 16667
+          }
+        ]
+      },
+      {
+        "label": "Псевдодальность",
+        "title": "Измерение дальности по двум часам",
+        "claim": "Псевдодальность — разность времени приёма по часам приёмника и времени передачи по часам спутника, умноженная на скорость света. Спутниковую шкалу приводят к времени GPS по переданной поправке. Полученное число — реальное измерение, но оно содержит геометрическое расстояние, сдвиг часов приёмника и другие задержки и ошибки.",
+        "context": "Определение относится к кодовому измерению. Время приёма задано часами приёмника, а время передачи — спутниковыми часами; переданная поправка переводит спутниковое измерение к времени GPS.",
+        "limitations": [
+          "Время пути сигнала и разность показаний несовпадающих часов — разные величины."
+        ],
+        "excerpts": [
+          {
+            "text": "Pseudorange Measurement.   The difference between the PRN code time of reception (as \ndefined by the SPS receiver’s clock) and the PRN code time of transmission (as defined by the \nsatellite’s clock) multiplied by the speed of l ight.  May also be a short -hand reference to the  \ncorrected pseudorange measurement where the raw pseudorange measurement is adjusted to \nGPS system time using the broadcast satellite clock correction polynomial and related data.  The \ncorrected pseudorange measurement is also known as an SPS signal ranging measurement.",
+            "document": "D3",
+            "start": 445661,
+            "end": 446213
+          }
+        ]
+      },
+      {
+        "label": "Общие часы",
+        "title": "Одна неизвестная для нескольких измерений",
+        "claim": "После учёта спутниковых поправок учебная модель такова: псевдодальность равна геометрическому расстоянию плюс скорость света, умноженная на сдвиг часов приёмника, плюс остальные ошибки. Сдвиг определён как местное время минус GPS-время. Если местные часы спешат, каждая псевдодальность завышена на одинаковую добавку; если отстают — добавка отрицательна. Общность возникает потому, что все моменты приёма отсчитывают одни часы.",
+        "context": "Учебный вывод из определения псевдодальности: расстояние + скорость света × сдвиг часов + прочие ошибки. Наблюдения приведены к одной эпохе.",
+        "limitations": [
+          "Наблюдения относятся к общей эпохе; при движении и дрейфе оценку обновляют.",
+          "Разные ошибки спутников, аппаратуры и распространения не становятся одним общим сдвигом."
+        ],
+        "excerpts": [
+          {
+            "text": "The position solution involves an equation with \nfour unknowns:\n Three components of receiver position (x, y, z)\n Receiver clock bias",
+            "document": "D4",
+            "start": 13792,
+            "end": 13927
+          },
+          {
+            "text": "Receiver position and \nclock error are to be \nsolved for",
+            "document": "D4",
+            "start": 18468,
+            "end": 18524
+          },
+          {
+            "text": "Pseudorange Measurement.   The difference between the PRN code time of reception (as \ndefined by the SPS receiver’s clock) and the PRN code time of transmission (as defined by the \nsatellite’s clock) multiplied by the speed of l ight.",
+            "document": "D3",
+            "start": 445661,
+            "end": 445895
+          }
+        ]
+      },
+      {
+        "label": "Совместное решение",
+        "title": "Место и поправка времени определяются вместе",
+        "claim": "В обычной трёхмерной задаче неизвестны три координаты и один сдвиг часов. Каждая псевдодальность ограничивает эти неизвестные вместе. Приёмник сравнивает измерения с тем, что получилось бы для предполагаемого положения и сдвига, и ищет согласованный набор. Нужны как минимум четыре независимых наблюдения при пригодной геометрии. В идеальной учебной модели расхождения могут исчезнуть; с реальными ошибками ищут достаточно хорошее согласование.",
+        "context": "Один набор наблюдений связывает три координаты и общий сдвиг часов; все четыре неизвестные оцениваются совместно.",
+        "limitations": [
+          "Каждое наблюдение участвует в совместной оценке положения и сдвига часов.",
+          "Число наблюдений дополняется проверкой геометрии и выбором допустимого решения."
+        ],
+        "excerpts": [
+          {
+            "text": "The position solution involves an equation with \nfour unknowns:\n Three components of receiver position (x, y, z)\n Receiver clock bias\n Position accuracy of ~1 m implies knowledge of the receiver \nclock to within ~3 ns\n Requires simultaneous measurements from \nfour satellites",
+            "document": "D4",
+            "start": 13792,
+            "end": 14071
+          }
+        ]
+      },
+      {
+        "label": "Геометрия",
+        "title": "Почему перемещение отличается от общей добавки",
+        "claim": "Точное расстояние до известного спутника задаёт сферическую поверхность возможных положений. При изменении предполагаемого положения расстояния до спутников обычно меняются по-разному, в зависимости от направлений на них. Изменение ошибки одних часов добавляет одно и то же всем псевдодальностям. При подходящих направлениях эти изменения различимы; неудачная геометрия усиливает ошибку положения. В GPS это описывают через DOP — влияние взаимного расположения спутников и приёмника на ошибку решения.",
+        "context": "Объяснение разных изменений расстояний — геометрический вывод из модели измерения. В стандарте влияние геометрии на ошибку описано через DOP.",
+        "limitations": [
+          "При перемещении не обязательно одни расстояния растут, а другие уменьшаются: важны различия изменений, а не обязательные противоположные знаки.",
+          "У трёх сфер могут быть две точки пересечения; выбор положения требует дополнительного условия.",
+          "При близких направлениях на спутники изменения расстояний мало различаются, и ошибка измерений сильнее влияет на положение."
+        ],
+        "excerpts": [
+          {
+            "text": "Dilution of Precision (DOP).  The magnifying effect on GPS position error induced by mapping \nURE into a position solution within the specified coordinate system, through the relative satellite-\nto-receiver geometry.",
+            "document": "D3",
+            "start": 436516,
+            "end": 436732
+          }
+        ]
+      },
+      {
+        "label": "Микросекунда",
+        "title": "Масштаб времени относится к измерениям",
+        "claim": "Скорость света в стандарте — 299 792 458 метров в секунду. Одна микросекунда равна одной миллионной секунды. Их произведение — 299,792458 метра, в устном приближении около трёхсот метров. Столько составляет общий вклад микросекундного сдвига приёмных часов в псевдодальности.",
+        "context": "Расчёт из константы стандарта: 299792458 м/с × 0,000001 с = 299,792458 м.",
+        "limitations": [
+          "Микросекунда сдвигает каждое измерение примерно на 300 м; как сдвинется точка на карте, зависит от расположения спутников и обработки."
+        ],
+        "excerpts": [
+          {
+            "text": "c   Speed of light (2.99792458x108 m/sec)",
+            "document": "D3",
+            "start": 455867,
+            "end": 455908
+          }
+        ]
+      },
+      {
+        "label": "Остальные ошибки",
+        "title": "Атмосфера, отражения и шум",
+        "claim": "Спутниковые часы очень точны; приёмник учитывает переданные поправки к ним. После оценки собственных часов остаются атмосферные задержки в ионосфере и тропосфере, отражённые пути сигнала, шум, ошибки моделей и приёмника. Дополнительные наблюдения помогают согласовать решение; результат зависит от геометрии и качества сигналов.",
+        "context": "Спутниковые поправки и оценка сдвига часов приёмника — отдельные части решения. Атмосферные и аппаратные ошибки требуют своих моделей и поправок.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "text": " true range (satellite position, rk, known)\n satellite clock error (δtk, known)\n ionosphere and troposphere delays (Ik, Tk, estimated or measured)\n other errors (εk, satellite ephemeris and clock mis-modeling, measurement errors, multipath, receiver noise)",
+            "document": "D4",
+            "start": 17967,
+            "end": 18227
+          },
+          {
+            "text": " Signal distortions caused by ionospheric and/or tropospheric scintillation  \n \n         Residual receiver ionospheric delay compensation errors \n \n         Residual receiver tropospheric delay compensation errors \n \n         Receiver noise (including received signal power and interference power) and resolution \n \n         Receiver hardware/software faults \n \n         Multipath and receiver multipath mitigation \n \n         User antenna effects",
+            "document": "D3",
+            "start": 110509,
+            "end": 110963
+          }
+        ]
+      },
+      {
+        "label": "Известная высота",
+        "title": "Дополнительное знание меняет постановку",
+        "claim": "При заранее известной высоте остаются две неизвестные координаты и сдвиг времени. Стандарт допускает для этой задачи три набора наблюдений.",
+        "context": "Число неизвестных уменьшается благодаря внешнему известному условию; речь о другой постановке той же задачи.",
+        "limitations": [
+          "Высота задана отдельно; обычная трёхмерная задача содержит три неизвестные координаты."
+        ],
+        "excerpts": [
+          {
+            "text": "In cases where the altitude is known (e.g., maritime GPS \nreceivers), the PVT solution only requires the use of  pseudorange data sets from at least three \nSISs to solve for two position coordinates and time offset relative to GPS time, pl us two velocity \ncoordinates and frequency offset relative to GPS time.",
+            "document": "D3",
+            "start": 446694,
+            "end": 447005
+          }
+        ]
+      }
+    ]
+  }
+}
