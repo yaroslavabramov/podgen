@@ -1,0 +1,81 @@
+{
+  "run_id": "bf60aedc-e190-430d-90a6-09269b47ac21",
+  "status": "completed_unaccepted",
+  "case": "gps-clock",
+  "source_package": "0bbd6d089f0ec667322b000210afd906a2a72ca532b764d8e4faf8e635ad4aba",
+  "inputs_sha256": "b99f04168e56969c421e07416ff2af71d30588c2cb61ba11f886bc992f4c9f52",
+  "source_condition": "frozen-text-v1",
+  "attempt": 0,
+  "instructions": "Instructions: whole-episode-a/1",
+  "model": "gpt-5.4-2026-03-05",
+  "reasoning_effort": "medium",
+  "verbosity": "high",
+  "max_output_tokens": 32768,
+  "writer_profile_ref": {
+    "artifact_id": "56a653b0-bdd1-435e-b810-4bf5b45d5d34",
+    "revision_id": "f881b5e3-1c57-4772-a178-0e30732b6c63",
+    "kind": "ModelProfile"
+  },
+  "reviewer_profile_ref": {
+    "artifact_id": "56a653b0-bdd1-435e-b810-4bf5b45d5d34",
+    "revision_id": "f881b5e3-1c57-4772-a178-0e30732b6c63",
+    "kind": "ModelProfile"
+  },
+  "project_id": "b2779050-b3bb-4e41-9154-f560fa99b732",
+  "actor_id": "30cd2414-606b-4dfc-b3bc-d64fb9b37beb",
+  "semantic_acceptance": false,
+  "production_ready": false,
+  "stages": [
+    {
+      "stage": "draft",
+      "request_id": "req_e48bd56f52bb4911aad5537c5fb1fec8",
+      "response_id": "resp_06d550087230d4aa016aec7e75f55087d2ae89f0d8b2bc4c6a",
+      "input_tokens": 149198,
+      "output_tokens": 5631,
+      "words": 1468,
+      "utterances": 47,
+      "text_sha256": "9c95a6d386eedd016c8d2856b344242e631280ef6be980de8c643e3420b1191d",
+      "request_sha256": "e7e1916c89528e0f27a8312d11b29c1ea6ee752ec596e60981b153ddd0d23926",
+      "response_sha256": "d585d4efb817c6543859b173cd9a99da5cdfc609c0a404eafe3a3c3ca1e7b3f3",
+      "instructions_sha256": "1e7b4169cadbc77d2cb95ef0cec65ae4e862cd2b96b83c2aec9a50bab01656fd",
+      "invocation_id": "fc3607c1-a5d7-5371-9337-585fbad9f9d8",
+      "control_reading": {
+        "voice": "Milena",
+        "rate": 130,
+        "duration_seconds": 776.753923
+      }
+    },
+    {
+      "stage": "review",
+      "request_id": "req_a393c18c0f9a4f46bf4eea68c3a0ef46",
+      "response_id": "resp_082b05bfc486e0e3016aec7ee84a3887d28d4c8dd96cc39fca",
+      "input_tokens": 153212,
+      "output_tokens": 4513,
+      "recommendation": "revise",
+      "finding_count": 4,
+      "request_sha256": "f3a2a7faf569dccf828a0d94df6b3c1a121e254ebe8b16405c808491a9b3d112",
+      "response_sha256": "a1664362789c8e8b11ce67204d2d361e61cf8c709fdd5061267aba4df53555fe",
+      "instructions_sha256": "bb60a7fa856cead50e21420fd7c8683bc9aa627059c2adb8273349a12562ed81",
+      "invocation_id": "9763da32-f2a9-53d6-a369-204717ae1940"
+    },
+    {
+      "stage": "revise",
+      "request_id": "req_cb87ec508d014c2f8a3911e2cd66b90c",
+      "response_id": "resp_0fd392b496c4b1df016aec7f41190c87d2ac7891b523fd6c9f",
+      "input_tokens": 154212,
+      "output_tokens": 3918,
+      "words": 1500,
+      "utterances": 48,
+      "text_sha256": "009e76a2301b1c8ab99229d6514032f4167c1c7a85c2301fa0c10c8dc398338d",
+      "request_sha256": "6df6108dfa6375a77e9d6404a568cfa04540721ff1b5c3cbdeb7777d4fdd4483",
+      "response_sha256": "f2b8bcb8aa0042638eef64f1db3ae811fecb403fed58e84d782fb9411bed43c2",
+      "instructions_sha256": "f4b083fe184994a73116f883b992a2de0f4e52b4bb7b9b756166ea2778bc71db",
+      "invocation_id": "9512c727-9f37-5df6-af07-939f7af5221b",
+      "control_reading": {
+        "voice": "Milena",
+        "rate": 130,
+        "duration_seconds": 796.293515
+      }
+    }
+  ]
+}
