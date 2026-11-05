@@ -38,8 +38,8 @@ class Assignment(RoleOutput):
     duration: EditorialDuration
     knowledge_cutoff: FullText
     required_topics: list[FullText]
-    excluded_topics: list[FullText]
-    style_guidance: list[FullText]
+    excluded_topics: list[FullText] = Field(default_factory=list)
+    style_guidance: list[FullText] = Field(default_factory=list)
 
 
 class SourceDocument(RoleOutput):

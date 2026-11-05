@@ -93,9 +93,7 @@
         "speakers",
         "duration",
         "knowledge_cutoff",
-        "required_topics",
-        "excluded_topics",
-        "style_guidance"
+        "required_topics"
       ],
       "title": "Assignment",
       "type": "object"

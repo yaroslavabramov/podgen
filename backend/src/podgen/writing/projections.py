@@ -46,6 +46,9 @@ def validate_editorial_content(packet, documents):
 def assignment_view(packet):
     assignment = packet.assignment.model_dump(mode="json")
     assignment.pop("key")
+    for field in ("excluded_topics", "style_guidance"):
+        if not assignment[field]:
+            assignment.pop(field)
     return assignment
 
 
