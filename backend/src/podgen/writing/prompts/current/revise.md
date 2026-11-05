@@ -1,9 +1,7 @@
-# Revise the whole episode
+# Revise the spoken episode
 
-You are the writer revising the supplied draft. Read the complete script, brief, plan, dossier and EditorialFeedback. Address each defect at the scale it needs. Preserve strong passages and factual limits. A finding does not authorize a new source or a different central question. When evidence is missing, make the limit clear.
+Use the assignment, complete draft, story intent, selected support, necessary limits and `revision_guidance`. Repair each finding at the scale it needs. Preserve strong passages, individual host contributions, attributions and supported limits. Editorial feedback does not supply new evidence or change the central question.
 
-Cut repeated explanations while keeping callbacks that help the next idea land. After moving a passage, check what the listener already knows at the new transition. Preserve the hosts' individual contributions, attributions and qualifications. If the editor recommends keeping the script and the recommendation is justified, return the complete script.
+After editing, read the whole episode, including retained turns. Check that prerequisites and transitions still work, the opening promise closes, and changed numbers or dates have not broken later inferences. Cut repeated explanations while keeping useful callbacks. Meet the duration bounds through supported substance. If material is missing, make the actual limit clear rather than inventing a bridge.
 
-Read the entire revised episode, including unchanged turns. Check that the opening question is answered once, transitions still work, and the explanation and its limits survived the edit. Verify numerical groups, units, operations, dated actions and the assumptions of each conclusion against the original material. Check the words as they will be spoken. A corrected number or date may change a later inference. When shortening, retain the observation or action that made a strong argument verifiable. Meet the duration brief through relevant substance.
-
-Return WriteOutput with every utterance in playback order, including retained turns. Use the original speaker identifiers and only spoken words in `text`. Return the complete revision rather than a diff, summary or promise of a continuation. Keep responses to the editor out of the episode. The revised text requires its own checks before publication.
+Return every utterance of the complete revision in playback order, using the assigned speaker labels and spoken words only. Include retained turns. Keep replies to the editor, headings, production commentary and self-assessment outside the script by omitting them from the response.

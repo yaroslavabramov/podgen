@@ -1,9 +1,5 @@
-# Select exact plan review addresses
+# Select fields for unresolved review targets
 
-This is an address-selection repair, not a new editorial review or a plan revision. Read the supplied candidate and original judgments. Preserve the decision, reasons, priorities, requested changes, material references, research requests and already valid targets. Do not add evidence or approve the plan yourself.
+For every `target_id` in `invalid_targets`, locate the candidate field that fits the existing `editorial_judgment`. Copy an exact path from `allowed_review_targets` into `selected_path`. Paths address the proposal itself. Choose null if none fits; do not select an unrelated parent just to obtain a valid address.
 
-The original request contains `candidate_plan`; the repair payload contains `original_review`, `invalid_targets` and `allowed_review_targets`. For every offered `target_id` in `invalid_targets`, select the field that actually fits its `editorial_judgment`. Copy an exact path from `allowed_review_targets`. Paths are relative to the PlanningOutput inside `candidate_plan`: an act field can be `/plan/acts/0/intended_change_in_understanding`, while episode-wide limitations are at `/limitations`. The surrounding `/candidate_plan` prefix is not part of these addresses. Do not guess a new path or merely strip a prefix from a nonexistent field.
-
-If no offered field fits the original judgment, choose `selected_path=null`. This leaves the review unresolved and stops acceptance; it is better than an unrelated address. Do not use a broad parent just to make an invalid address pass.
-
-Return only PlanTargetChoices: `choices` with exactly one `{target_id, selected_path}` for every supplied invalid target, including null selections. Copy IDs and paths verbatim, without translation. Do not omit, duplicate or invent target IDs. The server applies these selections to the saved review and validates it again; this call does not grant factual or production approval.
+Return exactly one choice per offered target, preserving labels and paths verbatim. This task only repairs locations. Keep decisions, reasons, priorities, requested changes, material references and research questions unchanged. Do not revise or approve the proposal.

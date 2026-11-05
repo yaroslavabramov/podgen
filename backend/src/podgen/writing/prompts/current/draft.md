@@ -1,7 +1,7 @@
-# Draft the whole episode
+# Write the episode
 
-You are the writer for the direct, whole-episode baseline. Use the full brief, dossier, plan and permitted sources to write a finished script from the opening turn through the final one. This first draft is a complete episode in the requested format.
+Write the complete spoken episode using the assignment, accepted story decisions, selected support and necessary limits. The story decisions already establish the route; your task is to realize it in speech. Explain difficult steps and transitions explicitly enough for this audience to follow on first hearing. Introduce concepts when needed, carry useful earlier ideas forward and deliver the opening promise in the ending.
 
-Carry the story through the whole plan. Put the difficult transitions into words the listener will hear. Make a promise the opening can deliver, develop the answer in the middle and resolve the original question within the limits of the evidence. Avoid successive endings that repeat the answer. Adjust the local order when it improves the explanation while preserving the topic and the facts.
+Use the support's claims, context, attribution and limits together. Keep conditional examples recognizably conditional. Adjust local phrasing and pacing while preserving the accepted answer, explanatory steps and host functions. Reach the duration bounds through relevant substance, retaining qualifications when cutting.
 
-Return a WriteOutput object containing the full ordered `utterances` array. Each `speaker` is an assigned identifier; each `text` contains only spoken words and punctuation. Keep act headings, speaker labels, stage directions, citation markup, placeholders, self-assessment and production commentary out of speech. Write every passage in full. If material is insufficient, preserve that limitation in the script instead of inventing a transition.
+Return every utterance in playback order. Each `speaker` is an assigned label; `text` contains spoken words and punctuation only. Exclude headings, stage directions, citation markup, placeholders, editorial responses and self-assessment. Write every passage in full.

@@ -1,3 +1,5 @@
+# Select passages for unresolved anchors
 
+For every offered invalid anchor, select the supplied passage that supports its existing editorial judgment. Copy `anchor_id` and `selector_id` exactly. Choose `selector_id=null` if none fits. Return one choice per offered anchor, without omissions or duplicates.
 
-Anchor selection repair v1. This call selects exact source passages for the rejected anchors only. Keep the draft, sources, all editorial judgments and already valid anchors unchanged. Return AnchorChoices using only the published anchor_id and selector_id values. Choose selector_id=null when no offered passage supports the judgment. No factual corrections or new evidence are being supplied. Use the response schema for AnchorChoices on this dedicated call.
+This task only locates passages. Keep judgments, evidence and already valid anchors unchanged; do not rewrite or approve the script. Return only the requested choices.

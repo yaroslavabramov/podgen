@@ -1,0 +1,85 @@
+{
+  "endpoint_called": false,
+  "new_author_condition": "Conditional own-plan preview; plan authored for this offline example from the new cards, with acceptance assumed. Not a model run or quality result.",
+  "old_source_request_sha256": "f80d5279ade978de5445a96d7e38d8c5d9b1f9dafa2318230b28a115faa72db8",
+  "old_measured_input_tokens": 153409,
+  "old_visible_bytes": {
+    "instructions": 5289,
+    "input": 611723,
+    "schema": 710,
+    "total": 617722
+  },
+  "new_visible_bytes": {
+    "instructions": 2235,
+    "input": 29429,
+    "schema": 710,
+    "total": 32374
+  },
+  "excerpt_characters": {
+    "gps-clock": {
+      "cards": 9,
+      "total": 3519,
+      "unique_exact_text": 3285
+    },
+    "snow-pump": {
+      "cards": 16,
+      "total": 17578,
+      "unique_exact_text": 17578
+    }
+  },
+  "offline_previews": {
+    "gps-clock/plan": {
+      "visible_bytes": {
+        "instructions": 2789,
+        "input": 24025,
+        "schema": 6471,
+        "total": 33285
+      },
+      "endpoint_called": false
+    },
+    "gps-clock/draft": {
+      "visible_bytes": {
+        "instructions": 2235,
+        "input": 29429,
+        "schema": 710,
+        "total": 32374
+      },
+      "endpoint_called": false
+    },
+    "gps-clock/plan-review": {
+      "visible_bytes": {
+        "instructions": 3010,
+        "input": 47173,
+        "schema": 2911,
+        "total": 53094
+      },
+      "endpoint_called": false
+    },
+    "snow-pump/plan": {
+      "visible_bytes": {
+        "instructions": 2625,
+        "input": 37075,
+        "schema": 6471,
+        "total": 46171
+      },
+      "endpoint_called": false
+    }
+  },
+  "old_measured_usage_source": "../2026-11-05-planning/own-plan/gps-clock/run.json#/invocations/draft/input_tokens",
+  "verification": {
+    "prompt_resources": "23 passed; local PostgreSQL; no model calls",
+    "input_checks": [
+      "Both source admissions and shared imports through ordinary CLI",
+      "Exact original SHA-256 and every excerpt codepoint range",
+      "Both fixed shared digests and source bytes",
+      "Both fixed output schemas and support/speaker bindings",
+      "Local documentation links",
+      "git diff --check"
+    ]
+  },
+  "artifact_sha256": {
+    "gps-author-before.visible.json": "141f2835090e6994000683aa31af8f033dfe0f13328a2b8080ab8308e338b45a",
+    "gps-author-after.visible.json": "8c3dcc3a14a7326806d1f16a7217903bd1b2146d2f18bba019ed45064135fd4a",
+    "fixtures/gps-conditional-own-plan.json": "c4c82f40b183221678d7073466c5cd2477c7958637e4c2ae1c5a906a50e635f3"
+  }
+}

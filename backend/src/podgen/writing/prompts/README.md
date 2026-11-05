@@ -1,134 +1,48 @@
 # Writing instructions
 
-## Edit one component
+Edit the applicable UTF-8 Markdown file in `current/`. The caller assembles `common.md`, the format component, then the stage component. Instruction text is English; `output_language` controls spoken text and other human-readable output. Preserve supplied labels, exact quotations, keys and enum values.
 
-Edit the relevant UTF-8 Markdown file in `current/`:
-
-| File | Applies to |
+| Component | Responsibility |
 | --- | --- |
-| `common.md` | Every stage and format |
-| `solo.md`, `dialogue.md` | All stages of that format |
-| `draft.md`, `review.md`, `revise.md` | That stage in both formats |
-| `plan.md` | Initial own-plan proposal from the brief, dossier and permitted corpus |
-| `plan-review.md` | Independent review of the initial or revised planning candidate |
-| `plan-revise.md` | Complete replacement proposal after the plan editor requests revision |
-| `anchor-repair.md` | The additional call that repairs review citation anchors |
+| `common.md` | Language, assignment and evidence rules |
+| `dialogue.md`, `solo.md` | Speaker functions and explanation in that format |
+| `plan.md` | Choose a connected route from the assignment and semantic dossier |
+| `plan-review.md` | Review the exact candidate with attributed evidence |
+| `plan-revise.md` | Return a complete new proposal from actionable feedback |
+| `draft.md` | Realize accepted story decisions as a complete spoken episode |
+| `review.md` | Inspect the entire actual script, with exact anchors |
+| `revise.md` | Return the complete improved script when revision is required |
+| `anchor-repair.md` | Select passages for unresolved script anchors only |
+| `plan-target-repair.md` | Select fields for unresolved plan review targets only |
 
-For example, change `current/review.md` to change the editor's instructions.
-That text edit is sufficient: do not copy a version directory, register a version,
-change code, or regenerate unrelated files or test hashes. Existing runs keep
-their saved instructions; the change applies to new runs. An installed deployment
-must receive the updated package before it uses the new text.
+Repair instructions are standalone. They do not inherit ordinary reviewer instructions or format components. They locate existing judgments without rewriting or approving anything.
 
-Write system instructions in English. The user payload's explicit
-`output_language` controls spoken words and other human-readable response fields,
-including feedback. Preserve evidence quotes, anchor quotes, speaker identifiers,
-schema keys and enum values verbatim. Episode material and evaluator answers do
-not belong in these instruction files.
+## Inputs and decisions
 
-Responsibilities:
+New `editorial-role-packets/1` runs use role-specific semantic views. Full original sources, inputs and outputs remain persisted. No file paths, hashes or technical identities belong in model-visible content. Natural support labels and exact response locations are supplied only where the task needs them. The author receives accepted creative decisions and selected claims with their context and limits; the positive plan review and source library are not writing inputs. No read/research tools are available in these calls.
 
-- The editor owns instruction wording and editorial assessment.
-- The developer owns loading, storage, request assembly, compatibility and tests.
-- The coordinating chat owns task assignment and acceptance of the result;
-  it routes text changes to the editor and implementation changes to the developer.
+Own-plan loads the shared assignment and dossier without the separate fixed outline. Only a complete ready proposal explicitly accepted by a separate plan editor reaches the writer. A required revision produces a full new proposal and a new review. A blocking evidence question stops writing; recording it does not obtain an answer. Fixed-plan uses its separately admitted structured outline and does not invoke planning roles.
 
-## Assembly and saved runs
+The script editor distinguishes `keep`, `revise` and `needs_material`. An unambiguous `keep` reuses the exact saved draft without another author call. Missing material stops the chain; contradictory decisions fail explicitly. The prompts must not ask for a redundant rewrite of an adequate text.
 
-`podgen.writing.roles.role_instructions(stage, format)` returns the complete
-current instructions: `common.md`, the format file, then the stage file. Stages
-are `draft`, `review`, `revise`; formats are `solo`, `dialogue`. Resources load
-from the installed package with `importlib.resources`, independently of the
-working directory.
+See [the role-input contract](../../../../../docs/podcast-production/08-editorial-inputs.md) and [offline examples and commands](../../../../../evals/reports/2026-11-05-editorial-inputs/README.md).
 
-Each assembly gets a `whole-episode-a/sha256:...` content ID from the stage,
-format, ordered component names and exact text. The generated header is outside
-the hash input. Editing `review.md` changes only review assemblies; editing
-`dialogue.md` changes only dialogue assemblies. There is no shared version number
-to maintain.
+## Editing and saved runs
 
-For a new run, `load_instruction_set(format)` reads the applicable components
-once and builds all three stages. The runner saves each complete body in a
-`PromptDefinition`, with references and per-stage IDs in `manifest.json`
-(`prompt_refs`, `role_instructions_versions`). Resume uses these saved bodies,
-not `current/` or Git.
+A text edit is sufficient for a new assembly: no copied version directory, registration or unrelated hash updates. `load_instruction_set(format, include_planning=True)` reads components once and assembles all six ordinary roles. `role_instructions(stage, format)` can inspect any ordinary current role. Resources come from the installed package, independently of the working directory; deployed packages must receive changed assets.
 
-Own-plan runs use `load_instruction_set(format, include_planning=True)`, which
-also assembles `plan`, `plan-review` and `plan-revise` from the same common and
-format components plus their individual files. The two-argument
-`role_instructions` API remains for `draft`, `review` and `revise` only.
-Editing a planning file changes only that instruction assembly in new runs.
+Each assembly has a content ID derived from its stage, format and exact ordered component bytes. The ID stays in runtime provenance; it is not prepended to current model instructions. Editing a stage file affects that role; editing a format affects that format. Repair bodies have separate content IDs.
 
-The repair appendix is pinned separately in the manifest's
-`anchor_repair_instructions`; editing it affects repair calls only.
+A new run pins complete prompt bodies in saved definitions. Resume uses these bodies, not mutable `current/` or Git. Planning's second review uses the pinned plan-review body but reviews the new exact candidate. Every candidate, draft and review retains its own binding. Successful structured output is not semantic acceptance.
 
-## Which plan and review apply
+The frozen `v1/`, `v2/`, `v3/` directories remain unchanged. The historical resolver handles numbered versions only. An old content hash is not a globally retrievable snapshot: inspect that run's saved definition or exported request. Existing legacy runs resume under their archived input contract; editing current assets does not migrate them.
 
-`fixed-plan` reads the supplied `author/<case>/plan.md` and runs
-`draft -> review -> revise`; it does not invoke the new planning roles.
-`own-plan` reads the brief, dossier and permitted source corpus, without the
-supplied plan or evaluator answers. It starts with `plan`; an unblocked candidate
-then goes to `plan-review`. The editor reviews that exact saved candidate against
-the materials.
+To inspect actual instructions, open the exported stage's `request.json`, or `attempt-N/request.json` for a later attempt. To inspect a new request without any provider or token-endpoint call, use `podgen.writing_cli preview`. Its output includes the complete request and visible-byte sizes; rendering does not truncate source text. The report documents every role and both repair previews.
 
-An `accept` permits writing with that candidate. If the decision is `revise`
-and the revision budget allows it, `plan-revise` returns a complete new candidate.
-The separate `plan-review-revised` call checks this new version using the same
-`plan-review.md` body and content ID pinned at run creation. It receives the new
-candidate's exact reference and hash; the previous review does not approve it.
-The current runner permits at most one plan revision. A further required revision
-stops the run rather than starting the writer.
+## Ownership and limits
 
-All instruction bodies, including the optional revision and second review, are
-pinned before the first call. Editing `current/` during a run changes none of
-them. Every review is bound to the candidate it actually received.
-Any blocking research request from the planner or plan editor is preserved and
-prevents `draft`. The researcher is not implemented; recording a question does
-not answer it or launch another agent. `PlanningOutput` can represent this as
-`status=needs_research`, with `plan=null` when no meaningful plan is supported.
-An explainable uncertainty alone does not require a blocker. Only a complete
-`status=ready` proposal with an explicit editorial `accept` can reach the writer.
-This planning decision is not independent factual or production approval.
+The editor owns wording and editorial material. The developer owns schemas, projections, loading, persistence, isolation, validation and request assembly. Full semantic fields must never be silently shortened. A capacity error requires a deliberate meaningful representation or a different unit of work.
 
-## Read saved instructions
+The script review uses exact zero-based utterance positions and verbatim nonempty quotes; plan review selects existing fields in the exact candidate. Locations are not independent evidence. A reviewer supplied with story intent and dossier reports `reading_mode=informed`; this is not a blind human listening trial.
 
-To see instructions actually used in an exported attempt, read its request:
-
-```sh
-python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["instructions"], end="")' \
-  /path/to/export/archive/review/request.json
-```
-
-Use the relevant stage and, for an additional attempt, its
-`archive/<stage>/attempt-N/request.json`. See `run.json` for the attempts.
-The request also preserves the actual user payload, including `output_language`
-for runs created with the explicit language contract. For a stage not yet invoked,
-its pinned body is in the `PromptDefinition` referenced by the manifest.
-
-The frozen directories `v1/`, `v2/`, `v3/` remain readable through
-`role_instructions_for_version(stage, format, version="whole-episode-a/2")`.
-V1 and v2 are Russian; v3 is English. Do not edit these historical files or raw
-episode outputs. The resolver supports these numbered versions only: an old
-content hash is not a globally retrievable snapshot. Read that run's saved body;
-unknown versions fail explicitly.
-
-## Runtime and output contracts
-
-The caller supplies full pinned materials, preserves the complete draft, invokes
-review separately, validates `EditorialFeedback` anchors against that exact draft,
-and passes full feedback to revision. Anchors use zero-based utterance positions
-and exact quotes; they do not automatically transfer to the revised text.
-`WriteOutput` and `EditorialFeedback` schemas are unchanged.
-Planning uses `PlanningOutput` and `PlanReviewOutput` from `planning_roles.py`;
-review targets are JSON Pointers into the exact candidate, and material references
-must match the supplied permitted catalog. These wire outputs are not canonical
-production approvals.
-
-Access isolation, blind-reading phases and complete request/response archives
-are runtime responsibilities. A reviewer who sees the plan or dossier reports
-`reading_mode=informed`. For missing material, the script editor can return
-`research_requests` and recommend `needs_material`; this does not invoke a
-research agent automatically. Incomplete provider output is a failed attempt.
-Schema checks establish contract integrity, not writing quality, independent
-factual approval, measured duration or human listening. Those claims require
-their own evidence.
+Schema checks, source-range checks, compactness and completed execution establish their specific properties only. They do not establish independent factual approval, measured duration, human understanding or production readiness.
