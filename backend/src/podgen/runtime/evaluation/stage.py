@@ -11,8 +11,9 @@ from podgen.domain.errors import ContractError
 from .compiler import COMPILER_VERSION, compile_request
 from .contracts import RunFailure
 from .profiles import load_profile
-from .review_repair import apply_anchor_repair, prepare_anchor_repair, prior_attempt_usage
+from .review_repair import apply_anchor_repair, prepare_anchor_repair
 from .scripts import script_view
+from .usage import prior_attempt_usage
 from .validation import RoleOutputError, validate_output
 
 
@@ -77,7 +78,7 @@ def execute_stage(
         invocation = journal.prepare(command.run_id, stage, body, context)
     if (
         stage == "review"
-        and invocation["attempt_index"] == 0
+        and invocation["operation_kind"] == "role"
         and invocation["status"] == "validation_failed"
         and repair_review_anchors
     ):
@@ -94,7 +95,7 @@ def execute_stage(
         raw = gateway.invoke(invocation, profile, limits=command.limits, totals=charged, guard=guard)
         repair_choices = None
         try:
-            if invocation["attempt_index"]:
+            if invocation["operation_kind"] == "anchor_repair":
                 output, repair_choices = apply_anchor_repair(journal, invocation, raw, draft=outputs["draft"])
             else:
                 output = validate_output(
@@ -108,10 +109,10 @@ def execute_stage(
             )
             journal.event(invocation, "output_validation_error", data={"details": details})
             journal.transition(invocation, "validation_failed")
-            if stage == "review" and invocation["attempt_index"] == 0 and repair_review_anchors:
+            if stage == "review" and invocation["operation_kind"] == "role" and repair_review_anchors:
                 invocation = prepare_anchor_repair(
                     journal,
-                    journal.invocation(command.run_id, stage, 0),
+                    journal.invocation(command.run_id, stage, invocation["attempt_index"]),
                     draft=outputs["draft"],
                     draft_ref=records["draft"],
                     guard=guard,

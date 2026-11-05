@@ -12,6 +12,7 @@ from podgen.persistence.archive_authorization import archive_write
 from podgen.persistence.database import one, query
 from podgen.persistence.runtime_records import append_runtime
 
+from .attempts import attempt_identity, validate_lineage, validate_preparation
 from .contracts import command_payload
 
 
@@ -134,13 +135,7 @@ class EvaluationJournal:
                     s=stage,
                 ).mappings()
             ]
-            originals = {row["invocation_id"] for row in rows if row["attempt_index"] == 0}
-            if any(
-                row["attempt_index"] == 1
-                and (stage != "review" or row["parent_invocation_id"] not in originals)
-                for row in rows
-            ):
-                raise Conflict("invalid_review_repair_parent")
+            validate_lineage(rows, stage)
             return rows
 
     def invocation(self, run_id, stage, attempt_index=None):
@@ -151,21 +146,29 @@ class EvaluationJournal:
             else (attempts[-1] if attempts else None)
         )
 
-    def prepare(self, run_id, stage, body, context, *, attempt_index=0, parent_invocation_id=None):
-        existing = self.invocation(run_id, stage, attempt_index)
+    def prepare(
+        self,
+        run_id,
+        stage,
+        body,
+        context,
+        *,
+        attempt_index=0,
+        parent_invocation_id=None,
+        attempt_kind=None,
+        operation_kind=None,
+        authorization=None,
+    ):
+        rows = self.attempts(run_id, stage)
+        existing = next((row for row in rows if row["attempt_index"] == attempt_index), None)
         if existing:
             return existing
-        if attempt_index:
-            original = self.invocation(run_id, stage, 0)
-            if (
-                attempt_index != 1
-                or stage != "review"
-                or original is None
-                or parent_invocation_id != original["invocation_id"]
-                or original["status"] != "validation_failed"
-            ):
-                raise Conflict("invalid_review_repair_parent")
-        invocation_id = uuid5(run_id, "invocation:" + stage + (":anchor-repair:1" if attempt_index else ""))
+        attempt_kind = attempt_kind or ("anchor_repair" if attempt_index else "role")
+        operation_kind = operation_kind or ("anchor_repair" if attempt_kind == "anchor_repair" else "role")
+        parent = validate_preparation(
+            rows, stage, attempt_index, attempt_kind, operation_kind, parent_invocation_id
+        )
+        invocation_id = attempt_identity(run_id, stage, attempt_index, attempt_kind, parent)
         blob = self.blob(
             json.dumps(body, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
         )
@@ -178,6 +181,14 @@ class EvaluationJournal:
             request_blob=blob.model_dump(mode="json"),
             request_hash=blob.sha256,
             context=context,
+            attempt_kind=attempt_kind,
+            operation_kind=operation_kind,
+            parent_request_ref=RuntimeRef(
+                record_kind="tool_execution", record_id=parent["request_record_id"]
+            ).model_dump(mode="json")
+            if parent
+            else None,
+            authorization=authorization,
         )
 
         def write(tx):
@@ -185,8 +196,8 @@ class EvaluationJournal:
             append_runtime(self.repo, tx, self.project, ref, record, "evaluator", replay=True)
             query(
                 tx,
-                """INSERT INTO evaluation_model_invocations(project_id,run_id,invocation_id,stage,status,request_record_id,attempt_index,parent_invocation_id)
-                        VALUES(:p,:r,:i,:s,'prepared',:request,:attempt,:parent)""",
+                """INSERT INTO evaluation_model_invocations(project_id,run_id,invocation_id,stage,status,request_record_id,attempt_index,parent_invocation_id,parent_attempt_index,attempt_kind,operation_kind)
+                        VALUES(:p,:r,:i,:s,'prepared',:request,:attempt,:parent,:parent_attempt,:kind,:operation)""",
                 p=self.project,
                 r=run_id,
                 i=invocation_id,
@@ -194,6 +205,9 @@ class EvaluationJournal:
                 request=ref.record_id,
                 attempt=attempt_index,
                 parent=parent_invocation_id,
+                parent_attempt=parent["attempt_index"] if parent else None,
+                kind=attempt_kind,
+                operation=operation_kind,
             )
 
         archive_write(self.repo, self.project, write)

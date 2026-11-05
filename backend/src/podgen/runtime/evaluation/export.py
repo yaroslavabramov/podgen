@@ -10,6 +10,7 @@ from podgen.domain.errors import Conflict
 
 from .contracts import STAGES
 from .journal import EvaluationJournal
+from .usage import refused_without_generation
 
 
 def _write(path, data):
@@ -117,10 +118,10 @@ def export_run(repo, project, run_id, directory):
                 base /= f"attempt-{invocation['attempt_index']}"
             _export_attempt(journal, invocation, base, write_json, directory)
             result["input_tokens"] += invocation["input_tokens"] or 0
-            if invocation["output_tokens"] is None:
+            if invocation["output_tokens"] is None and not refused_without_generation(journal, invocation):
                 result["unknown_usage_invocations"].append(str(invocation["invocation_id"]))
             else:
-                result["output_tokens_known"] += invocation["output_tokens"]
+                result["output_tokens_known"] += invocation["output_tokens"] or 0
         selected = attempts[-1]
         result["invocations"][stage] = dict(
             **_projection(selected), attempts=[_projection(item) for item in attempts]

@@ -13,6 +13,7 @@ from podgen.persistence.database import Database
 from podgen.persistence.objects import FileObjectStore
 from podgen.persistence.repository import Repository
 from podgen.runtime.evaluation.contracts import RunFailure, RunLimits, WritingRunCommand
+from podgen.runtime.evaluation.credit_recovery import recovery_hint
 from podgen.runtime.evaluation.export import export_run
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.profiles import create_profile
@@ -82,6 +83,7 @@ def parser():
         command_parser.add_argument("--export-dir", type=Path, required=True)
         if command == "resume":
             command_parser.add_argument("--repair-review-anchors", action="store_true")
+            command_parser.add_argument("--retry-credit-refusal", type=UUID, metavar="INVOCATION_UUID")
     return root
 
 
@@ -178,7 +180,9 @@ def main(argv=None):
         )
         try:
             result = WritingEvaluation(repo, provider).run(
-                command, repair_review_anchors=getattr(args, "repair_review_anchors", False)
+                command,
+                repair_review_anchors=getattr(args, "repair_review_anchors", False),
+                retry_credit_refusal=getattr(args, "retry_credit_refusal", None),
             )
         finally:
             if journal.run(command.run_id):
@@ -189,7 +193,14 @@ def main(argv=None):
         code = getattr(error, "code", "invalid_cli_configuration")
         print(
             json.dumps(
-                dict(ok=False, code=code, run_id=str(args.run_id) if hasattr(args, "run_id") else None)
+                dict(
+                    ok=False,
+                    code=code,
+                    run_id=str(args.run_id) if hasattr(args, "run_id") else None,
+                    invocation_id=str(error.invocation_id) if getattr(error, "invocation_id", None) else None,
+                    message=recovery_hint(code),
+                ),
+                ensure_ascii=False,
             ),
             file=sys.stderr,
         )

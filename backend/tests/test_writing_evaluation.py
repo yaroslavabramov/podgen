@@ -67,7 +67,7 @@ class FakeProvider:
                         reason="SYNTHETIC invalid anchor",
                     )
                 ]
-        if body["metadata"].get("podgen_attempt_index") == "1":
+        if body["text"]["format"]["name"] == "anchor_choices":
             repair = json.loads(body["input"][-1]["content"][0]["text"])
             selector = repair["selectors"][0]["selector_id"]
             if self.repair_choice == "null":

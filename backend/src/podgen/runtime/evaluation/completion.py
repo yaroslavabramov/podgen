@@ -4,6 +4,7 @@ from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.domain.errors import Conflict
 
 from .contracts import STAGES
+from .usage import attempt_usage
 
 
 def completed_result(generation, journal, command, manifest):
@@ -45,12 +46,9 @@ def completed_result(generation, journal, command, manifest):
         profile_ref = profile_for(command, stage).model_dump(mode="json")
         profile = generation.get(command.project_id, ArtifactRef.model_validate(profile_ref))
         for attempt in journal.attempts(command.run_id, stage):
-            totals["input"] += attempt["input_tokens"] or 0
-            totals["output"] += (
-                attempt["output_tokens"]
-                if attempt["output_tokens"] is not None
-                else profile.payload["output_limit"]
-            )
+            usage = attempt_usage(journal, attempt, profile.payload["output_limit"])
+            for key in totals:
+                totals[key] += usage[key]
     if record.get("parent_script_ref") != refs["draft"]:
         raise Conflict("completed_run_parent_script_mismatch")
     return dict(

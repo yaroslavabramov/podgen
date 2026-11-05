@@ -30,7 +30,7 @@ LEGACY_REPAIR_INSTRUCTIONS_V1 = (
 def _rejected_feedback(journal, original, request):
     if (
         original["stage"] != "review"
-        or original["attempt_index"] != 0
+        or original["operation_kind"] != "role"
         or original["status"] != "validation_failed"
     ):
         raise RunFailure("review_anchor_repair_not_eligible")
@@ -80,15 +80,19 @@ def _plan(journal, original, draft):
 
 def prepare_anchor_repair(journal, original, *, draft, draft_ref, guard):
     guard()
-    existing = journal.invocation(original["run_id"], "review", 1)
-    if existing:
-        return existing
+    repairs = [
+        row
+        for row in journal.attempts(original["run_id"], "review")
+        if row["operation_kind"] == "anchor_repair"
+    ]
+    if repairs:
+        return repairs[-1]
     plan, request = _plan(journal, original, draft)
     body = deepcopy(request)
     invocation_id = uuid5(original["run_id"], "invocation:review:anchor-repair:1")
     body["metadata"].update(
         podgen_invocation_id=str(invocation_id),
-        podgen_attempt_index="1",
+        podgen_attempt_index=str(original["attempt_index"] + 1),
         podgen_parent_invocation_id=str(original["invocation_id"]),
     )
     manifest = journal.manifest(original["run_id"])
@@ -149,7 +153,9 @@ def prepare_anchor_repair(journal, original, *, draft, draft_ref, guard):
         "review",
         body,
         context,
-        attempt_index=1,
+        attempt_index=original["attempt_index"] + 1,
+        attempt_kind="anchor_repair",
+        operation_kind="anchor_repair",
         parent_invocation_id=original["invocation_id"],
     )
     journal.event(
@@ -166,8 +172,12 @@ def prepare_anchor_repair(journal, original, *, draft, draft_ref, guard):
 
 
 def apply_anchor_repair(journal, invocation, raw, *, draft):
-    original = journal.invocation(invocation["run_id"], "review", 0)
-    if original is None or invocation["parent_invocation_id"] != original["invocation_id"]:
+    attempts = journal.attempts(invocation["run_id"], "review")
+    origin = next((row for row in attempts if row["attempt_kind"] == "anchor_repair"), None)
+    original = next(
+        (row for row in attempts if origin and row["invocation_id"] == origin["parent_invocation_id"]), None
+    )
+    if original is None or invocation["operation_kind"] != "anchor_repair":
         raise ContractError("review_repair_parent_mismatch")
     plan, _ = _plan(journal, original, draft)
     request_record = journal.read(
@@ -182,18 +192,3 @@ def apply_anchor_repair(journal, invocation, raw, *, draft):
     choices = AnchorChoices.model_validate_json(raw)
     repaired = plan.apply(choices)
     return repaired.model_dump(mode="json"), choices.model_dump(mode="json")
-
-
-def prior_attempt_usage(journal, invocation, profile):
-    previous = [
-        row
-        for row in journal.attempts(invocation["run_id"], invocation["stage"])
-        if row["attempt_index"] < invocation["attempt_index"]
-    ]
-    return dict(
-        input=sum(row["input_tokens"] or 0 for row in previous),
-        output=sum(
-            row["output_tokens"] if row["output_tokens"] is not None else profile.output_limit
-            for row in previous
-        ),
-    )

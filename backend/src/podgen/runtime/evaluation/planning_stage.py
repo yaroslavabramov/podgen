@@ -12,6 +12,7 @@ from .compiler import response_request
 from .contracts import RunFailure
 from .profiles import load_profile
 from .stage import StageResult
+from .usage import prior_attempt_usage
 from .validation import load_unique_json
 from .workflow import output_model, profile_for
 
@@ -77,8 +78,10 @@ def execute_planning_stage(
     )
     if saved_request["context"] != context:
         raise ContractError("planning_request_binding_mismatch")
+    prior = prior_attempt_usage(journal, invocation, profile)
+    charged = {key: totals[key] + prior[key] for key in ("input", "output")}
     if invocation["status"] != "completed":
-        raw = gateway.invoke(invocation, profile, limits=command.limits, totals=totals, guard=guard)
+        raw = gateway.invoke(invocation, profile, limits=command.limits, totals=charged, guard=guard)
         try:
             load_unique_json(raw)
             parsed = output_model(stage).model_validate_json(raw)
@@ -129,8 +132,9 @@ def execute_planning_stage(
     return StageResult(
         journal.output(invocation)["output"],
         RuntimeRef(record_kind="tool_execution", record_id=invocation["output_record_id"]),
-        invocation["input_tokens"] or 0,
-        invocation["output_tokens"] if invocation["output_tokens"] is not None else profile.output_limit,
+        (invocation["input_tokens"] or 0) + prior["input"],
+        (invocation["output_tokens"] if invocation["output_tokens"] is not None else profile.output_limit)
+        + prior["output"],
     )
 
 

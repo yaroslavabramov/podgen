@@ -129,3 +129,23 @@ uv run --directory backend python -m podgen.writing_cli \
 Repository повторно использует успешно проверенные узлы только внутри одного публичного чтения в PostgreSQL read-only repeatable-read snapshot. Конкурирующий отзыв применяется к следующему чтению; snapshot и memo не живут между вызовами, транзакциями, проектами или purposes. Guard перед count/submit открывает новые чтения и снова проверяет живой доступ. Циклы проверяются отдельным active-path guard.
 
 Для `journal.record/create_run/prepare/event` используется отдельная короткая write-транзакция с repeatable-read снимком и memo на одну проверку графа. `FOR SHARE` проекта сериализует публикацию с обычным `DependencyLedger` access withdrawal, а блокировка строки членства — с удалением/понижением роли. Отзыв после публикации видит и новые рёбра/производные bytes; отзыв, выигравший гонку, приводит к новому снимку и отказу в записи. Повторяется только откатившаяся SQL-транзакция с `40001`, максимум три раза; provider calls внутри callback отсутствуют. Общая политика остальных write-транзакций не менялась.
+
+
+## Явное продолжение после отказа по балансу
+
+Требуется `0013_credit_refusal_attempts`. Обычный `resume` не повторяет ошибку. Оператор может разрешить **одну** новую физическую попытку конкретного отказа:
+
+```sh
+uv run --directory backend python -m podgen.writing_cli \
+  --env-file ../.env --project PROJECT_UUID --actor ACTOR_UUID --objects /ABS/STAGING_OBJECTS \
+  resume --run-id RUN_UUID --retry-credit-refusal FAILED_INVOCATION_UUID \
+  --export-dir /tmp/RECOVERED_RUN_EXPORT
+```
+
+Допускается только сохранённый submit error: HTTP 429, `error.code=credit_balance_exhausted`, `ambiguous=false`, без response ID, сохранённого ответа или output. Проверяются status, submit intent, связанный request и полный raw error. Успехи, count errors, прочие HTTP/validation faults и неизвестный outcome не допускаются. Команда объясняет refusal и неизвестный outcome разными кодами/сообщениями; ошибочный UUID не меняет status/failure_code run.
+
+UUID берётся из `run.json` → `invocations` → нужный этап → `attempts`. Повтор той же команды использует уже созданную попытку. Если новая попытка опять получила отказ по балансу, необходима **новая команда с её UUID**. Подтверждение и receipt сохраняются атомарно в request record; новый UUID детерминирован по родителю. Crash после submit intent не разрешает повторный submit.
+
+Оплаченные plan/draft/review не создаются заново. Сохраняются исходный manifest, prompts/model/schema, полные input/instructions и исходные request/wire/response bytes. У нового запроса меняется только metadata привязки к новой попытке. Проверяются прежние права и бюджеты, время run не начинается заново. Предыдущие preflight input counts остаются в консервативном общем input budget; у доказанного отказа без генерации нет output reservation. Это не подмена сохранённых usage: исходные поля и raw receipts остаются неизменными.
+
+`attempt_kind` различает `role`, один `anchor_repair` и явный `credit_retry`; `operation_kind` сохраняет исходную работу. Поэтому retry отказавшего anchor repair не создаёт второе смысловое исправление. Все предыдущие попытки экспортируются: первая в `archive/<stage>/`, остальные в `archive/<stage>/attempt-N/`; `run.json` перечисляет lineage, statuses и суммарные известные usage/counts. `resume --retry-credit-refusal ...` не включает repair policy молча: исходная policy run и явный `--repair-review-anchors` действуют как прежде.

@@ -20,7 +20,7 @@ def database():
     db = Database(url)
     with db.transaction() as tx:
         assert (
-            tx.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0012_own_plan_stages"
+            tx.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0013_credit_refusal_attempts"
         )
     yield db
     db.engine.dispose()

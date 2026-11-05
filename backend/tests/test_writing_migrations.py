@@ -67,7 +67,7 @@ def test_legacy_invocation_upgrade_and_repair_parent_constraint(database):
                     s=stage,
                     q=record,
                 )
-        migrate("head")
+        migrate("0012_own_plan_stages")
         with db.transaction() as tx:
             row = one(tx, "SELECT * FROM evaluation_model_invocations WHERE invocation_id=:i", i=original)
             assert row["attempt_index"] == 0 and row["parent_invocation_id"] is None
@@ -93,7 +93,29 @@ def test_legacy_invocation_upgrade_and_repair_parent_constraint(database):
         insert(original, invocation=repaired)
         with pytest.raises(IntegrityError):
             insert(repaired, attempt=2)
+        with db.transaction() as tx:
+            old = {
+                row["invocation_id"]: dict(row)
+                for row in query(tx, "SELECT * FROM evaluation_model_invocations").mappings()
+            }
         migrate("head")
+        with db.transaction() as tx:
+            for row in query(tx, "SELECT * FROM evaluation_model_invocations").mappings():
+                assert {key: row[key] for key in old[row["invocation_id"]]} == old[row["invocation_id"]]
+                assert row["attempt_kind"] == (
+                    "anchor_repair" if row["invocation_id"] == repaired else "role"
+                )
+            query(
+                tx,
+                """INSERT INTO evaluation_model_invocations(project_id,run_id,invocation_id,stage,status,request_record_id,
+              attempt_index,parent_invocation_id,parent_attempt_index,attempt_kind,operation_kind)
+              VALUES(:p,:r,:i,'review','prepared',:q,2,:parent,1,'credit_retry','anchor_repair')""",
+                p=project,
+                r=run,
+                i=uuid4(),
+                q=record,
+                parent=repaired,
+            )
     finally:
         db.engine.dispose()
         with admin.connect() as connection:

@@ -1,0 +1,140 @@
+"""One explicit retry of a proven no-generation credit refusal; never a transport retry policy."""
+
+from copy import deepcopy
+from uuid import uuid5
+
+from podgen.domain.contracts.common import BlobRef, RuntimeRef
+
+from .contracts import ALL_STAGES, RunFailure
+from .validation import load_unique_json
+
+
+def refusal_evidence(journal, invocation):
+    def reject(code="credit_refusal_retry_not_eligible"):
+        raise RunFailure(
+            code,
+            run_id=invocation["run_id"],
+            invocation_id=invocation["invocation_id"],
+        )
+
+    if invocation["status"] in ("submitting", "waiting", "outcome_unknown"):
+        reject("credit_refusal_retry_outcome_unknown")
+    if (
+        invocation["status"] != "failed"
+        or invocation["provider_response_id"] is not None
+        or invocation["output_record_id"] is not None
+    ):
+        reject()
+    submits = []
+    errors = []
+    for event in journal.events(invocation):
+        ref = RuntimeRef(record_kind="tool_execution", record_id=event["record_id"])
+        record = journal.read(ref)
+        if record["invocation_id"] != str(invocation["invocation_id"]) or record["request_ref"][
+            "record_id"
+        ] != str(invocation["request_record_id"]):
+            reject()
+        if event["event_kind"] == "submit_intent":
+            submits.append(record)
+        if event["event_kind"] == "provider_error":
+            errors.append((ref, record))
+        if event["event_kind"] in (
+            "provider_response",
+            "retrieve_error",
+            "failure",
+            "output_validation_error",
+        ):
+            reject()
+    if (
+        len(submits) != 1
+        or submits[0]["data"].get("client_request_id") != str(invocation["invocation_id"])
+        or len(errors) != 1
+    ):
+        reject()
+    ref, error = errors[0]
+    data = error["data"]
+    if (
+        data.get("operation") != "submit"
+        or data.get("ambiguous") is not False
+        or data.get("code") != "provider_http_429"
+        or error.get("provider_http_status") != 429
+        or error.get("provider_response_id") is not None
+        or data.get("provider_response_id") is not None
+        or not error.get("response_blob")
+    ):
+        reject()
+    try:
+        body = load_unique_json(journal.read_blob(ref, BlobRef.model_validate(error["response_blob"])))
+        if (
+            not isinstance(body, dict)
+            or body.get("id") is not None
+            or body.get("response_id") is not None
+            or body["error"]["code"] != "credit_balance_exhausted"
+            or body["error"].get("response_id") is not None
+        ):
+            reject()
+    except (ValueError, KeyError, TypeError):
+        reject()
+    return ref
+
+
+def authorize_credit_retry(journal, run_id, target_id, *, guard, allow_create=True):
+    target = None
+    rows = None
+    for stage in ALL_STAGES:
+        found = journal.attempts(run_id, stage)
+        match = next((row for row in found if row["invocation_id"] == target_id), None)
+        if match:
+            target, rows = match, found
+            break
+    if target is None:
+        raise RunFailure("credit_refusal_retry_not_eligible", run_id=run_id)
+    receipt = refusal_evidence(journal, target)
+    child = next(
+        (
+            row
+            for row in rows
+            if row["attempt_kind"] == "credit_retry" and row["parent_invocation_id"] == target_id
+        ),
+        None,
+    )
+    if child is not None:
+        return child
+    if not allow_create or rows[-1]["invocation_id"] != target_id:
+        raise RunFailure("credit_refusal_retry_not_current", run_id=run_id, invocation_id=target_id)
+    guard()
+    body = deepcopy(journal.request(target))
+    new_id = uuid5(target_id, "credit-refusal-retry:1")
+    index = target["attempt_index"] + 1
+    body["metadata"].update(
+        podgen_invocation_id=str(new_id),
+        podgen_attempt_index=str(index),
+        podgen_parent_invocation_id=str(target_id),
+    )
+    original = journal.read(RuntimeRef(record_kind="tool_execution", record_id=target["request_record_id"]))
+    return journal.prepare(
+        run_id,
+        target["stage"],
+        body,
+        deepcopy(original["context"]),
+        attempt_index=index,
+        parent_invocation_id=target_id,
+        attempt_kind="credit_retry",
+        operation_kind=target["operation_kind"],
+        authorization=dict(
+            kind="credit-refusal-retry-v1",
+            actor_id=str(journal.repo.actor_id),
+            target_invocation_id=str(target_id),
+            refusal_event_ref=receipt.model_dump(mode="json"),
+            maximum_new_attempts=1,
+        ),
+    )
+
+
+def recovery_hint(code):
+    return {
+        "credit_refusal_retry_not_eligible": "Повтор разрешён только для архивного отказа submit: HTTP 429, credit_balance_exhausted, без response ID и неоднозначности. Успешные ответы и другие ошибки не повторяются.",
+        "credit_refusal_retry_outcome_unknown": "Исход запроса неизвестен либо уже имеется незавершённый ответ провайдера. Повторная генерация запрещена; требуется сверка сохранённого ответа/состояния у провайдера.",
+        "credit_refusal_retry_not_current": "Указанная попытка уже не текущая. Используйте UUID конкретной последней отказавшей попытки.",
+        "credit_refusal_retry_action_used": "Это действие уже использовано. Нового повтора не создано. Для нового подтверждённого отказа по балансу явно укажите UUID новой отказавшей попытки.",
+    }.get(code)
