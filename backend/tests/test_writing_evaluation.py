@@ -1,6 +1,7 @@
 """Synthetic provider responses exercise real SQL, repository ACLs and the public use case."""
 
 import json
+from dataclasses import replace
 from uuid import uuid4
 
 import pytest
@@ -140,6 +141,7 @@ def setup_writer(repo, scope):
                     author_ref,
                 ),
             ),
+            output_language="ru",
         )
 
     profile = create_profile(
@@ -161,6 +163,21 @@ def run(repo, command, loader, provider, *, repair=False):
     return WritingEvaluation(
         repo, lambda profile: provider, materials_loader=loader, gateway_options={"poll_seconds": 0}
     ).run(command, repair_review_anchors=repair)
+
+
+def test_output_language_comes_from_assignment_and_is_pinned_for_all_roles(repo, setup_writer):
+    command, loader, _ = setup_writer
+    provider = FakeProvider()
+
+    def english_assignment(*args, **kwargs):
+        return replace(loader(*args, **kwargs), output_language="en")
+
+    run(repo, command, english_assignment, provider)
+    manifest = EvaluationJournal(repo, command.project_id).manifest(command.run_id)
+    assert manifest["output_language"] == "en"
+    assert [
+        json.loads(req["input"][0]["content"][0]["text"])["output_language"] for req in provider.requests
+    ] == ["en"] * 3
 
 
 def test_normal_full_three_stage_entry_and_idempotency(repo, setup_writer, tmp_path):

@@ -11,8 +11,8 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
-ROLE_INSTRUCTIONS_VERSION = "whole-episode-a/2"
-_INSTRUCTION_VERSIONS = {"whole-episode-a/1": "v1", "whole-episode-a/2": "v2"}
+ROLE_INSTRUCTIONS_VERSION = "whole-episode-a/3"
+_INSTRUCTION_VERSIONS = {"whole-episode-a/1": "v1", "whole-episode-a/2": "v2", "whole-episode-a/3": "v3"}
 WritingStage = Literal["draft", "review", "revise"]
 WritingFormat = Literal["solo", "dialogue"]
 
@@ -121,7 +121,7 @@ def role_instructions_for_version(stage: WritingStage, format: WritingFormat, *,
 
     No episode content, evaluation answers or repository files are read here.
     Archive the full returned bytes with each real invocation. A prompt cannot
-    enforce runtime isolation. Wire output schemas are unchanged across v1/v2.
+    enforce runtime isolation. Published versions share the same wire output schemas.
     """
     if stage not in ("draft", "review", "revise"):
         raise ValueError(f"unknown_writing_stage: {stage!r}")

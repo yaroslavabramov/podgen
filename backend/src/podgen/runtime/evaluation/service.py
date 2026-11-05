@@ -76,6 +76,7 @@ class WritingEvaluation:
         )
         manifest = dict(
             contract="writing-evaluation-run-v1",
+            output_language=materials.output_language,
             stages=list(STAGES),
             runtime_versions={"python": platform.python_version(), "openai_sdk": version("openai")},
             compiler_version=COMPILER_VERSION,

@@ -20,12 +20,13 @@ EpisodeFormat = Literal["dialogue", "solo"]
 class CaseAssignment:
     format: EpisodeFormat
     speaker_labels: tuple[str, ...]
+    output_language: str
 
 
 # Controlled conditions for the two frozen briefs. Speaker labels are routing metadata.
 ASSIGNMENTS = {
-    "gps-clock": CaseAssignment("dialogue", ("НИНА", "ИЛЬЯ")),
-    "snow-pump": CaseAssignment("solo", ("РАССКАЗЧИК",)),
+    "gps-clock": CaseAssignment("dialogue", ("НИНА", "ИЛЬЯ"), "ru"),
+    "snow-pump": CaseAssignment("solo", ("РАССКАЗЧИК",), "ru"),
 }
 
 
@@ -43,6 +44,7 @@ class AuthorMaterials:
     format: EpisodeFormat
     speaker_labels: tuple[str, ...]
     documents: tuple[AuthorDocument, ...]
+    output_language: str
 
     def as_payload(self) -> dict:
         return {
@@ -118,4 +120,10 @@ def load_author_materials(
 
     verify_excerpts(excerpts, read_representation)
     assignment = ASSIGNMENTS[case_id]
-    return AuthorMaterials(case_id, assignment.format, assignment.speaker_labels, tuple(documents.values()))
+    return AuthorMaterials(
+        case_id,
+        assignment.format,
+        assignment.speaker_labels,
+        tuple(documents.values()),
+        assignment.output_language,
+    )

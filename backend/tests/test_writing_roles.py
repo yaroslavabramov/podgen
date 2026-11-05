@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 from importlib.resources import files
 
 import pytest
@@ -18,10 +19,12 @@ from podgen.writing.roles import (
 @pytest.mark.parametrize("format", ["solo", "dialogue"])
 def test_all_role_instructions_use_complete_packaged_resources(stage, format, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    root = files("podgen.writing.prompts").joinpath("v2")
+    root = files("podgen.writing.prompts").joinpath("v3")
     result = role_instructions(stage, format)
     assert ROLE_INSTRUCTIONS_VERSION in result
-    assert result == role_instructions_for_version(stage, format, version="whole-episode-a/2")
+    assert result == role_instructions_for_version(stage, format, version="whole-episode-a/3")
+    assert not re.search(r"[А-Яа-яЁё]", result)
+    assert "output_language" in result
     assert f"stage={stage}; format={format}" in result
     for name in ("common.md", f"{format}.md", f"{stage}.md"):
         assert root.joinpath(name).read_text(encoding="utf-8") in result
@@ -163,6 +166,22 @@ def test_json_schema_is_closed_and_contains_no_text_length_limit(model):
 )
 def test_archived_v1_instructions_are_byte_identical(stage, format, expected_sha256):
     text = role_instructions_for_version(stage, format, version="whole-episode-a/1")
+    assert hashlib.sha256(text.encode()).hexdigest() == expected_sha256
+
+
+@pytest.mark.parametrize(
+    "stage,format,expected_sha256",
+    [
+        ("draft", "solo", "58cf539c58a48fffa4ce99fbe7b33b1ef61aaac3fc35c3ed424356df711872a7"),
+        ("draft", "dialogue", "f55d7220ab4ca79a444c342d95199daff71d0eb186042b26312a8bfca21aab01"),
+        ("review", "solo", "070bf397d1de1cf8cfa03430ce3dd5c40cf0b13abaa26064d19f55d831c2a24b"),
+        ("review", "dialogue", "d2b22990b820a7daed1be291beb0dbef6c04e5eef8fa489b77252c3d9e7217f4"),
+        ("revise", "solo", "816d8388b61fa29db5cfdec88b156cc55fd30e7d0f257e4c8a754a49d01aa89e"),
+        ("revise", "dialogue", "6fde2b0cbbc81d99a7f3f502aad402a5e9cf461780209025cbda52fd0a4f9ffa"),
+    ],
+)
+def test_archived_v2_instructions_are_byte_identical(stage, format, expected_sha256):
+    text = role_instructions_for_version(stage, format, version="whole-episode-a/2")
     assert hashlib.sha256(text.encode()).hexdigest() == expected_sha256
 
 

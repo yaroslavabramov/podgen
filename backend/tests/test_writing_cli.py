@@ -74,10 +74,13 @@ def test_real_frozen_cli_entry_all_stages_and_evaluator_export(
         journal = EvaluationJournal(repo, project)
         manifest = journal.manifest(run_id)
         assert manifest["command"]["author_ref"] == report["author_inputs"][case]
+        assert manifest["output_language"] == "ru"
         assert manifest["semantic_acceptance"] is False
         for stage in ("draft", "review", "revise"):
             request = json.loads((out / f"archive/{stage}/request.json").read_text())
             payload = json.loads(request["input"][0]["content"][0]["text"])
+            assert payload["output_language"] == "ru"
+            assert "output_language" in request["instructions"]
             docs = payload["author_materials"]["documents"]
             assert len(docs) == (8 if case == "gps-clock" else 7)
             assert all("evaluator-only" not in doc["path"] for doc in docs)
@@ -85,3 +88,7 @@ def test_real_frozen_cli_entry_all_stages_and_evaluator_export(
             assert request["model"] == "gpt-5.4-2026-03-05"
         assert writing_cli.main(args) == 0
     assert len(provider.requests) == (6 if anchor_policy == "strict" else 8)
+    assert all(
+        json.loads(req["input"][0]["content"][0]["text"])["output_language"] == "ru"
+        for req in provider.requests
+    )

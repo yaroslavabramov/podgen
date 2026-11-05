@@ -85,9 +85,14 @@ def indexed_script(output):
     )
 
 
-def compile_request(run_id, stage, profile, materials, instructions, schema, *, draft=None, feedback=None):
+def compile_request(
+    run_id, stage, profile, materials, instructions, schema, *, output_language, draft=None, feedback=None
+):
     validate_profile(profile, stage)
     payload = {"contract": "whole-episode-baseline-a/1", "stage": stage, "author_materials": materials}
+    # Manifests created before the language field was introduced retain their original wire format.
+    if output_language is not None:
+        payload["output_language"] = output_language
     if stage in ("review", "revise"):
         if draft is None:
             raise ContractError("draft_required")

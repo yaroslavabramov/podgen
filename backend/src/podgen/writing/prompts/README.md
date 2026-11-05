@@ -3,7 +3,7 @@
 Public API: `podgen.writing.roles.role_instructions(stage, format)`. Stages are
 `draft`, `review`, `revise`; formats are `solo`, `dialogue`. The returned text is
 the complete common + format + stage instructions, headed by
-`ROLE_INSTRUCTIONS_VERSION` (currently `whole-episode-a/2`). UTF-8 assets are read with `importlib.resources`
+`ROLE_INSTRUCTIONS_VERSION` (currently `whole-episode-a/3`). UTF-8 assets are read with `importlib.resources`
 from the installed package, independently of the working directory.
 
 These instructions contain no episode data. The caller supplies complete pinned
@@ -36,12 +36,18 @@ identifier/resolver together; do not silently replace a published version.
 Qualify changes through real product runs on common inputs. Unit/schema checks
 and installed-package checks establish contract integrity, not writing quality.
 
-## Explicit replay and v2
+## Language and replay
+
+Current system instructions are in English for every output language. The frozen
+case assignment supplies the output language. New manifests pin it and all three
+stages receive it as `output_language` in the user payload. Reviews use it for
+their prose and retain source quotes and identifiers verbatim. V1 and v2 retain
+their original Russian instructions for historical runs.
 
 Use `role_instructions_for_version(stage, format, version="whole-episode-a/1")`
 for archived v1 calls. The original two-argument `role_instructions` API selects
 the current version; neither function silently falls back from an unknown
-version. Both complete version directories ship in the installed package. The
+version. All published version directories ship in the installed package. The
 wire schemas of WriteOutput and EditorialFeedback remain unchanged.
 
 V2 strengthens general checks of numerical groups, units, operations, dated
@@ -52,6 +58,6 @@ not deterministic factual gates or proof of improved model performance.
 
 Do not relabel archived attempts as v2 or edit their raw outputs. New comparisons
 need fresh product calls with explicitly pinned versions and the same inputs.
-Tests pin all v1 instruction hashes and both wire schemas; preserve the v1 assets
+Tests pin the v1 and v2 instruction hashes and both wire schemas; preserve historical assets
 when publishing future versions. No episode text or evaluation answers belong
 in these resources or schemas.

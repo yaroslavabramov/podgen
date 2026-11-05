@@ -50,6 +50,7 @@ def execute_stage(
         materials.as_payload(),
         instructions,
         manifest["response_schemas"][stage],
+        output_language=manifest.get("output_language"),
         draft=outputs.get("draft"),
         feedback=outputs.get("review"),
     )
