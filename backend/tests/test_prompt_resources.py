@@ -53,7 +53,7 @@ def deployed_python(target, script, *args):
 
 SNAPSHOT = """
 import hashlib, json
-from podgen.writing.prompts import load_instruction_set, role_instructions, role_instructions_for_version
+from podgen.writing.prompts import load_anchor_repair_instructions, load_instruction_set, role_instructions, role_instructions_for_version
 active = {}
 history = {}
 for format in ("solo", "dialogue"):
@@ -63,11 +63,14 @@ for format in ("solo", "dialogue"):
         for version in ("whole-episode-a/1", "whole-episode-a/2", "whole-episode-a/3"):
             body = role_instructions_for_version(stage, format, version=version)
             history[stage + "/" + format + "/" + version] = hashlib.sha256(body.encode()).hexdigest()
-print(json.dumps(dict(active=active, history=history)))
+repair = load_anchor_repair_instructions()
+print(json.dumps(dict(active=active, history=history, repair=dict(version=repair.version, body=repair.body))))
 """
 
 
-@pytest.mark.parametrize("component", ["common", "solo", "dialogue", "draft", "review", "revise"])
+@pytest.mark.parametrize(
+    "component", ["common", "solo", "dialogue", "draft", "review", "revise", "anchor-repair"]
+)
 def test_edit_one_installed_component_changes_only_applicable_bodies(installed_package, component):
     target = installed_package
     before = deployed_python(target, SNAPSHOT)
@@ -78,6 +81,7 @@ def test_edit_one_installed_component_changes_only_applicable_bodies(installed_p
         path.write_bytes(original + b"\nSYNTHETIC component edit.\r\n")
         after = deployed_python(target, SNAPSHOT)
         assert after["history"] == before["history"]
+        assert (after["repair"] != before["repair"]) == (component == "anchor-repair")
         for key, old in before["active"].items():
             stage, format = key.split("/")
             affected = component in ("common", stage, format)
@@ -96,7 +100,7 @@ role_instructions_for_version("review", "solo", version={before["active"]["revie
     assert deployed_python(target, SNAPSHOT) == before
 
 
-def test_new_run_reads_each_used_component_once(monkeypatch):
+def test_instruction_set_reads_each_used_component_once(monkeypatch):
     reads = []
     root = prompts.files("podgen.writing.prompts")
 
@@ -165,7 +169,9 @@ def test_installed_resume_and_replay_use_archived_bodies_without_prompt_files(
 
         def legacy_manifest(journal, command, manifest):
             # Reproduce the old manifest shape before its first immutable persistence.
-            return create_run(journal, command, dict(manifest, role_instructions_version=historical_version))
+            legacy = dict(manifest, role_instructions_version=historical_version)
+            legacy.pop("anchor_repair_instructions", None)
+            return create_run(journal, command, legacy)
 
         monkeypatch.setattr(EvaluationJournal, "create_run", legacy_manifest)
     provider = FakeProvider()
@@ -231,3 +237,19 @@ print(json.dumps(dict(result=result, requests=provider.requests)))
             request["instructions"].split(";", 1)[0].removeprefix("Instructions: ")
             == manifest["role_instructions_versions"][stage]
         )
+
+
+@pytest.mark.parametrize("version", ["whole-episode-a/1", "whole-episode-a/2", "whole-episode-a/3"])
+def test_numbered_history_preserves_original_universal_newline_semantics(version, monkeypatch, tmp_path):
+    before = {
+        (stage, format): prompts.role_instructions_for_version(stage, format, version=version)
+        for stage in ("draft", "review", "revise")
+        for format in ("solo", "dialogue")
+    }
+    directory = "v" + version.rsplit("/", 1)[1]
+    shutil.copytree(prompts.files("podgen.writing.prompts").joinpath(directory), tmp_path / directory)
+    common = tmp_path / directory / "common.md"
+    common.write_bytes(common.read_bytes().replace(b"\n", b"\r\n"))
+    monkeypatch.setattr(prompts, "files", lambda _: tmp_path)
+    for (stage, format), body in before.items():
+        assert prompts.role_instructions_for_version(stage, format, version=version) == body

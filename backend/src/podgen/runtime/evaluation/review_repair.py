@@ -16,7 +16,8 @@ from .compiler import indexed_script
 from .contracts import RunFailure
 from .validation import load_unique_json
 
-REPAIR_INSTRUCTIONS = (
+# Frozen compatibility for manifests created before repair instructions were pinned.
+LEGACY_REPAIR_INSTRUCTIONS_V1 = (
     "\n\nAnchor selection repair v1. This call selects exact source passages for the rejected anchors only. "
     "Keep the draft, sources, all editorial judgments and already valid anchors unchanged. "
     "Return AnchorChoices using only the published anchor_id and selector_id values. "
@@ -90,7 +91,19 @@ def prepare_anchor_repair(journal, original, *, draft, draft_ref, guard):
         podgen_attempt_index="1",
         podgen_parent_invocation_id=str(original["invocation_id"]),
     )
-    body["instructions"] += REPAIR_INSTRUCTIONS
+    manifest = journal.manifest(original["run_id"])
+    pinned = manifest.get("anchor_repair_instructions")
+    if "anchor_repair_instructions" not in manifest:
+        pinned = dict(version="anchor-repair/1", body=LEGACY_REPAIR_INSTRUCTIONS_V1)
+    if (
+        not isinstance(pinned, dict)
+        or set(pinned) != {"version", "body"}
+        or not isinstance(pinned["version"], str)
+        or not isinstance(pinned["body"], str)
+        or not pinned["body"].strip()
+    ):
+        raise ContractError("invalid_pinned_anchor_repair_instructions")
+    body["instructions"] += pinned["body"]
     body["text"]["format"] = dict(
         type="json_schema", name="anchor_choices", schema=AnchorChoices.model_json_schema(), strict=True
     )
@@ -124,6 +137,7 @@ def prepare_anchor_repair(journal, original, *, draft, draft_ref, guard):
         ).model_dump(mode="json"),
         draft_ref=draft_ref,
         repair_plan_hash=digest(plan.as_payload()),
+        anchor_repair_instructions_version=pinned["version"],
         recovery=dict(
             kind="exact-anchor-selection-v1",
             maximum_repair_attempts=1,

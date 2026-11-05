@@ -58,6 +58,12 @@ def load_instruction_set(format: Format) -> dict[Stage, RoleInstructions]:
     return {stage: _assemble(stage, format, components) for stage in _STAGES}
 
 
+def load_anchor_repair_instructions() -> RoleInstructions:
+    """Independent suffix: pin it at run creation; never re-read it during repair/resume."""
+    raw = files(__name__).joinpath("current").joinpath("anchor-repair.md").read_bytes()
+    return RoleInstructions("anchor-repair/sha256:" + hashlib.sha256(raw).hexdigest(), raw.decode("utf-8"))
+
+
 def role_instructions(stage: Stage, format: Format) -> str:
     """Current complete body. Editing an applicable .md changes its content ID automatically."""
     _validate(stage, format)
@@ -72,7 +78,8 @@ def role_instructions_for_version(stage: Stage, format: Format, *, version: str)
         raise ValueError(f"unknown_writing_instruction_version: {version!r}")
     root = files(__name__).joinpath(_HISTORICAL[version])
     names = ("common.md", f"{format}.md", f"{stage}.md")
-    parts = _read(root, names)
+    # Preserve the published resolver's universal-newline behavior for numbered history.
+    parts = {name: root.joinpath(name).read_text(encoding="utf-8") for name in names}
     return f"Instructions: {version}; stage={stage}; format={format}\n\n" + "\n\n".join(
         parts[name] for name in names
     )

@@ -1,0 +1,3 @@
+
+
+Anchor selection repair v1. This call selects exact source passages for the rejected anchors only. Keep the draft, sources, all editorial judgments and already valid anchors unchanged. Return AnchorChoices using only the published anchor_id and selector_id values. Choose selector_id=null when no offered passage supports the judgment. No factual corrections or new evidence are being supplied. Use the response schema for AnchorChoices on this dedicated call.

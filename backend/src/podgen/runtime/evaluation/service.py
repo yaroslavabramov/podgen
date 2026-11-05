@@ -2,6 +2,7 @@
 
 import json
 import platform
+from dataclasses import asdict
 from datetime import datetime, timezone
 from importlib.metadata import version
 from uuid import uuid5
@@ -12,7 +13,7 @@ from podgen.domain.errors import AccessDenied, Conflict, ContractError
 from podgen.persistence.repository import Repository, timestamp
 from podgen.runtime.models.gateway import ModelGateway
 from podgen.writing.materials import load_author_materials
-from podgen.writing.prompts import load_instruction_set
+from podgen.writing.prompts import load_anchor_repair_instructions, load_instruction_set
 from podgen.writing.roles import EditorialFeedback, WriteOutput
 
 from .compiler import COMPILER_VERSION, materials_hash
@@ -84,6 +85,7 @@ class WritingEvaluation:
             materials_hash=materials_hash(payload),
             prompt_refs=prompts,
             role_instructions_versions=prompt_versions,
+            anchor_repair_instructions=asdict(load_anchor_repair_instructions()),
             response_schemas=schemas,
             created_at=timestamp(),
             purpose="evaluation",
