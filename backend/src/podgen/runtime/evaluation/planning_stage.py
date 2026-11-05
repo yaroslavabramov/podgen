@@ -40,7 +40,9 @@ def execute_planning_stage(
         contract="own-plan-evaluation-v1",
         stage=stage,
         plan_mode="own-plan",
-        author_materials=materials.as_payload(),
+        author_materials=materials.as_payload()
+        if command.input_contract == "legacy-author-materials/1"
+        else None,
         output_language=manifest["output_language"],
     )
     context = dict(
@@ -71,19 +73,38 @@ def execute_planning_stage(
         )
     if review is not None:
         payload.update(plan_review=review, plan_review_ref=review_ref)
+    if command.input_contract == "editorial-role-packets/1":
+        from podgen.writing.projections import role_payload
+
+        payload = role_payload(stage, materials, candidate=candidate, plan_review=review)
+        context["role_input_contract"] = command.input_contract
     invocation = journal.invocation(command.run_id, stage)
     if invocation is None:
         prompt = generation.get(
             command.project_id, ArtifactRef.model_validate(manifest["prompt_refs"][stage])
         )
-        body = response_request(
-            command.run_id,
-            stage,
-            profile,
-            payload,
-            prompt.payload["template"],
-            manifest["response_schemas"][stage],
-        )
+        if command.input_contract == "editorial-role-packets/1":
+            from .role_request import compile_role_request
+
+            body = compile_role_request(
+                command.run_id,
+                stage,
+                profile,
+                materials,
+                prompt.payload["template"],
+                manifest["response_schemas"][stage],
+                candidate=candidate,
+                plan_review=review,
+            )
+        else:
+            body = response_request(
+                command.run_id,
+                stage,
+                profile,
+                payload,
+                prompt.payload["template"],
+                manifest["response_schemas"][stage],
+            )
         invocation = journal.prepare(command.run_id, stage, body, context)
     saved_request = journal.read(
         RuntimeRef(record_kind="tool_execution", record_id=invocation["request_record_id"])
@@ -104,7 +125,13 @@ def execute_planning_stage(
             else:
                 parsed = output_model(stage).model_validate_json(raw)
             validate_planning(
-                parsed, stage, materials.as_payload()["material_catalog"], candidate, materials.speaker_labels
+                parsed,
+                stage,
+                materials.material_catalog
+                if command.input_contract == "editorial-role-packets/1"
+                else materials.as_payload()["material_catalog"],
+                candidate,
+                materials.speaker_labels,
             )
         except (ValidationError, ValueError, ContractError) as error:
             journal.event(

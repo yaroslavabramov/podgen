@@ -104,6 +104,10 @@ def prepare_anchor_repair(journal, original, *, draft, draft_ref, guard):
             ],
         )
     )
+    if manifest.get("input_contract") == "editorial-role-packets/1":
+        from .repair_projection import anchor_payload, replace_input
+
+        replace_input(body, pinned["body"], anchor_payload(plan))
     context = deepcopy(
         journal.read(RuntimeRef(record_kind="tool_execution", record_id=original["request_record_id"]))[
             "context"
@@ -164,5 +168,14 @@ def apply_anchor_repair(journal, invocation, raw, *, draft):
     except ValueError:
         raise ContractError("invalid_anchor_choices_json") from None
     choices = AnchorChoices.model_validate_json(raw)
+    if request_record["context"].get("role_input_contract") == "editorial-role-packets/1":
+        repair_request = journal.request(invocation)
+        offered = load_unique_json(repair_request["input"][0]["content"][0]["text"])
+        allowed = {row["anchor_id"]: set(row["selector_ids"]) for row in offered["invalid_anchors"]}
+        for choice in choices.choices:
+            if choice.selector_id is not None and choice.selector_id not in allowed.get(
+                choice.anchor_id, set()
+            ):
+                raise ContractError("unoffered_anchor_selector", choice.anchor_id)
     repaired = plan.apply(choices)
     return repaired.model_dump(mode="json"), choices.model_dump(mode="json")

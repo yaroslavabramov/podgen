@@ -8,23 +8,45 @@ from .usage import attempt_usage
 
 
 def completed_result(generation, journal, command, manifest):
-    if command.plan_mode == "own-plan":
+    if command.input_contract == "editorial-role-packets/1":
+        from podgen.persistence.editorial_inputs import load_editorial_materials
+
+        load_editorial_materials(
+            generation,
+            command.project_id,
+            command.author_ref,
+            case_id=command.case_id,
+            fixed_ref=command.fixed_plan_input_ref,
+        )
+    elif command.plan_mode == "own-plan":
         from podgen.persistence.writing_sources import own_plan_sources
 
         own_plan_sources(generation, command.project_id, command.author_ref, command.case_id)
     else:
         generation.get_runtime(command.project_id, command.author_ref)
     for value in manifest["material_refs"]:
-        generation.get_runtime(command.project_id, RuntimeRef.model_validate(value))
+        if "record_kind" in value:
+            generation.get_runtime(command.project_id, RuntimeRef.model_validate(value))
+        else:
+            generation.get(command.project_id, ArtifactRef.model_validate(value))
     proof = None
     if command.plan_mode == "own-plan":
         from .planning import verify_clearance
 
         proof = verify_clearance(journal, command.run_id)
+    from .finalization import final_ref, finalization_view, read_finalization
+
+    final = (
+        read_finalization(journal, command.run_id)
+        if command.input_contract == "editorial-role-packets/1"
+        else None
+    )
     refs = {}
     totals = {"input": 0, "output": 0}
     stages = [*proof["executed_stages"], *STAGES] if proof else manifest.get("stages", STAGES)
     for stage in stages:
+        if stage == "revise" and final is not None:
+            continue
         invocation = journal.invocation(command.run_id, stage)
         if not invocation or invocation["status"] != "completed" or not invocation["output_record_id"]:
             raise Conflict("completed_run_missing_output")
@@ -49,9 +71,11 @@ def completed_result(generation, journal, command, manifest):
             usage = attempt_usage(journal, attempt, profile.payload["output_limit"])
             for key in totals:
                 totals[key] += usage[key]
-    if record.get("parent_script_ref") != refs["draft"]:
+    if final is None and record.get("parent_script_ref") != refs["draft"]:
         raise Conflict("completed_run_parent_script_mismatch")
-    return dict(
+    if final is not None:
+        refs["revise"] = final_ref(command.run_id).model_dump(mode="json")
+    result = dict(
         run_id=str(command.run_id),
         case_id=command.case_id,
         status="completed_unaccepted",
@@ -60,3 +84,7 @@ def completed_result(generation, journal, command, manifest):
         production_ready=False,
         token_usage_or_reservation=totals,
     )
+
+    if final is not None:
+        result["finalization"] = finalization_view(final, final_ref(command.run_id))
+    return result

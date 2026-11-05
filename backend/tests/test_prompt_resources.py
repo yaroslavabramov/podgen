@@ -129,19 +129,26 @@ def test_content_id_is_exact_ordered_and_has_no_generated_header(monkeypatch, tm
         (current / name).write_bytes(content)
     monkeypatch.setattr(prompts, "files", lambda _: tmp_path)
     source = json.dumps(
-        ["review", "solo", [[name, data.decode()] for name, data in components]],
+        ["semantic-body/1", "review", "solo", [[name, data.decode()] for name, data in components]],
         ensure_ascii=False,
         separators=(",", ":"),
     ).encode()
     version = "whole-episode-a/sha256:" + hashlib.sha256(source).hexdigest()
     body = prompts.role_instructions("review", "solo")
-    assert body == f"Instructions: {version}; stage=review; format=solo\n\nsame\r\n\n\nformat\n\nstage"
+    assert body == "same\r\n\n\nformat\n\nstage"
+    assert (
+        prompts._assemble("review", "solo", {name: data.decode() for name, data in components}).version
+        == version
+    )
     (current / "common.md").write_bytes(b"same\n")
     assert prompts.role_instructions("review", "solo") != body
     # Reassigning the same concatenated bytes across component boundaries is also a different assembly.
     (current / "common.md").write_bytes(b"same\r\n\n\nformat")
     (current / "solo.md").write_bytes(b"")
-    assert prompts.role_instructions("review", "solo").splitlines()[0] != body.splitlines()[0]
+    assert (
+        prompts._assemble("review", "solo", prompts._read(current, [name for name, _ in components])).version
+        != version
+    )
 
 
 @pytest.mark.parametrize(
@@ -220,7 +227,7 @@ repo = Repository(Database(config["url"]), FileObjectStore(Path(config["objects"
     script += inspect.getsource(FakeProvider) + "\n" + textwrap.dedent(inspect.getsource(loader))
     script += """
 provider = FakeProvider()
-app = WritingEvaluation(repo, lambda profile: provider, materials_loader=loader)
+app = WritingEvaluation(repo, lambda profile: provider, materials_loader=loader, legacy_offline_transport=provider)
 result = app.run(command)
 assert app.run(command) == result
 assert len(provider.requests) == 2
@@ -233,10 +240,13 @@ print(json.dumps(dict(result=result, requests=provider.requests)))
         stage = request["metadata"]["podgen_stage"]
         archived = repo.get(command.project_id, ArtifactRef.model_validate(manifest["prompt_refs"][stage]))
         assert request["instructions"] == archived.payload["template"]
-        assert (
-            request["instructions"].split(";", 1)[0].removeprefix("Instructions: ")
-            == manifest["role_instructions_versions"][stage]
-        )
+        if historical_version:
+            assert (
+                request["instructions"].split(";", 1)[0].removeprefix("Instructions: ") == historical_version
+            )
+        else:
+            assert not request["instructions"].startswith("Instructions: ")
+            assert manifest["role_instructions_versions"][stage].startswith("whole-episode-a/sha256:")
 
 
 @pytest.mark.parametrize("version", ["whole-episode-a/1", "whole-episode-a/2", "whole-episode-a/3"])

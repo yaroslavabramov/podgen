@@ -48,6 +48,7 @@ def own_dataset(database, tmp_path_factory):
 def command_for(data, case="gps-clock", **changes):
     repo, project, report, writer, planner = data
     return WritingRunCommand(
+        input_contract="legacy-author-materials/1",
         run_id=uuid4(),
         project_id=project,
         actor_id=repo.actor_id,
@@ -63,7 +64,9 @@ def command_for(data, case="gps-clock", **changes):
 
 
 def execute(data, command, provider):
-    return WritingEvaluation(data[0], lambda profile: provider).run(command)
+    return WritingEvaluation(data[0], lambda profile: provider, legacy_offline_transport=provider).run(
+        command
+    )
 
 
 @pytest.mark.parametrize("case", ["gps-clock", "snow-pump"])
@@ -75,6 +78,18 @@ def test_ordinary_cli_new_plan_revision_review_exact_delivery_and_export(
     command = command_for(own_dataset, case)
     monkeypatch.setenv("PODGEN_DATABASE_URL", repo.database.engine.url.render_as_string(hide_password=False))
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *args, **kwargs: provider)
+    from podgen.runtime.evaluation.contracts import WritingRunCommand as RunCommand
+    from podgen.runtime.evaluation.service import WritingEvaluation as Evaluation
+
+    class OfflineLegacyCommand(RunCommand):
+        input_contract: str = "legacy-author-materials/1"
+
+    monkeypatch.setattr(writing_cli, "WritingRunCommand", OfflineLegacyCommand)
+    monkeypatch.setattr(
+        writing_cli,
+        "WritingEvaluation",
+        lambda repo, factory: Evaluation(repo, factory, legacy_offline_transport=provider),
+    )
     args = [
         "--project",
         str(project),

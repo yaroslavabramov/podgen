@@ -17,7 +17,8 @@ from podgen.writing.prompts import (
 from .compiler import COMPILER_VERSION, materials_hash
 from .contracts import command_payload
 from .profiles import load_profile
-from .workflow import output_model, profile_for, prompt_stage, stages_for
+from .role_schema import response_schema
+from .workflow import profile_for, prompt_stage, stages_for
 
 
 def create_manifest(repo, generation, command, journal, materials):
@@ -55,12 +56,13 @@ def create_manifest(repo, generation, command, journal, materials):
             operation_id=uuid5(command.run_id, "prompt:" + stage),
         )
         prompts[stage] = prompt.ref.model_dump(mode="json")
-        schemas[stage] = output_model(stage).model_json_schema()
+        schemas[stage] = response_schema(stage, command.input_contract)
     blob = journal.blob(
         json.dumps(payload, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
     )
     manifest = dict(
         contract="writing-evaluation-run-v1",
+        input_contract=command.input_contract,
         output_language=materials.output_language,
         stages=list(stages_for(command)),
         plan_mode=command.plan_mode,
@@ -87,6 +89,12 @@ def create_manifest(repo, generation, command, journal, materials):
             "technical script versions; canonical EpisodeSpec/StoryPlan/ScriptRevision mapping remains open",
         ],
     )
+    if command.input_contract == "editorial-role-packets/1":
+        from podgen.writing.projections import SINGLE_INPUT_TOKEN_LIMIT, VISIBLE_BYTES_LIMIT
+
+        manifest["role_input_budget"] = dict(
+            visible_bytes=VISIBLE_BYTES_LIMIT, input_tokens=SINGLE_INPUT_TOKEN_LIMIT
+        )
     if command.plan_mode == "own-plan":
         manifest["plan_review_target_catalog"] = "planning-output-pointers-v1"
         manifest["plan_target_repair_instructions"] = asdict(load_plan_target_repair_instructions())

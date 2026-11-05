@@ -1,7 +1,6 @@
 import copy
 import json
 import re
-from importlib.resources import files
 
 import pytest
 from pydantic import ValidationError
@@ -279,9 +278,20 @@ def test_wire_schemas_are_closed_required_and_without_semantic_text_caps(model):
     assert "maxLength" not in json.dumps(schema)
 
 
-@pytest.mark.parametrize("name", ["plan", "plan-review", "plan-revise"])
-def test_planning_assets_are_english_and_explicit_about_language_and_review(name):
-    text = files("podgen.writing.prompts").joinpath("current", f"{name}.md").read_text(encoding="utf-8")
-    assert "output_language" in text and "research" in text
+@pytest.mark.parametrize(
+    "name,fields",
+    [
+        ("plan", ("assignment", "dossier")),
+        ("plan-review", ("candidate_plan", "allowed_review_targets")),
+        ("plan-revise", ("revision_guidance",)),
+    ],
+)
+def test_planning_assets_match_role_specific_inputs(name, fields):
+    from podgen.writing.prompts import role_instructions
+
+    text = role_instructions(name, "solo")
+    assert "output_language" in text
     assert not re.search(r"[А-Яа-яЁё]", text)
-    assert "gold-standard" in text
+    assert not re.search(r"\b[0-9a-f]{64}\b", text)
+    for field in fields:
+        assert field in text

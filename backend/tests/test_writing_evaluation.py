@@ -148,6 +148,7 @@ def setup_writer(repo, scope):
         repo, project, model="synthetic-pinned-snapshot", context_limit=1050000, output_limit=65536
     )
     command = WritingRunCommand(
+        input_contract="legacy-author-materials/1",
         run_id=uuid4(),
         project_id=project,
         actor_id=repo.actor_id,
@@ -161,7 +162,11 @@ def setup_writer(repo, scope):
 
 def run(repo, command, loader, provider, *, repair=False):
     return WritingEvaluation(
-        repo, lambda profile: provider, materials_loader=loader, gateway_options={"poll_seconds": 0}
+        repo,
+        lambda profile: provider,
+        materials_loader=loader,
+        legacy_offline_transport=provider,
+        gateway_options={"poll_seconds": 0},
     ).run(command, repair_review_anchors=repair)
 
 

@@ -20,10 +20,14 @@ def test_all_role_instructions_use_complete_packaged_resources(stage, format, tm
     monkeypatch.chdir(tmp_path)
     root = files("podgen.writing.prompts").joinpath("current")
     result = role_instructions(stage, format)
-    assert result.startswith("Instructions: whole-episode-a/sha256:")
+    assert not result.startswith("Instructions: ")
+    assert not re.search(r"\b[0-9a-f]{64}\b", result)
     assert not re.search(r"[А-Яа-яЁё]", result)
     assert "output_language" in result
-    assert f"stage={stage}; format={format}" in result
+    assert result == "\n\n".join(
+        root.joinpath(name).read_bytes().decode("utf-8")
+        for name in ("common.md", f"{format}.md", f"{stage}.md")
+    )
     for name in ("common.md", f"{format}.md", f"{stage}.md"):
         assert root.joinpath(name).read_bytes().decode("utf-8") in result
     assert result.endswith(root.joinpath(f"{stage}.md").read_bytes().decode("utf-8"))

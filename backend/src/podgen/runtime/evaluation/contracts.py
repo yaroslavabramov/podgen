@@ -11,8 +11,8 @@ ALL_STAGES = (*PLANNING_STAGES, *STAGES)
 
 
 class RunLimits(Contract):
-    max_total_input_tokens: PositiveInt = 900000
-    max_total_output_tokens: PositiveInt = 196608
+    max_total_input_tokens: PositiveInt = 196608
+    max_total_output_tokens: PositiveInt = 131072
     max_elapsed_seconds: PositiveInt = 7200
 
 
@@ -20,7 +20,11 @@ class WritingRunCommand(Contract):
     run_id: UUID
     project_id: UUID
     actor_id: UUID
-    case_id: Literal["gps-clock", "snow-pump"]
+    case_id: str = Field(min_length=1)
+    input_contract: Literal["editorial-role-packets/1", "legacy-author-materials/1"] = (
+        "editorial-role-packets/1"
+    )
+    fixed_plan_input_ref: RuntimeRef | None = None
     author_ref: RuntimeRef
     writer_profile_ref: ArtifactRef
     reviewer_profile_ref: ArtifactRef
@@ -43,6 +47,8 @@ class WritingRunCommand(Contract):
 
     @model_validator(mode="after")
     def planning_profiles(self):
+        if self.plan_mode == "own-plan" and self.fixed_plan_input_ref is not None:
+            raise ValueError("own_plan_forbids_fixed_input")
         if self.plan_mode == "own-plan" and (
             self.planner_profile_ref is None or self.plan_reviewer_profile_ref is None
         ):
@@ -65,7 +71,10 @@ def command_payload(command):
     payload = command.model_dump(mode="json")
     if command.review_anchor_policy == "strict":
         payload.pop("review_anchor_policy")
-    if command.plan_mode == "own-plan":
+    if command.input_contract == "legacy-author-materials/1":
+        payload.pop("input_contract")
+        payload.pop("fixed_plan_input_ref")
+    if command.plan_mode == "own-plan" and command.input_contract == "legacy-author-materials/1":
         # The broad root is a selector, not a source dependency: its plan must not enter the read closure.
         payload["author_ref"] = {"selector": "staged-author", "record_id": str(command.author_ref.record_id)}
     if command.plan_mode == "fixed-plan":

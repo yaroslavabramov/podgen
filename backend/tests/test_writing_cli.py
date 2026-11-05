@@ -38,6 +38,18 @@ def test_real_frozen_cli_entry_all_stages_and_evaluator_export(
     provider = FakeProvider(count=200000, fault="anchor" if anchor_policy != "strict" else None)
     monkeypatch.setenv("PODGEN_DATABASE_URL", repo.database.engine.url.render_as_string(hide_password=False))
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *args, **kwargs: provider)
+    from podgen.runtime.evaluation.contracts import WritingRunCommand as RunCommand
+    from podgen.runtime.evaluation.service import WritingEvaluation as Evaluation
+
+    class OfflineLegacyCommand(RunCommand):
+        input_contract: str = "legacy-author-materials/1"
+
+    monkeypatch.setattr(writing_cli, "WritingRunCommand", OfflineLegacyCommand)
+    monkeypatch.setattr(
+        writing_cli,
+        "WritingEvaluation",
+        lambda repo, factory: Evaluation(repo, factory, legacy_offline_transport=provider),
+    )
     for case in ("gps-clock", "snow-pump"):
         run_id = uuid4()
         out = tmp_path / case
@@ -49,6 +61,10 @@ def test_real_frozen_cli_entry_all_stages_and_evaluator_export(
             "--objects",
             str(repo.objects.root),
             "run",
+            "--max-total-input-tokens",
+            "900000",
+            "--max-total-output-tokens",
+            "196608",
             "--run-id",
             str(run_id),
             "--case",

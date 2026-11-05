@@ -59,7 +59,9 @@ def parser():
     profile.add_argument("--out", type=Path, required=True)
     run = sub.add_parser("run")
     run.add_argument("--run-id", type=UUID, required=True)
-    run.add_argument("--case", choices=["gps-clock", "snow-pump"], required=True)
+    run.add_argument("--case", required=True)
+    run.add_argument("--fixed-plan-input-ref")
+
     run.add_argument(
         "--author-ref",
         required=True,
@@ -72,8 +74,8 @@ def parser():
     run.add_argument("--plan-reviewer-profile")
     run.add_argument("--max-plan-revisions", type=int, choices=[0, 1], default=1)
     run.add_argument("--repeat-index", type=int, default=0)
-    run.add_argument("--max-total-input-tokens", type=int, default=900000)
-    run.add_argument("--max-total-output-tokens", type=int, default=196608)
+    run.add_argument("--max-total-input-tokens", type=int, default=196608)
+    run.add_argument("--max-total-output-tokens", type=int, default=131072)
     run.add_argument("--max-elapsed-seconds", type=int, default=7200)
     run.add_argument("--review-anchor-policy", choices=["strict", "bounded-selection-v1"], default="strict")
     run.add_argument("--export-dir", type=Path, required=True)
@@ -86,6 +88,9 @@ def parser():
             action = command_parser.add_mutually_exclusive_group()
             action.add_argument("--retry-credit-refusal", type=UUID, metavar="INVOCATION_UUID")
             action.add_argument("--repair-plan-targets", type=UUID, metavar="INVOCATION_UUID")
+    from podgen.editorial_cli import add_commands
+
+    add_commands(sub)
     return root
 
 
@@ -105,6 +110,16 @@ def main(argv=None):
         purpose="evaluation",
     )
     try:
+        if args.command in (
+            "editorial-source-import",
+            "editorial-import",
+            "fixed-editorial-import",
+            "preview",
+        ):
+            from podgen.editorial_cli import execute
+
+            print(json.dumps(execute(args, repo, wire_ref), ensure_ascii=False))
+            return 0
         if args.command == "profile-create":
             profile = create_profile(
                 repo,
@@ -140,13 +155,19 @@ def main(argv=None):
             return 0
         journal = EvaluationJournal(repo, args.project)
         if args.command == "resume":
-            command = WritingRunCommand.model_validate(journal.manifest(args.run_id)["command"])
+            data = journal.manifest(args.run_id)["command"]
+            command = WritingRunCommand.model_validate(
+                {"input_contract": "legacy-author-materials/1", **data}
+            )
         else:
             command = WritingRunCommand(
                 run_id=args.run_id,
                 project_id=args.project,
                 actor_id=args.actor,
                 case_id=args.case,
+                fixed_plan_input_ref=wire_ref(args.fixed_plan_input_ref, RuntimeRef)
+                if args.fixed_plan_input_ref
+                else None,
                 author_ref=wire_ref(args.author_ref, RuntimeRef),
                 writer_profile_ref=wire_ref(args.writer_profile, ArtifactRef),
                 reviewer_profile_ref=wire_ref(args.reviewer_profile, ArtifactRef),

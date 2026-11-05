@@ -1,170 +1,159 @@
-# Авторская генерация: baseline A
+# Авторская генерация: компактные ролевые входы
 
-Рабочий evaluation-путь: полный frozen input → целый draft → отдельный informed editorial review → полная новая версия. Три самостоятельных Responses API вызова, без conversation carry-over, web/tools/filesystem. Один и тот же полный `AuthorMaterials.as_payload()` используется на всех стадиях. Исходные материалы загружает generation repository; runner не читает staging evaluator index, gold или прежние сценарии.
+Новый рабочий путь — `editorial-role-packets/1`: автор получает задание, творческие решения и выбранные опоры; редактор — полный сценарий, ориентир сюжета и проверяемые свидетельства; правка — полный сценарий и конкретные замечания. Исходные документы, оригинальные JSON, provenance и служебные ссылки остаются в хранилище и полном архиве. `AuthorMaterials.as_payload()` больше не является входом новых модельных вызовов.
 
-Это baseline A на непринятом frozen writer input, **не** независимый EXP-04, фактчек, qualification, canonical ScriptRevision или production release. Результаты — явно помеченные `writing-evaluation-output-v1` runtime records, без AcceptanceRecord.
+При однозначном `keep` без обязательных правок и нерешённых вопросов финал точно совпадает с сохранённым draft: вызова `revise` нет. При `revise` автор пишет полную новую версию. `needs_material` и противоречивые решения останавливают цепочку после сохранения отзыва.
 
-## Подготовка
+Это evaluation-кандидаты, без production acceptance, независимого фактчека, аудио или подтверждения человеческого прослушивания.
+
+## Подготовка и admission без модели
+
+Установите зависимости через `uv sync --directory backend --locked`. Используйте подготовленную изолированную БД с миграциями до `0014_plan_target_repair`; не мигрируйте базу активных запусков. Задайте `PODGEN_DATABASE_URL`, `PROJECT_UUID`, `ACTOR_UUID` и абсолютный `OBJECTS` на существующее хранилище проекта.
+
+Общий префикс для следующих команд:
 
 ```sh
-uv sync --directory backend --locked
-export PODGEN_DATABASE_URL='postgresql+psycopg://podgen:podgen-test-only-password@127.0.0.1:55440/podgen_wp01'
-uv run --directory backend alembic upgrade head
+pgwrite() {
+  uv run --directory backend python -m podgen.writing_cli \
+    --project "$PROJECT_UUID" --actor "$ACTOR_UUID" --objects "$OBJECTS" "$@"
+}
 ```
 
-Миграции `0010_writing_evaluation` и `0011_review_anchor_attempt`. Не применять миграции к базе под активными live runs. `OPENAI_API_KEY` передаётся окружением либо через глобальный `--env-file ../.env`; ключ не входит в profile, prompt или архив headers. `--objects` должен указывать **тот же** каталог, где находятся blobs исходного staging.
-
-`--project`/`--actor` и отдельный author RuntimeRef берутся из assignments. Нельзя передавать полный staging report вместо ref. Оператор может сохранить только `report.author_inputs[case]` в отдельный JSON-файл; runner прочтёт именно его.
-
-## Явный candidate profile
-
-Пример для проверенного snapshot; все настройки сохраняются в immutable ModelProfile:
+`/tmp/source-map.json` — только сопоставление `source_path → точный RuntimeRef/SourceRepresentation ArtifactRef`, например сохранённый `file_refs` проверенного staging import. Полный staging report или старый author root вместо shared ref не принимается.
 
 ```sh
-uv run --directory backend python -m podgen.writing_cli \
-  --env-file ../.env --project PROJECT_UUID --actor ACTOR_UUID --objects /ABS/STAGING_OBJECTS \
-  profile-create --model gpt-5.4-2026-03-05 --context-limit 1050000 \
-  --output-limit 32768 --reasoning-effort medium --verbosity high --timeout-seconds 1800 \
+pgwrite editorial-import \
+  --input ../evals/editorial-inputs/v1/gps-clock/shared.json \
+  --source-map /tmp/source-map.json --out /tmp/gps-shared-ref.json
+
+pgwrite fixed-editorial-import \
+  --input ../evals/editorial-inputs/v1/gps-clock/fixed-plan.json \
+  --source-map /tmp/source-map.json --shared-ref @/tmp/gps-shared-ref.json \
+  --out /tmp/gps-fixed-ref.json
+```
+
+Для нового назначения те же схемы поддерживают произвольную тему, `solo`/`dialogue`, язык, голоса и их функции. Новые точные документы можно отдельно принять через `editorial-source-import --file /ABS/SOURCE.txt --source-path sources/source.txt --scope ASSIGNMENT_SCOPE --purpose primary --out /tmp/source-ref.json`; доступные назначения также `brief`, `dossier`, `fixed_plan`.
+
+Импорт сверяет полный исходник, hash, происхождение и область источников, строгие Unicode codepoint диапазоны `[start,end)` и текст каждой цитаты. Повтор и одновременный импорт одинаковой версии идемпотентны. Оригинальные JSON bytes сохраняются; слишком большой модельный вход вызывает ошибку, а не усечение. Общий пакет не содержит ссылок на fixed-plan; отдельный fixed пакет связан с точным digest shared.
+
+Схемы, пример JSON и варианты preview: [schemas/README.md](schemas/README.md).
+
+## Профили и offline preview
+
+`profile-create` только сохраняет candidate configuration, без вызова модели и qualification. Существующие подходящие writer/reviewer profiles можно использовать повторно. Пример конфигурации зафиксированного snapshot:
+
+```sh
+pgwrite profile-create --model gpt-5.4-2026-03-05 --context-limit 1050000 \
+  --output-limit 32768 --reasoning-effort medium --verbosity high \
   --out /tmp/writer-profile-ref.json
+
+pgwrite profile-create --model gpt-5.4-2026-03-05 --context-limit 1050000 \
+  --output-limit 32768 --reasoning-effort medium --roles planner plan_reviewer \
+  --out /tmp/planning-profile-ref.json
 ```
 
-Без `--store` и `--background` оба значения false. Для сохранения provider response и polling с известным response ID **явно** добавляются `--store --background`. Квалификация не присваивается. Для reviewer можно создать другой профиль; если выбран тот же ref, независимы вызовы/роли, а не модель/провайдер.
+По умолчанию `store=false`, `background=false`; хранение у провайдера и background retrieval требуют явных `--store --background`. Независимы роли и вызовы, а не обязательно модели.
 
-Контекст GPT-5.4 — 1 050 000, max output — 128 000 по [официальной модели](https://developers.openai.com/api/docs/models/gpt-5.4). Авторский корпус GPS/Snow занимает примерно 150–200k input tokens до draft/review. Output limit включает reasoning. Окно не сокращается ради цены: перед каждым submit выполняется [официальный input token count](https://developers.openai.com/api/docs/guides/token-counting). При `input + reserved output > context_limit` — явная ошибка без генерации и усечения.
-
-## Запуск обоих кейсов
-
-Для каждой независимой попытки нужен **новый UUID**. `repeat_index` — метка повтора, не ключ result cache.
+Preview использует локальные БД и хранилище. API-ключ, клиент провайдера и token-count endpoint не нужны:
 
 ```sh
-uv run --directory backend python -m podgen.writing_cli \
-  --env-file ../.env --project PROJECT_UUID --actor ACTOR_UUID --objects /ABS/STAGING_OBJECTS \
-  run --run-id NEW_RUN_UUID --case gps-clock --author-ref @/tmp/gps-author-ref.json \
+pgwrite preview --run-id "$PREVIEW_UUID" --case gps-clock --stage draft \
+  --shared-ref @/tmp/gps-shared-ref.json --fixed-ref @/tmp/gps-fixed-ref.json \
+  --profile @/tmp/writer-profile-ref.json --out /tmp/gps-draft-preview.json
+
+pgwrite preview --run-id "$PREVIEW_UUID" --case gps-clock --stage plan \
+  --shared-ref @/tmp/gps-shared-ref.json --profile @/tmp/planning-profile-ref.json \
+  --out /tmp/gps-plan-preview.json
+```
+
+В файле — точный request и размеры `instructions`, `input`, `schema`. При превышении byte limit файл всё равно сохраняется, команда возвращает validation error. Для следующих ролей передаются чистые `PlanningOutput`, `WriteOutput`, `EditorialFeedback`, без архивной обёртки `output`: `--candidate`, `--plan-review`, `--approved-plan`, `--draft`, `--feedback` по задаче роли. Поддерживаются preview отдельных `anchor-repair` и `plan-target-repair`.
+
+## Новый сетевой run
+
+Только `run`/продолжение нового компактного run выполняют сетевые вызовы. `OPENAI_API_KEY` передаётся окружением; ключ не входит в profile, prompt или архив headers. Каждый независимый run получает новый UUID.
+
+Фиксированный редакторский план:
+
+```sh
+pgwrite run --run-id "$NEW_RUN_UUID" --case gps-clock \
+  --author-ref @/tmp/gps-shared-ref.json --fixed-plan-input-ref @/tmp/gps-fixed-ref.json \
   --writer-profile @/tmp/writer-profile-ref.json --reviewer-profile @/tmp/writer-profile-ref.json \
-  --repeat-index 0 --max-total-input-tokens 900000 --max-total-output-tokens 196608 \
-  --max-elapsed-seconds 7200 --export-dir /tmp/writing-gps-NEW_RUN_UUID
+  --export-dir /tmp/gps-compact-run
 ```
 
-Для Snow: `--case snow-pump`, свой author ref, **другой** run UUID и export-dir. Полные документы, draft и feedback не сокращаются. Review получает явный `index` у каждой реплики. `EditorialFeedback.validate_against` проверяет zero-based indices и exact quotes; в strict-режиме невалидный feedback сохраняется в raw response, фиксируется конкретная ошибка, revision не вызывается. Никакого эвристического подбора цитат или скрытого repair-вызова.
-
-Сохраняются actual role instructions/version, JSON schemas, exact profile refs/settings, request intent, реальные wire JSON bodies и response bodies, provider/request IDs, usage, ошибки и outcome_unknown. Headers целиком не сохраняются: только `x-request-id`. Echo API key в error body редактируется с явным флагом. SDK transport retries отключены; model snapshot и возвращённый `response.model` обязаны совпасть, metadata и retrieve response ID проверяются до принятия текста.
-
-## Inspect и resume
+Собственный план, без fixed ref:
 
 ```sh
-uv run --directory backend python -m podgen.writing_cli \
-  --project PROJECT_UUID --actor ACTOR_UUID --objects /ABS/STAGING_OBJECTS \
-  inspect --run-id RUN_UUID --export-dir /tmp/NEW_EMPTY_EXPORT_DIR
-
-uv run --directory backend python -m podgen.writing_cli \
-  --env-file ../.env --project PROJECT_UUID --actor ACTOR_UUID --objects /ABS/STAGING_OBJECTS \
-  resume --run-id RUN_UUID --export-dir /tmp/NEW_EMPTY_EXPORT_DIR
+pgwrite run --run-id "$NEW_OWN_RUN_UUID" --case gps-clock \
+  --author-ref @/tmp/gps-shared-ref.json \
+  --writer-profile @/tmp/writer-profile-ref.json --reviewer-profile @/tmp/writer-profile-ref.json \
+  --plan-mode own-plan --planner-profile @/tmp/planning-profile-ref.json \
+  --plan-reviewer-profile @/tmp/planning-profile-ref.json --max-plan-revisions 1 \
+  --export-dir /tmp/gps-compact-own-run
 ```
 
-Экспорт: `draft.txt`, `revise.txt` (speaker-labeled UTF-8), полные `draft.json`/`review.json`/`revise.json`, `manifest.json`, `inputs.json`, `run.json`, `archive/<stage>/request.json`, events и raw provider bodies. Скрытые поля feedback сохраняются целиком; AcceptanceRecord не создаётся. Папка закрепляется маркером за одним project/run. Чужая непустая папка и другой run отклоняются. Для legacy экспорта без маркера выберите новую пустую папку.
+Для Snow используются его shared/fixed packets и новые UUID/папки. Собственный план проходит `plan → plan-review`, при необходимости одну полную правку и повторное review. Только `accept` точной ready-версии без blocking research допускает автора. Автор не получает указание «создай собственный план», похвалу, решение планового редактора или служебные связи.
 
-Завершённый run возвращается без нового бюджета, компиляции или provider calls после перепроверки принадлежности, fingerprint и живых прав на исходные refs. Частичный run использует архивированные PromptDefinition; новые инструкции предназначены только новым run IDs. Перед каждой фактической отправкой исходные refs снова проверяются через generation scope, в том числе после token count. Архив evaluator request не даёт вечного права пересылать отозванный источник.
+Границы новых запусков:
 
-После persisted submit intent без подтверждения/сохранённого ответа повторная генерация **запрещена** (`outcome_unknown`). Известный response ID и разрешённое provider storage допускают retrieve; уже записанный completed response повторно разбирается без submit. Если нет подтверждённого ID/ответа, автоматического reconciliation нет: сначала операторская проверка провайдера. HTTP/validation/refusal/incomplete ошибки не скрываются новым запуском. Новый run — новая независимая попытка; все старые данные остаются.
+- Не более 128 КиБ суммарного JSON представления видимых `instructions/input/schema`, проверка до создания клиента и count.
+- Не более 32 768 входных токенов на вызов, проверка после provider count и до submit.
+- Defaults на весь run: 196 608 входных и 131 072 выходных токена, 7200 секунд. Можно указать меньшие `--max-total-input-tokens`/`--max-total-output-tokens`/`--max-elapsed-seconds`.
+- Перед submit полностью резервируется `profile.output_limit`; также проверяется `input + reserved output ≤ context_limit`. Длительность/полнота сценария не сокращаются автоматически.
+
+На локальной проекции реальных сложных архивных планов максимальный видимый запрос: GPS 73 792 байта, Snow 106 662; автор по собственному плану — 43 846/55 584. Таблица всех ролей и оговорка об адресном сопоставлении диагностических старых опор — в schemas README. Это размеры локального preview, не расход нового сетевого запуска.
+
+## Inspect, финал и resume
+
+```sh
+pgwrite inspect --run-id "$RUN_UUID" --export-dir /tmp/run-inspect
+pgwrite resume --run-id "$COMPACT_RUN_UUID" --export-dir /tmp/run-resumed
+```
+
+Архив содержит точные prompts/versions, schemas, profiles, request intent, реальные wire/response bytes, IDs, usage, ошибки и все попытки. `inputs.json` сохраняет полный backend audit; оригинальные редакторские JSON экспортируются отдельно. Перед count/submit живые права на исходники проверяются заново. Отзыв источника закрывает зависимые candidates, decisions, request/response archives и clearance; evaluator archive не даёт бессрочного права на повторную отправку.
+
+При обычной правке экспортируются полные `draft.*`, `review.json`, `revise.*`. При `keep` — также `final.json`/`final.txt`; совместимый `revise.*` явно имеет `origin=unchanged_draft`, `model_call=false`, ссылки на draft и review, без фиктивного invocation. В `archive/revise/` запроса нет. Завершённый replay не создаёт клиента и не проверяет новый бюджет.
+
+Экспортная папка закрепляется маркером за project/run. Чужая непустая папка, другой run и symlinks отклоняются. Старый экспорт без маркера читается в новую пустую папку.
+
+После submit intent с неизвестным исходом повторная генерация запрещена. Известный response ID и разрешённое provider storage допускают retrieve; сохранённый completed response разбирается повторно без submit. SDK transport retries отключены. Snapshot, response model, metadata и retrieve response ID сверяются. Из headers хранится только `x-request-id`; обнаруженный echo API key редактируется с явной отметкой.
+
+## Ограниченные адресные repairs и отказ по балансу
+
+Новый run по умолчанию использует strict anchors. `--review-anchor-policy bounded-selection-v1` заранее разрешает максимум один отдельный selector-call после сохранённой ошибки review. Для остановленного компактного run доступны явные действия:
+
+```sh
+pgwrite resume --run-id "$COMPACT_RUN_UUID" --repair-review-anchors --export-dir /tmp/anchor-repair
+pgwrite resume --run-id "$COMPACT_RUN_UUID" --repair-plan-targets "$FAILED_REVIEW_INVOCATION_UUID" --export-dir /tmp/plan-target-repair
+pgwrite resume --run-id "$COMPACT_RUN_UUID" --retry-credit-refusal "$FAILED_INVOCATION_UUID" --export-dir /tmp/credit-retry
+```
+
+Anchor repair получает только невалидные anchors, их суждения и точные диапазоны релевантных реплик. Сервер принимает только IDs, предложенные конкретному anchor; `null`, неизвестный, пропущенный, повторный или существующий, но не предложенный ID останавливает цепочку. Суждения и валидные anchors сохраняются. Реальный Snow: 29 диапазонов вместо 192, payload 14 572 байта на три замечания.
+
+Plan-target repair получает один точный candidate, его существующие JSON Pointers и только невалидные targets с контекстом суждений. Полный корпус и исходный review request не копируются. Модель выбирает адрес или `null`; сервер не угадывает targets, не редактирует вывод и не назначает accept. Сохраняются исходное решение, все judgments/research, валидные адреса и полный raw rejected response. На каждый plan-review этап — максимум одна смысловая попытка.
+
+Credit retry допускается только для архивного submit error HTTP 429 с `credit_balance_exhausted`, `ambiguous=false`, без response ID/ответа/output. Успехи, count errors, прочие HTTP/validation faults и неизвестный исход не допускаются. UUID выбирается из `run.json → invocations → attempts`. Одна команда разрешает одну новую физическую попытку; повтор команды идемпотентен. Новый подтверждённый отказ требует явной команды с новым UUID.
+
+Оплаченные стадии не создаются заново. Credit retry сохраняет прежние exact-wire bytes кроме metadata привязки попытки; бюджет и время не начинаются заново. Preflight counts учитываются консервативно; доказанный отказ без генерации не резервирует output. `attempt_kind` и `operation_kind` различают role, semantic repair и physical credit retry. Все lineage, receipts и попытки экспортируются; repair не даёт квалификации или acceptance.
+
+## Исторический raw baseline: только архив и offline replay
+
+Старые manifest, prompts, schema, лимиты и wire bytes остаются неизменными. Полный `AuthorMaterials` на каждой стадии и прежние повышенные лимиты относятся только к этим архивным условиям.
+
+`inspect` и завершённый replay бесплатны. Незавершённый raw `resume`, включая repair/credit retry, штатно останавливается **до создания клиента** с `legacy_outbound_disabled_start_compact_run`. Для новой генерации создайте компактный run после admission/preview. Флага отправки raw через новый CLI `run` нет. Исторический exact-wire compiler доступен локальным тестам только через явно внедрённый `legacy_offline_transport`, отдельно от сетевой фабрики.
+
+Уже сохранённые numbered instructions `/1`, `/2`, `/3`, старые selector maps и fingerprints не пересобираются. Исторические UUID/reference selectors остаются backend данными.
 
 ## Проверки и границы
 
 ```sh
-PODGEN_TEST_DATABASE_URL='postgresql+psycopg://podgen@127.0.0.1:55439/podgen_wp01' \
-  uv run --directory backend pytest -q tests/test_writing_evaluation.py tests/test_review_anchor_recovery.py tests/test_openai_provider.py tests/test_writing_cli.py tests/test_writing_migrations.py
+PODGEN_TEST_DATABASE_URL="$ISOLATED_TEST_DATABASE_URL" \
+  uv run --directory backend pytest -q
+uv run --directory backend ruff check src tests
 ```
 
-Синтетические provider faults используют настоящий PostgreSQL и настоящий OpenAI SDK с HTTP mock transport. CLI-тест проходит оба реальных frozen author inputs целиком, но не вызывает live API. Автор этого изменения live episodes не дублировал; внешние реальные попытки запускает/reviews CTO/CPO отдельно.
+Тесты используют настоящий PostgreSQL/ACL/journal, локальные provider doubles и HTTP mock transport. API/платные запуски для этой проверки не нужны. Покрыты admission обеих реальных тем, новые задания, exact excerpts/original bytes, одновременный импорт, own/fixed isolation, бюджеты до клиента/submit, repairs, keep finalization, ordinary CLI, установленный пакет и исторический replay.
 
-Открыты: полные WP-02/03 (controlled corpus, typed tool runtime, ReadReceipt/TaskRun integration, provider qualification/reconciliation), WP-05 (независимый factcheck/coverage/cold reading), остальной WP-06 (canonical plan/script mapping, continuity/acts/research loop), WP-07–14. Нет production approvals, аудио, human listener assessments, универсального восстановления неизвестного provider outcome или квалифицированной поддержки всей продуктовой матрицы.
+Публикация архива выполняется в короткой repeatable-read write-транзакции с memo на одну проверку графа. Блокировки project/member сериализуют её с отзывом доступа; повторяется только откатившаяся SQL-транзакция `40001`, максимум три раза, без provider calls внутри callback. Read snapshots/memo не переиспользуются между публичными чтениями, проектами или purposes; циклы проверяет отдельный active-path guard.
 
-## Ограниченное исправление review anchors
-
-Новые запуски по умолчанию используют `--review-anchor-policy strict`: ошибка exact anchor останавливает цепочку. Явный `run --review-anchor-policy bounded-selection-v1` сохраняет политику в manifest/fingerprint и автоматически выполняет максимум один дополнительный selector-вызов после сохранённой ошибки review. Все исходные token/time/context limits остаются прежними; стоимость неудачного review входит в общий бюджет.
-
-Для уже остановленного строгого запуска:
-
-```sh
-uv run --directory backend python -m podgen.writing_cli \
-  --env-file ../.env --project PROJECT_UUID --actor ACTOR_UUID --objects /ABS/STAGING_OBJECTS \
-  resume --run-id RUN_UUID --repair-review-anchors --export-dir /tmp/NEW_EMPTY_EXPORT_DIR
-```
-
-Нужна миграция `0011_review_anchor_attempt`. Legacy manifest без policy читается как strict с прежним fingerprint. Явное восстановление фиксируется отдельным immutable событием, не переписывает исходный manifest и не создаёт новый draft. Сохранённый полный failed review, его request/response и usage остаются в `archive/review/`; дополнительная попытка — `archive/review/attempt-1/`. `run.json` содержит обе попытки и суммарный известный usage.
-
-Selector получает исходные материалы, draft и полный отклонённый feedback. Он выбирает только серверные IDs точных фрагментов для невалидных anchors. Сервер восстанавливает цитаты из draft; суждения и уже валидные anchors не меняются. `null`, неизвестные/пропущенные/повторные IDs останавливают цепочку без revise. Неоднозначный submit, malformed JSON, refusal/incomplete и прочие ошибки не получают такого retry. Повторный resume не создаёт второй repair; каждая отправка снова проверяет доступ к исходникам. Это дополнительное экспериментальное условие, не квалификация и не semantic acceptance.
-
-
-## Own-plan: свой план с отдельной проверкой
-
-`--plan-mode fixed-plan` — прежнее условие по умолчанию; прежние команды, fingerprints, сохранённые prompts и replay совместимы. `--plan-mode own-plan` использует полный бриф, досье и те же проверенные первичные представления источников, но исключает предоставленный `author/.../plan.md`, gold и прежние сценарии на всех этапах. Указания неизменённого брифа о предоставленном плане явно помечаются в payload как относящиеся только к fixed-plan.
-
-Нужна миграция `0012_own_plan_stages`; старые записи не изменяются. Планирование: `plan → plan-review`; при `revise` — максимум одна `plan-revise → plan-review-revised`. Ограничение явно задаётся `--max-plan-revisions 0|1` (по умолчанию 1). Только `accept` для точной сохранённой версии без blocking research даёт её автору `draft → review → revise`. Вопросы с `blocking=false` не требуют исследования автоматически. Исчерпанная правка и отсутствие материала завершаются `needs_attention`; исследователь не имитируется. Отзыв разрешённого источника закрывает сохранённые requests, raw responses, candidates, decisions и clearance через WP-01 provenance.
-
-Создайте отдельный **candidate** профиль с planning-ролями; существующие writer/reviewer refs менять не требуется:
-
-```sh
-uv run --directory backend python -m podgen.writing_cli \
-  --env-file ../.env --project PROJECT_UUID --actor ACTOR_UUID --objects /ABS/STAGING_OBJECTS \
-  profile-create --model gpt-5.4-2026-03-05 --context-limit 1050000 \
-  --output-limit 32768 --reasoning-effort medium --roles planner plan_reviewer \
-  --out /tmp/planning-profile.json
-
-uv run --directory backend python -m podgen.writing_cli \
-  --env-file ../.env --project PROJECT_UUID --actor ACTOR_UUID --objects /ABS/STAGING_OBJECTS \
-  run --run-id NEW_UUID --case gps-clock --author-ref @/tmp/gps-author-ref.json \
-  --writer-profile @/tmp/writer-profile-ref.json --reviewer-profile @/tmp/writer-profile-ref.json \
-  --plan-mode own-plan --planner-profile @/tmp/planning-profile.json \
-  --plan-reviewer-profile @/tmp/planning-profile.json --max-plan-revisions 1 \
-  --review-anchor-policy bounded-selection-v1 --max-total-input-tokens 2100000 \
-  --max-total-output-tokens 327680 --max-elapsed-seconds 7200 --export-dir /tmp/own-gps-NEW_UUID
-```
-
-Для Snow замените case, author ref, UUID и папку. Все planning-вызовы входят в общий token/time budget; settings и repeat_index не подменяются автоматически. `resume` и `inspect` прежние. Ambiguous submit не отправляется повторно.
-
-Модель получает явный `material_catalog`: точные labels из единственного разрешённого `evidence.json` темы и пути реально переданных документов. Labels связаны с проверенными полными представлениями и selectors. Review использует JSON Pointers к точному `PlanningOutput`. UUID кандидата назначает backend; JSON содержит ссылки на предыдущую версию, её hash и отдельное решение. Own-plan хранит широкий staging root как **селектор**, а зависимости manifest — как явные refs только выбранных документов. Это предотвращает обход через broad root или aliases и не делает неиспользованный fixed-plan источником полномочий.
-
-Экспорт включает полные `plan.json`, `plan-review.json`, при правке `plan-revise.json`/`plan-review-revised.json`, отдельный `planning-clearance.json` и полный архив каждого вызова. `generated-plan.md` показывает именно проверенную версию; при блоке — явно непринятый кандидат и конкретные вопросы/причины. Все эти результаты — evaluation-кандидаты, не принятый производственный StoryPlan и не независимый фактчек.
-
-Repository повторно использует успешно проверенные узлы только внутри одного публичного чтения в PostgreSQL read-only repeatable-read snapshot. Конкурирующий отзыв применяется к следующему чтению; snapshot и memo не живут между вызовами, транзакциями, проектами или purposes. Guard перед count/submit открывает новые чтения и снова проверяет живой доступ. Циклы проверяются отдельным active-path guard.
-
-Для `journal.record/create_run/prepare/event` используется отдельная короткая write-транзакция с repeatable-read снимком и memo на одну проверку графа. `FOR SHARE` проекта сериализует публикацию с обычным `DependencyLedger` access withdrawal, а блокировка строки членства — с удалением/понижением роли. Отзыв после публикации видит и новые рёбра/производные bytes; отзыв, выигравший гонку, приводит к новому снимку и отказу в записи. Повторяется только откатившаяся SQL-транзакция с `40001`, максимум три раза; provider calls внутри callback отсутствуют. Общая политика остальных write-транзакций не менялась.
-
-
-## Явное продолжение после отказа по балансу
-
-Требуется `0013_credit_refusal_attempts`. Обычный `resume` не повторяет ошибку. Оператор может разрешить **одну** новую физическую попытку конкретного отказа:
-
-```sh
-uv run --directory backend python -m podgen.writing_cli \
-  --env-file ../.env --project PROJECT_UUID --actor ACTOR_UUID --objects /ABS/STAGING_OBJECTS \
-  resume --run-id RUN_UUID --retry-credit-refusal FAILED_INVOCATION_UUID \
-  --export-dir /tmp/RECOVERED_RUN_EXPORT
-```
-
-Допускается только сохранённый submit error: HTTP 429, `error.code=credit_balance_exhausted`, `ambiguous=false`, без response ID, сохранённого ответа или output. Проверяются status, submit intent, связанный request и полный raw error. Успехи, count errors, прочие HTTP/validation faults и неизвестный outcome не допускаются. Команда объясняет refusal и неизвестный outcome разными кодами/сообщениями; ошибочный UUID не меняет status/failure_code run.
-
-UUID берётся из `run.json` → `invocations` → нужный этап → `attempts`. Повтор той же команды использует уже созданную попытку. Если новая попытка опять получила отказ по балансу, необходима **новая команда с её UUID**. Подтверждение и receipt сохраняются атомарно в request record; новый UUID детерминирован по родителю. Crash после submit intent не разрешает повторный submit.
-
-Оплаченные plan/draft/review не создаются заново. Сохраняются исходный manifest, prompts/model/schema, полные input/instructions и исходные request/wire/response bytes. У нового запроса меняется только metadata привязки к новой попытке. Проверяются прежние права и бюджеты, время run не начинается заново. Предыдущие preflight input counts остаются в консервативном общем input budget; у доказанного отказа без генерации нет output reservation. Это не подмена сохранённых usage: исходные поля и raw receipts остаются неизменными.
-
-`attempt_kind` различает `role`, один `anchor_repair` и явный `credit_retry`; `operation_kind` сохраняет исходную работу. Поэтому retry отказавшего anchor repair не создаёт второе смысловое исправление. Все предыдущие попытки экспортируются: первая в `archive/<stage>/`, остальные в `archive/<stage>/attempt-N/`; `run.json` перечисляет lineage, statuses и суммарные известные usage/counts. `resume --retry-credit-refusal ...` не включает repair policy молча: исходная policy run и явный `--repair-review-anchors` действуют как прежде.
-
-## Явное исправление адресов plan-review
-
-`0014_plan_target_repair` добавляет максимум одну address-only попытку на каждый отдельный этап `plan-review`/`plan-review-revised`. Новые own-plan manifest закрепляют capability `plan_review_target_catalog=planning-output-pointers-v1`: модель видит все существующие пути `PlanningOutput` и явный корень адресации. `/candidate_plan` — оболочка входного payload, не часть указателя. Старые manifest и уже сохранённые requests/prompts не переписываются.
-
-Если отдельно сохранённый complete review структурно корректен, но содержит несуществующие targets:
-
-```sh
-uv run --directory backend python -m podgen.writing_cli \
-  --env-file ../.env --project PROJECT_UUID --actor ACTOR_UUID --objects /ABS/STAGING_OBJECTS \
-  resume --run-id RUN_UUID --repair-plan-targets FAILED_REVIEW_INVOCATION_UUID \
-  --export-dir /tmp/TARGET_REPAIR_EXPORT
-```
-
-Это отдельное экспериментальное условие, а не повторное содержательное review. Исходный plan/ref/hash, полный raw невалидного ответа, decision, все суждения/приоритеты, research requests и уже валидные targets остаются прежними. Сервер перечисляет существующие адреса и только невалидные места. Модель возвращает `PlanTargetChoices {choices:[{target_id,selected_path}]}`; `selected_path` — точный предложенный адрес или `null`. Сервер не удаляет префиксы, не угадывает адреса и не назначает accept. `null`, отсутствующие/дублированные IDs, новые поля или несуществующий адрес честно останавливают цепочку без автора. Обычный `validate_against` остаётся строгим; общая `validate_context` используется и до выбора, и в окончательной полной проверке.
-
-Для нового run суффикс `current/plan-target-repair.md` закрепляется при старте. Для старого run первое явное действие закрепляет его отдельным PromptDefinition с точным content ID; далее даже при прерывании используются сохранённые bytes/definition. Базовые старые инструкции review не заменяются. После сохранённого request обычный `resume` может закончить разрешённую попытку; повтор operator-команды не создаёт вторую. Позднейший confirmed credit refusal именно этой попытки возобновляется отдельной `--retry-credit-refusal ITS_INVOCATION_UUID`, сохраняя `operation_kind=plan_target_repair`. В одной команде допускается одно адресное recovery action.
-
-`run.json` и planning clearance указывают `additional_conditions`, новые попытки — `archive/<stage>/attempt-N/`, выход содержит полные `repair_choices`. `generated-plan.md` прямо отмечает дополнительное исправление адресов. Author получает только exact candidate, прошедший полный валидатор после выбора; при исходном `revise`/`needs_research` сохраняется именно это решение. Все новые вызовы, live access, исходное время и бюджеты проверяются обычным gateway; новый plan для этого не генерируется.
+Открыты canonical StoryPlan/ScriptRevision mapping, независимая проверка фактов и слушательского понимания, квалификация провайдера и остальная производственная матрица. Эти runtime records их не подменяют.

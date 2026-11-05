@@ -17,7 +17,9 @@ from tests.test_own_plan import own_dataset as own_dataset
 
 
 def execute(data, command, provider, **flags):
-    return WritingEvaluation(data[0], lambda profile: provider).run(command, **flags)
+    return WritingEvaluation(data[0], lambda profile: provider, legacy_offline_transport=provider).run(
+        command, **flags
+    )
 
 
 @pytest.mark.parametrize("legacy", [False, True])

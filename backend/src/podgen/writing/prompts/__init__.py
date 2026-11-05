@@ -40,14 +40,12 @@ def _assemble(stage, format, components):
     names = ("common.md", f"{format}.md", f"{stage}.md")
     # Ordered, framed names/content; no generated version/header participates in its own hash.
     source = json.dumps(
-        [stage, format, [[name, components[name]] for name in names]],
+        ["semantic-body/1", stage, format, [[name, components[name]] for name in names]],
         ensure_ascii=False,
         separators=(",", ":"),
     ).encode("utf-8")
     version = "whole-episode-a/sha256:" + hashlib.sha256(source).hexdigest()
-    body = f"Instructions: {version}; stage={stage}; format={format}\n\n" + "\n\n".join(
-        components[name] for name in names
-    )
+    body = "\n\n".join(components[name] for name in names)
     return RoleInstructions(version, body)
 
 

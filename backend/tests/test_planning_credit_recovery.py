@@ -25,7 +25,7 @@ def test_cli_planning_retry_keeps_paid_plan_and_exact_frozen_inputs(
         stage=stage,
     )
     with pytest.raises(RunFailure, match="provider_http_429"):
-        WritingEvaluation(repo, lambda profile: provider).run(command)
+        WritingEvaluation(repo, lambda profile: provider, legacy_offline_transport=provider).run(command)
     journal = EvaluationJournal(repo, project)
     manifest = journal.manifest(command.run_id)
     plan = journal.invocation(command.run_id, "plan")
@@ -34,6 +34,11 @@ def test_cli_planning_retry_keeps_paid_plan_and_exact_frozen_inputs(
     original = journal.request(target)
     monkeypatch.setenv("PODGEN_DATABASE_URL", repo.database.engine.url.render_as_string(hide_password=False))
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *args, **kwargs: provider)
+    monkeypatch.setattr(
+        writing_cli,
+        "WritingEvaluation",
+        lambda repo, factory: WritingEvaluation(repo, factory, legacy_offline_transport=provider),
+    )
     args = [
         "--project",
         str(project),

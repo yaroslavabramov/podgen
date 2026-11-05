@@ -12,7 +12,9 @@ from tests.test_writing_evaluation import setup_writer as setup_writer
 
 
 def app(repo, loader, provider):
-    return WritingEvaluation(repo, lambda profile: provider, materials_loader=loader)
+    return WritingEvaluation(
+        repo, lambda profile: provider, materials_loader=loader, legacy_offline_transport=provider
+    )
 
 
 @pytest.mark.parametrize("stage", ["draft", "review", "revise"])

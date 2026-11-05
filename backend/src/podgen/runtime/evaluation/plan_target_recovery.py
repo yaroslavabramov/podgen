@@ -30,18 +30,23 @@ def repair_plan(journal, original):
     context = journal.read(RuntimeRef(record_kind="tool_execution", record_id=original["request_record_id"]))[
         "context"
     ]
-    ref = payload["candidate_plan_ref"]
+    modern = context.get("role_input_contract") == "editorial-role-packets/1"
+    ref = context["candidate_plan_ref"] if modern else payload["candidate_plan_ref"]
     saved = journal.read(RuntimeRef.model_validate(ref))
     if (
         saved["run_id"] != str(original["run_id"])
         or saved["output"] != payload["candidate_plan"]
         or context["candidate_plan_ref"] != ref
         or context["candidate_plan_hash"] != digest(saved["output"])
-        or payload["candidate_plan_hash"] != context["candidate_plan_hash"]
+        or (not modern and payload["candidate_plan_hash"] != context["candidate_plan_hash"])
     ):
         raise ContractError("plan_target_candidate_binding_mismatch")
     try:
-        plan = PlanTargetRepair.build(candidate, review, payload["author_materials"]["material_catalog"])
+        plan = PlanTargetRepair.build(
+            candidate,
+            review,
+            payload["material_catalog"] if modern else payload["author_materials"]["material_catalog"],
+        )
     except ValueError:
         raise RunFailure("plan_target_repair_not_eligible") from None
     if not plan.invalid:
@@ -142,6 +147,10 @@ def authorize_plan_target_repair(journal, run_id, target_id, *, guard, allow_cre
             ],
         )
     )
+    if context.get("role_input_contract") == "editorial-role-packets/1":
+        from .repair_projection import replace_input, target_payload
+
+        replace_input(body, suffix, target_payload(plan))
     return journal.prepare(
         run_id,
         original["stage"],

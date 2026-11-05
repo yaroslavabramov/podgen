@@ -1,0 +1,77 @@
+{
+  "contract": "editorial-input/1",
+  "assignment": {
+    "key": "sample-assignment",
+    "title": "Название выпуска",
+    "question": "Главный вопрос?",
+    "audience": "Для кого выпуск",
+    "listener_outcome": "Что слушатель поймёт",
+    "format": "solo",
+    "output_language": "ru",
+    "speakers": [
+      {
+        "label": "ВЕДУЩИЙ",
+        "function": "Проводит слушателя через наблюдение, проверку и вывод.",
+        "speech_register": "Разговорная речь."
+      }
+    ],
+    "knowledge_cutoff": "Ограничение по времени знания",
+    "required_topics": [],
+    "excluded_topics": [],
+    "style_guidance": [
+      "Разговорная речь"
+    ],
+    "duration": {
+      "target_seconds": 900,
+      "min_seconds": 780,
+      "max_seconds": 1080
+    }
+  },
+  "documents": [
+    {
+      "key": "primary",
+      "source_path": "sources/example/source.txt",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "purpose": "primary",
+      "title": "Человеческое название первоисточника"
+    }
+  ],
+  "dossier": {
+    "summary": "Связное редакционное объяснение.",
+    "summary_support_labels": [
+      "K1"
+    ],
+    "throughline_constraints": [
+      "Сохранить предел вывода."
+    ],
+    "threads": [
+      {
+        "question": "Как связан первый шаг со вторым?",
+        "explanation": "Объяснение связи.",
+        "support_labels": [
+          "K1"
+        ],
+        "limitations": []
+      }
+    ],
+    "knowledge_cards": [
+      {
+        "label": "K1",
+        "title": "Наблюдение и его предел",
+        "claim": "Редакционный вывод из свидетельства.",
+        "context": "Условия, при которых вывод применим.",
+        "limitations": [
+          "Чего источник не доказывает."
+        ],
+        "excerpts": [
+          {
+            "text": "Точная цитата.",
+            "document": "primary",
+            "start": 0,
+            "end": 13
+          }
+        ]
+      }
+    ]
+  }
+}

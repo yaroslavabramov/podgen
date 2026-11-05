@@ -45,18 +45,33 @@ def execute_stage(
     profile = load_profile(generation, command.project_id, profile_ref, stage)
     prompt_ref = ArtifactRef.model_validate(manifest["prompt_refs"][stage])
     instructions = generation.get(command.project_id, prompt_ref).payload["template"]
-    body = compile_request(
-        command.run_id,
-        stage,
-        profile,
-        materials.as_payload(),
-        instructions,
-        manifest["response_schemas"][stage],
-        output_language=manifest.get("output_language"),
-        draft=outputs.get("draft"),
-        feedback=outputs.get("review"),
-        own_plan=own_plan,
-    )
+    if command.input_contract == "editorial-role-packets/1":
+        from .role_request import compile_role_request
+
+        body = compile_role_request(
+            command.run_id,
+            stage,
+            profile,
+            materials,
+            instructions,
+            manifest["response_schemas"][stage],
+            approved_plan=own_plan["accepted_plan"] if own_plan else None,
+            draft=outputs.get("draft"),
+            feedback=outputs.get("review"),
+        )
+    else:
+        body = compile_request(
+            command.run_id,
+            stage,
+            profile,
+            materials.as_payload(),
+            instructions,
+            manifest["response_schemas"][stage],
+            output_language=manifest.get("output_language"),
+            draft=outputs.get("draft"),
+            feedback=outputs.get("review"),
+            own_plan=own_plan,
+        )
     context = dict(
         manifest_ref=RuntimeRef(
             record_kind="context_assembly", record_id=uuid5(command.run_id, "manifest")
@@ -68,6 +83,8 @@ def execute_stage(
         draft_ref=records.get("draft"),
         feedback_ref=records.get("review") if stage == "revise" else None,
     )
+    if command.input_contract == "editorial-role-packets/1":
+        context["role_input_contract"] = command.input_contract
     if own_plan is not None:
         context.update(
             accepted_plan_ref=own_plan["accepted_plan_ref"],
