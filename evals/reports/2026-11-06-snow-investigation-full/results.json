@@ -1,0 +1,131 @@
+{
+  "case": "snow-pump",
+  "run_id": "58f70fae-0c69-40f6-8680-9ddeb6bf17ad",
+  "source_code_revision": "fbc06863816362f551d19d253a354c6c27ee039c",
+  "previous_observations": "../2026-11-06-snow-investigation-opening/",
+  "planning_continuation": "plan-revise and plan-review-revised from native stage previews; fixed-plan re-import of accepted output; writing preview equivalent to approved-plan; original review and candidate reused",
+  "report_status": "completed_unaccepted",
+  "editor_recommendation": "revise",
+  "duration_target_seconds": [
+    780,
+    1080
+  ],
+  "reading_settings": {
+    "voice": "macOS Milena",
+    "rate": 130
+  },
+  "readings": {
+    "draft": {
+      "utterances": 26,
+      "words": 2040,
+      "duration_seconds": 1110.111202,
+      "sha256": "0a773c48347d588ceda109058b5acf8f8fb82ef030a63125e49d1a4e80640e0f"
+    },
+    "final": {
+      "utterances": 27,
+      "words": 2132,
+      "duration_seconds": 1162.22839,
+      "sha256": "8c563a22c3c8a2688d8b20d0e614d59cb18b81c69eb3423ba1144f2f3a2392e4"
+    }
+  },
+  "additional_api_usd": "0.239768875",
+  "calls": {
+    "draft-episode_script": {
+      "model": "gpt-6.1-sol",
+      "service_tier": "default",
+      "usage": {
+        "input_tokens": 9613,
+        "input_tokens_details": {
+          "cache_write_tokens": 9610,
+          "cached_tokens": 0
+        },
+        "output_tokens": 4421,
+        "output_tokens_details": {
+          "reasoning_tokens": 283
+        },
+        "total_tokens": 14034
+      },
+      "usd": "0.068241",
+      "status": "completed"
+    },
+    "plan-review-revised": {
+      "model": "gpt-6.1-terra",
+      "service_tier": "flex",
+      "usage": {
+        "input_tokens": 20594,
+        "input_tokens_details": {
+          "cache_write_tokens": 20591,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1565,
+        "output_tokens_details": {
+          "reasoning_tokens": 453
+        },
+        "total_tokens": 22159
+      },
+      "usd": "0.016783375",
+      "status": "completed"
+    },
+    "plan-revise": {
+      "model": "gpt-6.1-sol",
+      "service_tier": "flex",
+      "usage": {
+        "input_tokens": 12177,
+        "input_tokens_details": {
+          "cache_write_tokens": 12174,
+          "cached_tokens": 0
+        },
+        "output_tokens": 6452,
+        "output_tokens_details": {
+          "reasoning_tokens": 90
+        },
+        "total_tokens": 18629
+      },
+      "usd": "0.0474805",
+      "status": "completed"
+    },
+    "review-editorial_feedback": {
+      "model": "gpt-6.1-terra",
+      "service_tier": "default",
+      "usage": {
+        "input_tokens": 16635,
+        "input_tokens_details": {
+          "cache_write_tokens": 16632,
+          "cached_tokens": 0
+        },
+        "output_tokens": 3004,
+        "output_tokens_details": {
+          "reasoning_tokens": 1034
+        },
+        "total_tokens": 19639
+      },
+      "usd": "0.035813",
+      "status": "completed"
+    },
+    "revise-episode_script": {
+      "model": "gpt-6.1-sol",
+      "service_tier": "default",
+      "usage": {
+        "input_tokens": 11077,
+        "input_tokens_details": {
+          "cache_write_tokens": 11074,
+          "cached_tokens": 0
+        },
+        "output_tokens": 4376,
+        "output_tokens_details": {
+          "reasoning_tokens": 42
+        },
+        "total_tokens": 15453
+      },
+      "usd": "0.071451",
+      "status": "completed"
+    }
+  },
+  "prompt_versions": {
+    "plan-revise": "whole-episode-a/sha256:d0fc3c5e80cf5e43fcfad896e961de47d045bb280306e2b699b4c26ce445b383",
+    "plan-review": "whole-episode-a/sha256:bdd7f520105267ac6cd66edc48cf596378ce6e947b7eabf6f7e235a463940cd4",
+    "draft": "whole-episode-a/sha256:ba560a967ce7cb7d327a3eb147f747586d59050c2b143f57c66334a78117f30c",
+    "review": "whole-episode-a/sha256:4f7c6993e5c255651a385a1ff8a0506dea4f5fdfc06e655c6337aa19383497e3",
+    "revise": "whole-episode-a/sha256:e3d77cc828602a9a9a11c0f501104a596783b8e251535e25681df2ad8fc3117d"
+  }
+}
