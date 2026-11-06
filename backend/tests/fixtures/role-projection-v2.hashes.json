@@ -1,0 +1,30 @@
+{
+  "version": "editorial-role-projections/2",
+  "source": "0f67c11 with the committed e81c045 GPS artifacts",
+  "stages": {
+    "plan": {
+      "payload_sha256": "79e4d3b73c1b2fd434dd0d297a0da627188612bdf489279d708fc894ae244aa0",
+      "schema_sha256": "ca1a292ddb15a6791c3e96f9f6491e661a79c2b7c02468b31fccdf9b7cf1b222"
+    },
+    "plan-review": {
+      "payload_sha256": "6df5e6569ea3809a9521065bc56576f6a52469627f3c7ab004578be957812fd6",
+      "schema_sha256": "eb1af7682cf3fc17eb52263e29f398a170eefac5560a57feb07ace546c4fdce8"
+    },
+    "plan-revise": {
+      "payload_sha256": "1314ec0b74744e49f787fd6b9bc08f8ead945afbf19786064fb23bfb29790e0d",
+      "schema_sha256": "ca1a292ddb15a6791c3e96f9f6491e661a79c2b7c02468b31fccdf9b7cf1b222"
+    },
+    "draft": {
+      "payload_sha256": "2e3577dbe5d18cc63739c045f0954f0fac78bda6ac4307b63b7170e1976e3cfd",
+      "schema_sha256": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f"
+    },
+    "review": {
+      "payload_sha256": "b11d4bb88b4835391bc46737751eb1a2a376ec59b8d0f061a84fe85a6ebd5d0e",
+      "schema_sha256": "c842481da76204d0769ef6642943beac7cf20f21149d0e577a1b54b9c841617c"
+    },
+    "revise": {
+      "payload_sha256": "8e9401ad70656a2396759118ee09a125eb927dda415a8545cb80bb85e3f8d998",
+      "schema_sha256": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f"
+    }
+  }
+}

@@ -6,7 +6,7 @@ from pathlib import PurePosixPath
 
 from podgen.domain.errors import ContractError
 
-from .projection_versions import CURRENT, PREVIOUS, validate_version
+from .projection_versions import CURRENT, V1, validate_version
 from .story_views import (
     editorial_frame,
     narrative_decisions,
@@ -116,7 +116,7 @@ def role_payload(
     validate_version(projection_version)
     packet = materials.packet
     payload = dict(output_language=materials.output_language)
-    if projection_version == CURRENT and stage in ("review", "revise"):
+    if projection_version != V1 and stage in ("review", "revise"):
         payload["draft"] = indexed_draft(draft)
     payload["assignment"] = assignment_view(packet)
     if stage.startswith("plan"):
@@ -152,19 +152,19 @@ def role_payload(
             payload["story"] = narrative_decisions(plan, projection_version=projection_version)
             payload["support"] = knowledge_view(packet, labels=False, selected=selected_labels(plan, packet))
         elif stage == "review":
-            if projection_version == PREVIOUS:
+            if projection_version == V1:
                 payload["story_intent"] = story_intent(plan)
                 payload["draft"] = indexed_draft(draft)
             else:
-                payload["editorial_frame"] = editorial_frame(plan)
+                payload["editorial_frame"] = editorial_frame(plan, projection_version=projection_version)
             payload["support"] = knowledge_view(packet, labels=True)
             payload["evidence"] = evidence_view(packet)
         elif stage == "revise":
-            if projection_version == PREVIOUS:
+            if projection_version == V1:
                 payload["story_intent"] = story_intent(plan)
                 payload["draft"] = indexed_draft(draft)
             else:
-                payload["editorial_frame"] = editorial_frame(plan)
+                payload["editorial_frame"] = editorial_frame(plan, projection_version=projection_version)
             if feedback is None:
                 raise ContractError("feedback_required")
             payload["revision_guidance"] = actionable_feedback(feedback)

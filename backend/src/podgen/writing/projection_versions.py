@@ -2,15 +2,18 @@
 
 from podgen.domain.errors import ContractError
 
-PREVIOUS = "editorial-role-projections/1"
-CURRENT = "editorial-role-projections/2"
+V1 = "editorial-role-projections/1"
+V2 = "editorial-role-projections/2"
+V3 = "editorial-role-projections/3"
+CURRENT = V3
+PREVIOUS = V1  # Compatibility for callers that imported the former name.
 
 
 def validate_version(value):
-    if value not in (PREVIOUS, CURRENT):
+    if value not in (V1, V2, V3):
         raise ContractError("unknown_role_projection_version")
     return value
 
 
 def manifest_version(manifest):
-    return validate_version(manifest.get("role_projection_version", PREVIOUS))
+    return validate_version(manifest.get("role_projection_version", V1))

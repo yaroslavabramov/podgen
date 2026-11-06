@@ -86,7 +86,21 @@ def test_role_views_preserve_meaning_and_keep_backend_private(repo, editorial):
     assert "Точная цитата." not in wire
     assert writer["support"][0]["claim"] == data["dossier"]["knowledge_cards"][0]["claim"]
     assert writer["assignment"]["duration"] == dict(target_seconds=900, min_seconds=780, max_seconds=1080)
-    assert "working_answer" not in wire and "route_summary" not in wire and "main_question" not in wire
+    assert "working_answer" not in wire and "route_summary" not in wire
+    assert writer["story"]["main_question"] == plan["plan"]["main_question"]
+    assert writer["assignment"]["question"] == data["assignment"]["question"]
+    assert set(writer["story"]) == {
+        "main_question",
+        "listener_promise",
+        "conclusion",
+        "duration_strategy",
+        "opening",
+        "acts",
+        "speaker_contributions",
+        "limitations",
+        "unresolved_questions",
+    }
+    assert "act_id" not in wire and "material_refs" not in wire
     draft = {"utterances": [{"speaker": "ВЕДУЩИЙ", "text": "Весь сценарий без усечения."}]}
     feedback = dict(
         reading_mode="informed",

@@ -4,7 +4,7 @@ from copy import deepcopy
 
 from podgen.domain.errors import ContractError
 
-from .projection_versions import CURRENT, PREVIOUS
+from .projection_versions import CURRENT, V1, V2
 
 
 def selected_labels(plan, packet):
@@ -25,12 +25,13 @@ def narrative_decisions(plan, *, projection_version=CURRENT):
     source = plan["plan"]
     if source is None:
         raise ContractError("writing_plan_required")
-    if projection_version == PREVIOUS:
+    if projection_version == V1:
         ending = deepcopy(source["ending"])
         ending.pop("promises_to_close")
         result = dict(ending=ending, duration_strategy=deepcopy(source["duration_strategy"]))
     else:
-        result = dict(
+        result = {"main_question": source["main_question"]} if projection_version not in (V1, V2) else {}
+        result.update(
             listener_promise=source["listener_promise"],
             conclusion=dict(
                 meaning=source["ending"]["answer_to_deliver"],
@@ -50,7 +51,7 @@ def narrative_decisions(plan, *, projection_version=CURRENT):
         "priority",
     )
     result["acts"] = [{key: deepcopy(act[key]) for key in act_fields} for act in source["acts"]]
-    if projection_version == PREVIOUS:
+    if projection_version == V1:
         result["host_functions"] = [
             {("speaker" if key == "speaker_id" else key): deepcopy(value) for key, value in host.items()}
             for host in source["host_functions"]
@@ -90,10 +91,11 @@ def story_intent(plan):
     )
 
 
-def editorial_frame(plan):
+def editorial_frame(plan, *, projection_version=CURRENT):
     if plan is None or plan.get("plan") is None:
         raise ContractError("writing_plan_required")
-    return dict(
+    result = {"main_question": plan["plan"]["main_question"]} if projection_version not in (V1, V2) else {}
+    result.update(
         listener_promise=plan["plan"]["listener_promise"],
         qualifications=deepcopy(plan["plan"]["ending"]["qualifications"]),
         limitations=deepcopy(plan["limitations"]),
@@ -101,3 +103,5 @@ def editorial_frame(plan):
             dict(question=q["question"], why_needed=q["why_needed"]) for q in plan["research_requests"]
         ],
     )
+
+    return result

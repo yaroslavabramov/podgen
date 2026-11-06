@@ -1,5 +1,6 @@
 """Versioned semantics, actual legacy wire, and ordinary CLI keep/revise delivery; no provider network."""
 
+import hashlib
 import json
 from pathlib import Path
 from uuid import uuid4
@@ -13,7 +14,7 @@ from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.runtime.evaluation.workflow import stages_for
 from podgen.writing.editorial_contract import EditorialInput
-from podgen.writing.projection_versions import CURRENT, PREVIOUS
+from podgen.writing.projection_versions import CURRENT, V1, V2
 from podgen.writing.projections import role_payload
 from tests.independent_planner_provider import IndependentPlannerProvider
 from tests.test_editorial_independence import invoke, payload
@@ -28,20 +29,20 @@ def archived_materials():
     return EditorialMaterials(packet, RuntimeRef(record_kind="user_input", record_id=uuid4()), ())
 
 
-def test_previous_projection_and_schemas_reproduce_real_legacy_wire():
+def test_v1_projection_and_schemas_reproduce_real_legacy_wire():
     materials = archived_materials()
     plan = json.loads((ARCHIVE / "accepted-plan.json").read_text())["output"]
     for stage, file in (("plan", "planner-request.json"), ("draft", "writer-request.json")):
         request = json.loads((ARCHIVE / file).read_text())
         before = role_payload(
-            stage, materials, approved_plan=plan if stage == "draft" else None, projection_version=PREVIOUS
+            stage, materials, approved_plan=plan if stage == "draft" else None, projection_version=V1
         )
         assert (
             json.dumps(before, ensure_ascii=False, separators=(",", ":"))
             == request["input"][0]["content"][0]["text"]
         )
         assert (
-            response_schema(stage, "editorial-role-packets/1", projection_version=PREVIOUS)
+            response_schema(stage, "editorial-role-packets/1", projection_version=V1)
             == request["text"]["format"]["schema"]
         )
 
@@ -140,7 +141,10 @@ def test_current_ordinary_cli_preserves_author_speech_and_delivers_required_chan
     assert len(provider.requests) == count
 
 
-def test_pre_version_manifest_resume_keeps_pinned_schema_and_request(repo, editorial, tmp_path, monkeypatch):
+@pytest.mark.parametrize("version", [V1, V2])
+def test_older_manifest_resume_keeps_pinned_schema_and_request(
+    repo, editorial, tmp_path, monkeypatch, version
+):
     from podgen.runtime.evaluation import manifest
     from podgen.runtime.evaluation.contracts import WritingRunCommand
     from podgen.runtime.evaluation.profiles import create_profile
@@ -163,8 +167,10 @@ def test_pre_version_manifest_resume_keeps_pinned_schema_and_request(repo, edito
     def historical(journal, command, value):
         value = dict(value)
         value.pop("role_projection_version")
+        if version == V2:
+            value["role_projection_version"] = V2
         value["response_schemas"] = {
-            stage: response_schema(stage, command.input_contract, projection_version=PREVIOUS)
+            stage: response_schema(stage, command.input_contract, projection_version=version)
             for stage in stages_for(command)
         }
         return original(journal, command, value)
@@ -184,7 +190,8 @@ def test_pre_version_manifest_resume_keeps_pinned_schema_and_request(repo, edito
         service.run(command)
     journal = EvaluationJournal(repo, project)
     saved = journal.request(journal.invocation(command.run_id, "review"))
-    assert "story_intent" in payload(saved)
+    assert ("story_intent" in payload(saved)) == (version == V1)
+    assert "main_question" not in payload(saved).get("editorial_frame", {})
     monkeypatch.setattr(provider, "count", count)
     monkeypatch.setattr(
         manifest,
@@ -193,4 +200,40 @@ def test_pre_version_manifest_resume_keeps_pinned_schema_and_request(repo, edito
     )
     assert service.run(command)["status"] == "completed_unaccepted"
     assert journal.request(journal.invocation(command.run_id, "review")) == saved
-    assert "role_projection_version" not in journal.manifest(command.run_id)
+    assert journal.manifest(command.run_id).get("role_projection_version", V1) == version
+
+
+def test_v2_payloads_and_schemas_keep_exact_pre_upgrade_serialization():
+    expected = json.loads((ROOT / "backend/tests/fixtures/role-projection-v2.hashes.json").read_text())
+
+    def read(name):
+        return json.loads((ARCHIVE / name).read_text())["output"]
+
+    initial = read("initial-plan.json")
+    feedback = read("initial-plan-review.json")
+    accepted = read("accepted-plan.json")
+    draft = read("draft.json")
+    review = read("script-review.json")
+    inputs = {
+        "plan": {},
+        "plan-review": dict(candidate=initial),
+        "plan-revise": dict(candidate=initial, plan_review=feedback),
+        "draft": dict(approved_plan=accepted),
+        "review": dict(approved_plan=accepted, draft=draft),
+        "revise": dict(approved_plan=accepted, draft=draft, feedback=review),
+    }
+
+    def digest(value):
+        return hashlib.sha256(
+            json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode()
+        ).hexdigest()
+
+    for stage, values in inputs.items():
+        assert (
+            digest(role_payload(stage, archived_materials(), projection_version=V2, **values))
+            == expected["stages"][stage]["payload_sha256"]
+        )
+        assert (
+            digest(response_schema(stage, "editorial-role-packets/1", projection_version=V2))
+            == expected["stages"][stage]["schema_sha256"]
+        )
