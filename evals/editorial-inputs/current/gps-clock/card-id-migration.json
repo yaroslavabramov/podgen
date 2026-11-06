@@ -12,5 +12,20 @@
     "Остальные ошибки": "C67315c3cfb14",
     "Известная высота": "C4320257d9bd3"
   },
-  "source_sha256": "e018d0a117155bd2ce3c16367327f1c060b76d1b3a23e8cf191accaa325c62f6"
+  "source_sha256": "e018d0a117155bd2ce3c16367327f1c060b76d1b3a23e8cf191accaa325c62f6",
+  "story_facts_revision": {
+    "previous_digest": "ed0a208acd0df82b07609d004fcef2b2ea6f07e6081787aa637ae602ae960dd2",
+    "target_digest": "b513664e6006cbb3e75895b54e012346314b46d0d4e428b84f160af3e7b05687",
+    "added_card_field": "story_facts",
+    "card_ids": [
+      "Cc84cd8e99dc4",
+      "C8145f34b1308",
+      "C7f431aeab200",
+      "C6c65066ae380",
+      "Caf610eac2b16",
+      "Cd945415357a1",
+      "C67315c3cfb14",
+      "C4320257d9bd3"
+    ]
+  }
 }

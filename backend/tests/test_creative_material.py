@@ -11,7 +11,9 @@ from podgen.writing.creative_material import creative_card_view, creative_dossie
 from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.projections import evidence_view, knowledge_view
 from tests.test_current_snow_input import source_file
-from tests.test_editorial_independence import invoke, payload
+from tests.test_editorial_independence import expected_current_story, invoke, payload, prepare
+from tests.test_independent_readings import ReadingProvider
+from tests.test_own_plan import own_dataset as own_dataset
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -178,3 +180,67 @@ def test_ordinary_cli_compiles_creative_and_checker_inputs_from_current_packets(
             assert view["limitations"] == source["limitations"]
             assert view["title"] == source["title"]
         assert requests[stage]["evidence"]
+
+
+def test_current_gps_fixed_import_and_run_bind_the_current_snapshot(
+    own_dataset, tmp_path, monkeypatch, capsys
+):
+    from podgen import writing_cli
+
+    prefix, common, _, source_map, _ = prepare(own_dataset, "gps-clock", tmp_path, monkeypatch)
+    folder = ROOT / "evals/editorial-inputs/current/gps-clock"
+    shared_ref = tmp_path / "current-shared-ref.json"
+    assert (
+        invoke(
+            prefix, "editorial-import", input=folder / "shared.json", source_map=source_map, out=shared_ref
+        )
+        == 0
+    )
+    current_fixed = json.loads((folder / "fixed-plan.json").read_text())
+    migration = json.loads((folder / "card-id-migration.json").read_text())
+    stale = deepcopy(current_fixed)
+    stale["shared_input_digest"] = migration["story_facts_revision"]["previous_digest"]
+    stale_path = tmp_path / "stale-fixed.json"
+    stale_path.write_text(json.dumps(stale, ensure_ascii=False))
+    assert (
+        invoke(
+            prefix,
+            "fixed-editorial-import",
+            input=stale_path,
+            source_map=source_map,
+            shared_ref="@" + str(shared_ref),
+            out=tmp_path / "stale-ref.json",
+        )
+        == 2
+    )
+    assert json.loads(capsys.readouterr().err)["code"] == "fixed_editorial_input_binding_mismatch"
+    fixed_ref = tmp_path / "current-fixed-ref.json"
+    assert (
+        invoke(
+            prefix,
+            "fixed-editorial-import",
+            input=folder / "fixed-plan.json",
+            source_map=source_map,
+            shared_ref="@" + str(shared_ref),
+            out=fixed_ref,
+        )
+        == 0
+    )
+    provider = ReadingProvider()
+    monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *args, **kwargs: provider)
+    options = dict(
+        common,
+        review_mode="independent-readings/1",
+        run_id=uuid4(),
+        author_ref="@" + str(shared_ref),
+        fixed_plan_input_ref="@" + str(fixed_ref),
+        export_dir=tmp_path / "fixed-run",
+    )
+    assert invoke(prefix, "run", **options) == 0
+    assert [body["metadata"]["podgen_stage"] for body in provider.requests] == [
+        "draft",
+        "reader-review",
+        "fact-review",
+    ]
+    assert payload(provider.requests[0])["story"] == expected_current_story(current_fixed["plan"])
+    assert json.loads((tmp_path / "fixed-run/final.json").read_text())["output"] == provider.upstream.script

@@ -347,29 +347,57 @@ def test_plan_editor_rejects_names_document_keys_and_foreign_card_ids(kind):
         review.validate_against(plan, material_locators=identifiers)
 
 
-def test_current_packet_migration_preserves_exact_legacy_bytes_and_reference_bindings():
-    for case in ("gps-clock", "snow-pump"):
-        folder = ROOT / "evals/editorial-inputs/current" / case
-        source = (
-            ROOT / "evals/editorial-inputs/v1/gps-clock/shared.json"
-            if case == "gps-clock"
-            else folder / "legacy-shared.json"
-        )
-        raw = source.read_bytes()
-        import hashlib
+@pytest.mark.parametrize("case", ["gps-clock", "snow-pump"])
+def test_current_packet_migration_preserves_exact_legacy_bytes_and_reference_bindings(case):
+    import hashlib
 
-        mapping = json.loads((folder / "card-id-migration.json").read_text())
-        before = EditorialInput.model_validate_json(raw)
-        packet = EditorialInput.model_validate_json((folder / "shared.json").read_bytes())
-        assert mapping["source_sha256"] == hashlib.sha256(raw).hexdigest()
-        assert mapping["source_digest"] == digest(before.model_dump(mode="json"))
-        assert mapping["target_digest"] == digest(packet.model_dump(mode="json"))
-        assert packet.contract == "editorial-input/2"
-        by_old = {c.label: c for c in before.dossier.knowledge_cards}
-        for card in packet.dossier.knowledge_cards:
-            previous = by_old[card.label]
-            assert card.card_id == mapping["card_ids"][previous.label]
-            assert card.title == previous.title and card.claim == previous.claim
-            assert card.context == previous.context and card.limitations == previous.limitations
-            assert card.excerpts == previous.excerpts
-        assert packet.documents == before.documents
+    folder = ROOT / "evals/editorial-inputs/current" / case
+    source = (
+        ROOT / "evals/editorial-inputs/v1/gps-clock/shared.json"
+        if case == "gps-clock"
+        else folder / "legacy-shared.json"
+    )
+    raw = source.read_bytes()
+    mapping = json.loads((folder / "card-id-migration.json").read_text())
+    before = EditorialInput.model_validate_json(raw)
+    packet = EditorialInput.model_validate_json((folder / "shared.json").read_bytes())
+    assert mapping["source_sha256"] == hashlib.sha256(raw).hexdigest()
+    assert mapping["source_digest"] == digest(before.model_dump(mode="json"))
+    current = packet.model_dump(mode="json")
+    previous = deepcopy(current)
+    for card in previous["dossier"]["knowledge_cards"]:
+        assert card.pop("story_facts")
+    revision = mapping["story_facts_revision"]
+    assert revision == dict(
+        previous_digest=mapping["target_digest"],
+        target_digest=digest(current),
+        added_card_field="story_facts",
+        card_ids=catalog(packet),
+    )
+    assert mapping["target_digest"] == digest(previous)
+    assert packet.contract == "editorial-input/2"
+    restored = deepcopy(previous)
+    restored["contract"] = "editorial-input/1"
+    labels = {card.pop("card_id"): card["label"] for card in restored["dossier"]["knowledge_cards"]}
+    for card in packet.dossier.knowledge_cards:
+        assert card.card_id == mapping["card_ids"][card.label]
+    groups = [
+        restored["dossier"]["summary_support_labels"],
+        *(thread["support_labels"] for thread in restored["dossier"]["threads"]),
+    ]
+    for group in groups:
+        group[:] = [labels[identity] for identity in group]
+    assert restored == before.model_dump(mode="json")
+    if case == "gps-clock":
+        expected = json.loads((ROOT / "evals/editorial-inputs/v1/gps-clock/fixed-plan.json").read_text())
+        assert expected["shared_input_digest"] == mapping["source_digest"]
+        expected.update(contract="fixed-editorial-input/2", shared_input_digest=digest(current))
+        proposal = expected["plan"]
+        refs = [
+            proposal["plan"]["opening"]["material_refs"],
+            *(act["material_refs"] for act in proposal["plan"]["acts"]),
+            *(question["material_refs"] for question in proposal["research_requests"]),
+        ]
+        for group in refs:
+            group[:] = [mapping["card_ids"][label] for label in group]
+        assert json.loads((folder / "fixed-plan.json").read_text()) == expected

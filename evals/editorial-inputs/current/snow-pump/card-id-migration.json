@@ -20,5 +20,28 @@
     "Возражение врача": "Cd392f2fdcffb",
     "Временная трудность": "C23d72f102d80"
   },
-  "source_sha256": "269c3e20ba0ad6740a33c68a120066f3c2f480aa88e6a28fb618eb5d236ef205"
+  "source_sha256": "269c3e20ba0ad6740a33c68a120066f3c2f480aa88e6a28fb618eb5d236ef205",
+  "story_facts_revision": {
+    "previous_digest": "d70c8c9e633a416c57bfd7f150d6f306ea3a1516a75b7da2e2b04ad48fa442b6",
+    "target_digest": "2ed8e3c9e282197f8ee3cac56600167d9721ef4c54712da603ee26ef01fb5a53",
+    "added_card_field": "story_facts",
+    "card_ids": [
+      "C14b82a922a73",
+      "C8f02286bc580",
+      "C6e16f4eded9a",
+      "Cc5ef8f053199",
+      "Cf09c44d3d10b",
+      "Cc8ff1484b011",
+      "Cb1f0e697faba",
+      "C37abad3bffb1",
+      "Ca49628392361",
+      "Cf17597a5a330",
+      "C36479ab5239d",
+      "C8b2adbd3e180",
+      "Ce5cb095a3e6d",
+      "Cee554ab22bb8",
+      "Cd392f2fdcffb",
+      "C23d72f102d80"
+    ]
+  }
 }

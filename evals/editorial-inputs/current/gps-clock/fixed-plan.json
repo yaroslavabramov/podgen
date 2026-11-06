@@ -1,7 +1,7 @@
 {
   "contract": "fixed-editorial-input/2",
   "assignment_key": "gps-clock",
-  "shared_input_digest": "ed0a208acd0df82b07609d004fcef2b2ea6f07e6081787aa637ae602ae960dd2",
+  "shared_input_digest": "b513664e6006cbb3e75895b54e012346314b46d0d4e428b84f160af3e7b05687",
   "document": {
     "source_path": "author/gps-clock/plan.md",
     "sha256": "371b70b6724bd8d5497392d94a1d7782a7fa1a7356be4e12e4050b8d4d1060f6"
