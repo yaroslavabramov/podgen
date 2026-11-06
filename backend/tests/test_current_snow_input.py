@@ -19,11 +19,29 @@ from tests.test_editorial_independence import invoke, payload
 ROOT = Path(__file__).resolve().parents[2]
 CURRENT = ROOT / "evals/editorial-inputs/current/snow-pump"
 CORPUS = ROOT / "evals/cases/development/wp02-batch-01"
+USER_REQUEST = "Хочу подкаст про Джона Сноу и холеру в Лондоне. Расскажи эту историю как детектив."
 
 
 def source_file(document):
     base = ROOT / "evals" if document["source_path"].startswith("editorial-inputs/") else CORPUS
     return base / document["source_path"]
+
+
+def test_current_snow_keeps_topic_request_without_an_injected_question():
+    data = json.loads((CURRENT / "shared.json").read_text())
+    assert (CURRENT / "brief.md").read_text() == USER_REQUEST + "\n"
+    assert data["assignment"]["question"] == USER_REQUEST
+    assignment_text = json.dumps(data["assignment"], ensure_ascii=False).casefold()
+    # Reviewed input regressions across every field, not vocabulary rules for episodes or sources.
+    for fragment in (
+        "Брод-стрит",
+        "воду из колонки",
+        "результате её закрытия",
+        "снятия ручки",
+        "холера уже отступала",
+        "Досье — запас материала",
+    ):
+        assert fragment.casefold() not in assignment_text
 
 
 def test_current_snow_sources_and_exact_excerpt_ranges():
@@ -123,6 +141,8 @@ def test_current_snow_informed_cli_and_every_role_receive_the_assignment(repo, s
         assert payload(body)["assignment"] == expected_assignment
     assert payload(provider.requests[0])["dossier"]["threads"] == []
     assert "candidate_plan" not in payload(provider.requests[0])
+    assert provider.plan["plan"]["main_question"] != USER_REQUEST
+    assert payload(provider.requests[2])["story"]["main_question"] == provider.plan["plan"]["main_question"]
     assert payload(provider.requests[2])["story"]["opening"] == {
         key: value for key, value in provider.plan["plan"]["opening"].items() if key != "material_refs"
     }
