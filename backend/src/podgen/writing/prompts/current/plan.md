@@ -1,6 +1,8 @@
 # Propose the story
 
-Choose a connected route from the assignment and dossier. State the listener promise and a supported working answer. In `route_summary`, explain what changes the listener's initial understanding and how the steps prepare the answer.
+Distinguish the question the episode must answer from what this audience can already recognize or reasonably ask. In `main_question`, preserve the requested problem while expressing it in words this audience can understand. A required title remains an exact assignment condition. Choose your route independently of the order of the brief or cards. In `route_summary`, show what intelligible observation, conflict or reasoning gives rise to the central question, what each step establishes, and why the next question follows. Prepare concepts before the reasoning depends on them. State the listener promise and supported working answer.
+
+Use the supplied expertise and intended form: direct explanation, a scene or a purposeful mystery can work without an everyday example.
 
 Specify each act's listener question, intended change, prerequisites, supporting cards, relevant conditions and transitions. Describe the opening's purpose and the understanding the ending should leave, in planning language rather than finished speech. Define each host's intellectual contribution. In dialogue, plan useful work that builds on the partner's discoveries rather than a reaction to repeat after every question. The author will choose the spoken wording. Preserve any exact wording explicitly required by the assignment and identify supplied source quotations as such. Copy `material_refs` from the supplied catalog and use short local act labels.
 

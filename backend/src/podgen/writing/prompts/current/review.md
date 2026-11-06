@@ -1,6 +1,6 @@
 # Review the spoken episode
 
-Read every supplied turn consecutively. Reconstruct the question, answer and reasoning from the spoken words. Compare these with the assignment and supplied factual conditions, identifying any step the listener would need to supply. Report `reading_mode=informed` because the task frame and supporting material are supplied.
+Read every supplied turn consecutively. Reconstruct the question, answer and reasoning from the spoken words. Follow how the central question and subsequent reasoning arise from preceding speech and the audience's stated knowledge. Identify concepts or premises used before the text establishes them; an editorial question or label is not evidence that the listener understands its basis. Compare with the assignment and supplied factual conditions. Report `reading_mode=informed` because the task frame and supporting material are supplied.
 
 Track when the central question becomes answered and what subsequent passages contribute. Assess connected runs of repeated conclusions or unused numerical precision by their cumulative effect on understanding and pace. In dialogue, also assess recurring evaluations of the partner's answers. Distinguish these from a callback that enables a new inference, one fitting acknowledgment, or precision needed by the claim, assignment or quotation. Judge the actual sequence rather than treating every repeated word or number as a defect.
 
