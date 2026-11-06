@@ -1,6 +1,8 @@
 """Compile ordinary and dedicated repair wires without a provider or token endpoint."""
 
 from podgen.domain.errors import ContractError
+from podgen.writing.plan_views import candidate_view
+from podgen.writing.projection_versions import CURRENT
 from podgen.writing.projections import CONTRACT, validate_model_content
 from podgen.writing.prompts import (
     load_anchor_repair_instructions,
@@ -70,7 +72,7 @@ def preview_request(run_id, stage, profile, materials, **inputs):
         from podgen.writing.planning_roles import PlanningOutput, PlanReviewOutput
 
         plan = PlanTargetRepair.build(
-            PlanningOutput.model_validate(inputs["candidate"]),
+            PlanningOutput.model_validate(candidate_view(inputs["candidate"], projection_version=CURRENT)),
             PlanReviewOutput.model_validate(inputs["plan_review"]),
             materials.material_catalog,
         )

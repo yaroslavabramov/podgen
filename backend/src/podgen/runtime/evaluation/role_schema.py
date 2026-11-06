@@ -1,6 +1,7 @@
 """Versioned model-facing semantics; persisted fields and historical schemas retain their identities."""
 
-from podgen.writing.projection_versions import CURRENT, V1, V2, validate_version
+from podgen.writing.planning_schema import planning_schema
+from podgen.writing.projection_versions import CURRENT, V1, V2, historical, validate_version
 
 from .workflow import output_model
 
@@ -26,6 +27,9 @@ DESCRIPTIONS = {
 
 def response_schema(stage, input_contract, *, projection_version=CURRENT):
     schema = output_model(stage).model_json_schema()
+    schema = planning_schema(
+        schema, legacy=input_contract != "editorial-role-packets/1" or historical(projection_version)
+    )
     if input_contract != "editorial-role-packets/1":
         return schema
     validate_version(projection_version)

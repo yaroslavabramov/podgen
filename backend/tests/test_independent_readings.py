@@ -170,7 +170,8 @@ def test_default_saved_snow_two_isolated_readings_and_repeated_final(own_dataset
         for row in rewrite["repair_evidence"]
     )
     assert [r["origin"] for r in rewrite["revision_guidance"]] == ["reader", "fact"]
-    assert rewrite["revision_guidance"][1]["important_limits"] == ["Полная существенная оговорка."]
+    assert all("important_limits" not in guidance for guidance in rewrite["revision_guidance"])
+    assert rewrite["revision_guidance"][1]["findings"][0]["preserve"] == ["Существенное ограничение."]
     assert len(rewrite["support"]) == 1  # No plan: only the specific factual repair's support.
     assert (
         rewrite["support"][0]["label"] == rewrite["revision_guidance"][1]["findings"][0]["support_labels"][0]

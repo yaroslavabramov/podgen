@@ -1,0 +1,197 @@
+{
+  "$defs": {
+    "PlanReviewFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "targets": {
+          "description": "JSON Pointers into the exact supplied plan.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Targets",
+          "type": "array"
+        },
+        "priority": {
+          "enum": [
+            "blocking",
+            "important",
+            "optional"
+          ],
+          "title": "Priority",
+          "type": "string"
+        },
+        "observation": {
+          "minLength": 1,
+          "title": "Observation",
+          "type": "string"
+        },
+        "requested_change": {
+          "minLength": 1,
+          "title": "Requested Change",
+          "type": "string"
+        },
+        "preserve": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Preserve",
+          "type": "array"
+        },
+        "material_refs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Material Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "targets",
+        "priority",
+        "observation",
+        "requested_change",
+        "preserve",
+        "material_refs"
+      ],
+      "title": "PlanReviewFinding",
+      "type": "object"
+    },
+    "PlanReviewStrength": {
+      "additionalProperties": false,
+      "properties": {
+        "targets": {
+          "description": "JSON Pointers into the exact supplied plan.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Targets",
+          "type": "array"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "targets",
+        "reason"
+      ],
+      "title": "PlanReviewStrength",
+      "type": "object"
+    },
+    "PlanningResearchRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "question": {
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "why_needed": {
+          "minLength": 1,
+          "title": "Why Needed",
+          "type": "string"
+        },
+        "affected_act_ids": {
+          "description": "Local act labels; empty for an episode-wide question.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Affected Act Ids",
+          "type": "array"
+        },
+        "material_refs": {
+          "description": "Relevant supplied locators; may be empty for missing evidence.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Material Refs",
+          "type": "array"
+        },
+        "blocking": {
+          "description": "Whether the promised answer requires this unresolved material.",
+          "title": "Blocking",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "question",
+        "why_needed",
+        "affected_act_ids",
+        "material_refs",
+        "blocking"
+      ],
+      "title": "PlanningResearchRequest",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "decision": {
+      "enum": [
+        "accept",
+        "revise",
+        "needs_research"
+      ],
+      "title": "Decision",
+      "type": "string"
+    },
+    "decision_reason": {
+      "minLength": 1,
+      "title": "Decision Reason",
+      "type": "string"
+    },
+    "listener_answer": {
+      "minLength": 1,
+      "title": "Listener Answer",
+      "type": "string",
+      "description": "Listener understanding this proposed reasoning would enable."
+    },
+    "strengths": {
+      "items": {
+        "$ref": "#/$defs/PlanReviewStrength"
+      },
+      "title": "Strengths",
+      "type": "array"
+    },
+    "findings": {
+      "items": {
+        "$ref": "#/$defs/PlanReviewFinding"
+      },
+      "title": "Findings",
+      "type": "array"
+    },
+    "research_requests": {
+      "items": {
+        "$ref": "#/$defs/PlanningResearchRequest"
+      },
+      "title": "Research Requests",
+      "type": "array"
+    },
+    "duration_note": {
+      "minLength": 1,
+      "title": "Duration Note",
+      "type": "string"
+    }
+  },
+  "required": [
+    "decision",
+    "decision_reason",
+    "listener_answer",
+    "strengths",
+    "findings",
+    "research_requests",
+    "duration_note"
+  ],
+  "title": "PlanReviewOutput",
+  "type": "object"
+}

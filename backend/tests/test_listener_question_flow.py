@@ -8,6 +8,8 @@ import pytest
 
 from podgen import writing_cli
 from podgen.runtime.models.contracts import WireReply
+from podgen.writing.plan_views import candidate_view
+from podgen.writing.projection_versions import CURRENT
 from tests.test_editorial_independence import invoke, payload, prepare
 from tests.test_own_plan import own_dataset as own_dataset
 
@@ -129,11 +131,13 @@ def test_accepted_listener_question_reaches_author_and_review_without_replacing_
     }
     assert views["review"]["editorial_frame"]["main_question"] == central
     assert views["review"]["draft"]["utterances"][0]["text"] == draft["utterances"][0]["text"]
-    assert views["plan-review"]["candidate_plan"] == initial
+    assert views["plan-review"]["candidate_plan"] == candidate_view(initial, projection_version=CURRENT)
     assert all(v["assignment"]["audience"] == assignment["audience"] for v in views.values())
     if question is not None:
         assert views["plan-revise"]["revision_guidance"]["findings"][0]["requested_change"] == question
-        assert views["plan-review-revised"]["candidate_plan"] == provider.accepted
+        assert views["plan-review-revised"]["candidate_plan"] == candidate_view(
+            provider.accepted, projection_version=CURRENT
+        )
         restored = deepcopy(provider.accepted)
         restored["plan"]["main_question"] = initial["plan"]["main_question"]
         assert restored == initial

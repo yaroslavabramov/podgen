@@ -125,7 +125,7 @@ def render_plan(candidate, review, accepted, language):
                 ("prerequisites", "prerequisite_concepts"),
                 ("voice_limits", "limitations_to_voice"),
             ]:
-                field(label, act[key])
+                field(label, act.get(key))
             field("refs", ", ".join(act["material_refs"]))
             field("previous", act["transitions"]["from_previous"])
             field("next", act["transitions"]["toward_next"])
@@ -134,7 +134,7 @@ def render_plan(candidate, review, accepted, language):
             field("time", seconds(act["estimated_seconds_range"]) + "; " + labels[act["priority"]])
         section("ending")
         field("ending_answer", plan["ending"]["answer_to_deliver"])
-        field("qualifications", plan["ending"]["qualifications"])
+        field("qualifications", plan["ending"].get("qualifications"))
         field("close", plan["ending"]["promises_to_close"])
         section("hosts")
         for host in plan["host_functions"]:
@@ -146,7 +146,7 @@ def render_plan(candidate, review, accepted, language):
         field("time", seconds(plan["duration_strategy"]["estimated_seconds_range"]))
         field("assumptions", plan["duration_strategy"]["assumptions"])
         field("optional_material", plan["duration_strategy"]["optional_material"])
-    if output["limitations"]:
+    if output.get("limitations"):
         section("limits")
         lines.extend("- " + item for item in output["limitations"])
     if requests:
@@ -162,7 +162,7 @@ def render_plan(candidate, review, accepted, language):
         lines.append(labels[decision["decision"]])
         field("reason", decision["decision_reason"])
         field("reconstructed", decision["listener_answer"])
-        field("limits", decision["important_limits"])
+        field("limits", decision.get("important_limits"))
         field("duration_note", decision["duration_note"])
     return "\n".join(lines) + "\n"
 

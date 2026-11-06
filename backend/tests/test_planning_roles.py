@@ -270,7 +270,9 @@ def test_full_meaning_and_whitespace_survive_persistence(proposal_payload, revie
 
 @pytest.mark.parametrize("model", [PlanningOutput, PlanReviewOutput])
 def test_wire_schemas_are_closed_required_and_without_semantic_text_caps(model):
-    schema = model.model_json_schema()
+    from podgen.runtime.evaluation.role_schema import response_schema
+
+    schema = response_schema("plan" if model == PlanningOutput else "plan-review", "editorial-role-packets/1")
     for definition in [schema, *schema.get("$defs", {}).values()]:
         if definition.get("type") == "object":
             assert definition["additionalProperties"] is False

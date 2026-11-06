@@ -7,7 +7,8 @@ from pydantic import ValidationError
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.domain.errors import ContractError
-from podgen.writing.projection_versions import manifest_version
+from podgen.writing.plan_views import candidate_view
+from podgen.writing.projection_versions import V1, manifest_version
 
 from .compiler import response_request
 from .contracts import RunFailure
@@ -133,6 +134,9 @@ def execute_planning_stage(
                 else materials.as_payload()["material_catalog"],
                 candidate,
                 materials.speaker_labels,
+                projection_version=manifest_version(manifest)
+                if command.input_contract == "editorial-role-packets/1"
+                else V1,
             )
         except (ValidationError, ValueError, ContractError) as error:
             journal.event(
@@ -185,8 +189,13 @@ def execute_planning_stage(
     )
 
 
-def validate_planning(parsed, stage, catalog, candidate, speakers):
+def validate_planning(parsed, stage, catalog, candidate, speakers, *, projection_version=V1):
     if stage.startswith("plan-review"):
-        parsed.validate_against(output_model("plan").model_validate(candidate), material_locators=catalog)
+        parsed.validate_against(
+            output_model("plan").model_validate(
+                candidate_view(candidate, projection_version=projection_version)
+            ),
+            material_locators=catalog,
+        )
     else:
         parsed.validate_against(material_locators=catalog, speaker_ids=speakers)

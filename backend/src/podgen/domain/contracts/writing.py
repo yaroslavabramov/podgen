@@ -1,8 +1,9 @@
 from typing import Annotated, Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, model_serializer, model_validator
 
 from .common import UUID, ArtifactRef, Contract, LocalScriptSelector, NonNegativeInt, ScriptSelector, Text
+from .legacy_fields import omit_unsupplied
 
 
 class SecondsRange(Contract):
@@ -39,12 +40,16 @@ class ActPlan(Contract):
     intended_change_in_understanding: Text
     prerequisite_concepts: list[str]
     material_refs: list[ArtifactRef]
-    limitations_to_voice: list[str]
+    limitations_to_voice: list[str] = Field(default_factory=list)
     transitions: Transitions
     promises_opened: list[str]
     promises_addressed: list[str]
     estimated_seconds_range: SecondsRange
     priority: Literal["essential", "optional"]
+
+    @model_serializer(mode="wrap")
+    def preserve_legacy_fields(self, handler):
+        return omit_unsupplied(self, handler, "limitations_to_voice")
 
 
 class Opening(Contract):
@@ -55,8 +60,12 @@ class Opening(Contract):
 
 class Ending(Contract):
     answer_to_deliver: Text
-    qualifications: list[str]
+    qualifications: list[str] = Field(default_factory=list)
     promises_to_close: list[str]
+
+    @model_serializer(mode="wrap")
+    def preserve_legacy_fields(self, handler):
+        return omit_unsupplied(self, handler, "qualifications")
 
 
 class HostFunction(Contract):

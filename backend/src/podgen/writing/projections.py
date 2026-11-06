@@ -6,7 +6,8 @@ from pathlib import PurePosixPath
 
 from podgen.domain.errors import ContractError
 
-from .projection_versions import CURRENT, V1, validate_version
+from .plan_views import candidate_view
+from .projection_versions import CURRENT, V1, historical, validate_version
 from .story_views import (
     editorial_frame,
     narrative_decisions,
@@ -79,10 +80,11 @@ def knowledge_view(packet, *, labels, selected=None):
     return cards
 
 
-def actionable_feedback(review, *, planning=False):
+def actionable_feedback(review, *, planning=False, projection_version=CURRENT):
     result = {
         key: deepcopy(review[key])
         for key in ("findings", "research_requests", "important_limits", "duration_note")
+        if key in review and (key != "important_limits" or historical(projection_version))
     }
     result["decision" if planning else "recommendation"] = review[
         "decision" if planning else "recommendation"
@@ -130,16 +132,18 @@ def role_payload(
         if stage.startswith("plan-review"):
             payload["evidence"] = evidence_view(packet)
         if candidate is not None:
-            payload["candidate_plan"] = deepcopy(candidate)
+            payload["candidate_plan"] = candidate_view(candidate, projection_version=projection_version)
         if stage.startswith("plan-review"):
             from .plan_targets import allowed_review_targets
 
             payload["review_target_root"] = "The proposal itself, without a surrounding request wrapper."
-            payload["allowed_review_targets"] = allowed_review_targets(candidate)
+            payload["allowed_review_targets"] = allowed_review_targets(payload["candidate_plan"])
         if stage == "plan-revise":
             if plan_review is None:
                 raise ContractError("plan_review_required")
-            payload["revision_guidance"] = actionable_feedback(plan_review, planning=True)
+            payload["revision_guidance"] = actionable_feedback(
+                plan_review, planning=True, projection_version=projection_version
+            )
     else:
         plan = (
             approved_plan
@@ -167,11 +171,14 @@ def role_payload(
                 payload["editorial_frame"] = editorial_frame(plan, projection_version=projection_version)
             if feedback is None:
                 raise ContractError("feedback_required")
-            payload["revision_guidance"] = actionable_feedback(feedback)
+            payload["revision_guidance"] = actionable_feedback(
+                feedback, projection_version=projection_version
+            )
             payload["support"] = knowledge_view(packet, labels=False, selected=selected_labels(plan, packet))
         else:
             raise ContractError("unknown_role_projection")
-        payload["necessary_limits"] = list(packet.dossier.throughline_constraints)
+        if historical(projection_version):
+            payload["necessary_limits"] = list(packet.dossier.throughline_constraints)
     validate_model_content(payload, materials.documents)
     return payload
 

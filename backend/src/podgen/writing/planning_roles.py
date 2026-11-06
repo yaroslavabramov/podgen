@@ -8,7 +8,9 @@ import re
 from collections.abc import Collection
 from typing import Annotated, Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, model_serializer, model_validator
+
+from podgen.domain.contracts.legacy_fields import omit_unsupplied
 
 from .roles import FullText, RoleOutput
 
@@ -46,18 +48,26 @@ class PlanningAct(RoleOutput):
     material_refs: list[FullText] = Field(
         description="Exact supplied locators supporting this act's reasoning."
     )
-    limitations_to_voice: list[FullText]
+    limitations_to_voice: list[FullText] = Field(default_factory=list)
     transitions: PlanningTransitions
     promises_opened: list[FullText]
     promises_addressed: list[FullText]
     estimated_seconds_range: PlanningSecondsRange
     priority: Literal["essential", "optional"]
 
+    @model_serializer(mode="wrap")
+    def preserve_legacy_fields(self, handler):
+        return omit_unsupplied(self, handler, "limitations_to_voice")
+
 
 class PlanningEnding(RoleOutput):
     answer_to_deliver: FullText
-    qualifications: list[FullText]
+    qualifications: list[FullText] = Field(default_factory=list)
     promises_to_close: list[FullText]
+
+    @model_serializer(mode="wrap")
+    def preserve_legacy_fields(self, handler):
+        return omit_unsupplied(self, handler, "qualifications")
 
 
 class PlanningHostFunction(RoleOutput):
@@ -125,8 +135,12 @@ class PlanningOutput(RoleOutput):
     plan: PlanProposal | None = Field(
         description="Complete proposal, or null when material cannot support one."
     )
-    limitations: list[FullText]
+    limitations: list[FullText] = Field(default_factory=list)
     research_requests: list[PlanningResearchRequest]
+
+    @model_serializer(mode="wrap")
+    def preserve_legacy_fields(self, handler):
+        return omit_unsupplied(self, handler, "limitations")
 
     @model_validator(mode="after")
     def proposal_state(self):
@@ -185,11 +199,15 @@ class PlanReviewOutput(RoleOutput):
     decision: Literal["accept", "revise", "needs_research"]
     decision_reason: FullText
     listener_answer: FullText
-    important_limits: list[FullText]
+    important_limits: list[FullText] = Field(default_factory=list)
     strengths: list[PlanReviewStrength]
     findings: list[PlanReviewFinding]
     research_requests: list[PlanningResearchRequest]
     duration_note: FullText
+
+    @model_serializer(mode="wrap")
+    def preserve_legacy_fields(self, handler):
+        return omit_unsupplied(self, handler, "important_limits")
 
     @model_validator(mode="after")
     def decision_consistency(self):

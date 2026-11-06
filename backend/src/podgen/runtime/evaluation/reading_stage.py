@@ -73,6 +73,7 @@ def execute_reading_stage(
             readings=readings,
             decision=decision,
             approved_plan=approved_plan,
+            projection_version=manifest["role_projection_version"],
         )
         invocation = journal.prepare(command.run_id, stage, body, context)
     saved = journal.read(RuntimeRef(record_kind="tool_execution", record_id=invocation["request_record_id"]))

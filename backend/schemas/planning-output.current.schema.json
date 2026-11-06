@@ -1,0 +1,411 @@
+{
+  "$defs": {
+    "PlanProposal": {
+      "additionalProperties": false,
+      "properties": {
+        "main_question": {
+          "minLength": 1,
+          "title": "Main Question",
+          "type": "string",
+          "description": "Central question of the episode for this audience; the opening may raise the same question or a local one."
+        },
+        "listener_promise": {
+          "minLength": 1,
+          "title": "Listener Promise",
+          "type": "string",
+          "description": "Understanding promised to this audience, with its scope."
+        },
+        "working_answer": {
+          "description": "Provisional supported answer, including justified uncertainty.",
+          "minLength": 1,
+          "title": "Working Answer",
+          "type": "string"
+        },
+        "route_summary": {
+          "description": "Connected route from initial understanding to the ending.",
+          "minLength": 1,
+          "title": "Route Summary",
+          "type": "string"
+        },
+        "opening": {
+          "$ref": "#/$defs/PlanningOpening"
+        },
+        "acts": {
+          "items": {
+            "$ref": "#/$defs/PlanningAct"
+          },
+          "minItems": 1,
+          "title": "Acts",
+          "type": "array"
+        },
+        "ending": {
+          "$ref": "#/$defs/PlanningEnding"
+        },
+        "host_functions": {
+          "items": {
+            "$ref": "#/$defs/PlanningHostFunction"
+          },
+          "minItems": 1,
+          "title": "Host Functions",
+          "type": "array"
+        },
+        "duration_strategy": {
+          "$ref": "#/$defs/PlanningDurationStrategy"
+        }
+      },
+      "required": [
+        "main_question",
+        "listener_promise",
+        "working_answer",
+        "route_summary",
+        "opening",
+        "acts",
+        "ending",
+        "host_functions",
+        "duration_strategy"
+      ],
+      "title": "PlanProposal",
+      "type": "object"
+    },
+    "PlanningAct": {
+      "additionalProperties": false,
+      "properties": {
+        "act_id": {
+          "description": "Short local act label.",
+          "minLength": 1,
+          "title": "Act Id",
+          "type": "string"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "listener_question": {
+          "minLength": 1,
+          "title": "Listener Question",
+          "type": "string"
+        },
+        "intended_change_in_understanding": {
+          "minLength": 1,
+          "title": "Intended Change In Understanding",
+          "type": "string"
+        },
+        "prerequisite_concepts": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Prerequisite Concepts",
+          "type": "array"
+        },
+        "material_refs": {
+          "description": "Exact supplied locators supporting this act's reasoning.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Material Refs",
+          "type": "array"
+        },
+        "transitions": {
+          "$ref": "#/$defs/PlanningTransitions"
+        },
+        "promises_opened": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Promises Opened",
+          "type": "array"
+        },
+        "promises_addressed": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Promises Addressed",
+          "type": "array"
+        },
+        "estimated_seconds_range": {
+          "$ref": "#/$defs/PlanningSecondsRange"
+        },
+        "priority": {
+          "enum": [
+            "essential",
+            "optional"
+          ],
+          "title": "Priority",
+          "type": "string"
+        }
+      },
+      "required": [
+        "act_id",
+        "title",
+        "listener_question",
+        "intended_change_in_understanding",
+        "prerequisite_concepts",
+        "material_refs",
+        "transitions",
+        "promises_opened",
+        "promises_addressed",
+        "estimated_seconds_range",
+        "priority"
+      ],
+      "title": "PlanningAct",
+      "type": "object"
+    },
+    "PlanningDurationStrategy": {
+      "additionalProperties": false,
+      "properties": {
+        "estimated_seconds_range": {
+          "$ref": "#/$defs/PlanningSecondsRange"
+        },
+        "assumptions": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Assumptions",
+          "type": "array"
+        },
+        "optional_material": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Optional Material",
+          "type": "array"
+        }
+      },
+      "required": [
+        "estimated_seconds_range",
+        "assumptions",
+        "optional_material"
+      ],
+      "title": "PlanningDurationStrategy",
+      "type": "object"
+    },
+    "PlanningEnding": {
+      "additionalProperties": false,
+      "properties": {
+        "answer_to_deliver": {
+          "minLength": 1,
+          "title": "Answer To Deliver",
+          "type": "string",
+          "description": "The conclusion the listener should understand, with its essential scope: planning meaning, not a ready closing speech."
+        },
+        "promises_to_close": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Promises To Close",
+          "type": "array"
+        }
+      },
+      "required": [
+        "answer_to_deliver",
+        "promises_to_close"
+      ],
+      "title": "PlanningEnding",
+      "type": "object"
+    },
+    "PlanningHostFunction": {
+      "additionalProperties": false,
+      "properties": {
+        "speaker_id": {
+          "description": "Exact speaker label from the assignment.",
+          "minLength": 1,
+          "title": "Speaker Id",
+          "type": "string"
+        },
+        "contribution": {
+          "minLength": 1,
+          "title": "Contribution",
+          "type": "string",
+          "description": "Reasoning and explanatory work owned by this speaker."
+        },
+        "interaction_guidance": {
+          "minLength": 1,
+          "title": "Interaction Guidance",
+          "type": "string",
+          "description": "How this contribution develops others' reasoning, or advances a solo explanation. Describe its purpose, not prescribed lines or a recurring reaction."
+        },
+        "speech_register": {
+          "minLength": 1,
+          "title": "Speech Register",
+          "type": "string"
+        }
+      },
+      "required": [
+        "speaker_id",
+        "contribution",
+        "interaction_guidance",
+        "speech_register"
+      ],
+      "title": "PlanningHostFunction",
+      "type": "object"
+    },
+    "PlanningOpening": {
+      "additionalProperties": false,
+      "properties": {
+        "approach": {
+          "minLength": 1,
+          "title": "Approach",
+          "type": "string",
+          "description": "The opening's explanatory purpose and entry point; the writer chooses its spoken wording."
+        },
+        "material_refs": {
+          "description": "Exact locators offered in the supplied material catalog.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Material Refs",
+          "type": "array"
+        },
+        "question_to_open": {
+          "minLength": 1,
+          "title": "Question To Open",
+          "type": "string",
+          "description": "The unresolved listener question, independent of which speaker voices it."
+        }
+      },
+      "required": [
+        "approach",
+        "material_refs",
+        "question_to_open"
+      ],
+      "title": "PlanningOpening",
+      "type": "object"
+    },
+    "PlanningResearchRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "question": {
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "why_needed": {
+          "minLength": 1,
+          "title": "Why Needed",
+          "type": "string"
+        },
+        "affected_act_ids": {
+          "description": "Local act labels; empty for an episode-wide question.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Affected Act Ids",
+          "type": "array"
+        },
+        "material_refs": {
+          "description": "Relevant supplied locators; may be empty for missing evidence.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Material Refs",
+          "type": "array"
+        },
+        "blocking": {
+          "description": "Whether the promised answer requires this unresolved material.",
+          "title": "Blocking",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "question",
+        "why_needed",
+        "affected_act_ids",
+        "material_refs",
+        "blocking"
+      ],
+      "title": "PlanningResearchRequest",
+      "type": "object"
+    },
+    "PlanningSecondsRange": {
+      "additionalProperties": false,
+      "properties": {
+        "min_seconds": {
+          "minimum": 0,
+          "title": "Min Seconds",
+          "type": "integer"
+        },
+        "max_seconds": {
+          "minimum": 0,
+          "title": "Max Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "min_seconds",
+        "max_seconds"
+      ],
+      "title": "PlanningSecondsRange",
+      "type": "object"
+    },
+    "PlanningTransitions": {
+      "additionalProperties": false,
+      "properties": {
+        "from_previous": {
+          "minLength": 1,
+          "title": "From Previous",
+          "type": "string",
+          "description": "Inference connecting this part to what precedes it."
+        },
+        "toward_next": {
+          "minLength": 1,
+          "title": "Toward Next",
+          "type": "string",
+          "description": "Inference or unresolved need motivating the next part."
+        }
+      },
+      "required": [
+        "from_previous",
+        "toward_next"
+      ],
+      "title": "PlanningTransitions",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "status": {
+      "enum": [
+        "ready",
+        "needs_research"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "plan": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PlanProposal"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Complete proposal, or null when material cannot support one."
+    },
+    "research_requests": {
+      "items": {
+        "$ref": "#/$defs/PlanningResearchRequest"
+      },
+      "title": "Research Requests",
+      "type": "array"
+    }
+  },
+  "required": [
+    "status",
+    "plan",
+    "research_requests"
+  ],
+  "title": "PlanningOutput",
+  "type": "object"
+}

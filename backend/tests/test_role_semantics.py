@@ -14,7 +14,7 @@ from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.runtime.evaluation.workflow import stages_for
 from podgen.writing.editorial_contract import EditorialInput
-from podgen.writing.projection_versions import CURRENT, V1, V2
+from podgen.writing.projection_versions import CURRENT, V1, V2, V3
 from podgen.writing.projections import role_payload
 from tests.independent_planner_provider import IndependentPlannerProvider
 from tests.test_editorial_independence import invoke, payload
@@ -55,7 +55,8 @@ def test_legacy_plan_meaning_is_preserved_without_a_second_reference_script():
     feedback = json.loads((ARCHIVE / "script-review.json").read_text())["output"]
     author = role_payload("draft", materials, approved_plan=plan)
     assert author["story"]["conclusion"]["meaning"] == plan["plan"]["ending"]["answer_to_deliver"]
-    assert author["story"]["conclusion"]["qualifications"] == plan["plan"]["ending"]["qualifications"]
+    assert "qualifications" not in author["story"]["conclusion"]
+    assert "limitations" not in author["story"]
     assert author["story"]["listener_promise"] == plan["plan"]["listener_promise"]
     assert [v["interaction_purpose"] for v in author["story"]["speaker_contributions"]] == [
         v["interaction_guidance"] for v in plan["plan"]["host_functions"]
@@ -73,7 +74,8 @@ def test_legacy_plan_meaning_is_preserved_without_a_second_reference_script():
         )
         assert "story_intent" not in view and "story" not in view
         assert view["editorial_frame"]["listener_promise"] == plan["plan"]["listener_promise"]
-        assert view["editorial_frame"]["qualifications"] == plan["plan"]["ending"]["qualifications"]
+        assert "qualifications" not in view["editorial_frame"]
+        assert "limitations" not in view["editorial_frame"]
         assert plan["plan"]["ending"]["answer_to_deliver"] not in json.dumps(
             view["editorial_frame"], ensure_ascii=False
         )
@@ -142,7 +144,7 @@ def test_current_ordinary_cli_preserves_author_speech_and_delivers_required_chan
     assert len(provider.requests) == count
 
 
-@pytest.mark.parametrize("version", [V1, V2])
+@pytest.mark.parametrize("version", [V1, V2, V3])
 def test_older_manifest_resume_keeps_pinned_schema_and_request(
     repo, editorial, tmp_path, monkeypatch, version
 ):
@@ -169,8 +171,8 @@ def test_older_manifest_resume_keeps_pinned_schema_and_request(
     def historical(journal, command, value):
         value = dict(value)
         value.pop("role_projection_version")
-        if version == V2:
-            value["role_projection_version"] = V2
+        if version in (V2, V3):
+            value["role_projection_version"] = version
         value["response_schemas"] = {
             stage: response_schema(stage, command.input_contract, projection_version=version)
             for stage in stages_for(command)
@@ -193,7 +195,7 @@ def test_older_manifest_resume_keeps_pinned_schema_and_request(
     journal = EvaluationJournal(repo, project)
     saved = journal.request(journal.invocation(command.run_id, "review"))
     assert ("story_intent" in payload(saved)) == (version == V1)
-    assert "main_question" not in payload(saved).get("editorial_frame", {})
+    assert ("main_question" in payload(saved).get("editorial_frame", {})) == (version == V3)
     monkeypatch.setattr(provider, "count", count)
     monkeypatch.setattr(
         manifest,
@@ -239,3 +241,58 @@ def test_v2_payloads_and_schemas_keep_exact_pre_upgrade_serialization():
             digest(response_schema(stage, "editorial-role-packets/1", projection_version=V2))
             == expected["stages"][stage]["schema_sha256"]
         )
+
+
+def test_v3_payloads_and_schemas_keep_exact_pre_upgrade_serialization():
+    from copy import deepcopy
+
+    from podgen.writing.reading_views import reading_payload
+
+    expected = json.loads((ROOT / "backend/tests/fixtures/role-projection-v3.hashes.json").read_text())
+    materials = archived_materials()
+
+    def read(name):
+        return json.loads((ARCHIVE / name).read_text())["output"]
+
+    initial, accepted, draft, review = map(
+        read, ("initial-plan.json", "accepted-plan.json", "draft.json", "script-review.json")
+    )
+    inputs = {
+        "plan": {},
+        "plan-review": dict(candidate=initial),
+        "plan-revise": dict(candidate=initial, plan_review=read("initial-plan-review.json")),
+        "draft": dict(approved_plan=accepted),
+        "review": dict(approved_plan=accepted, draft=draft),
+        "revise": dict(approved_plan=accepted, draft=draft, feedback=review),
+    }
+    fact = deepcopy(review)
+    for finding in fact["findings"]:
+        finding["support_labels"] = [materials.material_catalog[0]]
+    readings = dict(reader=dict(review, reading_mode="script_only"), fact=fact)
+
+    def sha(value):
+        return hashlib.sha256(
+            json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode()
+        ).hexdigest()
+
+    for stage, hashes in expected["stages"].items():
+        if stage in inputs:
+            view = role_payload(stage, materials, projection_version=V3, **inputs[stage])
+        else:
+            args = dict(script=draft)
+            if stage == "revise-1":
+                args.update(
+                    readings=readings,
+                    decision=dict(
+                        recommendation="revise", reason="required_changes_from_independent_readings"
+                    ),
+                    approved_plan=accepted,
+                )
+            view = reading_payload(
+                "revise" if stage == "revise-1" else stage, materials, projection_version=V3, **args
+            )
+        assert sha(view) == hashes["payload_sha256"], stage
+        assert (
+            sha(response_schema(stage, "editorial-role-packets/1", projection_version=V3))
+            == hashes["schema_sha256"]
+        ), stage

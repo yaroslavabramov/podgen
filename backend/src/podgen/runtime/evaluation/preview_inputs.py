@@ -1,7 +1,9 @@
 """Admit only stage inputs that the ordinary runner can supply."""
 
 from podgen.domain.errors import ContractError
+from podgen.writing.plan_views import candidate_view
 from podgen.writing.planning_roles import PlanningOutput, PlanReviewOutput
+from podgen.writing.projection_versions import CURRENT
 from podgen.writing.roles import EditorialFeedback, WriteOutput
 
 from .contracts import RunFailure
@@ -63,7 +65,9 @@ def validate_preview_snapshots(stage, materials, inputs):
             raise ContractError("preview_speaker_assignment_mismatch")
     if inputs.get("plan_review") is not None:
         review = PlanReviewOutput.model_validate(inputs["plan_review"])
-        candidate = PlanningOutput.model_validate(inputs["candidate"])
+        candidate = PlanningOutput.model_validate(
+            candidate_view(inputs["candidate"], projection_version=CURRENT)
+        )
         if stage == "plan-target-repair":
             review.validate_context(candidate, material_locators=materials.material_catalog)
         else:

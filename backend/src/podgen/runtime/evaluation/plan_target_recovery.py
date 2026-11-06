@@ -9,7 +9,9 @@ from podgen.domain.contracts.common import ArtifactRef, CodeProducer, RuntimeRef
 from podgen.domain.errors import ContractError
 from podgen.persistence.database import one
 from podgen.writing.plan_targets import PlanTargetChoices, PlanTargetRepair
+from podgen.writing.plan_views import candidate_view
 from podgen.writing.planning_roles import PlanningOutput, PlanReviewOutput
+from podgen.writing.projection_versions import V1
 from podgen.writing.prompts import load_plan_target_repair_instructions
 
 from .contracts import RunFailure
@@ -17,6 +19,12 @@ from .rejected_output import rejected_output
 from .validation import load_unique_json
 
 REVIEW_STAGES = ("plan-review", "plan-review-revised")
+
+
+def request_candidate(candidate, context):
+    if context.get("role_input_contract") == "editorial-role-packets/1":
+        return candidate_view(candidate, projection_version=context.get("role_projection_version", V1))
+    return candidate
 
 
 def repair_plan(journal, original):
@@ -35,7 +43,7 @@ def repair_plan(journal, original):
     saved = journal.read(RuntimeRef.model_validate(ref))
     if (
         saved["run_id"] != str(original["run_id"])
-        or saved["output"] != payload["candidate_plan"]
+        or request_candidate(saved["output"], context) != payload["candidate_plan"]
         or context["candidate_plan_ref"] != ref
         or context["candidate_plan_hash"] != digest(saved["output"])
         or (not modern and payload["candidate_plan_hash"] != context["candidate_plan_hash"])
@@ -181,7 +189,7 @@ def apply_plan_target_repair(journal, invocation, raw, *, candidate, candidate_r
     plan, _, context, _ = repair_plan(journal, original)
     request = journal.read(RuntimeRef(record_kind="tool_execution", record_id=origin["request_record_id"]))
     if (
-        candidate != plan.candidate.model_dump(mode="json")
+        request_candidate(candidate, context) != plan.candidate.model_dump(mode="json")
         or candidate_ref != context["candidate_plan_ref"]
         or request["authorization"]["repair_selection_hash"] != digest(plan.as_payload())
     ):

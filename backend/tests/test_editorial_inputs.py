@@ -97,7 +97,6 @@ def test_role_views_preserve_meaning_and_keep_backend_private(repo, editorial):
         "opening",
         "acts",
         "speaker_contributions",
-        "limitations",
         "unresolved_questions",
     }
     assert "act_id" not in wire and "material_refs" not in wire

@@ -4,7 +4,7 @@ from copy import deepcopy
 
 from podgen.domain.errors import ContractError
 
-from .projection_versions import V3
+from .projection_versions import CURRENT, historical
 from .projections import (
     actionable_feedback,
     assignment_view,
@@ -16,7 +16,9 @@ from .projections import (
 from .story_views import editorial_frame, selected_labels
 
 
-def reading_payload(stage, materials, *, script, readings=None, decision=None, approved_plan=None):
+def reading_payload(
+    stage, materials, *, script, readings=None, decision=None, approved_plan=None, projection_version=CURRENT
+):
     packet = materials.packet
     payload = dict(
         script=indexed_draft(script),
@@ -60,16 +62,20 @@ def reading_payload(stage, materials, *, script, readings=None, decision=None, a
         selected.update(needed_labels)
         payload["assignment"] = assignment_view(packet)
         if plan:
-            payload["editorial_frame"] = editorial_frame(plan, projection_version=V3)
+            payload["editorial_frame"] = editorial_frame(plan, projection_version=projection_version)
         payload["revision_guidance"] = [
-            dict(origin=origin, **actionable_feedback(readings[origin])) for origin in ("reader", "fact")
+            dict(
+                origin=origin, **actionable_feedback(readings[origin], projection_version=projection_version)
+            )
+            for origin in ("reader", "fact")
         ]
         payload["support"] = knowledge_view(packet, labels=True, selected=selected)
         if needed_labels:
             payload["repair_evidence"] = [
                 row for row in evidence_view(packet) if needed_labels.intersection(row["supports"])
             ]
-        payload["necessary_limits"] = list(packet.dossier.throughline_constraints)
+        if historical(projection_version):
+            payload["necessary_limits"] = list(packet.dossier.throughline_constraints)
         payload["decision"] = deepcopy(decision)
     validate_model_content(payload, materials.documents)
     return payload
