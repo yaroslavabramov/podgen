@@ -1,0 +1,54 @@
+{
+  "authorship": "Editorial Codex chat; assessments and revised script are not production model outputs",
+  "archive_commit": "e81c045",
+  "archived_files_verified_unchanged": 21,
+  "original_final_txt_sha256": "93723974d92557c2ac60115c2c99e6286b71eca27d89ac6e817d10a7d674b9e1",
+  "editorial_script_sha256": "6029f36ee6078c00b7ec379e7acc4a1f5486cd9ead35941279634d4a4c03e7f0",
+  "editorial_text_sha256": "ae00c894a87e6cffa03110696fa3afc7a73b4f28b6d39a43d0bdf9478394171b",
+  "speech_sha256": "cdb1720e432c4a654f36c2d6d342d8d0f4165641d0a4b2ecd5e5346f4b48f713",
+  "duration_seconds": 790.674286,
+  "full_script_and_derivatives_match": true,
+  "manual_assessments_schema_and_anchors_validated": 4,
+  "current_prompt_assemblies": {
+    "solo": {
+      "draft": "whole-episode-a/sha256:8070307fad8a52b70c7ff6e170451247d85d767db770f568133b0cd44aa88a76",
+      "review": "whole-episode-a/sha256:aafe4aab2c22c4beede00cfef2568997a541b2abaa2b200a9f8bd2791cc92e03",
+      "revise": "whole-episode-a/sha256:18e5e2462535aa21e85687e375d25670abb9d509b84aef98c3a00f1c8304981b",
+      "plan": "whole-episode-a/sha256:fa65b3aff9ad7857aa43146cc22a50bc58a4652578a38f00cf217e8d53c6afb8",
+      "plan-review": "whole-episode-a/sha256:744f8bcf76c3292555ac9bea69ca0b019d92caeeb0571dee8799bf71c0741ce1",
+      "plan-revise": "whole-episode-a/sha256:11cf85981542fa6d94be84d2bc4d14ee176bf80d11d55a0f802a79ebd66ffdd4"
+    },
+    "dialogue": {
+      "draft": "whole-episode-a/sha256:e90df80500bfe0fe220abd7a3eea199858df6e9fc1e26333d27fa1371d6f6329",
+      "review": "whole-episode-a/sha256:aed7b63089e0fe11af7621928358b44bc7b3cd5b92e563582a79d3765e55cdd5",
+      "revise": "whole-episode-a/sha256:6419969112e2dcf2b15e1141b741655ba6bd2604963cbc4f99b6ee3fd3359a98",
+      "plan": "whole-episode-a/sha256:9b8d275abb505f511dc35b05740fcb4457ad5abca8032795e5967c060ca83743",
+      "plan-review": "whole-episode-a/sha256:3e6088ad0cb10772d99afcd492cf0888f945d614e012ac1fd82e2b4e5b3fd26e",
+      "plan-revise": "whole-episode-a/sha256:9f5733f802215a0149412af65b71c3bbfda8202c262b4d6b80bc5e2f0230889e"
+    }
+  },
+  "resource_tests": {
+    "passed": 19,
+    "database_setup_errors": 4,
+    "reason": "Local PostgreSQL at 127.0.0.1:55440 unavailable; connection refused. These four archived resume/replay checks remain unverified in this run."
+  },
+  "independent_verification": {
+    "reported_by": "Coordinating CPO chat, temporary PostgreSQL",
+    "backend_tests_passed": 322,
+    "backend_tests_skipped": 1,
+    "skip_reason": "External S3 only",
+    "exact_preview_bodies_and_schemas_verified": 7,
+    "repeated_milena_duration_seconds": 790.674286,
+    "script_text_hash_and_archive_matched": true,
+    "manual_assessments_accepted_by_normal_validation": 4
+  },
+  "artifact_sha256": {
+    "gps-editorial.txt": "ae00c894a87e6cffa03110696fa3afc7a73b4f28b6d39a43d0bdf9478394171b",
+    "positive-control.md": "fffd2a1ed37eb56041ae9e422ec70b3f342416a422c09b149d671681c2c5ac8a",
+    "offline-assessments.json": "e6d3af74f79499e02086f06a047c6f71823b94c4a547147eebbe01ef7316be0e",
+    "gps-editorial-duration.json": "759f85a03e2d34d4fd58b48afd210f799fd755c0bc1bd3815183722d9bce7414",
+    "gps-editorial.json": "6029f36ee6078c00b7ec379e7acc4a1f5486cd9ead35941279634d4a4c03e7f0",
+    "positive-control.json": "b3a16955dbae0dd4a98804148bc93d2d22c0ad740c2a78e4f64d4bc857f8ea56",
+    "gps-editorial.spoken.txt": "cdb1720e432c4a654f36c2d6d342d8d0f4165641d0a4b2ecd5e5346f4b48f713"
+  }
+}
