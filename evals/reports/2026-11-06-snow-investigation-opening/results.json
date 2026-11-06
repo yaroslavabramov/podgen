@@ -1,0 +1,98 @@
+{
+  "scope": {
+    "case": "snow-pump",
+    "version": "6c9e198c14e8d12d58a98c68ba9acaed554a7ef6",
+    "shared": "evals/editorial-inputs/current/snow-pump/shared.json",
+    "run_id": "f38deafa-36aa-4722-850a-97087cf890ae",
+    "roles": [
+      "plan",
+      "draft excerpt"
+    ],
+    "hard_usd": "0.20",
+    "prior_usd": "0.063676",
+    "planner": "gpt-6.1-sol"
+  },
+  "candidate_plan_status": "ready",
+  "plan_review_performed": false,
+  "writer": "gpt-6.1-sol",
+  "planner": "gpt-6.1-sol",
+  "first_plan_attempt": {
+    "usd": "0.063676",
+    "usage": {
+      "input_tokens": 6539,
+      "input_tokens_details": {
+        "cache_write_tokens": 6536,
+        "cached_tokens": 0
+      },
+      "output_tokens": 4733,
+      "output_tokens_details": {
+        "reasoning_tokens": 354
+      },
+      "total_tokens": 11272
+    },
+    "status": "incomplete"
+  },
+  "costs": {
+    "plan": {
+      "usd": "0.03784175",
+      "usage": {
+        "input_tokens": 6534,
+        "input_tokens_details": {
+          "cache_write_tokens": 6531,
+          "cached_tokens": 0
+        },
+        "output_tokens": 5935,
+        "output_tokens_details": {
+          "reasoning_tokens": 263
+        },
+        "total_tokens": 12469
+      },
+      "status": "completed"
+    },
+    "draft": {
+      "usd": "0.01292925",
+      "usage": {
+        "input_tokens": 9080,
+        "input_tokens_details": {
+          "cache_write_tokens": 9077,
+          "cached_tokens": 0
+        },
+        "output_tokens": 316,
+        "output_tokens_details": {
+          "reasoning_tokens": 76
+        },
+        "total_tokens": 9396
+      },
+      "status": "completed"
+    }
+  },
+  "settings": {
+    "plan": {
+      "model": "gpt-6.1-sol",
+      "reasoning": {
+        "effort": "medium"
+      },
+      "verbosity": "medium",
+      "max_output_tokens": 16384
+    },
+    "draft": {
+      "model": "gpt-6.1-sol",
+      "reasoning": {
+        "effort": "medium"
+      },
+      "verbosity": "high",
+      "max_output_tokens": 2048
+    }
+  },
+  "usd": "0.11444700",
+  "spoken_words": 108,
+  "duration_seconds": 62.055329,
+  "duration_method": "macOS say Milena 130",
+  "spoken_sha256": "5ab30b4fc81626bd9c26ac9bbb1ca6afb9094ad8a4b29a1089df369dbb9bcfef",
+  "service_tier": {
+    "first_attempt": "default",
+    "plan": "flex",
+    "draft": "flex"
+  },
+  "current_shared_sha256": "ba5b02b8a20586e79ed6a180b1a7d5a46a57c881345f9013abb94f8d34c8f682"
+}
