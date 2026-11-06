@@ -164,3 +164,20 @@ def test_current_snow_informed_cli_and_every_role_receive_the_assignment(repo, s
         assert payload(body)["output_language"] == data["assignment"]["output_language"]
         assert "# " + data["assignment"]["format"].title() in body["instructions"]
         check_visible(body, CONTRACT)
+    for stage in ("reader-review", "fact-review"):
+        body = preview_request(uuid4(), stage, parsed_profile, materials, draft=provider.script)
+        visible = payload(body)
+        assert visible["script"]["utterances"][0]["text"] == provider.script["utterances"][0]["text"]
+        assert "assignment" not in visible
+        if stage == "reader-review":
+            assert set(visible) == {"script", "audience", "genre", "format", "output_language"}
+            assert visible["audience"] == data["assignment"]["listener_profile"]
+            assert visible["genre"] == data["assignment"]["genre"]
+        else:
+            remit = visible["factual_remit"]
+            assert remit["question"] == data["assignment"]["question"]
+            assert remit["required_topics"] == data["assignment"]["required_topics"]
+            assert [card["claim"] for card in visible["support"]] == [
+                card["claim"] for card in data["dossier"]["knowledge_cards"]
+            ]
+        check_visible(body, CONTRACT)

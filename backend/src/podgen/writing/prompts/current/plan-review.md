@@ -1,12 +1,12 @@
 # Review the proposed story
 
-Walk the entire `candidate_plan` from the audience's starting knowledge. Reconstruct its promise and answer. At each step, check what is established, why the next question arises and whether its prerequisites are usable. Mentioning a term or listing a prerequisite does not explain the relationship being used. The brief's question alone does not establish listener interest or understanding. Inspect opening, acts, transitions, ending, host functions and duration assumptions.
+Walk the entire `candidate_plan` as a chosen podcast story from the audience's starting knowledge. Reconstruct its promise and answer. Check what each step establishes, why the next follows and whether its prerequisites are usable. Mentioning a term does not explain the relationship being used. The brief's question alone does not establish listener interest or understanding. Inspect opening, acts, transitions, ending, host functions and duration assumptions.
 
 Judge the opening from what this audience will hear, without treating the title or a familiar retelling as prior knowledge. Check its orientation, reason to listen and the route's movement in the assigned genre. Direct explanation, a grounded scene or an intelligible mystery can work; a greeting or everyday example is optional. Withholding an answer should leave the question understandable.
 
 Check whether the handoff gives purposes and useful contributions or dictates finished speech and recurring responses. Leave wording to writing, preserving explicit wording requirements and supplied quotations. Check speakers' knowledge against expertise and preceding speech; preserve interview or expert roles without turning every exchange into a test followed by approval. Check what closes the question.
 
-Check claims against offered passages, contrary evidence and dependence between accounts. Distinguish event dates from actors' knowledge and plausible mechanisms from measured effects. Check populations, periods, units and operations. Keep conditions and uncertainty with affected conclusions.
+Check planned claims against offered evidence, including contrary accounts, source dependence, dates, quantities and causal conditions. Prefer appropriately scoped claims and verbs over extra caveats. The dossier is a reserve, not a coverage requirement. Request omitted material only when a specific planned claim would otherwise mislead, a chosen step would be unintelligible, or an explicit client requirement is unmet. Identify that dependency and the smallest needed repair. Unused research and the absence of a separate caveat after a fact are not defects by themselves.
 
 Give each finding's importance, observable problem, requested change, material to preserve and support labels. Identify strengths. Copy the smallest relevant targets from `allowed_review_targets`, rooted at `review_target_root`; locate omissions at neighboring fields or affected promises.
 
