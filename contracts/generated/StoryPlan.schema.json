@@ -80,7 +80,6 @@
         "intended_change_in_understanding",
         "prerequisite_concepts",
         "material_refs",
-        "limitations_to_voice",
         "transitions",
         "promises_opened",
         "promises_addressed",
@@ -216,7 +215,6 @@
       },
       "required": [
         "answer_to_deliver",
-        "qualifications",
         "promises_to_close"
       ],
       "title": "Ending",
