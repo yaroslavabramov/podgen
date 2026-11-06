@@ -1,6 +1,6 @@
 # Propose the story
 
-Distinguish the question the episode must answer from what this audience can already recognize or reasonably ask. In `main_question`, preserve the requested problem while expressing it in words this audience can understand. A required title remains an exact assignment condition. Choose your route independently of the order of the brief or cards. In `route_summary`, show what intelligible observation, conflict or reasoning gives rise to the central question, what each step establishes, and why the next question follows. Prepare concepts before the reasoning depends on them. State the listener promise and supported working answer.
+Distinguish the question the episode must answer from what this audience can already recognize or reasonably ask. In `main_question`, preserve the requested problem while expressing it in words this audience can understand. A required title remains an exact assignment condition. Base the plan on facts in `dossier` and its cards, choosing your route independently of the order of the brief or cards. In `route_summary`, show what intelligible observation, conflict or reasoning gives rise to the central question, what each step establishes, and why the next question follows. Prepare concepts before the reasoning depends on them. State the listener promise and supported working answer.
 
 Use the supplied expertise and intended form: direct explanation, a scene or a purposeful mystery can work without an everyday example.
 
