@@ -7,6 +7,7 @@ from podgen.domain.errors import AccessDenied, Conflict, ContractError
 from podgen.persistence.repository import Repository
 from podgen.runtime.models.gateway import ModelGateway
 from podgen.writing.materials import load_author_materials, load_own_plan_materials
+from podgen.writing.model_references import bind_schema, run_references
 from podgen.writing.projection_versions import manifest_version
 
 from .compiler import COMPILER_VERSION, materials_hash
@@ -152,9 +153,17 @@ class WritingEvaluation:
                 raise ContractError("compiler_version_changed")
             if materials_hash(materials.as_payload()) != manifest["materials_hash"]:
                 raise Conflict("frozen_materials_changed")
+            references = (
+                run_references(materials, manifest)
+                if command.input_contract == "editorial-role-packets/1"
+                else None
+            )
             for stage in stages_for(command):
-                if manifest["response_schemas"][stage] != response_schema(
-                    stage, command.input_contract, projection_version=manifest_version(manifest)
+                if manifest["response_schemas"][stage] != bind_schema(
+                    response_schema(
+                        stage, command.input_contract, projection_version=manifest_version(manifest)
+                    ),
+                    references,
                 ):
                     raise Conflict("role_output_contract_changed")
             factory = (

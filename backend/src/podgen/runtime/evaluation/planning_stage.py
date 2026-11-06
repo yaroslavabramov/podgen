@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.domain.errors import ContractError
+from podgen.writing.model_references import CATALOG_KEY, run_references
 from podgen.writing.plan_views import candidate_view
 from podgen.writing.projection_versions import V1, manifest_version
 
@@ -36,6 +37,9 @@ def execute_planning_stage(
     review=None,
     review_ref=None,
 ):
+    references = (
+        run_references(materials, manifest) if command.input_contract == "editorial-role-packets/1" else None
+    )
     profile_ref = profile_for(command, stage)
     profile = load_profile(generation, command.project_id, profile_ref, stage)
     payload = dict(
@@ -79,6 +83,8 @@ def execute_planning_stage(
         context["role_input_contract"] = command.input_contract
         if "role_projection_version" in manifest:
             context["role_projection_version"] = manifest["role_projection_version"]
+    if references is not None:
+        context[CATALOG_KEY] = references.as_payload()
     invocation = journal.invocation(command.run_id, stage)
     if invocation is None:
         prompt = generation.get(
@@ -95,6 +101,7 @@ def execute_planning_stage(
                 prompt.payload["template"],
                 manifest["response_schemas"][stage],
                 projection_version=manifest_version(manifest),
+                reference_catalog=references,
                 candidate=candidate,
                 plan_review=review,
             )
@@ -126,6 +133,9 @@ def execute_planning_stage(
                 )
             else:
                 parsed = output_model(stage).model_validate_json(raw)
+            wire_output = parsed.model_dump(mode="json")
+            if references is not None:
+                parsed = output_model(stage).model_validate(references.translate(wire_output, inbound=True))
             validate_planning(
                 parsed,
                 stage,
@@ -170,6 +180,8 @@ def execute_planning_stage(
             semantic_acceptance=False,
             production_ready=False,
         )
+        if references is not None:
+            record["wire_output"] = wire_output
         output_ref = journal.record(record, record_id=uuid5(invocation["invocation_id"], "output"))
         invocation = journal.transition(invocation, "completed", output_ref=output_ref)
     else:

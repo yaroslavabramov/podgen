@@ -6,12 +6,13 @@ V1 = "editorial-role-projections/1"
 V2 = "editorial-role-projections/2"
 V3 = "editorial-role-projections/3"
 V4 = "editorial-role-projections/4"
-CURRENT = V4
+V5 = "editorial-role-projections/5"
+CURRENT = V5
 PREVIOUS = V1  # Compatibility for callers that imported the former name.
 
 
 def validate_version(value):
-    if value not in (V1, V2, V3, V4):
+    if value not in (V1, V2, V3, V4, V5):
         raise ContractError("unknown_role_projection_version")
     return value
 

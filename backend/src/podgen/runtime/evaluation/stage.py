@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.domain.errors import ContractError
+from podgen.writing.model_references import CATALOG_KEY, run_references
 from podgen.writing.projection_versions import manifest_version
 
 from .compiler import COMPILER_VERSION, compile_request
@@ -42,6 +43,9 @@ def execute_stage(
     repair_review_anchors=False,
     own_plan=None,
 ):
+    references = (
+        run_references(materials, manifest) if command.input_contract == "editorial-role-packets/1" else None
+    )
     profile_ref = command.reviewer_profile_ref if stage == "review" else command.writer_profile_ref
     profile = load_profile(generation, command.project_id, profile_ref, stage)
     prompt_ref = ArtifactRef.model_validate(manifest["prompt_refs"][stage])
@@ -57,6 +61,7 @@ def execute_stage(
             instructions,
             manifest["response_schemas"][stage],
             projection_version=manifest_version(manifest),
+            reference_catalog=references,
             approved_plan=own_plan["accepted_plan"] if own_plan else None,
             draft=outputs.get("draft"),
             feedback=outputs.get("review"),
@@ -94,6 +99,8 @@ def execute_stage(
             accepted_plan_ref=own_plan["accepted_plan_ref"],
             planning_clearance_ref=own_plan["planning_clearance_ref"],
         )
+    if references is not None:
+        context[CATALOG_KEY] = references.as_payload()
     invocation = journal.invocation(command.run_id, stage)
     if invocation is None:
         invocation = journal.prepare(command.run_id, stage, body, context)

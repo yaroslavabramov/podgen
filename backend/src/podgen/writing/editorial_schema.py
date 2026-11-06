@@ -15,7 +15,12 @@ def packet_schema(*, version=2, fixed=False):
         card = schema["$defs"]["KnowledgeCard"]
         if version == 1:
             card["properties"].pop("card_id")
+            card["properties"].pop("story_facts")
         else:
+            facts = card["properties"]["story_facts"]
+            facts_schema = next(value for value in facts["anyOf"] if value.get("type") == "string")
+            facts_schema["title"] = facts["title"]
+            card["properties"]["story_facts"] = facts_schema
             field = card["properties"]["card_id"]
             schema_field = next(value for value in field["anyOf"] if value.get("type") == "string")
             schema_field["title"] = field["title"]

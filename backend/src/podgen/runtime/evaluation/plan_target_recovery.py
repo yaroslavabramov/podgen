@@ -8,6 +8,7 @@ from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import ArtifactRef, CodeProducer, RuntimeRef
 from podgen.domain.errors import ContractError
 from podgen.persistence.database import one
+from podgen.writing.model_references import CATALOG_KEY, context_references
 from podgen.writing.plan_targets import PlanTargetChoices, PlanTargetRepair
 from podgen.writing.plan_views import candidate_view
 from podgen.writing.planning_roles import PlanningOutput, PlanReviewOutput
@@ -23,7 +24,9 @@ REVIEW_STAGES = ("plan-review", "plan-review-revised")
 
 def request_candidate(candidate, context):
     if context.get("role_input_contract") == "editorial-role-packets/1":
-        return candidate_view(candidate, projection_version=context.get("role_projection_version", V1))
+        result = candidate_view(candidate, projection_version=context.get("role_projection_version", V1))
+        references = context_references(context)
+        return references.translate(result) if references else result
     return candidate
 
 
@@ -38,6 +41,8 @@ def repair_plan(journal, original):
     context = journal.read(RuntimeRef(record_kind="tool_execution", record_id=original["request_record_id"]))[
         "context"
     ]
+    if context.get(CATALOG_KEY) != journal.manifest(original["run_id"]).get(CATALOG_KEY):
+        raise ContractError("model_material_catalog_binding_mismatch")
     modern = context.get("role_input_contract") == "editorial-role-packets/1"
     ref = context["candidate_plan_ref"] if modern else payload["candidate_plan_ref"]
     saved = journal.read(RuntimeRef.model_validate(ref))

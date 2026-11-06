@@ -151,6 +151,12 @@ def execute(args, repo, wire_ref):
         result = dict(
             request=body, visible_bytes=visible_sizes(body), input_contract=CONTRACT, endpoint_called=False
         )
+        from podgen.writing.model_references import CATALOG_KEY, preview_references
+        from podgen.writing.projection_versions import CURRENT
+
+        references = preview_references(materials, CURRENT)
+        if references is not None:
+            result[CATALOG_KEY] = references.as_payload()
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
     if args.command == "preview":

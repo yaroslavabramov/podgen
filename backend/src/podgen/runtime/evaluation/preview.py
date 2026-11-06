@@ -1,6 +1,7 @@
 """Compile ordinary and dedicated repair wires without a provider or token endpoint."""
 
 from podgen.domain.errors import ContractError
+from podgen.writing.model_references import preview_references
 from podgen.writing.plan_views import candidate_view
 from podgen.writing.projection_versions import CURRENT
 from podgen.writing.projections import CONTRACT, validate_model_content
@@ -55,17 +56,23 @@ def preview_request(run_id, stage, profile, materials, **inputs):
         )
     if stage == "anchor-repair":
         from podgen.writing.anchor_selection import AnchorChoices, AnchorRepairPlan
+        from podgen.writing.fact_review import FactFeedback
         from podgen.writing.roles import EditorialFeedback, WriteOutput
 
+        feedback_model = (
+            FactFeedback
+            if any("support_labels" in row for row in inputs["feedback"]["findings"])
+            else EditorialFeedback
+        )
         plan = AnchorRepairPlan.build(
-            WriteOutput.model_validate(inputs["draft"]), EditorialFeedback.model_validate(inputs["feedback"])
+            WriteOutput.model_validate(inputs["draft"]), feedback_model.model_validate(inputs["feedback"])
         )
         if not plan.broken:
             raise ContractError("review_anchor_repair_not_eligible")
         payload = anchor_payload(plan)
         instructions = load_anchor_repair_instructions().body
         model = AnchorChoices
-        role_stage = "review"
+        role_stage = "fact-review" if feedback_model == FactFeedback else "review"
         name = "anchor_choices"
     else:
         from podgen.writing.plan_targets import PlanTargetChoices, PlanTargetRepair
@@ -83,6 +90,9 @@ def preview_request(run_id, stage, profile, materials, **inputs):
         model = PlanTargetChoices
         role_stage = "plan-review"
         name = "plan_target_choices"
+    references = preview_references(materials, CURRENT)
+    if references is not None:
+        payload = references.translate(payload)
     schema = model.model_json_schema()
     validate_model_content(dict(instructions=instructions, input=payload, schema=schema), materials.documents)
     body = response_request(run_id, role_stage, profile, payload, instructions, schema)

@@ -7,8 +7,9 @@ from pathlib import PurePosixPath
 from podgen.domain.errors import ContractError
 
 from .card_catalog import card_id
+from .creative_material import creative_card_view, creative_dossier_view
 from .plan_views import candidate_view
-from .projection_versions import CURRENT, V1, historical, validate_version
+from .projection_versions import CURRENT, V1, V5, historical, validate_version
 from .story_views import (
     editorial_frame,
     narrative_decisions,
@@ -51,6 +52,10 @@ def validate_model_content(value, documents=(), path=""):
 def validate_editorial_content(packet, documents):
     validate_model_content(assignment_view(packet), documents)
     validate_model_content(knowledge_view(packet, labels=True), documents)
+    validate_model_content(
+        [card.story_facts for card in packet.dossier.knowledge_cards if card.story_facts is not None],
+        documents,
+    )
 
 
 def assignment_view(packet):
@@ -83,6 +88,20 @@ def knowledge_view(packet, *, labels, selected=None):
             value["label"] = card.label
         cards.append(value)
     return cards
+
+
+def creative_knowledge_view(packet, *, labels, selected=None):
+    documents = {doc.key: doc for doc in packet.documents}
+    result = []
+    for card in packet.dossier.knowledge_cards:
+        identity = card_id(packet, card)
+        if selected is not None and identity not in selected:
+            continue
+        value = creative_card_view(card, sources=[documents[quote.document].title for quote in card.excerpts])
+        if labels:
+            value["card_id" if packet.contract == "editorial-input/2" else "label"] = identity
+        result.append(value)
+    return result
 
 
 def actionable_feedback(review, *, planning=False, projection_version=CURRENT):
@@ -133,6 +152,8 @@ def role_payload(
             threads=[thread.model_dump(mode="json") for thread in packet.dossier.threads],
             knowledge_cards=knowledge_view(packet, labels=True),
         )
+        if projection_version == V5 and stage in ("plan", "plan-revise"):
+            payload["dossier"] = creative_dossier_view(creative_knowledge_view(packet, labels=True))
         payload["material_catalog"] = list(materials.material_catalog)
         if stage.startswith("plan-review"):
             payload["evidence"] = evidence_view(packet)
@@ -159,7 +180,9 @@ def role_payload(
         )
         if stage == "draft":
             payload["story"] = narrative_decisions(plan, projection_version=projection_version)
-            payload["support"] = knowledge_view(packet, labels=False, selected=selected_labels(plan, packet))
+            payload["support"] = (creative_knowledge_view if projection_version == V5 else knowledge_view)(
+                packet, labels=False, selected=selected_labels(plan, packet)
+            )
         elif stage == "review":
             if projection_version == V1:
                 payload["story_intent"] = story_intent(plan)
@@ -179,7 +202,9 @@ def role_payload(
             payload["revision_guidance"] = actionable_feedback(
                 feedback, projection_version=projection_version
             )
-            payload["support"] = knowledge_view(packet, labels=False, selected=selected_labels(plan, packet))
+            payload["support"] = (creative_knowledge_view if projection_version == V5 else knowledge_view)(
+                packet, labels=False, selected=selected_labels(plan, packet)
+            )
         else:
             raise ContractError("unknown_role_projection")
         if historical(projection_version):

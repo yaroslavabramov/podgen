@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.domain.errors import Conflict, ContractError
+from podgen.writing.model_references import CATALOG_KEY, run_references
 from podgen.writing.roles import WriteOutput
 
 from .contracts import RunFailure
@@ -40,6 +41,7 @@ def execute_reading_stage(
     approved_plan=None,
     repair_review_anchors=False,
 ):
+    references = run_references(materials, manifest)
     base = base_stage(stage)
     profile_ref = profile_for(command, stage)
     profile = load_profile(generation, command.project_id, profile_ref, stage)
@@ -57,6 +59,8 @@ def execute_reading_stage(
         ).model_dump(mode="json"),
         materials_hash=manifest["materials_hash"],
     )
+    if references is not None:
+        context[CATALOG_KEY] = references.as_payload()
     invocation = journal.invocation(command.run_id, stage)
     if invocation is None:
         instructions = generation.get(
@@ -74,6 +78,7 @@ def execute_reading_stage(
             decision=decision,
             approved_plan=approved_plan,
             projection_version=manifest["role_projection_version"],
+            reference_catalog=references,
         )
         invocation = journal.prepare(command.run_id, stage, body, context)
     saved = journal.read(RuntimeRef(record_kind="tool_execution", record_id=invocation["request_record_id"]))
@@ -107,6 +112,9 @@ def execute_reading_stage(
                 parsed = output_model(stage).model_validate(repaired)
             else:
                 parsed = output_model(stage).model_validate_json(raw)
+            wire_output = parsed.model_dump(mode="json")
+            if references is not None:
+                parsed = output_model(stage).model_validate(references.translate(wire_output, inbound=True))
             if base in ("reader-review", "fact-review"):
                 parsed.validate_against(WriteOutput.model_validate(script))
                 expected = "script_only" if base == "reader-review" else "informed"
@@ -160,6 +168,8 @@ def execute_reading_stage(
             semantic_acceptance=False,
             production_ready=False,
         )
+        if references is not None:
+            record["wire_output"] = wire_output
         ref = journal.record(record, record_id=uuid5(invocation["invocation_id"], "output"))
         journal.transition(invocation, "completed", output_ref=ref)
         break

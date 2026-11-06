@@ -26,7 +26,7 @@ def editorial_leaks(case, visible):
     leaks = []
     # Detect this complete reviewed ordered guide, not its scientific statements wherever quoted.
     payload = json.loads(visible["input"][0]["content"][0]["text"])
-    questions = [row["question"] for row in payload["dossier"]["threads"]]
+    questions = [row["question"] for row in payload["dossier"].get("threads", [])]
     if questions == BASELINE["thread_questions"][case]:
         leaks.append(("prewritten_thread_route", "/input/dossier/threads"))
     semantic_view = dict(

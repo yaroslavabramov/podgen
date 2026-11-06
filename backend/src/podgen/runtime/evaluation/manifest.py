@@ -8,6 +8,7 @@ from uuid import uuid5
 
 from podgen.domain.contracts.common import CodeProducer
 from podgen.persistence.repository import timestamp
+from podgen.writing.model_references import CATALOG_KEY, bind_schema, preview_references
 from podgen.writing.projection_versions import CURRENT
 from podgen.writing.prompts import (
     load_anchor_repair_instructions,
@@ -25,6 +26,7 @@ from .workflow import profile_for, prompt_stage, stages_for
 
 def create_manifest(repo, generation, command, journal, materials):
     payload = materials.as_payload()
+    references = preview_references(materials, CURRENT)
     producer = CodeProducer(
         kind="code",
         component="whole-episode-evaluation",
@@ -70,7 +72,7 @@ def create_manifest(repo, generation, command, journal, materials):
             operation_id=uuid5(command.run_id, "prompt:" + stage),
         )
         prompts[stage] = prompt.ref.model_dump(mode="json")
-        schemas[stage] = response_schema(stage, command.input_contract)
+        schemas[stage] = bind_schema(response_schema(stage, command.input_contract), references)
     blob = journal.blob(
         json.dumps(payload, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
     )
@@ -103,6 +105,8 @@ def create_manifest(repo, generation, command, journal, materials):
             "technical script versions; canonical EpisodeSpec/StoryPlan/ScriptRevision mapping remains open",
         ],
     )
+    if references is not None:
+        manifest[CATALOG_KEY] = references.as_payload()
     if independent(command) and command.initial_script_ref is not None:
         from .script_import import load_script
 

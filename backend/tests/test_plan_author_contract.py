@@ -20,7 +20,7 @@ from podgen.writing.editorial_contract import EditorialInput, FixedEditorialInpu
 from podgen.writing.plan_views import candidate_view
 from podgen.writing.planning_roles import PlanningOutput, PlanReviewOutput
 from podgen.writing.projection_versions import CURRENT, V3
-from podgen.writing.projections import knowledge_view
+from podgen.writing.projections import creative_knowledge_view
 from tests.test_editorial_independence import invoke, payload, prepare
 from tests.test_independent_readings import Paused, ReadingProvider, setup_review
 from tests.test_listener_question_flow import QuestionFlowProvider
@@ -99,8 +99,8 @@ def test_actual_six_act_snow_author_and_dual_revision_wires_keep_support_not_rec
     )
     assert all("limitations_to_voice" not in act for act in author["story"]["acts"])
     assert author["assignment"]["required_topics"] == list(packet.assignment.required_topics)
-    expected = {c["title"]: c for c in knowledge_view(packet, labels=False)}
-    assert all(card == expected[card["title"]] for card in author["support"])
+    expected = creative_knowledge_view(packet, labels=False)
+    assert all(card in expected for card in author["support"])
     script = dict(
         utterances=[dict(speaker=packet.assignment.speakers[0].label, text="Точный произносимый текст.")]
     )

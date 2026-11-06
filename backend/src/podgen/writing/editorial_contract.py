@@ -74,14 +74,16 @@ class KnowledgeCard(RoleOutput):
     title: FullText
     claim: FullText
     context: FullText
+    story_facts: FullText | None = None
     limitations: list[FullText]
     excerpts: list[ExactExcerpt] = Field(min_length=1)
 
     @model_serializer(mode="wrap")
     def preserve_historical_shape(self, handler):
         data = handler(self)
-        if data["card_id"] is None:
-            data.pop("card_id")
+        for field in ("card_id", "story_facts"):
+            if data[field] is None:
+                data.pop(field)
         return data
 
 
@@ -110,6 +112,11 @@ class EditorialInput(RoleOutput):
     def bindings(self):
         modern = self.contract == "editorial-input/2"
         for card in self.dossier.knowledge_cards:
+            if "story_facts" in card.model_fields_set:
+                if not modern:
+                    raise ValueError("editorial_story_facts_forbidden_in_v1")
+                if card.story_facts is None:
+                    raise ValueError("editorial_story_facts_must_be_text")
             if modern and card.card_id is None:
                 raise ValueError("editorial_card_id_required")
             if not modern and "card_id" in card.model_fields_set:

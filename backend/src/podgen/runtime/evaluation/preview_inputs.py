@@ -75,8 +75,15 @@ def validate_preview_snapshots(stage, materials, inputs):
             if review.decision != "revise":
                 raise ContractError("preview_plan_revision_not_required")
     if inputs.get("feedback") is not None:
-        review = EditorialFeedback.model_validate(inputs["feedback"])
-        if review.reading_mode != "informed":
+        from podgen.writing.fact_review import FactFeedback
+
+        model = (
+            FactFeedback
+            if any("support_labels" in row for row in inputs["feedback"]["findings"])
+            else EditorialFeedback
+        )
+        review = model.model_validate(inputs["feedback"])
+        if stage != "anchor-repair" and review.reading_mode != "informed":
             raise ContractError("preview_review_access_mode_mismatch")
         if stage == "revise":
             review.validate_against(WriteOutput.model_validate(inputs["draft"]))

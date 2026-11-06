@@ -4,10 +4,11 @@ from copy import deepcopy
 
 from podgen.domain.errors import ContractError
 
-from .projection_versions import CURRENT, historical
+from .projection_versions import CURRENT, V5, historical
 from .projections import (
     actionable_feedback,
     assignment_view,
+    creative_knowledge_view,
     evidence_view,
     indexed_draft,
     knowledge_view,
@@ -69,9 +70,12 @@ def reading_payload(
             )
             for origin in ("reader", "fact")
         ]
-        payload["support"] = knowledge_view(
-            packet, labels=packet.contract != "editorial-input/2", selected=selected
-        )
+        if projection_version == V5:
+            payload["support"] = creative_knowledge_view(packet, labels=False, selected=selected)
+        else:
+            payload["support"] = knowledge_view(
+                packet, labels=packet.contract != "editorial-input/2", selected=selected
+            )
         if packet.contract == "editorial-input/2":
             passages = evidence_view(packet)
             for guidance in payload["revision_guidance"]:

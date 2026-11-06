@@ -18,6 +18,7 @@ from podgen.writing.card_authoring import add_card, rebind_fixed, upgrade_fixed,
 from podgen.writing.card_catalog import catalog
 from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.editorial_schema import packet_schema
+from podgen.writing.model_references import CATALOG_KEY, ModelReferences
 from tests.test_editorial_independence import invoke, payload, prepare
 from tests.test_independent_readings import ReadingProvider
 from tests.test_own_plan import own_dataset as own_dataset
@@ -207,7 +208,11 @@ def test_ordinary_ids_survive_duplicate_names_reordering_author_revision_and_fro
         legacy(), own_dataset, tmp_path, monkeypatch
     )
     by_id = {c["card_id"]: c for c in data["dossier"]["knowledge_cards"]}
-    provider = CardProvider(chosen, correction)
+    references = ModelReferences.create(EditorialInput.model_validate(data))
+    chosen_wire, correction_wire = references.translate(dict(material_refs=[chosen, correction]))[
+        "material_refs"
+    ]
+    provider = CardProvider(chosen_wire, correction_wire)
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *a, **k: provider)
     if mode == "fixed":
         fixed = upgrade_fixed(
@@ -237,8 +242,8 @@ def test_ordinary_ids_survive_duplicate_names_reordering_author_revision_and_fro
     views = {r["metadata"]["podgen_stage"]: payload(r) for r in provider.requests}
     if mode == "own":
         cards = views["plan"]["dossier"]["knowledge_cards"]
-        assert {c["card_id"] for c in cards} == set(by_id)
-        assert views["plan-review"]["candidate_plan"]["plan"]["acts"][0]["material_refs"] == [chosen]
+        assert {c["card_id"] for c in cards} == set(references.aliases)
+        assert views["plan-review"]["candidate_plan"]["plan"]["acts"][0]["material_refs"] == [chosen_wire]
     assert [c["claim"] for c in views["draft"]["support"]] == [by_id[chosen]["claim"]]
     assert {c["claim"] for c in views["revise-1"]["support"]} == {
         by_id[chosen]["claim"],
@@ -257,9 +262,19 @@ def test_ordinary_ids_survive_duplicate_names_reordering_author_revision_and_fro
     out = tmp_path / "export"
     report = (out / "generated-plan.md").read_text() if mode == "own" else ""
     if report:
-        assert "Два одинаковых имени [" + chosen + "]" in report
+        assert "Два одинаковых имени [" + chosen_wire + "]" in report
+        assert chosen not in report and correction not in report
     assert (out / "editorial-input-original.json").read_bytes() == raw
     journal = EvaluationJournal(own_dataset[0], own_dataset[1])
+    assert journal.manifest(args["run_id"])[CATALOG_KEY] == references.as_payload()
+    if mode == "own":
+        invocation = journal.invocation(args["run_id"], "plan")
+        record = journal.output(invocation)
+        assert record["output"]["plan"]["opening"]["material_refs"] == [chosen]
+        assert record["wire_output"]["plan"]["opening"]["material_refs"] == [chosen_wire]
+    record = journal.output(journal.invocation(args["run_id"], "fact-review"))
+    assert record["output"]["findings"][0]["support_labels"] == [correction]
+    assert record["wire_output"]["findings"][0]["support_labels"] == [correction_wire]
     saved = journal.repo.get_runtime(own_dataset[1], RuntimeRef.model_validate_json(ref.read_bytes()))
     assert saved["content"] == EditorialInput.model_validate(data).model_dump(mode="json")
     # Workspace edits cannot rename sources of an already frozen run/report.
@@ -275,8 +290,13 @@ def test_ordinary_ids_survive_duplicate_names_reordering_author_revision_and_fro
 def test_foreign_returned_id_stops_before_author_or_rewrite(
     own_dataset, tmp_path, monkeypatch, bad_plan, bad_fact
 ):
-    prefix, _, own, _, _, _, chosen, correction, _, _ = admitted(legacy(), own_dataset, tmp_path, monkeypatch)
-    provider = CardProvider(chosen, correction, bad_plan=bad_plan, bad_fact=bad_fact)
+    prefix, _, own, _, data, _, chosen, correction, _, _ = admitted(
+        legacy(), own_dataset, tmp_path, monkeypatch
+    )
+    wire = ModelReferences.create(EditorialInput.model_validate(data)).translate(
+        dict(material_refs=[chosen, correction])
+    )["material_refs"]
+    provider = CardProvider(*wire, bad_plan=bad_plan, bad_fact=bad_fact)
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *a, **k: provider)
     assert invoke(prefix, "run", **own) == 2
     stages = [r["metadata"]["podgen_stage"] for r in provider.requests]

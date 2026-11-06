@@ -173,9 +173,9 @@ def test_default_saved_snow_two_isolated_readings_and_repeated_final(own_dataset
     assert all("important_limits" not in guidance for guidance in rewrite["revision_guidance"])
     assert rewrite["revision_guidance"][1]["findings"][0]["preserve"] == ["Существенное ограничение."]
     assert len(rewrite["support"]) == 1  # No plan: only the specific factual repair's support.
-    assert (
-        rewrite["support"][0]["label"] == rewrite["revision_guidance"][1]["findings"][0]["support_labels"][0]
-    )
+    selected = rewrite["revision_guidance"][1]["findings"][0]["support_labels"][0]
+    source = next(card for card in fact["support"] if card["label"] == selected)
+    assert rewrite["support"][0] == {key: source[key] for key in ("claim", "context", "sources")}
     assert provider.requests[0]["instructions"] == load_reading_instructions("reader-review").body
     out = tmp_path / "export"
     assert (out / "final.txt").exists() and "Фактологическая проверка · версия 2" in (

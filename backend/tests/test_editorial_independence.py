@@ -116,7 +116,7 @@ def test_real_ordinary_wire_and_own_candidate_delivery(own_dataset, case, tmp_pa
         assert provider.pre_generation[key] == provider.requests[0][key]
     before = payload(provider.pre_generation)
     assert set(before) == {"output_language", "assignment", "dossier", "material_catalog"}
-    assert set(before["dossier"]) == {"summary", "throughline_constraints", "threads", "knowledge_cards"}
+    assert set(before["dossier"]) == {"knowledge_cards"}
     cards = before["dossier"]["knowledge_cards"]
     assert len(cards) >= (6 if case == "gps-clock" else 12)
     assert all(card["claim"] and card["sources"] for card in cards)
@@ -215,7 +215,8 @@ def test_actual_first_wire_detects_previous_editorial_contamination(own_dataset,
         invoke(prefix, "run", **own)
     assert provider.plan is None and not provider.requests
     kinds = {kind for kind, _ in editorial_leaks(case, provider.pre_generation)}
-    assert {"preassigned_host_scene", "prewritten_thread_route"} <= kinds
+    assert "preassigned_host_scene" in kinds
+    assert "prewritten_thread_route" not in kinds
     assert (
         "prepared_experiment_and_arithmetic" if case == "gps-clock" else "prescribed_story_route"
     ) in kinds

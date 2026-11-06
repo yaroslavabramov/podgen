@@ -12,6 +12,7 @@ from podgen.runtime.evaluation.preview import preview_request
 from podgen.runtime.evaluation.profiles import create_profile, load_profile
 from podgen.runtime.evaluation.wire_budget import check_visible
 from podgen.writing.editorial_contract import EditorialInput
+from podgen.writing.model_references import ModelReferences
 from podgen.writing.projections import CONTRACT
 from tests.independent_planner_provider import IndependentPlannerProvider
 from tests.test_editorial_independence import invoke, payload
@@ -141,9 +142,10 @@ def test_current_snow_informed_cli_and_every_role_receive_the_assignment(repo, s
         assert payload(body)["assignment"] == expected_assignment
     report_text = (tmp_path / "run/generated-plan.md").read_text()
     names = {card["card_id"]: card["label"] for card in data["dossier"]["knowledge_cards"]}
-    selected = provider.plan["plan"]["opening"]["material_refs"]
+    canonical_plan = ModelReferences.create(materials.packet).translate(provider.plan, inbound=True)
+    selected = canonical_plan["plan"]["opening"]["material_refs"]
     assert all(names[identity] in report_text and identity not in report_text for identity in selected)
-    assert payload(provider.requests[0])["dossier"]["threads"] == []
+    assert set(payload(provider.requests[0])["dossier"]) == {"knowledge_cards"}
     assert "candidate_plan" not in payload(provider.requests[0])
     assert provider.plan["plan"]["main_question"] != USER_REQUEST
     assert payload(provider.requests[2])["story"]["main_question"] == provider.plan["plan"]["main_question"]
@@ -174,12 +176,12 @@ def test_current_snow_informed_cli_and_every_role_receive_the_assignment(repo, s
     )
     inputs = {
         "plan": {},
-        "plan-review": dict(candidate=provider.plan),
-        "plan-revise": dict(candidate=provider.plan, plan_review=plan_review),
-        "plan-review-revised": dict(candidate=provider.plan),
-        "draft": dict(approved_plan=provider.plan),
-        "review": dict(approved_plan=provider.plan, draft=provider.script),
-        "revise": dict(approved_plan=provider.plan, draft=provider.script, feedback=provider.feedback),
+        "plan-review": dict(candidate=canonical_plan),
+        "plan-revise": dict(candidate=canonical_plan, plan_review=plan_review),
+        "plan-review-revised": dict(candidate=canonical_plan),
+        "draft": dict(approved_plan=canonical_plan),
+        "review": dict(approved_plan=canonical_plan, draft=provider.script),
+        "revise": dict(approved_plan=canonical_plan, draft=provider.script, feedback=provider.feedback),
     }
     parsed_profile = load_profile(generation, project, profile.ref, "plan")
     for stage, values in inputs.items():
