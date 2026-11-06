@@ -1,0 +1,97 @@
+{
+  "run_id": "93bbcdd1-ba44-497a-9667-cabbe2464987",
+  "code_revision": "2fbece4",
+  "case": "snow-pump",
+  "format": "solo",
+  "plan": "evals/editorial-inputs/v1/snow-pump/fixed-plan.json",
+  "review_decision": "revise",
+  "operations": [
+    {
+      "stage": "draft",
+      "operation": "episode_script",
+      "model": "gpt-6.1-sol",
+      "invocation": "7b96edfd-7ee4-56b4-80cf-9b379180d162",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 5995,
+        "input_tokens_details": {
+          "cache_write_tokens": 5992,
+          "cached_tokens": 0
+        },
+        "output_tokens": 4888,
+        "output_tokens_details": {
+          "reasoning_tokens": 419
+        },
+        "total_tokens": 10883
+      },
+      "usd": "0.063866"
+    },
+    {
+      "stage": "review",
+      "operation": "editorial_feedback",
+      "model": "gpt-6.1-terra",
+      "invocation": "5a1ecab6-a908-5fe3-91c2-199cdad3a050",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 16417,
+        "input_tokens_details": {
+          "cache_write_tokens": 16414,
+          "cached_tokens": 0
+        },
+        "output_tokens": 3480,
+        "output_tokens_details": {
+          "reasoning_tokens": 1483
+        },
+        "total_tokens": 19897
+      },
+      "usd": "0.0379205"
+    },
+    {
+      "stage": "revise",
+      "operation": "episode_script",
+      "model": "gpt-6.1-sol",
+      "invocation": "4275fd9e-6f9b-5f3e-8102-565d9deaf039",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 10522,
+        "input_tokens_details": {
+          "cache_write_tokens": 10519,
+          "cached_tokens": 0
+        },
+        "output_tokens": 4697,
+        "output_tokens_details": {
+          "reasoning_tokens": 275
+        },
+        "total_tokens": 15219
+      },
+      "usd": "0.0732735"
+    }
+  ],
+  "calculated_usd": "0.1750600",
+  "duration": {
+    "draft": {
+      "words": 2211,
+      "duration_seconds": 1193.946848,
+      "voice": "Milena",
+      "rate": 130,
+      "spoken_sha256": "5330bc523917426ac9564d7e48185a8a1bd32cac4dfe5dbf8d761fda4cb1681a",
+      "utterances": 25
+    },
+    "final": {
+      "words": 2291,
+      "duration_seconds": 1243.231202,
+      "voice": "Milena",
+      "rate": 130,
+      "spoken_sha256": "b13c1408845a04c595906255dd8b69cf45e48e5a1d9d42bd5ced3af8288d6457",
+      "utterances": 25
+    }
+  },
+  "total_input": 32934,
+  "total_output": 13065,
+  "prompts": {
+    "draft": "whole-episode-a/sha256:c9ad880208de68e114d6c70307af2e129727925b77df737d653748873205349e",
+    "review": "whole-episode-a/sha256:25acda39c6c27a19f63d908bf0493843c722379b91dc40288bef2f74df3697b0",
+    "revise": "whole-episode-a/sha256:fc6ed9c4ae07b2780c326659ff77e78b5db8ba7c9074047fd99ff65e4fcb62d3"
+  },
+  "run_status": "completed_unaccepted"
+}
