@@ -449,7 +449,10 @@
   "additionalProperties": false,
   "properties": {
     "contract": {
-      "const": "fixed-editorial-input/1",
+      "enum": [
+        "fixed-editorial-input/1",
+        "fixed-editorial-input/2"
+      ],
       "title": "Contract",
       "type": "string"
     },

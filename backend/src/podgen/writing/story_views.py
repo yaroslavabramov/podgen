@@ -4,6 +4,7 @@ from copy import deepcopy
 
 from podgen.domain.errors import ContractError
 
+from .card_catalog import catalog
 from .projection_versions import CURRENT, V1, V2, historical
 
 
@@ -16,7 +17,7 @@ def selected_labels(plan, packet):
         *(ref for act in body["acts"] for ref in act["material_refs"]),
         *(ref for question in plan["research_requests"] for ref in question["material_refs"]),
     ]
-    if set(refs) - {card.label for card in packet.dossier.knowledge_cards}:
+    if set(refs) - set(catalog(packet)):
         raise ContractError("unknown_editorial_support_label")
     return set(refs)
 

@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import Field, model_serializer, model_validator
 
+from .card_catalog import catalog
 from .planning_roles import PlanningOutput
 from .roles import FullText, RoleOutput
 
@@ -68,12 +69,20 @@ class ExactExcerpt(RoleOutput):
 
 
 class KnowledgeCard(RoleOutput):
+    card_id: str | None = Field(default=None, pattern=r"^[A-Za-z][A-Za-z0-9_-]{1,63}$")
     label: FullText
     title: FullText
     claim: FullText
     context: FullText
     limitations: list[FullText]
     excerpts: list[ExactExcerpt] = Field(min_length=1)
+
+    @model_serializer(mode="wrap")
+    def preserve_historical_shape(self, handler):
+        data = handler(self)
+        if data["card_id"] is None:
+            data.pop("card_id")
+        return data
 
 
 class EditorialThread(RoleOutput):
@@ -92,16 +101,26 @@ class EditorialDossier(RoleOutput):
 
 
 class EditorialInput(RoleOutput):
-    contract: Literal["editorial-input/1"]
+    contract: Literal["editorial-input/1", "editorial-input/2"]
     assignment: Assignment
     documents: list[SourceDocument] = Field(min_length=1)
     dossier: EditorialDossier
 
     @model_validator(mode="after")
     def bindings(self):
-        labels = [card.label for card in self.dossier.knowledge_cards]
+        modern = self.contract == "editorial-input/2"
+        for card in self.dossier.knowledge_cards:
+            if modern and card.card_id is None:
+                raise ValueError("editorial_card_id_required")
+            if not modern and "card_id" in card.model_fields_set:
+                raise ValueError("editorial_card_id_forbidden_in_v1")
+        labels = catalog(self)
         keys = [doc.key for doc in self.documents]
-        if len(set(labels)) != len(labels) or len(set(keys)) != len(keys):
+        if len(set(labels)) != len(labels):
+            raise ValueError(
+                "editorial_duplicate_card_id" if modern else "editorial_duplicate_label_or_document"
+            )
+        if len(set(keys)) != len(keys):
             raise ValueError("editorial_duplicate_label_or_document")
         if len({speaker.label for speaker in self.assignment.speakers}) != len(self.assignment.speakers):
             raise ValueError("editorial_duplicate_speaker")
@@ -110,7 +129,7 @@ class EditorialInput(RoleOutput):
             *(thread.support_labels for thread in self.dossier.threads),
         ]:
             if set(refs) - set(labels):
-                raise ValueError("editorial_unknown_support_label")
+                raise ValueError("editorial_unknown_card_id" if modern else "editorial_unknown_support_label")
         for card in self.dossier.knowledge_cards:
             for excerpt in card.excerpts:
                 if excerpt.document not in keys or excerpt.end <= excerpt.start:
@@ -126,7 +145,7 @@ class FixedSourceDocument(RoleOutput):
 
 
 class FixedEditorialInput(RoleOutput):
-    contract: Literal["fixed-editorial-input/1"]
+    contract: Literal["fixed-editorial-input/1", "fixed-editorial-input/2"]
     assignment_key: FullText
     shared_input_digest: str = Field(pattern="^[0-9a-f]{64}$")
     document: FixedSourceDocument

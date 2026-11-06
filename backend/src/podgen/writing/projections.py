@@ -6,6 +6,7 @@ from pathlib import PurePosixPath
 
 from podgen.domain.errors import ContractError
 
+from .card_catalog import card_id
 from .plan_views import candidate_view
 from .projection_versions import CURRENT, V1, historical, validate_version
 from .story_views import (
@@ -65,7 +66,7 @@ def knowledge_view(packet, *, labels, selected=None):
     documents = {doc.key: doc for doc in packet.documents}
     cards = []
     for card in packet.dossier.knowledge_cards:
-        if selected is not None and card.label not in selected:
+        if selected is not None and card_id(packet, card) not in selected:
             continue
         value = dict(
             title=card.title,
@@ -74,7 +75,11 @@ def knowledge_view(packet, *, labels, selected=None):
             limitations=list(card.limitations),
             sources=list(dict.fromkeys(documents[e.document].title for e in card.excerpts)),
         )
-        if labels:
+        if packet.contract == "editorial-input/2":
+            value["label"] = card.label
+            if labels:
+                value["card_id"] = card.card_id
+        elif labels:
             value["label"] = card.label
         cards.append(value)
     return cards
@@ -191,6 +196,7 @@ def evidence_view(packet):
             key = (excerpt.document, excerpt.start, excerpt.end)
             if key not in passages:
                 passages[key] = dict(source=documents[excerpt.document].title, text=excerpt.text, supports=[])
-            if card.label not in passages[key]["supports"]:
-                passages[key]["supports"].append(card.label)
+            key_id = card_id(packet, card)
+            if key_id not in passages[key]["supports"]:
+                passages[key]["supports"].append(key_id)
     return list(passages.values())

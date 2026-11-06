@@ -4,6 +4,7 @@ from pathlib import Path
 
 from podgen.domain.contracts.common import RuntimeRef
 
+from .material_names import display_materials, frozen_names
 from .reading_outcome import read_outcome
 from .reading_workflow import base_stage
 
@@ -14,6 +15,7 @@ def spoken_text(script):
 
 def export_readings(journal, run_id, manifest, write_json, write_text):
     outcome = read_outcome(journal, run_id)
+    names = frozen_names(journal, run_id, manifest)
     ru = manifest["output_language"].lower().startswith("ru")
     status = outcome["status"] if outcome else "incomplete"
     messages = {
@@ -71,7 +73,7 @@ def export_readings(journal, run_id, manifest, write_json, write_text):
             lines.extend([finding["observation"], "", finding["requested_change"], ""])
             lines.extend(text for item in finding["preserve"] for text in (item, ""))
             if finding.get("support_labels"):
-                lines.extend([", ".join(finding["support_labels"]), ""])
+                lines.extend([display_materials(finding["support_labels"], names), ""])
         for need in review["research_requests"]:
             lines.extend([need["question"], "", need["why_needed"], ""])
             for anchor in need["anchors"]:

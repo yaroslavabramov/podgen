@@ -139,6 +139,10 @@ def test_current_snow_informed_cli_and_every_role_receive_the_assignment(repo, s
     }
     for body in provider.requests:
         assert payload(body)["assignment"] == expected_assignment
+    report_text = (tmp_path / "run/generated-plan.md").read_text()
+    names = {card["card_id"]: card["label"] for card in data["dossier"]["knowledge_cards"]}
+    selected = provider.plan["plan"]["opening"]["material_refs"]
+    assert all(names[identity] in report_text and identity not in report_text for identity in selected)
     assert payload(provider.requests[0])["dossier"]["threads"] == []
     assert "candidate_plan" not in payload(provider.requests[0])
     assert provider.plan["plan"]["main_question"] != USER_REQUEST

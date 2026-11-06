@@ -1,0 +1,436 @@
+{
+  "$defs": {
+    "Assignment": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "question": {
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "audience": {
+          "minLength": 1,
+          "title": "Audience",
+          "type": "string"
+        },
+        "listener_outcome": {
+          "minLength": 1,
+          "title": "Listener Outcome",
+          "type": "string"
+        },
+        "format": {
+          "enum": [
+            "solo",
+            "dialogue"
+          ],
+          "title": "Format",
+          "type": "string"
+        },
+        "output_language": {
+          "minLength": 1,
+          "title": "Output Language",
+          "type": "string"
+        },
+        "speakers": {
+          "items": {
+            "$ref": "#/$defs/EditorialSpeaker"
+          },
+          "minItems": 1,
+          "title": "Speakers",
+          "type": "array"
+        },
+        "duration": {
+          "$ref": "#/$defs/EditorialDuration"
+        },
+        "knowledge_cutoff": {
+          "minLength": 1,
+          "title": "Knowledge Cutoff",
+          "type": "string"
+        },
+        "required_topics": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Required Topics",
+          "type": "array"
+        },
+        "excluded_topics": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Excluded Topics",
+          "type": "array"
+        },
+        "style_guidance": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Style Guidance",
+          "type": "array"
+        },
+        "listener_profile": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Listener Profile"
+        },
+        "genre": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Genre"
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "question",
+        "audience",
+        "listener_outcome",
+        "format",
+        "output_language",
+        "speakers",
+        "duration",
+        "knowledge_cutoff",
+        "required_topics"
+      ],
+      "title": "Assignment",
+      "type": "object"
+    },
+    "EditorialDossier": {
+      "additionalProperties": false,
+      "properties": {
+        "summary": {
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        },
+        "summary_support_labels": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Summary Support Labels",
+          "type": "array"
+        },
+        "throughline_constraints": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Throughline Constraints",
+          "type": "array"
+        },
+        "threads": {
+          "items": {
+            "$ref": "#/$defs/EditorialThread"
+          },
+          "title": "Threads",
+          "type": "array"
+        },
+        "knowledge_cards": {
+          "items": {
+            "$ref": "#/$defs/KnowledgeCard"
+          },
+          "minItems": 1,
+          "title": "Knowledge Cards",
+          "type": "array"
+        }
+      },
+      "required": [
+        "summary",
+        "summary_support_labels",
+        "throughline_constraints",
+        "threads",
+        "knowledge_cards"
+      ],
+      "title": "EditorialDossier",
+      "type": "object"
+    },
+    "EditorialDuration": {
+      "additionalProperties": false,
+      "properties": {
+        "target_seconds": {
+          "exclusiveMinimum": 0,
+          "title": "Target Seconds",
+          "type": "integer"
+        },
+        "min_seconds": {
+          "exclusiveMinimum": 0,
+          "title": "Min Seconds",
+          "type": "integer"
+        },
+        "max_seconds": {
+          "exclusiveMinimum": 0,
+          "title": "Max Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "target_seconds",
+        "min_seconds",
+        "max_seconds"
+      ],
+      "title": "EditorialDuration",
+      "type": "object"
+    },
+    "EditorialSpeaker": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "function": {
+          "minLength": 1,
+          "title": "Function",
+          "type": "string"
+        },
+        "speech_register": {
+          "minLength": 1,
+          "title": "Speech Register",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "function",
+        "speech_register"
+      ],
+      "title": "EditorialSpeaker",
+      "type": "object"
+    },
+    "EditorialThread": {
+      "additionalProperties": false,
+      "properties": {
+        "question": {
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "explanation": {
+          "minLength": 1,
+          "title": "Explanation",
+          "type": "string"
+        },
+        "support_labels": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Support Labels",
+          "type": "array"
+        },
+        "limitations": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        }
+      },
+      "required": [
+        "question",
+        "explanation",
+        "support_labels",
+        "limitations"
+      ],
+      "title": "EditorialThread",
+      "type": "object"
+    },
+    "ExactExcerpt": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "document": {
+          "minLength": 1,
+          "title": "Document",
+          "type": "string"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "integer"
+        },
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "text",
+        "document",
+        "start",
+        "end"
+      ],
+      "title": "ExactExcerpt",
+      "type": "object"
+    },
+    "KnowledgeCard": {
+      "additionalProperties": false,
+      "properties": {
+        "card_id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{1,63}$",
+          "type": "string",
+          "title": "Card Id"
+        },
+        "label": {
+          "minLength": 1,
+          "type": "string",
+          "title": "Label"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "claim": {
+          "minLength": 1,
+          "title": "Claim",
+          "type": "string"
+        },
+        "context": {
+          "minLength": 1,
+          "title": "Context",
+          "type": "string"
+        },
+        "limitations": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "excerpts": {
+          "items": {
+            "$ref": "#/$defs/ExactExcerpt"
+          },
+          "minItems": 1,
+          "title": "Excerpts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "card_id",
+        "label",
+        "title",
+        "claim",
+        "context",
+        "limitations",
+        "excerpts"
+      ],
+      "title": "KnowledgeCard",
+      "type": "object"
+    },
+    "SourceDocument": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "source_path": {
+          "minLength": 1,
+          "title": "Source Path",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "purpose": {
+          "enum": [
+            "brief",
+            "dossier",
+            "primary"
+          ],
+          "title": "Purpose",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "source_path",
+        "sha256",
+        "purpose"
+      ],
+      "title": "SourceDocument",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract": {
+      "title": "Contract",
+      "type": "string",
+      "const": "editorial-input/2"
+    },
+    "assignment": {
+      "$ref": "#/$defs/Assignment"
+    },
+    "documents": {
+      "items": {
+        "$ref": "#/$defs/SourceDocument"
+      },
+      "minItems": 1,
+      "title": "Documents",
+      "type": "array"
+    },
+    "dossier": {
+      "$ref": "#/$defs/EditorialDossier"
+    }
+  },
+  "required": [
+    "contract",
+    "assignment",
+    "documents",
+    "dossier"
+  ],
+  "title": "EditorialInput",
+  "type": "object"
+}

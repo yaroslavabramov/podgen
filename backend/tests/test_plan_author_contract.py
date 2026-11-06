@@ -84,7 +84,7 @@ def test_published_current_schemas_and_real_model_contract_have_no_obligation_li
 def test_actual_six_act_snow_author_and_dual_revision_wires_keep_support_not_recitation(own_dataset):
     repo, project, _, writer, _ = own_dataset
     packet = EditorialInput.model_validate_json(
-        (ROOT / "evals/editorial-inputs/current/snow-pump/shared.json").read_bytes()
+        (ROOT / "evals/editorial-inputs/current/snow-pump/legacy-shared.json").read_bytes()
     )
     materials = EditorialMaterials(packet, RuntimeRef(record_kind="user_input", record_id=uuid4()), ())
     profile = load_profile(generation_repo(repo), project, writer, "draft")

@@ -10,6 +10,7 @@ from pydantic import TypeAdapter
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.domain.errors import ContractError
+from podgen.writing.card_catalog import catalog
 from podgen.writing.editorial_contract import EditorialInput, FixedEditorialInput
 
 from .editorial_packets import peek_packet
@@ -57,12 +58,14 @@ def import_fixed(repo, project, data, source_map, shared_ref, *, original_bytes=
     materials = load_editorial_materials(
         generation_repo(repo), project, shared_ref, case_id=packet.assignment.key
     )
+    if fixed.contract.rsplit("/", 1)[1] != packet.contract.rsplit("/", 1)[1]:
+        raise ContractError("fixed_editorial_input_version_mismatch")
     if fixed.assignment_key != packet.assignment.key or fixed.shared_input_digest != digest(
         shared["content"]
     ):
         raise ContractError("fixed_editorial_input_binding_mismatch")
     fixed.plan.validate_against(
-        material_locators=[c.label for c in packet.dossier.knowledge_cards],
+        material_locators=catalog(packet),
         speaker_ids=[s.label for s in packet.assignment.speakers],
     )
     if fixed.plan.status != "ready":
@@ -130,7 +133,7 @@ class EditorialMaterials:
 
     @property
     def material_catalog(self):
-        return [c.label for c in self.packet.dossier.knowledge_cards]
+        return catalog(self.packet)
 
     def as_payload(self):
         return dict(
@@ -178,13 +181,15 @@ def load_editorial_materials(repo, project, shared_ref, *, case_id, fixed_ref=No
         ] != shared_ref.model_dump(mode="json"):
             raise ContractError("fixed_editorial_input_binding_mismatch")
         fixed = FixedEditorialInput.model_validate(saved["content"])
+        if fixed.contract.rsplit("/", 1)[1] != packet.contract.rsplit("/", 1)[1]:
+            raise ContractError("fixed_editorial_input_version_mismatch")
         if fixed.assignment_key != packet.assignment.key or fixed.shared_input_digest != digest(
             packet.model_dump(mode="json")
         ):
             raise ContractError("fixed_editorial_input_binding_mismatch")
         source = SOURCE_REF.validate_python(saved["source_ref"])
         fixed.plan.validate_against(
-            material_locators=[c.label for c in packet.dossier.knowledge_cards],
+            material_locators=catalog(packet),
             speaker_ids=[s.label for s in packet.assignment.speakers],
         )
         if fixed.plan.status != "ready":

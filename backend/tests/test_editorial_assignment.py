@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from podgen.writing.editorial_contract import EditorialInput
+from podgen.writing.editorial_schema import packet_schema
 from podgen.writing.projections import assignment_view
 
 FIELDS = ("excluded_topics", "style_guidance")
@@ -45,7 +46,7 @@ def test_explicit_editorial_instruction_survives_verbatim(field):
 
 
 def test_published_schema_allows_omission_and_empty_lists():
-    schema = EditorialInput.model_json_schema()
+    schema = packet_schema(version=1)
     assignment = schema["$defs"]["Assignment"]
     assert not set(FIELDS) & set(assignment["required"])
     for field in FIELDS:

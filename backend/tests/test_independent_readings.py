@@ -76,7 +76,7 @@ class ReadingProvider:
                 preserve=["Существенное ограничение."],
             )
             if not reader:
-                finding["support_labels"] = [data["support"][-1]["label"]]
+                finding["support_labels"] = [data["support"][-1].get("card_id", data["support"][-1]["label"])]
             need = self.fact_need and not reader
             result = dict(
                 reading_mode="script_only" if reader else "informed",

@@ -3,6 +3,7 @@
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.persistence.database import one
 
+from .material_names import display_materials, frozen_names
 from .planning import clearance_ref, verify_clearance
 
 RU = {
@@ -72,7 +73,7 @@ EN = {key: key.replace("_", " ").capitalize() for key in RU} | {
 }
 
 
-def render_plan(candidate, review, accepted, language):
+def render_plan(candidate, review, accepted, language, *, material_titles=None):
     labels = RU if language.startswith("ru") else EN
     output = candidate["output"]
     plan = output["plan"]
@@ -102,6 +103,9 @@ def render_plan(candidate, review, accepted, language):
             else:
                 lines.append("**" + labels[key] + ":** " + str(value))
 
+    def material_names(refs):
+        return display_materials(refs, material_titles)
+
     def seconds(value):
         return f"{value['min_seconds']}–{value['max_seconds']} {labels['seconds']}"
 
@@ -115,7 +119,7 @@ def render_plan(candidate, review, accepted, language):
         section("opening")
         field("approach", plan["opening"]["approach"])
         field("opening_question", plan["opening"]["question_to_open"])
-        field("refs", ", ".join(plan["opening"]["material_refs"]))
+        field("refs", material_names(plan["opening"]["material_refs"]))
         section("acts")
         for index, act in enumerate(plan["acts"], 1):
             lines.extend(["", f"### {index}. {act['title']}"])
@@ -126,7 +130,7 @@ def render_plan(candidate, review, accepted, language):
                 ("voice_limits", "limitations_to_voice"),
             ]:
                 field(label, act.get(key))
-            field("refs", ", ".join(act["material_refs"]))
+            field("refs", material_names(act["material_refs"]))
             field("previous", act["transitions"]["from_previous"])
             field("next", act["transitions"]["toward_next"])
             field("opened", act["promises_opened"])
@@ -155,7 +159,7 @@ def render_plan(candidate, review, accepted, language):
             field("blocking" if request["blocking"] else "nonblocking", request["question"])
             field("why", request["why_needed"])
             field("affected", ", ".join(request["affected_act_ids"]))
-            field("refs", ", ".join(request["material_refs"]))
+            field("refs", material_names(request["material_refs"]))
     if review:
         section("decision")
         decision = review["output"]
@@ -194,7 +198,8 @@ def export_planning(journal, run_id, *, language):
                 if record["candidate_plan_ref"]["record_id"] == str(selected["output_record_id"]):
                     review = record
                     break
-    rendered = render_plan(candidate, review, proof is not None, language)
+    material_titles = frozen_names(journal, run_id, journal.manifest(run_id))
+    rendered = render_plan(candidate, review, proof is not None, language, material_titles=material_titles)
     if proof and proof.get("additional_conditions"):
         rendered += (
             "\nАдреса отзыва исправлены отдельной модельной попыткой; это дополнительное условие оценки.\n"

@@ -69,8 +69,22 @@ def reading_payload(
             )
             for origin in ("reader", "fact")
         ]
-        payload["support"] = knowledge_view(packet, labels=True, selected=selected)
-        if needed_labels:
+        payload["support"] = knowledge_view(
+            packet, labels=packet.contract != "editorial-input/2", selected=selected
+        )
+        if packet.contract == "editorial-input/2":
+            passages = evidence_view(packet)
+            for guidance in payload["revision_guidance"]:
+                if guidance["origin"] != "fact":
+                    continue
+                for finding in guidance["findings"]:
+                    references = set(finding.pop("support_labels"))
+                    finding["evidence"] = [
+                        dict(source=passage["source"], text=passage["text"])
+                        for passage in passages
+                        if references.intersection(passage["supports"])
+                    ]
+        elif needed_labels:
             payload["repair_evidence"] = [
                 row for row in evidence_view(packet) if needed_labels.intersection(row["supports"])
             ]

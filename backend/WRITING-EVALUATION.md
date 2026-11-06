@@ -23,11 +23,11 @@ pgwrite() {
 
 ```sh
 pgwrite editorial-import \
-  --input ../evals/editorial-inputs/v1/gps-clock/shared.json \
+  --input ../evals/editorial-inputs/current/gps-clock/shared.json \
   --source-map /tmp/source-map.json --out /tmp/gps-shared-ref.json
 
 pgwrite fixed-editorial-import \
-  --input ../evals/editorial-inputs/v1/gps-clock/fixed-plan.json \
+  --input ../evals/editorial-inputs/current/gps-clock/fixed-plan.json \
   --source-map /tmp/source-map.json --shared-ref @/tmp/gps-shared-ref.json \
   --out /tmp/gps-fixed-ref.json
 ```
@@ -35,6 +35,8 @@ pgwrite fixed-editorial-import \
 Для нового назначения те же схемы поддерживают произвольную тему, `solo`/`dialogue`, язык, голоса и их функции. Новые необязательные `assignment.listener_profile` и `assignment.genre` содержат только нейтральное описание слушателя и жанра. Холодное чтение не получает прежние audience/style_guidance; при отсутствии безопасных полей используются нейтральный слушатель без знания темы и жанр podcast. Новые точные документы можно отдельно принять через `editorial-source-import --file /ABS/SOURCE.txt --source-path sources/source.txt --scope ASSIGNMENT_SCOPE --purpose primary --out /tmp/source-ref.json`; доступные назначения также `brief`, `dossier`, `fixed_plan`.
 
 Импорт сверяет полный исходник, hash, происхождение и область источников, строгие Unicode codepoint диапазоны `[start,end)` и текст каждой цитаты. Повтор и одновременный импорт одинаковой версии идемпотентны. Оригинальные JSON bytes сохраняются; слишком большой модельный вход вызывает ошибку, а не усечение. Общий пакет не содержит ссылок на fixed-plan; отдельный fixed пакет связан с точным digest shared.
+
+В текущих пакетах `/2` карточка имеет устойчивый card_id и независимые label/title; импорт ID не генерирует. Создание, перевод и проверенная перепривязка fixed: [schemas/card-identity.md](schemas/card-identity.md).
 
 Схемы, пример JSON и варианты preview: [schemas/README.md](schemas/README.md).
 

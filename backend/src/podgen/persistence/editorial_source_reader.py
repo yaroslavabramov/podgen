@@ -153,4 +153,4 @@ def validate_bindings(repo, project, packet, docs, *, fixed_document=None):
         for quote in card.excerpts:
             text = docs[quote.document].text
             if not 0 <= quote.start < quote.end <= len(text) or text[quote.start : quote.end] != quote.text:
-                raise ContractError("editorial_excerpt_mismatch", card.label)
+                raise ContractError("editorial_excerpt_mismatch", card.card_id or card.label)

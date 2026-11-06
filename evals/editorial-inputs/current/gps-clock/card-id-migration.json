@@ -1,0 +1,16 @@
+{
+  "contract": "editorial-card-migration/1",
+  "source_digest": "95ffb9d8256fdfd45af91f0310b35620889e4a1f53e9a2c1ff6ad37a4f6f8ae3",
+  "target_digest": "ed0a208acd0df82b07609d004fcef2b2ea6f07e6081787aa637ae602ae960dd2",
+  "card_ids": {
+    "Сигнал": "Cc84cd8e99dc4",
+    "Псевдодальность": "C8145f34b1308",
+    "Общие часы": "C7f431aeab200",
+    "Совместное решение": "C6c65066ae380",
+    "Геометрия": "Caf610eac2b16",
+    "Микросекунда": "Cd945415357a1",
+    "Остальные ошибки": "C67315c3cfb14",
+    "Известная высота": "C4320257d9bd3"
+  },
+  "source_sha256": "e018d0a117155bd2ce3c16367327f1c060b76d1b3a23e8cf191accaa325c62f6"
+}

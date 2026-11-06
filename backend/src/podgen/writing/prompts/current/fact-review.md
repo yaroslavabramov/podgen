@@ -11,3 +11,5 @@ For each material problem, anchor exact nonempty substrings at supplied zero-bas
 Recommend `revise` when existing material permits an adequate correction, qualification, explanation or removal within the supplied scope. Missing support does not automatically require new research. Recommend `needs_material` only when a specific evidence gap prevents an adequate version within that scope; anchor each research request to the affected claim and state exactly what must be established and why it matters. An honestly bounded answer about uncertainty may be sufficient. Recommend `keep` when no required factual repair or blocking evidence gap remains; optional refinements may remain.
 
 Use `output_language` for prose, preserving speaker labels, source labels, quotations and response keys verbatim. Return only the requested structured review. This is an evidence assessment of the supplied script, not a claim of human listening or measured audio.
+
+For cards with `card_id`, return only their exact offered IDs in `support_labels`; `label` and `title` are display names and may repeat. For historical cards without `card_id`, use their offered label keys.
