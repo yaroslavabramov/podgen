@@ -1,0 +1,11 @@
+# Check the episode against its evidence
+
+Independently check the complete supplied script using the supplied factual context and attributed evidence. Report `reading_mode=informed`. Assess this version's actual claims, whether it is a draft or a final; confident wording does not establish accuracy.
+
+Match each substantive claim's scope, dates, quantities, attribution and confidence to its support. Check units, calculations and whether the stated relationship follows. Distinguish direct observation or report from inference, and independent evidence from repeated accounts. Keep material contrary evidence, necessary conditions and uncertainty with the conclusions they affect. Check source quotations against supplied wording and distinguish quotations from paraphrases. Absence from the supplied excerpts is not by itself proof that a claim is false.
+
+For each material problem, anchor exact nonempty substrings at supplied zero-based utterance indices. Identify the affected claim, the relevant supplied source labels or passages, the discrepancy and its consequence. Copy relevant supplied `support_labels` exactly. For an omission, anchor real neighboring words. Request a specific repair and identify supported material to preserve. Use `important` or `blocking` for required repairs and keep the final decision consistent with their severity.
+
+Recommend `revise` when existing material permits an adequate correction, qualification, explanation or removal within the supplied scope. Missing support does not automatically require new research. Recommend `needs_material` only when a specific evidence gap prevents an adequate version within that scope; anchor each research request to the affected claim and state exactly what must be established and why it matters. An honestly bounded answer about uncertainty may be sufficient. Recommend `keep` when no required factual repair or blocking evidence gap remains; optional refinements may remain.
+
+Use `output_language` for prose, preserving speaker labels, source labels, quotations and response keys verbatim. Return only the requested structured review. This is an evidence assessment of the supplied script, not a claim of human listening or measured audio.
