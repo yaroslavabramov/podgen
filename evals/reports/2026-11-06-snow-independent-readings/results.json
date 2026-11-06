@@ -1,0 +1,233 @@
+{
+  "run": "509360fb-511a-4048-8a54-d751d739c378",
+  "review_status": "revision_limit_exhausted",
+  "status": "needs_attention",
+  "probe": {
+    "model": "gpt-6.1-terra",
+    "tier": "default",
+    "usd": "0.02160675",
+    "usage": {
+      "input_tokens": 5138,
+      "input_tokens_details": {
+        "cache_write_tokens": 5135,
+        "cached_tokens": 0
+      },
+      "output_tokens": 3037,
+      "output_tokens_details": {
+        "reasoning_tokens": 697
+      },
+      "total_tokens": 8175
+    }
+  },
+  "failure_code": "independent_review_revision_limit_exhausted",
+  "original_report": "../2026-11-06-snow-investigation-full",
+  "comparison": "saved original draft, same Terra reviewer model; changed prompts and context together",
+  "rounds": [
+    {
+      "version": 0,
+      "reader": "revise",
+      "fact": "revise",
+      "combined": "revise"
+    },
+    {
+      "version": 1,
+      "reader": "revise",
+      "fact": "revise",
+      "combined": "revise"
+    },
+    {
+      "version": 2,
+      "reader": "revise",
+      "fact": "keep",
+      "combined": "revise"
+    }
+  ],
+  "readings": {
+    "0": {
+      "words": 2040,
+      "seconds": 1110.11,
+      "sha256": "0a773c48347d588ceda109058b5acf8f8fb82ef030a63125e49d1a4e80640e0f"
+    },
+    "1": {
+      "words": 2220,
+      "seconds": 1207.6,
+      "sha256": "e53c28066d56dc0d35ecc36bf77fbb5714599740d37a4195876e8c93ee6eaa7e"
+    },
+    "2": {
+      "words": 2283,
+      "seconds": 1233.32,
+      "sha256": "915fa514ac8f5ce6dae3784b8eb9d8cdd6e380bf24cc4d3d6c994ff98abe8418"
+    }
+  },
+  "reading_settings": {
+    "voice": "macOS Milena",
+    "rate": 130
+  },
+  "target_seconds": [
+    780,
+    1080
+  ],
+  "usd": "0.30789175",
+  "calls": {
+    "fact-review-1": {
+      "model": "gpt-6.1-terra",
+      "tier": "default",
+      "usd": "0.02851425",
+      "usage": {
+        "input_tokens": 15960,
+        "input_tokens_details": {
+          "cache_write_tokens": 15957,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1713,
+        "output_tokens_details": {
+          "reasoning_tokens": 516
+        },
+        "total_tokens": 17673
+      }
+    },
+    "fact-review-2": {
+      "model": "gpt-6.1-terra",
+      "tier": "default",
+      "usd": "0.0286005",
+      "usage": {
+        "input_tokens": 16053,
+        "input_tokens_details": {
+          "cache_write_tokens": 16050,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1707,
+        "output_tokens_details": {
+          "reasoning_tokens": 516
+        },
+        "total_tokens": 17760
+      }
+    },
+    "fact-review": {
+      "model": "gpt-6.1-terra",
+      "tier": "default",
+      "usd": "0.02642425",
+      "usage": {
+        "input_tokens": 15640,
+        "input_tokens_details": {
+          "cache_write_tokens": 15637,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1375,
+        "output_tokens_details": {
+          "reasoning_tokens": 443
+        },
+        "total_tokens": 17015
+      }
+    },
+    "reader-review-1": {
+      "model": "gpt-6.1-terra",
+      "tier": "default",
+      "usd": "0.0237555",
+      "usage": {
+        "input_tokens": 5389,
+        "input_tokens_details": {
+          "cache_write_tokens": 5386,
+          "cached_tokens": 0
+        },
+        "output_tokens": 3404,
+        "output_tokens_details": {
+          "reasoning_tokens": 817
+        },
+        "total_tokens": 8793
+      }
+    },
+    "reader-review-2-anchors": {
+      "model": "gpt-6.1-terra",
+      "tier": "default",
+      "usd": "0.0030205",
+      "usage": {
+        "input_tokens": 1905,
+        "input_tokens_details": {
+          "cache_write_tokens": 1902,
+          "cached_tokens": 0
+        },
+        "output_tokens": 128,
+        "output_tokens_details": {
+          "reasoning_tokens": 69
+        },
+        "total_tokens": 2033
+      }
+    },
+    "reader-review-2": {
+      "model": "gpt-6.1-terra",
+      "tier": "default",
+      "usd": "0.02300675",
+      "usage": {
+        "input_tokens": 5482,
+        "input_tokens_details": {
+          "cache_write_tokens": 5479,
+          "cached_tokens": 0
+        },
+        "output_tokens": 3231,
+        "output_tokens_details": {
+          "reasoning_tokens": 835
+        },
+        "total_tokens": 8713
+      }
+    },
+    "reader-review": {
+      "model": "gpt-6.1-terra",
+      "tier": "default",
+      "usd": "0.0217555",
+      "usage": {
+        "input_tokens": 5069,
+        "input_tokens_details": {
+          "cache_write_tokens": 5066,
+          "cached_tokens": 0
+        },
+        "output_tokens": 3084,
+        "output_tokens_details": {
+          "reasoning_tokens": 645
+        },
+        "total_tokens": 8153
+      }
+    },
+    "revise-1": {
+      "model": "gpt-6.1-sol",
+      "tier": "default",
+      "usd": "0.0744535",
+      "usage": {
+        "input_tokens": 12074,
+        "input_tokens_details": {
+          "cache_write_tokens": 12071,
+          "cached_tokens": 0
+        },
+        "output_tokens": 4427,
+        "output_tokens_details": {
+          "reasoning_tokens": 207
+        },
+        "total_tokens": 16501
+      }
+    },
+    "revise-2": {
+      "model": "gpt-6.1-sol",
+      "tier": "default",
+      "usd": "0.078361",
+      "usage": {
+        "input_tokens": 12697,
+        "input_tokens_details": {
+          "cache_write_tokens": 12694,
+          "cached_tokens": 0
+        },
+        "output_tokens": 4662,
+        "output_tokens_details": {
+          "reasoning_tokens": 111
+        },
+        "total_tokens": 17359
+      }
+    }
+  },
+  "total_usd_including_prompt_check": "0.32949850",
+  "prompts": {
+    "reader-review": "5e5dde2fcdc6c6f3496d8a93d3c64dd1f83d3fbbff16129e21ba4dfaecc665f8",
+    "fact-review": "6b7a049f9df5a0e31519c641971431e26743eb78d1c12b3fdd13d27990544451",
+    "revise-1": "12fa2d235468c13ffd9bd21d2f03870d3ef1bf4b099ab122ad4ddd620a6310a3",
+    "reader-prompt-check": "536f5f0d1d396cf410f755d1a397bb786b4c91f3977b3aef1d468c01dda678bd"
+  }
+}
