@@ -1,0 +1,253 @@
+{
+  "input": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "{\"output_language\":\"ru\",\"draft\":{\"utterances\":[{\"index\":0,\"speaker\":\"ИЛЬЯ\",\"text\":\"Я каждый день вижу в телефоне свою точку на карте, и мозг сам дорисовывает простую картину: где-то в небе спутник как будто знает, где я, и сообщает это телефону. Но ведь сигнал от спутника — широковещательный. Он всем один и тот же. Тогда если спутники не получают от меня мои координаты, откуда навигатор берёт мою точку на карте?\"},{\"index\":1,\"speaker\":\"НИНА\",\"text\":\"Вот это и есть правильная загадка. Спутник не знает, где именно ты стоишь, и не отвечает тебе персонально. Приёмник в телефоне в основном молча слушает несколько спутников сразу. Из их сигналов он не получает готовое сообщение вида «Илья сейчас здесь». Он сам вычисляет своё положение по тому, когда сигналы пришли и где в этот момент были сами спутники.\"},{\"index\":2,\"speaker\":\"ИЛЬЯ\",\"text\":\"То есть первый важный поворот такой: навигатор не спрашивает у спутника дорогу к себе, а решает задачу по односторонним передачам. Тогда что именно приходит в этом сигнале? Что там такого, из чего вообще можно что-то посчитать?\"},{\"index\":3,\"speaker\":\"НИНА\",\"text\":\"В сигнале есть две ключевые вещи. Первая — известный код, то есть заранее определённая последовательность, копия которой есть и в приёмнике. Вторая — навигационное сообщение. Из сообщения приёмник получает время передачи, данные о положении спутника на орбите и поправку к часам спутника. А по коду он понимает, насколько принятый сигнал сдвинут по времени относительно его собственной копии.\"},{\"index\":4,\"speaker\":\"ИЛЬЯ\",\"text\":\"Подожди, а разве не достаточно просто поймать совпадение этого кода? Нашёл одинаковый рисунок — вот тебе и задержка.\"},{\"index\":5,\"speaker\":\"НИНА\",\"text\":\"Не совсем. Код повторяется, поэтому одно локальное совпадение ещё не даёт полной временной привязки. Нужно синхронизироваться с более крупной структурой сигнала и использовать данные сообщения, чтобы понять, к какому именно моменту относится найденное совпадение. Иначе ты увидишь, что кусок похож, но не узнаешь надёжно, какой это был момент передачи в шкале времени GPS.\"},{\"index\":6,\"speaker\":\"ИЛЬЯ\",\"text\":\"То есть приёмник делает примерно так: у него есть своя копия кода, он подгоняет её по времени к принятому сигналу, а сообщение помогает понять, когда спутник этот кусок реально передал и где сам спутник тогда находился.\"},{\"index\":7,\"speaker\":\"НИНА\",\"text\":\"Да, именно. И здесь важно не смешать две разные поправки. Одна относится к часам спутника: она передаётся в сообщении, и приёмник её учитывает, чтобы привести время передачи к времени GPS. Другая появится позже — это уже неизвестный сдвиг часов самого приёмника. Его спутник не сообщает, потому что сам не знает.\"},{\"index\":8,\"speaker\":\"ИЛЬЯ\",\"text\":\"Хорошо. Значит, после этого приёмник знает положение спутника и знает время, когда сигнал был отправлен. Тогда самое естественное — взять время приёма, вычесть время передачи, умножить на скорость света и получить расстояние. Это и есть то, что он измеряет?\"},{\"index\":9,\"speaker\":\"НИНА\",\"text\":\"Почти, но слово «расстояние» тут слишком смелое. Базовое измерение называется псевдодальностью. Это разность времени приёма по часам приёмника и времени передачи по часам спутника, уже приведённым к времени GPS, умноженная на скорость света. Почему «псевдо»? Потому что в этом числе сидит не только геометрическое расстояние до спутника.\"},{\"index\":10,\"speaker\":\"ИЛЬЯ\",\"text\":\"А что ещё туда подмешано, кроме настоящего расстояния? Я хочу понять, что именно измерено, а что уже потом домысливается моделью.\"},{\"index\":11,\"speaker\":\"НИНА\",\"text\":\"Очень хороший акцент. Измерено именно это составное число. В нём есть геометрическое расстояние, есть вклад от того, что часы приёмника не идеально синхронизированы со временем GPS, и есть другие задержки и ошибки: атмосфера, отражения, шум, неточности моделей. Поэтому псевдодальность — реальное наблюдение, но это не чистая длина от тебя до спутника, измеренная линейкой.\"},{\"index\":12,\"speaker\":\"ИЛЬЯ\",\"text\":\"Тогда проверю на числах. Если часы приёмника ошибаются на микросекунду, это много или мало?\"},{\"index\":13,\"speaker\":\"НИНА\",\"text\":\"По меркам света — очень много. Свет проходит примерно 299,8 метра за микросекунду, в разговоре можно округлить до трёхсот метров. Поэтому микросекундный сдвиг часов приёмника добавит примерно по триста метров к каждой псевдодальности одной и той же эпохи наблюдений. И это важная фраза: к каждой псевдодальности, а не обязательно к положению на карте ровно на триста метров.\"},{\"index\":14,\"speaker\":\"ИЛЬЯ\",\"text\":\"Почему именно к каждой? Потому что все времена приёма отсчитывают одни и те же часы телефона?\"},{\"index\":15,\"speaker\":\"НИНА\",\"text\":\"Да. После того как ты учёл поправки спутников, остаётся один общий сдвиг часов приёмника относительно времени GPS. Если часы телефона спешат, все моменты приёма как бы записаны чуть позже, чем надо, и все псевдодальности завышаются на одну и ту же добавку. Если часы отстают — наоборот. Общность появляется не из магии, а из того, что все измерения одной эпохи используют одни и те же местные часы.\"},{\"index\":16,\"speaker\":\"ИЛЬЯ\",\"text\":\"Вот тут у меня главный скепсис. Если все измерения испорчены одними и теми же часами, почему задача вообще решаема? Не получается ли, что мы никогда не узнаем, где я, потому что не знаем, как сильно часы соврали?\"},{\"index\":17,\"speaker\":\"НИНА\",\"text\":\"Если бы у нас было одно измерение, именно так и было бы. Но у нас несколько спутников. В обычной трёхмерной задаче неизвестны четыре вещи сразу: три координаты приёмника и один общий сдвиг его часов. Каждая псевдодальность накладывает ограничение не только на расстояние, но сразу на весь этот набор неизвестных. Поэтому приёмник не делает два шага вида «сначала нашёл расстояния, потом отдельно поправил часы». Он подбирает координаты и сдвиг часов совместно.\"},{\"index\":18,\"speaker\":\"ИЛЬЯ\",\"text\":\"То есть математически он спрашивает: если бы я был вот в этой точке и мои часы были сдвинуты вот настолько, какие псевдодальности я бы ожидал увидеть? И потом сравнивает ожидаемое с тем, что реально измерил?\"},{\"index\":19,\"speaker\":\"НИНА\",\"text\":\"Да, это очень точное описание идеи. Он перебирает не буквально все точки по очереди, конечно, а решает задачу эффективнее, но смысл именно такой: найти такой набор из трёх координат и одного временного сдвига, который лучше всего согласуется с измерениями от нескольких спутников. В идеальной учебной картине можно добиться полного совпадения. В реальности ищут достаточно хорошее согласование, потому что наблюдения шумные.\"},{\"index\":20,\"speaker\":\"ИЛЬЯ\",\"text\":\"Теперь понятно, откуда берётся правило про четыре спутника? Потому что неизвестных четыре?\"},{\"index\":21,\"speaker\":\"НИНА\",\"text\":\"Да, в обычной трёхмерной постановке — как минимум четыре независимых наблюдения при пригодной геометрии. Три координаты плюс сдвиг часов приёмника. Если наблюдений меньше, информации обычно не хватает. Есть специальные случаи с дополнительным внешним знанием. Например, если высота заранее известна, неизвестных становится меньше, и постановка меняется. Но для обычного ответа на вопрос «где я в 3D?» говорят именно о четырёх.\"},{\"index\":22,\"speaker\":\"ИЛЬЯ\",\"text\":\"Слово «независимых» ты сказала не случайно. Что значит независимых здесь? Почему недостаточно просто услышать четыре сигнала хоть как-нибудь?\"},{\"index\":23,\"speaker\":\"НИНА\",\"text\":\"Потому что важна геометрия. Представь, что точное расстояние до известного спутника задаёт сферу возможных положений: ты где-то на поверхности этой сферы. Несколько спутников дают несколько таких ограничений. Но если направления на спутники неудачно расположены, изменения расстояний при перемещении приёмника будут отличаться слабо, и тогда ошибку в измерениях труднее превратить в точную точку. Поэтому мало количества как такового; нужно ещё, чтобы расположение спутников позволяло различить движение в пространстве и общий временной сдвиг.\"},{\"index\":24,\"speaker\":\"ИЛЬЯ\",\"text\":\"Давай я попробую сформулировать. Если я реально перемещаю предполагаемую точку, расстояния до разных спутников меняются по-разному, потому что спутники висят в разных направлениях. А если я просто добавляю ошибку часов, ко всем псевдодальностям прибавляется одно и то же число.\"},{\"index\":25,\"speaker\":\"НИНА\",\"text\":\"Именно. Это ключевое различие. Перемещение и временной сдвиг влияют на набор измерений по-разному. Не обязательно так, что у одних спутников расстояние растёт, а у других непременно падает; важен сам рисунок изменений по направлениям. При хорошей геометрии этот рисунок отличается от одинаковой общей добавки, и приёмник может отделить одно от другого. При плохой — отделить труднее, и ошибка положения усиливается.\"},{\"index\":26,\"speaker\":\"ИЛЬЯ\",\"text\":\"Это и есть та самая история про геометрию спутников, которую иногда прячут за сокращением DOP?\"},{\"index\":27,\"speaker\":\"НИНА\",\"text\":\"Да. DOP описывает, насколько взаимное расположение спутников и приёмника помогает или мешает перевести ошибки измерений в точное решение по координатам. Если спутники для тебя раскиданы по небу удачно, одна и та же погрешность псевдодальностей даст меньшую ошибку точки. Если они скучены в похожих направлениях, та же самая погрешность может дать заметно больший промах на карте.\"},{\"index\":28,\"speaker\":\"ИЛЬЯ\",\"text\":\"Значит, ошибка измерения и ошибка точки — не одно и то же. Микросекунда часов даёт примерно триста метров в каждую псевдодальность, но сама точка может сместиться не на эти же триста метров, а как-то по-другому, в зависимости от геометрии и решения.\"},{\"index\":29,\"speaker\":\"НИНА\",\"text\":\"Совершенно верно. Это частая путаница. Псевдодальность — уровень отдельных наблюдений. Положение на карте — результат их совместного согласования. Между ними есть геометрия и вычисление. Поэтому нельзя механически переводить любую ошибку во времени в такую же простую ошибку точки.\"},{\"index\":30,\"speaker\":\"ИЛЬЯ\",\"text\":\"Хорошо, принцип вычисления сложился. Но пользователь видит более бытовую вещь: иногда точка стоит почти идеально, а иногда чуть плавает, смещается на несколько метров или даже сильнее. Если механизм понятен, откуда берётся эта неточность?\"},{\"index\":31,\"speaker\":\"НИНА\",\"text\":\"Здесь полезно разделить причины на два уровня. Первый уровень — сами псевдодальности неидеальны. Сигнал проходит через ионосферу и тропосферу, отражается от зданий и других поверхностей, в измерение входит шум приёмника, остаются неточности моделей и разные аппаратные мелочи. Всё это искажает отдельные наблюдения. Второй уровень — геометрия спутников либо смягчает, либо усиливает влияние этих искажений на итоговое положение.\"},{\"index\":32,\"speaker\":\"ИЛЬЯ\",\"text\":\"То есть атмосферная задержка или отражённый сигнал — это не тот же самый общий сдвиг, что ошибка часов приёмника?\"},{\"index\":33,\"speaker\":\"НИНА\",\"text\":\"Да, и это важно не сваливать в одну кучу. Общий сдвиг часов приёмника одинаково добавляется ко всем псевдодальностям одной эпохи. А атмосферные ошибки, отражения и шум ведут себя не так: они могут отличаться от спутника к спутнику. Поэтому приёмник оценивает общий временной сдвиг, но этим не устраняются все остальные искажения. Для них нужны модели, поправки и просто хорошие условия приёма.\"},{\"index\":34,\"speaker\":\"ИЛЬЯ\",\"text\":\"Получается, когда я стою во дворе рядом с домами, телефон может видеть не самый прямой сигнал, а отражённый путь, и из-за этого кажется, будто спутник дальше, чем есть на самом деле?\"},{\"index\":35,\"speaker\":\"НИНА\",\"text\":\"Да, это хороший интуитивный пример. Если сигнал пришёл не только прямым путём, а ещё и через отражение, время прихода может выглядеть чуть больше. Тогда псевдодальность получается завышенной. И если таких искажений несколько, совместное решение сместит твою точку. При этом смещение зависит от того, какие именно наблюдения испорчены и как расположены спутники.\"},{\"index\":36,\"speaker\":\"ИЛЬЯ\",\"text\":\"А дополнительные спутники помогают просто потому, что у нас больше информации и можно найти более согласованное решение?\"},{\"index\":37,\"speaker\":\"НИНА\",\"text\":\"Да. Минимум в обычной 3D-задаче — четыре наблюдения, но когда спутников больше, приёмник получает избыточность. Это полезно: можно лучше согласовать шумные данные, замечать выбросы, устойчивее оценивать и положение, и сдвиг часов. Но даже много наблюдений не делают магию: если условия плохие или геометрия неудачная, точка всё равно останется оценкой, а не абсолютной истиной.\"},{\"index\":38,\"speaker\":\"ИЛЬЯ\",\"text\":\"Мне нравится слово «оценка». Оно как раз убирает иллюзию, будто навигатор видит моё место напрямую. Он ведь не наблюдает меня сверху камерой и не получает от спутника мой адрес. Он вычисляет наиболее правдоподобную точку, которая лучше всего объясняет набор времён прихода.\"},{\"index\":39,\"speaker\":\"НИНА\",\"text\":\"Да, это очень точное резюме. И можно ещё раз собрать цепочку целиком. Спутники широковещательно передают известный код и навигационное сообщение. Приёмник по сообщению узнаёт время передачи, положение спутников и поправки их часов, а по сопоставлению кода оценивает сдвиг принятого сигнала по времени. Из этого он получает не чистые расстояния, а псевдодальности.\"},{\"index\":40,\"speaker\":\"ИЛЬЯ\",\"text\":\"Дальше эти псевдодальности связывают четыре неизвестных обычной задачи: три координаты и один общий сдвиг часов приёмника. И поэтому нужно как минимум четыре независимых наблюдения при нормальной геометрии, чтобы совместно подобрать такое положение и такой сдвиг часов, которые лучше всего подходят к измерениям.\"},{\"index\":41,\"speaker\":\"НИНА\",\"text\":\"Именно так. А если итоговая точка не идеально совпадает с реальным местом, причина не в том, что спутник «неправильно сообщил координаты пользователя». Спутник их вообще не сообщает. Причина в том, что измерения времени прихода и их модели неидеальны, плюс геометрия спутников может усиливать или ослаблять ошибку решения.\"},{\"index\":42,\"speaker\":\"ИЛЬЯ\",\"text\":\"Тогда ответ на исходный вопрос звучит почти неожиданно просто: GPS определяет моё положение не потому, что кто-то в космосе знает, где я, а потому, что мой приёмник сам решает задачу по нескольким сигналам, сравнивая времена их прихода.\"},{\"index\":43,\"speaker\":\"НИНА\",\"text\":\"Да. Если совсем в одну фразу: твоя точка на карте — это вычисленная оценка положения по времени прихода сигналов от нескольких спутников. Точнее, по псевдодальностям до них. Приёмник совместно подбирает три координаты и общий сдвиг своих часов так, чтобы они лучше всего согласовали наблюдения. Поэтому навигатор обычно знает, где ты, довольно хорошо — но не идеально и не напрямую.\"}]},\"assignment\":{\"title\":\"Откуда навигатор знает, где я?\",\"question\":\"Как GPS определяет положение пользователя по спутниковым сигналам?\",\"audience\":\"Люди, которые пользуются навигатором и видят свою точку на карте, но не разбирались, как она определяется.\",\"listener_outcome\":\"Слушатель сможет объяснить, откуда берётся его точка на карте навигатора и почему она не всегда точно показывает, где он находится.\",\"format\":\"dialogue\",\"output_language\":\"ru\",\"speakers\":[{\"label\":\"НИНА\",\"function\":\"Объясняет механизм и связывает выводы с измерениями.\",\"speech_register\":\"Спокойная, конкретная разговорная речь.\"},{\"label\":\"ИЛЬЯ\",\"function\":\"Самостоятельно проверяет рассуждение и уточняет, что именно измерено. Его вопросы и выводы помогают собеседнице уточнять объяснение.\",\"speech_register\":\"Доброжелательная, точная разговорная речь.\"}],\"duration\":{\"target_seconds\":900,\"min_seconds\":780,\"max_seconds\":1080},\"knowledge_cutoff\":\"2026-11-05T00:00:00Z\",\"required_topics\":[],\"excluded_topics\":[\"Расчёт маршрутов и устройство цифровых карт.\",\"Определение положения по сотовым вышкам.\"]},\"editorial_frame\":{\"main_question\":\"Как GPS определяет положение пользователя по спутниковым сигналам?\",\"listener_promise\":\"Слушатель поймёт, что навигатор не получает от спутника готовые координаты пользователя, а сам вычисляет положение по нескольким измерениям времени прихода сигнала. Он сможет объяснить, почему в обычной трёхмерной задаче нужны как минимум четыре независимых наблюдения и почему точка на карте не всегда совпадает с реальным местом.\",\"qualifications\":[\"Подчеркнуть, что обычная трёхмерная постановка требует как минимум четырёх независимых наблюдений при пригодной геометрии.\",\"Отметить, что псевдодальность — не чистое расстояние: в ней остаются и другие ошибки помимо часов приёмника.\",\"Зафиксировать, что точность зависит и от качества сигналов, и от геометрии спутников, поэтому ошибка измерения не равна напрямую ошибке точки на карте.\"],\"limitations\":[\"План сознательно не уходит в исключённые темы: расчёт маршрутов, устройство цифровых карт и определение положения по сотовым вышкам.\",\"Материал опирается на учебную модель кодовых измерений GPS, приведённых к одной эпохе; детальные алгоритмы фильтрации, многосистемные приёмники и инженерные реализации здесь не раскрываются.\",\"В досье есть основания говорить о поправках часов спутника, псевдодальности, совместной оценке координат и часов приёмника, геометрии и основных источниках ошибок; подробности о конкретных потребительских функциях навигаторов вне объёма этого эпизода.\",\"Тема релятивистских эффектов как отдельного объяснительного блока в предложенном маршруте не нужна, потому что для ответа на вопрос слушателя достаточно зафиксировать: спутниковые часы корректируются, а приёмник использует переданные поправки.\"],\"unresolved_questions\":[]},\"support\":[{\"title\":\"Из кода и сообщения получается временная привязка\",\"claim\":\"Спутник передаёт известный код и навигационное сообщение. Сообщение позволяет определить время передачи, положение спутника и поправку его часов. Приёмник сопоставляет принятый код со своей копией, подбирая сдвиг. Код повторяется: одно совпадение рисунка не даёт полной временной привязки без синхронизации и данных сообщения. Сигнал широковещательный; приёмник не запрашивает у спутника свои координаты.\",\"context\":\"Код сопоставляют с местной копией; навигационное сообщение даёт временную привязку, положение спутника и поправку его часов.\",\"limitations\":[\"Повторяющийся код требует синхронизации с битами и кадрами сообщения.\",\"Поправки часов спутника и оцениваемый сдвиг часов приёмника — разные величины.\"],\"sources\":[\"Министерство обороны США. GPS Standard Positioning Service Performance Standard, 5-е издание, апрель 2020\",\"Luke Winternitz, NASA/GSFC. Introduction to GPS and other Global Navigation Satellite Systems, 2017\"],\"label\":\"Сигнал\"},{\"title\":\"Измерение дальности по двум часам\",\"claim\":\"Псевдодальность — разность времени приёма по часам приёмника и времени передачи по часам спутника, умноженная на скорость света. Спутниковую шкалу приводят к времени GPS по переданной поправке. Полученное число — реальное измерение, но оно содержит геометрическое расстояние, сдвиг часов приёмника и другие задержки и ошибки.\",\"context\":\"Определение относится к кодовому измерению. Время приёма задано часами приёмника, а время передачи — спутниковыми часами; переданная поправка переводит спутниковое измерение к времени GPS.\",\"limitations\":[\"Время пути сигнала и разность показаний несовпадающих часов — разные величины.\"],\"sources\":[\"Министерство обороны США. GPS Standard Positioning Service Performance Standard, 5-е издание, апрель 2020\"],\"label\":\"Псевдодальность\"},{\"title\":\"Одна неизвестная для нескольких измерений\",\"claim\":\"После учёта спутниковых поправок учебная модель такова: псевдодальность равна геометрическому расстоянию плюс скорость света, умноженная на сдвиг часов приёмника, плюс остальные ошибки. Сдвиг определён как местное время минус GPS-время. Если местные часы спешат, каждая псевдодальность завышена на одинаковую добавку; если отстают — добавка отрицательна. Общность возникает потому, что все моменты приёма отсчитывают одни часы.\",\"context\":\"Учебный вывод из определения псевдодальности: расстояние + скорость света × сдвиг часов + прочие ошибки. Наблюдения приведены к одной эпохе.\",\"limitations\":[\"Наблюдения относятся к общей эпохе; при движении и дрейфе оценку обновляют.\",\"Разные ошибки спутников, аппаратуры и распространения не становятся одним общим сдвигом.\"],\"sources\":[\"Luke Winternitz, NASA/GSFC. Introduction to GPS and other Global Navigation Satellite Systems, 2017\",\"Министерство обороны США. GPS Standard Positioning Service Performance Standard, 5-е издание, апрель 2020\"],\"label\":\"Общие часы\"},{\"title\":\"Место и поправка времени определяются вместе\",\"claim\":\"В обычной трёхмерной задаче неизвестны три координаты и один сдвиг часов. Каждая псевдодальность ограничивает эти неизвестные вместе. Приёмник сравнивает измерения с тем, что получилось бы для предполагаемого положения и сдвига, и ищет согласованный набор. Нужны как минимум четыре независимых наблюдения при пригодной геометрии. В идеальной учебной модели расхождения могут исчезнуть; с реальными ошибками ищут достаточно хорошее согласование.\",\"context\":\"Один набор наблюдений связывает три координаты и общий сдвиг часов; все четыре неизвестные оцениваются совместно.\",\"limitations\":[\"Каждое наблюдение участвует в совместной оценке положения и сдвига часов.\",\"Число наблюдений дополняется проверкой геометрии и выбором допустимого решения.\"],\"sources\":[\"Luke Winternitz, NASA/GSFC. Introduction to GPS and other Global Navigation Satellite Systems, 2017\"],\"label\":\"Совместное решение\"},{\"title\":\"Почему перемещение отличается от общей добавки\",\"claim\":\"Точное расстояние до известного спутника задаёт сферическую поверхность возможных положений. При изменении предполагаемого положения расстояния до спутников обычно меняются по-разному, в зависимости от направлений на них. Изменение ошибки одних часов добавляет одно и то же всем псевдодальностям. При подходящих направлениях эти изменения различимы; неудачная геометрия усиливает ошибку положения. В GPS это описывают через DOP — влияние взаимного расположения спутников и приёмника на ошибку решения.\",\"context\":\"Объяснение разных изменений расстояний — геометрический вывод из модели измерения. В стандарте влияние геометрии на ошибку описано через DOP.\",\"limitations\":[\"При перемещении не обязательно одни расстояния растут, а другие уменьшаются: важны различия изменений, а не обязательные противоположные знаки.\",\"У трёх сфер могут быть две точки пересечения; выбор положения требует дополнительного условия.\",\"При близких направлениях на спутники изменения расстояний мало различаются, и ошибка измерений сильнее влияет на положение.\"],\"sources\":[\"Министерство обороны США. GPS Standard Positioning Service Performance Standard, 5-е издание, апрель 2020\"],\"label\":\"Геометрия\"},{\"title\":\"Масштаб времени относится к измерениям\",\"claim\":\"Скорость света в стандарте — 299 792 458 метров в секунду. Одна микросекунда равна одной миллионной секунды. Их произведение — 299,792458 метра, в устном приближении около трёхсот метров. Столько составляет общий вклад микросекундного сдвига приёмных часов в псевдодальности.\",\"context\":\"Расчёт из константы стандарта: 299792458 м/с × 0,000001 с = 299,792458 м.\",\"limitations\":[\"Микросекунда сдвигает каждое измерение примерно на 300 м; как сдвинется точка на карте, зависит от расположения спутников и обработки.\"],\"sources\":[\"Министерство обороны США. GPS Standard Positioning Service Performance Standard, 5-е издание, апрель 2020\"],\"label\":\"Микросекунда\"},{\"title\":\"Атмосфера, отражения и шум\",\"claim\":\"Спутниковые часы очень точны; приёмник учитывает переданные поправки к ним. После оценки собственных часов остаются атмосферные задержки в ионосфере и тропосфере, отражённые пути сигнала, шум, ошибки моделей и приёмника. Дополнительные наблюдения помогают согласовать решение; результат зависит от геометрии и качества сигналов.\",\"context\":\"Спутниковые поправки и оценка сдвига часов приёмника — отдельные части решения. Атмосферные и аппаратные ошибки требуют своих моделей и поправок.\",\"limitations\":[],\"sources\":[\"Luke Winternitz, NASA/GSFC. Introduction to GPS and other Global Navigation Satellite Systems, 2017\",\"Министерство обороны США. GPS Standard Positioning Service Performance Standard, 5-е издание, апрель 2020\"],\"label\":\"Остальные ошибки\"},{\"title\":\"Дополнительное знание меняет постановку\",\"claim\":\"При заранее известной высоте остаются две неизвестные координаты и сдвиг времени. Стандарт допускает для этой задачи три набора наблюдений.\",\"context\":\"Число неизвестных уменьшается благодаря внешнему известному условию; речь о другой постановке той же задачи.\",\"limitations\":[\"Высота задана отдельно; обычная трёхмерная задача содержит три неизвестные координаты.\"],\"sources\":[\"Министерство обороны США. GPS Standard Positioning Service Performance Standard, 5-е издание, апрель 2020\"],\"label\":\"Известная высота\"}],\"evidence\":[{\"source\":\"Министерство обороны США. GPS Standard Positioning Service Performance Standard, 5-е издание, апрель 2020\",\"text\":\"Each satellite broadcasts LNAV message data to support the GPS receiver's PVT determination \\nprocess.\",\"supports\":[\"Сигнал\"]},{\"source\":\"Министерство обороны США. GPS Standard Positioning Service Performance Standard, 5-е издание, апрель 2020\",\"text\":\"The rest of the data in each subframe includes information required to determine \\nthe following: \\n \\n Satellite time-of-transmission \\n \\n Satellite position \\n \\n Satellite (SIS) health \\n \\n Satellite clock correction\",\"supports\":[\"Сигнал\"]},{\"source\":\"Luke Winternitz, NASA/GSFC. Introduction to GPS and other Global Navigation Satellite Systems, 2017\",\"text\":\"To detect the GPS signal and recover the navigation data, receiver “correlates” received \\n(downconverted and digitized) signal with locally generated replica of received signal\\nGPS Receivers: Acquisition and Tracking\\n PRN codes for satellites are known \\nand “orthogonal” to other codes and \\nself at non-zero time delay\\n Acquisition involves search over \\nrange of delay and Doppler, then \\nsynchronization to data bits and \\nframes\",\"supports\":[\"Сигнал\"]},{\"source\":\"Министерство обороны США. GPS Standard Positioning Service Performance Standard, 5-е издание, апрель 2020\",\"text\":\"Pseudorange Measurement.   The difference between the PRN code time of reception (as \\ndefined by the SPS receiver’s clock) and the PRN code time of transmission (as defined by the \\nsatellite’s clock) multiplied by the speed of l ight.  May also be a short -hand reference to the  \\ncorrected pseudorange measurement where the raw pseudorange measurement is adjusted to \\nGPS system time using the broadcast satellite clock correction polynomial and related data.  The \\ncorrected pseudorange measurement is also known as an SPS signal ranging measurement.\",\"supports\":[\"Псевдодальность\"]},{\"source\":\"Luke Winternitz, NASA/GSFC. Introduction to GPS and other Global Navigation Satellite Systems, 2017\",\"text\":\"The position solution involves an equation with \\nfour unknowns:\\n Three components of receiver position (x, y, z)\\n Receiver clock bias\",\"supports\":[\"Общие часы\"]},{\"source\":\"Luke Winternitz, NASA/GSFC. Introduction to GPS and other Global Navigation Satellite Systems, 2017\",\"text\":\"Receiver position and \\nclock error are to be \\nsolved for\",\"supports\":[\"Общие часы\"]},{\"source\":\"Министерство обороны США. GPS Standard Positioning Service Performance Standard, 5-е издание, апрель 2020\",\"text\":\"Pseudorange Measurement.   The difference between the PRN code time of reception (as \\ndefined by the SPS receiver’s clock) and the PRN code time of transmission (as defined by the \\nsatellite’s clock) multiplied by the speed of l ight.\",\"supports\":[\"Общие часы\"]},{\"source\":\"Luke Winternitz, NASA/GSFC. Introduction to GPS and other Global Navigation Satellite Systems, 2017\",\"text\":\"The position solution involves an equation with \\nfour unknowns:\\n Three components of receiver position (x, y, z)\\n Receiver clock bias\\n Position accuracy of ~1 m implies knowledge of the receiver \\nclock to within ~3 ns\\n Requires simultaneous measurements from \\nfour satellites\",\"supports\":[\"Совместное решение\"]},{\"source\":\"Министерство обороны США. GPS Standard Positioning Service Performance Standard, 5-е издание, апрель 2020\",\"text\":\"Dilution of Precision (DOP).  The magnifying effect on GPS position error induced by mapping \\nURE into a position solution within the specified coordinate system, through the relative satellite-\\nto-receiver geometry.\",\"supports\":[\"Геометрия\"]},{\"source\":\"Министерство обороны США. GPS Standard Positioning Service Performance Standard, 5-е издание, апрель 2020\",\"text\":\"c   Speed of light (2.99792458x108 m/sec)\",\"supports\":[\"Микросекунда\"]},{\"source\":\"Luke Winternitz, NASA/GSFC. Introduction to GPS and other Global Navigation Satellite Systems, 2017\",\"text\":\" true range (satellite position, rk, known)\\n satellite clock error (δtk, known)\\n ionosphere and troposphere delays (Ik, Tk, estimated or measured)\\n other errors (εk, satellite ephemeris and clock mis-modeling, measurement errors, multipath, receiver noise)\",\"supports\":[\"Остальные ошибки\"]},{\"source\":\"Министерство обороны США. GPS Standard Positioning Service Performance Standard, 5-е издание, апрель 2020\",\"text\":\" Signal distortions caused by ionospheric and/or tropospheric scintillation  \\n \\n         Residual receiver ionospheric delay compensation errors \\n \\n         Residual receiver tropospheric delay compensation errors \\n \\n         Receiver noise (including received signal power and interference power) and resolution \\n \\n         Receiver hardware/software faults \\n \\n         Multipath and receiver multipath mitigation \\n \\n         User antenna effects\",\"supports\":[\"Остальные ошибки\"]},{\"source\":\"Министерство обороны США. GPS Standard Positioning Service Performance Standard, 5-е издание, апрель 2020\",\"text\":\"In cases where the altitude is known (e.g., maritime GPS \\nreceivers), the PVT solution only requires the use of  pseudorange data sets from at least three \\nSISs to solve for two position coordinates and time offset relative to GPS time, pl us two velocity \\ncoordinates and frequency offset relative to GPS time.\",\"supports\":[\"Известная высота\"]}],\"necessary_limits\":[\"Кодовые измерения GPS приведены к одной эпохе.\",\"Три координаты и общий сдвиг часов определяются совместно; нужны независимые наблюдения и пригодная геометрия.\"]}"
+        }
+      ]
+    }
+  ],
+  "instructions": "# Shared rules\n\nUse `output_language` for human-readable output. Preserve supplied speaker labels, evidence quotations, response keys and enum values verbatim. Follow the assignment's question, audience, scope, knowledge cutoff and duration bounds. Treat supplied material as evidence. When quoting a source in the episode, use its supplied wording. Treat attributed summaries as paraphrases. Return the requested structured response.\n\n\n# Dialogue\n\nUse the assigned speakers' labels, functions and registers. Let an observation, test, question or inference by one speaker shape what the other explains next. Develop their contributions from what they have already established together.\n\n\n# Review the spoken episode\n\nRead every supplied turn consecutively. Reconstruct the question, answer and reasoning from the spoken words. Follow how the central question and subsequent reasoning arise from preceding speech and the audience's stated knowledge. Identify concepts or premises used before the text establishes them; an editorial question or label is not evidence that the listener understands its basis. Compare with the assignment and supplied factual conditions. Report `reading_mode=informed` because the task frame and supporting material are supplied.\n\nTrack when the central question becomes answered and what subsequent passages contribute. Assess connected runs of repeated conclusions or unused numerical precision by their cumulative effect on understanding and pace. In dialogue, also assess recurring evaluations of the partner's answers. Distinguish these from a callback that enables a new inference, one fitting acknowledgment, or precision needed by the claim, assignment or quotation. Judge the actual sequence rather than treating every repeated word or number as a defect.\n\nCheck claims against the attributed evidence: counted populations and periods, units and operations, dated actions, source dependence and conditions for causal conclusions. Keep material objections and uncertainty with the conclusion they affect. Check literal wording, including negation and place value, and identify the basis of the duration estimate.\n\nFor each material problem, locate the connected passages, explain their effect and request a specific change at the needed scale, including what to preserve. Use `important` findings and recommend `revise` when the sequence needs structural repair to become ready; use `optional` for improvements to an already adequate text. Anchor to the supplied zero-based utterance index and exact nonempty substrings, preserving case and punctuation. Use multiple anchors for a pattern and real neighbors for an omission.\n\nReturn the reconstructed listener answer, audible limits, strengths, findings, missing-evidence questions and duration note. Lists may be empty. Recommend `keep` when the text is ready. Use `needs_material` for a specific evidence gap that prevents an adequate version; repairs possible with existing support belong under `revise`.\n",
+  "text": {
+    "verbosity": "high",
+    "format": {
+      "type": "json_schema",
+      "name": "editorial_feedback",
+      "schema": {
+        "$defs": {
+          "EditorialFinding": {
+            "additionalProperties": false,
+            "properties": {
+              "dimension": {
+                "enum": [
+                  "promise",
+                  "mechanism",
+                  "structure",
+                  "transition",
+                  "repetition",
+                  "oral_style",
+                  "speaker_contribution",
+                  "factuality",
+                  "attribution",
+                  "duration",
+                  "ending"
+                ],
+                "title": "Dimension",
+                "type": "string"
+              },
+              "priority": {
+                "enum": [
+                  "blocking",
+                  "important",
+                  "optional"
+                ],
+                "title": "Priority",
+                "type": "string"
+              },
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "observation": {
+                "description": "Specific defect in the words the listener receives.",
+                "minLength": 1,
+                "title": "Observation",
+                "type": "string"
+              },
+              "requested_change": {
+                "description": "Actionable repair and intended change in understanding.",
+                "minLength": 1,
+                "title": "Requested Change",
+                "type": "string"
+              },
+              "preserve": {
+                "description": "Useful properties of the passage to retain; may be empty.",
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Preserve",
+                "type": "array"
+              }
+            },
+            "required": [
+              "dimension",
+              "priority",
+              "anchors",
+              "observation",
+              "requested_change",
+              "preserve"
+            ],
+            "title": "EditorialFinding",
+            "type": "object"
+          },
+          "EditorialStrength": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "reason": {
+                "description": "What works for the listener and should survive revision.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "reason"
+            ],
+            "title": "EditorialStrength",
+            "type": "object"
+          },
+          "ResearchNeed": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "question": {
+                "minLength": 1,
+                "title": "Question",
+                "type": "string"
+              },
+              "why_needed": {
+                "minLength": 1,
+                "title": "Why Needed",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "question",
+              "why_needed"
+            ],
+            "title": "ResearchNeed",
+            "type": "object"
+          },
+          "UtteranceAnchor": {
+            "additionalProperties": false,
+            "properties": {
+              "utterance_index": {
+                "description": "Zero-based position in the exact supplied WriteOutput.utterances list.",
+                "minimum": 0,
+                "title": "Utterance Index",
+                "type": "integer"
+              },
+              "quote": {
+                "description": "Exact nonempty substring of that utterance's spoken text.",
+                "minLength": 1,
+                "title": "Quote",
+                "type": "string"
+              }
+            },
+            "required": [
+              "utterance_index",
+              "quote"
+            ],
+            "title": "UtteranceAnchor",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Actionable text review, not a fact-check report or evidence of human listening.",
+        "properties": {
+          "reading_mode": {
+            "description": "script_only only if plan, dossier, author notes and prior reviews were not visible.",
+            "enum": [
+              "script_only",
+              "informed"
+            ],
+            "title": "Reading Mode",
+            "type": "string"
+          },
+          "listener_answer": {
+            "description": "Listener understanding reconstructed from the actual written speech, including its uncertainty.",
+            "minLength": 1,
+            "title": "Listener Answer",
+            "type": "string"
+          },
+          "important_limits": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Important Limits",
+            "type": "array"
+          },
+          "strengths": {
+            "items": {
+              "$ref": "#/$defs/EditorialStrength"
+            },
+            "title": "Strengths",
+            "type": "array"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/$defs/EditorialFinding"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "research_requests": {
+            "items": {
+              "$ref": "#/$defs/ResearchNeed"
+            },
+            "title": "Research Requests",
+            "type": "array"
+          },
+          "duration_note": {
+            "description": "Evidence and uncertainty about duration; never invented timing.",
+            "minLength": 1,
+            "title": "Duration Note",
+            "type": "string"
+          },
+          "recommendation": {
+            "enum": [
+              "keep",
+              "revise",
+              "needs_material"
+            ],
+            "title": "Recommendation",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reading_mode",
+          "listener_answer",
+          "important_limits",
+          "strengths",
+          "findings",
+          "research_requests",
+          "duration_note",
+          "recommendation"
+        ],
+        "title": "EditorialFeedback",
+        "type": "object"
+      },
+      "strict": true
+    }
+  },
+  "reasoning": {
+    "effort": "medium"
+  },
+  "tools": []
+}
