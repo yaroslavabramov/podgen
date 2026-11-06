@@ -1,0 +1,52 @@
+{
+  "run": {
+    "run": "17adf141-3940-4148-a719-ec5c2c3973b0",
+    "code": "7d1b6279153afb1364661881590f96f54cc4d1ed"
+  },
+  "planning_result": "accept",
+  "stages": [
+    "plan",
+    "plan-review"
+  ],
+  "calls": [
+    {
+      "stage": "plan",
+      "operation": "plan",
+      "model": "gpt-6.1-sol",
+      "usage": {
+        "input_tokens": 6371,
+        "input_tokens_details": {
+          "cache_write_tokens": 6368,
+          "cached_tokens": 0
+        },
+        "output_tokens": 5050,
+        "output_tokens_details": {
+          "reasoning_tokens": 350
+        },
+        "total_tokens": 11421
+      },
+      "tier": "default",
+      "usd": "0.066426"
+    },
+    {
+      "stage": "plan-review",
+      "operation": "plan_review",
+      "model": "gpt-6.1-terra",
+      "usage": {
+        "input_tokens": 18167,
+        "input_tokens_details": {
+          "cache_write_tokens": 18164,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1451,
+        "output_tokens_details": {
+          "reasoning_tokens": 579
+        },
+        "total_tokens": 19618
+      },
+      "tier": "default",
+      "usd": "0.029963"
+    }
+  ],
+  "total_usd": "0.096389"
+}
