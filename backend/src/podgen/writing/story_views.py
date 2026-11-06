@@ -1,0 +1,103 @@
+"""Lossless semantic views of a saved proposal; v1 is retained for pinned historical runs."""
+
+from copy import deepcopy
+
+from podgen.domain.errors import ContractError
+
+from .projection_versions import CURRENT, PREVIOUS
+
+
+def selected_labels(plan, packet):
+    if plan is None or plan.get("plan") is None:
+        raise ContractError("writing_plan_required")
+    body = plan["plan"]
+    refs = [
+        *body["opening"]["material_refs"],
+        *(ref for act in body["acts"] for ref in act["material_refs"]),
+        *(ref for question in plan["research_requests"] for ref in question["material_refs"]),
+    ]
+    if set(refs) - {card.label for card in packet.dossier.knowledge_cards}:
+        raise ContractError("unknown_editorial_support_label")
+    return set(refs)
+
+
+def narrative_decisions(plan, *, projection_version=CURRENT):
+    source = plan["plan"]
+    if source is None:
+        raise ContractError("writing_plan_required")
+    if projection_version == PREVIOUS:
+        ending = deepcopy(source["ending"])
+        ending.pop("promises_to_close")
+        result = dict(ending=ending, duration_strategy=deepcopy(source["duration_strategy"]))
+    else:
+        result = dict(
+            listener_promise=source["listener_promise"],
+            conclusion=dict(
+                meaning=source["ending"]["answer_to_deliver"],
+                qualifications=deepcopy(source["ending"]["qualifications"]),
+            ),
+            duration_strategy=deepcopy(source["duration_strategy"]),
+        )
+    result["opening"] = {key: deepcopy(source["opening"][key]) for key in ("approach", "question_to_open")}
+    act_fields = (
+        "title",
+        "listener_question",
+        "intended_change_in_understanding",
+        "prerequisite_concepts",
+        "limitations_to_voice",
+        "transitions",
+        "estimated_seconds_range",
+        "priority",
+    )
+    result["acts"] = [{key: deepcopy(act[key]) for key in act_fields} for act in source["acts"]]
+    if projection_version == PREVIOUS:
+        result["host_functions"] = [
+            {("speaker" if key == "speaker_id" else key): deepcopy(value) for key, value in host.items()}
+            for host in source["host_functions"]
+        ]
+    else:
+        result["speaker_contributions"] = [
+            dict(
+                speaker=host["speaker_id"],
+                contribution=host["contribution"],
+                interaction_purpose=host["interaction_guidance"],
+                speech_register=host["speech_register"],
+            )
+            for host in source["host_functions"]
+        ]
+    result["limitations"] = deepcopy(plan["limitations"])
+    result["unresolved_questions"] = [
+        dict(question=q["question"], why_needed=q["why_needed"]) for q in plan["research_requests"]
+    ]
+    return result
+
+
+def story_intent(plan):
+    if plan is None or plan.get("plan") is None:
+        raise ContractError("writing_plan_required")
+    body = plan["plan"]
+    return dict(
+        answer=body["ending"]["answer_to_deliver"],
+        qualifications=deepcopy(body["ending"]["qualifications"]),
+        steps=[
+            dict(
+                question=act["listener_question"],
+                change=act["intended_change_in_understanding"],
+                transition=deepcopy(act["transitions"]),
+            )
+            for act in body["acts"]
+        ],
+    )
+
+
+def editorial_frame(plan):
+    if plan is None or plan.get("plan") is None:
+        raise ContractError("writing_plan_required")
+    return dict(
+        listener_promise=plan["plan"]["listener_promise"],
+        qualifications=deepcopy(plan["plan"]["ending"]["qualifications"]),
+        limitations=deepcopy(plan["limitations"]),
+        unresolved_questions=[
+            dict(question=q["question"], why_needed=q["why_needed"]) for q in plan["research_requests"]
+        ],
+    )

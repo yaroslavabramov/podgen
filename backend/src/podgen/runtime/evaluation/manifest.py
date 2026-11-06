@@ -8,6 +8,7 @@ from uuid import uuid5
 
 from podgen.domain.contracts.common import CodeProducer
 from podgen.persistence.repository import timestamp
+from podgen.writing.projection_versions import CURRENT
 from podgen.writing.prompts import (
     load_anchor_repair_instructions,
     load_instruction_set,
@@ -92,6 +93,7 @@ def create_manifest(repo, generation, command, journal, materials):
     if command.input_contract == "editorial-role-packets/1":
         from podgen.writing.projections import SINGLE_INPUT_TOKEN_LIMIT, VISIBLE_BYTES_LIMIT
 
+        manifest["role_projection_version"] = CURRENT
         manifest["role_input_budget"] = dict(
             visible_bytes=VISIBLE_BYTES_LIMIT, input_tokens=SINGLE_INPUT_TOKEN_LIMIT
         )

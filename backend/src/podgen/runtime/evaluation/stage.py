@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.domain.errors import ContractError
+from podgen.writing.projection_versions import manifest_version
 
 from .compiler import COMPILER_VERSION, compile_request
 from .contracts import RunFailure
@@ -55,6 +56,7 @@ def execute_stage(
             materials,
             instructions,
             manifest["response_schemas"][stage],
+            projection_version=manifest_version(manifest),
             approved_plan=own_plan["accepted_plan"] if own_plan else None,
             draft=outputs.get("draft"),
             feedback=outputs.get("review"),
@@ -85,6 +87,8 @@ def execute_stage(
     )
     if command.input_contract == "editorial-role-packets/1":
         context["role_input_contract"] = command.input_contract
+        if "role_projection_version" in manifest:
+            context["role_projection_version"] = manifest["role_projection_version"]
     if own_plan is not None:
         context.update(
             accepted_plan_ref=own_plan["accepted_plan_ref"],

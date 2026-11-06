@@ -103,7 +103,8 @@ def test_role_views_preserve_meaning_and_keep_backend_private(repo, editorial):
     assert len(review["evidence"]) == 1 and review["evidence"][0]["text"] == "Точная цитата."
     assert revise["revision_guidance"]["recommendation"] == "keep"
     assert revise["draft"]["utterances"][0]["text"] == draft["utterances"][0]["text"]
-    assert "candidate_plan" not in review and "story_intent" in review
+    assert "candidate_plan" not in review and "story_intent" not in review
+    assert review["editorial_frame"]["listener_promise"] == plan["plan"]["listener_promise"]
 
 
 def test_exact_original_repeat_and_concurrent_import(repo, editorial):

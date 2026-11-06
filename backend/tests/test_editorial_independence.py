@@ -93,22 +93,33 @@ def test_real_ordinary_wire_and_own_candidate_delivery(own_dataset, case, tmp_pa
     assert payload(provider.requests[1])["candidate_plan"] == chosen
     story = payload(provider.requests[2])["story"]
     assert story["opening"]["approach"] == chosen["plan"]["opening"]["approach"]
-    assert story["ending"]["answer_to_deliver"] == chosen["plan"]["ending"]["answer_to_deliver"]
+    assert story["conclusion"]["meaning"] == chosen["plan"]["ending"]["answer_to_deliver"]
     assert story["duration_strategy"] == chosen["plan"]["duration_strategy"]
     for actual, act in zip(story["acts"], chosen["plan"]["acts"], strict=True):
         assert all(value == act[key] for key, value in actual.items())
-    assert story["host_functions"] == [
-        {("speaker" if key == "speaker_id" else key): value for key, value in host.items()}
+    assert story["speaker_contributions"] == [
+        {
+            (
+                "speaker"
+                if key == "speaker_id"
+                else "interaction_purpose"
+                if key == "interaction_guidance"
+                else key
+            ): value
+            for key, value in host.items()
+        }
         for host in chosen["plan"]["host_functions"]
     ]
     final = json.loads((tmp_path / "export/final.json").read_text())
+    assert final["output"] == provider.script
     assert all(
-        row["text"] == chosen["plan"]["ending"]["answer_to_deliver"] for row in final["output"]["utterances"]
+        row["text"] != chosen["plan"]["ending"]["answer_to_deliver"] for row in final["output"]["utterances"]
     )
+    assert len({row["text"] for row in final["output"]["utterances"]}) == len(final["output"]["utterances"])
     fixed_path = ROOT / f"evals/editorial-inputs/v1/{case}/fixed-plan.json"
     fixed = json.loads(fixed_path.read_text())["plan"]["plan"]
     assert story["opening"]["approach"] != fixed["opening"]["approach"]
-    assert story["ending"]["answer_to_deliver"] != fixed["ending"]["answer_to_deliver"]
+    assert story["conclusion"]["meaning"] != fixed["ending"]["answer_to_deliver"]
     # The separately admitted fixed control is allowed to carry its own prepared plot.
     fixed_ref = tmp_path / "fixed-ref.json"
     assert (

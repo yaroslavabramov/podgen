@@ -7,6 +7,7 @@ from podgen.domain.errors import AccessDenied, Conflict, ContractError
 from podgen.persistence.repository import Repository
 from podgen.runtime.models.gateway import ModelGateway
 from podgen.writing.materials import load_author_materials, load_own_plan_materials
+from podgen.writing.projection_versions import manifest_version
 
 from .compiler import COMPILER_VERSION, materials_hash
 from .completion import completed_result
@@ -122,7 +123,9 @@ class WritingEvaluation:
             if materials_hash(materials.as_payload()) != manifest["materials_hash"]:
                 raise Conflict("frozen_materials_changed")
             for stage in stages_for(command):
-                if manifest["response_schemas"][stage] != response_schema(stage, command.input_contract):
+                if manifest["response_schemas"][stage] != response_schema(
+                    stage, command.input_contract, projection_version=manifest_version(manifest)
+                ):
                     raise Conflict("role_output_contract_changed")
             factory = (
                 (lambda _: self.legacy_offline_transport)

@@ -12,10 +12,14 @@ class WireCaptured(Exception):
 
 
 class IndependentPlannerProvider:
-    def __init__(self, *, capture_only=False):
+    def __init__(self, *, capture_only=False, review_decision="keep"):
         self.requests = []
         self.pre_generation = None
         self.plan = None
+        self.script = None
+        self.revised_script = None
+        self.feedback = None
+        self.review_decision = review_decision
         self.capture_only = capture_only
 
     def count(self, body):
@@ -59,14 +63,22 @@ class IndependentPlannerProvider:
         elif stage == "draft":
             output = dict(
                 utterances=[
-                    dict(speaker=s["label"], text=payload["story"]["ending"]["answer_to_deliver"])
-                    for s in payload["assignment"]["speakers"]
+                    dict(
+                        speaker=s["label"],
+                        text=(
+                            "Мы наблюдаем несколько связанных величин. Сначала разберём, что именно они измеряют."
+                            if index == 0
+                            else "Тогда проверим допущение: как изменятся наблюдения, если меняется только одна неизвестная?"
+                        ),
+                    )
+                    for index, s in enumerate(payload["assignment"]["speakers"])
                 ]
             )
+            self.script = deepcopy(output)
         elif stage == "review":
             output = dict(
                 reading_mode="informed",
-                recommendation="keep",
+                recommendation=self.review_decision,
                 listener_answer="Собственный ответ сохранён.",
                 important_limits=[],
                 strengths=[],
@@ -74,6 +86,33 @@ class IndependentPlannerProvider:
                 research_requests=[],
                 duration_note="Читка не проводилась.",
             )
+            if self.review_decision == "revise":
+                output["findings"] = [
+                    dict(
+                        dimension="ending",
+                        priority="important",
+                        anchors=[dict(utterance_index=0, quote=self.script["utterances"][0]["text"])],
+                        observation="Вывод не вытекает из показанного наблюдения.",
+                        requested_change="Связать вывод с наблюдением в реальном сценарии.",
+                        preserve=["Предмет вопроса."],
+                    )
+                ]
+            self.feedback = deepcopy(output)
+        elif stage == "revise":
+            output = dict(
+                utterances=[
+                    dict(
+                        speaker=s["label"],
+                        text=(
+                            "Наблюдения относятся к одной задаче. Поэтому мы сопоставляем их вместе и выводим результат из этого сравнения."
+                            if index == 0
+                            else "Значит, вывод следует из совместной проверки. Проверим и условия, при которых он остаётся верен."
+                        ),
+                    )
+                    for index, s in enumerate(payload["assignment"]["speakers"])
+                ]
+            )
+            self.revised_script = deepcopy(output)
         else:
             raise AssertionError(f"Unexpected paid stage: {stage}")
         return WireReply(

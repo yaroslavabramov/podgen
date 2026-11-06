@@ -6,6 +6,14 @@ from pathlib import PurePosixPath
 
 from podgen.domain.errors import ContractError
 
+from .projection_versions import CURRENT, PREVIOUS, validate_version
+from .story_views import (
+    editorial_frame,
+    narrative_decisions,
+    selected_labels,
+    story_intent,
+)
+
 CONTRACT = "editorial-role-packets/1"
 VISIBLE_BYTES_LIMIT = 128 * 1024
 SINGLE_INPUT_TOKEN_LIMIT = 32768
@@ -71,50 +79,6 @@ def knowledge_view(packet, *, labels, selected=None):
     return cards
 
 
-def selected_labels(plan, packet):
-    if plan is None or plan.get("plan") is None:
-        raise ContractError("writing_plan_required")
-    body = plan["plan"]
-    refs = [
-        *body["opening"]["material_refs"],
-        *(ref for act in body["acts"] for ref in act["material_refs"]),
-        *(ref for question in plan["research_requests"] for ref in question["material_refs"]),
-    ]
-    if set(refs) - {card.label for card in packet.dossier.knowledge_cards}:
-        raise ContractError("unknown_editorial_support_label")
-    return set(refs)
-
-
-def narrative_decisions(plan):
-    source = plan["plan"]
-    if source is None:
-        raise ContractError("writing_plan_required")
-    # Plot decisions only. Local plan anchors and source-selection labels are not writing instructions.
-    result = dict(ending=deepcopy(source["ending"]), duration_strategy=deepcopy(source["duration_strategy"]))
-    result["ending"].pop("promises_to_close")
-    result["opening"] = {key: deepcopy(source["opening"][key]) for key in ("approach", "question_to_open")}
-    act_fields = (
-        "title",
-        "listener_question",
-        "intended_change_in_understanding",
-        "prerequisite_concepts",
-        "limitations_to_voice",
-        "transitions",
-        "estimated_seconds_range",
-        "priority",
-    )
-    result["acts"] = [{key: deepcopy(act[key]) for key in act_fields} for act in source["acts"]]
-    result["host_functions"] = [
-        {("speaker" if key == "speaker_id" else key): deepcopy(value) for key, value in host.items()}
-        for host in source["host_functions"]
-    ]
-    result["limitations"] = deepcopy(plan["limitations"])
-    result["unresolved_questions"] = [
-        dict(question=q["question"], why_needed=q["why_needed"]) for q in plan["research_requests"]
-    ]
-    return result
-
-
 def actionable_feedback(review, *, planning=False):
     result = {
         key: deepcopy(review[key])
@@ -139,10 +103,22 @@ def indexed_draft(draft):
 
 
 def role_payload(
-    stage, materials, *, candidate=None, plan_review=None, approved_plan=None, draft=None, feedback=None
+    stage,
+    materials,
+    *,
+    projection_version=CURRENT,
+    candidate=None,
+    plan_review=None,
+    approved_plan=None,
+    draft=None,
+    feedback=None,
 ):
+    validate_version(projection_version)
     packet = materials.packet
-    payload = dict(output_language=materials.output_language, assignment=assignment_view(packet))
+    payload = dict(output_language=materials.output_language)
+    if projection_version == CURRENT and stage in ("review", "revise"):
+        payload["draft"] = indexed_draft(draft)
+    payload["assignment"] = assignment_view(packet)
     if stage.startswith("plan"):
         payload["dossier"] = dict(
             summary=packet.dossier.summary,
@@ -173,16 +149,22 @@ def role_payload(
             else None
         )
         if stage == "draft":
-            payload["story"] = narrative_decisions(plan)
+            payload["story"] = narrative_decisions(plan, projection_version=projection_version)
             payload["support"] = knowledge_view(packet, labels=False, selected=selected_labels(plan, packet))
         elif stage == "review":
-            payload["story_intent"] = story_intent(plan)
-            payload["draft"] = indexed_draft(draft)
+            if projection_version == PREVIOUS:
+                payload["story_intent"] = story_intent(plan)
+                payload["draft"] = indexed_draft(draft)
+            else:
+                payload["editorial_frame"] = editorial_frame(plan)
             payload["support"] = knowledge_view(packet, labels=True)
             payload["evidence"] = evidence_view(packet)
         elif stage == "revise":
-            payload["story_intent"] = story_intent(plan)
-            payload["draft"] = indexed_draft(draft)
+            if projection_version == PREVIOUS:
+                payload["story_intent"] = story_intent(plan)
+                payload["draft"] = indexed_draft(draft)
+            else:
+                payload["editorial_frame"] = editorial_frame(plan)
             if feedback is None:
                 raise ContractError("feedback_required")
             payload["revision_guidance"] = actionable_feedback(feedback)
@@ -205,21 +187,3 @@ def evidence_view(packet):
             if card.label not in passages[key]["supports"]:
                 passages[key]["supports"].append(card.label)
     return list(passages.values())
-
-
-def story_intent(plan):
-    if plan is None or plan.get("plan") is None:
-        raise ContractError("writing_plan_required")
-    body = plan["plan"]
-    return dict(
-        answer=body["ending"]["answer_to_deliver"],
-        qualifications=deepcopy(body["ending"]["qualifications"]),
-        steps=[
-            dict(
-                question=act["listener_question"],
-                change=act["intended_change_in_understanding"],
-                transition=deepcopy(act["transitions"]),
-            )
-            for act in body["acts"]
-        ],
-    )

@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.domain.errors import ContractError
+from podgen.writing.projection_versions import manifest_version
 
 from .compiler import response_request
 from .contracts import RunFailure
@@ -74,10 +75,9 @@ def execute_planning_stage(
     if review is not None:
         payload.update(plan_review=review, plan_review_ref=review_ref)
     if command.input_contract == "editorial-role-packets/1":
-        from podgen.writing.projections import role_payload
-
-        payload = role_payload(stage, materials, candidate=candidate, plan_review=review)
         context["role_input_contract"] = command.input_contract
+        if "role_projection_version" in manifest:
+            context["role_projection_version"] = manifest["role_projection_version"]
     invocation = journal.invocation(command.run_id, stage)
     if invocation is None:
         prompt = generation.get(
@@ -93,6 +93,7 @@ def execute_planning_stage(
                 materials,
                 prompt.payload["template"],
                 manifest["response_schemas"][stage],
+                projection_version=manifest_version(manifest),
                 candidate=candidate,
                 plan_review=review,
             )

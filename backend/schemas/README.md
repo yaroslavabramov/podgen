@@ -66,3 +66,9 @@ Preview сохраняет полный wire и размеры instructions/inpu
 | Правка текста, если нужна | 65 306 | 81 704 |
 
 Это размеры запросов, а не измеренный расход нового модельного запуска. Реальный Snow anchor repair: три замечания, 29 предложенных точных диапазонов вместо 192, payload 14 572 байта. Ни один текст не усекался. Фактический token count применяется только при явно запущенном новом сетевом `run`.
+
+Ролевой wire и model-facing описания схем теперь отдельно закрепляются как `role_projection_version=editorial-role-projections/2`. Persisted имена и формат editorial inputs `/1` сохранены. Новый writer получает `story.listener_promise`, `story.conclusion.{meaning,qualifications}` и `story.speaker_contributions` (`interaction_purpose` вместо старого model-facing `interaction_guidance`). Это плановые решения; речь пишет автор.
+
+Принятый старый план также допустим: полный `answer_to_deliver` переносится дословно под `conclusion.meaning`. Автоматической переработки готового старого монолога в смысловую заметку нет. Все исходные поля остаются в сохранённом плане/архиве. Входы review/revise начинаются с реального `draft`, затем идут assignment и `editorial_frame` (listener_promise, qualifications, limitations, unresolved_questions), без планового closing и партитуры.
+
+Manifest без `role_projection_version` использует прежнюю проекцию `/1` и её прежние model-facing схемы. Уже закреплённые prompts/requests/schemas не заменяются; подготовленная попытка продолжает использовать свои bytes. Неизвестная версия отклоняется до провайдера. Schema snapshots editorial/fixed inputs описывают прежнюю persisted-структуру и не требуют миграции: в новом model-facing output schema изменились определения смысла полей, а не их имена или допустимый объём текста.

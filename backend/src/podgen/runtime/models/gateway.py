@@ -49,9 +49,13 @@ class ModelGateway:
 
         record = j.read(RuntimeRef(record_kind="tool_execution", record_id=invocation["request_record_id"]))
         contract = record["context"].get("role_input_contract")
-        expected_contract = j.manifest(invocation["run_id"]).get("input_contract")
+        manifest = j.manifest(invocation["run_id"])
+        expected_contract = manifest.get("input_contract")
         if expected_contract == "editorial-role-packets/1" and contract != expected_contract:
             self._fail(invocation, "role_input_contract_changed", status="validation_failed")
+        if expected_contract == "editorial-role-packets/1" and "role_projection_version" in manifest:
+            if record["context"].get("role_projection_version") != manifest["role_projection_version"]:
+                self._fail(invocation, "role_projection_version_mismatch", status="validation_failed")
         if contract == "editorial-role-packets/1" and invocation["status"] == "prepared":
             from podgen.writing.projections import SINGLE_INPUT_TOKEN_LIMIT, VISIBLE_BYTES_LIMIT
 
