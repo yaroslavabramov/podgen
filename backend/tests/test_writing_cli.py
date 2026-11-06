@@ -61,6 +61,8 @@ def test_real_frozen_cli_entry_all_stages_and_evaluator_export(
             "--objects",
             str(repo.objects.root),
             "run",
+            "--review-mode",
+            "informed-v1",
             "--max-total-input-tokens",
             "900000",
             "--max-total-output-tokens",

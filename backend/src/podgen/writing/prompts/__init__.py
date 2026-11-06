@@ -91,3 +91,11 @@ def role_instructions_for_version(stage: Stage, format: Format, *, version: str)
     return f"Instructions: {version}; stage={stage}; format={format}\n\n" + "\n\n".join(
         parts[name] for name in names
     )
+
+
+def load_reading_instructions(stage) -> RoleInstructions:
+    """Dedicated files only: no shared author, plan, format or factual hints in cold reading."""
+    if stage not in ("reader-review", "fact-review", "dual-revise"):
+        raise ValueError("unknown_reading_prompt")
+    raw = files(__name__).joinpath("current").joinpath(stage + ".md").read_bytes()
+    return RoleInstructions(stage + "/sha256:" + hashlib.sha256(raw).hexdigest(), raw.decode("utf-8"))

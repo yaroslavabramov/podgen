@@ -4,7 +4,23 @@ from pydantic import Field, field_validator, model_validator
 
 from podgen.domain.contracts.common import UUID, ArtifactRef, Contract, PositiveInt, RuntimeRef
 
-Stage = Literal["draft", "review", "revise", "plan", "plan-review", "plan-revise", "plan-review-revised"]
+Stage = Literal[
+    "draft",
+    "review",
+    "revise",
+    "plan",
+    "plan-review",
+    "plan-revise",
+    "plan-review-revised",
+    "reader-review",
+    "fact-review",
+    "reader-review-1",
+    "fact-review-1",
+    "reader-review-2",
+    "fact-review-2",
+    "revise-1",
+    "revise-2",
+]
 STAGES = ("draft", "review", "revise")
 PLANNING_STAGES = ("plan", "plan-review", "plan-revise", "plan-review-revised")
 ALL_STAGES = (*PLANNING_STAGES, *STAGES)
@@ -32,9 +48,23 @@ class WritingRunCommand(Contract):
     planner_profile_ref: ArtifactRef | None = None
     plan_reviewer_profile_ref: ArtifactRef | None = None
     max_plan_revisions: Literal[0, 1] = 1
+    review_mode: Literal["informed-v1", "independent-readings/1"] = "independent-readings/1"
+    max_script_revisions: Literal[0, 1, 2] = 2
+    initial_script_ref: RuntimeRef | None = None
     repeat_index: int = Field(default=0, ge=0)
     review_anchor_policy: Literal["strict", "bounded-selection-v1"] = "strict"
     limits: RunLimits = Field(default_factory=RunLimits)
+
+    @model_validator(mode="before")
+    @classmethod
+    def legacy_review_mode(cls, value):
+        if (
+            isinstance(value, dict)
+            and value.get("input_contract") == "legacy-author-materials/1"
+            and "review_mode" not in value
+        ):
+            value = {**value, "review_mode": "informed-v1"}
+        return value
 
     @field_validator("author_ref", mode="before")
     @classmethod
@@ -57,6 +87,12 @@ class WritingRunCommand(Contract):
             self.planner_profile_ref is not None or self.plan_reviewer_profile_ref is not None
         ):
             raise ValueError("planning_profiles_require_own_plan")
+        if self.review_mode == "informed-v1" and self.initial_script_ref is not None:
+            raise ValueError("initial_script_requires_independent_readings")
+        if self.review_mode != "informed-v1" and self.input_contract != "editorial-role-packets/1":
+            raise ValueError("independent_readings_require_editorial_inputs")
+        if self.initial_script_ref is not None and self.plan_mode == "own-plan":
+            raise ValueError("initial_script_does_not_require_new_plan")
         return self
 
 
@@ -69,6 +105,9 @@ class RunFailure(Exception):
 def command_payload(command):
     """Keep fingerprints of pre-policy strict commands stable."""
     payload = command.model_dump(mode="json")
+    if command.review_mode == "informed-v1":
+        for field in ("review_mode", "max_script_revisions", "initial_script_ref"):
+            payload.pop(field)
     if command.review_anchor_policy == "strict":
         payload.pop("review_anchor_policy")
     if command.input_contract == "legacy-author-materials/1":

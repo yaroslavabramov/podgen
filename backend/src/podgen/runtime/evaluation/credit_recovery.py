@@ -81,7 +81,9 @@ def refusal_evidence(journal, invocation):
 def authorize_credit_retry(journal, run_id, target_id, *, guard, allow_create=True):
     target = None
     rows = None
-    for stage in ALL_STAGES:
+    from .reading_workflow import ALL_READING_STAGES
+
+    for stage in (*ALL_STAGES, *ALL_READING_STAGES):
         found = journal.attempts(run_id, stage)
         match = next((row for row in found if row["invocation_id"] == target_id), None)
         if match:

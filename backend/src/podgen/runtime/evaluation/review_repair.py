@@ -8,12 +8,14 @@ from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import ContractError
 from podgen.writing.anchor_selection import AnchorChoices, AnchorRepairPlan
-from podgen.writing.roles import EditorialFeedback, WriteOutput
+from podgen.writing.roles import WriteOutput
 
 from .compiler import indexed_script
 from .contracts import RunFailure
+from .reading_workflow import base_stage, is_reading
 from .rejected_output import rejected_output
 from .validation import load_unique_json
+from .workflow import output_model
 
 # Frozen compatibility for manifests created before repair instructions were pinned.
 LEGACY_REPAIR_INSTRUCTIONS_V1 = (
@@ -27,12 +29,13 @@ LEGACY_REPAIR_INSTRUCTIONS_V1 = (
 
 
 def _rejected_feedback(journal, original, request):
-    if original["stage"] != "review":
+    if not is_reading(original["stage"]):
         raise RunFailure("review_anchor_repair_not_eligible")
     feedback, _, _ = rejected_output(
-        journal, original, EditorialFeedback, code="review_anchor_repair_not_eligible"
+        journal, original, output_model(original["stage"]), code="review_anchor_repair_not_eligible"
     )
-    if feedback.reading_mode != "informed":
+    expected_mode = "script_only" if base_stage(original["stage"]) == "reader-review" else "informed"
+    if feedback.reading_mode != expected_mode:
         raise RunFailure("review_anchor_repair_not_eligible")
     return feedback
 
@@ -47,7 +50,7 @@ def _plan(journal, original, draft):
     if original["input_tokens"] is None:
         raise RunFailure("review_anchor_repair_usage_unknown")
     payload = json.loads(request["input"][0]["content"][0]["text"])
-    if payload.get("draft") != indexed_script(draft):
+    if payload.get("draft", payload.get("script")) != indexed_script(draft):
         raise RunFailure("review_repair_draft_binding_mismatch")
     return plan, request
 
@@ -56,14 +59,14 @@ def prepare_anchor_repair(journal, original, *, draft, draft_ref, guard):
     guard()
     repairs = [
         row
-        for row in journal.attempts(original["run_id"], "review")
+        for row in journal.attempts(original["run_id"], original["stage"])
         if row["operation_kind"] == "anchor_repair"
     ]
     if repairs:
         return repairs[-1]
     plan, request = _plan(journal, original, draft)
     body = deepcopy(request)
-    invocation_id = uuid5(original["run_id"], "invocation:review:anchor-repair:1")
+    invocation_id = uuid5(original["run_id"], "invocation:" + original["stage"] + ":anchor-repair:1")
     body["metadata"].update(
         podgen_invocation_id=str(invocation_id),
         podgen_attempt_index=str(original["attempt_index"] + 1),
@@ -128,7 +131,7 @@ def prepare_anchor_repair(journal, original, *, draft, draft_ref, guard):
     )
     invocation = journal.prepare(
         original["run_id"],
-        "review",
+        original["stage"],
         body,
         context,
         attempt_index=original["attempt_index"] + 1,
@@ -150,7 +153,7 @@ def prepare_anchor_repair(journal, original, *, draft, draft_ref, guard):
 
 
 def apply_anchor_repair(journal, invocation, raw, *, draft):
-    attempts = journal.attempts(invocation["run_id"], "review")
+    attempts = journal.attempts(invocation["run_id"], invocation["stage"])
     origin = next((row for row in attempts if row["attempt_kind"] == "anchor_repair"), None)
     original = next(
         (row for row in attempts if origin and row["invocation_id"] == origin["parent_invocation_id"]), None

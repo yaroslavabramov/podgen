@@ -98,6 +98,8 @@ def test_ordinary_cli_new_plan_revision_review_exact_delivery_and_export(
         "--objects",
         str(repo.objects.root),
         "run",
+        "--review-mode",
+        "informed-v1",
         "--run-id",
         str(command.run_id),
         "--case",

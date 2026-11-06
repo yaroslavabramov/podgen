@@ -18,6 +18,7 @@ from podgen.writing.prompts import (
 from .compiler import COMPILER_VERSION, materials_hash
 from .contracts import command_payload
 from .profiles import load_profile
+from .reading_workflow import VERSION, base_stage, independent
 from .role_schema import response_schema
 from .workflow import profile_for, prompt_stage, stages_for
 
@@ -38,11 +39,23 @@ def create_manifest(repo, generation, command, journal, materials):
         if command.plan_mode == "own-plan"
         else load_instruction_set(materials.format)
     )
+    reading_prompts = {}
+    if independent(command):
+        from podgen.writing.prompts import load_reading_instructions
+
+        reading_prompts = {
+            name: load_reading_instructions(name) for name in ("reader-review", "fact-review", "dual-revise")
+        }
     for stage in stages_for(command):
         profile_ref = profile_for(command, stage)
         load_profile(generation, command.project_id, profile_ref, stage)
-        instructions = instruction_set[prompt_stage(stage)].body
-        prompt_versions[stage] = instruction_set[prompt_stage(stage)].version
+        base = base_stage(stage)
+        if independent(command) and base in ("reader-review", "fact-review", "revise"):
+            prompt = reading_prompts["dual-revise" if base == "revise" else base]
+        else:
+            prompt = instruction_set[prompt_stage(stage)]
+        instructions = prompt.body
+        prompt_versions[stage] = prompt.version
         prompt = repo.create(
             command.project_id,
             "PromptDefinition",
@@ -90,6 +103,16 @@ def create_manifest(repo, generation, command, journal, materials):
             "technical script versions; canonical EpisodeSpec/StoryPlan/ScriptRevision mapping remains open",
         ],
     )
+    if independent(command) and command.initial_script_ref is not None:
+        from .script_import import load_script
+
+        script = load_script(repo, command.project_id, command.initial_script_ref, materials.speaker_labels)
+        manifest["initial_script_hash"] = materials_hash(script)
+    if independent(command):
+        manifest["review_workflow"] = VERSION
+        manifest["limitations"][1] = (
+            "independent model readings; not evidence of human listening or production approval"
+        )
     if command.input_contract == "editorial-role-packets/1":
         from podgen.writing.projections import SINGLE_INPUT_TOKEN_LIMIT, VISIBLE_BYTES_LIMIT
 

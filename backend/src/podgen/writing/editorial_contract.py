@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, model_serializer, model_validator
 
 from .planning_roles import PlanningOutput
 from .roles import FullText, RoleOutput
@@ -40,6 +40,16 @@ class Assignment(RoleOutput):
     required_topics: list[FullText]
     excluded_topics: list[FullText] = Field(default_factory=list)
     style_guidance: list[FullText] = Field(default_factory=list)
+    listener_profile: FullText | None = None
+    genre: FullText | None = None
+
+    @model_serializer(mode="wrap")
+    def preserve_historical_shape(self, handler):
+        data = handler(self)
+        for field in ("listener_profile", "genre"):
+            if data[field] is None:
+                data.pop(field)
+        return data
 
 
 class SourceDocument(RoleOutput):

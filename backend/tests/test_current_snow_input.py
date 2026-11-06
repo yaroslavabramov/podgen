@@ -38,7 +38,7 @@ def test_current_snow_sources_and_exact_excerpt_ranges():
             assert texts[excerpt.document][excerpt.start : excerpt.end] == excerpt.text
 
 
-def test_current_snow_ordinary_cli_and_every_role_receive_the_assignment(repo, scope, tmp_path, monkeypatch):
+def test_current_snow_informed_cli_and_every_role_receive_the_assignment(repo, scope, tmp_path, monkeypatch):
     project, _ = scope
     monkeypatch.setenv("PODGEN_DATABASE_URL", repo.database.engine.url.render_as_string(hide_password=False))
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
@@ -94,6 +94,7 @@ def test_current_snow_ordinary_cli_and_every_role_receive_the_assignment(repo, s
         invoke(
             prefix,
             "run",
+            review_mode="informed-v1",
             run_id=uuid4(),
             case="snow-pump",
             author_ref="@" + str(shared_path),

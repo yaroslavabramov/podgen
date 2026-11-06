@@ -4,6 +4,8 @@ from uuid import uuid5
 
 from podgen.domain.errors import Conflict
 
+from .reading_workflow import is_reading
+
 
 def validate_lineage(rows, stage):
     previous = {}
@@ -26,7 +28,7 @@ def validate_lineage(rows, stage):
                 repairs += 1
                 valid = (
                     valid
-                    and stage == "review"
+                    and is_reading(stage)
                     and row["operation_kind"] == "anchor_repair"
                     and parent["operation_kind"] == "role"
                     and repairs == 1
@@ -53,7 +55,7 @@ def attempt_identity(run_id, stage, index, kind, parent):
     if index == 0:
         return uuid5(run_id, "invocation:" + stage)
     if kind == "anchor_repair":
-        return uuid5(run_id, "invocation:review:anchor-repair:1")
+        return uuid5(run_id, "invocation:" + stage + ":anchor-repair:1")
     return uuid5(
         parent["invocation_id"],
         "plan-target-repair:1" if kind == "plan_target_repair" else "credit-refusal-retry:1",
@@ -67,7 +69,7 @@ def validate_preparation(rows, stage, index, kind, operation, parent_id):
     elif parent and rows[-1]["invocation_id"] == parent_id and index == rows[-1]["attempt_index"] + 1:
         if kind == "anchor_repair":
             valid = (
-                stage == "review"
+                is_reading(stage)
                 and operation == "anchor_repair"
                 and parent["operation_kind"] == "role"
                 and parent["status"] == "validation_failed"

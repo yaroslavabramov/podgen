@@ -109,6 +109,8 @@ def export_run(repo, project, run_id, directory):
         directory / "inputs.json",
         journal.read_blob(manifest_ref, BlobRef.model_validate(manifest["materials_blob"])),
     )
+    from .reading_workflow import VERSION, base_stage
+
     for stage in manifest.get("stages", STAGES):
         attempts = journal.attempts(run_id, stage)
         if not attempts:
@@ -139,7 +141,7 @@ def export_run(repo, project, run_id, directory):
         if selected["output_record_id"]:
             output = journal.output(selected)
             write_json(Path(stage + ".json"), output)
-            if stage in ("draft", "revise"):
+            if base_stage(stage) in ("draft", "revise"):
                 _write(
                     directory / (stage + ".txt"),
                     (
@@ -176,6 +178,18 @@ def export_run(repo, project, run_id, directory):
                         + "\n"
                     ).encode(),
                 )
+    if manifest.get("review_workflow") == VERSION:
+        from .reading_export import export_readings
+
+        result.update(
+            export_readings(
+                journal,
+                run_id,
+                manifest,
+                write_json,
+                lambda path, value: _write(directory / path, value.encode()),
+            )
+        )
     if manifest.get("plan_mode") == "own-plan":
         from .planning_export import export_planning
 

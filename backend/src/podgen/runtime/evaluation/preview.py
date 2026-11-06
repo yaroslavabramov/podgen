@@ -20,6 +20,32 @@ def preview_request(run_id, stage, profile, materials, **inputs):
 
     validate_preview_inputs(stage, fixed=materials.fixed is not None, inputs=inputs)
     validate_preview_snapshots(stage, materials, inputs)
+    inputs = {key: value for key, value in inputs.items() if value is not None}
+    from .reading_workflow import ALL_READING_STAGES, base_stage
+
+    if stage in ALL_READING_STAGES:
+        from podgen.writing.prompts import load_reading_instructions
+
+        from .reading_cycle import combine
+        from .role_request import compile_reading_request
+
+        base = base_stage(stage)
+        prompt = load_reading_instructions("dual-revise" if base == "revise" else base)
+        readings = None
+        if base == "revise":
+            readings = dict(reader=inputs["reader_feedback"], fact=inputs["fact_feedback"])
+        return compile_reading_request(
+            run_id,
+            stage,
+            profile,
+            materials,
+            prompt.body,
+            response_schema(stage, CONTRACT),
+            script=inputs["draft"],
+            readings=readings,
+            decision=combine(readings) if readings else None,
+            approved_plan=inputs.get("approved_plan"),
+        )
     if stage not in ("anchor-repair", "plan-target-repair"):
         prompt = load_instruction_set(materials.format, include_planning=True)[prompt_stage(stage)]
         return compile_role_request(

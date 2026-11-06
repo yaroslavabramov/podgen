@@ -1,14 +1,14 @@
 # Авторская генерация: компактные ролевые входы
 
-Новый рабочий путь — `editorial-role-packets/1`: автор получает задание, творческие решения и выбранные опоры; редактор — полный сценарий, ориентир сюжета и проверяемые свидетельства; правка — полный сценарий и конкретные замечания. Исходные документы, оригинальные JSON, provenance и служебные ссылки остаются в хранилище и полном архиве. `AuthorMaterials.as_payload()` больше не является входом новых модельных вызовов.
+Новый рабочий путь — `editorial-role-packets/1` и `review_mode=independent-readings/1` по умолчанию в CLI и Python. Каждый полный текст получает два отдельных чтения Terra: слушательское без плана/брифа/источников и фактологическое по материалам и factual remit. Второе не видит первого заключения. Sol получает actionable замечания обеих ролей с происхождением и выборочные опоры для правки. Полные исходники и отзывы остаются в архиве.
 
-При однозначном `keep` без обязательных правок и нерешённых вопросов финал точно совпадает с сохранённым draft: вызова `revise` нет. При `revise` автор пишет полную новую версию. `needs_material` и противоречивые решения останавливают цепочку после сохранения отзыва.
+Общий итог: необходимые материалы → обязательная правка → keep. Третьего модельного арбитра нет. После каждой переписи оба чтения повторяются для точной новой версии. `--max-script-revisions 0|1|2` ограничивает число переписей (default 2). Исчерпание лимита и `needs_material` сохраняют отказ и последний кандидат; одобренный `final` не создаётся.
 
-Это evaluation-кандидаты, без production acceptance, независимого фактчека, аудио или подтверждения человеческого прослушивания.
+Это независимые модельные проверки evaluation-кандидатов, без production acceptance, аудио и подтверждения человеческого прослушивания. Прежний одиночный review сохранён как исторический `informed-v1`.
 
 ## Подготовка и admission без модели
 
-Установите зависимости через `uv sync --directory backend --locked`. Используйте подготовленную изолированную БД с миграциями до `0014_plan_target_repair`; не мигрируйте базу активных запусков. Задайте `PODGEN_DATABASE_URL`, `PROJECT_UUID`, `ACTOR_UUID` и абсолютный `OBJECTS` на существующее хранилище проекта.
+Установите зависимости через `uv sync --directory backend --locked`. Используйте подготовленную изолированную БД с миграциями до `0015_independent_readings`; не мигрируйте базу активных запусков. Задайте `PODGEN_DATABASE_URL`, `PROJECT_UUID`, `ACTOR_UUID` и абсолютный `OBJECTS` на существующее хранилище проекта.
 
 Общий префикс для следующих команд:
 
@@ -32,7 +32,7 @@ pgwrite fixed-editorial-import \
   --out /tmp/gps-fixed-ref.json
 ```
 
-Для нового назначения те же схемы поддерживают произвольную тему, `solo`/`dialogue`, язык, голоса и их функции. Новые точные документы можно отдельно принять через `editorial-source-import --file /ABS/SOURCE.txt --source-path sources/source.txt --scope ASSIGNMENT_SCOPE --purpose primary --out /tmp/source-ref.json`; доступные назначения также `brief`, `dossier`, `fixed_plan`.
+Для нового назначения те же схемы поддерживают произвольную тему, `solo`/`dialogue`, язык, голоса и их функции. Новые необязательные `assignment.listener_profile` и `assignment.genre` содержат только нейтральное описание слушателя и жанра. Холодное чтение не получает прежние audience/style_guidance; при отсутствии безопасных полей используются нейтральный слушатель без знания темы и жанр podcast. Новые точные документы можно отдельно принять через `editorial-source-import --file /ABS/SOURCE.txt --source-path sources/source.txt --scope ASSIGNMENT_SCOPE --purpose primary --out /tmp/source-ref.json`; доступные назначения также `brief`, `dossier`, `fixed_plan`.
 
 Импорт сверяет полный исходник, hash, происхождение и область источников, строгие Unicode codepoint диапазоны `[start,end)` и текст каждой цитаты. Повтор и одновременный импорт одинаковой версии идемпотентны. Оригинальные JSON bytes сохраняются; слишком большой модельный вход вызывает ошибку, а не усечение. Общий пакет не содержит ссылок на fixed-plan; отдельный fixed пакет связан с точным digest shared.
 
@@ -40,7 +40,7 @@ pgwrite fixed-editorial-import \
 
 ## Профили и offline preview
 
-`profile-create` только сохраняет candidate configuration, без вызова модели и qualification. Существующие подходящие writer/reviewer profiles можно использовать повторно. Пример конфигурации зафиксированного snapshot:
+`profile-create` только сохраняет candidate configuration, без вызова модели и qualification. Существующие подходящие writer/reviewer profiles можно использовать повторно: writer — Sol, reviewer — Terra для обоих независимых чтений. Указывайте точные профили выбранных моделей. Ниже пример закреплённого writer/planner snapshot; для reviewer задайте точные REVIEWER_MODEL и REVIEWER_CONTEXT_LIMIT выбранного профиля:
 
 ```sh
 pgwrite profile-create --model gpt-5.4-2026-03-05 --context-limit 1050000 \
@@ -50,9 +50,13 @@ pgwrite profile-create --model gpt-5.4-2026-03-05 --context-limit 1050000 \
 pgwrite profile-create --model gpt-5.4-2026-03-05 --context-limit 1050000 \
   --output-limit 32768 --reasoning-effort medium --roles planner plan_reviewer \
   --out /tmp/planning-profile-ref.json
+
+pgwrite profile-create --model "$REVIEWER_MODEL" --context-limit "$REVIEWER_CONTEXT_LIMIT" \
+  --output-limit 32768 --reasoning-effort medium --roles editorial_reviewer \
+  --out /tmp/reviewer-profile-ref.json
 ```
 
-По умолчанию `store=false`, `background=false`; хранение у провайдера и background retrieval требуют явных `--store --background`. Независимы роли и вызовы, а не обязательно модели.
+По умолчанию `store=false`, `background=false`; хранение у провайдера и background retrieval требуют явных `--store --background`. Роли, входы и вызовы независимы; профили закрепляются в manifest.
 
 Preview использует локальные БД и хранилище. API-ключ, клиент провайдера и token-count endpoint не нужны:
 
@@ -68,6 +72,34 @@ pgwrite preview --run-id "$PREVIEW_UUID" --case gps-clock --stage plan \
 
 В файле — точный request и размеры `instructions`, `input`, `schema`. При превышении byte limit файл всё равно сохраняется, команда возвращает validation error. Для следующих ролей передаются чистые `PlanningOutput`, `WriteOutput`, `EditorialFeedback`, без архивной обёртки `output`: `--candidate`, `--plan-review`, `--approved-plan`, `--draft`, `--feedback` по задаче роли. Поддерживаются preview отдельных `anchor-repair` и `plan-target-repair`.
 
+## Готовый сохранённый сценарий
+
+Импорт принимает чистый полный `WriteOutput` (utterances), без архивной обёртки. Сохраняются точные bytes и отдельный смысловой hash; разная JSON-разметка не конфликтует.
+
+```sh
+pgwrite script-import --file /ABS/snow-script.json --out /tmp/snow-script-ref.json
+
+pgwrite run --run-id "$SAVED_SCRIPT_RUN_UUID" --case snow-pump \
+  --author-ref @/tmp/snow-shared-ref.json --initial-script-ref @/tmp/snow-script-ref.json \
+  --writer-profile @/tmp/writer-profile-ref.json --reviewer-profile @/tmp/reviewer-profile-ref.json \
+  --max-script-revisions 2 --review-anchor-policy bounded-selection-v1 \
+  --export-dir /tmp/snow-independent-readings
+```
+
+Новый план и draft не генерируются; fixed ref не нужен. Вместо импортированного ref допустим точный RuntimeRef существующего сохранённого draft/final. Для проверки входов без сети:
+
+```sh
+pgwrite preview --run-id "$PREVIEW_UUID" --case snow-pump --stage reader-review \
+  --shared-ref @/tmp/snow-shared-ref.json --draft /ABS/snow-script.json \
+  --profile @/tmp/reviewer-profile-ref.json --out /tmp/snow-reader-preview.json
+
+pgwrite preview --run-id "$PREVIEW_UUID" --case snow-pump --stage fact-review \
+  --shared-ref @/tmp/snow-shared-ref.json --draft /ABS/snow-script.json \
+  --profile @/tmp/reviewer-profile-ref.json --out /tmp/snow-fact-preview.json
+```
+
+Wire и preview правки описаны в [schemas/independent-readings.md](schemas/independent-readings.md).
+
 ## Новый сетевой run
 
 Только `run`/продолжение нового компактного run выполняют сетевые вызовы. `OPENAI_API_KEY` передаётся окружением; ключ не входит в profile, prompt или архив headers. Каждый независимый run получает новый UUID.
@@ -77,7 +109,7 @@ pgwrite preview --run-id "$PREVIEW_UUID" --case gps-clock --stage plan \
 ```sh
 pgwrite run --run-id "$NEW_RUN_UUID" --case gps-clock \
   --author-ref @/tmp/gps-shared-ref.json --fixed-plan-input-ref @/tmp/gps-fixed-ref.json \
-  --writer-profile @/tmp/writer-profile-ref.json --reviewer-profile @/tmp/writer-profile-ref.json \
+  --writer-profile @/tmp/writer-profile-ref.json --reviewer-profile @/tmp/reviewer-profile-ref.json \
   --export-dir /tmp/gps-compact-run
 ```
 
@@ -86,7 +118,7 @@ pgwrite run --run-id "$NEW_RUN_UUID" --case gps-clock \
 ```sh
 pgwrite run --run-id "$NEW_OWN_RUN_UUID" --case gps-clock \
   --author-ref @/tmp/gps-shared-ref.json \
-  --writer-profile @/tmp/writer-profile-ref.json --reviewer-profile @/tmp/writer-profile-ref.json \
+  --writer-profile @/tmp/writer-profile-ref.json --reviewer-profile @/tmp/reviewer-profile-ref.json \
   --plan-mode own-plan --planner-profile @/tmp/planning-profile-ref.json \
   --plan-reviewer-profile @/tmp/planning-profile-ref.json --max-plan-revisions 1 \
   --export-dir /tmp/gps-compact-own-run
@@ -112,7 +144,7 @@ pgwrite resume --run-id "$COMPACT_RUN_UUID" --export-dir /tmp/run-resumed
 
 Архив содержит точные prompts/versions, schemas, profiles, request intent, реальные wire/response bytes, IDs, usage, ошибки и все попытки. `inputs.json` сохраняет полный backend audit; оригинальные редакторские JSON экспортируются отдельно. Перед count/submit живые права на исходники проверяются заново. Отзыв источника закрывает зависимые candidates, decisions, request/response archives и clearance; evaluator archive не даёт бессрочного права на повторную отправку.
 
-При обычной правке экспортируются полные `draft.*`, `review.json`, `revise.*`. При `keep` — также `final.json`/`final.txt`; совместимый `revise.*` явно имеет `origin=unchanged_draft`, `model_call=false`, ссылки на draft и review, без фиктивного invocation. В `archive/revise/` запроса нет. Завершённый replay не создаёт клиента и не проверяет новый бюджет.
+Сначала читайте `review-result.md`: итог, оба чтения каждой версии, замечания, оговорки и вопросы исследователю. Машинный итог — `review-outcome.json`; точные привязки каждой пары — `reading-round-N.json`. Полные `reader-review[-N].json`, `fact-review[-N].json`, `revise-N.json/txt` и все попытки сохраняются отдельно. Только keep после обоих чтений этой версии создаёт `final.json/txt`. При отказе остаётся `candidate-final.json/txt`; код CLI равен 2, а `review_status` — needs_material либо revision_limit_exhausted. Код 0 означает модельный keep, без допуска к публикации. Завершённый resume возвращает тот же итог, не создаёт клиента и не запускает цикл заново.
 
 Экспортная папка закрепляется маркером за project/run. Чужая непустая папка, другой run и symlinks отклоняются. Старый экспорт без маркера читается в новую пустую папку.
 
@@ -120,7 +152,7 @@ pgwrite resume --run-id "$COMPACT_RUN_UUID" --export-dir /tmp/run-resumed
 
 ## Ограниченные адресные repairs и отказ по балансу
 
-Новый run по умолчанию использует strict anchors. `--review-anchor-policy bounded-selection-v1` заранее разрешает максимум один отдельный selector-call после сохранённой ошибки review. Для остановленного компактного run доступны явные действия:
+Новый run по умолчанию использует strict anchors. `--review-anchor-policy bounded-selection-v1` заранее разрешает максимум один отдельный selector-call на каждую роль и версию текста после сохранённой ошибки якорей. Режим доступа и суждения сохраняются. Для остановленного компактного run доступны явные действия:
 
 ```sh
 pgwrite resume --run-id "$COMPACT_RUN_UUID" --repair-review-anchors --export-dir /tmp/anchor-repair
@@ -135,6 +167,12 @@ Plan-target repair получает один точный candidate, его су
 Credit retry допускается только для архивного submit error HTTP 429 с `credit_balance_exhausted`, `ambiguous=false`, без response ID/ответа/output. Успехи, count errors, прочие HTTP/validation faults и неизвестный исход не допускаются. UUID выбирается из `run.json → invocations → attempts`. Одна команда разрешает одну новую физическую попытку; повтор команды идемпотентен. Новый подтверждённый отказ требует явной команды с новым UUID.
 
 Оплаченные стадии не создаются заново. Credit retry сохраняет прежние exact-wire bytes кроме metadata привязки попытки; бюджет и время не начинаются заново. Preflight counts учитываются консервативно; доказанный отказ без генерации не резервирует output. `attempt_kind` и `operation_kind` различают role, semantic repair и physical credit retry. Все lineage, receipts и попытки экспортируются; repair не даёт квалификации или acceptance.
+
+## Исторический компактный цикл `informed-v1`
+
+Явный `--review-mode informed-v1` сохраняет прежний `draft → review → revise`: один informed review с плановым ориентиром, без независимого холодного чтения и повторного чтения переписанного финала. Manifest без review_mode возобновляется именно так; сохранённые prompts, schemas, requests и fingerprints не заменяются текущими.
+
+При обычной правке экспортируются полные `draft.*`, `review.json`, `revise.*`. При `keep` — также `final.json`/`final.txt`; совместимый `revise.*` явно имеет `origin=unchanged_draft`, `model_call=false`, ссылки на draft и review, без фиктивного invocation. В `archive/revise/` запроса нет. Завершённый replay не создаёт клиента и не проверяет новый бюджет.
 
 ## Исторический raw baseline: только архив и offline replay
 
@@ -156,4 +194,4 @@ uv run --directory backend ruff check src tests
 
 Публикация архива выполняется в короткой repeatable-read write-транзакции с memo на одну проверку графа. Блокировки project/member сериализуют её с отзывом доступа; повторяется только откатившаяся SQL-транзакция `40001`, максимум три раза, без provider calls внутри callback. Read snapshots/memo не переиспользуются между публичными чтениями, проектами или purposes; циклы проверяет отдельный active-path guard.
 
-Открыты canonical StoryPlan/ScriptRevision mapping, независимая проверка фактов и слушательского понимания, квалификация провайдера и остальная производственная матрица. Эти runtime records их не подменяют.
+Открыты canonical StoryPlan/ScriptRevision mapping, эмпирическая проверка слушательского понимания, производственная квалификация фактчекинга/провайдера и остальная матрица. Независимые модельные чтения реализованы; runtime records не подменяют эти допуски.

@@ -221,6 +221,7 @@ def test_default_real_runtime_and_resume_are_projected(repo, editorial):
     project, data, _, shared, fixed, _ = editorial
     profile = create_profile(repo, project, model="local-double", context_limit=1050000, output_limit=32768)
     command = WritingRunCommand(
+        review_mode="informed-v1",
         run_id=uuid4(),
         project_id=project,
         actor_id=repo.actor_id,
@@ -246,6 +247,7 @@ def test_token_guard_counts_but_does_not_submit(repo, editorial):
     project, data, _, shared, fixed, _ = editorial
     profile = create_profile(repo, project, model="local-double", context_limit=1050000, output_limit=32768)
     command = WritingRunCommand(
+        review_mode="informed-v1",
         run_id=uuid4(),
         project_id=project,
         actor_id=repo.actor_id,
@@ -278,6 +280,7 @@ def test_byte_guard_before_provider_construction(repo, editorial):
     )
     writer = create_profile(repo, project, model="local-double", context_limit=1050000, output_limit=32768)
     command = WritingRunCommand(
+        review_mode="informed-v1",
         run_id=uuid4(),
         project_id=project,
         actor_id=repo.actor_id,
@@ -360,6 +363,7 @@ def test_own_plan_uses_only_shared_packet_and_structured_creative_decisions(repo
         roles=["planner", "plan_reviewer"],
     )
     command = WritingRunCommand(
+        review_mode="informed-v1",
         run_id=uuid4(),
         project_id=project,
         actor_id=repo.actor_id,
@@ -455,6 +459,7 @@ def test_compact_anchor_repair_rejects_unoffered_real_selector(repo, editorial, 
 
     profile = create_profile(repo, project, model="local-double", context_limit=1050000, output_limit=32768)
     command = WritingRunCommand(
+        review_mode="informed-v1",
         run_id=uuid4(),
         project_id=project,
         actor_id=repo.actor_id,
@@ -481,6 +486,7 @@ def test_keep_finalization_is_free_exact_and_exported(repo, editorial, tmp_path)
     project, data, _, shared, fixed, _ = editorial
     profile = create_profile(repo, project, model="local-double", context_limit=1050000, output_limit=32768)
     command = WritingRunCommand(
+        review_mode="informed-v1",
         run_id=uuid4(),
         project_id=project,
         actor_id=repo.actor_id,
@@ -648,7 +654,7 @@ def test_real_editorial_packets_bind_every_exact_source_and_fit(repo, scope, cas
     assert "/plan.md" not in wire and "fixed_input" not in wire
 
 
-def test_default_cli_preview_and_keep_run_need_no_real_provider(repo, editorial, tmp_path, monkeypatch):
+def test_informed_cli_preview_and_keep_run_need_no_real_provider(repo, editorial, tmp_path, monkeypatch):
     from podgen import writing_cli
 
     project, data, _, shared, fixed, _ = editorial
@@ -701,6 +707,8 @@ def test_default_cli_preview_and_keep_run_need_no_real_provider(repo, editorial,
             prefix
             + [
                 "run",
+                "--review-mode",
+                "informed-v1",
                 "--run-id",
                 str(run_id),
                 "--case",

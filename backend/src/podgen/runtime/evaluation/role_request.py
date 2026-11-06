@@ -13,3 +13,12 @@ def compile_role_request(
     validate_model_content(dict(instructions=instructions, schema=schema), materials.documents)
     body = response_request(run_id, stage, profile, payload, instructions, schema)
     return body
+
+
+def compile_reading_request(run_id, stage, profile, materials, instructions, schema, **inputs):
+    from podgen.writing.reading_views import reading_payload
+
+    from .reading_workflow import base_stage
+
+    payload = reading_payload(base_stage(stage), materials, **inputs)
+    return response_request(run_id, stage, profile, payload, instructions, schema)

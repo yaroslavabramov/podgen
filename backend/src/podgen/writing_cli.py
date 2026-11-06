@@ -1,4 +1,4 @@
-"""Controlled whole-episode baseline A. No live calls unless the operator runs `run`."""
+"""Frozen whole-episode writing and independent readings; model calls require run or resume."""
 
 import argparse
 import json
@@ -28,7 +28,7 @@ def wire_ref(value, model):
 
 
 def parser():
-    root = argparse.ArgumentParser(description="Frozen whole-episode baseline A: draft / review / revise")
+    root = argparse.ArgumentParser(description="Frozen episode writing with independent listener and factual readings")
     root.add_argument("--env-file", type=Path)
     root.add_argument("--project", type=UUID, required=True)
     root.add_argument("--actor", type=UUID, required=True)
@@ -57,6 +57,9 @@ def parser():
     )
     profile.add_argument("--operation-id", type=UUID)
     profile.add_argument("--out", type=Path, required=True)
+    script = sub.add_parser("script-import")
+    script.add_argument("--file", type=Path, required=True, help="Pure full WriteOutput JSON")
+    script.add_argument("--out", type=Path, required=True)
     run = sub.add_parser("run")
     run.add_argument("--run-id", type=UUID, required=True)
     run.add_argument("--case", required=True)
@@ -73,6 +76,11 @@ def parser():
     run.add_argument("--planner-profile")
     run.add_argument("--plan-reviewer-profile")
     run.add_argument("--max-plan-revisions", type=int, choices=[0, 1], default=1)
+    run.add_argument(
+        "--review-mode", choices=["informed-v1", "independent-readings/1"], default="independent-readings/1"
+    )
+    run.add_argument("--max-script-revisions", type=int, choices=[0, 1, 2], default=2)
+    run.add_argument("--initial-script-ref", help="Saved complete script RuntimeRef JSON or @file")
     run.add_argument("--repeat-index", type=int, default=0)
     run.add_argument("--max-total-input-tokens", type=int, default=196608)
     run.add_argument("--max-total-output-tokens", type=int, default=131072)
@@ -120,6 +128,14 @@ def main(argv=None):
 
             print(json.dumps(execute(args, repo, wire_ref), ensure_ascii=False))
             return 0
+        if args.command == "script-import":
+            from podgen.runtime.evaluation.script_import import import_script
+
+            ref = import_script(repo, args.project, args.file.read_bytes())
+            args.out.parent.mkdir(parents=True, exist_ok=True)
+            args.out.write_text(json.dumps(ref.model_dump(mode="json"), indent=2) + "\n")
+            print(json.dumps(dict(script_ref=ref.model_dump(mode="json")), ensure_ascii=False))
+            return 0
         if args.command == "profile-create":
             profile = create_profile(
                 repo,
@@ -157,7 +173,7 @@ def main(argv=None):
         if args.command == "resume":
             data = journal.manifest(args.run_id)["command"]
             command = WritingRunCommand.model_validate(
-                {"input_contract": "legacy-author-materials/1", **data}
+                {"input_contract": "legacy-author-materials/1", "review_mode": "informed-v1", **data}
             )
         else:
             command = WritingRunCommand(
@@ -179,6 +195,11 @@ def main(argv=None):
                 if args.plan_reviewer_profile
                 else None,
                 max_plan_revisions=args.max_plan_revisions,
+                review_mode=args.review_mode,
+                max_script_revisions=args.max_script_revisions,
+                initial_script_ref=wire_ref(args.initial_script_ref, RuntimeRef)
+                if args.initial_script_ref
+                else None,
                 repeat_index=args.repeat_index,
                 review_anchor_policy=args.review_anchor_policy,
                 limits=RunLimits(
@@ -212,7 +233,7 @@ def main(argv=None):
             if journal.run(command.run_id):
                 export_run(repo, args.project, command.run_id, args.export_dir)
         print(json.dumps(result, ensure_ascii=False))
-        return 0
+        return 0 if result["status"] != "needs_attention" else 2
     except (ContractError, RunFailure, ProviderFault, ValueError) as error:
         code = getattr(error, "code", "invalid_cli_configuration")
         print(

@@ -106,6 +106,7 @@ def test_current_ordinary_cli_preserves_author_speech_and_delivers_required_chan
     run_id = uuid4()
     out = tmp_path / "run"
     args = dict(
+        review_mode="informed-v1",
         run_id=run_id,
         case=data["assignment"]["key"],
         author_ref=json.dumps(shared.model_dump(mode="json")),
@@ -153,6 +154,7 @@ def test_older_manifest_resume_keeps_pinned_schema_and_request(
     project, data, _, shared, fixed, _ = editorial
     profile = create_profile(repo, project, model="local-double", context_limit=1050000, output_limit=32768)
     command = WritingRunCommand(
+        review_mode="informed-v1",
         run_id=uuid4(),
         project_id=project,
         actor_id=repo.actor_id,

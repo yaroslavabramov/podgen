@@ -80,6 +80,32 @@
           },
           "title": "Style Guidance",
           "type": "array"
+        },
+        "listener_profile": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Listener Profile"
+        },
+        "genre": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Genre"
         }
       },
       "required": [

@@ -1,4 +1,4 @@
-"""Baseline A: complete draft -> independent informed review -> complete revision."""
+"""Frozen writing runs with versioned review workflows and immutable script bindings."""
 
 from datetime import datetime, timezone
 
@@ -15,6 +15,7 @@ from .contracts import STAGES, RunFailure, WritingRunCommand, command_payload
 from .journal import EvaluationJournal
 from .manifest import create_manifest
 from .planning import execute_planning
+from .reading_workflow import VERSION, independent
 from .recovery import authorize_recovery
 from .role_schema import response_schema
 from .stage import execute_stage
@@ -40,7 +41,11 @@ class WritingEvaluation:
         if command.input_contract == "editorial-role-packets/1":
             from podgen.persistence.editorial_inputs import load_editorial_materials
 
-            if command.plan_mode == "fixed-plan" and command.fixed_plan_input_ref is None:
+            if (
+                command.plan_mode == "fixed-plan"
+                and command.fixed_plan_input_ref is None
+                and command.initial_script_ref is None
+            ):
                 raise ContractError("fixed_editorial_input_required")
             return load_editorial_materials(
                 self.generation,
@@ -69,9 +74,32 @@ class WritingEvaluation:
                 historical = journal.manifest(command.run_id)["command"]
                 if "input_contract" not in historical and "input_contract" not in command.model_fields_set:
                     command = command.model_copy(update={"input_contract": "legacy-author-materials/1"})
+                if "review_mode" not in historical and "review_mode" not in command.model_fields_set:
+                    command = command.model_copy(update={"review_mode": "informed-v1"})
                 if existing["input_fingerprint"] != digest(command_payload(command)):
                     raise Conflict("run_id_reused_with_different_input")
                 manifest = journal.manifest(command.run_id)
+                if independent(command):
+                    from .reading_outcome import outcome_result, read_outcome
+
+                    outcome = read_outcome(journal, command.run_id)
+                    if outcome is not None:
+                        if (
+                            materials_hash(self._materials(command).as_payload())
+                            != manifest["materials_hash"]
+                        ):
+                            raise Conflict("frozen_materials_changed")
+                        authorize_recovery(
+                            journal,
+                            command,
+                            credit_target=retry_credit_refusal,
+                            plan_target=repair_plan_targets,
+                            guard=lambda: None,
+                            allow_create=False,
+                        )
+                        result = outcome_result(outcome, command)
+                        journal.status(command.run_id, result["status"], result["failure_code"])
+                        return result
                 saved = [journal.invocation(command.run_id, stage) for stage in STAGES]
                 finalized = False
                 if command.input_contract == "editorial-role-packets/1":
@@ -118,6 +146,8 @@ class WritingEvaluation:
                     "role_input_budget"
                 ) != dict(visible_bytes=VISIBLE_BYTES_LIMIT, input_tokens=SINGLE_INPUT_TOKEN_LIMIT):
                     raise ContractError("role_input_contract_changed")
+            if independent(command) and manifest.get("review_workflow") != VERSION:
+                raise ContractError("review_workflow_changed")
             if manifest["compiler_version"] != COMPILER_VERSION:
                 raise ContractError("compiler_version_changed")
             if materials_hash(materials.as_payload()) != manifest["materials_hash"]:
@@ -170,6 +200,28 @@ class WritingEvaluation:
                         totals=totals,
                         guard=guard,
                     )
+                if independent(command):
+                    from .reading_cycle import execute_reading_cycle
+                    from .reading_outcome import outcome_result
+
+                    outcome = execute_reading_cycle(
+                        journal=journal,
+                        gateway=gateway,
+                        generation=self.generation,
+                        command=command,
+                        manifest=manifest,
+                        materials=materials,
+                        outputs=outputs,
+                        records=records,
+                        totals=totals,
+                        guard=guard,
+                        own_plan=own_plan,
+                        repair_review_anchors=repair_review_anchors
+                        or command.review_anchor_policy == "bounded-selection-v1",
+                    )
+                    result = outcome_result(outcome, command)
+                    journal.status(command.run_id, result["status"], result["failure_code"])
+                    return result
                 finalization = None
                 for stage in STAGES:
                     guard()

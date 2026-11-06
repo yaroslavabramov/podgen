@@ -27,7 +27,7 @@ def profile_role(stage):
         return "planner"
     if stage in ("plan-review", "plan-review-revised"):
         return "plan_reviewer"
-    return "editorial_reviewer" if stage == "review" else "writer"
+    return "editorial_reviewer" if stage == "review" or stage.startswith(("reader-review", "fact-review")) else "writer"
 
 
 def validate_profile(profile: ModelProfile, stage):

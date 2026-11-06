@@ -37,6 +37,7 @@ def prepare(dataset, case, directory, monkeypatch, *, contaminated=False):
         invoke(prefix, "editorial-import", input=directory / "shared.json", source_map=mapping, out=ref) == 0
     )
     common = dict(
+        review_mode="informed-v1",
         run_id=uuid4(),
         case=case,
         author_ref="@" + str(ref),

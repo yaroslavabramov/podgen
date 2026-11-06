@@ -41,6 +41,14 @@ def add_commands(sub):
             "plan-review",
             "plan-revise",
             "plan-review-revised",
+            "reader-review",
+            "fact-review",
+            "reader-review-1",
+            "fact-review-1",
+            "reader-review-2",
+            "fact-review-2",
+            "revise-1",
+            "revise-2",
             "draft",
             "review",
             "revise",
@@ -51,7 +59,15 @@ def add_commands(sub):
     )
     preview.add_argument("--profile", required=True)
     preview.add_argument("--run-id", type=__import__("uuid").UUID, required=True)
-    for name in ("candidate", "plan-review", "approved-plan", "draft", "feedback"):
+    for name in (
+        "candidate",
+        "plan-review",
+        "approved-plan",
+        "draft",
+        "feedback",
+        "reader-feedback",
+        "fact-feedback",
+    ):
         preview.add_argument("--" + name, type=Path)
     preview.add_argument("--out", type=Path, required=True)
 
@@ -91,8 +107,16 @@ def execute(args, repo, wire_ref):
             args.stage,
             fixed=args.fixed_ref is not None,
             inputs={
-                name: getattr(args, name)
-                for name in ("candidate", "plan_review", "approved_plan", "draft", "feedback")
+                name: getattr(args, name, None)
+                for name in (
+                    "candidate",
+                    "plan_review",
+                    "approved_plan",
+                    "draft",
+                    "feedback",
+                    "reader_feedback",
+                    "fact_feedback",
+                )
             },
         )
         generation = generation_repo(repo)
@@ -104,8 +128,18 @@ def execute(args, repo, wire_ref):
             fixed_ref=wire_ref(args.fixed_ref, RuntimeRef) if args.fixed_ref else None,
         )
         values = {
-            name: load_unique_json(getattr(args, name).read_text()) if getattr(args, name) else None
-            for name in ("candidate", "plan_review", "approved_plan", "draft", "feedback")
+            name: load_unique_json(getattr(args, name, None).read_text())
+            if getattr(args, name, None)
+            else None
+            for name in (
+                "candidate",
+                "plan_review",
+                "approved_plan",
+                "draft",
+                "feedback",
+                "reader_feedback",
+                "fact_feedback",
+            )
         }
         from podgen.runtime.evaluation.preview import preview_request
 

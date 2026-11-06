@@ -1,0 +1,137 @@
+"""Two isolated readings per exact version, bounded rewrites, and an immutable terminal outcome."""
+
+from uuid import uuid5
+
+from podgen.domain.canonical import digest
+from podgen.domain.contracts.common import RuntimeRef
+
+from .contracts import RunFailure
+from .reading_stage import execute_reading_stage
+from .reading_workflow import VERSION, round_stage
+from .script_import import load_script
+from .stage import execute_stage
+
+
+def outcome_ref(run_id):
+    return RuntimeRef(record_kind="tool_execution", record_id=uuid5(run_id, "independent-reading-outcome"))
+
+
+def combine(readings):
+    if any(r["research_requests"] or r["recommendation"] == "needs_material" for r in readings.values()):
+        return dict(recommendation="needs_material", reason="necessary_material_requested")
+    if any(
+        r["recommendation"] == "revise"
+        or any(f["priority"] in ("blocking", "important") for f in r["findings"])
+        for r in readings.values()
+    ):
+        return dict(recommendation="revise", reason="required_changes_from_independent_readings")
+    return dict(recommendation="keep", reason="both_independent_readings_keep")
+
+
+def execute_reading_cycle(
+    *,
+    journal,
+    gateway,
+    generation,
+    command,
+    manifest,
+    materials,
+    outputs,
+    records,
+    totals,
+    guard,
+    own_plan,
+    repair_review_anchors=False,
+):
+    common = dict(
+        journal=journal,
+        gateway=gateway,
+        generation=generation,
+        command=command,
+        manifest=manifest,
+        materials=materials,
+        totals=totals,
+        guard=guard,
+    )
+    if command.initial_script_ref is not None:
+        script = load_script(
+            journal.repo, command.project_id, command.initial_script_ref, materials.speaker_labels
+        )
+        script_ref = command.initial_script_ref.model_dump(mode="json")
+        if digest(script) != manifest["initial_script_hash"]:
+            raise RunFailure("initial_script_changed", run_id=command.run_id)
+        outputs["draft"], records["draft"] = script, script_ref
+    else:
+        initial = execute_stage("draft", **common, outputs=outputs, records=records, own_plan=own_plan)
+        script, script_ref = initial.output, initial.ref.model_dump(mode="json")
+        outputs["draft"], records["draft"] = script, script_ref
+        totals["input"] += initial.input_tokens
+        totals["output"] += initial.output_tokens_or_reservation
+    rounds = []
+    for index in range(command.max_script_revisions + 1):
+        readings, refs = {}, {}
+        for origin, base in (("reader", "reader-review"), ("fact", "fact-review")):
+            guard()
+            stage = round_stage(base, index)
+            result = execute_reading_stage(
+                stage,
+                **common,
+                script=script,
+                script_ref=script_ref,
+                repair_review_anchors=repair_review_anchors,
+            )
+            readings[origin], refs[origin] = result.output, result.ref.model_dump(mode="json")
+            outputs[stage], records[stage] = result.output, refs[origin]
+            totals["input"] += result.input_tokens
+            totals["output"] += result.output_tokens_or_reservation
+        decision = combine(readings)
+        round_record = dict(
+            contract="independent-reading-round/1",
+            review_workflow=VERSION,
+            run_id=str(command.run_id),
+            index=index,
+            script_ref=script_ref,
+            script_hash=digest(script),
+            reading_refs=refs,
+            decision=decision,
+        )
+        ref = journal.record(round_record, record_id=uuid5(command.run_id, f"reading-round:{index}"))
+        rounds.append(ref.model_dump(mode="json"))
+        terminal = decision["recommendation"] != "revise" or index == command.max_script_revisions
+        if terminal:
+            status = decision["recommendation"]
+            if status == "revise":
+                status = "revision_limit_exhausted"
+            outcome = dict(
+                contract="independent-reading-outcome/1",
+                review_workflow=VERSION,
+                run_id=str(command.run_id),
+                status=status,
+                script_ref=script_ref,
+                script_hash=digest(script),
+                reading_refs=refs,
+                rounds=rounds,
+                output_refs=dict(records),
+                token_usage_or_reservation=dict(totals),
+                output=script,
+                semantic_acceptance=False,
+                production_ready=False,
+            )
+            journal.record(outcome, record_id=outcome_ref(command.run_id).record_id)
+            return outcome
+        stage = round_stage("revise", index + 1)
+        guard()
+        result = execute_reading_stage(
+            stage,
+            **common,
+            script=script,
+            script_ref=script_ref,
+            readings=readings,
+            reading_refs=refs,
+            decision=decision,
+            approved_plan=own_plan["accepted_plan"] if own_plan else None,
+        )
+        script, script_ref = result.output, result.ref.model_dump(mode="json")
+        outputs[stage], records[stage] = script, script_ref
+        totals["input"] += result.input_tokens
+        totals["output"] += result.output_tokens_or_reservation
