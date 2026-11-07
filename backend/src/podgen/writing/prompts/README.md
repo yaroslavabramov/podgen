@@ -1,6 +1,6 @@
 # Writing instructions
 
-Edit the applicable UTF-8 Markdown file in `current/`. The caller assembles `common.md`, the format component, then the stage component. Instruction text is English; `output_language` controls spoken text and other human-readable output. Preserve supplied labels, exact quotations, keys and enum values.
+Edit the applicable UTF-8 Markdown file in `current/`. The planner receives only `plan.md`; planning revision receives `plan.md`, then `plan-revise.md`. These files form the complete planning task, with format, speakers and language supplied in the payload. Other ordinary roles receive `common.md`, the format component, then their stage component. Instruction text is English; `output_language` controls spoken text and other human-readable output. Preserve supplied labels, exact quotations, keys and enum values.
 
 | Component | Responsibility |
 | --- | --- |
@@ -31,7 +31,7 @@ See [the role-input contract](../../../../../docs/podcast-production/08-editoria
 
 A text edit is sufficient for a new assembly: no copied version directory, registration or unrelated hash updates. `load_instruction_set(format, include_planning=True)` reads components once and assembles all six ordinary roles. `role_instructions(stage, format)` can inspect any ordinary current role. Resources come from the installed package, independently of the working directory; deployed packages must receive changed assets.
 
-Each assembly has a content ID derived from its stage, format and exact ordered component bytes. The ID stays in runtime provenance; it is not prepended to current model instructions. Editing a stage file affects that role; editing a format affects that format. Repair bodies have separate content IDs.
+Each assembly has a content ID derived from its stage and exact ordered component names/bytes, including format when a format component is used. Isolated planning bodies have the same ID for solo and dialogue. Editing `plan.md` affects planning and its revision; editing `plan-revise.md` affects only revision. Common and format edits affect the other ordinary roles. Their existing ID construction remains unchanged. The ID stays in runtime provenance, outside model instructions. Repair bodies have separate content IDs.
 
 A new run pins complete prompt bodies in saved definitions. Resume uses these bodies, not mutable `current/` or Git. Planning's second review uses the pinned plan-review body but reviews the new exact candidate. Every candidate, draft and review retains its own binding. Successful structured output is not semantic acceptance.
 

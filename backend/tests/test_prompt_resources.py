@@ -100,7 +100,8 @@ role_instructions_for_version("review", "solo", version={before["active"]["revie
     assert deployed_python(target, SNAPSHOT) == before
 
 
-def test_instruction_set_reads_each_used_component_once(monkeypatch):
+@pytest.mark.parametrize("include_planning", [False, True])
+def test_instruction_set_reads_each_used_component_once(monkeypatch, include_planning):
     reads = []
     root = prompts.files("podgen.writing.prompts")
 
@@ -116,9 +117,14 @@ def test_instruction_set_reads_each_used_component_once(monkeypatch):
             return self.path.read_bytes()
 
     monkeypatch.setattr(prompts, "files", lambda _: Resource(root))
-    assembly = prompts.load_instruction_set("solo")
-    assert reads == ["common.md", "solo.md", "draft.md", "review.md", "revise.md"]
-    assert set(assembly) == {"draft", "review", "revise"}
+    assembly = prompts.load_instruction_set("solo", include_planning=include_planning)
+    expected = ["common.md", "solo.md", "draft.md", "review.md", "revise.md"]
+    stages = {"draft", "review", "revise"}
+    if include_planning:
+        expected += ["plan.md", "plan-review.md", "plan-revise.md"]
+        stages |= {"plan", "plan-review", "plan-revise"}
+    assert reads == expected
+    assert set(assembly) == stages
 
 
 def test_content_id_is_exact_ordered_and_has_no_generated_header(monkeypatch, tmp_path):

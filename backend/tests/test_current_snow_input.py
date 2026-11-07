@@ -14,6 +14,7 @@ from podgen.runtime.evaluation.wire_budget import check_visible
 from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.model_references import ModelReferences
 from podgen.writing.projections import CONTRACT
+from podgen.writing.prompts import role_instructions
 from tests.independent_planner_provider import IndependentPlannerProvider
 from tests.test_editorial_independence import invoke, payload
 
@@ -188,7 +189,9 @@ def test_current_snow_informed_cli_and_every_role_receive_the_assignment(repo, s
         body = preview_request(uuid4(), stage, parsed_profile, materials, **values)
         assert payload(body)["assignment"] == expected_assignment
         assert payload(body)["output_language"] == data["assignment"]["output_language"]
-        assert "# " + data["assignment"]["format"].title() in body["instructions"]
+        assert body["instructions"] == role_instructions(
+            "plan-review" if stage == "plan-review-revised" else stage, materials.format
+        )
         check_visible(body, CONTRACT)
     for stage in ("reader-review", "fact-review"):
         body = preview_request(uuid4(), stage, parsed_profile, materials, draft=provider.script)

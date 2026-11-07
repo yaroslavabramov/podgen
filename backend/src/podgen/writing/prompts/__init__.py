@@ -36,11 +36,25 @@ def _read(root, names):
     return {name: root.joinpath(name).read_bytes().decode("utf-8") for name in names}
 
 
+def _component_names(stage, format):
+    if stage == "plan":
+        return ("plan.md",)
+    if stage == "plan-revise":
+        return ("plan.md", "plan-revise.md")
+    return ("common.md", f"{format}.md", f"{stage}.md")
+
+
 def _assemble(stage, format, components):
-    names = ("common.md", f"{format}.md", f"{stage}.md")
+    names = _component_names(stage, format)
     # Ordered, framed names/content; no generated version/header participates in its own hash.
+    framed = [[name, components[name]] for name in names]
+    identity = (
+        ["semantic-body/2", stage, framed]
+        if stage in ("plan", "plan-revise")
+        else ["semantic-body/1", stage, format, framed]
+    )
     source = json.dumps(
-        ["semantic-body/1", stage, format, [[name, components[name]] for name in names]],
+        identity,
         ensure_ascii=False,
         separators=(",", ":"),
     ).encode("utf-8")
@@ -50,10 +64,10 @@ def _assemble(stage, format, components):
 
 
 def load_instruction_set(format: Format, *, include_planning=False) -> dict[str, RoleInstructions]:
-    """Read each component once for a new run, then assemble all three stage bodies."""
+    """Read each used component once and assemble each role from its own dependencies."""
     _validate("draft", format)
     stages = (*_STAGES, *_PLANNING_STAGES) if include_planning else _STAGES
-    names = ("common.md", f"{format}.md", *(f"{stage}.md" for stage in stages))
+    names = tuple(dict.fromkeys(name for stage in stages for name in _component_names(stage, format)))
     components = _read(files(__name__).joinpath("current"), names)
     return {stage: _assemble(stage, format, components) for stage in stages}
 
@@ -75,7 +89,7 @@ def load_plan_target_repair_instructions() -> RoleInstructions:
 def role_instructions(stage: Stage, format: Format) -> str:
     """Current complete body. Editing an applicable .md changes its content ID automatically."""
     _validate(stage, format)
-    names = ("common.md", f"{format}.md", f"{stage}.md")
+    names = _component_names(stage, format)
     return _assemble(stage, format, _read(files(__name__).joinpath("current"), names)).body
 
 
