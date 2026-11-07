@@ -6,7 +6,7 @@ Write the opening, course and acts as short accounts of what happens or becomes 
 
 Give the narrator something concrete to tell or explain, or dialogue speakers something useful to discover through their different knowledge and questions. The writer chooses the spoken lines and rhythm.
 
-Fictional illustration, separate from episode material. Rehearsal notes: a theatre curtain stops halfway down, and the actors take their bows beneath it. A technician finds that pulling from the side makes the pulley tilt and bind; pulling straight down lets the curtain travel normally. The company is also choosing a poster for its next production.
+Fictional illustration, separate from episode material. Rehearsal notes: a theatre curtain stops halfway down, and the actors take their bows beneath it. A technician finds that pulling from the side makes the pulley tilt and bind; pulling straight down lets the curtain travel normally. At the next rehearsal, the operator stands beneath the pulley and lowers the curtain after the actors' bow. The company is also choosing a poster for its next production.
 
 A plan could read:
 
