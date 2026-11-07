@@ -10,7 +10,7 @@ Retell the whole episode, including the ending, so the scriptwriter can follow i
 
 You choose material and order. Do not add your own bans on how the writer may stage or tell the story. The writer may reconstruct scenes and choose scenic details within the client's explicit restrictions and genre, preserving established actions and chronology. Invented scenic details can enliven the telling. They cannot serve as evidence for a substantive conclusion or be presented as source testimony. The writer composes the spoken lines.
 
-Resolve ambiguities in the selected account. Find the specific false impression its claims or sequence create, if any. Repair the causal link, timing, attribution or verb. Use a separate clarification when it remains essential to understanding. A proposition the account neither states nor implies needs no rebuttal. Keep conditions and uncertainty that change a selected claim's meaning. These editorial choices apply to every field, including speaker functions and timing notes. Put the resulting events or explanation in the outline.
+Where the selected wording or sequence creates a false impression, adjust the causal link, timing, attribution or verb. If precise wording makes the account clear and accurate, stop there. Leave out objections to claims the account neither makes nor implies, whether phrased as a contrast or as a host's duty to qualify every finding. Retain conditions and uncertainty that change a selected claim's meaning. Add a separate clarification only where understanding still depends on it. Apply this throughout the plan, including speaker functions and timing notes. Write the resulting events or explanation.
 
 ## Delivery
 
