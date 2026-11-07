@@ -347,6 +347,18 @@ def test_plan_editor_rejects_names_document_keys_and_foreign_card_ids(kind):
         review.validate_against(plan, material_locators=identifiers)
 
 
+def verify_added_evidence(packet, revision):
+    assert digest(packet) == revision["target_digest"]
+    card = next(c for c in packet["dossier"]["knowledge_cards"] if c["card_id"] == revision["card_id"])
+    location = revision["added_excerpt"]
+    document = next(d for d in packet["documents"] if d["key"] == location["document"])
+    source = (ROOT / "evals/cases/development/wp02-batch-01" / document["source_path"]).read_text()
+    expected = {**location, "text": source[location["start"] : location["end"]]}
+    assert card["excerpts"].count(expected) == 1
+    card["excerpts"].remove(expected)
+    assert digest(packet) == revision["previous_digest"]
+
+
 @pytest.mark.parametrize("case", ["gps-clock", "snow-pump"])
 def test_current_packet_migration_preserves_exact_legacy_bytes_and_reference_bindings(case):
     import hashlib
@@ -364,6 +376,8 @@ def test_current_packet_migration_preserves_exact_legacy_bytes_and_reference_bin
     assert mapping["source_sha256"] == hashlib.sha256(raw).hexdigest()
     assert mapping["source_digest"] == digest(before.model_dump(mode="json"))
     current = packet.model_dump(mode="json")
+    if "evidence_revision" in mapping:
+        verify_added_evidence(current, mapping["evidence_revision"])
     previous = deepcopy(current)
     for card in previous["dossier"]["knowledge_cards"]:
         assert card.pop("story_facts")

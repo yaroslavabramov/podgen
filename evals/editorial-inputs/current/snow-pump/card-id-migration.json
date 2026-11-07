@@ -43,5 +43,15 @@
       "Cd392f2fdcffb",
       "C23d72f102d80"
     ]
+  },
+  "evidence_revision": {
+    "previous_digest": "2ed8e3c9e282197f8ee3cac56600167d9721ef4c54712da603ee26ef01fb5a53",
+    "target_digest": "8d0e67b025df28fd82c4558cd1b83b74b9bb6c85a7a3ba3b1980cf6163f2a7fa",
+    "card_id": "Cd392f2fdcffb",
+    "added_excerpt": {
+      "document": "D4",
+      "start": 231925,
+      "end": 232403
+    }
   }
 }
