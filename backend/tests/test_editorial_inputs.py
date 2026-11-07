@@ -23,6 +23,7 @@ from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.profiles import create_profile
 from podgen.runtime.evaluation.service import WritingEvaluation
 from podgen.runtime.models.contracts import WireReply
+from podgen.writing.projection_versions import V6
 from podgen.writing.projections import role_payload
 from tests.test_writing_evaluation import setup_writer as setup_writer
 
@@ -86,11 +87,15 @@ def test_role_views_preserve_meaning_and_keep_backend_private(repo, editorial):
     assert "Точная цитата." not in wire
     assert writer["support"][0]["claim"] == data["dossier"]["knowledge_cards"][0]["claim"]
     assert writer["assignment"]["duration"] == dict(target_seconds=900, min_seconds=780, max_seconds=1080)
-    assert "working_answer" not in wire and "route_summary" not in wire
+    assert "working_answer" not in wire
+    assert writer["story"]["route_summary"] == plan["plan"]["route_summary"]
+    legacy_writer = role_payload("draft", materials, projection_version=V6)
+    assert "route_summary" not in json.dumps(legacy_writer, ensure_ascii=False)
     assert writer["story"]["main_question"] == plan["plan"]["main_question"]
     assert writer["assignment"]["question"] == data["assignment"]["question"]
     assert set(writer["story"]) == {
         "main_question",
+        "route_summary",
         "listener_promise",
         "conclusion",
         "duration_strategy",

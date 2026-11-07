@@ -8,12 +8,13 @@ V3 = "editorial-role-projections/3"
 V4 = "editorial-role-projections/4"
 V5 = "editorial-role-projections/5"
 V6 = "editorial-role-projections/6"
-CURRENT = V6
+V7 = "editorial-role-projections/7"
+CURRENT = V7
 PREVIOUS = V1  # Compatibility for callers that imported the former name.
 
 
 def validate_version(value):
-    if value not in (V1, V2, V3, V4, V5, V6):
+    if value not in (V1, V2, V3, V4, V5, V6, V7):
         raise ContractError("unknown_role_projection_version")
     return value
 
@@ -29,4 +30,4 @@ def historical(version):
 
 def creative_materials(version):
     validate_version(version)
-    return version in (V5, V6)
+    return version in (V5, V6, V7)

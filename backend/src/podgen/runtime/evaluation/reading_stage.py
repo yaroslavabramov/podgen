@@ -8,6 +8,7 @@ from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.domain.errors import Conflict, ContractError
 from podgen.writing.model_references import CATALOG_KEY, run_references
+from podgen.writing.projection_versions import V7
 from podgen.writing.roles import WriteOutput
 
 from .contracts import RunFailure
@@ -61,6 +62,11 @@ def execute_reading_stage(
     )
     if references is not None:
         context[CATALOG_KEY] = references.as_payload()
+    if manifest["role_projection_version"] == V7 and base == "revise":
+        selected = approved_plan or (
+            materials.fixed.plan.model_dump(mode="json") if materials.fixed else None
+        )
+        context["approved_plan_hash"] = digest(selected) if selected is not None else None
     invocation = journal.invocation(command.run_id, stage)
     if invocation is None:
         instructions = generation.get(

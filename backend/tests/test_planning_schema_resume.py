@@ -1,4 +1,4 @@
-"""A pending V5 planner revision resumes its pinned schema; schema drift still fails closed."""
+"""Pending V5/V6 planner revisions resume pinned schemas; schema drift still fails closed."""
 
 from copy import deepcopy
 
@@ -13,7 +13,7 @@ from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.model_references import ModelReferences, bind_schema
-from podgen.writing.projection_versions import V5, V6
+from podgen.writing.projection_versions import CURRENT, V5, V6
 from tests.test_card_ids import admitted, legacy
 from tests.test_editorial_independence import invoke
 from tests.test_independent_readings import Paused
@@ -21,27 +21,30 @@ from tests.test_own_plan import own_dataset as own_dataset
 from tests.test_v5_recovery import RecoveryProvider
 
 
-def test_pending_v5_planning_schema_is_pinned_and_drift_still_blocks_resume(
-    own_dataset, tmp_path, monkeypatch
+@pytest.mark.parametrize("version", [V5, V6])
+def test_pending_planning_schema_is_pinned_and_drift_still_blocks_resume(
+    own_dataset, tmp_path, monkeypatch, version
 ):
     prefix, _, options, _, data, _, _, _, _, _ = admitted(legacy(), own_dataset, tmp_path, monkeypatch)
     refs = ModelReferences.create(EditorialInput.model_validate(data))
     original = EvaluationJournal.create_run
 
-    def frozen_v5(journal, command, manifest):
-        assert manifest["role_projection_version"] == V6
+    def frozen(journal, command, manifest):
+        assert manifest["role_projection_version"] == CURRENT
         assert manifest["response_schemas"]["plan"] == bind_schema(
-            response_schema("plan", command.input_contract, projection_version=V6), refs
+            response_schema("plan", command.input_contract, projection_version=CURRENT), refs
         )
         manifest = deepcopy(manifest)
-        manifest["role_projection_version"] = V5
+        manifest["role_projection_version"] = version
         manifest["response_schemas"] = {
-            stage: bind_schema(response_schema(stage, command.input_contract, projection_version=V5), refs)
+            stage: bind_schema(
+                response_schema(stage, command.input_contract, projection_version=version), refs
+            )
             for stage in manifest["response_schemas"]
         }
         return original(journal, command, manifest)
 
-    monkeypatch.setattr(EvaluationJournal, "create_run", frozen_v5)
+    monkeypatch.setattr(EvaluationJournal, "create_run", frozen)
     provider = RecoveryProvider(refs, EditorialInput.model_validate(data), "pending")
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *a, **k: provider)
     with pytest.raises(Paused):

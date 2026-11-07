@@ -162,7 +162,14 @@ def test_every_v5_role_uses_its_real_creative_or_checker_view_without_losing_que
             assert card["claim"] == original.claim and card["context"] == original.context
             assert card["limitations"] == list(original.limitations)
     assert wires["fact-review"]["necessary_limits"] == list(materials.packet.dossier.throughline_constraints)
-    assert set(wires["reader-review"]) == {"script", "audience", "format", "genre", "output_language"}
+    assert set(wires["reader-review"]) == {
+        "script",
+        "audience",
+        "format",
+        "genre",
+        "output_language",
+        "duration_context",
+    }
     assert materials.packet.model_dump(mode="json") == frozen
 
 

@@ -4,7 +4,8 @@ from copy import deepcopy
 
 from podgen.domain.errors import ContractError
 
-from .projection_versions import CURRENT, creative_materials, historical
+from .duration_views import duration_context
+from .projection_versions import CURRENT, V7, creative_materials, historical
 from .projections import (
     actionable_feedback,
     assignment_view,
@@ -29,6 +30,10 @@ def reading_payload(
         genre=packet.assignment.genre or "podcast",
         output_language=materials.output_language,
     )
+    if projection_version == V7 and stage in ("reader-review", "revise"):
+        payload["duration_context"] = duration_context(
+            packet.assignment, script, include_requested=stage == "reader-review"
+        )
     if stage == "reader-review":
         return payload
     if stage not in ("fact-review", "revise"):

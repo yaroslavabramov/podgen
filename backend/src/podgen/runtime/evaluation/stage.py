@@ -5,10 +5,11 @@ from uuid import uuid5
 
 from pydantic import ValidationError
 
+from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.domain.errors import ContractError
 from podgen.writing.model_references import CATALOG_KEY, run_references
-from podgen.writing.projection_versions import manifest_version
+from podgen.writing.projection_versions import V7, manifest_version
 
 from .compiler import COMPILER_VERSION, compile_request
 from .contracts import RunFailure
@@ -101,9 +102,24 @@ def execute_stage(
         )
     if references is not None:
         context[CATALOG_KEY] = references.as_payload()
+    if command.input_contract == "editorial-role-packets/1" and manifest_version(manifest) == V7:
+        selected = (
+            own_plan["accepted_plan"]
+            if own_plan
+            else materials.fixed.plan.model_dump(mode="json")
+            if materials.fixed
+            else None
+        )
+        context["accepted_plan_hash"] = digest(selected) if selected is not None else None
     invocation = journal.invocation(command.run_id, stage)
     if invocation is None:
         invocation = journal.prepare(command.run_id, stage, body, context)
+    if command.input_contract == "editorial-role-packets/1" and manifest_version(manifest) == V7:
+        saved = journal.read(
+            RuntimeRef(record_kind="tool_execution", record_id=invocation["request_record_id"])
+        )
+        if any(saved["context"].get(key) != value for key, value in context.items()):
+            raise ContractError("writing_request_binding_mismatch")
     if (
         stage == "review"
         and invocation["operation_kind"] == "role"

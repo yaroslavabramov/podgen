@@ -5,7 +5,7 @@ from copy import deepcopy
 from podgen.domain.errors import ContractError
 
 from .card_catalog import catalog
-from .projection_versions import CURRENT, V1, V2, historical
+from .projection_versions import CURRENT, V1, V2, V7, historical
 
 
 def selected_labels(plan, packet):
@@ -44,6 +44,8 @@ def narrative_decisions(plan, *, projection_version=CURRENT):
             else dict(estimated_seconds_range=deepcopy(duration["estimated_seconds_range"])),
         )
     result["opening"] = {key: deepcopy(source["opening"][key]) for key in ("approach", "question_to_open")}
+    if projection_version == V7:
+        result["route_summary"] = source["route_summary"]
     act_fields = (
         "title",
         "listener_question",
@@ -103,6 +105,8 @@ def editorial_frame(plan, *, projection_version=CURRENT):
         raise ContractError("writing_plan_required")
     result = {"main_question": plan["plan"]["main_question"]} if projection_version not in (V1, V2) else {}
     result["listener_promise"] = plan["plan"]["listener_promise"]
+    if projection_version == V7:
+        result["route_summary"] = plan["plan"]["route_summary"]
     if historical(projection_version):
         result["qualifications"] = deepcopy(plan["plan"]["ending"]["qualifications"])
         result["limitations"] = deepcopy(plan["limitations"])

@@ -150,7 +150,7 @@ def test_default_saved_snow_two_isolated_readings_and_repeated_final(own_dataset
         "fact-review-1",
     ]
     first, fact, rewrite, final_read, final_fact = map(payload, provider.requests)
-    assert set(first) == {"script", "audience", "format", "genre", "output_language"}
+    assert set(first) == {"script", "audience", "format", "genre", "output_language", "duration_context"}
     assert first["audience"] == "General listeners; no prior topic knowledge is assumed."
     assert first["genre"] == "podcast"
     assert [

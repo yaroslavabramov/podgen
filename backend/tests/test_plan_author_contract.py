@@ -139,7 +139,12 @@ def test_actual_six_act_snow_author_and_dual_revision_wires_keep_support_not_rec
             fact_feedback=fact,
         )
     )
-    assert set(revised["editorial_frame"]) == {"main_question", "listener_promise", "unresolved_questions"}
+    assert set(revised["editorial_frame"]) == {
+        "main_question",
+        "listener_promise",
+        "unresolved_questions",
+        "route_summary",
+    }
     assert "necessary_limits" not in revised
     assert all("important_limits" not in row for row in revised["revision_guidance"])
     assert revised["revision_guidance"][1]["findings"][0] == fact["findings"][0]

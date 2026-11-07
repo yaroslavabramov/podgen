@@ -8,8 +8,9 @@ from podgen.domain.errors import ContractError
 
 from .card_catalog import card_id
 from .creative_material import creative_card_view, creative_dossier_view
+from .duration_views import duration_context
 from .plan_views import candidate_view
-from .projection_versions import CURRENT, V1, creative_materials, historical, validate_version
+from .projection_versions import CURRENT, V1, V7, creative_materials, historical, validate_version
 from .story_views import (
     editorial_frame,
     narrative_decisions,
@@ -115,10 +116,16 @@ def actionable_feedback(review, *, planning=False, projection_version=CURRENT):
     ]
     if planning:
         result["decision_reason"] = review["decision_reason"]
-        result["retain_sections"] = [dict(targets=deepcopy(row["targets"])) for row in review["strengths"]]
+        if projection_version != V7:
+            result["retain_sections"] = [
+                dict(targets=deepcopy(row["targets"])) for row in review["strengths"]
+            ]
+    if projection_version == V7:
+        result["positive_observations"] = deepcopy(review["strengths"])
     if not planning:
         result["listener_understanding"] = review["listener_answer"]
-        result["retain_passages"] = [dict(anchors=deepcopy(s["anchors"])) for s in review["strengths"]]
+        if projection_version != V7:
+            result["retain_passages"] = [dict(anchors=deepcopy(s["anchors"])) for s in review["strengths"]]
     return result
 
 
@@ -145,6 +152,8 @@ def role_payload(
     if projection_version != V1 and stage in ("review", "revise"):
         payload["draft"] = indexed_draft(draft)
     payload["assignment"] = assignment_view(packet)
+    if projection_version == V7 and stage in ("draft", "review", "revise"):
+        payload["duration_context"] = duration_context(packet.assignment, draft, include_requested=False)
     if stage.startswith("plan"):
         payload["dossier"] = dict(
             summary=packet.dossier.summary,

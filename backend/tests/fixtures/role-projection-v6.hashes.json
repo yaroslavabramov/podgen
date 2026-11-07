@@ -1,0 +1,23 @@
+{
+  "schemas": {
+    "plan": "7d687bcb506a94141d2820087766e5e4ec98b1806f5ea143f1061af76795f264",
+    "plan-review": "9231ee485295a677711ef01a367eb3c63b2c7cf6fc659a7afb6c04c799d2d516",
+    "plan-revise": "7d687bcb506a94141d2820087766e5e4ec98b1806f5ea143f1061af76795f264",
+    "plan-review-revised": "9231ee485295a677711ef01a367eb3c63b2c7cf6fc659a7afb6c04c799d2d516",
+    "draft": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f",
+    "review": "c842481da76204d0769ef6642943beac7cf20f21149d0e577a1b54b9c841617c",
+    "revise": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f",
+    "reader-review": "f11479ca522cf9ad545e3a052515409c53d728d70587d526eea35c4c74959fa8",
+    "fact-review": "25c3e1dd44f34c7aace227fa38fbb65c77e23aff7d55aa11fba12e4b7484b9ff",
+    "revise-1": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f",
+    "revise-2": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f"
+  },
+  "payloads": {
+    "draft": "1b6912c202fc939750fb39df0c2c6dd72abc4277d1390942c4cad8606ddd1faa",
+    "review": "c36ade0261ab76a55c97257d8a33c9043ee3147c9deea4d8c7c9eb49e790ccbb",
+    "revise": "7e25f65cefd04a7d424af56f78699348e97bc79a7e972fd8de72d42a045371a5",
+    "reading:reader-review": "39cfd689f420d1032f4b3a93edacfc62ac1083cee08cf00962d32ab141aace84",
+    "reading:fact-review": "b44168842dd6b2cf014c37ada968645489988409b1eae28355248917b6e7aa7b",
+    "reading:revise": "ba1b3cc695313e0ab15c355aec9c4e49b0fadd735693552d3254df9987903d60"
+  }
+}

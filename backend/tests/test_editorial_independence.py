@@ -65,6 +65,7 @@ def expected_current_story(proposal):
     plan = proposal["plan"]
     return dict(
         main_question=plan["main_question"],
+        route_summary=plan["route_summary"],
         listener_promise=plan["listener_promise"],
         conclusion=dict(meaning=plan["ending"]["answer_to_deliver"]),
         opening={key: plan["opening"][key] for key in ("approach", "question_to_open")},
@@ -145,7 +146,7 @@ def test_real_ordinary_wire_and_own_candidate_delivery(own_dataset, case, tmp_pa
         act.pop("limitations_to_voice")
     assert payload(provider.requests[1])["candidate_plan"] == expected_candidate
     author_input = payload(provider.requests[2])
-    assert set(author_input) == {"output_language", "assignment", "story", "support"}
+    assert set(author_input) == {"output_language", "assignment", "story", "support", "duration_context"}
     story = author_input["story"]
     assert story == expected_current_story(chosen)
     review_input = payload(provider.requests[3])
@@ -156,9 +157,11 @@ def test_real_ordinary_wire_and_own_candidate_delivery(own_dataset, case, tmp_pa
         "editorial_frame",
         "support",
         "evidence",
+        "duration_context",
     }
     assert review_input["editorial_frame"] == dict(
         main_question=chosen["plan"]["main_question"],
+        route_summary=chosen["plan"]["route_summary"],
         listener_promise=chosen["plan"]["listener_promise"],
         unresolved_questions=story["unresolved_questions"],
     )

@@ -199,7 +199,14 @@ def test_current_snow_informed_cli_and_every_role_receive_the_assignment(repo, s
         assert visible["script"]["utterances"][0]["text"] == provider.script["utterances"][0]["text"]
         assert "assignment" not in visible
         if stage == "reader-review":
-            assert set(visible) == {"script", "audience", "genre", "format", "output_language"}
+            assert set(visible) == {
+                "script",
+                "audience",
+                "genre",
+                "format",
+                "output_language",
+                "duration_context",
+            }
             assert visible["audience"] == data["assignment"]["listener_profile"]
             assert visible["genre"] == data["assignment"]["genre"]
         else:
