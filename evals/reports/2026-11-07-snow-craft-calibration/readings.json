@@ -1,0 +1,26 @@
+{
+  "draft-archived-plan": {
+    "words": 1840,
+    "seconds": 977.165351,
+    "paragraphs": 20,
+    "spoken_sha256": "67b29ee60bb7c3d28d1582bfd584f3ee1e737dc8af7cc03c90024e499ddb8ca4"
+  },
+  "draft-control-plan": {
+    "words": 1655,
+    "seconds": 891.472109,
+    "paragraphs": 21,
+    "spoken_sha256": "e84c85c1316a4820488e077cc04ca1370d540488a27a25e536d00d5501e10b8c"
+  },
+  "operator-directed-rewrite": {
+    "words": 1419,
+    "seconds": 748.460408,
+    "paragraphs": 22,
+    "spoken_sha256": "164438a83c6ae57c0fa8bd62fcf3ef2837db88760db4e4286cb3761c3b1f6b4a"
+  },
+  "after-fact-review": {
+    "words": 1509,
+    "seconds": 790.465306,
+    "paragraphs": 22,
+    "spoken_sha256": "ab77bc0f28c332033050679c2c5b72f4e6e7e680304767573c1f655df2b4d72d"
+  }
+}

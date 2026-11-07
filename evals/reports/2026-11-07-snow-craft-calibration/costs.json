@@ -1,0 +1,738 @@
+{
+  "currency": "USD",
+  "method": "estimated from provider usage, default service tier",
+  "successful_calls": 48,
+  "unsuccessful_before_generation": 6,
+  "schema_rejection": {
+    "http": 400,
+    "error": {
+      "message": "Invalid schema for response_format 'reader_review': context=('properties', 'revision_scope'), $ref cannot have keywords {'description'}.",
+      "type": "invalid_request_error",
+      "param": "text.format.schema",
+      "code": "invalid_json_schema"
+    }
+  },
+  "total": "0.84984530",
+  "calls": [
+    {
+      "group": "blind-drafts-1",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_05dc92633e14282a016aef81ae097887d2881fbc6b20eacdc9",
+      "receipt": "blind-drafts-1/receipt.json",
+      "input": 6710,
+      "input_details": {
+        "cache_write_tokens": 6707,
+        "cached_tokens": 0
+      },
+      "output": 926,
+      "request_sha256": "5968f8ab33014cc6ea3361fd2d6b50e81818e33357f47b806addc9c32e2c0910",
+      "estimated_usd": "0.01301675"
+    },
+    {
+      "group": "blind-drafts-2",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_020812dfb14f56e9016aef81ae0d9c87d2a4e6a0a05518dd13",
+      "receipt": "blind-drafts-2/receipt.json",
+      "input": 6710,
+      "input_details": {
+        "cache_write_tokens": 6707,
+        "cached_tokens": 0
+      },
+      "output": 699,
+      "request_sha256": "824e35faf0bbd828001052a295e4104e14e549106155b9d833f8fd5a7708a99c",
+      "estimated_usd": "0.01188175"
+    },
+    {
+      "group": "blind-rewrite-1",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_01898e2bc2633791016aef82ddf31c87d291fb711c2497b485",
+      "receipt": "blind-rewrite-1/receipt.json",
+      "input": 5947,
+      "input_details": {
+        "cache_write_tokens": 5944,
+        "cached_tokens": 0
+      },
+      "output": 642,
+      "request_sha256": "73ca098b80a540e0769c2776c41ce7a4ed44f5a023aa7b21323f546dbaba6606",
+      "estimated_usd": "0.010643"
+    },
+    {
+      "group": "blind-rewrite-2",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0716460bce35b483016aef82ddf2b887d28adfbb2fafa9eb9e",
+      "receipt": "blind-rewrite-2/receipt.json",
+      "input": 5947,
+      "input_details": {
+        "cache_write_tokens": 5944,
+        "cached_tokens": 0
+      },
+      "output": 756,
+      "request_sha256": "9ef0aa7051b10cb7a2be4d1478c73384972aa5f7cb1c764629029070c807276c",
+      "estimated_usd": "0.011213"
+    },
+    {
+      "group": "coached",
+      "stage": "revise-1",
+      "model": "gpt-6.1-sol",
+      "response_id": "resp_00e12a5dd18e3e7c016aef8055404c87d2b69e480e8d30b4d1",
+      "receipt": "coached/receipt.json",
+      "input": 11488,
+      "input_details": {
+        "cache_write_tokens": 11485,
+        "cached_tokens": 0
+      },
+      "output": 3372,
+      "request_sha256": "448d49ec151e9bb18685d3afbc812d3f3df3382012695dd1076e5568108e2082",
+      "estimated_usd": "0.0624385"
+    },
+    {
+      "group": "coached-fact",
+      "stage": "fact-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0e31cbbcc3496ec9016aef808dc67887d2b762ca594072654d",
+      "receipt": "coached-fact/receipt.json",
+      "input": 14973,
+      "input_details": {
+        "cache_write_tokens": 13638,
+        "cached_tokens": 1332
+      },
+      "output": 2191,
+      "request_sha256": "1b3264c9fb226d0954a73844a8b9d240e7a600f14aa1ab1343861fc474d0d9bc",
+      "estimated_usd": "0.0280721"
+    },
+    {
+      "group": "coached-reader",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0ab47e6dfd17994b016aef808dc79887d2a1921c52a956379d",
+      "receipt": "coached-reader/receipt.json",
+      "input": 4923,
+      "input_details": {
+        "cache_write_tokens": 3050,
+        "cached_tokens": 1870
+      },
+      "output": 2508,
+      "request_sha256": "1f976f9c4cdad0fc80583057b2fe39507d0eba9d8644a1a8c50e830fba43c3c7",
+      "estimated_usd": "0.016449"
+    },
+    {
+      "group": "control-old",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0f4e6d67cfb121fc016aef7bcf41b487d2a74bb251f65f01b3",
+      "receipt": "control-old/27d5257e-7bcf-443a-86d5-af1b8519c6cd/receipt.json",
+      "input": 1997,
+      "input_details": {
+        "cache_write_tokens": 361,
+        "cached_tokens": 1633
+      },
+      "output": 1279,
+      "request_sha256": "a52e4efc6e4da012355263403a5fae9398ebb652314dad72d86cef1520c42b99",
+      "estimated_usd": "0.0069309"
+    },
+    {
+      "group": "control-old",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_07697c44be7d14ea016aef7bd44dc487d2aadbc7dd566456ce",
+      "receipt": "control-old/50eed628-e528-430d-b40c-50c00db6a5c5/receipt.json",
+      "input": 1951,
+      "input_details": {
+        "cache_write_tokens": 315,
+        "cached_tokens": 1633
+      },
+      "output": 1364,
+      "request_sha256": "b96d26757db4ef77464fc3156758a40cca60e49c871a2bd426c1286bb3aefaa5",
+      "estimated_usd": "0.0072984"
+    },
+    {
+      "group": "control-old",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0c4ad56330af2e46016aef7bc56b3487d287bb0b3fb53a48b4",
+      "receipt": "control-old/af160da0-0072-45c6-b7b7-636f609556d7/receipt.json",
+      "input": 1971,
+      "input_details": {
+        "cache_write_tokens": 335,
+        "cached_tokens": 1633
+      },
+      "output": 1226,
+      "request_sha256": "66c49acfb2676a84d0fed7628e64b4b6f800c1b99d0b178a1e67b9673bc01fe4",
+      "estimated_usd": "0.0066334"
+    },
+    {
+      "group": "control-old",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_07408c3cb2861a12016aef7be482dc87d2a3866eeba3036a8d",
+      "receipt": "control-old/b8abec8e-dbc6-484f-899e-7cab849cd168/receipt.json",
+      "input": 1989,
+      "input_details": {
+        "cache_write_tokens": 353,
+        "cached_tokens": 1633
+      },
+      "output": 994,
+      "request_sha256": "fc58748f518ea423d02b96e4f6893f0f07521b22776b79ca1e21365a571cad5c",
+      "estimated_usd": "0.0054959"
+    },
+    {
+      "group": "control-old",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0b82e5e1483c474c016aef7bc50e1487d2adc14ee6bf077a3a",
+      "receipt": "control-old/d061cedc-bbec-40c6-86f1-1b16d3ae1a78/receipt.json",
+      "input": 1943,
+      "input_details": {
+        "cache_write_tokens": 307,
+        "cached_tokens": 1633
+      },
+      "output": 688,
+      "request_sha256": "397b2b11643a05551e678826a5149090428aede9f04e83302a0e280ce390b082",
+      "estimated_usd": "0.0039084"
+    },
+    {
+      "group": "control-old",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0b19b5332471a281016aef7bdf119c87d2a6d1e10be38a0c3f",
+      "receipt": "control-old/e28b1767-5839-4758-9dd9-470c82db4f96/receipt.json",
+      "input": 1966,
+      "input_details": {
+        "cache_write_tokens": 330,
+        "cached_tokens": 1633
+      },
+      "output": 1135,
+      "request_sha256": "72628d8674bdc8fee368c874dfb7d9283beb29e21f594921449ec321a35db7f4",
+      "estimated_usd": "0.00617215"
+    },
+    {
+      "group": "control-old",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_01d30f09e39423ee016aef7bd53ae487d2a6c12bf027c5ddc6",
+      "receipt": "control-old/e9313e81-cb9c-476c-9280-505716572c23/receipt.json",
+      "input": 1980,
+      "input_details": {
+        "cache_write_tokens": 344,
+        "cached_tokens": 1633
+      },
+      "output": 1364,
+      "request_sha256": "a30ec0b778be0e05b6bf4739c9bb25ccbf3eafd58c46b8e297d5872925a02b18",
+      "estimated_usd": "0.00733465"
+    },
+    {
+      "group": "control-old",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0192bf143f7a1861016aef7bc4c5d487d28495979041fa0659",
+      "receipt": "control-old/fa31df39-ae75-4f52-a2d8-1e4ada7a31ef/receipt.json",
+      "input": 2015,
+      "input_details": {
+        "cache_write_tokens": 2012,
+        "cached_tokens": 0
+      },
+      "output": 1325,
+      "request_sha256": "d1fd5c602033a70f85f7140c07f15b867e750eb56f60a721dd56259da74ad608",
+      "estimated_usd": "0.009143"
+    },
+    {
+      "group": "fact-corrected",
+      "stage": "revise-1",
+      "model": "gpt-6.1-sol",
+      "response_id": "resp_0c709b3c45d9db95016aef81aeb5f887d29ea215ac212b0401",
+      "receipt": "fact-corrected/receipt.json",
+      "input": 12909,
+      "input_details": {
+        "cache_write_tokens": 12906,
+        "cached_tokens": 0
+      },
+      "output": 3414,
+      "request_sha256": "8379af6318c23a3a371b67f6a35d9aff0346a4b652e52d3936e8cd30f0734707",
+      "estimated_usd": "0.066411"
+    },
+    {
+      "group": "fact-corrected-fact",
+      "stage": "fact-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_03ca46362f2279fb016aef81c9d9d087d29c573ef0df5fe3ff",
+      "receipt": "fact-corrected-fact/receipt.json",
+      "input": 15111,
+      "input_details": {
+        "cache_write_tokens": 13776,
+        "cached_tokens": 1332
+      },
+      "output": 1764,
+      "request_sha256": "b48039dc862f8b61f610de74d59269e382700e82e558f475fbf1fe6be7969d78",
+      "estimated_usd": "0.0261096"
+    },
+    {
+      "group": "fact-corrected-reader",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_082c17af796694a3016aef81c9d83087d2a6085ec9a2314d3b",
+      "receipt": "fact-corrected-reader/receipt.json",
+      "input": 5061,
+      "input_details": {
+        "cache_write_tokens": 3188,
+        "cached_tokens": 1870
+      },
+      "output": 2625,
+      "request_sha256": "fa64f7ff9714540f5459c8bad117b84f15b59616028ad7ec8f9943d91b1e9253",
+      "estimated_usd": "0.0172065"
+    },
+    {
+      "group": "first-listen-0",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0b5d19eb8ea0a8c6016aef835ce87087d2a77fd33643660287",
+      "receipt": "first-listen-0/receipt.json",
+      "input": 1370,
+      "input_details": {
+        "cache_write_tokens": 1367,
+        "cached_tokens": 0
+      },
+      "output": 462,
+      "request_sha256": "7d8c86e2e3c57b37279c20bd012766f640e3c0eca25bd69967ebcd2731579399",
+      "estimated_usd": "0.00402175"
+    },
+    {
+      "group": "first-listen-1",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_066dc07f45c4b803016aef8363b1dc87d295621c1d15d64f92",
+      "receipt": "first-listen-1/receipt.json",
+      "input": 1447,
+      "input_details": {
+        "cache_write_tokens": 1444,
+        "cached_tokens": 0
+      },
+      "output": 466,
+      "request_sha256": "def60fbffce928a6b759df31a1ac09cb07952a8e0dd06a60e4664675df91c093",
+      "estimated_usd": "0.004138"
+    },
+    {
+      "group": "first-listen-2",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_01a885e060615383016aef8369e85487d2a40ea0c273b3c1e0",
+      "receipt": "first-listen-2/receipt.json",
+      "input": 1432,
+      "input_details": {
+        "cache_write_tokens": 1429,
+        "cached_tokens": 0
+      },
+      "output": 560,
+      "request_sha256": "c2391b2502f10db2ee15cb12ced04b57efb5e17ba06b0830eb371681221b072c",
+      "estimated_usd": "0.00458925"
+    },
+    {
+      "group": "first-listen-full",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_050a82bd20d26305016aef8371996c87d296e3d6c539460033",
+      "receipt": "first-listen-full/receipt.json",
+      "input": 6642,
+      "input_details": {
+        "cache_write_tokens": 6639,
+        "cached_tokens": 0
+      },
+      "output": 2053,
+      "request_sha256": "da43983ae3417da3d92a5c5bf1e523091d70baddcafa6fce0ab002ba6ac88943",
+      "estimated_usd": "0.01856675"
+    },
+    {
+      "group": "new",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0d761a67c0b648a7016aef7f43e46087d2bdebbfe783550d2a",
+      "receipt": "new/049de000-fa58-4026-94c7-a3b6f64cbc9b/receipt.json",
+      "input": 2191,
+      "input_details": {
+        "cache_write_tokens": 318,
+        "cached_tokens": 1870
+      },
+      "output": 1954,
+      "request_sha256": "04d06bc7dc46983a93c7d317698f81205a7ec5435022494df783fcddd9d2ecdd",
+      "estimated_usd": "0.010264"
+    },
+    {
+      "group": "new",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_06f11e90c45371b5016aef7f46052c87d2bb3ae5f8ba2bd261",
+      "receipt": "new/1f3b0d14-60d3-4485-954c-2155ad3739ca/receipt.json",
+      "input": 2188,
+      "input_details": {
+        "cache_write_tokens": 315,
+        "cached_tokens": 1870
+      },
+      "output": 1185,
+      "request_sha256": "de9a413f287c9c1c63f0f7455628fb6e607c075f71fdc2933af601772278400d",
+      "estimated_usd": "0.00641525"
+    },
+    {
+      "group": "new",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_08d1584faef0f037016aef7f1fea4887d29c1f5f833fbaed87",
+      "receipt": "new/25456b17-3ece-4db3-abb8-46d462c70514/receipt.json",
+      "input": 2180,
+      "input_details": {
+        "cache_write_tokens": 2177,
+        "cached_tokens": 0
+      },
+      "output": 746,
+      "request_sha256": "8f0606cd1bf55d77bb34e8ee4ca73f8cdc71407a6ca5a084f65374f3c6d5766d",
+      "estimated_usd": "0.00645425"
+    },
+    {
+      "group": "new",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0955665194bdc7d8016aef7f3bb17887d2a325247e10b505da",
+      "receipt": "new/3535cdc1-7bea-45b2-9c0a-ae5fbc6958c7/receipt.json",
+      "input": 2252,
+      "input_details": {
+        "cache_write_tokens": 379,
+        "cached_tokens": 1870
+      },
+      "output": 1105,
+      "request_sha256": "2b51cf76fba3ee97f4167296066f5b8ca0f4a205dedea89b9e3a584f77f0d172",
+      "estimated_usd": "0.00609525"
+    },
+    {
+      "group": "new",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0ed77d86232f9cd4016aef7f29dfe087d2b18da1059021209e",
+      "receipt": "new/4b4cb26d-1517-473b-ae20-3bcdb20575d6/receipt.json",
+      "input": 2259,
+      "input_details": {
+        "cache_write_tokens": 386,
+        "cached_tokens": 1870
+      },
+      "output": 1451,
+      "request_sha256": "76748499e808647185ae7aeee1adcc6dbbea42800497db945531df5d35ee6cd2",
+      "estimated_usd": "0.007834"
+    },
+    {
+      "group": "new",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_034e57e8510ab2db016aef7f1feaf087d299d4201cb55ee1c8",
+      "receipt": "new/6d752c83-9b55-41f5-aad9-f645935a29d3/receipt.json",
+      "input": 2233,
+      "input_details": {
+        "cache_write_tokens": 360,
+        "cached_tokens": 1870
+      },
+      "output": 1083,
+      "request_sha256": "8857304bc6fa7a83dc50bae9349a07806690a1f17839fa2afaf7d205bcf68c4d",
+      "estimated_usd": "0.0059615"
+    },
+    {
+      "group": "new",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_08e050ccc4da7fac016aef7f1fec0087d2afdec7e67fca6fa4",
+      "receipt": "new/82bd5e7f-ed3e-4763-a33c-c22fa81a44f6/receipt.json",
+      "input": 2207,
+      "input_details": {
+        "cache_write_tokens": 2204,
+        "cached_tokens": 0
+      },
+      "output": 1603,
+      "request_sha256": "281bdf96fce46c828197e441246e9d535f6a89dfcbaaa9f9e7a65b938ea788c9",
+      "estimated_usd": "0.010773"
+    },
+    {
+      "group": "new",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_01d4a593b2f6ad8d016aef7f2d99a887d2b7929661956c4b59",
+      "receipt": "new/cbbefed1-a2e7-4410-b625-95e12429d7fa/receipt.json",
+      "input": 2226,
+      "input_details": {
+        "cache_write_tokens": 353,
+        "cached_tokens": 1870
+      },
+      "output": 743,
+      "request_sha256": "0ef89c144100345ae93ac8ff0d8ebe43748f22f015f2c254566474f1031d9236",
+      "estimated_usd": "0.00425275"
+    },
+    {
+      "group": "new",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_01df16c571beb306016aef7f330a7887d2a67ac2c177c4d35c",
+      "receipt": "new/e472d114-2c78-4bbf-814d-a0c01046732a/receipt.json",
+      "input": 2212,
+      "input_details": {
+        "cache_write_tokens": 339,
+        "cached_tokens": 1870
+      },
+      "output": 1578,
+      "request_sha256": "025d53992671fcdc96229732c89b09c23e120cc249693644d892b298e8a693e2",
+      "estimated_usd": "0.00841025"
+    },
+    {
+      "group": "new",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0a02868ef78a5c3c016aef7f36e83487d2b8aae99cde9f116f",
+      "receipt": "new/ea16286e-2973-4512-8d23-47202596e64a/receipt.json",
+      "input": 2203,
+      "input_details": {
+        "cache_write_tokens": 330,
+        "cached_tokens": 1870
+      },
+      "output": 1048,
+      "request_sha256": "376e87df81a87b85e9a7d32b545569d9f26b5a0c311fbb7e688b6ad516d55dda",
+      "estimated_usd": "0.005749"
+    },
+    {
+      "group": "old-confirm",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_01e8869f5bd5bff3016aef7c251fb887d2ad22bdeb86ac3993",
+      "receipt": "old-confirm/28d4dd00-3157-46ce-ac95-733a9f4fc635/receipt.json",
+      "input": 2022,
+      "input_details": {
+        "cache_write_tokens": 386,
+        "cached_tokens": 1633
+      },
+      "output": 1210,
+      "request_sha256": "4b5bc26b99eb8dd3106caf5e3dd99c94860f7373d626958ed93c482448adb598",
+      "estimated_usd": "0.00661715"
+    },
+    {
+      "group": "old-confirm",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0a16e01c285651e6016aef7c252d7087d2afaa6a2b18192db7",
+      "receipt": "old-confirm/7163f69e-07bb-44c9-bde9-0655b2840de0/receipt.json",
+      "input": 1996,
+      "input_details": {
+        "cache_write_tokens": 360,
+        "cached_tokens": 1633
+      },
+      "output": 839,
+      "request_sha256": "4c2e186824bb9f7f8423bd8bd461bf337b5f47adbd922ad089aacd1e6d3352a4",
+      "estimated_usd": "0.00472965"
+    },
+    {
+      "group": "old-confirm",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_055025667091d299016aef7c25443087d29a86a035d7100db0",
+      "receipt": "old-confirm/abaf50f4-ac2f-47ba-8682-0e30d8da9e42/receipt.json",
+      "input": 1966,
+      "input_details": {
+        "cache_write_tokens": 330,
+        "cached_tokens": 1633
+      },
+      "output": 1344,
+      "request_sha256": "b2bb847395e645d9b8b707bb0c9771dc3b7b538b0f51686306762b37a90c0c4e",
+      "estimated_usd": "0.00721715"
+    },
+    {
+      "group": "old-confirm",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0392cea37294c09c016aef7c3003d887d282f7f4658d4f5e1e",
+      "receipt": "old-confirm/b985007f-98cf-45b3-be62-e852931c290b/receipt.json",
+      "input": 1975,
+      "input_details": {
+        "cache_write_tokens": 339,
+        "cached_tokens": 1633
+      },
+      "output": 1464,
+      "request_sha256": "f65b41e641b3108346a0a496fc52a084a743699579ff9c450075a976ddcd1445",
+      "estimated_usd": "0.0078284"
+    },
+    {
+      "group": "old-transfer",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_06e9b75e1cc66a8d016aef7c6b11d087d2a64b37d8db302fcf",
+      "receipt": "old-transfer/72d26109-ea41-401c-9aa8-17c45bdc4d7e/receipt.json",
+      "input": 1970,
+      "input_details": {
+        "cache_write_tokens": 334,
+        "cached_tokens": 1633
+      },
+      "output": 1447,
+      "request_sha256": "334340c37a68952c4a97d3a2e4f196c972f0780f8a243b6b27f6460892801c9b",
+      "estimated_usd": "0.00773715"
+    },
+    {
+      "group": "old-transfer",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_03196c46d2c8ef68016aef7c6b3b9887d28db58af40bdcc211",
+      "receipt": "old-transfer/8b33211d-9844-426d-859f-430dc7075028/receipt.json",
+      "input": 1954,
+      "input_details": {
+        "cache_write_tokens": 318,
+        "cached_tokens": 1633
+      },
+      "output": 1543,
+      "request_sha256": "85ad7d307bbea866773ef48ef3b7afac270e4a981aa0031f8bf724fcb8c307fa",
+      "estimated_usd": "0.00819715"
+    },
+    {
+      "group": "orchid",
+      "stage": "draft",
+      "model": "gpt-6.1-sol",
+      "response_id": "resp_03217f5045284ffc016aef803844d887d2b6e9abcb1efdf8c8",
+      "receipt": "orchid/receipt.json",
+      "input": 9251,
+      "input_details": {
+        "cache_write_tokens": 9248,
+        "cached_tokens": 0
+      },
+      "output": 3908,
+      "request_sha256": "73706d312e3e8eb6504b26925e7884757fa63e30fbd4ccaea33738007c2aade1",
+      "estimated_usd": "0.062206"
+    },
+    {
+      "group": "plan-input-control",
+      "stage": "plan-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_02125d6bc971d6ac016aef7fe6459c87d2a041e15f07c5ca24",
+      "receipt": "plan-input-control/receipt.json",
+      "input": 16756,
+      "input_details": {
+        "cache_write_tokens": 14790,
+        "cached_tokens": 1963
+      },
+      "output": 3057,
+      "request_sha256": "666f249eb85f86e4a9bd28d1517e0335105e10b2a7fe2bf37dc031dead8764f4",
+      "estimated_usd": "0.03387365"
+    },
+    {
+      "group": "plan-rechecked",
+      "stage": "plan-review-revised",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0a4de5440018f7c2016aef80ca6b3c87d283f83040b285a811",
+      "receipt": "plan-rechecked/receipt.json",
+      "input": 16990,
+      "input_details": {
+        "cache_write_tokens": 16987,
+        "cached_tokens": 0
+      },
+      "output": 1624,
+      "request_sha256": "542833586b31e2c873b3d6dd047a0272031c81fc858f0f070d667e30df04f337",
+      "estimated_usd": "0.02935675"
+    },
+    {
+      "group": "plan-review",
+      "stage": "plan-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0b658259971cd570016aef7e6eb01c87d2ae70d22d2759e89b",
+      "receipt": "plan-review/receipt.json",
+      "input": 18320,
+      "input_details": {
+        "cache_write_tokens": 18317,
+        "cached_tokens": 0
+      },
+      "output": 1585,
+      "request_sha256": "6abc851523c83d9871835fabe5fe8ee8be26ba0f0f85685051d1dee622eb90e3",
+      "estimated_usd": "0.03082425"
+    },
+    {
+      "group": "plan-review-schema",
+      "stage": "plan-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_00033db72d3e0c5e016aef7f6c96a887d2b1af921b937e2ead",
+      "receipt": "plan-review-schema/receipt.json",
+      "input": 18612,
+      "input_details": {
+        "cache_write_tokens": 18609,
+        "cached_tokens": 0
+      },
+      "output": 1102,
+      "request_sha256": "99eaedcfde5a57eba5544eba3fdbcdc3064e1f8a2a32b9c14b7865f3d86c307c",
+      "estimated_usd": "0.02877425"
+    },
+    {
+      "group": "plan-revised",
+      "stage": "plan-revise",
+      "model": "gpt-6.1-sol",
+      "response_id": "resp_0e14970ac597c7b0016aef8086133c87d2a13188e619e691e7",
+      "receipt": "plan-revised/receipt.json",
+      "input": 10629,
+      "input_details": {
+        "cache_write_tokens": 10626,
+        "cached_tokens": 0
+      },
+      "output": 5151,
+      "request_sha256": "d4e5653c41b89a00006fbcec59d91ffe67bac2fda08a61fefaae6b424dda0a26",
+      "estimated_usd": "0.078081"
+    },
+    {
+      "group": "reader-order",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_098add53137779ac016aef816d8cdc87d291a849dd6cf477be",
+      "receipt": "reader-order/receipt.json",
+      "input": 5454,
+      "input_details": {
+        "cache_write_tokens": 5451,
+        "cached_tokens": 0
+      },
+      "output": 2836,
+      "request_sha256": "d950b907305b49a7a1654305011dedfb15620b8867c38ed99a2e723c9e01ca18",
+      "estimated_usd": "0.02099675"
+    },
+    {
+      "group": "willow",
+      "stage": "draft",
+      "model": "gpt-6.1-sol",
+      "response_id": "resp_002116f71f40fef1016aef803845ac87d28751c3b089f6c8a9",
+      "receipt": "willow/receipt.json",
+      "input": 7811,
+      "input_details": {
+        "cache_write_tokens": 7808,
+        "cached_tokens": 0
+      },
+      "output": 3784,
+      "request_sha256": "989b8f59938f7888cf567ab302a224e8f4fc35a26af5bba4301b34bc67ef2b78",
+      "estimated_usd": "0.057366"
+    },
+    {
+      "group": "ordinary_episode_review",
+      "stage": "fact-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0d66147398599b7d016aef804007b087d291bdbbbe0d818606",
+      "receipt": "native/run/archive/fact-review/004-provider_response-response_blob.json",
+      "input": 15504,
+      "input_details": {
+        "cache_write_tokens": 15501,
+        "cached_tokens": 0
+      },
+      "output": 1643,
+      "request_sha256": "b60dc044f00e82c40a6fc57df46670352bf55b58be6cfa257347015736d5afb0",
+      "estimated_usd": "0.02759425"
+    },
+    {
+      "group": "ordinary_episode_review",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0b7184a2fe88467d016aef8008192887d287dd6e76b735fd13",
+      "receipt": "native/run/archive/reader-review/004-provider_response-response_blob.json",
+      "input": 5454,
+      "input_details": {
+        "cache_write_tokens": 3581,
+        "cached_tokens": 1870
+      },
+      "output": 2798,
+      "request_sha256": "9c9309c0ea24c70d45e55a6d4e10bb45d3c7c848d4ade040bc1c88b8cbfad9be",
+      "estimated_usd": "0.01856275"
+    }
+  ]
+}
