@@ -35,6 +35,7 @@ def test_pending_planning_schema_is_pinned_and_drift_still_blocks_resume(
             response_schema("plan", command.input_contract, projection_version=CURRENT), refs
         )
         manifest = deepcopy(manifest)
+        manifest.pop("reader_review_schema_version", None)
         manifest["role_projection_version"] = version
         manifest["response_schemas"] = {
             stage: bind_schema(
@@ -51,6 +52,7 @@ def test_pending_planning_schema_is_pinned_and_drift_still_blocks_resume(
         invoke(prefix, "run", **options)
     journal = EvaluationJournal(own_dataset[0], own_dataset[1])
     saved_manifest = journal.manifest(options["run_id"])
+    assert "reader_review_schema_version" not in saved_manifest
     pending = journal.request(journal.invocation(options["run_id"], "plan-revise"))
     assert pending["text"]["format"]["schema"] == saved_manifest["response_schemas"]["plan-revise"]
     call_count = len(provider.requests)

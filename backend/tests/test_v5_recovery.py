@@ -130,6 +130,7 @@ def test_v4_pending_run_keeps_native_ids_and_exact_saved_request(own_dataset, tm
     def pinned(journal, command, manifest):
         previous = deepcopy(manifest)
         previous.pop(CATALOG_KEY)
+        previous.pop("reader_review_schema_version", None)
         previous["role_projection_version"] = V4
         previous["response_schemas"] = {
             stage: response_schema(stage, command.input_contract, projection_version=V4)
@@ -147,6 +148,7 @@ def test_v4_pending_run_keeps_native_ids_and_exact_saved_request(own_dataset, tm
     pending = journal.request(journal.invocation(options["run_id"], "fact-review"))
     manifest = journal.manifest(options["run_id"])
     assert CATALOG_KEY not in manifest
+    assert "reader_review_schema_version" not in manifest
     assert "threads" in payload(provider.requests[0])["dossier"]
     provider.pause = None
     assert invoke(prefix, "resume", run_id=options["run_id"], export_dir=tmp_path / "export") == 0
