@@ -80,6 +80,10 @@ class WritingEvaluation:
                 if existing["input_fingerprint"] != digest(command_payload(command)):
                     raise Conflict("run_id_reused_with_different_input")
                 manifest = journal.manifest(command.run_id)
+                if command.planning_parent_run_id is not None:
+                    from .planning_continuation.source import verify
+
+                    verify(journal, command, manifest, self._materials(command))
                 if independent(command):
                     from .reading_outcome import outcome_result, read_outcome
 

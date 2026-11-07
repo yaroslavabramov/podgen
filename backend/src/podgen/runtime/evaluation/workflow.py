@@ -7,6 +7,9 @@ from .reading_workflow import base_stage, independent, reading_stages
 
 
 def stages_for(command):
+    if command.planning_parent_run_id is not None:
+        writing = reading_stages(command.max_script_revisions) if independent(command) else STAGES
+        return ("plan-revise", "plan-review-revised", *writing)
     if independent(command):
         planning = PLANNING_STAGES if command.plan_mode == "own-plan" else ()
         return (*planning, *reading_stages(command.max_script_revisions))

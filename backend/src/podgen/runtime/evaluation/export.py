@@ -104,6 +104,11 @@ def export_run(repo, project, run_id, directory):
         _write(directory / path, (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode())
 
     write_json(Path("manifest.json"), manifest)
+    if manifest.get("planning_continuation"):
+        from .planning_continuation.export import export as export_continuation
+
+        export_continuation(journal, manifest, write_json)
+        result["planning_continuation"] = manifest["planning_continuation"]
     manifest_ref = RuntimeRef(record_kind="context_assembly", record_id=row["manifest_id"])
     _write(
         directory / "inputs.json",

@@ -21,10 +21,12 @@ from .workflow import prompt_stage
 
 
 def preview_request(run_id, stage, profile, materials, *, snapshot=None, **inputs):
+    from .planning_continuation.preview import validate as validate_continuation_preview
     from .preview_inputs import validate_preview_inputs, validate_preview_snapshots
 
     validate_preview_inputs(stage, fixed=materials.fixed is not None, inputs=inputs)
     validate_preview_snapshots(stage, materials, inputs)
+    validate_continuation_preview(stage, snapshot, inputs)
     inputs = {key: value for key, value in inputs.items() if value is not None}
     projection = manifest_version(snapshot.manifest) if snapshot else CURRENT
     from podgen.writing.model_references import run_references

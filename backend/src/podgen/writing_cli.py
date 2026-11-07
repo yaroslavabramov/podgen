@@ -97,8 +97,10 @@ def parser():
             action.add_argument("--retry-credit-refusal", type=UUID, metavar="INVOCATION_UUID")
             action.add_argument("--repair-plan-targets", type=UUID, metavar="INVOCATION_UUID")
     from podgen.editorial_cli import add_commands
+    from podgen.runtime.evaluation.planning_continuation.cli import add_command
 
     add_commands(sub)
+    add_command(sub)
     return root
 
 
@@ -175,6 +177,13 @@ def main(argv=None):
             command = WritingRunCommand.model_validate(
                 {"input_contract": "legacy-author-materials/1", "review_mode": "informed-v1", **data}
             )
+        elif args.command == "continue-planning":
+            from podgen.runtime.evaluation.planning_continuation.cli import command_for, prepare
+
+            command = command_for(args, journal)
+            if args.preview_only:
+                print(json.dumps(prepare(repo, command, args.export_dir), ensure_ascii=False))
+                return 0
         else:
             command = WritingRunCommand(
                 run_id=args.run_id,

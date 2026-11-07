@@ -188,6 +188,18 @@ def export_planning(journal, run_id, *, language):
         plans = [journal.invocation(run_id, s) for s in ("plan", "plan-revise")]
         selected = next((p for p in reversed(plans) if p and p["status"] == "completed"), None)
         if selected is None:
+            if journal.manifest(run_id).get("planning_continuation"):
+                from .planning_continuation.export import seed_records
+
+                candidate, review = seed_records(journal, journal.manifest(run_id))
+                rendered = render_plan(
+                    candidate,
+                    review,
+                    False,
+                    language,
+                    material_titles=frozen_names(journal, run_id, journal.manifest(run_id)),
+                )
+                return rendered, None
             return None, None
         candidate = journal.output(selected)
         review = None

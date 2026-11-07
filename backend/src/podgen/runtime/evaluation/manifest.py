@@ -27,6 +27,10 @@ from .workflow import profile_for, prompt_stage, stages_for
 
 
 def create_manifest(repo, generation, command, journal, materials):
+    if command.planning_parent_run_id is not None:
+        from .planning_continuation.manifest import create
+
+        return create(command, journal, materials)
     payload = materials.as_payload()
     reference = (
         load_reference(materials.output_language)

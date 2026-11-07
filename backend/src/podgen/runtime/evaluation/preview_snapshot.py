@@ -12,6 +12,7 @@ from .compiler import materials_hash
 class PreviewSnapshot:
     manifest: dict
     instructions: str | None
+    planning_inputs: dict | None = None
 
 
 def load_preview_snapshot(journal, generation, run_id, stage, materials):
@@ -26,4 +27,6 @@ def load_preview_snapshot(journal, generation, run_id, stage, materials):
         if prompt is not None
         else None
     )
-    return PreviewSnapshot(manifest, instructions)
+    from .planning_continuation.preview import attach
+
+    return attach(PreviewSnapshot(manifest, instructions), journal, run_id, stage, materials)

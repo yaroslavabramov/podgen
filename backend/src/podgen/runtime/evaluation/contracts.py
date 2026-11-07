@@ -51,6 +51,8 @@ class WritingRunCommand(Contract):
     review_mode: Literal["informed-v1", "independent-readings/1"] = "independent-readings/1"
     max_script_revisions: Literal[0, 1, 2] = 2
     initial_script_ref: RuntimeRef | None = None
+    planning_parent_run_id: UUID | None = None
+    planning_continuation_limit: PositiveInt | None = None
     repeat_index: int = Field(default=0, ge=0)
     review_anchor_policy: Literal["strict", "bounded-selection-v1"] = "strict"
     limits: RunLimits = Field(default_factory=RunLimits)
@@ -77,6 +79,15 @@ class WritingRunCommand(Contract):
 
     @model_validator(mode="after")
     def planning_profiles(self):
+        if (self.planning_parent_run_id is None) != (self.planning_continuation_limit is None):
+            raise ValueError("planning_continuation_requires_parent_and_limit")
+        if self.planning_parent_run_id is not None and (
+            self.planning_parent_run_id == self.run_id
+            or self.input_contract != "editorial-role-packets/1"
+            or self.plan_mode != "own-plan"
+            or self.max_plan_revisions != 1
+        ):
+            raise ValueError("invalid_planning_continuation")
         if self.plan_mode == "own-plan" and self.fixed_plan_input_ref is not None:
             raise ValueError("own_plan_forbids_fixed_input")
         if self.plan_mode == "own-plan" and (
@@ -105,6 +116,9 @@ class RunFailure(Exception):
 def command_payload(command):
     """Keep fingerprints of pre-policy strict commands stable."""
     payload = command.model_dump(mode="json")
+    if command.planning_parent_run_id is None:
+        payload.pop("planning_parent_run_id")
+        payload.pop("planning_continuation_limit")
     if command.review_mode == "informed-v1":
         for field in ("review_mode", "max_script_revisions", "initial_script_ref"):
             payload.pop(field)

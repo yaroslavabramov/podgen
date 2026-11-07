@@ -41,10 +41,18 @@ def execute_planning(
         totals["output"] += result.output_tokens_or_reservation
         return result.output, records[stage]
 
-    candidate, candidate_ref = call("plan")
-    if has_blocking_requests(candidate):
-        raise RunFailure("planning_needs_research", run_id=command.run_id)
-    review, review_ref = call("plan-review", candidate=candidate, candidate_ref=candidate_ref)
+    if command.planning_parent_run_id is not None:
+        from .planning_continuation.source import verify
+
+        seed, assessment = verify(journal, command, manifest, materials)
+        candidate, review = seed["output"], assessment["output"]
+        binding = manifest["planning_continuation"]
+        candidate_ref, review_ref = binding["candidate_plan_ref"], binding["plan_review_ref"]
+    else:
+        candidate, candidate_ref = call("plan")
+        if has_blocking_requests(candidate):
+            raise RunFailure("planning_needs_research", run_id=command.run_id)
+        review, review_ref = call("plan-review", candidate=candidate, candidate_ref=candidate_ref)
     if review["decision"] == "revise" and not has_blocking_requests(review) and command.max_plan_revisions:
         candidate, candidate_ref = call(
             "plan-revise",
