@@ -1,0 +1,78 @@
+{
+  "run": {
+    "run": "ddd69070-de75-4417-bb88-a8cfa44a6b6c",
+    "code": "eafa6254d41084546cd5ab91680326b54fe534b9"
+  },
+  "brief": "Хочу подкаст про Джона Сноу и холеру в Лондоне. Расскажи эту историю как детектив.",
+  "stages": [
+    "plan",
+    "independent plan-review P01",
+    "independent plan-review P02"
+  ],
+  "calls": [
+    {
+      "stage": "plan",
+      "model": "gpt-6.1-sol",
+      "operation": "plan",
+      "tier": "default",
+      "usage": {
+        "input_tokens": 4730,
+        "input_tokens_details": {
+          "cache_write_tokens": 4727,
+          "cached_tokens": 0
+        },
+        "output_tokens": 5482,
+        "output_tokens_details": {
+          "reasoning_tokens": 516
+        },
+        "total_tokens": 10212
+      },
+      "usd": "0.0666435"
+    },
+    {
+      "stage": "plan-review",
+      "case": "P01",
+      "model": "gpt-6.1-terra",
+      "tier": "default",
+      "usage": {
+        "input_tokens": 17749,
+        "input_tokens_details": {
+          "cache_write_tokens": 16510,
+          "cached_tokens": 1236
+        },
+        "output_tokens": 2633,
+        "output_tokens_details": {
+          "reasoning_tokens": 692
+        },
+        "total_tokens": 20382
+      },
+      "usd": "0.0338673",
+      "request_sha256": "c4d58437e43ed3bad36cd227c6041e409df7bf8562831f6fad09516135d61ab5",
+      "decision": "revise"
+    },
+    {
+      "stage": "plan-review",
+      "case": "P02",
+      "model": "gpt-6.1-terra",
+      "tier": "default",
+      "usage": {
+        "input_tokens": 17869,
+        "input_tokens_details": {
+          "cache_write_tokens": 17866,
+          "cached_tokens": 0
+        },
+        "output_tokens": 2357,
+        "output_tokens_details": {
+          "reasoning_tokens": 1081
+        },
+        "total_tokens": 20226
+      },
+      "usd": "0.0341205",
+      "request_sha256": "acb1e97a87f90a6751a79d5bb60b2e7e90da579ef5f648c71bdd334b81fbeed9",
+      "decision": "revise"
+    }
+  ],
+  "total_usd": "0.1346313",
+  "pricing": "https://developers.openai.com/api/docs/pricing",
+  "planner_run_outcome": "operator_stop_after_single_planner"
+}
