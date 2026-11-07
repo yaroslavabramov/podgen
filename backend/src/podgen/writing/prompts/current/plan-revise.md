@@ -1,1 +1,1 @@
-Correct the candidate plan according to `revision_guidance`. Check dependent passages, references and timing after each correction. Return the complete revised plan.
+Use `revision_guidance` to resolve the required findings in the candidate. Keep what already works. Use optional suggestions when they improve this episode. Carry each correction through affected passages, references and timing. Return the complete revised plan.
