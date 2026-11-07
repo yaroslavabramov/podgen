@@ -1,0 +1,34 @@
+{
+  "run": {
+    "run": "9f771b7a-f8f3-4e43-928b-9a15e32e513e",
+    "code": "99ede0a623c34506c004c297ab65656b46c339ac"
+  },
+  "brief": "Хочу подкаст про Джона Сноу и холеру в Лондоне. Расскажи эту историю как детектив.",
+  "outcome": "operator_stop_after_single_planner",
+  "stages": [
+    "plan"
+  ],
+  "calls": [
+    {
+      "stage": "plan",
+      "model": "gpt-6.1-sol",
+      "operation": "plan",
+      "tier": "default",
+      "usage": {
+        "input_tokens": 4612,
+        "input_tokens_details": {
+          "cache_write_tokens": 4609,
+          "cached_tokens": 0
+        },
+        "output_tokens": 5133,
+        "output_tokens_details": {
+          "reasoning_tokens": 516
+        },
+        "total_tokens": 9745
+      },
+      "usd": "0.0628585"
+    }
+  ],
+  "total_usd": "0.0628585",
+  "pricing": "https://developers.openai.com/api/docs/pricing"
+}
