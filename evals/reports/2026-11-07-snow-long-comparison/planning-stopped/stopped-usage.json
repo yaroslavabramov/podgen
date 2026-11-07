@@ -1,0 +1,94 @@
+{
+  "status": "stopped_by_explicit_user_request",
+  "case_id": "snow-30min",
+  "run_id": "682f403e-6dfb-4c51-9b19-f23dd206ff58",
+  "calls": [
+    {
+      "stage": "plan-review-revised",
+      "model": "gpt-6.1-terra",
+      "request_file": "tmp/snow-long-form-uce4wmqf/plan-review-revised-61cbc56a-bc76-52fe-9997-20fd85d2d54a-request.json",
+      "client_request_id": "61cbc56a-bc76-52fe-9997-20fd85d2d54a",
+      "status": "submitted_response_not_saved",
+      "usage": null,
+      "estimated_usd": null
+    },
+    {
+      "stage": "plan-review",
+      "model": "gpt-6.1-terra",
+      "request_file": "tmp/snow-long-form-uce4wmqf/plan-review-98fe0ad1-a455-550d-8ab4-ba4c8856a161-request.json",
+      "client_request_id": "98fe0ad1-a455-550d-8ab4-ba4c8856a161",
+      "status": "completed",
+      "provider_response_id": "resp_008b198bcbb74dcb016aef4871d63887d2bb4ea353fa8a3c64",
+      "response_file": "tmp/snow-long-form-uce4wmqf/plan-review-98fe0ad1-a455-550d-8ab4-ba4c8856a161-response.json",
+      "usage": {
+        "input_tokens": 23973,
+        "input_tokens_details": {
+          "cache_write_tokens": 23970,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1941,
+        "output_tokens_details": {
+          "reasoning_tokens": 516
+        },
+        "total_tokens": 25914
+      },
+      "estimated_usd": "0.0396705",
+      "service_tier": "default"
+    },
+    {
+      "stage": "plan-revise",
+      "model": "gpt-6.1-sol",
+      "request_file": "tmp/snow-long-form-uce4wmqf/plan-revise-10d2e83f-edae-5529-b2ff-ca8725adcd93-request.json",
+      "client_request_id": "10d2e83f-edae-5529-b2ff-ca8725adcd93",
+      "status": "completed",
+      "provider_response_id": "resp_000beb7c1a271683016aef488e652c87d2b5da27f26ffaf0bc",
+      "response_file": "tmp/snow-long-form-uce4wmqf/plan-revise-10d2e83f-edae-5529-b2ff-ca8725adcd93-response.json",
+      "usage": {
+        "input_tokens": 12194,
+        "input_tokens_details": {
+          "cache_write_tokens": 12191,
+          "cached_tokens": 0
+        },
+        "output_tokens": 6067,
+        "output_tokens_details": {
+          "reasoning_tokens": 136
+        },
+        "total_tokens": 18261
+      },
+      "estimated_usd": "0.0911535",
+      "service_tier": "default"
+    },
+    {
+      "stage": "plan",
+      "model": "gpt-6.1-sol",
+      "request_file": "tmp/snow-long-form-uce4wmqf/plan-bea557c9-0d2a-5944-ae12-3b1294579311-request.json",
+      "client_request_id": "bea557c9-0d2a-5944-ae12-3b1294579311",
+      "status": "completed",
+      "provider_response_id": "resp_0a8ff28aa6e80584016aef4805475887d281e0221c6fdab3e7",
+      "response_file": "tmp/snow-long-form-uce4wmqf/plan-bea557c9-0d2a-5944-ae12-3b1294579311-response.json",
+      "usage": {
+        "input_tokens": 6003,
+        "input_tokens_details": {
+          "cache_write_tokens": 6000,
+          "cached_tokens": 0
+        },
+        "output_tokens": 6451,
+        "output_tokens_details": {
+          "reasoning_tokens": 774
+        },
+        "total_tokens": 12454
+      },
+      "estimated_usd": "0.079516",
+      "service_tier": "default"
+    }
+  ],
+  "known_input_tokens": 42170,
+  "known_output_tokens": 14459,
+  "known_estimated_usd": "0.2103400",
+  "unknown_usage_stages": [
+    "plan-review-revised"
+  ],
+  "pricing_source": "https://developers.openai.com/api/docs/pricing",
+  "accepted_plan_exists": false,
+  "new_api_calls_after_stop": 0
+}

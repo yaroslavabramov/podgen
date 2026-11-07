@@ -1,0 +1,533 @@
+{
+  "model": "gpt-6.1-sol",
+  "instructions": "Plan one episode for the scriptwriter. Use the client's brief for the audience, genre, speaker roles and scope, and the dossier for the reporting.\n\n## Choose what to tell\n\nAnswer the question in the brief. If the brief gives only a topic, decide what this audience would want to know about it. When several angles fit, follow each as far as its ending. Choose an opening that makes the listener want to know what happens or why, and an ending the reporting supports.\n\n## Outline the episode\n\nRetell the whole episode, including the ending, so the scriptwriter can follow it in one reading. Introduce people and situations as they become relevant. Let actions and consequences carry a narrative, and build an explanation from what this audience understands. Select what will actually be heard in the allotted time. A detail can give a moment life or make a number meaningful. Give each speaker a part in telling the story.\n\nYou choose material and order. Do not add your own bans on how the writer may stage or tell the story. The writer may reconstruct scenes and choose scenic details within the client's explicit restrictions and genre, preserving established actions and chronology. Invented scenic details can enliven the telling. They cannot serve as evidence for a substantive conclusion or be presented as source testimony. The writer composes the spoken lines.\n\nWhere the selected wording or sequence creates a false impression, adjust the causal link, timing, attribution or verb. If precise wording makes the account clear and accurate, stop there. Leave out objections to claims the account neither makes nor implies, whether phrased as a contrast or as a host's duty to qualify every finding. Retain conditions and uncertainty that change a selected claim's meaning. Add a separate clarification only where understanding still depends on it. Apply this throughout the plan, including speaker functions and timing notes. Write the resulting events or explanation.\n\n## Delivery\n\nUse `output_language` and the requested structure. Preserve supplied speaker identifiers, source quotations and catalog references exactly.\nAim for the target duration within the bounds. Count the opening, transitions and ending once.\nUse `ready` without blockers and `needs_research` for a blocking evidence gap. Explain research needs. Use `plan=null` if no episode is supported. Optional material and research requests may be empty.\n",
+  "input": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "{\"output_language\":\"ru\",\"assignment\":{\"title\":\"Джон Сноу и холера в Лондоне — длинная документальная история\",\"question\":\"Расскажи документальную историю о Джоне Сноу и холере в Лондоне: как он искал объяснение распространению болезни и проверял его наблюдениями и данными.\",\"audience\":\"Взрослый слушатель без специальных знаний, впервые слышит эту историю\",\"listener_outcome\":\"Слушатель проследит исследование Сноу и поймёт, как наблюдения и сравнения помогали проверять его объяснение распространения холеры.\",\"format\":\"solo\",\"output_language\":\"ru\",\"speakers\":[{\"label\":\"РАССКАЗЧИК\",\"function\":\"Рассказывает понятную, интересную историю для неспециалиста.\",\"speech_register\":\"Живая, спокойная устная речь.\"}],\"duration\":{\"target_seconds\":1800,\"min_seconds\":1620,\"max_seconds\":1980},\"knowledge_cutoff\":\"2026-11-05T00:00:00Z\",\"required_topics\":[],\"listener_profile\":\"Взрослый слушатель без специальных знаний, впервые слышит эту историю\",\"genre\":\"Документальный детектив\"},\"dossier\":{\"knowledge_cards\":[{\"sources\":[\"John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855\"],\"claim\":\"В книге 1855 года Джон Сноу рассказывает, что вечером в четверг 7 сентября 1854 года изложил попечителям прихода Сент-Джеймс обстоятельства расследования. На следующий день ручку колонки сняли.\",\"card_id\":\"M1\"},{\"sources\":[\"John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855\"],\"claim\":\"Сноу относит резкий рост заболевания к ночи 31 августа — 1 сентября. Он заподозрил воду часто посещаемой колонки. Вечером 3 сентября при осмотре нашёл мало органической примеси и сначала колебался. В следующие два дня количество видимых беловатых хлопьев менялось; он допустил, что в начале вспышки вода была грязнее.\",\"card_id\":\"M2\"},{\"sources\":[\"John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855\"],\"claim\":\"Сноу получил разрешение взять в Главном регистрационном управлении список смертей от холеры, зарегистрированных за неделю, закончившуюся 2 сентября, в трёх лондонских подрайонах. В списке было 89 смертей; 83 из них произошли в последние три дня этой недели. Сноу подробно расследовал эти 83 случая.\",\"card_id\":\"M3\"},{\"sources\":[\"John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855\"],\"claim\":\"По рассказу Сноу, придя в район, он обнаружил, что почти все смерти произошли недалеко от колонки. Только десять смертей были в домах, расположенных явно ближе к другим колонкам. Пять семей всё равно брали воду с Брод-стрит, потому что предпочитали её воде из более близкого источника. Трое умерших детей учились рядом с колонкой: питьё этой воды было известно для двоих и вероятно, по словам родителей, для третьего. Две оставшиеся смерти Сноу отнёс к прежнему фоновому уровню холеры. Среди 73 смертей в обычной зоне обслуживания колонки в 61 случае ему сообщили о постоянном или эпизодическом питье её воды; в шести сведений не было из-за смерти или отъезда родственников; в шести сообщили, что воду до болезни не пили.\",\"card_id\":\"M4\"},{\"sources\":[\"John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855\"],\"claim\":\"В книге Сноу описывает работный дом на Поланд-стрит: больше чем на три четверти его окружали дома, где были смерти от холеры. Среди 535 обитателей умерли пятеро; отдельно были смерти людей, поступивших уже больными. У учреждения были собственный колодец и снабжение Grand Junction; за водой на Брод-стрит не посылали.\",\"card_id\":\"M5\"},{\"sources\":[\"John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855\"],\"claim\":\"Пивоварня стояла рядом с колонкой. В списке умерших от холеры Сноу не нашёл ни одного из её рабочих и зашёл к владельцу, Хаггинсу. Тот рассказал о более чем 70 работниках: тяжёлой холеры среди них не было, двое слегка приболели. Рабочим полагалась определённая порция пива; Хаггинс предполагал, что они вообще не пьют воду, и был уверен, что воду из уличной колонки они не брали. У пивоварни были глубокий колодец и вода New River.\",\"card_id\":\"M6\"},{\"sources\":[\"John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855\"],\"claim\":\"В книге 1855 года Сноу передаёт рассказ сына женщины из Хэмпстеда. Она много месяцев не бывала в районе Брод-стрит. Каждый день от Брод-стрит в Уэст-Энд ходила повозка; с ней женщине обычно отправляли большую бутыль воды из колонки на Брод-стрит, которую она предпочитала. Воду привезли в четверг 31 августа; она пила её вечером и в пятницу, заболела в пятницу вечером и умерла в субботу 2 сентября. Гостившая у неё племянница также пила воду, вернулась в Ислингтон, заболела холерой и умерла. Пившая эту воду служанка не заболела либо, по крайней мере, не заболела тяжело. Сноу приводит запись о смерти женщины в выпуске регистра за 9 сентября.\",\"card_id\":\"M7\"},{\"sources\":[\"John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855\"],\"claim\":\"В книге 1855 года Сноу объясняет, что на карте показаны смерти и адреса получения смертельного приступа настолько полно, насколько он смог установить. У части вывезенных в больницы или умерших после отъезда не удалось восстановить адрес; полный масштаб бедствия мог остаться неизвестным.\",\"card_id\":\"M8\"},{\"sources\":[\"John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855\"],\"claim\":\"В таблице Сноу две колонки: датированное начало болезни у тех, кто затем умер, и смерти по дням. На 1 сентября — 143 смертельных приступа и 70 смертей; 2 сентября — 116 и 127; 3 сентября — 54 и 76; 6 сентября — 20 и 37; 7 сентября — 28 и 32; 8 сентября — 12 и 30. Часть дат начала получена вычитанием длительности болезни из даты смерти; у 45 случаев дата начала неизвестна.\",\"card_id\":\"M9\"},{\"sources\":[\"John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855\"],\"claim\":\"Сноу прямо пишет, что приступов стало существенно меньше до прекращения пользования водой; состояние воды к моменту закрытия он оставляет неизвестным. Он связывает уменьшение смертности и с бегством населения.\",\"card_id\":\"M10\"},{\"sources\":[\"Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855\"],\"claim\":\"Приходская комиссия начала работу 25 ноября 1854 года, приняла отчёт 25 июля 1855; 9 августа отчёт представили приходу и приняли там. Сноу участвовал в комиссии. Уайтхед расспрашивал семьи спустя месяцы, иногда возвращаясь четыре или пять раз; Йорку поручили обследование после его сообщения; Роджерс перед письмом снова расспрашивал ту же мать. Доклады этих участников и сообщение общего информанта вошли в один приходский отчёт.\",\"card_id\":\"M11\"},{\"sources\":[\"John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855\",\"Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855\"],\"claim\":\"В книге Сноу передаёт слова смотрителя Фаррелла: в открытом колодце не нашли отверстий или трещин в кладке, через которые могла входить грязь. Общий приходский отчёт признаёт, что до апреля 1855 года поступление стоков в колодец доказано не было; прежние сведения скорее говорили против этого.\",\"card_id\":\"M12\"},{\"sources\":[\"Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855\"],\"claim\":\"Уайтхед заметил запись о пятимесячной девочке из дома №40: смерть 2 сентября от истощения после диареи за четыре дня до смерти. Он знал о смерти, но раньше не выяснил начало болезни. При новом опросе мать назвала начало 28 августа и прекращение обильных выделений 30 августа. По словам матери, пелёнки замачивали в вёдрах, воду выливали частью в дворовую раковину, частью в переднюю выгребную яму. Уайтхед сообщил комиссии 3 апреля 1855, после чего поручили осмотр.\",\"card_id\":\"M13\"},{\"sources\":[\"Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855\"],\"claim\":\"Йорк обследовал систему в конце апреля 1855 года; доклад подписан 1 мая 1855. Швы старого стока и кладка переполненной выгребной ямы разрушились, кирпичи вынимались без усилия. От боковой стороны стока до наружной кладки колодца было 2 фута 8 дюймов по горизонтали (0,8128 м), от дна домового стока до уровня воды — 9 футов 2 дюйма по вертикали (2,794 м). При вскрытии кладки и грунта он увидел чёрную насыщенную влагой землю и промытый гравий и заключил о длительном просачивании.\",\"card_id\":\"M14\"},{\"sources\":[\"Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855\"],\"claim\":\"В письме 30 мая 1855 года Роджерс предупреждает: записей не вёл и уточнял память новым разговором с матерью. У ребёнка были приступы диареи и прежде, в июне и середине августа. О последнем он вспоминает бледные слизистые водянистые выделения и рвоту, но не характерные холерные испражнения, посинение, судороги, холодную стадию или коллапс. Уайтхед оставляет медицинский спор врачам; комиссия отмечает сомнение в природе болезни и то, что симптомы холеры у маленьких детей могут быть неясными.\",\"card_id\":\"M15\"},{\"sources\":[\"Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855\"],\"claim\":\"Уайтхед спрашивал, почему приступы резко уменьшились уже 3 сентября и вспышка на Брод-стрит почти исчезла после 6 сентября, хотя в доме №40 заболевали и другие люди. Он обсуждал отъезд, уменьшение числа привычных потребителей и изменение воды при сильном разборе, но не считал объяснения убедительными. Позднее он выяснил, что из-за способа удаления отходов больных третьего этажа в яму могло попасть лишь немного; отметил и поперечный сток из дома №39, где приступы были 1, 2 и 4 сентября. Точный путь и время опасного сообщения уже нельзя было восстановить после изменения дренажа.\",\"card_id\":\"M16\"},{\"sources\":[\"John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855\"],\"claim\":\"В предисловии ко второму изданию Сноу сообщает, что первое издание вышло в августе 1849 года. О расследовании 1854 года на юге Лондона он пишет, что хотел лично проверить объяснение, которое отстаивал уже пять лет: вещество, вызывающее холеру, могло проходить со стоками в большую реку, а затем распространяться через мили водопроводных труб.\",\"card_id\":\"M17\"},{\"sources\":[\"John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855\"],\"claim\":\"Сноу пишет, что в 1852 году компания Lambeth перенесла водозабор от района напротив Хангерфорд-маркета к Темз-Диттон. Там она получала воду выше поступления лондонских стоков. На части южного Лондона её сеть соседствовала с сетью Southwark and Vauxhall, которая брала воду у Баттерси. Поэтому в одном районе дома могли получать разную воду.\",\"card_id\":\"M18\"},{\"sources\":[\"John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855\"],\"claim\":\"По описанию Сноу, трубы двух компаний проходили по одним улицам и дворам; отдельный дом мог получать воду не от того поставщика, что дома по обе стороны. Подключение зависело от решения владельца или жильца во времена конкуренции компаний. Обе обслуживали богатых и бедных, большие и маленькие дома. Сноу оценивал население смешанной зоны не менее чем в 300 тысяч человек и рассматривал это соседство как возможность сравнить действие двух водоснабжений.\",\"card_id\":\"M19\"},{\"sources\":[\"John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855\"],\"claim\":\"В середине августа 1854 года Сноу начал выяснять водоснабжение адресов умерших в двух подрайонах Кеннингтона. Из 44 смертей, учтённых там по 12 августа, 38 пришлись на дома с водой Southwark and Vauxhall, четыре — Lambeth, две — на дома с собственными колодцами. Сноу сообщил результат доктору Фарру. По предложению Фарра регистраторам южных районов поручили после 26 августа указывать водоснабжение дома, где начался смертельный приступ. При переселении больного Сноу выяснял снабжение прежнего дома, в котором болезнь началась.\",\"card_id\":\"M20\"},{\"sources\":[\"John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855\"],\"claim\":\"Жильцы нередко не знали поставщика воды: квитанции приходилось искать, а у нанимателей с недельной платой водный сбор обычно оплачивал хозяин или его агент. Во время исследования Сноу различал воду компаний по её солёности с помощью нитрата серебра. Для воды Lambeth он приводит 0,95 грана хлорида натрия на галлон, для Southwark and Vauxhall — 37,9 грана. Когда ответ жильца был неясен, он набирал воду в небольшой пузырёк, писал адрес на крышке и исследовал её дома. Время подачи и внешний вид служили дополнительными признаками наряду с химическим тестом или квитанцией.\",\"card_id\":\"M21\"},{\"sources\":[\"John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855\"],\"claim\":\"Для периода с 8 июля по 5 августа 1854 года Сноу и Джон Джозеф Уайтинг выясняли водоснабжение адресов смертельных случаев в зоне двух компаний. Из 334 смертей 286 относились к домам Southwark and Vauxhall, 14 — Lambeth; в 22 случаях воду брали прямо из Темзы, в четырёх — из колодцев, в четырёх — из канав, в четырёх источник остался неизвестным. С парламентским числом подключённых за 1853 год домов — 40 046 и 26 107 соответственно — Сноу получил округлённые показатели 71 и 5 смертельных приступов на 10 тысяч домов. На этих округлённых показателях в его тексте стоит сравнение в четырнадцать раз.\",\"card_id\":\"M22\"},{\"sources\":[\"John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855\"],\"claim\":\"В таблице IX за первые семь недель эпидемии Сноу приводит 1263 смерти в 40 046 домах Southwark and Vauxhall и 98 в 26 107 домах Lambeth: 315 и 37 смертей на 10 тысяч домов. Он описывает разницу как восемь-девять раз. Для части районов, обследованных Уайтингом только по 5 августа, распределение водоснабжения за следующие три недели в исходной сводке рассчитано по пропорциям первых четырёх недель; в районах сети Lambeth Сноу выяснял водоснабжение каждого адреса сам.\",\"card_id\":\"M23\"}]},\"material_catalog\":[\"M1\",\"M2\",\"M3\",\"M4\",\"M5\",\"M6\",\"M7\",\"M8\",\"M9\",\"M10\",\"M11\",\"M12\",\"M13\",\"M14\",\"M15\",\"M16\",\"M17\",\"M18\",\"M19\",\"M20\",\"M21\",\"M22\",\"M23\"]}"
+        }
+      ]
+    }
+  ],
+  "max_output_tokens": 65536,
+  "text": {
+    "verbosity": "medium",
+    "format": {
+      "type": "json_schema",
+      "name": "plan",
+      "schema": {
+        "$defs": {
+          "PlanProposal": {
+            "additionalProperties": false,
+            "properties": {
+              "main_question": {
+                "minLength": 1,
+                "title": "Main Question",
+                "type": "string",
+                "description": "Central question of the episode for this audience; the opening may raise the same question or a local one."
+              },
+              "listener_promise": {
+                "minLength": 1,
+                "title": "Listener Promise",
+                "type": "string",
+                "description": "What following the chosen story offers this audience."
+              },
+              "working_answer": {
+                "description": "The chosen answer to the episode's question, with the context needed to understand it.",
+                "minLength": 1,
+                "title": "Working Answer",
+                "type": "string"
+              },
+              "route_summary": {
+                "description": "The chosen story from opening to ending: what happens or becomes clear, how its developments connect, and where they lead.",
+                "minLength": 1,
+                "title": "Route Summary",
+                "type": "string"
+              },
+              "opening": {
+                "$ref": "#/$defs/PlanningOpening"
+              },
+              "acts": {
+                "items": {
+                  "$ref": "#/$defs/PlanningAct"
+                },
+                "minItems": 1,
+                "title": "Acts",
+                "type": "array"
+              },
+              "ending": {
+                "$ref": "#/$defs/PlanningEnding"
+              },
+              "host_functions": {
+                "items": {
+                  "$ref": "#/$defs/PlanningHostFunction"
+                },
+                "minItems": 1,
+                "title": "Host Functions",
+                "type": "array"
+              },
+              "duration_strategy": {
+                "$ref": "#/$defs/PlanningDurationStrategy"
+              }
+            },
+            "required": [
+              "main_question",
+              "listener_promise",
+              "working_answer",
+              "route_summary",
+              "opening",
+              "acts",
+              "ending",
+              "host_functions",
+              "duration_strategy"
+            ],
+            "title": "PlanProposal",
+            "type": "object"
+          },
+          "PlanningAct": {
+            "additionalProperties": false,
+            "properties": {
+              "act_id": {
+                "description": "Short local act label.",
+                "minLength": 1,
+                "title": "Act Id",
+                "type": "string"
+              },
+              "title": {
+                "minLength": 1,
+                "title": "Title",
+                "type": "string",
+                "description": "A short name for this part of the chosen story."
+              },
+              "listener_question": {
+                "minLength": 1,
+                "title": "Listener Question",
+                "type": "string",
+                "description": "What listeners want to find out at this point in the story."
+              },
+              "intended_change_in_understanding": {
+                "minLength": 1,
+                "title": "Intended Change In Understanding",
+                "type": "string",
+                "description": "What happens, is discovered, or becomes clear in this part."
+              },
+              "prerequisite_concepts": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Prerequisite Concepts",
+                "type": "array",
+                "description": "Technical knowledge needed to follow this part; an empty list is valid."
+              },
+              "material_refs": {
+                "description": "Exact supplied locators supporting this act's reasoning.",
+                "items": {
+                  "minLength": 1,
+                  "type": "string",
+                  "enum": [
+                    "M1",
+                    "M2",
+                    "M3",
+                    "M4",
+                    "M5",
+                    "M6",
+                    "M7",
+                    "M8",
+                    "M9",
+                    "M10",
+                    "M11",
+                    "M12",
+                    "M13",
+                    "M14",
+                    "M15",
+                    "M16",
+                    "M17",
+                    "M18",
+                    "M19",
+                    "M20",
+                    "M21",
+                    "M22",
+                    "M23"
+                  ]
+                },
+                "title": "Material Refs",
+                "type": "array"
+              },
+              "transitions": {
+                "$ref": "#/$defs/PlanningTransitions"
+              },
+              "promises_opened": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Promises Opened",
+                "type": "array"
+              },
+              "promises_addressed": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Promises Addressed",
+                "type": "array"
+              },
+              "estimated_seconds_range": {
+                "$ref": "#/$defs/PlanningSecondsRange"
+              },
+              "priority": {
+                "enum": [
+                  "essential",
+                  "optional"
+                ],
+                "title": "Priority",
+                "type": "string"
+              }
+            },
+            "required": [
+              "act_id",
+              "title",
+              "listener_question",
+              "intended_change_in_understanding",
+              "prerequisite_concepts",
+              "material_refs",
+              "transitions",
+              "promises_opened",
+              "promises_addressed",
+              "estimated_seconds_range",
+              "priority"
+            ],
+            "title": "PlanningAct",
+            "type": "object"
+          },
+          "PlanningDurationStrategy": {
+            "additionalProperties": false,
+            "properties": {
+              "estimated_seconds_range": {
+                "$ref": "#/$defs/PlanningSecondsRange"
+              },
+              "assumptions": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Assumptions",
+                "type": "array",
+                "description": "The timing basis for the duration estimate, such as pace, pauses, and how the parts are counted."
+              },
+              "optional_material": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Optional Material",
+                "type": "array",
+                "description": "Specific story material that can be added or removed to fit the duration; an empty list is valid."
+              }
+            },
+            "required": [
+              "estimated_seconds_range",
+              "assumptions",
+              "optional_material"
+            ],
+            "title": "PlanningDurationStrategy",
+            "type": "object"
+          },
+          "PlanningEnding": {
+            "additionalProperties": false,
+            "properties": {
+              "answer_to_deliver": {
+                "minLength": 1,
+                "title": "Answer To Deliver",
+                "type": "string",
+                "description": "The answer reached at the ending."
+              },
+              "promises_to_close": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Promises To Close",
+                "type": "array"
+              }
+            },
+            "required": [
+              "answer_to_deliver",
+              "promises_to_close"
+            ],
+            "title": "PlanningEnding",
+            "type": "object"
+          },
+          "PlanningHostFunction": {
+            "additionalProperties": false,
+            "properties": {
+              "speaker_id": {
+                "description": "Exact speaker label from the assignment.",
+                "minLength": 1,
+                "title": "Speaker Id",
+                "type": "string"
+              },
+              "contribution": {
+                "minLength": 1,
+                "title": "Contribution",
+                "type": "string",
+                "description": "What this person tells, explains, notices, asks, or contributes to this particular story."
+              },
+              "interaction_guidance": {
+                "minLength": 1,
+                "title": "Interaction Guidance",
+                "type": "string",
+                "description": "How this narrator carries the account forward, or how the speakers' contributions build on each other."
+              },
+              "speech_register": {
+                "minLength": 1,
+                "title": "Speech Register",
+                "type": "string",
+                "description": "How this person speaks for this audience and genre."
+              }
+            },
+            "required": [
+              "speaker_id",
+              "contribution",
+              "interaction_guidance",
+              "speech_register"
+            ],
+            "title": "PlanningHostFunction",
+            "type": "object"
+          },
+          "PlanningOpening": {
+            "additionalProperties": false,
+            "properties": {
+              "approach": {
+                "minLength": 1,
+                "title": "Approach",
+                "type": "string",
+                "description": "What listeners encounter at the start, what they learn or notice next, and how this opens the chosen story."
+              },
+              "material_refs": {
+                "description": "Exact locators offered in the supplied material catalog.",
+                "items": {
+                  "minLength": 1,
+                  "type": "string",
+                  "enum": [
+                    "M1",
+                    "M2",
+                    "M3",
+                    "M4",
+                    "M5",
+                    "M6",
+                    "M7",
+                    "M8",
+                    "M9",
+                    "M10",
+                    "M11",
+                    "M12",
+                    "M13",
+                    "M14",
+                    "M15",
+                    "M16",
+                    "M17",
+                    "M18",
+                    "M19",
+                    "M20",
+                    "M21",
+                    "M22",
+                    "M23"
+                  ]
+                },
+                "title": "Material Refs",
+                "type": "array"
+              },
+              "question_to_open": {
+                "minLength": 1,
+                "title": "Question To Open",
+                "type": "string",
+                "description": "The question raised for listeners by this opening."
+              }
+            },
+            "required": [
+              "approach",
+              "material_refs",
+              "question_to_open"
+            ],
+            "title": "PlanningOpening",
+            "type": "object"
+          },
+          "PlanningResearchRequest": {
+            "additionalProperties": false,
+            "properties": {
+              "question": {
+                "minLength": 1,
+                "title": "Question",
+                "type": "string"
+              },
+              "why_needed": {
+                "minLength": 1,
+                "title": "Why Needed",
+                "type": "string"
+              },
+              "affected_act_ids": {
+                "description": "Local act labels; empty for an episode-wide question.",
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Affected Act Ids",
+                "type": "array"
+              },
+              "material_refs": {
+                "description": "Relevant supplied locators; may be empty for missing evidence.",
+                "items": {
+                  "minLength": 1,
+                  "type": "string",
+                  "enum": [
+                    "M1",
+                    "M2",
+                    "M3",
+                    "M4",
+                    "M5",
+                    "M6",
+                    "M7",
+                    "M8",
+                    "M9",
+                    "M10",
+                    "M11",
+                    "M12",
+                    "M13",
+                    "M14",
+                    "M15",
+                    "M16",
+                    "M17",
+                    "M18",
+                    "M19",
+                    "M20",
+                    "M21",
+                    "M22",
+                    "M23"
+                  ]
+                },
+                "title": "Material Refs",
+                "type": "array"
+              },
+              "blocking": {
+                "description": "Whether the promised answer requires this unresolved material.",
+                "title": "Blocking",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "question",
+              "why_needed",
+              "affected_act_ids",
+              "material_refs",
+              "blocking"
+            ],
+            "title": "PlanningResearchRequest",
+            "type": "object"
+          },
+          "PlanningSecondsRange": {
+            "additionalProperties": false,
+            "properties": {
+              "min_seconds": {
+                "minimum": 0,
+                "title": "Min Seconds",
+                "type": "integer"
+              },
+              "max_seconds": {
+                "minimum": 0,
+                "title": "Max Seconds",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "min_seconds",
+              "max_seconds"
+            ],
+            "title": "PlanningSecondsRange",
+            "type": "object"
+          },
+          "PlanningTransitions": {
+            "additionalProperties": false,
+            "properties": {
+              "from_previous": {
+                "minLength": 1,
+                "title": "From Previous",
+                "type": "string",
+                "description": "How the preceding development leads into this part."
+              },
+              "toward_next": {
+                "minLength": 1,
+                "title": "Toward Next",
+                "type": "string",
+                "description": "How this part leads to the next development or question."
+              }
+            },
+            "required": [
+              "from_previous",
+              "toward_next"
+            ],
+            "title": "PlanningTransitions",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "enum": [
+              "ready",
+              "needs_research"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PlanProposal"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Complete proposal, or null when material cannot support one."
+          },
+          "research_requests": {
+            "items": {
+              "$ref": "#/$defs/PlanningResearchRequest"
+            },
+            "title": "Research Requests",
+            "type": "array"
+          }
+        },
+        "required": [
+          "status",
+          "plan",
+          "research_requests"
+        ],
+        "title": "PlanningOutput",
+        "type": "object"
+      },
+      "strict": true
+    }
+  },
+  "tools": [],
+  "tool_choice": "none",
+  "parallel_tool_calls": false,
+  "truncation": "disabled",
+  "stream": false,
+  "metadata": {
+    "podgen_run_id": "682f403e-6dfb-4c51-9b19-f23dd206ff58",
+    "podgen_invocation_id": "bea557c9-0d2a-5944-ae12-3b1294579311",
+    "podgen_stage": "plan",
+    "compiler_version": "whole-episode-baseline-a/1"
+  },
+  "reasoning": {
+    "effort": "medium"
+  },
+  "store": false,
+  "background": false
+}

@@ -1,0 +1,90 @@
+{
+  "planner": {
+    "model_id": "gpt-6.1-sol",
+    "context_limit": 1050000,
+    "output_limit": 65536,
+    "generation_parameters": {
+      "reasoning": {
+        "effort": "medium"
+      },
+      "text": {
+        "verbosity": "medium"
+      },
+      "store": false,
+      "background": false
+    },
+    "allowed_roles": [
+      "planner"
+    ],
+    "timeout_policy": {
+      "rpc_timeout_seconds": 1800,
+      "poll_deadline_seconds": 1800
+    }
+  },
+  "plan-reviewer": {
+    "model_id": "gpt-6.1-terra",
+    "context_limit": 1050000,
+    "output_limit": 65536,
+    "generation_parameters": {
+      "reasoning": {
+        "effort": "medium"
+      },
+      "text": {
+        "verbosity": "high"
+      },
+      "store": false,
+      "background": false
+    },
+    "allowed_roles": [
+      "plan_reviewer"
+    ],
+    "timeout_policy": {
+      "rpc_timeout_seconds": 1800,
+      "poll_deadline_seconds": 1800
+    }
+  },
+  "writer": {
+    "model_id": "gpt-6.1-sol",
+    "context_limit": 1050000,
+    "output_limit": 65536,
+    "generation_parameters": {
+      "reasoning": {
+        "effort": "medium"
+      },
+      "text": {
+        "verbosity": "high"
+      },
+      "store": false,
+      "background": false
+    },
+    "allowed_roles": [
+      "writer"
+    ],
+    "timeout_policy": {
+      "rpc_timeout_seconds": 1800,
+      "poll_deadline_seconds": 1800
+    }
+  },
+  "reviewer": {
+    "model_id": "gpt-6.1-terra",
+    "context_limit": 1050000,
+    "output_limit": 65536,
+    "generation_parameters": {
+      "reasoning": {
+        "effort": "medium"
+      },
+      "text": {
+        "verbosity": "high"
+      },
+      "store": false,
+      "background": false
+    },
+    "allowed_roles": [
+      "editorial_reviewer"
+    ],
+    "timeout_policy": {
+      "rpc_timeout_seconds": 1800,
+      "poll_deadline_seconds": 1800
+    }
+  }
+}

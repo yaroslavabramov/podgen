@@ -1,0 +1,21 @@
+{
+  "endpoint_called": false,
+  "source_documents": 5,
+  "card_count": 23,
+  "exact_excerpts_verified": 52,
+  "sizing_probe_only": true,
+  "reference_script_words": 2040,
+  "reference_script_visible_bytes": {
+    "instructions": 3109,
+    "input": 104635,
+    "schema": 3653,
+    "total": 111397
+  },
+  "projected_fact_wire_bytes_by_words": {
+    "3200": 126625,
+    "3500": 130564,
+    "3800": 134502,
+    "4200": 139753
+  },
+  "current_visible_byte_limit": 131072
+}
