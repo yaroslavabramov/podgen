@@ -1,8 +1,8 @@
 {
   "run_id": "682f403e-6dfb-4c51-9b19-f23dd206ff58",
   "case_id": "snow-30min",
-  "status": "running",
-  "failure_code": null,
+  "status": "needs_attention",
+  "failure_code": "operator_stopped_by_user",
   "semantic_acceptance": false,
   "production_ready": false,
   "invocations": {
