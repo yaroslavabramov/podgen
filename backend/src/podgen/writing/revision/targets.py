@@ -32,7 +32,9 @@ def target_catalog(script, readings, *, require_targets=True):
                 raise ValueError("revision_target_quote_ambiguous")
             end = start + len(quote)
             offered = [(start, end, basis)]
-            contexts = [(first, last) for first, last in source_contexts(text) if first <= start and end <= last]
+            contexts = [
+                (first, last) for first, last in source_contexts(text) if first <= start and end <= last
+            ]
             if contexts:
                 first, last = min(contexts, key=lambda span: span[1] - span[0])
                 offered.append((first, last, basis + ".context"))

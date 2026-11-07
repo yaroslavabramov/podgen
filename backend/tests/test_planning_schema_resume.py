@@ -1,6 +1,5 @@
 """Pending V5/V6 planner revisions resume pinned schemas; schema drift still fails closed."""
 
-
 import pytest
 
 from podgen import writing_cli

@@ -85,11 +85,18 @@ def reading_payload(
         if composition is not None:
             questions = deepcopy(payload.get("editorial_frame", {}).get("unresolved_questions", []))
             payload["editorial_frame"] = dict(
-                authority="revisable_authorial_decisions", unresolved_questions=questions,
-                **{key: deepcopy(value) for key, value in composition.items() if key != "unresolved_questions"},
+                authority="revisable_authorial_decisions",
+                unresolved_questions=questions,
+                **{
+                    key: deepcopy(value)
+                    for key, value in composition.items()
+                    if key != "unresolved_questions"
+                },
             )
             if "unresolved_questions" in composition:
-                payload["editorial_frame"]["unresolved_questions"] = deepcopy(composition["unresolved_questions"])
+                payload["editorial_frame"]["unresolved_questions"] = deepcopy(
+                    composition["unresolved_questions"]
+                )
         if revision_operation is not None:
             payload["revision_operation"] = deepcopy(revision_operation)
         payload["revision_guidance"] = [

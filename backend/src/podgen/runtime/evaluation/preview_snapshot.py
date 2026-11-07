@@ -55,4 +55,6 @@ def load_preview_snapshot(journal, generation, run_id, stage, materials):
             composition = source_state(journal, source, script)
     from .planning_continuation.preview import attach
 
-    return attach(PreviewSnapshot(manifest, instructions, script, composition), journal, run_id, stage, materials)
+    return attach(
+        PreviewSnapshot(manifest, instructions, script, composition), journal, run_id, stage, materials
+    )

@@ -105,11 +105,14 @@ def validate_preview_snapshots(stage, materials, inputs):
     for field, mode in (("reader_feedback", "script_only"), ("fact_feedback", "informed")):
         if inputs.get(field) is not None:
             from podgen.writing.fact_review import FactFeedback
+            from podgen.writing.fact_review import snapshot_model as fact_snapshot_model
             from podgen.writing.reader_schema import snapshot_model
 
-            from podgen.writing.fact_review import snapshot_model as fact_snapshot_model
-
-            model = fact_snapshot_model(inputs[field]) if field == "fact_feedback" else snapshot_model(inputs[field])
+            model = (
+                fact_snapshot_model(inputs[field])
+                if field == "fact_feedback"
+                else snapshot_model(inputs[field])
+            )
             review = model.model_validate(inputs[field])
             review.validate_against(WriteOutput.model_validate(inputs["draft"]))
             if review.reading_mode != mode:
