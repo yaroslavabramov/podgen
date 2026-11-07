@@ -1,0 +1,454 @@
+{
+  "successful_calls": 32,
+  "estimated_total_usd": "1.18516400",
+  "calls": [
+    {
+      "path": "candidate-first/receipt.json",
+      "stage": "plan-review-revised",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0807ed9b43615d1c016aef9310bc7087d2865c9e201804ac37",
+      "input_tokens": 17494,
+      "input_details": {
+        "cache_write_tokens": 15387,
+        "cached_tokens": 2104
+      },
+      "output_tokens": 2304,
+      "usd": "0.03086195",
+      "request_sha256": "12a357a93ad0ae17456be0b46639d25a0c2d897e195b85bac2b3a0b437e667e8"
+    },
+    {
+      "path": "continued-native/draft-94e11572-584f-5f76-b2f1-db32ab8a177a/receipt.json",
+      "stage": "draft",
+      "model": "gpt-6.1-sol",
+      "response_id": "resp_0a85b6b85e42e7de016aef9d1526c887d2b9755ca7be3991c0",
+      "input_tokens": 9793,
+      "input_details": {
+        "cache_write_tokens": 9790,
+        "cached_tokens": 0
+      },
+      "output_tokens": 3828,
+      "usd": "0.062761",
+      "request_sha256": "d43710b1e5da7da18a2bf269424bbfbb2cf7e4a87f1d625c558f7d85d56c0630"
+    },
+    {
+      "path": "continued-native/fact-review-1-88446592-5a8f-565c-bd13-8ab7e89b5256/receipt.json",
+      "stage": "fact-review-1",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0130a7ffeca68050016aef9e22524087d287f34522136c8a53",
+      "input_tokens": 16009,
+      "input_details": {
+        "cache_write_tokens": 16006,
+        "cached_tokens": 0
+      },
+      "output_tokens": 1820,
+      "usd": "0.0291105",
+      "request_sha256": "05af370759e1dbf4a18d58df292626c2346601698245d663ce66c0f439ce46ad"
+    },
+    {
+      "path": "continued-native/fact-review-2-4dca9650-3c2c-5a72-863d-7816789668c2/receipt.json",
+      "stage": "fact-review-2",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0439fe77cdc4d504016aef9e8e173487d2be8db0d72aed1e7a",
+      "input_tokens": 15881,
+      "input_details": {
+        "cache_write_tokens": 15878,
+        "cached_tokens": 0
+      },
+      "output_tokens": 2054,
+      "usd": "0.0301205",
+      "request_sha256": "d1dcb99e10c2705d0a3e622f2dd494d7ede40370bcef53883bff5afd7de75834"
+    },
+    {
+      "path": "continued-native/fact-review-db1f4056-602a-5759-ad84-04f0b9b96b88/receipt.json",
+      "stage": "fact-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0a3462967b988a08016aef9db6e27887d28617ed4e239bc58e",
+      "input_tokens": 1628,
+      "input_details": {
+        "cache_write_tokens": 1625,
+        "cached_tokens": 0
+      },
+      "output_tokens": 101,
+      "usd": "0.00253925",
+      "request_sha256": "2da52fd42f610f1c4283e5834681c07a65e5b4f8e154dec1874e171cccf6958a"
+    },
+    {
+      "path": "continued-native/fact-review-e8db0a3e-cccb-5b4c-ae58-0bad58bd8fab/receipt.json",
+      "stage": "fact-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0274fe0e99779082016aef9d8ca81887d2be2ffd8b84a825c3",
+      "input_tokens": 16247,
+      "input_details": {
+        "cache_write_tokens": 14096,
+        "cached_tokens": 2148
+      },
+      "output_tokens": 2829,
+      "usd": "0.0318754",
+      "request_sha256": "c4fe24456dcb0c79ac2b8b24fa5d3f1c24405a4d682906f71074b42626a65da7"
+    },
+    {
+      "path": "continued-native/plan-review-revised-ab742326-d052-54a4-aff0-5099ddc3af71/receipt.json",
+      "stage": "plan-review-revised",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_07d77d470894a2b6016aef9cfc237087d2a619326d297e3cc8",
+      "input_tokens": 17767,
+      "input_details": {
+        "cache_write_tokens": 15660,
+        "cached_tokens": 2104
+      },
+      "output_tokens": 1472,
+      "usd": "0.0270432",
+      "request_sha256": "226dede573e87a3c2c956f8b9f658c0761dd737b07dc65a81517b54e0bc1793f"
+    },
+    {
+      "path": "continued-native/plan-revise-7e486154-5079-5422-b245-1c6b72b4ceec/receipt.json",
+      "stage": "plan-revise",
+      "model": "gpt-6.1-sol",
+      "response_id": "resp_0d64677359ce6419016aef9ccc785487d29100674fbd4e1095",
+      "input_tokens": 10414,
+      "input_details": {
+        "cache_write_tokens": 7993,
+        "cached_tokens": 2418
+      },
+      "output_tokens": 5452,
+      "usd": "0.0747503",
+      "request_sha256": "b103dcefbf0cfcb5c737c8f3b4e3f5b0e6cdd52532780c0889dbc3a50d4d7e32"
+    },
+    {
+      "path": "continued-native/reader-review-1-2b1cb363-f084-5bb3-b099-696665c14f3d/receipt.json",
+      "stage": "reader-review-1",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_02b3f08b747d4a78016aef9deba19c87d28441bd5abbc27d22",
+      "input_tokens": 5649,
+      "input_details": {
+        "cache_write_tokens": 5646,
+        "cached_tokens": 0
+      },
+      "output_tokens": 4129,
+      "usd": "0.0277055",
+      "request_sha256": "a6107f909f1818bb68d9e692ad697fce02b6fe78ba2ba74c418eb0856147f090"
+    },
+    {
+      "path": "continued-native/reader-review-2-187d6d06-2de4-5288-a9fc-52fe59b9d1bb/receipt.json",
+      "stage": "reader-review-2",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_057196b92b4da40a016aef9e62696c87d2b06c315fa07343bb",
+      "input_tokens": 5521,
+      "input_details": {
+        "cache_write_tokens": 5518,
+        "cached_tokens": 0
+      },
+      "output_tokens": 2664,
+      "usd": "0.0202205",
+      "request_sha256": "fe0961c97f8c8514d38b14332f1d83ae5810bd942071c8def76285d73e646301"
+    },
+    {
+      "path": "continued-native/reader-review-26c00b6f-3ef6-5a6e-971f-76e7ed167c58/receipt.json",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0b619fb82772ddc4016aef9d5bf39087d28ee7b3db46cc07f9",
+      "input_tokens": 5887,
+      "input_details": {
+        "cache_write_tokens": 3508,
+        "cached_tokens": 2376
+      },
+      "output_tokens": 3625,
+      "usd": "0.0226318",
+      "request_sha256": "4614eeba9dbd43e8f4eeba7fe627ecd13471f1f3063ac2bbe5d06a867a7126e4"
+    },
+    {
+      "path": "continued-native/revise-1-7f9df38c-ced4-5074-8d80-2e2f48f305a0/receipt.json",
+      "stage": "revise-1",
+      "model": "gpt-6.1-sol",
+      "response_id": "resp_07415677f998f719016aef9dc3631087d2be8bfab7c7dcbd76",
+      "input_tokens": 15585,
+      "input_details": {
+        "cache_write_tokens": 15582,
+        "cached_tokens": 0
+      },
+      "output_tokens": 2337,
+      "usd": "0.062331",
+      "request_sha256": "ee815675a72176dcee6ec1d62d4d39d1e3bc25fcd0bfe1493a0f29be19f612d4"
+    },
+    {
+      "path": "continued-native/revise-2-eff5a82b-5e31-5c47-b969-5830dd2eb1d2/receipt.json",
+      "stage": "revise-2",
+      "model": "gpt-6.1-sol",
+      "response_id": "resp_02b95cf76fe48622016aef9e40870487d29f1b6f24db198fca",
+      "input_tokens": 13802,
+      "input_details": {
+        "cache_write_tokens": 13799,
+        "cached_tokens": 0
+      },
+      "output_tokens": 1369,
+      "usd": "0.0481935",
+      "request_sha256": "940a79c2a2fb2220bc9ef83b99625dac7b7f6a4d88ec012712112952d4a63e77"
+    },
+    {
+      "path": "control-rechecked/fact-review-51d7ca26-e6c5-5c2f-9a40-195d57054301/receipt.json",
+      "stage": "fact-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_03c855342662d8ca016aef99f407f087d2aa23149bb7cc84ef",
+      "input_tokens": 15738,
+      "input_details": {
+        "cache_write_tokens": 15735,
+        "cached_tokens": 0
+      },
+      "output_tokens": 1952,
+      "usd": "0.02943175",
+      "request_sha256": "97b0d97070176a9d15bd72d6de829a5bc48f20c2dc88a62007e957e92ab55d5b"
+    },
+    {
+      "path": "control-rechecked/reader-review-00367fb5-b206-5642-a21c-6435bd135360/receipt.json",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0dab5960f9ce6e45016aef99cd6ad087d2944c56f97241e3ba",
+      "input_tokens": 5378,
+      "input_details": {
+        "cache_write_tokens": 5375,
+        "cached_tokens": 0
+      },
+      "output_tokens": 3069,
+      "usd": "0.02206675",
+      "request_sha256": "008644a974d3f6fd16f8105dc4042242ac741f57faf526d7ec24383f4584e459"
+    },
+    {
+      "path": "fact-83/receipt.json",
+      "stage": "fact-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_08d7e84682a6b084016aef9499da0c87d2abab5d1f0ecc4cd5",
+      "input_tokens": 15351,
+      "input_details": {
+        "cache_write_tokens": 15348,
+        "cached_tokens": 0
+      },
+      "output_tokens": 2545,
+      "usd": "0.031913",
+      "request_sha256": "594227850b578ad7a89ad2281a8822fc63c008de357aa2b7a1a40ef45fa68a60"
+    },
+    {
+      "path": "fact-form-corrected/receipt.json",
+      "stage": "fact-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0233ac847351c6cd016aef956bd8f887d2be9302de00ccaa4d",
+      "input_tokens": 15628,
+      "input_details": {
+        "cache_write_tokens": 13776,
+        "cached_tokens": 1849
+      },
+      "output_tokens": 1785,
+      "usd": "0.02624045",
+      "request_sha256": "dc3d967883d39ce9cda8bab43b12725929d34873daff44b341701ce1eb4fb187"
+    },
+    {
+      "path": "fact-form-negative/receipt.json",
+      "stage": "fact-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0f539277758d1b61016aef956bdafc87d28acda1e6dfc76247",
+      "input_tokens": 15490,
+      "input_details": {
+        "cache_write_tokens": 15487,
+        "cached_tokens": 0
+      },
+      "output_tokens": 2762,
+      "usd": "0.03317175",
+      "request_sha256": "3dae283aab7ede84850b27c41f73041c36a058d379fc4b4b4b106f526353c3ec"
+    },
+    {
+      "path": "full-native/plan-3c7ca1bd-5d9d-5e28-af09-94c3b2b5e579/receipt.json",
+      "stage": "plan",
+      "model": "gpt-6.1-sol",
+      "response_id": "resp_0bda517c8cf19b8a016aef998fdd3087d2b94e4083735056cf",
+      "input_tokens": 5112,
+      "input_details": {
+        "cache_write_tokens": 5109,
+        "cached_tokens": 0
+      },
+      "output_tokens": 5175,
+      "usd": "0.0645285",
+      "request_sha256": "d97a45bfe8b079261939c534f2d4cec4a6813e7e5c00d9f5854b38efaf38daf3"
+    },
+    {
+      "path": "full-native/plan-review-41ea98f3-9b57-574a-97a6-633eaddea1c9/receipt.json",
+      "stage": "plan-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0218155989d244f9016aef99e5d27c87d2a920ca27da1aa0a1",
+      "input_tokens": 17210,
+      "input_details": {
+        "cache_write_tokens": 17207,
+        "cached_tokens": 0
+      },
+      "output_tokens": 2900,
+      "usd": "0.03601175",
+      "request_sha256": "c961122e8152dcf058f0c7666f1add60eeb978b8c1cfb434324696a306c06dbb"
+    },
+    {
+      "path": "full-native/plan-review-revised-5d9a79b7-7d95-5bd0-9056-e3f73a0a80ee/receipt.json",
+      "stage": "plan-review-revised",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_054b7c9116dac15a016aef9a30e92087d2994217be3ad72ef1",
+      "input_tokens": 17437,
+      "input_details": {
+        "cache_write_tokens": 15330,
+        "cached_tokens": 2104
+      },
+      "output_tokens": 1880,
+      "usd": "0.0286707",
+      "request_sha256": "504a718d1f61b104a964a342377655bd609743a01c8728f9727569ad9818584b"
+    },
+    {
+      "path": "full-native/plan-revise-7f179d5c-1d9a-52a1-add4-5b1ff0297fc6/receipt.json",
+      "stage": "plan-revise",
+      "model": "gpt-6.1-sol",
+      "response_id": "resp_0e2787c3234740d6016aef9a0bd82c87d29c3bb0f1bfadb8f2",
+      "input_tokens": 10421,
+      "input_details": {
+        "cache_write_tokens": 10418,
+        "cached_tokens": 0
+      },
+      "output_tokens": 4999,
+      "usd": "0.076041",
+      "request_sha256": "0d2cce3b851b2abb044d2148377fd77aa8045b88ea0ced60478c30995d5452c2"
+    },
+    {
+      "path": "plan-alternative/receipt.json",
+      "stage": "plan-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0e473c5d596b02cf016aef91e6a20c87d2914716f217745cda",
+      "input_tokens": 15723,
+      "input_details": {
+        "cache_write_tokens": 15720,
+        "cached_tokens": 0
+      },
+      "output_tokens": 2299,
+      "usd": "0.031148",
+      "request_sha256": "70112fe5d135988cdccc7c5f02c30956231618a71dc4f700ab7117a8ca735e19"
+    },
+    {
+      "path": "plan-check/receipt.json",
+      "stage": "plan-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0e24fa04a6068b94016aef91e6d56c87d2bd002ad0c948167a",
+      "input_tokens": 17127,
+      "input_details": {
+        "cache_write_tokens": 15022,
+        "cached_tokens": 2102
+      },
+      "output_tokens": 2738,
+      "usd": "0.0325756",
+      "request_sha256": "81abdad9b0f92c83c3dc7cc04f0cb44061865b14e5a640b26369e4161778b469"
+    },
+    {
+      "path": "point-cost-of-repair/receipt.json",
+      "stage": "revise-1",
+      "model": "gpt-6.1-sol",
+      "response_id": "resp_0dfd0d77320a5dc3016aef997bb26487d290e8c0c55d4583f9",
+      "input_tokens": 14512,
+      "input_details": {
+        "cache_write_tokens": 14509,
+        "cached_tokens": 0
+      },
+      "output_tokens": 1353,
+      "usd": "0.0498085",
+      "request_sha256": "9f1220c36155fac04c373bcb3b6f8b23a73c582e1374e47260c7ac7b8c806c42"
+    },
+    {
+      "path": "point-sol/receipt.json",
+      "stage": "revise-1",
+      "model": "gpt-6.1-sol",
+      "response_id": "resp_06e54b5da387b854016aef988de2c887d2a93f5a2c5463e171",
+      "input_tokens": 14354,
+      "input_details": {
+        "cache_write_tokens": 14351,
+        "cached_tokens": 0
+      },
+      "output_tokens": 1422,
+      "usd": "0.0501035",
+      "request_sha256": "b7062d7a0e9240222c2a5e9432a8dad3f87ef576a928f5de4c9b48d373769dda"
+    },
+    {
+      "path": "point-targeted-packet/receipt.json",
+      "stage": "revise-1",
+      "model": "gpt-6.1-sol",
+      "response_id": "resp_09c68f3d7036e4de016aef9ab5ce9487d2ba5debe4212c4b8d",
+      "input_tokens": 8209,
+      "input_details": {
+        "cache_write_tokens": 6584,
+        "cached_tokens": 1622
+      },
+      "output_tokens": 1150,
+      "usd": "0.0281282",
+      "request_sha256": "4a00d24df58af9e771b497c04f7f27d81fd50a0f8f87b744080de431de43d6bc"
+    },
+    {
+      "path": "reader-83/receipt.json",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0299d7adff250e3e016aef9499d96087d29ccb21eed19df9e6",
+      "input_tokens": 5130,
+      "input_details": {
+        "cache_write_tokens": 5127,
+        "cached_tokens": 0
+      },
+      "output_tokens": 2902,
+      "usd": "0.02092175",
+      "request_sha256": "79c504e6b307e6beb42d0e5f023f7df556bd99dd9e83b36ced4403c86e6bddc3"
+    },
+    {
+      "path": "reader-check/receipt.json",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_077cf07c01313ac7016aef9242208487d2ace16c1a4308a748",
+      "input_tokens": 5552,
+      "input_details": {
+        "cache_write_tokens": 5549,
+        "cached_tokens": 0
+      },
+      "output_tokens": 3339,
+      "usd": "0.02363425",
+      "request_sha256": "499fe8ce8884428211512f75d945cf19e10c65f75a29e3b525b194c3a261ee6d"
+    },
+    {
+      "path": "reader-opening-check/receipt.json",
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0bb03380e2958818016aef93bd0d7487d2a44d336692c16de6",
+      "input_tokens": 5159,
+      "input_details": {
+        "cache_write_tokens": 3188,
+        "cached_tokens": 1968
+      },
+      "output_tokens": 2965,
+      "usd": "0.0189114",
+      "request_sha256": "3f59576aed3e14304315fdfb3e09fbe045eed97e706cb467bf623ebc0dea81a4"
+    },
+    {
+      "path": "rechecked-plan/receipt.json",
+      "stage": "plan-review-revised",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0a478041d584b9a8016aef9254cc3087d2a1eeac8ad60762ec",
+      "input_tokens": 17494,
+      "input_details": {
+        "cache_write_tokens": 17491,
+        "cached_tokens": 0
+      },
+      "output_tokens": 2052,
+      "usd": "0.03212675",
+      "request_sha256": "642c5c9afdce0de7b6188b7e751c0080cbe4ec9145479c9f9640d032b7aab6e2"
+    },
+    {
+      "path": "repaired-plan/receipt.json",
+      "stage": "plan-revise",
+      "model": "gpt-6.1-sol",
+      "response_id": "resp_0cdc4d9c92be364f016aef92186bc087d2bd6e34a5693d2bcb",
+      "input_tokens": 10603,
+      "input_details": {
+        "cache_write_tokens": 10600,
+        "cached_tokens": 0
+      },
+      "output_tokens": 5308,
+      "usd": "0.079586",
+      "request_sha256": "fb09ddc09e207ecbd4900a87d7380647e6eb311558fa40dd09acc7881d0908e4"
+    }
+  ]
+}
