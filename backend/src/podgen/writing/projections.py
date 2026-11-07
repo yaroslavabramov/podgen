@@ -9,7 +9,7 @@ from podgen.domain.errors import ContractError
 from .card_catalog import card_id
 from .creative_material import creative_card_view, creative_dossier_view
 from .plan_views import candidate_view
-from .projection_versions import CURRENT, V1, V5, historical, validate_version
+from .projection_versions import CURRENT, V1, creative_materials, historical, validate_version
 from .story_views import (
     editorial_frame,
     narrative_decisions,
@@ -152,7 +152,7 @@ def role_payload(
             threads=[thread.model_dump(mode="json") for thread in packet.dossier.threads],
             knowledge_cards=knowledge_view(packet, labels=True),
         )
-        if projection_version == V5 and stage in ("plan", "plan-revise"):
+        if creative_materials(projection_version) and stage in ("plan", "plan-revise"):
             payload["dossier"] = creative_dossier_view(creative_knowledge_view(packet, labels=True))
         payload["material_catalog"] = list(materials.material_catalog)
         if stage.startswith("plan-review"):
@@ -180,9 +180,9 @@ def role_payload(
         )
         if stage == "draft":
             payload["story"] = narrative_decisions(plan, projection_version=projection_version)
-            payload["support"] = (creative_knowledge_view if projection_version == V5 else knowledge_view)(
-                packet, labels=False, selected=selected_labels(plan, packet)
-            )
+            payload["support"] = (
+                creative_knowledge_view if creative_materials(projection_version) else knowledge_view
+            )(packet, labels=False, selected=selected_labels(plan, packet))
         elif stage == "review":
             if projection_version == V1:
                 payload["story_intent"] = story_intent(plan)
@@ -202,9 +202,9 @@ def role_payload(
             payload["revision_guidance"] = actionable_feedback(
                 feedback, projection_version=projection_version
             )
-            payload["support"] = (creative_knowledge_view if projection_version == V5 else knowledge_view)(
-                packet, labels=False, selected=selected_labels(plan, packet)
-            )
+            payload["support"] = (
+                creative_knowledge_view if creative_materials(projection_version) else knowledge_view
+            )(packet, labels=False, selected=selected_labels(plan, packet))
         else:
             raise ContractError("unknown_role_projection")
         if historical(projection_version):

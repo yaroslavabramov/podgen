@@ -1,0 +1,67 @@
+{
+  "editorial-role-projections/1": {
+    "plan": "f8f18361c498e853fda2a116e82f7b4e865deed95c04bb759a2a7eb0437934a9",
+    "plan-review": "dcdce4b7a55bab47e5eeca8eeff9fe82972d3f49fe774371a9e301166ec09e56",
+    "plan-revise": "f8f18361c498e853fda2a116e82f7b4e865deed95c04bb759a2a7eb0437934a9",
+    "plan-review-revised": "dcdce4b7a55bab47e5eeca8eeff9fe82972d3f49fe774371a9e301166ec09e56",
+    "draft": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f",
+    "review": "f11479ca522cf9ad545e3a052515409c53d728d70587d526eea35c4c74959fa8",
+    "revise": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f",
+    "reader-review": "f11479ca522cf9ad545e3a052515409c53d728d70587d526eea35c4c74959fa8",
+    "fact-review": "25c3e1dd44f34c7aace227fa38fbb65c77e23aff7d55aa11fba12e4b7484b9ff",
+    "revise-1": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f",
+    "revise-2": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f"
+  },
+  "editorial-role-projections/2": {
+    "plan": "ca1a292ddb15a6791c3e96f9f6491e661a79c2b7c02468b31fccdf9b7cf1b222",
+    "plan-review": "eb1af7682cf3fc17eb52263e29f398a170eefac5560a57feb07ace546c4fdce8",
+    "plan-revise": "ca1a292ddb15a6791c3e96f9f6491e661a79c2b7c02468b31fccdf9b7cf1b222",
+    "plan-review-revised": "eb1af7682cf3fc17eb52263e29f398a170eefac5560a57feb07ace546c4fdce8",
+    "draft": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f",
+    "review": "c842481da76204d0769ef6642943beac7cf20f21149d0e577a1b54b9c841617c",
+    "revise": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f",
+    "reader-review": "f11479ca522cf9ad545e3a052515409c53d728d70587d526eea35c4c74959fa8",
+    "fact-review": "25c3e1dd44f34c7aace227fa38fbb65c77e23aff7d55aa11fba12e4b7484b9ff",
+    "revise-1": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f",
+    "revise-2": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f"
+  },
+  "editorial-role-projections/3": {
+    "plan": "fa5297abb4ec1f0b123b7d263831649921c987a04b8397bcdf2332322e243e1a",
+    "plan-review": "eb1af7682cf3fc17eb52263e29f398a170eefac5560a57feb07ace546c4fdce8",
+    "plan-revise": "fa5297abb4ec1f0b123b7d263831649921c987a04b8397bcdf2332322e243e1a",
+    "plan-review-revised": "eb1af7682cf3fc17eb52263e29f398a170eefac5560a57feb07ace546c4fdce8",
+    "draft": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f",
+    "review": "c842481da76204d0769ef6642943beac7cf20f21149d0e577a1b54b9c841617c",
+    "revise": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f",
+    "reader-review": "f11479ca522cf9ad545e3a052515409c53d728d70587d526eea35c4c74959fa8",
+    "fact-review": "25c3e1dd44f34c7aace227fa38fbb65c77e23aff7d55aa11fba12e4b7484b9ff",
+    "revise-1": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f",
+    "revise-2": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f"
+  },
+  "editorial-role-projections/4": {
+    "plan": "3a38ed55779cec65b35af9a789c5716e67513b3b3b8142e5869d649590f04367",
+    "plan-review": "9231ee485295a677711ef01a367eb3c63b2c7cf6fc659a7afb6c04c799d2d516",
+    "plan-revise": "3a38ed55779cec65b35af9a789c5716e67513b3b3b8142e5869d649590f04367",
+    "plan-review-revised": "9231ee485295a677711ef01a367eb3c63b2c7cf6fc659a7afb6c04c799d2d516",
+    "draft": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f",
+    "review": "c842481da76204d0769ef6642943beac7cf20f21149d0e577a1b54b9c841617c",
+    "revise": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f",
+    "reader-review": "f11479ca522cf9ad545e3a052515409c53d728d70587d526eea35c4c74959fa8",
+    "fact-review": "25c3e1dd44f34c7aace227fa38fbb65c77e23aff7d55aa11fba12e4b7484b9ff",
+    "revise-1": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f",
+    "revise-2": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f"
+  },
+  "editorial-role-projections/5": {
+    "plan": "3a38ed55779cec65b35af9a789c5716e67513b3b3b8142e5869d649590f04367",
+    "plan-review": "9231ee485295a677711ef01a367eb3c63b2c7cf6fc659a7afb6c04c799d2d516",
+    "plan-revise": "3a38ed55779cec65b35af9a789c5716e67513b3b3b8142e5869d649590f04367",
+    "plan-review-revised": "9231ee485295a677711ef01a367eb3c63b2c7cf6fc659a7afb6c04c799d2d516",
+    "draft": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f",
+    "review": "c842481da76204d0769ef6642943beac7cf20f21149d0e577a1b54b9c841617c",
+    "revise": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f",
+    "reader-review": "f11479ca522cf9ad545e3a052515409c53d728d70587d526eea35c4c74959fa8",
+    "fact-review": "25c3e1dd44f34c7aace227fa38fbb65c77e23aff7d55aa11fba12e4b7484b9ff",
+    "revise-1": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f",
+    "revise-2": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f"
+  }
+}

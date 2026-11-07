@@ -4,7 +4,7 @@ from copy import deepcopy
 
 from podgen.domain.errors import ContractError
 
-from .projection_versions import CURRENT, V5, historical
+from .projection_versions import CURRENT, creative_materials, historical
 from .projections import (
     actionable_feedback,
     assignment_view,
@@ -70,7 +70,7 @@ def reading_payload(
             )
             for origin in ("reader", "fact")
         ]
-        if projection_version == V5:
+        if creative_materials(projection_version):
             payload["support"] = creative_knowledge_view(packet, labels=False, selected=selected)
         else:
             payload["support"] = knowledge_view(

@@ -1,4 +1,4 @@
-"""V5-only wire aliases, bound to the complete frozen packet; persisted references remain card IDs."""
+"""Versioned wire aliases, bound to the complete frozen packet; persisted references remain card IDs."""
 
 from copy import deepcopy
 from dataclasses import dataclass
@@ -7,7 +7,7 @@ from podgen.domain.canonical import digest
 from podgen.domain.errors import ContractError
 
 from .card_catalog import catalog
-from .projection_versions import V5, manifest_version
+from .projection_versions import creative_materials, manifest_version
 
 CATALOG_KEY = "model_material_references"
 REFERENCE_LISTS = {"material_refs", "support_labels", "supports", "material_catalog"}
@@ -98,7 +98,7 @@ class ModelReferences:
 
 def preview_references(materials, projection_version):
     if (
-        projection_version == V5
+        creative_materials(projection_version)
         and getattr(materials, "packet", None) is not None
         and materials.packet.contract == "editorial-input/2"
     ):

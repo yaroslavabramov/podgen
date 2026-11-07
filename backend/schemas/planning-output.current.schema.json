@@ -13,16 +13,16 @@
           "minLength": 1,
           "title": "Listener Promise",
           "type": "string",
-          "description": "Understanding promised to this audience, with its scope."
+          "description": "What following the chosen story offers this audience."
         },
         "working_answer": {
-          "description": "Provisional supported answer, including justified uncertainty.",
+          "description": "The chosen answer to the episode's question, with the context needed to understand it.",
           "minLength": 1,
           "title": "Working Answer",
           "type": "string"
         },
         "route_summary": {
-          "description": "Connected route from initial understanding to the ending.",
+          "description": "The chosen story from opening to ending: what happens or becomes clear, how its developments connect, and where they lead.",
           "minLength": 1,
           "title": "Route Summary",
           "type": "string"
@@ -79,17 +79,20 @@
         "title": {
           "minLength": 1,
           "title": "Title",
-          "type": "string"
+          "type": "string",
+          "description": "A short name for this part of the chosen story."
         },
         "listener_question": {
           "minLength": 1,
           "title": "Listener Question",
-          "type": "string"
+          "type": "string",
+          "description": "What listeners want to find out at this point in the story."
         },
         "intended_change_in_understanding": {
           "minLength": 1,
           "title": "Intended Change In Understanding",
-          "type": "string"
+          "type": "string",
+          "description": "What happens, is discovered, or becomes clear in this part."
         },
         "prerequisite_concepts": {
           "items": {
@@ -97,7 +100,8 @@
             "type": "string"
           },
           "title": "Prerequisite Concepts",
-          "type": "array"
+          "type": "array",
+          "description": "Technical knowledge needed to follow this part; an empty list is valid."
         },
         "material_refs": {
           "description": "Exact supplied locators supporting this act's reasoning.",
@@ -167,7 +171,8 @@
             "type": "string"
           },
           "title": "Assumptions",
-          "type": "array"
+          "type": "array",
+          "description": "The timing basis for the duration estimate, such as pace, pauses, and how the parts are counted."
         },
         "optional_material": {
           "items": {
@@ -175,7 +180,8 @@
             "type": "string"
           },
           "title": "Optional Material",
-          "type": "array"
+          "type": "array",
+          "description": "Specific story material that can be added or removed to fit the duration; an empty list is valid."
         }
       },
       "required": [
@@ -193,7 +199,7 @@
           "minLength": 1,
           "title": "Answer To Deliver",
           "type": "string",
-          "description": "The conclusion the listener should understand, with its essential scope: planning meaning, not a ready closing speech."
+          "description": "The answer reached at the ending."
         },
         "promises_to_close": {
           "items": {
@@ -224,18 +230,19 @@
           "minLength": 1,
           "title": "Contribution",
           "type": "string",
-          "description": "Reasoning and explanatory work owned by this speaker."
+          "description": "What this person tells, explains, notices, asks, or contributes to this particular story."
         },
         "interaction_guidance": {
           "minLength": 1,
           "title": "Interaction Guidance",
           "type": "string",
-          "description": "How this contribution develops others' reasoning, or advances a solo explanation. Describe its purpose, not prescribed lines or a recurring reaction."
+          "description": "How this narrator carries the account forward, or how the speakers' contributions build on each other."
         },
         "speech_register": {
           "minLength": 1,
           "title": "Speech Register",
-          "type": "string"
+          "type": "string",
+          "description": "How this person speaks for this audience and genre."
         }
       },
       "required": [
@@ -254,7 +261,7 @@
           "minLength": 1,
           "title": "Approach",
           "type": "string",
-          "description": "The opening's explanatory purpose and entry point; the writer chooses its spoken wording."
+          "description": "What listeners encounter at the start, what they learn or notice next, and how this opens the chosen story."
         },
         "material_refs": {
           "description": "Exact locators offered in the supplied material catalog.",
@@ -269,7 +276,7 @@
           "minLength": 1,
           "title": "Question To Open",
           "type": "string",
-          "description": "The unresolved listener question, independent of which speaker voices it."
+          "description": "The question raised for listeners by this opening."
         }
       },
       "required": [
@@ -355,13 +362,13 @@
           "minLength": 1,
           "title": "From Previous",
           "type": "string",
-          "description": "Inference connecting this part to what precedes it."
+          "description": "How the preceding development leads into this part."
         },
         "toward_next": {
           "minLength": 1,
           "title": "Toward Next",
           "type": "string",
-          "description": "Inference or unresolved need motivating the next part."
+          "description": "How this part leads to the next development or question."
         }
       },
       "required": [
