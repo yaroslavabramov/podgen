@@ -6,12 +6,12 @@ Write the opening, course and acts as short accounts of what happens or becomes 
 
 Give the narrator something concrete to tell or explain, or dialogue speakers something useful to discover through their different knowledge and questions. The writer chooses the spoken lines and rhythm.
 
-Fictional illustration, separate from episode material. Rehearsal notes: a theatre curtain stops halfway down, and the actors take their bows beneath it. A technician finds that pulling from the side makes the pulley tilt and bind; pulling straight down lets the curtain travel normally.
+Fictional illustration, separate from episode material. Rehearsal notes: a theatre curtain stops halfway down, and the actors take their bows beneath it. A technician finds that pulling from the side makes the pulley tilt and bind; pulling straight down lets the curtain travel normally. The company is also choosing a poster for its next production.
 
 A plan could read:
 
 The actors take their bows under a curtain stuck halfway down. What is holding it there?
 The technician tries the same rope from two positions: from the side the pulley jams; directly below it, the curtain moves freely.
-The fault follows the angle of the pull. Moving the operator beneath the pulley gives the curtain a clear run.
+The operator moves beneath the pulley. This time, the actors finish their bow and disappear behind the curtain.
 
-Return the chosen complete proposal in the requested structure, with exact catalog references and realistic duration ranges that count opening, transitions and ending once. Identify optional material and research needs, explaining any gap that blocks the answer. Use `ready` without blockers, `needs_research` with blockers, and `plan=null` when the material supports no meaningful route. A supported answer about uncertainty can be ready.
+Return the chosen complete proposal in the requested structure, with exact catalog references and realistic duration ranges that count opening, transitions and ending once. Include optional material or research needs where warranted, explaining whether a research gap blocks the answer; either list may be empty. Use `ready` without blockers, `needs_research` with blockers, and `plan=null` when the material supports no meaningful route.
