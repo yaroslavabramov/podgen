@@ -3,7 +3,9 @@
 from podgen.writing.planning_descriptions import describe_selected_story
 from podgen.writing.planning_schema import planning_schema
 from podgen.writing.projection_versions import CURRENT, V1, V2, V6, V7, historical, validate_version
+from podgen.writing.reader_schema import describe_reader
 
+from .reading_workflow import base_stage
 from .workflow import output_model
 
 DESCRIPTIONS = {
@@ -26,8 +28,10 @@ DESCRIPTIONS = {
 }
 
 
-def response_schema(stage, input_contract, *, projection_version=CURRENT):
+def response_schema(stage, input_contract, *, projection_version=CURRENT, reader_schema_version=None):
     schema = output_model(stage).model_json_schema()
+    if base_stage(stage) == "reader-review":
+        describe_reader(schema, reader_schema_version)
     schema = planning_schema(
         schema, legacy=input_contract != "editorial-role-packets/1" or historical(projection_version)
     )

@@ -161,7 +161,10 @@ class WritingEvaluation:
             for stage in stages_for(command):
                 if manifest["response_schemas"][stage] != bind_schema(
                     response_schema(
-                        stage, command.input_contract, projection_version=manifest_version(manifest)
+                        stage,
+                        command.input_contract,
+                        projection_version=manifest_version(manifest),
+                        reader_schema_version=manifest.get("reader_review_schema_version"),
                     ),
                     references,
                 ):

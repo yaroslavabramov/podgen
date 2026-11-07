@@ -10,6 +10,7 @@ from podgen.writing.prompts import (
     load_instruction_set,
     load_plan_target_repair_instructions,
 )
+from podgen.writing.reader_schema import VERSION as READER_SCHEMA_VERSION
 
 from .compiler import response_request
 from .repair_projection import anchor_payload, target_payload
@@ -43,7 +44,7 @@ def preview_request(run_id, stage, profile, materials, **inputs):
             profile,
             materials,
             prompt.body,
-            response_schema(stage, CONTRACT),
+            response_schema(stage, CONTRACT, reader_schema_version=READER_SCHEMA_VERSION),
             script=inputs["draft"],
             readings=readings,
             decision=combine(readings) if readings else None,

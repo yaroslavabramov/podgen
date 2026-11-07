@@ -15,6 +15,7 @@ from podgen.writing.prompts import (
     load_instruction_set,
     load_plan_target_repair_instructions,
 )
+from podgen.writing.reader_schema import VERSION as READER_SCHEMA_VERSION
 
 from .compiler import COMPILER_VERSION, materials_hash
 from .contracts import command_payload
@@ -72,7 +73,14 @@ def create_manifest(repo, generation, command, journal, materials):
             operation_id=uuid5(command.run_id, "prompt:" + stage),
         )
         prompts[stage] = prompt.ref.model_dump(mode="json")
-        schemas[stage] = bind_schema(response_schema(stage, command.input_contract), references)
+        schemas[stage] = bind_schema(
+            response_schema(
+                stage,
+                command.input_contract,
+                reader_schema_version=READER_SCHEMA_VERSION if independent(command) else None,
+            ),
+            references,
+        )
     blob = journal.blob(
         json.dumps(payload, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
     )
@@ -113,6 +121,7 @@ def create_manifest(repo, generation, command, journal, materials):
         script = load_script(repo, command.project_id, command.initial_script_ref, materials.speaker_labels)
         manifest["initial_script_hash"] = materials_hash(script)
     if independent(command):
+        manifest["reader_review_schema_version"] = READER_SCHEMA_VERSION
         manifest["review_workflow"] = VERSION
         manifest["limitations"][1] = (
             "independent model readings; not evidence of human listening or production approval"
