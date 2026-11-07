@@ -1,6 +1,6 @@
 {
   "input": {
-    "path": "evals/editorial-inputs/current/snow-pump/shared.json",
+    "path": "evals/operator/editorial-judgment/inputs/snow-pump.json",
     "sha256": "6d9183ee5ff9d9fe8765778cdd4875c80f9152db5d229882cf90a475b67e2d1c"
   },
   "base_plan": {
