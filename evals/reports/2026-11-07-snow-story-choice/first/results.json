@@ -1,0 +1,94 @@
+{
+  "run": {
+    "run": "7804380e-d0aa-4c13-854e-c7491009a8f8",
+    "code": "01c2c5f365fadda47e36dc017d17354769bc4275"
+  },
+  "brief": "Хочу подкаст про Джона Сноу и холеру в Лондоне. Расскажи эту историю как детектив.",
+  "outcome": "accept",
+  "stages": [
+    "plan",
+    "plan-review",
+    "plan-revise",
+    "plan-review-revised"
+  ],
+  "calls": [
+    {
+      "stage": "plan",
+      "model": "gpt-6.1-sol",
+      "operation": "plan",
+      "tier": "default",
+      "usage": {
+        "input_tokens": 4731,
+        "input_tokens_details": {
+          "cache_write_tokens": 4728,
+          "cached_tokens": 0
+        },
+        "output_tokens": 5162,
+        "output_tokens_details": {
+          "reasoning_tokens": 344
+        },
+        "total_tokens": 9893
+      },
+      "usd": "0.063446"
+    },
+    {
+      "stage": "plan-review",
+      "model": "gpt-6.1-terra",
+      "operation": "plan_review",
+      "tier": "default",
+      "usage": {
+        "input_tokens": 18333,
+        "input_tokens_details": {
+          "cache_write_tokens": 18330,
+          "cached_tokens": 0
+        },
+        "output_tokens": 2382,
+        "output_tokens_details": {
+          "reasoning_tokens": 760
+        },
+        "total_tokens": 20715
+      },
+      "usd": "0.0348255"
+    },
+    {
+      "stage": "plan-revise",
+      "model": "gpt-6.1-sol",
+      "operation": "plan_revise",
+      "tier": "default",
+      "usage": {
+        "input_tokens": 10066,
+        "input_tokens_details": {
+          "cache_write_tokens": 10063,
+          "cached_tokens": 0
+        },
+        "output_tokens": 5833,
+        "output_tokens_details": {
+          "reasoning_tokens": 257
+        },
+        "total_tokens": 15899
+      },
+      "usd": "0.0834935"
+    },
+    {
+      "stage": "plan-review-revised",
+      "model": "gpt-6.1-terra",
+      "operation": "plan_review_revised",
+      "tier": "default",
+      "usage": {
+        "input_tokens": 19122,
+        "input_tokens_details": {
+          "cache_write_tokens": 19119,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1675,
+        "output_tokens_details": {
+          "reasoning_tokens": 686
+        },
+        "total_tokens": 20797
+      },
+      "usd": "0.03227675"
+    }
+  ],
+  "total_usd": "0.21404175",
+  "pricing": "https://developers.openai.com/api/docs/pricing"
+}
