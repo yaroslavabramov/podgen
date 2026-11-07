@@ -6,7 +6,7 @@ Write for a person listening once, in `output_language`. Use the assignment, acc
 
 Make the opening's interest audible from what listeners know at that point. Establish the person or situation that makes a question matter. A teaser can promise a particular discovery while leaving it to unfold. During a delayed answer, develop that expectation through discoveries, changing possibilities or other worthwhile moments.
 
-Use `story.route_summary` for the connected course of the accepted story. Preserve its central question, supported answer and explicit client requirements while composing the actual telling. Prepare an unearned question, move background to where it helps, or rebuild an overloaded detour. Choose a complete shorter telling when that serves the episode better. Selected support remains material to choose from, including statistical categories and source comparisons.
+Honor the client's explicit question and requirements. Use `story.route_summary` to understand the proposed course. The plan's central question, promise, order and selection are working decisions you may revise to tell this episode well. Preserve supported meaning while preparing an unearned question, moving background or rebuilding a detour. If a necessary premise is missing, choose an entry the evidence supports rather than inventing a motivation. Select a complete telling instead of voicing every supporting category.
 
 Let actions and consequences carry a narrative; let an idea explain something listeners can picture in an explainer. Reflection can add a particular thought, feeling or change of scale. Choose the balance for this episode. End when its promise has landed, allowing a final image or thought room to work.
 
@@ -16,20 +16,13 @@ Imagine this speaker talking to someone they want to keep listening. Use idiomat
 
 Choose details for presence, character, feeling or pleasure as well as explanation. A playful observation can earn its place without advancing a proof. Humor, previews, direct address, asides and callbacks are available choices. Judge their timing and attitude. A dry joke can land through understatement. Let reflection say something about the subject rather than certify the author's care or answer an objection the account has not raised.
 
-Original fictional craft illustrations, with explanations of the writing choices. Their material belongs to these illustrations. Write this episode from its own evidence in `output_language`.
-
-- "A week before the opening, the gallery's director finally measured the stone sphere she'd bought. It was a metre across, and the building's only entrance was seventy centimetres wide."
-  Choice: the shape and dimensions make the problem intelligible before the listener waits for its solution.
-- "The committee approved the town hall in an afternoon, then spent the winter arguing about curtains."
-  Choice: one flowing comparison carries the irony through the disproportion in time.
-- "Marta checks the loaf through the oven door. The fire has gone out, but the bricks are still hot enough to finish baking it, so she leaves it where it is and starts clearing the bench. By the time she's put the flour away and hung up her apron, the bread is ready to come out."
-  Choice: the mechanism matters to someone's ordinary work. The longer thought and unhurried action give the explanation a different pace.
+When `craft_reference` is supplied, study how its revised passages select material, reveal a connection, clarify a necessary point or leave a scene to land. Its fictional material belongs to those examples. Make your own decisions from this episode's evidence and write in `output_language`.
 
 ## Keep the selected account accurate
 
 Introduce names, terms and numbers where they help listeners understand what is happening. Select the comparisons the episode needs. Available evidence need not become a spoken inventory.
 
-Keep established events, causal grounds and meaningful uncertainty accurate. Repair a misleading claim through its wording, scope, attribution or placement, or remove a dispensable thought. Add explanation when the retained account still needs it or the client requires it. If a precise sentence resolves the difficulty, continue the story. Preserve uncertainty that changes a retained claim's meaning. Avoid turning every development into a lesson about its evidential limits or rebutting a claim the account neither states nor implies.
+Keep established events, causal grounds and meaningful uncertainty accurate. Repair a misleading claim through wording, scope, attribution or placement, or remove a dispensable thought. Add explanation when the retained account still needs it or the client requires it. Let listeners connect details when the connection is already clear. Reflection should add a thought of its own. After moving events, recheck what each person knew at that time and rebuild the surrounding composition, not just its dates.
 
 Scenic reconstruction, original analogies and imaginative texture may enliven the telling within the brief. They cannot manufacture substantive evidence, change established events or present invented words as source testimony. Source summaries are paraphrases; direct source quotations require the supplied wording.
 
