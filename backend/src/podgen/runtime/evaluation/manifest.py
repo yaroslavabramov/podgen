@@ -16,13 +16,18 @@ from podgen.writing.prompts import (
     load_instruction_set,
     load_plan_target_repair_instructions,
 )
+from podgen.writing.reader_schema import V2 as LEGACY_READER_SCHEMA_VERSION
 from podgen.writing.reader_schema import VERSION as READER_SCHEMA_VERSION
+from podgen.writing.revision.contracts import FACT_VERSION
+from podgen.writing.revision.contracts import VERSION as REVISION_VERSION
 
 from .compiler import COMPILER_VERSION, materials_hash
 from .contracts import command_payload
 from .profiles import load_profile
 from .reading_workflow import VERSION, base_stage, independent
 from .role_schema import response_schema
+from .script_revision import schemas as revision_schemas
+from .script_revision import supports as supports_revision
 from .workflow import profile_for, prompt_stage, stages_for
 
 
@@ -32,6 +37,8 @@ def create_manifest(repo, generation, command, journal, materials):
 
         return create(command, journal, materials)
     payload = materials.as_payload()
+    revised = supports_revision(command)
+    reader_version = READER_SCHEMA_VERSION if revised else LEGACY_READER_SCHEMA_VERSION
     reference = (
         load_reference(materials.output_language)
         if command.input_contract == "editorial-role-packets/1"
@@ -88,7 +95,8 @@ def create_manifest(repo, generation, command, journal, materials):
             response_schema(
                 stage,
                 command.input_contract,
-                reader_schema_version=READER_SCHEMA_VERSION if independent(command) else None,
+                reader_schema_version=reader_version if independent(command) else None,
+                fact_schema_version=FACT_VERSION if revised else None,
             ),
             references,
         )
@@ -134,11 +142,15 @@ def create_manifest(repo, generation, command, journal, materials):
         script = load_script(repo, command.project_id, command.initial_script_ref, materials.speaker_labels)
         manifest["initial_script_hash"] = materials_hash(script)
     if independent(command):
-        manifest["reader_review_schema_version"] = READER_SCHEMA_VERSION
+        manifest["reader_review_schema_version"] = reader_version
         manifest["review_workflow"] = VERSION
         manifest["limitations"][1] = (
             "independent model readings; not evidence of human listening or production approval"
         )
+    if revised:
+        manifest["fact_review_schema_version"] = FACT_VERSION
+        manifest["script_revision_contract"] = REVISION_VERSION
+        manifest["revision_response_schemas"] = revision_schemas()
     if command.input_contract == "editorial-role-packets/1":
         from podgen.writing.projections import SINGLE_INPUT_TOKEN_LIMIT, VISIBLE_BYTES_LIMIT
 

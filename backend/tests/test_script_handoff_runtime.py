@@ -41,6 +41,18 @@ class EditingProvider(ReadingProvider):
             )
             if stage == "draft":
                 self.original = script
+            result = script
+            if stage == "revise-1" and "revision_operation" in payload(body):
+                frame = payload(body).get("editorial_frame", {})
+                result = dict(
+                    script=script,
+                    composition=dict(
+                        main_question=frame.get("main_question", "Тестовый вопрос."),
+                        listener_promise=frame.get("listener_promise", "Тестовое обещание."),
+                        route_summary="Краткая новая тестовая композиция.",
+                        decisions=["Сократить повторения."],
+                    ),
+                )
             return WireReply(
                 json.dumps(
                     dict(
@@ -53,7 +65,7 @@ class EditingProvider(ReadingProvider):
                                 type="message",
                                 role="assistant",
                                 content=[
-                                    dict(type="output_text", text=json.dumps(script, ensure_ascii=False))
+                                    dict(type="output_text", text=json.dumps(result, ensure_ascii=False))
                                 ],
                             )
                         ],
@@ -77,6 +89,7 @@ class EditingProvider(ReadingProvider):
             review["findings"][0]["requested_change"] = (
                 "Сократить повторяющийся обмен, сохранив понятную причинную связь."
             )
+            review["revision_scope"]["scale"] = "whole_episode"
             content["text"] = json.dumps(review, ensure_ascii=False)
             return WireReply(json.dumps(envelope, ensure_ascii=False).encode())
         return reply
@@ -177,6 +190,10 @@ def test_runtime_previews_and_revisions_preserve_required_advice_without_freezin
                 script=script,
                 script_ref=context["script_ref"],
                 reading_refs=context["reading_refs"],
+                readings={
+                    origin: journal.output(journal.invocation(options["run_id"], stage))["output"]
+                    for origin, stage in (("reader", "reader-review"), ("fact", "fact-review"))
+                },
                 approved_plan=changed_plan,
             )
     provider.pause = None

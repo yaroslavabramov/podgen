@@ -76,6 +76,22 @@ def read_outcome(journal, run_id):
             rewritten = journal.output(rewrite)
             if rewritten["script_ref"] != previous or rewritten["reading_refs"] != record["reading_refs"]:
                 raise Conflict("independent_round_rewrite_mismatch")
+            from .script_revision import enabled, verify_record
+
+            if enabled(manifest):
+                from .revision_invocation import source_state
+
+                verify_record(
+                    rewritten,
+                    script=script,
+                    composition=source_state(journal, previous, script),
+                    readings=readings,
+                    speakers={row["speaker"] for row in script["utterances"]},
+                    version=index,
+                    unresolved_questions=journal.read(
+                        RuntimeRef(record_kind="tool_execution", record_id=rewrite["request_record_id"])
+                    )["context"]["unresolved_questions"],
+                )
             previous = RuntimeRef(
                 record_kind="tool_execution", record_id=rewrite["output_record_id"]
             ).model_dump(mode="json")

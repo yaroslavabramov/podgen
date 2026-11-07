@@ -59,6 +59,43 @@ class ReadingProvider:
                 ]
             )
             result["utterances"][0]["text"] += " Исправленная тестовая связка."
+            operation = data.get("revision_operation")
+            if operation:
+                frame = data.get("editorial_frame", {})
+                composition = dict(
+                    main_question=frame.get("main_question", "Тестовый вопрос."),
+                    listener_promise=frame.get("listener_promise", "Тестовое обещание."),
+                    route_summary=frame.get("route_summary", "Тестовый маршрут."),
+                    decisions=["Синтетическое решение о композиции."],
+                )
+                if operation["mode"] == "targeted":
+                    target = next(t for t in operation["targets"] if "text" in t)
+                    result = dict(
+                        edits=[
+                            dict(
+                                operation="replace",
+                                target_id=target["target_id"],
+                                text=target["text"] + " Исправленная тестовая связка.",
+                            )
+                        ],
+                        composition_update=None,
+                    )
+                elif operation["mode"] == "sequence":
+                    selected = operation["sequences"][0]
+                    rows = [
+                        dict(speaker=r["speaker"], text=r["text"])
+                        for r in data["script"]["utterances"][
+                            selected["first_utterance_index"] : selected["last_utterance_index"] + 1
+                        ]
+                    ]
+                    rows[0]["text"] += " Исправленная тестовая последовательность."
+                    result = dict(
+                        sequences=[dict(range_id=selected["range_id"], utterances=rows)],
+                        edits=[],
+                        composition=composition,
+                    )
+                else:
+                    result = dict(script=result, composition=composition)
         else:
             index = int(stage.rsplit("-", 1)[1]) if stage[-1].isdigit() else 0
             decision = self.decisions[min(index, len(self.decisions) - 1)]
@@ -104,7 +141,7 @@ class ReadingProvider:
                 recommendation="needs_material" if need else decision,
             )
         if (
-            stage.startswith("reader-review")
+            stage.startswith(("reader-review", "fact-review"))
             and "revision_scope" in body["text"]["format"]["schema"]["properties"]
         ):
             if self.invalid == stage:
@@ -116,6 +153,11 @@ class ReadingProvider:
                 if result["recommendation"] == "revise"
                 else [],
             )
+            if any(
+                "dependent_passages" in definition.get("properties", {})
+                for definition in body["text"]["format"]["schema"].get("$defs", {}).values()
+            ):
+                result["revision_scope"]["dependent_passages"] = []
         return WireReply(
             json.dumps(
                 dict(

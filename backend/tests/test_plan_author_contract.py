@@ -256,7 +256,11 @@ def test_v3_pending_dual_rewrite_resumes_exact_saved_request(own_dataset, tmp_pa
     original = EvaluationJournal.create_run
 
     def pinned(journal, command, manifest):
-        return original(journal, command, dict(manifest, role_projection_version=V3))
+        from tests.historical_revisions import historical_revision_manifest
+
+        return original(
+            journal, command, dict(historical_revision_manifest(manifest), role_projection_version=V3)
+        )
 
     monkeypatch.setattr(EvaluationJournal, "create_run", pinned)
     provider = ReadingProvider(("revise", "keep"), pause="revise-1")

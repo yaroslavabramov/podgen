@@ -37,6 +37,7 @@ def _rejected_feedback(journal, original, request):
         output_model(
             original["stage"],
             reader_schema_version=journal.manifest(original["run_id"]).get("reader_review_schema_version"),
+            fact_schema_version=journal.manifest(original["run_id"]).get("fact_review_schema_version"),
         ),
         code="review_anchor_repair_not_eligible",
     )

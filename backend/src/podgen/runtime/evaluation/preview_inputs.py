@@ -37,7 +37,7 @@ def validate_preview_inputs(stage, *, fixed, inputs):
     required = REQUIRED[stage]
     allowed = required | ({"approved_plan"} if stage in WRITING else set())
     if stage in ("revise-1", "revise-2"):
-        allowed |= {"approved_plan"}
+        allowed |= {"approved_plan", "composition"}
     if supplied - allowed or fixed and stage not in (WRITING | READINGS | {"revise-1", "revise-2"}):
         raise ContractError("preview_incompatible_inputs")
     if required - supplied:
@@ -50,6 +50,10 @@ def validate_preview_inputs(stage, *, fixed, inputs):
 
 
 def validate_preview_snapshots(stage, materials, inputs):
+    if inputs.get("composition") is not None:
+        from podgen.writing.revision.contracts import CompositionState
+
+        CompositionState.model_validate(inputs["composition"])
     for key in ("candidate", "approved_plan"):
         value = inputs.get(key)
         if value is not None:
@@ -103,7 +107,9 @@ def validate_preview_snapshots(stage, materials, inputs):
             from podgen.writing.fact_review import FactFeedback
             from podgen.writing.reader_schema import snapshot_model
 
-            model = FactFeedback if field == "fact_feedback" else snapshot_model(inputs[field])
+            from podgen.writing.fact_review import snapshot_model as fact_snapshot_model
+
+            model = fact_snapshot_model(inputs[field]) if field == "fact_feedback" else snapshot_model(inputs[field])
             review = model.model_validate(inputs[field])
             review.validate_against(WriteOutput.model_validate(inputs["draft"]))
             if review.reading_mode != mode:

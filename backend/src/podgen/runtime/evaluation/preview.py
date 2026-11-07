@@ -12,6 +12,7 @@ from podgen.writing.prompts import (
     load_plan_target_repair_instructions,
 )
 from podgen.writing.reader_schema import VERSION as READER_SCHEMA_VERSION
+from podgen.writing.revision.contracts import FACT_VERSION
 
 from .compiler import response_request
 from .repair_projection import anchor_payload, target_payload
@@ -43,12 +44,17 @@ def preview_request(run_id, stage, profile, materials, *, snapshot=None, **input
     reader_version = (
         snapshot.manifest.get("reader_review_schema_version") if snapshot else READER_SCHEMA_VERSION
     )
+    fact_version = snapshot.manifest.get("fact_review_schema_version") if snapshot else FACT_VERSION
 
     def schema():
         if snapshot and stage in snapshot.manifest["response_schemas"]:
             return snapshot.manifest["response_schemas"][stage]
         return response_schema(
-            stage, CONTRACT, projection_version=projection, reader_schema_version=reader_version
+            stage,
+            CONTRACT,
+            projection_version=projection,
+            reader_schema_version=reader_version,
+            fact_schema_version=fact_version,
         )
 
     from .reading_workflow import ALL_READING_STAGES, base_stage
@@ -64,15 +70,25 @@ def preview_request(run_id, stage, profile, materials, *, snapshot=None, **input
         if instructions is None:
             instructions = load_reading_instructions("dual-revise" if base == "revise" else base).body
         readings = None
+        revision = None
         if base == "revise":
             readings = dict(reader=inputs["reader_feedback"], fact=inputs["fact_feedback"])
+            from .revision_preview import prepare as prepare_revision
+
+            revision = prepare_revision(
+                stage,
+                snapshot,
+                script=inputs["draft"],
+                readings=readings,
+                composition=inputs.get("composition"),
+            )
         return compile_reading_request(
             run_id,
             stage,
             profile,
             materials,
             instructions,
-            schema(),
+            revision.schema if revision else schema(),
             projection_version=projection,
             reference_catalog=references,
             craft_reference=reference,
@@ -80,6 +96,7 @@ def preview_request(run_id, stage, profile, materials, *, snapshot=None, **input
             readings=readings,
             decision=combine(readings) if readings else None,
             approved_plan=inputs.get("approved_plan"),
+            **(revision.inputs if revision else {}),
         )
     if stage not in ("anchor-repair", "plan-target-repair"):
         instructions = pinned_instructions

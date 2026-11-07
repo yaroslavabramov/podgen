@@ -7,6 +7,17 @@ from pydantic import Field, model_validator
 from .roles import EditorialFeedback, FullText, RoleOutput, UtteranceAnchor
 
 
+def check_scope(feedback):
+    if feedback.recommendation == "keep" and (
+        feedback.revision_scope.scale != "none"
+        or any(f.priority in ("blocking", "important") for f in feedback.findings)
+    ):
+        raise ValueError("keep_cannot_require_revision")
+    if feedback.recommendation == "revise" and feedback.revision_scope.scale == "none":
+        raise ValueError("revise_requires_revision_scope")
+    return feedback
+
+
 class RevisionScope(RoleOutput):
     """Choose the scale from the complete text. Keep means no required repair; local praise does not settle the scale."""
 
@@ -32,14 +43,7 @@ class ReaderFeedback(EditorialFeedback):
 
     @model_validator(mode="after")
     def consistent_scope(self):
-        if self.recommendation == "keep" and (
-            self.revision_scope.scale != "none"
-            or any(f.priority in ("blocking", "important") for f in self.findings)
-        ):
-            raise ValueError("keep_cannot_require_revision")
-        if self.recommendation == "revise" and self.revision_scope.scale == "none":
-            raise ValueError("revise_requires_revision_scope")
-        return self
+        return check_scope(self)
 
     def anchored_groups(self):
         return {**super().anchored_groups(), "revision_scope": [self.revision_scope]}

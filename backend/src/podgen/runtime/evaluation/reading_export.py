@@ -48,6 +48,19 @@ def export_readings(journal, run_id, manifest, write_json, write_text):
         write_json(Path("draft.json"), script)
         write_text("draft.txt", spoken_text(script["output"]))
     for stage in manifest["stages"]:
+        if base_stage(stage) == "revise":
+            invocation = journal.invocation(run_id, stage)
+            if invocation:
+                request = journal.read(
+                    RuntimeRef(record_kind="tool_execution", record_id=invocation["request_record_id"])
+                )
+                if "revision_operation" in request["context"]:
+                    write_json(Path(stage + "-revision-context.json"), request["context"])
+            if invocation and invocation["status"] == "completed":
+                version = journal.output(invocation)
+                if "revision" in version:
+                    write_json(Path(stage + "-application.json"), version["revision"])
+                    write_json(Path(stage + "-composition.json"), version["composition"])
         if base_stage(stage) not in ("reader-review", "fact-review"):
             continue
         invocation = journal.invocation(run_id, stage)

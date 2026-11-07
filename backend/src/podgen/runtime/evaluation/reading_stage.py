@@ -16,6 +16,7 @@ from .contracts import RunFailure
 from .profiles import load_profile
 from .reading_workflow import VERSION, base_stage
 from .review_repair import apply_anchor_repair, prepare_anchor_repair
+from .revision_invocation import prepare as prepare_revision
 from .role_request import compile_reading_request
 from .scripts import script_view
 from .stage import StageResult
@@ -45,7 +46,25 @@ def execute_reading_stage(
 ):
     references = run_references(materials, manifest)
     base = base_stage(stage)
-    model = output_model(stage, reader_schema_version=manifest.get("reader_review_schema_version"))
+    model = output_model(
+        stage,
+        reader_schema_version=manifest.get("reader_review_schema_version"),
+        fact_schema_version=manifest.get("fact_review_schema_version"),
+    )
+    revision = prepare_revision(
+        journal,
+        stage,
+        manifest,
+        script=script,
+        script_ref=script_ref,
+        readings=readings,
+        reading_refs=reading_refs,
+        speakers=materials.speaker_labels,
+        approved_plan=approved_plan
+        or (materials.fixed.plan.model_dump(mode="json") if materials.fixed else None),
+    )
+    if revision:
+        model = revision.model
     profile_ref = profile_for(command, stage)
     profile = load_profile(generation, command.project_id, profile_ref, stage)
     context = dict(
@@ -64,6 +83,8 @@ def execute_reading_stage(
     )
     if references is not None:
         context[CATALOG_KEY] = references.as_payload()
+    if revision:
+        context.update(revision.context)
     if script_handoff(manifest["role_projection_version"]) and base == "revise":
         selected = approved_plan or (
             materials.fixed.plan.model_dump(mode="json") if materials.fixed else None
@@ -80,7 +101,7 @@ def execute_reading_stage(
             profile,
             materials,
             instructions,
-            manifest["response_schemas"][stage],
+            revision.schema if revision else manifest["response_schemas"][stage],
             script=script,
             readings=readings,
             decision=decision,
@@ -88,6 +109,7 @@ def execute_reading_stage(
             projection_version=manifest["role_projection_version"],
             reference_catalog=references,
             craft_reference=pinned_reference(manifest),
+            **(revision.inputs if revision else {}),
         )
         invocation = journal.prepare(command.run_id, stage, body, context)
     saved = journal.read(RuntimeRef(record_kind="tool_execution", record_id=invocation["request_record_id"]))
@@ -124,7 +146,10 @@ def execute_reading_stage(
             wire_output = parsed.model_dump(mode="json")
             if references is not None:
                 parsed = model.model_validate(references.translate(wire_output, inbound=True))
-            if base in ("reader-review", "fact-review"):
+            revised = None
+            if revision:
+                output, composition, revised = revision.apply(wire_output)
+            elif base in ("reader-review", "fact-review"):
                 parsed.validate_against(WriteOutput.model_validate(script))
                 expected = "script_only" if base == "reader-review" else "informed"
                 if parsed.reading_mode != expected:
@@ -155,7 +180,8 @@ def execute_reading_stage(
                 run_id=command.run_id,
                 invocation_id=invocation["invocation_id"],
             ) from None
-        output = parsed.model_dump(mode="json")
+        if not revision:
+            output = parsed.model_dump(mode="json")
         record = dict(
             contract="independent-reading-output/1",
             run_id=str(command.run_id),
@@ -179,6 +205,8 @@ def execute_reading_stage(
         )
         if references is not None:
             record["wire_output"] = wire_output
+        if revision:
+            record.update(revision=revised, composition=composition, wire_output=wire_output)
         ref = journal.record(record, record_id=uuid5(invocation["invocation_id"], "output"))
         journal.transition(invocation, "completed", output_ref=ref)
         break
@@ -186,6 +214,8 @@ def execute_reading_stage(
     record = journal.output(invocation)
     if record["script_ref"] != script_ref or record["script_hash"] != digest(script):
         raise Conflict("independent_reading_binding_mismatch")
+    if revision:
+        revision.verify(record)
     return StageResult(
         record["output"],
         RuntimeRef(record_kind="tool_execution", record_id=invocation["output_record_id"]),

@@ -11,6 +11,7 @@ from podgen.runtime.models.contracts import WireReply
 from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.model_references import CATALOG_KEY, ModelReferences
 from tests.credit_provider import CreditProvider
+from tests.historical_revisions import historical_revision_manifest
 from tests.own_plan_provider import proposal
 from tests.test_card_ids import admitted, legacy
 from tests.test_editorial_independence import invoke, payload
@@ -135,7 +136,7 @@ def test_v4_pending_run_keeps_native_ids_and_exact_saved_request(own_dataset, tm
     original = EvaluationJournal.create_run
 
     def pinned(journal, command, manifest):
-        previous = deepcopy(manifest)
+        previous = historical_revision_manifest(manifest)
         previous.pop(CATALOG_KEY)
         previous.pop("reader_review_schema_version", None)
         previous.pop("craft_reference", None)

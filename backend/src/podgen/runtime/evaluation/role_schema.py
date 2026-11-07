@@ -1,5 +1,6 @@
 """Versioned model-facing semantics; persisted fields and historical schemas retain their identities."""
 
+from podgen.writing.fact_review import describe_schema as describe_fact_schema
 from podgen.writing.plan_review_descriptions import describe_plan_review
 from podgen.writing.planning_descriptions import describe_selected_story
 from podgen.writing.planning_schema import planning_schema
@@ -29,15 +30,19 @@ DESCRIPTIONS = {
 }
 
 
-def response_schema(stage, input_contract, *, projection_version=CURRENT, reader_schema_version=None):
-    schema = output_model(stage, reader_schema_version=reader_schema_version).model_json_schema()
+def response_schema(
+    stage, input_contract, *, projection_version=CURRENT, reader_schema_version=None, fact_schema_version=None
+):
+    schema = output_model(
+        stage, reader_schema_version=reader_schema_version, fact_schema_version=fact_schema_version
+    ).model_json_schema()
     if base_stage(stage) == "reader-review":
         describe_reader(schema, reader_schema_version)
     schema = planning_schema(
         schema, legacy=input_contract != "editorial-role-packets/1" or historical(projection_version)
     )
     if input_contract != "editorial-role-packets/1":
-        return schema
+        return describe_fact_schema(schema, base_stage(stage), fact_schema_version)
     validate_version(projection_version)
     definitions = schema.get("$defs", {})
     if "PlanningAct" in definitions:
@@ -47,7 +52,7 @@ def response_schema(stage, input_contract, *, projection_version=CURRENT, reader
             "Exact speaker label from the assignment."
         )
     if projection_version == V1:
-        return schema
+        return describe_fact_schema(schema, base_stage(stage), fact_schema_version)
     if projection_version not in (V1, V2) and "PlanProposal" in definitions:
         definitions["PlanProposal"]["properties"]["main_question"]["description"] = (
             "Central question of the episode for this audience; the opening may raise the same question or a local one."
@@ -68,4 +73,4 @@ def response_schema(stage, input_contract, *, projection_version=CURRENT, reader
         describe_selected_story(schema)
     if projection_version == V8 and stage.startswith("plan-review"):
         describe_plan_review(schema)
-    return schema
+    return describe_fact_schema(schema, base_stage(stage), fact_schema_version)

@@ -67,6 +67,7 @@ def add_commands(sub):
         "feedback",
         "reader-feedback",
         "fact-feedback",
+        "composition",
     ):
         preview.add_argument("--" + name, type=Path)
     preview.add_argument("--out", type=Path, required=True)
@@ -116,6 +117,7 @@ def execute(args, repo, wire_ref):
                     "feedback",
                     "reader_feedback",
                     "fact_feedback",
+                    "composition",
                 )
             },
         )
@@ -139,6 +141,7 @@ def execute(args, repo, wire_ref):
                 "feedback",
                 "reader_feedback",
                 "fact_feedback",
+                "composition",
             )
         }
         from podgen.runtime.evaluation.journal import EvaluationJournal

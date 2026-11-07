@@ -29,6 +29,8 @@ def reading_payload(
     approved_plan=None,
     projection_version=CURRENT,
     craft_reference=None,
+    revision_operation=None,
+    composition=None,
 ):
     packet = materials.packet
     payload = dict(
@@ -80,12 +82,27 @@ def reading_payload(
             payload["editorial_frame"] = editorial_frame(plan, projection_version=projection_version)
             if "revision_scope" in readings["reader"]:
                 payload["editorial_frame"]["authority"] = "revisable_authorial_decisions"
+        if composition is not None:
+            questions = deepcopy(payload.get("editorial_frame", {}).get("unresolved_questions", []))
+            payload["editorial_frame"] = dict(
+                authority="revisable_authorial_decisions", unresolved_questions=questions,
+                **{key: deepcopy(value) for key, value in composition.items() if key != "unresolved_questions"},
+            )
+            if "unresolved_questions" in composition:
+                payload["editorial_frame"]["unresolved_questions"] = deepcopy(composition["unresolved_questions"])
+        if revision_operation is not None:
+            payload["revision_operation"] = deepcopy(revision_operation)
         payload["revision_guidance"] = [
             dict(
                 origin=origin, **actionable_feedback(readings[origin], projection_version=projection_version)
             )
             for origin in ("reader", "fact")
         ]
+        if revision_operation is not None:
+            for guidance in payload["revision_guidance"]:
+                if guidance["origin"] == "fact":
+                    for field in ("listener_understanding", "duration_note", "important_limits"):
+                        guidance.pop(field, None)
         if creative_materials(projection_version):
             payload["support"] = creative_knowledge_view(packet, labels=False, selected=selected)
         else:

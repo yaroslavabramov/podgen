@@ -3,7 +3,9 @@
 from podgen.domain.errors import ContractError
 
 V1 = "listener-experience/1"
-VERSION = "listener-experience/2"
+V2 = "listener-experience/2"
+V3 = "listener-experience/3"
+VERSION = "listener-experience/4"
 
 FIELDS = {
     "listener_answer": (
@@ -41,7 +43,7 @@ FINDING_FIELDS = {
 def describe_reader(schema, version):
     if version is None:
         return
-    if version not in (V1, VERSION):
+    if version not in (V1, V2, V3, VERSION):
         raise ContractError("unknown_reader_review_schema_version")
     for field, description in FIELDS.items():
         schema["properties"][field]["description"] = description
@@ -54,13 +56,28 @@ def feedback_model(version):
 
     if version in (None, V1):
         return EditorialFeedback
-    if version != VERSION:
-        raise ContractError("unknown_reader_review_schema_version")
-    from .reader_feedback import ReaderFeedback
+    if version == V2:
+        from .reader_feedback import ReaderFeedback
 
-    return ReaderFeedback
+        return ReaderFeedback
+    if version == V3:
+        from .revision.scopes import ReaderAssessment
+
+        return ReaderAssessment
+    if version == VERSION:
+        from .revision.scopes import ReaderAssessmentV4
+
+        return ReaderAssessmentV4
+    raise ContractError("unknown_reader_review_schema_version")
 
 
 def snapshot_model(value):
     """A supplied snapshot selects its published shape; run output uses the manifest pin."""
-    return feedback_model(VERSION if "revision_scope" in value else V1)
+    if "revision_scope" not in value:
+        return feedback_model(V1)
+    scope = value["revision_scope"]
+    if isinstance(scope, dict) and "dependent_passages" in scope:
+        return feedback_model(
+            V3 if scope["scale"] == "sequence" and "sequence_ranges" not in scope else VERSION
+        )
+    return feedback_model(V2)

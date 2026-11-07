@@ -29,12 +29,12 @@ def profile_for(command, stage):
     )
 
 
-def output_model(stage, *, reader_schema_version=None):
+def output_model(stage, *, reader_schema_version=None, fact_schema_version=None):
     stage = base_stage(stage)
     if stage == "fact-review":
-        from podgen.writing.fact_review import FactFeedback
+        from podgen.writing.fact_review import feedback_model
 
-        return FactFeedback
+        return feedback_model(fact_schema_version)
     if stage == "reader-review":
         from podgen.writing.reader_schema import feedback_model
 

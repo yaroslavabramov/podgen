@@ -169,10 +169,14 @@ class WritingEvaluation:
                         command.input_contract,
                         projection_version=manifest_version(manifest),
                         reader_schema_version=manifest.get("reader_review_schema_version"),
+                        fact_schema_version=manifest.get("fact_review_schema_version"),
                     ),
                     references,
                 ):
                     raise Conflict("role_output_contract_changed")
+            from .script_revision import validate_manifest as validate_revision_manifest
+
+            validate_revision_manifest(manifest)
             factory = (
                 (lambda _: self.legacy_offline_transport)
                 if command.input_contract == "legacy-author-materials/1"

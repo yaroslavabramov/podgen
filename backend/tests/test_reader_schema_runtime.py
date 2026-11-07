@@ -1,7 +1,6 @@
 """Normal native/imported CLI readers pin schema semantics independently of projections."""
 
 import json
-from copy import deepcopy
 
 import pytest
 
@@ -13,6 +12,7 @@ from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.writing.reader_schema import FIELDS, VERSION
 from podgen.writing.reader_schema import V1 as READER_V1
+from tests.historical_revisions import historical_revision_manifest
 from tests.test_editorial_independence import invoke, payload, prepare
 from tests.test_independent_readings import Paused, ReadingProvider, setup_review
 from tests.test_own_plan import own_dataset as own_dataset
@@ -32,7 +32,7 @@ def test_cli_reader_schema_preview_and_resume_keep_their_pinned_semantics(
         original = EvaluationJournal.create_run
 
         def old_manifest(journal, command, manifest):
-            manifest = deepcopy(manifest)
+            manifest = historical_revision_manifest(manifest)
             if historical == "v1":
                 manifest["reader_review_schema_version"] = READER_V1
             else:

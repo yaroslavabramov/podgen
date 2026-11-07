@@ -1,5 +1,7 @@
 # Независимые чтения сценария
 
+Текущие компактные независимые чтения используют [адресный контракт правок](addressed-script-revision.md): `listener-experience/4`, `fact-revision/2`, явный выбор targeted/sequence/structural и сохранение текущей композиции между версиями. Описанные ниже предыдущие версии сохраняются для исторических manifest.
+
 Новые `WritingRunCommand` и CLI `run` по умолчанию используют `review_mode=independent-readings/1`. Профиль `reviewer_profile_ref` выполняет оба чтения (Terra); `writer_profile_ref` пишет и правит (Sol). Это явно заданные ModelProfile, без скрытой смены модели. После каждого полного текста идут два отдельных запроса, без общей истории разговора:
 
 - `reader-review`: только `script` с полными индексированными репликами, `audience`, `format`, `genre`, `output_language` и, начиная с V7, компактный `duration_context` с заданной длительностью и длиной текущего текста. `audience` берётся исключительно из нового `assignment.listener_profile`; при отсутствии — нейтральный профиль без знания темы. `genre` берётся из нового одноимённого поля или равен `podcast`. Старые audience, style_guidance, план, вопрос задания, досье и прошлые отзывы скрыты. Инструкции — только отдельный `reader-review.md`, без common/format-компонентов.

@@ -38,7 +38,7 @@ class WholeEpisodeProvider(EditingProvider):
             envelope = json.loads(reply.body)
             content = envelope["output"][0]["content"][0]
             review = json.loads(content["text"])
-            review["revision_scope"] = dict(
+            review["revision_scope"].update(
                 scale="whole_episode",
                 reason="Синтетическое решение: заново выбрать порядок открытия и развязки всего рассказа.",
                 anchors=review["findings"][0]["anchors"],

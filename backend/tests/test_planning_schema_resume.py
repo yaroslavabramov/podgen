@@ -1,6 +1,5 @@
 """Pending V5/V6 planner revisions resume pinned schemas; schema drift still fails closed."""
 
-from copy import deepcopy
 
 import pytest
 
@@ -14,6 +13,7 @@ from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.model_references import ModelReferences, bind_schema
 from podgen.writing.projection_versions import CURRENT, V5, V6, V7
+from tests.historical_revisions import historical_revision_manifest
 from tests.test_card_ids import admitted, legacy
 from tests.test_editorial_independence import invoke
 from tests.test_independent_readings import Paused
@@ -34,7 +34,7 @@ def test_pending_planning_schema_is_pinned_and_drift_still_blocks_resume(
         assert manifest["response_schemas"]["plan"] == bind_schema(
             response_schema("plan", command.input_contract, projection_version=CURRENT), refs
         )
-        manifest = deepcopy(manifest)
+        manifest = historical_revision_manifest(manifest)
         manifest.pop("reader_review_schema_version", None)
         manifest.pop("craft_reference", None)
         manifest["role_projection_version"] = version
