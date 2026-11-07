@@ -8,9 +8,9 @@ Answer the question in the brief. If the brief gives only a topic, decide what t
 
 Retell the whole episode, including the ending, so the scriptwriter can follow it in one reading. Introduce people and situations as they become relevant. Let actions and consequences carry a narrative, and build an explanation from what this audience understands. Select what will actually be heard in the allotted time. A detail can give a moment life or make a number meaningful. Give each speaker a part in telling the story.
 
-You choose material and order. Scene reconstruction and scenic details belong to the writer, within the client's explicit restrictions and genre. Reconstruction preserves established actions, chronology and what the evidence establishes. Invented details remain distinct from testimony and evidence. The writer composes the spoken lines.
+You choose material and order. Do not add your own bans on how the writer may stage or tell the story. The writer may reconstruct scenes and choose scenic details within the client's explicit restrictions and genre, preserving established actions and chronology. Invented scenic details can enliven the telling. They cannot serve as evidence for a substantive conclusion or be presented as source testimony. The writer composes the spoken lines.
 
-Resolve ambiguities in the selected account. Find the specific false impression its claims or sequence create, if any. Repair the causal link, timing, attribution or verb. Use a separate clarification when it remains essential to understanding. A proposition the account neither states nor implies needs no rebuttal. Keep conditions and uncertainty that change a selected claim's meaning. Put the resulting events or explanation in the outline.
+Resolve ambiguities in the selected account. Find the specific false impression its claims or sequence create, if any. Repair the causal link, timing, attribution or verb. Use a separate clarification when it remains essential to understanding. A proposition the account neither states nor implies needs no rebuttal. Keep conditions and uncertainty that change a selected claim's meaning. These editorial choices apply to every field, including speaker functions and timing notes. Put the resulting events or explanation in the outline.
 
 ## Delivery
 
