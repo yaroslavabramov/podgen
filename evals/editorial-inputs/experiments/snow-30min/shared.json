@@ -1,0 +1,720 @@
+{
+  "contract": "editorial-input/2",
+  "assignment": {
+    "key": "snow-30min",
+    "title": "Джон Сноу и холера в Лондоне — длинная документальная история",
+    "question": "Расскажи документальную историю о Джоне Сноу и холере в Лондоне: как он искал объяснение распространению болезни и проверял его наблюдениями и данными.",
+    "audience": "Взрослый слушатель без специальных знаний, впервые слышит эту историю",
+    "listener_outcome": "Слушатель проследит исследование Сноу и поймёт, как наблюдения и сравнения помогали проверять его объяснение распространения холеры.",
+    "format": "solo",
+    "output_language": "ru",
+    "speakers": [
+      {
+        "label": "РАССКАЗЧИК",
+        "function": "Рассказывает понятную, интересную историю для неспециалиста.",
+        "speech_register": "Живая, спокойная устная речь."
+      }
+    ],
+    "duration": {
+      "target_seconds": 1800,
+      "min_seconds": 1620,
+      "max_seconds": 1980
+    },
+    "knowledge_cutoff": "2026-11-05T00:00:00Z",
+    "required_topics": [],
+    "excluded_topics": [],
+    "style_guidance": [],
+    "listener_profile": "Взрослый слушатель без специальных знаний, впервые слышит эту историю",
+    "genre": "Документальный детектив"
+  },
+  "documents": [
+    {
+      "key": "D1",
+      "title": "Операторское задание: 30-минутная документальная история о Джоне Сноу",
+      "source_path": "editorial-inputs/experiments/snow-30min/brief.md",
+      "sha256": "991020f4dcf9838c8e1626e7417ed071ce758df09325cd6c1cce18ab0601b542",
+      "purpose": "brief"
+    },
+    {
+      "key": "D2",
+      "title": "Исследовательское досье: Зачем закрыли колонку на Брод-стрит, если холера уже отступала?",
+      "source_path": "author/snow-pump/dossier.md",
+      "sha256": "5fc5bc54908b785f6ce8c7768884dc2b1ba987fbf19789bbcccc3b09d6c9a938",
+      "purpose": "dossier"
+    },
+    {
+      "key": "D3",
+      "title": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+      "source_path": "sources/snow/snow-1855.txt",
+      "sha256": "42e641eb17a9a3295e4846c3b5b76da7596475bd80d30b31e0d46f44fa4a95ca",
+      "purpose": "primary"
+    },
+    {
+      "key": "D4",
+      "title": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+      "source_path": "sources/snow/parish-1855-b21363870.txt",
+      "sha256": "b793e19dfb610899a4c355afe9ac258d8d9304b5a998b1e616ddf11f22e7c546",
+      "purpose": "primary"
+    },
+    {
+      "key": "D5",
+      "title": "Фактологическое дополнение: исследование водоснабжения южного Лондона",
+      "source_path": "editorial-inputs/experiments/snow-30min/supplement.md",
+      "sha256": "1912772c473c918e37bb0f49612d8a1f841b2998e2059c646a657ec5852823a4",
+      "purpose": "dossier"
+    }
+  ],
+  "dossier": {
+    "summary": "Сноу в книге 1855 года связывает встречу 7 сентября 1854 года со своими наблюдениями и расспросами об употреблении воды. В таблице смертельных случаев спад начинается до снятия ручки 8 сентября; число предотвращённых случаев из неё не определяется. Приходский отчёт 1855 года описывает физический путь загрязнения и содержит спор о диагнозе ребёнка. У этих свидетельств разные даты получения и взаимосвязанные информанты. В книге Сноу также описаны перенос водозабора Lambeth в 1852 году, смешанная сеть двух компаний на юге Лондона, установление поставщика по квитанциям и химическому тесту, а также сравнения смертельных случаев по числу подключённых домов в 1854 году.",
+    "summary_support_labels": [
+      "C14b82a922a73",
+      "Cc5ef8f053199",
+      "Cf17597a5a330",
+      "Cee554ab22bb8",
+      "Cd392f2fdcffb",
+      "L46218cdc18a9",
+      "L823de5c241a2",
+      "L4ae8920c6835",
+      "La3f93ebbfa1e",
+      "La6783954cdda",
+      "L22f7d28656ce",
+      "Lafe52687aa2d"
+    ],
+    "throughline_constraints": [
+      "Время события, время регистрации и время получения сведений различаются.",
+      "Доступность работного дома, пивоварни и доставки воды как аргументов к 7 сентября не установлена.",
+      "Книга Сноу и приходский отчёт связаны общими участниками и информантами. Физический путь загрязнения, диагноз и эффект закрытия проверяются разными свидетельствами."
+    ],
+    "threads": [
+      {
+        "question": "Что позволило сравнить случаи холеры в соседних домах южного Лондона?",
+        "explanation": "Две сети обслуживали смешанные дома, но получали воду в разных местах. Сноу выяснял источник снабжения адресов начала болезни и сопоставлял смертельные случаи с числом подключённых домов.",
+        "support_labels": [
+          "L823de5c241a2",
+          "L4ae8920c6835",
+          "La3f93ebbfa1e",
+          "La6783954cdda",
+          "L22f7d28656ce",
+          "Lafe52687aa2d"
+        ],
+        "limitations": []
+      }
+    ],
+    "knowledge_cards": [
+      {
+        "card_id": "C14b82a922a73",
+        "label": "Решение",
+        "title": "Дата действия и его свидетель",
+        "claim": "По рассказу Джона Сноу в книге 1855 года, вечером в четверг 7 сентября 1854 года он изложил попечителям прихода Сент-Джеймс обстоятельства расследования. На следующий день ручку колонки сняли. Это свидетельство участника, опубликованное позднее.",
+        "context": "Участник описывает события сентября 1854 года в книге, опубликованной в 1855 году.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "text": "I had an interview with the Board of Guardians of St.\nJames’s parish, on the evening of Thursday, 7th September,\nand represented the above circumstances to them. In\nconsequence of what I said, the handle of the pump was\nremoved on the following day.",
+            "document": "D3",
+            "start": 78797,
+            "end": 79046
+          }
+        ],
+        "story_facts": "В книге 1855 года Джон Сноу рассказывает, что вечером в четверг 7 сентября 1854 года изложил попечителям прихода Сент-Джеймс обстоятельства расследования. На следующий день ручку колонки сняли."
+      },
+      {
+        "card_id": "C8f02286bc580",
+        "label": "Осмотр воды",
+        "title": "Подозрение не равнялось немедленному доказательству",
+        "claim": "Сноу относит резкий рост заболевания к ночи 31 августа — 1 сентября. Он заподозрил воду часто посещаемой колонки. Вечером 3 сентября при осмотре нашёл мало органической примеси и сначала колебался. В следующие два дня количество видимых беловатых хлопьев менялось; он допустил, что в начале вспышки вода была грязнее.",
+        "context": "Это рассказ Сноу о собственных наблюдениях и сомнении. Его последующее предположение о более грязной воде раньше не является прямым наблюдением состояния воды в начале вспышки.",
+        "limitations": [
+          "Видимые частицы не являются найденным возбудителем или лабораторным доказательством причины.",
+          "Состояние воды в один вечер не устанавливает состояние во все дни вспышки."
+        ],
+        "excerpts": [
+          {
+            "text": "There were a few cases of cholera in the neighbourhood\nof Broad Street, Golden Square, in the latter part of\nAugust; and the so-called outbreak, which commenced in\nthe night between the 31st August and the 1st September,\nwas, as in all similar instances, only a violent increase of\nthe malady. As soon as I became acquainted with the\n39\nsituation and extent of this irruption of cholera, I suspected\nsome contamination of the water of the much-frequented\nstreet pump in Broad Street, near the end of\nCambridge Street; but on examining the water, on the\nevening of the 3rd September, I found so little impurity\nin it of an organic nature, that I hesitated to come to a\nconclusion. Further inquiry, however, showed me that\nthere was no other circumstance or agent common to the\ncircumscribed locality in which this sudden increase of\ncholera occurred, and not extending beyond it, except the\nwater of the above mentioned pump. I found, moreover,\nthat the water varied, during the next two days, in the\namount of organic impurity, visible to the naked eye, on\nclose inspection, in the form of small white, flocculent particles;\nand I concluded that, at the commencement of the\noutbreak, it might possibly have been still more impure.",
+            "document": "D3",
+            "start": 75358,
+            "end": 76588
+          }
+        ],
+        "story_facts": "Сноу относит резкий рост заболевания к ночи 31 августа — 1 сентября. Он заподозрил воду часто посещаемой колонки. Вечером 3 сентября при осмотре нашёл мало органической примеси и сначала колебался. В следующие два дня количество видимых беловатых хлопьев менялось; он допустил, что в начале вспышки вода была грязнее."
+      },
+      {
+        "card_id": "C6e16f4eded9a",
+        "label": "Учёт смертей",
+        "title": "Период смерти и период регистрации различаются",
+        "claim": "За неделю, закончившуюся 2 сентября, в трёх подрайонах зарегистрировали 89 смертей от холеры. Из них шесть произошли в первые четыре дня недели, четыре — в четверг 31 августа, 79 — в пятницу и субботу. Сноу подробно расследовал 83 смерти, произошедшие в последние три дня и зарегистрированные за эту неделю: 4 + 79 = 83, а 6 + 4 + 79 = 89. Это неполная выборка; поздние регистрации и умершие в больницах в неё входили не полностью. Для 1–2 сентября он позднее приводит 197 смертей, отнесённых к вспышке, при другой рамке учёта.",
+        "context": "Основание отбора: регистрация за неделю, закончившуюся 2 сентября, и смерть в последние три дня этой недели.",
+        "limitations": [
+          "83 — умершие в последние три дня и зарегистрированные за неделю; эта выборка охватывает часть умерших от вспышки.",
+          "83 входят в 89 зарегистрированных за неделю; 197 относятся к позднее установленным смертям 1–2 сентября с другой рамкой учёта."
+        ],
+        "excerpts": [
+          {
+            "text": "I requested permission, therefore, to take a list, at the\nGeneral Register Office, of the deaths from cholera, registered\nduring the week ending 2nd September, in the sub-districts\nof Golden Square, Berwick Street, and St. Ann’s,\nSoho, which was kindly granted. Eighty-nine deaths\nfrom cholera were registered, during the week, in the three\nsub-districts. Of these, only six occurred in the four first\ndays of the week; four occurred on Thursday, the 31st\nAugust; and the remaining seventy-nine on Friday and\nSaturday. I considered, therefore, that the outbreak commenced\non the Thursday; and I made inquiry, in detail,\nrespecting the eighty-three deaths registered as having\ntaken place during the last three days of the week.",
+            "document": "D3",
+            "start": 76589,
+            "end": 77316
+          },
+          {
+            "text": "Besides the eighty-three deaths mentioned above as\noccurring on the three last days of the week ending September\n2nd, and being registered during that week in\nthe sub-districts in which the attacks occurred, a number\nof persons died in Middlesex and other hospitals,\nand a great number of deaths which took place in the\n41\nlocality during the last two days of the week, were not\nregistered till the week following. The deaths altogether,\non the 1st and 2nd of September, which have been ascertained\nto belong to this outbreak of cholera, were one\nhundred and ninety-seven; and many persons who were\nattacked about the same time as these, died afterwards.",
+            "document": "D3",
+            "start": 79047,
+            "end": 79701
+          }
+        ],
+        "story_facts": "Сноу получил разрешение взять в Главном регистрационном управлении список смертей от холеры, зарегистрированных за неделю, закончившуюся 2 сентября, в трёх лондонских подрайонах. В списке было 89 смертей; 83 из них произошли в последние три дня этой недели. Сноу подробно расследовал эти 83 случая."
+      },
+      {
+        "card_id": "Cc5ef8f053199",
+        "label": "Расспросы о воде",
+        "title": "Адрес не заменяет установленное употребление",
+        "claim": "Из 73 смертей в обычной зоне обслуживания колонки в 61 случае Сноу сообщили о постоянном или эпизодическом питье её воды; в шести сведений не было из-за смерти или отъезда родственников; в шести сообщили, что воду не пили. Отдельно он рассматривал десять смертей ближе к другим колонкам: пять семей всё равно брали воду с Брод-стрит; трое детей учились рядом, причём питьё известно для двоих и вероятно по словам родителей для третьего; две смерти Сноу счёл фоновым уровнем до всплеска. 61 + 6 + 6 + 10 = 83.",
+        "context": "Пользование водой восстанавливается из расспросов в передаче Сноу. Установленное, вероятное, отрицательный ответ и отсутствие информации не равнозначны.",
+        "limitations": [
+          "Это сведения в передаче Сноу, разной степени определённости.",
+          "Не доказано употребление воды всеми умершими; предположение о незамеченном питье не отменяет отрицательных ответов.",
+          "Именно эти обстоятельства Сноу связывает со встречей 7 сентября."
+        ],
+        "excerpts": [
+          {
+            "text": "On proceeding to the spot, I found that nearly all the\ndeaths had taken place within a short distance of the\npump. There were only ten deaths in houses situated\ndecidedly nearer to another street pump. In five of these\ncases the families of the deceased persons informed me\n40\nthat they always sent to the pump in Broad Street, as\nthey preferred the water to that of the pump which was\nnearer. In three other cases, the deceased were children\nwho went to school near the pump in Broad Street. Two\nof them were known to drink the water; and the parents\nof the third think it probable that it did so. The other\ntwo deaths, beyond the district which this pump supplies,\nrepresent only the amount of mortality from cholera that\nwas occurring before the irruption took place.\nWith regard to the deaths occurring in the locality belonging\nto the pump, there were sixty-one instances in\nwhich I was informed that the deceased persons used to\ndrink the pump-water from Broad Street, either constantly\nor occasionally. In six instances I could get no information,\nowing to the death or departure of every one connected\nwith the deceased individuals; and in six cases I\nwas informed that the deceased persons did not drink the\npump-water before their illness.",
+            "document": "D3",
+            "start": 77317,
+            "end": 78566
+          }
+        ],
+        "story_facts": "По рассказу Сноу, придя в район, он обнаружил, что почти все смерти произошли недалеко от колонки. Только десять смертей были в домах, расположенных явно ближе к другим колонкам. Пять семей всё равно брали воду с Брод-стрит, потому что предпочитали её воде из более близкого источника. Трое умерших детей учились рядом с колонкой: питьё этой воды было известно для двоих и вероятно, по словам родителей, для третьего. Две оставшиеся смерти Сноу отнёс к прежнему фоновому уровню холеры. Среди 73 смертей в обычной зоне обслуживания колонки в 61 случае ему сообщили о постоянном или эпизодическом питье её воды; в шести сведений не было из-за смерти или отъезда родственников; в шести сообщили, что воду до болезни не пили."
+      },
+      {
+        "card_id": "Cf09c44d3d10b",
+        "label": "Работный дом",
+        "title": "Контраст в одной географии",
+        "claim": "В книге Сноу работный дом на Поланд-стрит больше чем на три четверти окружён домами со смертями. Среди 535 обитателей умерли от холеры пятеро; отдельно были смерти поступивших уже больными. У учреждения были собственный колодец и снабжение Grand Junction; за водой на Брод-стрит не посылали.",
+        "context": "События происходили во время вспышки; точная дата приобретения Сноу этих сведений не установлена. В книге пример находится после сообщения о заседании, но порядок публикации сам по себе не датирует момент узнавания.",
+        "limitations": [
+          "Наблюдательный контраст: группы различались и по другим условиям жизни.",
+          "Дата получения Сноу этих сведений не установлена; доступность их совету 7 сентября неизвестна."
+        ],
+        "excerpts": [
+          {
+            "text": "The Workhouse in Poland Street is more than three-fourths\nsurrounded by houses in which deaths from cholera\noccurred, yet out of five hundred and thirty-five inmates\nonly five died of cholera, the other deaths which took\nplace being those of persons admitted after they were\nattacked. The workhouse has a pump-well on the premises,\nin addition to the supply from the Grand Junction\nWater Works, and the inmates never sent to Broad Street\nfor water.",
+            "document": "D3",
+            "start": 81650,
+            "end": 82098
+          }
+        ],
+        "story_facts": "В книге Сноу описывает работный дом на Поланд-стрит: больше чем на три четверти его окружали дома, где были смерти от холеры. Среди 535 обитателей умерли пятеро; отдельно были смерти людей, поступивших уже больными. У учреждения были собственный колодец и снабжение Grand Junction; за водой на Брод-стрит не посылали."
+      },
+      {
+        "card_id": "Cc8ff1484b011",
+        "label": "Пивоварня",
+        "title": "Сообщение владельца имеет пределы",
+        "claim": "Хаггинс сообщил Сноу о более чем 70 работниках: тяжёлой холеры среди них не было, двое были нездоровы несерьёзно. Он был уверен, что они не брали воду из уличной колонки; у пивоварни были глубокий колодец и вода New River. Его мнение, что рабочие вообще не пили воду, передано как мнение.",
+        "context": "Информант — владелец Хаггинс, сведения переданы Сноу. Его уверенность в источнике воды и предположение о полном отказе от воды имеют разную силу.",
+        "limitations": [
+          "Состояние работников и источники воды описаны со слов Хаггинса.",
+          "Дата получения сведений не установлена; доступность их совету 7 сентября неизвестна."
+        ],
+        "excerpts": [
+          {
+            "text": "There is a Brewery in Broad Street, near to the pump,\nand on perceiving that no brewer’s men were registered\nas having died of cholera, I called on Mr. Huggins, the\nproprietor. He informed me that there were above seventy\nworkmen employed in the brewery, and that none of them\nhad suffered from cholera,—at least in a severe form,—only\ntwo having been indisposed, and that not seriously,\nat the time the disease prevailed. The men are allowed a\ncertain quantity of malt liquor, and Mr. Huggins believes\nthey do not drink water at all; and he is quite certain\nthat the workmen never obtained water from the pump in\nthe street. There is a deep well in the brewery, in addition\nto the New River water.",
+            "document": "D3",
+            "start": 82262,
+            "end": 82960
+          }
+        ],
+        "story_facts": "Пивоварня стояла рядом с колонкой. В списке умерших от холеры Сноу не нашёл ни одного из её рабочих и зашёл к владельцу, Хаггинсу. Тот рассказал о более чем 70 работниках: тяжёлой холеры среди них не было, двое слегка приболели. Рабочим полагалась определённая порция пива; Хаггинс предполагал, что они вообще не пьют воду, и был уверен, что воду из уличной колонки они не брали. У пивоварни были глубокий колодец и вода New River."
+      },
+      {
+        "card_id": "Cb1f0e697faba",
+        "label": "Доставка воды",
+        "title": "Событие произошло раньше, сведения опубликованы позднее",
+        "claim": "По переданному Сноу рассказу сына женщины из Хэмпстеда, она давно не бывала у Брод-стрит, но ей ежедневно доставляли бутыль предпочитаемой воды. Воду взяли 31 августа; она пила вечером и в пятницу, заболела в пятницу вечером и умерла в субботу 2 сентября. Племянница также пила воду, вернулась в Ислингтон и умерла. Пившая воду служанка не пострадала либо не тяжело. Сноу приводит запись о смерти женщины в выпуске регистра за 9 сентября.",
+        "context": "Августовские события, свидетельство сына и приведённый Сноу выпуск регистра за 9 сентября — разные временные и источниковые уровни. Из ранней даты болезни не следует ранняя доступность аргумента совету.",
+        "limitations": [
+          "Это поддерживает возможный маршрут воздействия за пределы квартала, но не исключает все альтернативы заражения.",
+          "Питьё не означало неизбежную болезнь или смерть.",
+          "Дата событий до закрытия не доказывает, что Сноу уже знал эту историю 7 сентября. Точный момент приобретения сведений в корпусе не установлен."
+        ],
+        "excerpts": [
+          {
+            "text": "In the “Weekly\nReturn of Births and Deaths” of September 9th, the following\ndeath is recorded as occurring in the Hampstead\ndistrict: “At West End, on 2nd September, the widow\nof a percussion-cap maker, aged 59 years, diarrhœa two\nhours, cholera epidemica sixteen hours.”\nI was informed by this lady’s son that she had not been\nin the neighbourhood of Broad Street for many months.\nA cart went from Broad Street to West End every day,\nand it was the custom to take out a large bottle of the\nwater from the pump in Broad Street, as she preferred it.\nThe water was taken on Thursday, 31st August, and she\ndrank of it in the evening, and also on Friday. She was\nseized with cholera on the evening of the latter day, and\ndied on Saturday, as the above quotation from the register\nshows. A niece, who was on a visit to this lady, also\ndrank of the water; she returned to her residence, in a\nhigh and healthy part of Islington, was attacked with\ncholera, and died also. There was no cholera at the time,\neither at West End or in the neighbourhood where the\nniece died. Besides these two persons, only one servant\npartook of the water at Hampstead West End, and she\ndid not suffer, or, at least, not severely.",
+            "document": "D3",
+            "start": 85578,
+            "end": 86780
+          }
+        ],
+        "story_facts": "В книге 1855 года Сноу передаёт рассказ сына женщины из Хэмпстеда. Она много месяцев не бывала в районе Брод-стрит. Каждый день от Брод-стрит в Уэст-Энд ходила повозка; с ней женщине обычно отправляли большую бутыль воды из колонки на Брод-стрит, которую она предпочитала. Воду привезли в четверг 31 августа; она пила её вечером и в пятницу, заболела в пятницу вечером и умерла в субботу 2 сентября. Гостившая у неё племянница также пила воду, вернулась в Ислингтон, заболела холерой и умерла. Пившая эту воду служанка не заболела либо, по крайней мере, не заболела тяжело. Сноу приводит запись о смерти женщины в выпуске регистра за 9 сентября."
+      },
+      {
+        "card_id": "C37abad3bffb1",
+        "label": "Карта",
+        "title": "Охват карты ограничен",
+        "claim": "Сноу объясняет, что на карте показаны смерти и адреса получения смертельного приступа настолько полно, насколько он смог установить. У части вывезенных в больницы или умерших после отъезда не удалось восстановить адрес; полный масштаб бедствия мог остаться неизвестным.",
+        "context": "Охват и пробелы карты описаны самим Сноу; часть адресов он установить не смог.",
+        "limitations": [
+          "Учтены смерти и места начала смертельной болезни.",
+          "Время изготовления и предъявление карты совету до закрытия этим материалом не установлены."
+        ],
+        "excerpts": [
+          {
+            "text": "The deaths which occurred during this fatal outbreak\nof cholera are indicated in the accompanying map, as far\nas I could ascertain them. There are necessarily some\ndeficiencies, for in a few of the instances of persons who\ndied in the hospitals after their removal from the neighbourhood\nof Broad Street, the number of the house from\nwhich they had been removed was not registered.",
+            "document": "D3",
+            "start": 87074,
+            "end": 87455
+          },
+          {
+            "text": "All\nthe deaths from cholera which were registered in the six\nweeks from 19th August to 30th September within this\nlocality, as well as those of persons removed into Middlesex\nHospital, are shown in the map\n[10]\nby a black line in\nthe situation of the house in which it occurred, or in\nwhich the fatal attack was contracted.",
+            "document": "D3",
+            "start": 88974,
+            "end": 89297
+          }
+        ],
+        "story_facts": "В книге 1855 года Сноу объясняет, что на карте показаны смерти и адреса получения смертельного приступа настолько полно, насколько он смог установить. У части вывезенных в больницы или умерших после отъезда не удалось восстановить адрес; полный масштаб бедствия мог остаться неизвестным."
+      },
+      {
+        "card_id": "Ca49628392361",
+        "label": "Таблица",
+        "title": "Смертельные приступы не равны всем заражениям",
+        "claim": "В таблице Сноу две колонки: датированное начало болезни у тех, кто затем умер, и смерти по дням. На 1 сентября — 143 смертельных приступа и 70 смертей; 2 сентября — 116 и 127; 3 сентября — 54 и 76; 6 сентября — 20 и 37; 7 сентября — 28 и 32; 8 сентября — 12 и 30. Часть дат начала получена вычитанием длительности болезни из даты смерти; у 45 случаев дата начала неизвестна.",
+        "context": "Учтены люди, которые умерли; колонки разделяют начало их болезни и дату смерти. Часть дат начала восстановлена расчётом.",
+        "limitations": [
+          "Это ряд смертельных случаев; выздоровевшие в него не входят.",
+          "Ряд резко снизился до закрытия, но 7 сентября отмечено 28 приступов против 20 шестого."
+        ],
+        "excerpts": [
+          {
+            "text": "TABLE I.\nDate.\nNo. of Fatal Attacks.\nDeaths.",
+            "document": "D3",
+            "start": 93786,
+            "end": 93830
+          },
+          {
+            "text": "September\n1\n143\n70\n„\n2\n116\n127\n„\n3\n54\n76\n„\n4\n46\n71\n„\n5\n36\n45\n„\n6\n20\n37\n„\n7\n28\n32\n„\n8\n12\n30",
+            "document": "D3",
+            "start": 93954,
+            "end": 94044
+          },
+          {
+            "text": "Date unknown\n45\n0\nTotal\n616\n616",
+            "document": "D3",
+            "start": 94247,
+            "end": 94278
+          },
+          {
+            "text": "In a few other cases\nalso I had exact information of the hour of attack, and in\nthe remainder I have calculated it by subtracting the\nduration of the illness from the date of death. Where\nthe illness did not exceed twelve hours, the attack was\nconsidered to have commenced the same day; where the\nillness exceeded twelve, and did not exceed thirty-six\nhours, the attack was put down to the previous day, and\nso on.",
+            "document": "D3",
+            "start": 94800,
+            "end": 95214
+          },
+          {
+            "text": "There are forty-five cases in\nwhich the duration of the illness was not certified, or\nentered in the books of the registrars, and the time of\nattack in these cases is consequently unknown.",
+            "document": "D3",
+            "start": 95911,
+            "end": 96099
+          }
+        ],
+        "story_facts": "В таблице Сноу две колонки: датированное начало болезни у тех, кто затем умер, и смерти по дням. На 1 сентября — 143 смертельных приступа и 70 смертей; 2 сентября — 116 и 127; 3 сентября — 54 и 76; 6 сентября — 20 и 37; 7 сентября — 28 и 32; 8 сентября — 12 и 30. Часть дат начала получена вычитанием длительности болезни из даты смерти; у 45 случаев дата начала неизвестна."
+      },
+      {
+        "card_id": "Cf17597a5a330",
+        "label": "Эффект закрытия",
+        "title": "Основание для действия и размер результата — разные выводы",
+        "claim": "Сноу прямо пишет, что приступов стало существенно меньше до прекращения пользования водой; состояние воды к моменту закрытия он оставляет неизвестным. Он связывает уменьшение смертности и с бегством населения. По этим материалам нет надёжного сравнения с тем, сколько случаев произошло бы без закрытия.",
+        "context": "Спад до закрытия и неопределённость опасности воды в день закрытия описаны самим Сноу. Оценка эффекта требует сравнения с числом случаев без вмешательства; такого наблюдения в материалах нет.",
+        "limitations": [
+          "Материалы оставляют неизвестными и конкретное число предотвращённых смертей, и возможность нулевого эффекта.",
+          "Предмет сравнения — число случаев при закрытии и число случаев, которое произошло бы без него."
+        ],
+        "excerpts": [
+          {
+            "text": "There is no doubt that the mortality was much diminished,\nas I said before, by the flight of the population,\nwhich commenced soon after the outbreak; but the attacks\nhad so far diminished before the use of the water was\nstopped, that it is impossible to decide whether the well\n52\nstill contained the cholera poison in an active state, or\nwhether, from some cause, the water had become free\nfrom it.",
+            "document": "D3",
+            "start": 97696,
+            "end": 98095
+          },
+          {
+            "text": "On September the 8th—the\nday when the handle of the pump was removed—there\nwere twelve attacks; on the 9th, eleven; on the 10th, five;\non the 11th, five; on the 12th, only one; and after this\ntime, there were never more than four attacks on one day.",
+            "document": "D3",
+            "start": 97224,
+            "end": 97473
+          }
+        ],
+        "story_facts": "Сноу прямо пишет, что приступов стало существенно меньше до прекращения пользования водой; состояние воды к моменту закрытия он оставляет неизвестным. Он связывает уменьшение смертности и с бегством населения."
+      },
+      {
+        "card_id": "C36479ab5239d",
+        "label": "Позднее расследование",
+        "title": "Время проверки и зависимость свидетельств",
+        "claim": "Приходская комиссия начала работу 25 ноября 1854 года, приняла отчёт 25 июля 1855; 9 августа отчёт представили приходу и приняли там. Сноу участвовал в комиссии. Уайтхед расспрашивал семьи спустя месяцы, иногда возвращаясь четыре или пять раз; Йорку поручили обследование после его сообщения; Роджерс перед письмом снова расспрашивал ту же мать. Это разные виды работы в одном связанном семействе свидетельств, не три независимых подтверждения.",
+        "context": "Участники комиссии, повторные расспросы семей и общий информант связывают эти свидетельства между собой.",
+        "limitations": [
+          "Поздняя проверка не может без основания стать знанием участников решения 7 сентября 1854 года.",
+          "Подробность ретроспективного рассказа сама по себе не устраняет ошибок памяти."
+        ],
+        "excerpts": [
+          {
+            "text": "The Cholera Inquiry Committee appointed\nby the Vestry of St. James's, Westminster,\nupon the motion of Dr. Lankester, seconded\nby Mr. Joseph Brown, \" for the purpose of\ninvestigating the causes, arising out of the\nsanitary condition of the Parish, of the late\n\" outbreak ofCholera in the districts of Golden\nSquare and Berwick Street,\" entered upon\nits duties onNovember 25th, 1854 ; and,having\nheld altogether fourteen meetings, completed\nits labours on July 25th, 1855, by adopting\nthe accompanying Report.",
+            "document": "D4",
+            "start": 1078,
+            "end": 1585
+          },
+          {
+            "text": "Mr. Geesin. *Dr. Snow.\nMr. Harrison. Mr. Watkins.\n*Mr. James. *Rev.H.Whitehead.\n* Subsequently added to the Committee as originally\nappointed.",
+            "document": "D4",
+            "start": 1881,
+            "end": 2023
+          },
+          {
+            "text": "At a Vestry held on Thursday, the 9th of\nAugust, 1855, the said Reports were presented\nby Dr. Lankester, the Chairman of the Sub-\nCommittee, and, after the question had been\ndiscussed, were formally adopted and referred\nback to the Committee to superintend their\npublication.",
+            "document": "D4",
+            "start": 250519,
+            "end": 250794
+          },
+          {
+            "text": "2. The other difficulty has arisen out of the\nvery nature of the investigation. It has grown\nupon me as I proceeded. I have often had to\nreturn as many as four or five times to the same\nfamilies to put questions which I did not at first\nsee the necessity of asking. Indeed, throughout\nthe whole street I have gone over the same ground\nagain and again, in order to bring each portion of\nthe evidence up to the proper standard of accuracy\nand reliability.\nThe statistics which I shall lay before the Com-\nmittee are the result of personal inquiry.",
+            "document": "D4",
+            "start": 175418,
+            "end": 175963
+          },
+          {
+            "text": "Being struck with the dangerous proximity ofthe\ncesspool to the pump well, I lost no time in com-\nmunicating the facts to the Committee*,who ordered\nan investigation to be made forthwith.",
+            "document": "D4",
+            "start": 226188,
+            "end": 226375
+          }
+        ],
+        "story_facts": "Приходская комиссия начала работу 25 ноября 1854 года, приняла отчёт 25 июля 1855; 9 августа отчёт представили приходу и приняли там. Сноу участвовал в комиссии. Уайтхед расспрашивал семьи спустя месяцы, иногда возвращаясь четыре или пять раз; Йорку поручили обследование после его сообщения; Роджерс перед письмом снова расспрашивал ту же мать. Доклады этих участников и сообщение общего информанта вошли в один приходский отчёт."
+      },
+      {
+        "card_id": "C8b2adbd3e180",
+        "label": "Ранняя физическая проверка",
+        "title": "До апрельского осмотра канал не был доказан",
+        "claim": "В книге Сноу передаёт слова смотрителя Фаррелла: в открытом колодце не нашли отверстий или трещин в кладке, через которые могла входить грязь. Общий приходский отчёт признаёт, что до апреля 1855 года поступление стоков в колодец доказано не было; прежние сведения скорее говорили против этого.",
+        "context": "Сноу передаёт сообщение Фаррелла; комиссия позднее оценивает, какие физические доказательства были доступны до апреля 1855 года.",
+        "limitations": [
+          "Это состояние доказательств, а не доказанное отсутствие загрязнения.",
+          "Поздний осмотр меняет опору для возможного физического пути, а не дату первоначального решения."
+        ],
+        "excerpts": [
+          {
+            "text": "The pump-well has been opened, and I was informed\nby Mr. Farrell, the superintendent of the works,\nthat there was no hole or crevice in the brickwork of the\nwell, by which any impurity might enter; consequently\nin this respect the contamination of the water is not made\nout by the kind of physical evidence detailed in some of\nthe instances previously related.",
+            "document": "D3",
+            "start": 98096,
+            "end": 98456
+          },
+          {
+            "text": "At the time of Dr. Snow's\ninquiry in the early part of September 1854, and indeed up to April l8o5,\nwhen Mr. 'Whitehead's investigation was complete, the entrance of sewer or\ncesspool-drainage into the well in Broad Street was not proved. All the\nevidence was to the opposite effect.",
+            "document": "D4",
+            "start": 130168,
+            "end": 130451
+          }
+        ],
+        "story_facts": "В книге Сноу передаёт слова смотрителя Фаррелла: в открытом колодце не нашли отверстий или трещин в кладке, через которые могла входить грязь. Общий приходский отчёт признаёт, что до апреля 1855 года поступление стоков в колодец доказано не было; прежние сведения скорее говорили против этого."
+      },
+      {
+        "card_id": "Ce5cb095a3e6d",
+        "label": "Запись и мать",
+        "title": "Начало болезни известно из разных поздних сообщений",
+        "claim": "Уайтхед заметил запись о пятимесячной девочке из дома №40: смерть 2 сентября от истощения после диареи за четыре дня до смерти. Он знал о смерти, но раньше не выяснил начало болезни. При новом опросе мать назвала начало 28 августа и прекращение обильных выделений 30 августа. Пелёнки замачивали в вёдрах, воду выливали частью в дворовую раковину, частью в переднюю выгребную яму. Уайтхед сообщил комиссии 3 апреля 1855, после чего поручили осмотр.",
+        "context": "Запись и поздний опрос матери дают разные датировки начала болезни.",
+        "limitations": [
+          "Четыре дня до 2 сентября и 28 августа не совпадают буквально: это пять календарных дней. Оба сообщения помещают болезнь до ночи 31 августа — 1 сентября.",
+          "Дата смерти, дата начала болезни и дата получения сведений — разные события; точная дата регистрации этой записи не дана.",
+          "Рассказ о пелёнках получен позднее от матери, а не непосредственно наблюдался Уайтхедом в августе."
+        ],
+        "excerpts": [
+          {
+            "text": "\" At 40, Broad Street, 2nd September,a daughter,\n\" aged five months, exhaustion, after an attack of\n\" Diarrhoea four days previous to death.\"\nI knew the case, and had recorded the date of\ndeath, but somehow had neglected to inquire\nabout the date of attack, having passed it by\nlightly, I suppose, because it was the case of an\ninfant. Neither had it occurred tome that the child\nmight have been ill all the week. I immediately\nwent to the house and ascertained from the\nmother, who occupied the back parlour, that the\nchild was attacked on Monday, 28th August, and\nthat the dejections at first were abundant, but\nceased on Wednesday, 30th August. In answer to\nfurther questions, she told me that the dejections\nwere collected in napkins, which, on being removed,\nwere immediately steeped in pails, the water from\nwhich was poured partly into a sink in the back-\nyard, and partly into a cesspool in the front area.",
+            "document": "D4",
+            "start": 225235,
+            "end": 226149
+          },
+          {
+            "text": "* This was done on April 3rd, on which day also the substance\nof the preceding portion of this Keport was for the first time laid\nbefore the Committee.",
+            "document": "D4",
+            "start": 227349,
+            "end": 227500
+          }
+        ],
+        "story_facts": "Уайтхед заметил запись о пятимесячной девочке из дома №40: смерть 2 сентября от истощения после диареи за четыре дня до смерти. Он знал о смерти, но раньше не выяснил начало болезни. При новом опросе мать назвала начало 28 августа и прекращение обильных выделений 30 августа. По словам матери, пелёнки замачивали в вёдрах, воду выливали частью в дворовую раковину, частью в переднюю выгребную яму. Уайтхед сообщил комиссии 3 апреля 1855, после чего поручили осмотр."
+      },
+      {
+        "card_id": "Cee554ab22bb8",
+        "label": "Осмотр Йорка",
+        "title": "Измерения поддерживают путь жидкости",
+        "claim": "Йорк обследовал систему в конце апреля; доклад подписан 1 мая 1855. Швы старого стока и кладка переполненной выгребной ямы разрушились, кирпичи вынимались без усилия. От боковой стороны стока до наружной кладки колодца было 2 фута 8 дюймов по горизонтали (0,8128 м), от дна домового стока до уровня воды — 9 футов 2 дюйма по вертикали (2,794 м). При вскрытии кладки и грунта он увидел чёрную насыщенную влагой землю и промытый гравий и заключил о длительном просачивании.",
+        "context": "Йорк описывает увиденные сооружения и грунт, приводит геометрию и делает вывод о просачивании. Осмотр, длительность процесса и перенос конкретной порции отходов — разные уровни вывода.",
+        "limitations": [
+          "Осмотр состоялся весной 1855 года; длительность просачивания многие месяцы — вывод Йорка.",
+          "Горизонтальный размер дан от стока до наружной кладки колодца; вертикальный — от дна стока до уровня воды.",
+          "Осмотр подтверждает физический путь. Диагноз ребёнка и опасность воды именно 8 сентября остаются отдельными вопросами."
+        ],
+        "excerpts": [
+          {
+            "text": "which examination having been made at the\nclose of April 1855, the following were found to\nbe the results of his investigations :",
+            "document": "D4",
+            "start": 243806,
+            "end": 243935
+          },
+          {
+            "text": "the mortar joints of the old stone bottom were\nfound to be perished, as was also all the jointing\nof the brick sides, which brought the brick work\ninto the condition of a sieve, and through which\nthe house drainage water must have percolated for\na considerable period.",
+            "document": "D4",
+            "start": 244581,
+            "end": 244849
+          },
+          {
+            "text": "Upon opening back the main drain, a cesspool\nintended for a trap, but misconstructed, wasfound in\nthe area 3ft. Sin. long,by 2ft. Gin. wide, and 3ft. deep,\nand upon, and over a part ofthis cesspool acommon\nopen privy (without water supply) for the use ofthe\nhouse was erected, the cesspool being fully charged\nwith soil.",
+            "document": "D4",
+            "start": 245143,
+            "end": 245463
+          },
+          {
+            "text": "From the bottom of the house drain down to the\nwater line in the well, a vertical depth of 9 feet 2\ninches exists, and from the side of the drain\nhorizontally to the outer side of the brickwork\nof the well, there is only a space of 2 feet\n8 inches, whilst the side wall of the vault\nadjoining the cesspool actually abuts upon it ;",
+            "document": "D4",
+            "start": 248232,
+            "end": 248562
+          },
+          {
+            "text": "In addition thereto\nthe ground was dug out between the cesspool\nand the well to three feet below the bottom of\nthe former, and its black, saturated, swampy,\ncondition, clearly demonstrated the fact, as did\nalso the small furrowed appearance of the under-\nlying gravel, observed from the inside of the weU,\nfrom which the fine sand had been washed away\nduring the process of filtration.",
+            "document": "D4",
+            "start": 249267,
+            "end": 249652
+          }
+        ],
+        "story_facts": "Йорк обследовал систему в конце апреля 1855 года; доклад подписан 1 мая 1855. Швы старого стока и кладка переполненной выгребной ямы разрушились, кирпичи вынимались без усилия. От боковой стороны стока до наружной кладки колодца было 2 фута 8 дюймов по горизонтали (0,8128 м), от дна домового стока до уровня воды — 9 футов 2 дюйма по вертикали (2,794 м). При вскрытии кладки и грунта он увидел чёрную насыщенную влагой землю и промытый гравий и заключил о длительном просачивании."
+      },
+      {
+        "card_id": "Cd392f2fdcffb",
+        "label": "Возражение врача",
+        "title": "Спорный диагноз сохраняется",
+        "claim": "В письме 30 мая 1855 года Роджерс предупреждает: записей не вёл и уточнял память новым разговором с матерью. У ребёнка были приступы диареи и прежде, в июне и середине августа. О последнем он вспоминает бледные слизистые водянистые выделения и рвоту, но не характерные холерные испражнения, посинение, судороги, холодную стадию или коллапс. Уайтхед оставляет медицинский спор врачам; комиссия отмечает сомнение в природе болезни и то, что симптомы холеры у маленьких детей могут быть неясными.",
+        "context": "В одном приходском отчёте представлены воспоминания Роджерса, ответ Уайтхеда и оценка комиссии. Диагноз ребёнка остаётся спорным.",
+        "limitations": [
+          "Материал оставляет открытыми наличие холеры у ребёнка и его роль в происхождении вспышки.",
+          "Рассказ матери, осмотр сооружений и медицинская интерпретация имеют разные основания."
+        ],
+        "excerpts": [
+          {
+            "text": "Being anxious to comply with your request, to give aU\nthe particulars I could remember of the illness of which\n^^\"^ale infant died last September, and nothaymg kept any notes of the case, I deemed it advisable, before\ndomg so, to see the mother, and clear up some points of whichmy memory retained but an uncertain recollection.",
+            "document": "D4",
+            "start": 230937,
+            "end": 231265
+          },
+          {
+            "text": "It was born, I believe, inApnl 54, and was attacked with a DiarrhcBa in the Junefollowmg; .ts evacuations were pale and slimy, sour andoffensive; xt was under treatment for about five days; itcontinued pretty weU till the 14th of August, when it had asimilar attack, which however gave way to treatment in twoor three days,",
+            "document": "D4",
+            "start": 231601,
+            "end": 231924
+          },
+          {
+            "text": "I never saw,\nthat I can remember, what might be taken for Cholera stools,\n—\nshe never looked bluish, had no cramps, there was no cold\nstage or collapse, nor subsequent fever, and she always passed\nher urine which stained.the napkins.",
+            "document": "D4",
+            "start": 232404,
+            "end": 232637
+          },
+          {
+            "text": "The\nmother now tells me that the sickness was the only difference\nshe observed between the last and former illnesses.",
+            "document": "D4",
+            "start": 232837,
+            "end": 232954
+          },
+          {
+            "text": "Although, singularly enough, this case is published by the\nEegistrar-General among the Cholera deaths, there is necessarily a doubt as\nto the real nature of the attack. On the one side, the previous history of the\nchild, the presence of only certain symptoms, and the opinion of Dr. Eogers,\nthe medical attendant, have great weight ; whilst, on the other, it must be\nnoted that Cholera symptoms are rarely well marked in the young, and that\nthe Diarrhoea which prevails during a Cholera epidemic is now generally\nadmitted to be choleraic, and due to the same cause as Cholera itself.\nThere was, moreover, some probability that a child already prone to\ninfantUe Diarrhoea might become the victim of a choleraic seizure.",
+            "document": "D4",
+            "start": 131288,
+            "end": 132006
+          },
+          {
+            "text": "It is not for me to discuss the probable difference\nof opinion which may arise among medical men\nas to the nature of this child's illness. Whether\nor not they may choose to decide that \" the\n\" accompaniment of sickness\" in its third attack\n(August 28th), and \"the relapse of its mother,\n^' with spasms and cramps\" on that occasion'\nindicate the presence of choleraic symptoms, it is\nfor me only to call attention to the coincidence.",
+            "document": "D4",
+            "start": 234747,
+            "end": 235179
+          }
+        ],
+        "story_facts": "В письме 30 мая 1855 года Роджерс предупреждает: записей не вёл и уточнял память новым разговором с матерью. У ребёнка были приступы диареи и прежде, в июне и середине августа. О последнем он вспоминает бледные слизистые водянистые выделения и рвоту, но не характерные холерные испражнения, посинение, судороги, холодную стадию или коллапс. Уайтхед оставляет медицинский спор врачам; комиссия отмечает сомнение в природе болезни и то, что симптомы холеры у маленьких детей могут быть неясными."
+      },
+      {
+        "card_id": "C23d72f102d80",
+        "label": "Временная трудность",
+        "title": "Поздний отчёт не восстанавливает всю цепь",
+        "claim": "Уайтхед спрашивал, почему приступы резко уменьшились уже 3 сентября и вспышка почти исчезла после 6 сентября, хотя в доме №40 заболевали и другие люди. Он обсуждал отъезд, уменьшение числа привычных потребителей и изменение воды при сильном разборе, но не считал объяснения убедительными. Позднее он выяснил, что из-за способа удаления отходов больных третьего этажа в яму могло попасть лишь немного; отметил и поперечный сток из дома №39, где приступы были 1, 2 и 4 сентября. Точный путь и время опасного сообщения уже нельзя было восстановить после изменения дренажа.",
+        "context": "Поздние уточнения ограничивают более раннее рассуждение о поступлении отходов. Они сохраняют возможность физического пути, но не дают полной временной реконструкции.",
+        "limitations": [
+          "Позднее сообщение о малом количестве отходов с третьего этажа уточняет раннее предположение об их поступлении в яму.",
+          "Неизвестная динамика загрязнения не превращается в измеренный эффект снятия ручки."
+        ],
+        "excerpts": [
+          {
+            "text": "if matter thrown off from the child and poured\ninto the cesspool in the front area, during the early\ndays of the week, percolated the ground and con-\ntaminated the well, why did the number of attacks\nso sensibly and rapidly diminish on Sunday, Sep-\ntember 3rd, when matter from two adult cholera\npatients had been poured down the same place\nduring the later days of the week? And why,\nmoreover, did the epidemic so nearly disappear\nfrom Broad Street on or after September 6th, when\nanother person was attacked in the same house\nSeptember 4th?",
+            "document": "D4",
+            "start": 228324,
+            "end": 228866
+          },
+          {
+            "text": "Or it might be urged that the un-\nusual drain upon the well, caused by the intense\nthirst of the sufferers, who, as I have said, were\ngenerally supplied with the pump water, might in\nsome measure account for the rapid change in its\nquality. But as these suggestions arenot conclusive\nto myself, 1 do not desire they should be so to any\none else. For my own part I cannot state, from\nthe facts before me, whether the water did actually\nget continually purer, or whether it first became\npurer and then got worse again.",
+            "document": "D4",
+            "start": 229474,
+            "end": 229990
+          },
+          {
+            "text": "It is worth while however to state that, by\nrecent inquiry, I have ascertained that the dejec-\ntions of the patients in the third floor of No. 40,\nowing to great hurry and confusion, were so dis-\nposed of that but little could have found its way\ninto the cesspool at all.\nMy attention has also recently been called to\nthe cross drain from the bottom of the stack pipe\nof No. 39 (see Mr. York's diagram). There were\nthree deaths from Cholera in No. 39, the attacks\nbeing on the 1st, 2nd and 4th September, two of\n12 hours duration and one of 24 hours. The\npoint ofjunction of the two drains will be apparent\nfrom the Surveyor's diagram. Whether this fact\nbe considered to increase the difficulty which I have\nraised will depend upon the precise place and\nmanner of the supposed fatal communication. This\nis not easy to determine and, even if it could\nhave been ascertained by scientific experiments at\n",
+            "document": "D4",
+            "start": 236278,
+            "end": 237179
+          },
+          {
+            "text": "the time of the excavation, cannot now be dis-\ncovered, owing to the altered state of the drain.",
+            "document": "D4",
+            "start": 237206,
+            "end": 237302
+          }
+        ],
+        "story_facts": "Уайтхед спрашивал, почему приступы резко уменьшились уже 3 сентября и вспышка на Брод-стрит почти исчезла после 6 сентября, хотя в доме №40 заболевали и другие люди. Он обсуждал отъезд, уменьшение числа привычных потребителей и изменение воды при сильном разборе, но не считал объяснения убедительными. Позднее он выяснил, что из-за способа удаления отходов больных третьего этажа в яму могло попасть лишь немного; отметил и поперечный сток из дома №39, где приступы были 1, 2 и 4 сентября. Точный путь и время опасного сообщения уже нельзя было восстановить после изменения дренажа."
+      },
+      {
+        "card_id": "L46218cdc18a9",
+        "label": "Раннее объяснение и новая проверка",
+        "title": "Раннее объяснение и новая проверка",
+        "claim": "В предисловии ко второму изданию Сноу сообщает, что первое издание вышло в августе 1849 года. О расследовании 1854 года на юге Лондона он пишет, что хотел лично проверить объяснение, которое отстаивал уже пять лет: вещество, вызывающее холеру, могло проходить со стоками в большую реку, а затем распространяться через мили водопроводных труб.",
+        "context": "Это собственное изложение замысла исследования в книге Сноу 1855 года.",
+        "story_facts": "В предисловии ко второму изданию Сноу сообщает, что первое издание вышло в августе 1849 года. О расследовании 1854 года на юге Лондона он пишет, что хотел лично проверить объяснение, которое отстаивал уже пять лет: вещество, вызывающее холеру, могло проходить со стоками в большую реку, а затем распространяться через мили водопроводных труб.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "text": "The first edition of this work, which was published\nin August 1849, was only a slender pamphlet. I\nhave, since that time, written various papers on the\nsame subject, which have been read at the Medical\nSocieties, and published in the medical journals.\nThe present edition contains the substance of all\nthese articles, together with much new matter, the\ngreater part of which is derived from my own\nrecent inquiries.\n",
+            "document": "D3",
+            "start": 618,
+            "end": 1034
+          },
+          {
+            "text": "When the cholera returned to London in July of the\npresent year, however, I resolved to spare no exertion\nwhich might be necessary to ascertain the exact effect of\nthe water supply on the progress of the epidemic, in the\nplaces where all the circumstances were so happily adapted\nfor the inquiry. I was desirous of making the investigation\nmyself, in order that I might have the most satisfactory\nproof of the truth or fallacy of the doctrine which I\nhad been advocating for five years. I had no reason to\ndoubt the correctness of the conclusions I had drawn from\nthe great number of facts already in my possession, but I\nfelt that the circumstance of the cholera poison passing\ndown the sewers into a great river, and being distributed\nthrough miles of pipes, and yet producing its specific\neffects, was a fact of so startling a nature, and of so vast\nimportance to the community, that it could not be too\nrigidly examined, or established on too firm a basis.\n",
+            "document": "D3",
+            "start": 137655,
+            "end": 138616
+          }
+        ]
+      },
+      {
+        "card_id": "L823de5c241a2",
+        "label": "Перенос водозабора в 1852 году",
+        "title": "Перенос водозабора в 1852 году",
+        "claim": "Сноу пишет, что в 1852 году компания Lambeth перенесла водозабор от района напротив Хангерфорд-маркета к Темз-Диттон. Там она получала воду выше поступления лондонских стоков. На части южного Лондона её сеть соседствовала с сетью Southwark and Vauxhall, которая брала воду у Баттерси. Поэтому в одном районе дома могли получать разную воду.",
+        "context": "В книге изменение водозабора предшествует эпидемиям 1853 и 1854 годов.",
+        "story_facts": "Сноу пишет, что в 1852 году компания Lambeth перенесла водозабор от района напротив Хангерфорд-маркета к Темз-Диттон. Там она получала воду выше поступления лондонских стоков. На части южного Лондона её сеть соседствовала с сетью Southwark and Vauxhall, которая брала воду у Баттерси. Поэтому в одном районе дома могли получать разную воду.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "text": "London was without cholera from the latter part of\n1849 to August 1853. During this interval an important\nchange had taken place in the water supply of several of\nthe south districts of London. The Lambeth Company\nremoved their water works, in 1852, from opposite Hungerford\nMarket to Thames Ditton; thus obtaining a supply\nof water quite free from the sewage of London. The\ndistricts supplied by the Lambeth Company are, however,\nalso supplied, to a certain extent, by the Southwark and\nVauxhall Company, the pipes of both companies going\ndown every street, in the places where the supply is\nmixed, as was previously stated. ",
+            "document": "D3",
+            "start": 124518,
+            "end": 125144
+          }
+        ]
+      },
+      {
+        "card_id": "L4ae8920c6835",
+        "label": "Соседние дома с разной водой",
+        "title": "Соседние дома с разной водой",
+        "claim": "По описанию Сноу, трубы двух компаний проходили по одним улицам и дворам; отдельный дом мог получать воду не от того поставщика, что дома по обе стороны. Подключение зависело от решения владельца или жильца во времена конкуренции компаний. Обе обслуживали богатых и бедных, большие и маленькие дома. Сноу оценивал население смешанной зоны не менее чем в 300 тысяч человек и рассматривал это соседство как возможность сравнить действие двух водоснабжений.",
+        "context": "Описание устройства сети и сопоставимости жителей принадлежит Сноу, автору исследования.",
+        "story_facts": "По описанию Сноу, трубы двух компаний проходили по одним улицам и дворам; отдельный дом мог получать воду не от того поставщика, что дома по обе стороны. Подключение зависело от решения владельца или жильца во времена конкуренции компаний. Обе обслуживали богатых и бедных, большие и маленькие дома. Сноу оценивал население смешанной зоны не менее чем в 300 тысяч человек и рассматривал это соседство как возможность сравнить действие двух водоснабжений.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "text": "The pipes of each Company go down all the streets, and\ninto nearly all the courts and alleys. A few houses are\nsupplied by one Company and a few by the other, according\nto the decision of the owner or occupier at that time\nwhen the Water Companies were in active competition.\nIn many cases a single house has a supply different from\nthat on either side. Each Company supplies both rich\nand poor, both large houses and small; there is no difference\neither in the condition or occupation of the persons\nreceiving the water of the different Companies. ",
+            "document": "D3",
+            "start": 135282,
+            "end": 135831
+          },
+          {
+            "text": "The experiment, too, was on the grandest scale. No\nfewer than three hundred thousand people of both sexes,\nof every age and occupation, and of every rank and station,\nfrom gentlefolks down to the very poor, were divided into\ntwo groups without their choice, and, in most cases, without\ntheir knowledge; one group being supplied with water\ncontaining the sewage of London, and, amongst it, whatever\nmight have come from the cholera patients, the other\ngroup having water quite free from such impurity.\n",
+            "document": "D3",
+            "start": 136635,
+            "end": 137136
+          }
+        ]
+      },
+      {
+        "card_id": "La3f93ebbfa1e",
+        "label": "Адреса, Кеннингтон и Фарр",
+        "title": "Адреса, Кеннингтон и Фарр",
+        "claim": "В середине августа 1854 года Сноу начал выяснять водоснабжение адресов умерших в двух подрайонах Кеннингтона. Из 44 смертей, учтённых там по 12 августа, 38 пришлись на дома с водой Southwark and Vauxhall, четыре — Lambeth, две — на дома с собственными колодцами. Сноу сообщил результат доктору Фарру. По предложению Фарра регистраторам южных районов поручили после 26 августа указывать водоснабжение дома, где начался смертельный приступ. При переселении больного Сноу выяснял снабжение прежнего дома, в котором болезнь началась.",
+        "context": "Сноу получил адреса через Главное регистрационное управление. Показатели относятся к смертям и адресам начала болезни.",
+        "story_facts": "В середине августа 1854 года Сноу начал выяснять водоснабжение адресов умерших в двух подрайонах Кеннингтона. Из 44 смертей, учтённых там по 12 августа, 38 пришлись на дома с водой Southwark and Vauxhall, четыре — Lambeth, две — на дома с собственными колодцами. Сноу сообщил результат доктору Фарру. По предложению Фарра регистраторам южных районов поручили после 26 августа указывать водоснабжение дома, где начался смертельный приступ. При переселении больного Сноу выяснял снабжение прежнего дома, в котором болезнь началась.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "text": "I accordingly asked permission at the General Register\nOffice to be supplied with the addresses of persons dying\nof cholera, in those districts where the supply of the two\nCompanies is intermingled in the manner I have stated\nabove. Some of these addresses were published in the\n“Weekly Returns,” and I was kindly permitted to take\na copy of others. I commenced my inquiry about the\nmiddle of August with two sub-districts of Lambeth,\ncalled Kennington, first part, and Kennington, second\npart. There were forty-four deaths in these sub-districts\ndown to 12th August, and I found that thirty-eight of the\nhouses in which these deaths occurred were supplied with\n77\nwater by the Southwark and Vauxhall Company, four\nhouses were supplied by the Lambeth Company, and two\nhad pump-wells on the premises and no supply from\neither of the Companies.\nAs soon as I had ascertained these particulars I communicated\nthem to Dr. Farr, who was much struck with\nthe result, and at his suggestion the Registrars of all the\nsouth districts of London were requested to make a return\nof the water supply of the house in which the attack took\nplace, in all cases of death from cholera. This order was\nto take place after the 26th August, and I resolved to\ncarry my inquiry down to that date, so that the facts\nmight be ascertained for the whole course of the epidemic.\nI pursued my inquiry over the various other sub-districts\nof Lambeth, Southwark, and Newington, where the supply\nof the two Water Companies is intermixed, with a result\nvery similar to that already given, as will be seen further\non. In cases where persons had been removed to a workhouse\nor any other place, after the attack of cholera had\ncommenced, I inquired the water supply of the house\nwhere the individuals were living when the attack took\nplace.\n",
+            "document": "D3",
+            "start": 138616,
+            "end": 140420
+          }
+        ]
+      },
+      {
+        "card_id": "La6783954cdda",
+        "label": "Квитанции и пузырьки с адресами",
+        "title": "Квитанции и пузырьки с адресами",
+        "claim": "Жильцы нередко не знали поставщика воды: квитанции приходилось искать, а у нанимателей с недельной платой водный сбор обычно оплачивал хозяин или его агент. Во время исследования Сноу различал воду компаний по её солёности с помощью нитрата серебра. Для воды Lambeth он приводит 0,95 грана хлорида натрия на галлон, для Southwark and Vauxhall — 37,9 грана. Когда ответ жильца был неясен, он набирал воду в небольшой пузырёк, писал адрес на крышке и исследовал её дома. Время подачи и внешний вид служили дополнительными признаками наряду с химическим тестом или квитанцией.",
+        "context": "Значения и пригодность теста относятся к воде этих компаний в период описанного Сноу обследования. Тест помогал устанавливать источник снабжения адреса.",
+        "story_facts": "Жильцы нередко не знали поставщика воды: квитанции приходилось искать, а у нанимателей с недельной платой водный сбор обычно оплачивал хозяин или его агент. Во время исследования Сноу различал воду компаний по её солёности с помощью нитрата серебра. Для воды Lambeth он приводит 0,95 грана хлорида натрия на галлон, для Southwark and Vauxhall — 37,9 грана. Когда ответ жильца был неясен, он набирал воду в небольшой пузырёк, писал адрес на крышке и исследовал её дома. Время подачи и внешний вид служили дополнительными признаками наряду с химическим тестом или квитанцией.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "text": "The inquiry was necessarily attended with a good deal\nof trouble. There were very few instances in which I\ncould at once get the information I required. Even when\nthe water-rates are paid by the residents, they can seldom\nremember the name of the Water Company till they have\nlooked for the receipt. In the case of working people\nwho pay weekly rents, the rates are invariably paid by\nthe landlord or his agent, who often lives at a distance,\nand the residents know nothing about the matter. It\nwould, indeed, have been almost impossible for me to\ncomplete the inquiry, if I had not found that I could distinguish\nthe water of the two companies with perfect\n78\ncertainty by a chemical test. The test I employed was\nfounded on the great difference in the quantity of chloride\nof sodium contained in the two kinds of water, at the time\nI made the inquiry. On adding solution of nitrate of\nsilver to a gallon of the water of the Lambeth Company,\nobtained at Thames Ditton, beyond the reach of the\nsewage of London, only 2·28 grains of chloride of silver\nwere obtained, indicating the presence of ·95 grains of\nchloride of sodium in the water. On treating the water of\nthe Southwark and Vauxhall Company in the same manner,\n91 grains of chloride of silver were obtained, showing\nthe presence of 37·9 grains of common salt per gallon.\nIndeed, the difference in appearance on adding nitrate of\nsilver to the two kinds of water was so great, that they\ncould be at once distinguished without any further trouble.\nTherefore when the resident could not give clear\nand conclusive evidence about the Water Company, I obtained\nsome of the water in a small phial, and wrote the\naddress on the cover, when I could examine it after\ncoming home. The mere appearance of the water generally\nafforded a very good indication of its source, especially\nif it was observed as it came in, before it had\nentered the water-butt or cistern; and the time of its\ncoming in also afforded some evidence of the kind of\nwater, after I had ascertained the hours when the turncocks\nof both Companies visited any street. These points\nwere, however, not relied on, except as corroborating\nmore decisive proof, such as the chemical test, or the\nCompany’s receipt for the rates.\n",
+            "document": "D3",
+            "start": 140420,
+            "end": 142659
+          }
+        ]
+      },
+      {
+        "card_id": "L22f7d28656ce",
+        "label": "Первые четыре недели и число подключённых домов",
+        "title": "Первые четыре недели и число подключённых домов",
+        "claim": "Для периода с 8 июля по 5 августа 1854 года Сноу и Джон Джозеф Уайтинг выясняли водоснабжение адресов смертельных случаев в зоне двух компаний. Из 334 смертей 286 относились к домам Southwark and Vauxhall, 14 — Lambeth; в 22 случаях воду брали прямо из Темзы, в четырёх — из колодцев, в четырёх — из канав, в четырёх источник остался неизвестным. С парламентским числом подключённых за 1853 год домов — 40 046 и 26 107 соответственно — Сноу получил округлённые показатели 71 и 5 смертельных приступов на 10 тысяч домов. На этих округлённых показателях в его тексте стоит сравнение в четырнадцать раз.",
+        "context": "Уайтинг обследовал районы, снабжавшиеся только Southwark and Vauxhall. Для общего сравнения использованы дома, а не число жителей; округлённые показатели и формулировка кратности приведены самим Сноу.",
+        "story_facts": "Для периода с 8 июля по 5 августа 1854 года Сноу и Джон Джозеф Уайтинг выясняли водоснабжение адресов смертельных случаев в зоне двух компаний. Из 334 смертей 286 относились к домам Southwark and Vauxhall, 14 — Lambeth; в 22 случаях воду брали прямо из Темзы, в четырёх — из колодцев, в четырёх — из канав, в четырёх источник остался неизвестным. С парламентским числом подключённых за 1853 год домов — 40 046 и 26 107 соответственно — Сноу получил округлённые показатели 71 и 5 смертельных приступов на 10 тысяч домов. На этих округлённых показателях в его тексте стоит сравнение в четырнадцать раз.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "text": "Mr. Whiting’s part of the investigation extended over\nthe first four weeks of the epidemic, from 8th July to 5th\nAugust; and as inquiry was made respecting every death\nfrom cholera during this part of the epidemic, in all the\ndistricts to which the supply of either of the Water Companies\nextends, it may be well to consider this period first.\nThere were three hundred and thirty-four deaths from\ncholera in these four weeks, in the districts to which the\nwater supply of the Southwark and Vauxhall and the\nLambeth Company extends. Of these it was ascertained,\nthat in two hundred and eighty-six cases the house where\nthe fatal attack of cholera took place was supplied with\nwater by the Southwark and Vauxhall Company, and in\nonly fourteen cases was the house supplied with the Lambeth\nCompany’s water; in twenty-two cases the water\nwas obtained by dipping a pail directly into the Thames,\nin four instances it was obtained from pump-wells, in four\ninstances from ditches, and in four cases the source of\nsupply was not ascertained, owing to the person being\n80\ntaken ill whilst travelling, or from some similar cause.\n",
+            "document": "D3",
+            "start": 143703,
+            "end": 144823
+          },
+          {
+            "text": "According to a return which was made to Parliament,\nthe Southwark and Vauxhall Company supplied 40,046\nhouses from January 1st to December 31st, 1853, and the\nLambeth Company supplied 26,107 houses during the\nsame period; consequently, as 286 fatal attacks of cholera\ntook place, in the first four weeks of the epidemic, in\nhouses supplied by the former Company, and only 14\nin houses supplied by the latter, the proportion of fatal\nattacks to each 10,000 houses was as follows. Southwark\nand Vauxhall 71. Lambeth 5. The cholera was therefore\nfourteen times as fatal at this period, amongst persons\nhaving the impure water of the Southwark and Vauxhall\nCompany, as amongst those having the purer water from\nThames Ditton.\n",
+            "document": "D3",
+            "start": 145439,
+            "end": 146161
+          }
+        ]
+      },
+      {
+        "card_id": "Lafe52687aa2d",
+        "label": "Сравнение за семь недель",
+        "title": "Сравнение за семь недель",
+        "claim": "В таблице IX за первые семь недель эпидемии Сноу приводит 1263 смерти в 40 046 домах Southwark and Vauxhall и 98 в 26 107 домах Lambeth: 315 и 37 смертей на 10 тысяч домов. Он описывает разницу как восемь-девять раз. Для части районов, обследованных Уайтингом только по 5 августа, распределение водоснабжения за следующие три недели в исходной сводке рассчитано по пропорциям первых четырёх недель; в районах сети Lambeth Сноу выяснял водоснабжение каждого адреса сам.",
+        "context": "Семинедельная сводка включает случаи первых четырёх недель. Объяснение расчётной части дано Сноу перед таблицами VII и VIII.",
+        "story_facts": "В таблице IX за первые семь недель эпидемии Сноу приводит 1263 смерти в 40 046 домах Southwark and Vauxhall и 98 в 26 107 домах Lambeth: 315 и 37 смертей на 10 тысяч домов. Он описывает разницу как восемь-девять раз. Для части районов, обследованных Уайтингом только по 5 августа, распределение водоснабжения за следующие три недели в исходной сводке рассчитано по пропорциям первых четырёх недель; в районах сети Lambeth Сноу выяснял водоснабжение каждого адреса сам.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "text": "In table\nVIII\n, showing the mortality in the first seven\nweeks of the epidemic, the water supply is the result of\nmy own personal inquiry, in every case, in all the sub-districts\nto which the supply of the Lambeth Company\nextends; but in some of the sub-districts supplied only\nby the Southwark and Vauxhall Company, the inquiry of\nMr. Whiting having extended only to 5th August, the\nwater supply of the last three weeks is calculated to have\nbeen in the same proportion by the Company, or by pump\nwells, etc., as in the first four weeks,—a calculation which\nis perfectly fair, and must be very near the truth. The\nsub-districts in which the supply is partly founded on\ncomputation, are marked with an asterisk.\nThe numbers in table\nVIII\ndiffer a very little from those\nof the table I communicated to the\nMedical Times and\nGazette\nof 7th October, on account of the water supply\nhaving since been ascertained in some cases in which I\ndid not then know it. The small number of instances in\nwhich the water supply remains unascertained are chiefly\nthose of persons taken into a workhouse without their\naddress being known.\n84\n",
+            "document": "D3",
+            "start": 150415,
+            "end": 151538
+          },
+          {
+            "text": "The following is the proportion of deaths to 10,000\nhouses, during the first seven weeks of the epidemic, in\nthe population supplied by the Southwark and Vauxhall\nCompany, in that supplied by the Lambeth Company, and\nin the rest of London.\nTABLE IX.\nNumber of houses.\nDeaths from Cholera.\nDeaths in each 10,000 houses.\nSouthwark and Vauxhall Company\n40,046\n1,263\n315\nLambeth Company\n26,107\n98\n37\nRest of London\n256,423\n1,422\n59\nThe mortality in the houses supplied by the Southwark\nand Vauxhall Company was therefore between eight and\nnine times as great as in the houses supplied by the Lambeth\nCompany; and it will be remarked that the customers\nof the Lambeth Company continued to enjoy an\nimmunity from cholera greater than the rest of London\nwhich is not mixed up as they are with the houses supplied\nby the Southwark and Vauxhall Company.\n",
+            "document": "D3",
+            "start": 154006,
+            "end": 154851
+          }
+        ]
+      }
+    ]
+  }
+}
