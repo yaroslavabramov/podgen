@@ -171,6 +171,7 @@ def test_older_manifest_resume_keeps_pinned_schema_and_request(
     def historical(journal, command, value):
         value = dict(value)
         value.pop("role_projection_version")
+        value.pop("craft_reference", None)
         if version in (V2, V3):
             value["role_projection_version"] = version
         value["response_schemas"] = {

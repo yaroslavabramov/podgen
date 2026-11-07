@@ -97,13 +97,16 @@ class EditorialFeedback(RoleOutput):
     )
     recommendation: Literal["keep", "revise", "needs_material"]
 
+    def anchored_groups(self):
+        return {name: getattr(self, name) for name in ("strengths", "findings", "research_requests")}
+
     def validate_against(self, script: WriteOutput) -> None:
         """Check wire anchors against the exact input before passing feedback on.
 
         This proves location/quote identity, not the reviewer's interpretation.
         Indexes cannot be reused automatically after revision or reordering.
         """
-        for entry in (*self.strengths, *self.findings, *self.research_requests):
+        for entry in (entry for rows in self.anchored_groups().values() for entry in rows):
             for anchor in entry.anchors:
                 if anchor.utterance_index >= len(script.utterances):
                     raise ValueError("feedback_utterance_index_out_of_range")

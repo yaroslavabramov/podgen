@@ -7,8 +7,9 @@ from pydantic import ValidationError
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.domain.errors import Conflict, ContractError
+from podgen.writing.craft_reference import pinned_reference
 from podgen.writing.model_references import CATALOG_KEY, run_references
-from podgen.writing.projection_versions import V7
+from podgen.writing.projection_versions import script_handoff
 from podgen.writing.roles import WriteOutput
 
 from .contracts import RunFailure
@@ -44,6 +45,7 @@ def execute_reading_stage(
 ):
     references = run_references(materials, manifest)
     base = base_stage(stage)
+    model = output_model(stage, reader_schema_version=manifest.get("reader_review_schema_version"))
     profile_ref = profile_for(command, stage)
     profile = load_profile(generation, command.project_id, profile_ref, stage)
     context = dict(
@@ -62,7 +64,7 @@ def execute_reading_stage(
     )
     if references is not None:
         context[CATALOG_KEY] = references.as_payload()
-    if manifest["role_projection_version"] == V7 and base == "revise":
+    if script_handoff(manifest["role_projection_version"]) and base == "revise":
         selected = approved_plan or (
             materials.fixed.plan.model_dump(mode="json") if materials.fixed else None
         )
@@ -85,6 +87,7 @@ def execute_reading_stage(
             approved_plan=approved_plan,
             projection_version=manifest["role_projection_version"],
             reference_catalog=references,
+            craft_reference=pinned_reference(manifest),
         )
         invocation = journal.prepare(command.run_id, stage, body, context)
     saved = journal.read(RuntimeRef(record_kind="tool_execution", record_id=invocation["request_record_id"]))
@@ -115,12 +118,12 @@ def execute_reading_stage(
             repair_choices = None
             if invocation["operation_kind"] == "anchor_repair":
                 repaired, repair_choices = apply_anchor_repair(journal, invocation, raw, draft=script)
-                parsed = output_model(stage).model_validate(repaired)
+                parsed = model.model_validate(repaired)
             else:
-                parsed = output_model(stage).model_validate_json(raw)
+                parsed = model.model_validate_json(raw)
             wire_output = parsed.model_dump(mode="json")
             if references is not None:
-                parsed = output_model(stage).model_validate(references.translate(wire_output, inbound=True))
+                parsed = model.model_validate(references.translate(wire_output, inbound=True))
             if base in ("reader-review", "fact-review"):
                 parsed.validate_against(WriteOutput.model_validate(script))
                 expected = "script_only" if base == "reader-review" else "informed"

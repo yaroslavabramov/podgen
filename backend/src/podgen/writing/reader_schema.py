@@ -2,7 +2,8 @@
 
 from podgen.domain.errors import ContractError
 
-VERSION = "listener-experience/1"
+V1 = "listener-experience/1"
+VERSION = "listener-experience/2"
 
 FIELDS = {
     "listener_answer": (
@@ -40,9 +41,26 @@ FINDING_FIELDS = {
 def describe_reader(schema, version):
     if version is None:
         return
-    if version != VERSION:
+    if version not in (V1, VERSION):
         raise ContractError("unknown_reader_review_schema_version")
     for field, description in FIELDS.items():
         schema["properties"][field]["description"] = description
     for field, description in FINDING_FIELDS.items():
         schema["$defs"]["EditorialFinding"]["properties"][field]["description"] = description
+
+
+def feedback_model(version):
+    from .roles import EditorialFeedback
+
+    if version in (None, V1):
+        return EditorialFeedback
+    if version != VERSION:
+        raise ContractError("unknown_reader_review_schema_version")
+    from .reader_feedback import ReaderFeedback
+
+    return ReaderFeedback
+
+
+def snapshot_model(value):
+    """A supplied snapshot selects its published shape; run output uses the manifest pin."""
+    return feedback_model(VERSION if "revision_scope" in value else V1)

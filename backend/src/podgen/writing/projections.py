@@ -7,10 +7,19 @@ from pathlib import PurePosixPath
 from podgen.domain.errors import ContractError
 
 from .card_catalog import card_id
+from .craft_reference import attach_reference
 from .creative_material import creative_card_view, creative_dossier_view
 from .duration_views import duration_context
 from .plan_views import candidate_view
-from .projection_versions import CURRENT, V1, V7, creative_materials, historical, validate_version
+from .projection_versions import (
+    CURRENT,
+    V1,
+    V8,
+    creative_materials,
+    historical,
+    script_handoff,
+    validate_version,
+)
 from .story_views import (
     editorial_frame,
     narrative_decisions,
@@ -116,15 +125,17 @@ def actionable_feedback(review, *, planning=False, projection_version=CURRENT):
     ]
     if planning:
         result["decision_reason"] = review["decision_reason"]
-        if projection_version != V7:
+        if not script_handoff(projection_version):
             result["retain_sections"] = [
                 dict(targets=deepcopy(row["targets"])) for row in review["strengths"]
             ]
-    if projection_version == V7:
+    if script_handoff(projection_version):
         result["positive_observations"] = deepcopy(review["strengths"])
     if not planning:
+        if "revision_scope" in review:
+            result["revision_scope"] = deepcopy(review["revision_scope"])
         result["listener_understanding"] = review["listener_answer"]
-        if projection_version != V7:
+        if not script_handoff(projection_version):
             result["retain_passages"] = [dict(anchors=deepcopy(s["anchors"])) for s in review["strengths"]]
     return result
 
@@ -140,6 +151,7 @@ def role_payload(
     materials,
     *,
     projection_version=CURRENT,
+    craft_reference=None,
     candidate=None,
     plan_review=None,
     approved_plan=None,
@@ -152,7 +164,7 @@ def role_payload(
     if projection_version != V1 and stage in ("review", "revise"):
         payload["draft"] = indexed_draft(draft)
     payload["assignment"] = assignment_view(packet)
-    if projection_version == V7 and stage in ("draft", "review", "revise"):
+    if script_handoff(projection_version) and stage in ("draft", "review", "revise"):
         payload["duration_context"] = duration_context(packet.assignment, draft, include_requested=False)
     if stage.startswith("plan"):
         payload["dossier"] = dict(
@@ -161,7 +173,10 @@ def role_payload(
             threads=[thread.model_dump(mode="json") for thread in packet.dossier.threads],
             knowledge_cards=knowledge_view(packet, labels=True),
         )
-        if creative_materials(projection_version) and stage in ("plan", "plan-revise"):
+        if creative_materials(projection_version) and (
+            stage in ("plan", "plan-revise")
+            or projection_version == V8 and stage.startswith("plan-review")
+        ):
             payload["dossier"] = creative_dossier_view(creative_knowledge_view(packet, labels=True))
         payload["material_catalog"] = list(materials.material_catalog)
         if stage.startswith("plan-review"):
@@ -218,6 +233,7 @@ def role_payload(
             raise ContractError("unknown_role_projection")
         if historical(projection_version):
             payload["necessary_limits"] = list(packet.dossier.throughline_constraints)
+    attach_reference(payload, stage, craft_reference)
     validate_model_content(payload, materials.documents)
     return payload
 

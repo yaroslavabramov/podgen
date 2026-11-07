@@ -103,6 +103,19 @@ class ReadingProvider:
                 duration_note="Длительность не измерена.",
                 recommendation="needs_material" if need else decision,
             )
+        if (
+            stage.startswith("reader-review")
+            and "revision_scope" in body["text"]["format"]["schema"]["properties"]
+        ):
+            if self.invalid == stage:
+                result["recommendation"] = "revise"
+            result["revision_scope"] = dict(
+                scale="local" if result["recommendation"] == "revise" else "none",
+                reason="Синтетическое редакционное решение для теста; не измерение качества.",
+                anchors=[dict(utterance_index=0, quote=quote)]
+                if result["recommendation"] == "revise"
+                else [],
+            )
         return WireReply(
             json.dumps(
                 dict(

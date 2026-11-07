@@ -66,13 +66,14 @@ def expected_current_story(proposal):
     return dict(
         main_question=plan["main_question"],
         route_summary=plan["route_summary"],
+        authority="revisable_authorial_decisions",
         listener_promise=plan["listener_promise"],
         conclusion=dict(meaning=plan["ending"]["answer_to_deliver"]),
         opening={key: plan["opening"][key] for key in ("approach", "question_to_open")},
         duration_strategy=dict(estimated_seconds_range=plan["duration_strategy"]["estimated_seconds_range"]),
         acts=[
             {
-                key: act[key]
+                ("suggested_priority" if key == "priority" else key): act[key]
                 for key in (
                     "title",
                     "listener_question",
@@ -146,7 +147,10 @@ def test_real_ordinary_wire_and_own_candidate_delivery(own_dataset, case, tmp_pa
         act.pop("limitations_to_voice")
     assert payload(provider.requests[1])["candidate_plan"] == expected_candidate
     author_input = payload(provider.requests[2])
-    assert set(author_input) == {"output_language", "assignment", "story", "support", "duration_context"}
+    expected_fields = {"output_language", "assignment", "story", "support", "duration_context"}
+    if "craft_reference" in journal.manifest(own["run_id"]):
+        expected_fields.add("craft_reference")
+    assert set(author_input) == expected_fields
     story = author_input["story"]
     assert story == expected_current_story(chosen)
     review_input = payload(provider.requests[3])
@@ -162,6 +166,7 @@ def test_real_ordinary_wire_and_own_candidate_delivery(own_dataset, case, tmp_pa
     assert review_input["editorial_frame"] == dict(
         main_question=chosen["plan"]["main_question"],
         route_summary=chosen["plan"]["route_summary"],
+        authority="revisable_authorial_decisions",
         listener_promise=chosen["plan"]["listener_promise"],
         unresolved_questions=story["unresolved_questions"],
     )

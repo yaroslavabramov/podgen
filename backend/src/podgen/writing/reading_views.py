@@ -4,8 +4,9 @@ from copy import deepcopy
 
 from podgen.domain.errors import ContractError
 
+from .craft_reference import attach_reference
 from .duration_views import duration_context
-from .projection_versions import CURRENT, V7, creative_materials, historical
+from .projection_versions import CURRENT, creative_materials, historical, script_handoff
 from .projections import (
     actionable_feedback,
     assignment_view,
@@ -19,7 +20,15 @@ from .story_views import editorial_frame, selected_labels
 
 
 def reading_payload(
-    stage, materials, *, script, readings=None, decision=None, approved_plan=None, projection_version=CURRENT
+    stage,
+    materials,
+    *,
+    script,
+    readings=None,
+    decision=None,
+    approved_plan=None,
+    projection_version=CURRENT,
+    craft_reference=None,
 ):
     packet = materials.packet
     payload = dict(
@@ -30,7 +39,7 @@ def reading_payload(
         genre=packet.assignment.genre or "podcast",
         output_language=materials.output_language,
     )
-    if projection_version == V7 and stage in ("reader-review", "revise"):
+    if script_handoff(projection_version) and stage in ("reader-review", "revise"):
         payload["duration_context"] = duration_context(
             packet.assignment, script, include_requested=stage == "reader-review"
         )
@@ -69,6 +78,8 @@ def reading_payload(
         payload["assignment"] = assignment_view(packet)
         if plan:
             payload["editorial_frame"] = editorial_frame(plan, projection_version=projection_version)
+            if "revision_scope" in readings["reader"]:
+                payload["editorial_frame"]["authority"] = "revisable_authorial_decisions"
         payload["revision_guidance"] = [
             dict(
                 origin=origin, **actionable_feedback(readings[origin], projection_version=projection_version)
@@ -100,5 +111,6 @@ def reading_payload(
         if historical(projection_version):
             payload["necessary_limits"] = list(packet.dossier.throughline_constraints)
         payload["decision"] = deepcopy(decision)
+    attach_reference(payload, stage, craft_reference)
     validate_model_content(payload, materials.documents)
     return payload

@@ -144,6 +144,7 @@ def test_actual_six_act_snow_author_and_dual_revision_wires_keep_support_not_rec
         "listener_promise",
         "unresolved_questions",
         "route_summary",
+        "authority",
     }
     assert "necessary_limits" not in revised
     assert all("important_limits" not in row for row in revised["revision_guidance"])

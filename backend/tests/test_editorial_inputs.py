@@ -96,6 +96,7 @@ def test_role_views_preserve_meaning_and_keep_backend_private(repo, editorial):
     assert set(writer["story"]) == {
         "main_question",
         "route_summary",
+        "authority",
         "listener_promise",
         "conclusion",
         "duration_strategy",

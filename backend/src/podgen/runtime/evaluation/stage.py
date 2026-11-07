@@ -8,8 +8,9 @@ from pydantic import ValidationError
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.domain.errors import ContractError
+from podgen.writing.craft_reference import pinned_reference
 from podgen.writing.model_references import CATALOG_KEY, run_references
-from podgen.writing.projection_versions import V7, manifest_version
+from podgen.writing.projection_versions import manifest_version, script_handoff
 
 from .compiler import COMPILER_VERSION, compile_request
 from .contracts import RunFailure
@@ -63,6 +64,7 @@ def execute_stage(
             manifest["response_schemas"][stage],
             projection_version=manifest_version(manifest),
             reference_catalog=references,
+            craft_reference=pinned_reference(manifest),
             approved_plan=own_plan["accepted_plan"] if own_plan else None,
             draft=outputs.get("draft"),
             feedback=outputs.get("review"),
@@ -102,7 +104,7 @@ def execute_stage(
         )
     if references is not None:
         context[CATALOG_KEY] = references.as_payload()
-    if command.input_contract == "editorial-role-packets/1" and manifest_version(manifest) == V7:
+    if command.input_contract == "editorial-role-packets/1" and script_handoff(manifest_version(manifest)):
         selected = (
             own_plan["accepted_plan"]
             if own_plan
@@ -114,7 +116,7 @@ def execute_stage(
     invocation = journal.invocation(command.run_id, stage)
     if invocation is None:
         invocation = journal.prepare(command.run_id, stage, body, context)
-    if command.input_contract == "editorial-role-packets/1" and manifest_version(manifest) == V7:
+    if command.input_contract == "editorial-role-packets/1" and script_handoff(manifest_version(manifest)):
         saved = journal.read(
             RuntimeRef(record_kind="tool_execution", record_id=invocation["request_record_id"])
         )

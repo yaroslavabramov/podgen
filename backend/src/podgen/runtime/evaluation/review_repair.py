@@ -32,7 +32,13 @@ def _rejected_feedback(journal, original, request):
     if not is_reading(original["stage"]):
         raise RunFailure("review_anchor_repair_not_eligible")
     feedback, _, _ = rejected_output(
-        journal, original, output_model(original["stage"]), code="review_anchor_repair_not_eligible"
+        journal,
+        original,
+        output_model(
+            original["stage"],
+            reader_schema_version=journal.manifest(original["run_id"]).get("reader_review_schema_version"),
+        ),
+        code="review_anchor_repair_not_eligible",
     )
     expected_mode = "script_only" if base_stage(original["stage"]) == "reader-review" else "informed"
     if feedback.reading_mode != expected_mode:

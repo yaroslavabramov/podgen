@@ -5,7 +5,7 @@ from copy import deepcopy
 from podgen.domain.errors import ContractError
 
 from .card_catalog import catalog
-from .projection_versions import CURRENT, V1, V2, V7, historical
+from .projection_versions import CURRENT, V1, V2, V8, historical, script_handoff
 
 
 def selected_labels(plan, packet):
@@ -44,7 +44,7 @@ def narrative_decisions(plan, *, projection_version=CURRENT):
             else dict(estimated_seconds_range=deepcopy(duration["estimated_seconds_range"])),
         )
     result["opening"] = {key: deepcopy(source["opening"][key]) for key in ("approach", "question_to_open")}
-    if projection_version == V7:
+    if script_handoff(projection_version):
         result["route_summary"] = source["route_summary"]
     act_fields = (
         "title",
@@ -59,6 +59,10 @@ def narrative_decisions(plan, *, projection_version=CURRENT):
     if not historical(projection_version):
         act_fields = tuple(field for field in act_fields if field != "limitations_to_voice")
     result["acts"] = [{key: deepcopy(act[key]) for key in act_fields} for act in source["acts"]]
+    if projection_version == V8:
+        result["authority"] = "revisable_authorial_decisions"
+        for act in result["acts"]:
+            act["suggested_priority"] = act.pop("priority")
     if projection_version == V1:
         result["host_functions"] = [
             {("speaker" if key == "speaker_id" else key): deepcopy(value) for key, value in host.items()}
@@ -105,8 +109,10 @@ def editorial_frame(plan, *, projection_version=CURRENT):
         raise ContractError("writing_plan_required")
     result = {"main_question": plan["plan"]["main_question"]} if projection_version not in (V1, V2) else {}
     result["listener_promise"] = plan["plan"]["listener_promise"]
-    if projection_version == V7:
+    if script_handoff(projection_version):
         result["route_summary"] = plan["plan"]["route_summary"]
+    if projection_version == V8:
+        result["authority"] = "revisable_authorial_decisions"
     if historical(projection_version):
         result["qualifications"] = deepcopy(plan["plan"]["ending"]["qualifications"])
         result["limitations"] = deepcopy(plan["limitations"])

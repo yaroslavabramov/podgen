@@ -25,12 +25,14 @@
         "observation": {
           "minLength": 1,
           "title": "Observation",
-          "type": "string"
+          "type": "string",
+          "description": "Specific effect of this choice on the story the listener would receive, whether or not its facts are correct."
         },
         "requested_change": {
           "minLength": 1,
           "title": "Requested Change",
-          "type": "string"
+          "type": "string",
+          "description": "Actionable repair of the underlying editorial problem; distinguish a proposed remedy from a new client requirement."
         },
         "preserve": {
           "items": {
@@ -38,7 +40,8 @@
             "type": "string"
           },
           "title": "Preserve",
-          "type": "array"
+          "type": "array",
+          "description": "Useful story properties, supported meaning or necessary factual conditions to retain through the repair; may be empty."
         },
         "material_refs": {
           "items": {
@@ -76,7 +79,8 @@
         "reason": {
           "minLength": 1,
           "title": "Reason",
-          "type": "string"
+          "type": "string",
+          "description": "What this addressed choice contributes to the story and listening experience; wording and position remain revisable."
         }
       },
       "required": [
@@ -136,39 +140,27 @@
   },
   "additionalProperties": false,
   "properties": {
-    "decision": {
-      "enum": [
-        "accept",
-        "revise",
-        "needs_research"
-      ],
-      "title": "Decision",
-      "type": "string"
-    },
-    "decision_reason": {
-      "minLength": 1,
-      "title": "Decision Reason",
-      "type": "string"
-    },
     "listener_answer": {
       "minLength": 1,
       "title": "Listener Answer",
       "type": "string",
-      "description": "Listener understanding this proposed reasoning would enable."
+      "description": "Reconstruct the story this exact sequence would let the audience follow: what listeners know before each discovery, how interest and understanding develop, what the ending leaves them with, and what is explained again after it is already clear. Compare the planner's added editorial question and emphasis with the client's actual request; the chosen plan is revisable."
     },
     "strengths": {
       "items": {
         "$ref": "#/$defs/PlanReviewStrength"
       },
       "title": "Strengths",
-      "type": "array"
+      "type": "array",
+      "description": "Addressed properties that help this particular story and genre work. Explain their contribution; praise does not freeze the current selection or sequence."
     },
     "findings": {
       "items": {
         "$ref": "#/$defs/PlanReviewFinding"
       },
       "title": "Findings",
-      "type": "array"
+      "type": "array",
+      "description": "Addressed editorial problems in the proposed telling, including selection, order of disclosure, repetition and an added task that displaces the client request. A factually correct act can still need repair. May be empty when the plan works; do not manufacture a problem or caveat."
     },
     "research_requests": {
       "items": {
@@ -181,6 +173,22 @@
       "minLength": 1,
       "title": "Duration Note",
       "type": "string"
+    },
+    "decision_reason": {
+      "minLength": 1,
+      "title": "Decision Reason",
+      "type": "string",
+      "description": "Concrete reason for the decision following from the preceding story assessment and addressed findings, including their consequence for this audience and request."
+    },
+    "decision": {
+      "enum": [
+        "accept",
+        "revise",
+        "needs_research"
+      ],
+      "title": "Decision",
+      "type": "string",
+      "description": "Decision reached after assessing the story enabled by this plan. Factual accuracy alone does not establish that its chosen telling works; a good plan need not be changed."
     }
   },
   "required": [

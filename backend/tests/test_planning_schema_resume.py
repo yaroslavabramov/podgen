@@ -13,7 +13,7 @@ from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.model_references import ModelReferences, bind_schema
-from podgen.writing.projection_versions import CURRENT, V5, V6
+from podgen.writing.projection_versions import CURRENT, V5, V6, V7
 from tests.test_card_ids import admitted, legacy
 from tests.test_editorial_independence import invoke
 from tests.test_independent_readings import Paused
@@ -21,7 +21,7 @@ from tests.test_own_plan import own_dataset as own_dataset
 from tests.test_v5_recovery import RecoveryProvider
 
 
-@pytest.mark.parametrize("version", [V5, V6])
+@pytest.mark.parametrize("version", [V5, V6, V7])
 def test_pending_planning_schema_is_pinned_and_drift_still_blocks_resume(
     own_dataset, tmp_path, monkeypatch, version
 ):
@@ -36,6 +36,7 @@ def test_pending_planning_schema_is_pinned_and_drift_still_blocks_resume(
         )
         manifest = deepcopy(manifest)
         manifest.pop("reader_review_schema_version", None)
+        manifest.pop("craft_reference", None)
         manifest["role_projection_version"] = version
         manifest["response_schemas"] = {
             stage: bind_schema(

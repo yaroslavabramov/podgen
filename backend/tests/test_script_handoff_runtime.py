@@ -63,7 +63,7 @@ class EditingProvider(ReadingProvider):
                 ).encode()
             )
         reply = super().submit(body, client_request_id=client_request_id)
-        if stage == "reader-review":
+        if stage == "reader-review" and body["text"]["format"]["name"] != "anchor_choices":
             envelope = json.loads(reply.body)
             content = envelope["output"][0]["content"][0]
             review = json.loads(content["text"])

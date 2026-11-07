@@ -168,7 +168,9 @@ def test_ordinary_cli_compiles_creative_and_checker_inputs_from_current_packets(
         card["story_facts"] for card in cards if card["card_id"] in selected
     ]
     assert all(set(card) == {"claim", "sources"} for card in requests["draft"]["support"])
-    for stage in ("plan-review", "fact-review"):
+    assert requests["plan-review"]["dossier"] == planner
+    assert requests["plan-review"]["evidence"]
+    for stage in ("fact-review",):
         support = (
             requests[stage]["dossier"]["knowledge_cards"]
             if stage == "plan-review"

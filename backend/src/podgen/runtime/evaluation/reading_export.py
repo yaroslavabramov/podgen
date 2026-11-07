@@ -62,6 +62,20 @@ def export_readings(journal, run_id, manifest, write_json, write_text):
         )
         title += (" · версия " if ru else " · version ") + str(index + 1)
         lines.extend(["## " + title, "", review["recommendation"], "", review["listener_answer"], ""])
+        if "revision_scope" in review:
+            scope = review["revision_scope"]
+            lines.extend(
+                [
+                    "### " + ("Масштаб правки" if ru else "Repair scale"),
+                    "",
+                    scope["scale"],
+                    "",
+                    scope["reason"],
+                    "",
+                ]
+            )
+            for anchor in scope["anchors"]:
+                lines.extend([f"{anchor['utterance_index']}: {anchor['quote']}", ""])
         for strength in review["strengths"]:
             lines.extend(["### " + ("Что работает" if ru else "What works"), "", strength["reason"], ""])
             for anchor in strength["anchors"]:

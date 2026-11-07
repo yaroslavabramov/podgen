@@ -1,0 +1,23 @@
+{
+  "payloads": {
+    "draft": "123d4ea9c4a71d9fd46ed412472b151adbfce3cec1700b323f3e63f33b50fb4f",
+    "review": "0948dfcc22840a04eaae887840e8d830452a3d1f34ee84a51c3fb25d3d011ee6",
+    "revise": "9ea3384bbf42697c046acf9d463766063ba6826e2cbe94a5f18784f36b08ff32",
+    "reading:reader-review": "ceae75d0070724e8ab76ce628757a8b116f376525c997c747e2ec5ef68ba7f2c",
+    "reading:fact-review": "b44168842dd6b2cf014c37ada968645489988409b1eae28355248917b6e7aa7b",
+    "reading:revise": "6e8bb65f1d18e943f3fc3420dfbfb80e2cbaa8130741b7318df57bae48a5b34d"
+  },
+  "schemas": {
+    "plan": "7d687bcb506a94141d2820087766e5e4ec98b1806f5ea143f1061af76795f264",
+    "plan-review": "9231ee485295a677711ef01a367eb3c63b2c7cf6fc659a7afb6c04c799d2d516",
+    "plan-revise": "7d687bcb506a94141d2820087766e5e4ec98b1806f5ea143f1061af76795f264",
+    "plan-review-revised": "9231ee485295a677711ef01a367eb3c63b2c7cf6fc659a7afb6c04c799d2d516",
+    "draft": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f",
+    "review": "c842481da76204d0769ef6642943beac7cf20f21149d0e577a1b54b9c841617c",
+    "revise": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f",
+    "reader-review": "f11479ca522cf9ad545e3a052515409c53d728d70587d526eea35c4c74959fa8",
+    "fact-review": "25c3e1dd44f34c7aace227fa38fbb65c77e23aff7d55aa11fba12e4b7484b9ff",
+    "revise-1": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f",
+    "revise-2": "593aedff189016eb3ceb0134d487d2a8eccdd9ce843f31f5c93097ae43b6935f"
+  }
+}

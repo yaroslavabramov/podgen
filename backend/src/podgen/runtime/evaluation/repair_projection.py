@@ -29,7 +29,7 @@ def anchor_payload(plan):
     original = plan.as_payload()
     selected = set()
     for broken, row in zip(plan.broken, original["invalid_anchors"], strict=True):
-        anchor = getattr(plan.feedback, broken.group)[broken.entry].anchors[broken.anchor]
+        anchor = plan.feedback.anchored_groups()[broken.group][broken.entry].anchors[broken.anchor]
         indices = {i for i, utterance in enumerate(plan.draft.utterances) if anchor.quote in utterance.text}
         if anchor.utterance_index < len(plan.draft.utterances):
             indices.add(anchor.utterance_index)

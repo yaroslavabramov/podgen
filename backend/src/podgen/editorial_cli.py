@@ -141,20 +141,29 @@ def execute(args, repo, wire_ref):
                 "fact_feedback",
             )
         }
+        from podgen.runtime.evaluation.journal import EvaluationJournal
         from podgen.runtime.evaluation.preview import preview_request
+        from podgen.runtime.evaluation.preview_snapshot import load_preview_snapshot
 
         role_stage = {"anchor-repair": "review", "plan-target-repair": "plan-review"}.get(
             args.stage, args.stage
         )
         profile = load_profile(generation, args.project, wire_ref(args.profile, ArtifactRef), role_stage)
-        body = preview_request(args.run_id, args.stage, profile, materials, **values)
+        snapshot = load_preview_snapshot(
+            EvaluationJournal(repo, args.project), generation, args.run_id, args.stage, materials
+        )
+        body = preview_request(args.run_id, args.stage, profile, materials, snapshot=snapshot, **values)
         result = dict(
             request=body, visible_bytes=visible_sizes(body), input_contract=CONTRACT, endpoint_called=False
         )
-        from podgen.writing.model_references import CATALOG_KEY, preview_references
+        from podgen.writing.model_references import CATALOG_KEY, preview_references, run_references
         from podgen.writing.projection_versions import CURRENT
 
-        references = preview_references(materials, CURRENT)
+        references = (
+            run_references(materials, snapshot.manifest)
+            if snapshot
+            else preview_references(materials, CURRENT)
+        )
         if references is not None:
             result[CATALOG_KEY] = references.as_payload()
     args.out.parent.mkdir(parents=True, exist_ok=True)

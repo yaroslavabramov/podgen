@@ -26,14 +26,16 @@ def profile_for(command, stage):
     )
 
 
-def output_model(stage):
+def output_model(stage, *, reader_schema_version=None):
     stage = base_stage(stage)
     if stage == "fact-review":
         from podgen.writing.fact_review import FactFeedback
 
         return FactFeedback
     if stage == "reader-review":
-        return EditorialFeedback
+        from podgen.writing.reader_schema import feedback_model
+
+        return feedback_model(reader_schema_version)
     if stage.startswith("plan"):
         from podgen.writing.planning_roles import PlanningOutput, PlanReviewOutput
 

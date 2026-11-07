@@ -109,6 +109,13 @@ def test_exact_v5_wire_survives_every_recovery_boundary(own_dataset, tmp_path, m
     assert review["output"]["findings"][0]["material_refs"] == [refs.card_ids[0]]
     assert review["wire_output"]["findings"][0]["material_refs"] == ["M1"]
     views = {body["metadata"]["podgen_stage"]: payload(body) for body in inner.requests}
+    for stage in ("plan-review", "plan-review-revised"):
+        actual = next(
+            payload(body)
+            for body in inner.requests
+            if body["metadata"]["podgen_stage"] == stage and "dossier" in payload(body)
+        )
+        assert actual["dossier"] == views["plan"]["dossier"]
     assert set(views["plan-revise"]["dossier"]) == {"knowledge_cards"}
     assert views["draft"]["story"]["main_question"] == "The accepted question remains whole?"
     assert views["draft"]["story"]["acts"][0]["prerequisite_concepts"] == ["A prerequisite remains complete."]
@@ -131,6 +138,7 @@ def test_v4_pending_run_keeps_native_ids_and_exact_saved_request(own_dataset, tm
         previous = deepcopy(manifest)
         previous.pop(CATALOG_KEY)
         previous.pop("reader_review_schema_version", None)
+        previous.pop("craft_reference", None)
         previous["role_projection_version"] = V4
         previous["response_schemas"] = {
             stage: response_schema(stage, command.input_contract, projection_version=V4)

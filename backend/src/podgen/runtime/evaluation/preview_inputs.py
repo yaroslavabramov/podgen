@@ -82,6 +82,10 @@ def validate_preview_snapshots(stage, materials, inputs):
             if any("support_labels" in row for row in inputs["feedback"]["findings"])
             else EditorialFeedback
         )
+        if "revision_scope" in inputs["feedback"]:
+            from podgen.writing.reader_schema import snapshot_model
+
+            model = snapshot_model(inputs["feedback"])
         review = model.model_validate(inputs["feedback"])
         if stage != "anchor-repair" and review.reading_mode != "informed":
             raise ContractError("preview_review_access_mode_mismatch")
@@ -97,8 +101,9 @@ def validate_preview_snapshots(stage, materials, inputs):
     for field, mode in (("reader_feedback", "script_only"), ("fact_feedback", "informed")):
         if inputs.get(field) is not None:
             from podgen.writing.fact_review import FactFeedback
+            from podgen.writing.reader_schema import snapshot_model
 
-            model = FactFeedback if field == "fact_feedback" else EditorialFeedback
+            model = FactFeedback if field == "fact_feedback" else snapshot_model(inputs[field])
             review = model.model_validate(inputs[field])
             review.validate_against(WriteOutput.model_validate(inputs["draft"]))
             if review.reading_mode != mode:

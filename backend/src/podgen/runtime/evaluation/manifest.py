@@ -8,6 +8,7 @@ from uuid import uuid5
 
 from podgen.domain.contracts.common import CodeProducer
 from podgen.persistence.repository import timestamp
+from podgen.writing.craft_reference import load_reference
 from podgen.writing.model_references import CATALOG_KEY, bind_schema, preview_references
 from podgen.writing.projection_versions import CURRENT
 from podgen.writing.prompts import (
@@ -27,6 +28,12 @@ from .workflow import profile_for, prompt_stage, stages_for
 
 def create_manifest(repo, generation, command, journal, materials):
     payload = materials.as_payload()
+    reference = (
+        load_reference(materials.output_language)
+        if command.input_contract == "editorial-role-packets/1"
+        and (command.initial_script_ref is None or command.max_script_revisions > 0)
+        else None
+    )
     references = preview_references(materials, CURRENT)
     producer = CodeProducer(
         kind="code",
@@ -113,6 +120,8 @@ def create_manifest(repo, generation, command, journal, materials):
             "technical script versions; canonical EpisodeSpec/StoryPlan/ScriptRevision mapping remains open",
         ],
     )
+    if reference is not None:
+        manifest["craft_reference"] = reference
     if references is not None:
         manifest[CATALOG_KEY] = references.as_payload()
     if independent(command) and command.initial_script_ref is not None:

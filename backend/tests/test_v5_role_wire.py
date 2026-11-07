@@ -118,7 +118,7 @@ def test_every_v5_role_uses_its_real_creative_or_checker_view_without_losing_que
         stage: payload(preview_request(uuid4(), stage, profile, materials, **inputs))
         for stage, inputs in stages.items()
     }
-    for stage in ("plan", "plan-revise"):
+    for stage in ("plan", "plan-revise", "plan-review", "plan-review-revised"):
         assert set(wires[stage]["dossier"]) == {"knowledge_cards"}
         for card, original, alias in zip(
             wires[stage]["dossier"]["knowledge_cards"],
@@ -153,11 +153,9 @@ def test_every_v5_role_uses_its_real_creative_or_checker_view_without_losing_que
         == plan["plan"]["acts"][0]["prerequisite_concepts"]
     )
     for stage in ("plan-review", "plan-review-revised"):
-        assert wires[stage]["dossier"]["throughline_constraints"] == list(
-            materials.packet.dossier.throughline_constraints
-        )
+        assert wires[stage]["dossier"] == wires["plan"]["dossier"]
         assert wires[stage]["candidate_plan"] == refs.translate(candidate_view(plan, projection_version=V5))
-    for cards in (wires["plan-review"]["dossier"]["knowledge_cards"], wires["fact-review"]["support"]):
+    for cards in (wires["fact-review"]["support"],):
         for card, original in zip(cards, materials.packet.dossier.knowledge_cards, strict=True):
             assert card["claim"] == original.claim and card["context"] == original.context
             assert card["limitations"] == list(original.limitations)

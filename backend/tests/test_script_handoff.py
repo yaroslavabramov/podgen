@@ -15,7 +15,7 @@ from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.writing.duration_views import duration_context
 from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.model_references import ModelReferences
-from podgen.writing.projection_versions import CURRENT, V6
+from podgen.writing.projection_versions import CURRENT, V6, V7
 from podgen.writing.projections import actionable_feedback, role_payload
 from podgen.writing.reading_views import reading_payload
 from tests.test_editorial_independence import payload
@@ -29,9 +29,7 @@ def wire_hash(value):
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
 
 
-def test_v6_pre_change_payload_and_schema_bytes_stay_reproducible():
-    expected = json.loads((ROOT / "backend/tests/fixtures/role-projection-v6.hashes.json").read_text())
-
+def historical_views(version):
     def read(name):
         return json.loads((ARCHIVE / name).read_text())["output"]
 
@@ -46,7 +44,8 @@ def test_v6_pre_change_payload_and_schema_bytes_stay_reproducible():
         revise=dict(approved_plan=plan, draft=script, feedback=review),
     )
     views = {
-        stage: role_payload(stage, materials, projection_version=V6, **args) for stage, args in inputs.items()
+        stage: role_payload(stage, materials, projection_version=version, **args)
+        for stage, args in inputs.items()
     }
     for stage in ("reader-review", "fact-review", "revise"):
         args = dict(script=script)
@@ -56,12 +55,21 @@ def test_v6_pre_change_payload_and_schema_bytes_stay_reproducible():
                 decision=dict(recommendation="revise", reason="required_changes_from_independent_readings"),
                 approved_plan=plan,
             )
-        views["reading:" + stage] = reading_payload(stage, materials, projection_version=V6, **args)
+        views["reading:" + stage] = reading_payload(stage, materials, projection_version=version, **args)
+    return views
+
+
+@pytest.mark.parametrize("version", [V6, V7])
+def test_pre_change_payload_and_schema_bytes_stay_reproducible(version):
+    tag = version.rsplit("/", 1)[1]
+    expected = json.loads((ROOT / f"backend/tests/fixtures/role-projection-v{tag}.hashes.json").read_text())
+    views = historical_views(version)
     assert {stage: wire_hash(view) for stage, view in views.items()} == expected["payloads"]
     for stage, hash_value in expected["schemas"].items():
-        frozen = response_schema(stage, "editorial-role-packets/1", projection_version=V6)
+        frozen = response_schema(stage, "editorial-role-packets/1", projection_version=version)
         assert wire_hash(frozen) == hash_value
-        assert response_schema(stage, "editorial-role-packets/1", projection_version=CURRENT) == frozen
+        if not stage.startswith("plan-review"):
+            assert response_schema(stage, "editorial-role-packets/1", projection_version=CURRENT) == frozen
 
 
 @pytest.mark.parametrize("case", ["snow-pump", "gps-clock"])
@@ -101,6 +109,11 @@ def test_real_current_previews_keep_exact_route_and_isolate_the_cold_reader(case
         )
     )
     assert writer["story"]["route_summary"] == plan["plan"]["route_summary"]
+    assert writer["story"]["authority"] == "revisable_authorial_decisions"
+    assert [act["suggested_priority"] for act in writer["story"]["acts"]] == [
+        act["priority"] for act in plan["plan"]["acts"]
+    ]
+    assert all("priority" not in act for act in writer["story"]["acts"])
     assert rewrite["editorial_frame"]["route_summary"] == plan["plan"]["route_summary"]
     assert writer["duration_context"]["current_text"] is None
     assert set(cold) == {"script", "audience", "format", "genre", "output_language", "duration_context"}
@@ -153,3 +166,24 @@ def test_duration_reference_is_text_only_and_does_not_extend_to_other_languages(
     assert "estimate_basis" not in duration_context(
         assignment.model_copy(update=dict(format="dialogue")), script
     )
+
+
+def test_all_five_archived_essential_acts_are_suggestions_without_new_client_requirements():
+    archive = json.loads((ROOT / "evals/reports/2026-11-07-snow-short-editorial/planning.json").read_text())
+    plan = archive["plan-revise"].get("output", archive["plan-revise"])
+    packet = EditorialInput.model_validate_json(
+        (ROOT / "evals/editorial-inputs/current/snow-pump/shared.json").read_bytes()
+    )
+    assert packet.assignment.required_topics == []
+    assert len(plan["plan"]["acts"]) == 5
+    assert all(act["priority"] == "essential" for act in plan["plan"]["acts"])
+    plan = ModelReferences.create(packet).translate(plan, inbound=True)
+    original = deepcopy(plan)
+    materials = EditorialMaterials(packet, RuntimeRef(record_kind="user_input", record_id=uuid4()), ())
+    visible = role_payload("draft", materials, approved_plan=plan)
+    assert visible["assignment"]["required_topics"] == []
+    assert visible["story"]["authority"] == "revisable_authorial_decisions"
+    assert all(
+        act["suggested_priority"] == "essential" and "priority" not in act for act in visible["story"]["acts"]
+    )
+    assert plan == original

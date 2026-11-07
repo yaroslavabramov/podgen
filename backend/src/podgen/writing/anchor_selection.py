@@ -69,8 +69,8 @@ class AnchorRepairPlan:
         draft = draft.model_copy(deep=True)
         feedback = feedback.model_copy(deep=True)
         broken = []
-        for group in ("strengths", "findings", "research_requests"):
-            for entry_index, entry in enumerate(getattr(feedback, group)):
+        for group, entries in feedback.anchored_groups().items():
+            for entry_index, entry in enumerate(entries):
                 for anchor_index, anchor in enumerate(entry.anchors):
                     index = anchor.utterance_index
                     if index >= len(draft.utterances) or anchor.quote not in draft.utterances[index].text:
@@ -80,7 +80,7 @@ class AnchorRepairPlan:
     def as_payload(self) -> dict:
         invalid = []
         for item in self.broken:
-            entry = getattr(self.feedback, item.group)[item.entry]
+            entry = self.feedback.anchored_groups()[item.group][item.entry]
             invalid.append(
                 {
                     "anchor_id": item.anchor_id,
@@ -114,7 +114,7 @@ class AnchorRepairPlan:
                 raise ContractError("unknown_anchor_selector", choice.selector_id)
             passage = passages[choice.selector_id]
             target = locations[choice.anchor_id]
-            entry = getattr(repaired, target.group)[target.entry]
+            entry = repaired.anchored_groups()[target.group][target.entry]
             entry.anchors[target.anchor] = UtteranceAnchor(
                 utterance_index=passage.utterance_index, quote=passage.text
             )
