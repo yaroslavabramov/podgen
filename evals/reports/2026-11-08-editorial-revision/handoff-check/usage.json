@@ -1,0 +1,238 @@
+{
+  "calls": [
+    {
+      "stage": "draft",
+      "invocation_id": "f882f9f2-5967-557f-adf3-6f304a13cccc",
+      "model": "claude-opus-5-5",
+      "response_id": "msg_011CgqzcGnfEvv7tpYnEw61X",
+      "status": "end_turn",
+      "usage": {
+        "input_tokens": 20469,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 6494,
+        "output_tokens_details": {
+          "thinking_tokens": 1117
+        },
+        "service_tier": "standard",
+        "inference_geo": "global",
+        "speed": "standard"
+      },
+      "estimated_usd": "0.211756",
+      "actual_request_file": "requests/draft-f882f9f2-5967-557f-adf3-6f304a13cccc.json",
+      "original_request_sha256": "88f5f4b76bc2a7de32eb55026f9eda70a06cc57a609401cb6290f49698d47cef",
+      "archived_request_sha256": "88f5f4b76bc2a7de32eb55026f9eda70a06cc57a609401cb6290f49698d47cef",
+      "native_instructions_sha256": "94363f7852b17a95968fbb444289d81b5e4047f7b1d6b9cb7347efa588ba66d3",
+      "transport": "Anthropic Messages adapter"
+    },
+    {
+      "stage": "reader-review",
+      "invocation_id": "02ac097e-cd7c-588a-b862-30bb546f3c3e",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0a58ae1ba6e6bf02016af0ca2fd41887d2ab87e73d52e8b221",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 6383,
+        "input_tokens_details": {
+          "cache_write_tokens": 3775,
+          "cached_tokens": 2605
+        },
+        "output_tokens": 2556,
+        "output_tokens_details": {
+          "reasoning_tokens": 813
+        },
+        "total_tokens": 8939
+      },
+      "estimated_usd": "0.017632",
+      "actual_request_file": "requests/reader-review-02ac097e-cd7c-588a-b862-30bb546f3c3e.json",
+      "original_request_sha256": "9e48ee18727be49371142da5a2bc70a5577fd2359401b0fa1c7eb78768c0aae6",
+      "archived_request_sha256": "9e48ee18727be49371142da5a2bc70a5577fd2359401b0fa1c7eb78768c0aae6",
+      "native_instructions_sha256": "b8c0433bd6bfb2e09d58534cebcfd70a74b159dad0d9a5578f7dc7583e9f9449"
+    },
+    {
+      "stage": "fact-review",
+      "invocation_id": "7931a498-102a-5c3b-923b-c474a349858b",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_027fa08aa14d5925016af0ca4faee087d2ba4e6ed0ed61227b",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 17734,
+        "input_tokens_details": {
+          "cache_write_tokens": 15580,
+          "cached_tokens": 2151
+        },
+        "output_tokens": 3529,
+        "output_tokens_details": {
+          "reasoning_tokens": 896
+        },
+        "total_tokens": 21263
+      },
+      "estimated_usd": "0.03723055",
+      "actual_request_file": "requests/fact-review-7931a498-102a-5c3b-923b-c474a349858b.json",
+      "original_request_sha256": "b1f299b627098d5412a14f8a0dc3b1e598778ce7b02f4206c79b62227823edf0",
+      "archived_request_sha256": "b1f299b627098d5412a14f8a0dc3b1e598778ce7b02f4206c79b62227823edf0",
+      "native_instructions_sha256": "3fe65017933190a483dd763177f83d2a57e1665159969663f586e096d2c07507"
+    },
+    {
+      "stage": "revise-1",
+      "invocation_id": "d3182812-4fbd-5979-aa59-0e015549cbef",
+      "model": "claude-opus-5-5",
+      "response_id": "msg_011CgqzncFxfs2gdMQJdQUHZ",
+      "status": "end_turn",
+      "usage": {
+        "input_tokens": 32422,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 1673,
+        "output_tokens_details": {
+          "thinking_tokens": 1171
+        },
+        "service_tier": "standard",
+        "inference_geo": "global",
+        "speed": "standard"
+      },
+      "estimated_usd": "0.163148",
+      "actual_request_file": "requests/revise-1-d3182812-4fbd-5979-aa59-0e015549cbef.json",
+      "original_request_sha256": "3f6a1f5aa19689364b14c72cd480295d6990e09980c713ec1dce49558ddbfebe",
+      "archived_request_sha256": "3f6a1f5aa19689364b14c72cd480295d6990e09980c713ec1dce49558ddbfebe",
+      "native_instructions_sha256": "5aae30c44ed610b14097f0d3681d6ed56c138724efee45dfd203f5cac5773c7a",
+      "transport": "Anthropic Messages adapter"
+    },
+    {
+      "stage": "reader-review-1",
+      "invocation_id": "bd648872-9568-5db0-8466-15bc446b0b23",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0acd0b7a343cec72016af0ca8ff4dc87d28349d6dfaba27c5a",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 6449,
+        "input_tokens_details": {
+          "cache_write_tokens": 3839,
+          "cached_tokens": 2607
+        },
+        "output_tokens": 2863,
+        "output_tokens_details": {
+          "reasoning_tokens": 1199
+        },
+        "total_tokens": 9312
+      },
+      "estimated_usd": "0.0192471",
+      "actual_request_file": "requests/reader-review-1-bd648872-9568-5db0-8466-15bc446b0b23.json",
+      "original_request_sha256": "3510a4ff71c96971e254c61a5712fec257fc1248783e7fa48bf2a7d9d800ecd1",
+      "archived_request_sha256": "3510a4ff71c96971e254c61a5712fec257fc1248783e7fa48bf2a7d9d800ecd1",
+      "native_instructions_sha256": "b8c0433bd6bfb2e09d58534cebcfd70a74b159dad0d9a5578f7dc7583e9f9449"
+    },
+    {
+      "stage": "fact-review-1",
+      "invocation_id": "cb37910f-aa3b-56b4-9355-9f666524bab8",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0ccb28e89a0ae148016af0cab425c487d292bbde16ab492ede",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 17800,
+        "input_tokens_details": {
+          "cache_write_tokens": 15644,
+          "cached_tokens": 2153
+        },
+        "output_tokens": 3232,
+        "output_tokens_details": {
+          "reasoning_tokens": 1034
+        },
+        "total_tokens": 21032
+      },
+      "estimated_usd": "0.03582565",
+      "actual_request_file": "requests/fact-review-1-cb37910f-aa3b-56b4-9355-9f666524bab8.json",
+      "original_request_sha256": "12829a62dcf52927cf7129d3c72dfa1f97c712174019adc234a2182a266a437e",
+      "archived_request_sha256": "12829a62dcf52927cf7129d3c72dfa1f97c712174019adc234a2182a266a437e",
+      "native_instructions_sha256": "3fe65017933190a483dd763177f83d2a57e1665159969663f586e096d2c07507"
+    },
+    {
+      "stage": "revise-2",
+      "invocation_id": "b61498b3-2f98-5e69-96ca-c52749b3911c",
+      "model": "claude-opus-5-5",
+      "response_id": "msg_011CgqzurvyGMVPUs4D3o5LN",
+      "status": "end_turn",
+      "usage": {
+        "input_tokens": 30823,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 1376,
+        "output_tokens_details": {
+          "thinking_tokens": 909
+        },
+        "service_tier": "standard",
+        "inference_geo": "global",
+        "speed": "standard"
+      },
+      "estimated_usd": "0.150812",
+      "actual_request_file": "requests/revise-2-b61498b3-2f98-5e69-96ca-c52749b3911c.json",
+      "original_request_sha256": "c293588f102dd69de50ab6a6b26f8cfb211ffd924a8214ae284affb6cf96ee78",
+      "archived_request_sha256": "c293588f102dd69de50ab6a6b26f8cfb211ffd924a8214ae284affb6cf96ee78",
+      "native_instructions_sha256": "5aae30c44ed610b14097f0d3681d6ed56c138724efee45dfd203f5cac5773c7a",
+      "transport": "Anthropic Messages adapter"
+    },
+    {
+      "stage": "reader-review-2",
+      "invocation_id": "f4e3cc33-3843-5259-85b4-8e382c564ab7",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0c53f1e11dab07b0016af0caee0e0887d2b6c1ee2724826bc5",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 6484,
+        "input_tokens_details": {
+          "cache_write_tokens": 3874,
+          "cached_tokens": 2607
+        },
+        "output_tokens": 3036,
+        "output_tokens_details": {
+          "reasoning_tokens": 1552
+        },
+        "total_tokens": 9520
+      },
+      "estimated_usd": "0.02015585",
+      "actual_request_file": "requests/reader-review-2-f4e3cc33-3843-5259-85b4-8e382c564ab7.json",
+      "original_request_sha256": "c21a3c32f5b5e03ef495f6301fff377aa29fdcc3c1cbc17d0ffde3e9424a5f02",
+      "archived_request_sha256": "c21a3c32f5b5e03ef495f6301fff377aa29fdcc3c1cbc17d0ffde3e9424a5f02",
+      "native_instructions_sha256": "b8c0433bd6bfb2e09d58534cebcfd70a74b159dad0d9a5578f7dc7583e9f9449"
+    },
+    {
+      "stage": "fact-review-2",
+      "invocation_id": "cb76a9d0-f03e-507f-b833-0403ca9c1b9c",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_06cef52d561b1d64016af0cb136c1087d29deda7835b1d86e8",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 17835,
+        "input_tokens_details": {
+          "cache_write_tokens": 15679,
+          "cached_tokens": 2153
+        },
+        "output_tokens": 3509,
+        "output_tokens_details": {
+          "reasoning_tokens": 1653
+        },
+        "total_tokens": 21344
+      },
+      "estimated_usd": "0.0372544",
+      "actual_request_file": "requests/fact-review-2-cb76a9d0-f03e-507f-b833-0403ca9c1b9c.json",
+      "original_request_sha256": "0783f3db971651a79107f56fb0998560db52308a8c205adb2b07e222aeba21f0",
+      "archived_request_sha256": "0783f3db971651a79107f56fb0998560db52308a8c205adb2b07e222aeba21f0",
+      "native_instructions_sha256": "3fe65017933190a483dd763177f83d2a57e1665159969663f586e096d2c07507"
+    }
+  ],
+  "generations": 9,
+  "estimated_total_usd": "0.69306155",
+  "pricing": "../../2026-11-08-author-openings/pricing.json"
+}

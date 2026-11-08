@@ -1,0 +1,77 @@
+{
+  "run_id": "5053db0a-5123-5af2-8ea2-e7cc662729c4",
+  "frozen_sha": "12cf2c14b6b3734ac98c2cdfed8d5ea99cffd16d",
+  "plan_mode": "fixed-plan",
+  "status": "needs_attention",
+  "failure_code": "independent_review_revision_limit_exhausted",
+  "versions": [
+    {
+      "stage": "draft",
+      "script_hash": "6cecff5bf9afc65be2d6945302cd6e873ffd4b6f0cc482070140cbadc43f20c9",
+      "utterances": 32,
+      "words": 1732,
+      "estimated_seconds": 945
+    },
+    {
+      "stage": "revise-1",
+      "script_hash": "e1e23e9325879f3f3c2f917f0fe87a0c87c2d549b7552bb70305dc74370fdf0d",
+      "utterances": 32,
+      "words": 1771,
+      "estimated_seconds": 966,
+      "mode": "targeted"
+    },
+    {
+      "stage": "revise-2",
+      "script_hash": "833162ee8ad5bf585f5b089e317e7c781dfd1d57c5ae53c1ba522adaf443e6f3",
+      "utterances": 32,
+      "words": 1780,
+      "estimated_seconds": 971,
+      "mode": "targeted"
+    }
+  ],
+  "readings": [
+    {
+      "stage": "reader-review",
+      "script_hash": "6cecff5bf9afc65be2d6945302cd6e873ffd4b6f0cc482070140cbadc43f20c9",
+      "recommendation": "revise",
+      "scale": "local",
+      "findings": 3
+    },
+    {
+      "stage": "fact-review",
+      "script_hash": "6cecff5bf9afc65be2d6945302cd6e873ffd4b6f0cc482070140cbadc43f20c9",
+      "recommendation": "revise",
+      "scale": "local",
+      "findings": 3
+    },
+    {
+      "stage": "reader-review-1",
+      "script_hash": "e1e23e9325879f3f3c2f917f0fe87a0c87c2d549b7552bb70305dc74370fdf0d",
+      "recommendation": "revise",
+      "scale": "local",
+      "findings": 3
+    },
+    {
+      "stage": "fact-review-1",
+      "script_hash": "e1e23e9325879f3f3c2f917f0fe87a0c87c2d549b7552bb70305dc74370fdf0d",
+      "recommendation": "revise",
+      "scale": "local",
+      "findings": 2
+    },
+    {
+      "stage": "reader-review-2",
+      "script_hash": "833162ee8ad5bf585f5b089e317e7c781dfd1d57c5ae53c1ba522adaf443e6f3",
+      "recommendation": "revise",
+      "scale": "local",
+      "findings": 1
+    },
+    {
+      "stage": "fact-review-2",
+      "script_hash": "833162ee8ad5bf585f5b089e317e7c781dfd1d57c5ae53c1ba522adaf443e6f3",
+      "recommendation": "revise",
+      "scale": "local",
+      "findings": 2
+    }
+  ],
+  "editorial_outcome": "revision_limit_exhausted"
+}

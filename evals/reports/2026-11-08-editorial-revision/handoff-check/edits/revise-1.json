@@ -1,0 +1,544 @@
+{
+  "contract": "addressed-script-revision/1",
+  "operation": {
+    "mode": "targeted",
+    "script_version": 0,
+    "targets": [
+      {
+        "target_id": "T1",
+        "kind": "text",
+        "utterance_index": 5,
+        "start": 68,
+        "end": 189,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "список смертей от холеры, зарегистрированных за неделю, которая закончилась второго сентября. Восемьдесят девять смертей.",
+        "delete": {
+          "start": 68,
+          "end": 190,
+          "text": "список смертей от холеры, зарегистрированных за неделю, которая закончилась второго сентября. Восемьдесят девять смертей. "
+        },
+        "basis": [
+          "fact.findings.0"
+        ]
+      },
+      {
+        "target_id": "T2",
+        "kind": "text",
+        "utterance_index": 8,
+        "start": 46,
+        "end": 74,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Таких смертей семьдесят три.",
+        "delete": {
+          "start": 46,
+          "end": 75,
+          "text": "Таких смертей семьдесят три. "
+        },
+        "basis": [
+          "fact.dependent_passages.0",
+          "fact.dependent_passages.0.context"
+        ]
+      },
+      {
+        "target_id": "T3",
+        "kind": "text",
+        "utterance_index": 9,
+        "start": 0,
+        "end": 41,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Следующая проверка идёт с другой стороны.",
+        "delete": {
+          "start": 0,
+          "end": 42,
+          "text": "Следующая проверка идёт с другой стороны. "
+        },
+        "basis": [
+          "fact.findings.1",
+          "fact.findings.1.context"
+        ]
+      },
+      {
+        "target_id": "T4",
+        "kind": "text",
+        "utterance_index": 11,
+        "start": 53,
+        "end": 134,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Сноу замечает, что в списке умерших нет ни одного её рабочего, и идёт к владельцу",
+        "delete": {
+          "start": 53,
+          "end": 134,
+          "text": "Сноу замечает, что в списке умерших нет ни одного её рабочего, и идёт к владельцу"
+        },
+        "basis": [
+          "fact.findings.1"
+        ]
+      },
+      {
+        "target_id": "T5",
+        "kind": "text",
+        "utterance_index": 11,
+        "start": 53,
+        "end": 153,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Сноу замечает, что в списке умерших нет ни одного её рабочего, и идёт к владельцу, мистеру Хаггинсу.",
+        "delete": {
+          "start": 53,
+          "end": 154,
+          "text": "Сноу замечает, что в списке умерших нет ни одного её рабочего, и идёт к владельцу, мистеру Хаггинсу. "
+        },
+        "basis": [
+          "fact.findings.1.context"
+        ]
+      },
+      {
+        "target_id": "T6",
+        "kind": "text",
+        "utterance_index": 12,
+        "start": 98,
+        "end": 209,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Но совпадение уже трудно не заметить: та же улица, тот же воздух, другой источник воды — и совсем другой исход.",
+        "delete": {
+          "start": 97,
+          "end": 209,
+          "text": " Но совпадение уже трудно не заметить: та же улица, тот же воздух, другой источник воды — и совсем другой исход."
+        },
+        "basis": [
+          "fact.dependent_passages.1.context"
+        ]
+      },
+      {
+        "target_id": "T7",
+        "kind": "text",
+        "utterance_index": 12,
+        "start": 101,
+        "end": 134,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "совпадение уже трудно не заметить",
+        "delete": {
+          "start": 101,
+          "end": 134,
+          "text": "совпадение уже трудно не заметить"
+        },
+        "basis": [
+          "fact.dependent_passages.1"
+        ]
+      },
+      {
+        "target_id": "T8",
+        "kind": "text",
+        "utterance_index": 13,
+        "start": 0,
+        "end": 36,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Вечером в четверг, седьмого сентября",
+        "delete": {
+          "start": 0,
+          "end": 36,
+          "text": "Вечером в четверг, седьмого сентября"
+        },
+        "basis": [
+          "fact.dependent_passages.1"
+        ]
+      },
+      {
+        "target_id": "T9",
+        "kind": "text",
+        "utterance_index": 13,
+        "start": 0,
+        "end": 118,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Вечером в четверг, седьмого сентября, Сноу, по его собственному рассказу, излагает обстоятельства своего расследования",
+        "delete": {
+          "start": 0,
+          "end": 119,
+          "text": "Вечером в четверг, седьмого сентября, Сноу, по его собственному рассказу, излагает обстоятельства своего расследования "
+        },
+        "basis": [
+          "fact.findings.1"
+        ]
+      },
+      {
+        "target_id": "T10",
+        "kind": "text",
+        "utterance_index": 13,
+        "start": 0,
+        "end": 151,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Вечером в четверг, седьмого сентября, Сноу, по его собственному рассказу, излагает обстоятельства своего расследования попечителям прихода Сент-Джеймс.",
+        "delete": {
+          "start": 0,
+          "end": 152,
+          "text": "Вечером в четверг, седьмого сентября, Сноу, по его собственному рассказу, излагает обстоятельства своего расследования попечителям прихода Сент-Джеймс. "
+        },
+        "basis": [
+          "fact.findings.1.context",
+          "fact.dependent_passages.1.context"
+        ]
+      },
+      {
+        "target_id": "T11",
+        "kind": "text",
+        "utterance_index": 17,
+        "start": 213,
+        "end": 280,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Внимание на этот случай ему первым обратил коллега, доктор Фрейзер.",
+        "delete": {
+          "start": 213,
+          "end": 281,
+          "text": "Внимание на этот случай ему первым обратил коллега, доктор Фрейзер. "
+        },
+        "basis": [
+          "reader.findings.1",
+          "reader.findings.1.context"
+        ]
+      },
+      {
+        "target_id": "T12",
+        "kind": "text",
+        "utterance_index": 20,
+        "start": 165,
+        "end": 205,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Её связывает с Брод-стрит только бутыль.",
+        "delete": {
+          "start": 164,
+          "end": 205,
+          "text": " Её связывает с Брод-стрит только бутыль."
+        },
+        "basis": [
+          "fact.findings.2",
+          "fact.findings.2.context"
+        ]
+      },
+      {
+        "target_id": "T13",
+        "kind": "text",
+        "utterance_index": 27,
+        "start": 0,
+        "end": 32,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Было ли у девочки именно холера?",
+        "delete": {
+          "start": 0,
+          "end": 33,
+          "text": "Было ли у девочки именно холера? "
+        },
+        "basis": [
+          "reader.findings.2",
+          "reader.findings.2.context"
+        ]
+      },
+      {
+        "target_id": "T14",
+        "kind": "text",
+        "utterance_index": 30,
+        "start": 59,
+        "end": 193,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Как удаляли отходы больных с третьего этажа? Выясняется, что из-за того, как это делали, в выгребную яму могло попасть совсем немного.",
+        "delete": {
+          "start": 59,
+          "end": 194,
+          "text": "Как удаляли отходы больных с третьего этажа? Выясняется, что из-за того, как это делали, в выгребную яму могло попасть совсем немного. "
+        },
+        "basis": [
+          "reader.findings.0"
+        ]
+      },
+      {
+        "target_id": "B5",
+        "kind": "boundary",
+        "before_utterance_index": 5,
+        "basis": [
+          "fact.findings.0"
+        ]
+      },
+      {
+        "target_id": "B6",
+        "kind": "boundary",
+        "before_utterance_index": 6,
+        "basis": [
+          "fact.findings.0"
+        ]
+      },
+      {
+        "target_id": "B8",
+        "kind": "boundary",
+        "before_utterance_index": 8,
+        "basis": [
+          "fact.dependent_passages.0",
+          "fact.dependent_passages.0.context"
+        ]
+      },
+      {
+        "target_id": "B9",
+        "kind": "boundary",
+        "before_utterance_index": 9,
+        "basis": [
+          "fact.dependent_passages.0",
+          "fact.dependent_passages.0.context",
+          "fact.findings.1",
+          "fact.findings.1.context"
+        ]
+      },
+      {
+        "target_id": "B10",
+        "kind": "boundary",
+        "before_utterance_index": 10,
+        "basis": [
+          "fact.findings.1",
+          "fact.findings.1.context"
+        ]
+      },
+      {
+        "target_id": "B11",
+        "kind": "boundary",
+        "before_utterance_index": 11,
+        "basis": [
+          "fact.findings.1",
+          "fact.findings.1.context"
+        ]
+      },
+      {
+        "target_id": "B12",
+        "kind": "boundary",
+        "before_utterance_index": 12,
+        "basis": [
+          "fact.findings.1",
+          "fact.findings.1.context",
+          "fact.dependent_passages.1.context",
+          "fact.dependent_passages.1"
+        ]
+      },
+      {
+        "target_id": "B13",
+        "kind": "boundary",
+        "before_utterance_index": 13,
+        "basis": [
+          "fact.dependent_passages.1.context",
+          "fact.dependent_passages.1",
+          "fact.findings.1",
+          "fact.findings.1.context"
+        ]
+      },
+      {
+        "target_id": "B14",
+        "kind": "boundary",
+        "before_utterance_index": 14,
+        "basis": [
+          "fact.dependent_passages.1",
+          "fact.findings.1",
+          "fact.findings.1.context",
+          "fact.dependent_passages.1.context"
+        ]
+      },
+      {
+        "target_id": "B17",
+        "kind": "boundary",
+        "before_utterance_index": 17,
+        "basis": [
+          "reader.findings.1",
+          "reader.findings.1.context"
+        ]
+      },
+      {
+        "target_id": "B18",
+        "kind": "boundary",
+        "before_utterance_index": 18,
+        "basis": [
+          "reader.findings.1",
+          "reader.findings.1.context"
+        ]
+      },
+      {
+        "target_id": "B20",
+        "kind": "boundary",
+        "before_utterance_index": 20,
+        "basis": [
+          "fact.findings.2",
+          "fact.findings.2.context"
+        ]
+      },
+      {
+        "target_id": "B21",
+        "kind": "boundary",
+        "before_utterance_index": 21,
+        "basis": [
+          "fact.findings.2",
+          "fact.findings.2.context"
+        ]
+      },
+      {
+        "target_id": "B27",
+        "kind": "boundary",
+        "before_utterance_index": 27,
+        "basis": [
+          "reader.findings.2",
+          "reader.findings.2.context"
+        ]
+      },
+      {
+        "target_id": "B28",
+        "kind": "boundary",
+        "before_utterance_index": 28,
+        "basis": [
+          "reader.findings.2",
+          "reader.findings.2.context"
+        ]
+      },
+      {
+        "target_id": "B30",
+        "kind": "boundary",
+        "before_utterance_index": 30,
+        "basis": [
+          "reader.findings.0"
+        ]
+      },
+      {
+        "target_id": "B31",
+        "kind": "boundary",
+        "before_utterance_index": 31,
+        "basis": [
+          "reader.findings.0"
+        ]
+      }
+    ],
+    "sequences": []
+  },
+  "wire_output": {
+    "edits": [
+      {
+        "operation": "replace",
+        "target_id": "T1",
+        "text": "список смертей от холеры, зарегистрированных за неделю, которая закончилась второго сентября, в трёх небольших подрайонах Сохо вокруг колонки. Восемьдесят девять смертей."
+      },
+      {
+        "operation": "replace",
+        "target_id": "T3",
+        "text": "В своей книге Сноу описывает и проверку с другой стороны. Когда именно он собрал эти сведения, до встречи с приходским начальством или позже, из его рассказа не видно."
+      },
+      {
+        "operation": "replace",
+        "target_id": "T7",
+        "text": "совпадение трудно не заметить"
+      },
+      {
+        "operation": "replace",
+        "target_id": "T8",
+        "text": "Теперь вернёмся к датам. Вечером в четверг, седьмого сентября"
+      },
+      {
+        "operation": "replace",
+        "target_id": "T11",
+        "text": "Первым обратил внимание Сноу на этот случай коллега, доктор Фрейзер."
+      },
+      {
+        "operation": "replace",
+        "target_id": "T12",
+        "text": "Зато к ней каждый день могла приехать вода с Брод-стрит."
+      },
+      {
+        "operation": "replace",
+        "target_id": "T13",
+        "text": "Была ли у девочки именно холера?"
+      },
+      {
+        "operation": "replace",
+        "target_id": "T14",
+        "text": "Как удаляли отходы больных с третьего этажа? Вывод самого Уайтхеда такой: при том способе, каким их убирали, в выгребную яму могло попасть совсем немного."
+      }
+    ],
+    "composition_update": null
+  },
+  "application": {
+    "base_script_hash": "6cecff5bf9afc65be2d6945302cd6e873ffd4b6f0cc482070140cbadc43f20c9",
+    "result_script_hash": "e1e23e9325879f3f3c2f917f0fe87a0c87c2d549b7552bb70305dc74370fdf0d",
+    "edits": [
+      {
+        "operation_index": 0,
+        "operation": "replace",
+        "target_id": "T1",
+        "utterance_index": 5,
+        "start": 68,
+        "end": 189,
+        "before": "список смертей от холеры, зарегистрированных за неделю, которая закончилась второго сентября. Восемьдесят девять смертей.",
+        "after": "список смертей от холеры, зарегистрированных за неделю, которая закончилась второго сентября, в трёх небольших подрайонах Сохо вокруг колонки. Восемьдесят девять смертей."
+      },
+      {
+        "operation_index": 1,
+        "operation": "replace",
+        "target_id": "T3",
+        "utterance_index": 9,
+        "start": 0,
+        "end": 41,
+        "before": "Следующая проверка идёт с другой стороны.",
+        "after": "В своей книге Сноу описывает и проверку с другой стороны. Когда именно он собрал эти сведения, до встречи с приходским начальством или позже, из его рассказа не видно."
+      },
+      {
+        "operation_index": 2,
+        "operation": "replace",
+        "target_id": "T7",
+        "utterance_index": 12,
+        "start": 101,
+        "end": 134,
+        "before": "совпадение уже трудно не заметить",
+        "after": "совпадение трудно не заметить"
+      },
+      {
+        "operation_index": 3,
+        "operation": "replace",
+        "target_id": "T8",
+        "utterance_index": 13,
+        "start": 0,
+        "end": 36,
+        "before": "Вечером в четверг, седьмого сентября",
+        "after": "Теперь вернёмся к датам. Вечером в четверг, седьмого сентября"
+      },
+      {
+        "operation_index": 4,
+        "operation": "replace",
+        "target_id": "T11",
+        "utterance_index": 17,
+        "start": 213,
+        "end": 280,
+        "before": "Внимание на этот случай ему первым обратил коллега, доктор Фрейзер.",
+        "after": "Первым обратил внимание Сноу на этот случай коллега, доктор Фрейзер."
+      },
+      {
+        "operation_index": 5,
+        "operation": "replace",
+        "target_id": "T12",
+        "utterance_index": 20,
+        "start": 165,
+        "end": 205,
+        "before": "Её связывает с Брод-стрит только бутыль.",
+        "after": "Зато к ней каждый день могла приехать вода с Брод-стрит."
+      },
+      {
+        "operation_index": 6,
+        "operation": "replace",
+        "target_id": "T13",
+        "utterance_index": 27,
+        "start": 0,
+        "end": 32,
+        "before": "Было ли у девочки именно холера?",
+        "after": "Была ли у девочки именно холера?"
+      },
+      {
+        "operation_index": 7,
+        "operation": "replace",
+        "target_id": "T14",
+        "utterance_index": 30,
+        "start": 59,
+        "end": 193,
+        "before": "Как удаляли отходы больных с третьего этажа? Выясняется, что из-за того, как это делали, в выгребную яму могло попасть совсем немного.",
+        "after": "Как удаляли отходы больных с третьего этажа? Вывод самого Уайтхеда такой: при том способе, каким их убирали, в выгребную яму могло попасть совсем немного."
+      }
+    ],
+    "unchanged_outside_targets": true,
+    "sequences": []
+  }
+}

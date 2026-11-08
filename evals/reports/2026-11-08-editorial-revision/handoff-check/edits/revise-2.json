@@ -1,0 +1,430 @@
+{
+  "contract": "addressed-script-revision/1",
+  "operation": {
+    "mode": "targeted",
+    "script_version": 1,
+    "targets": [
+      {
+        "target_id": "T1",
+        "kind": "text",
+        "utterance_index": 9,
+        "start": 168,
+        "end": 244,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Если виновата вода, то соседи, которые её не пили, должны пострадать меньше.",
+        "delete": {
+          "start": 168,
+          "end": 245,
+          "text": "Если виновата вода, то соседи, которые её не пили, должны пострадать меньше. "
+        },
+        "basis": [
+          "fact.findings.0.context",
+          "fact.dependent_passages.0.context"
+        ]
+      },
+      {
+        "target_id": "T2",
+        "kind": "text",
+        "utterance_index": 9,
+        "start": 191,
+        "end": 243,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "соседи, которые её не пили, должны пострадать меньше",
+        "delete": {
+          "start": 191,
+          "end": 243,
+          "text": "соседи, которые её не пили, должны пострадать меньше"
+        },
+        "basis": [
+          "fact.findings.0",
+          "fact.dependent_passages.0"
+        ]
+      },
+      {
+        "target_id": "T3",
+        "kind": "text",
+        "utterance_index": 10,
+        "start": 146,
+        "end": 203,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Внутри жили пятьсот тридцать пять человек. Умерли пятеро.",
+        "delete": {
+          "start": 146,
+          "end": 204,
+          "text": "Внутри жили пятьсот тридцать пять человек. Умерли пятеро. "
+        },
+        "basis": [
+          "fact.findings.0"
+        ]
+      },
+      {
+        "target_id": "T4",
+        "kind": "text",
+        "utterance_index": 12,
+        "start": 98,
+        "end": 205,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Но совпадение трудно не заметить: та же улица, тот же воздух, другой источник воды — и совсем другой исход.",
+        "delete": {
+          "start": 97,
+          "end": 205,
+          "text": " Но совпадение трудно не заметить: та же улица, тот же воздух, другой источник воды — и совсем другой исход."
+        },
+        "basis": [
+          "fact.findings.0.context"
+        ]
+      },
+      {
+        "target_id": "T5",
+        "kind": "text",
+        "utterance_index": 12,
+        "start": 132,
+        "end": 204,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "та же улица, тот же воздух, другой источник воды — и совсем другой исход",
+        "delete": {
+          "start": 132,
+          "end": 204,
+          "text": "та же улица, тот же воздух, другой источник воды — и совсем другой исход"
+        },
+        "basis": [
+          "fact.findings.0"
+        ]
+      },
+      {
+        "target_id": "T6",
+        "kind": "text",
+        "utterance_index": 18,
+        "start": 0,
+        "end": 47,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "В районе Хэмпстеда, далеко от Сохо, жила вдова.",
+        "delete": {
+          "start": 0,
+          "end": 48,
+          "text": "В районе Хэмпстеда, далеко от Сохо, жила вдова. "
+        },
+        "basis": [
+          "fact.findings.1",
+          "fact.findings.1.context",
+          "fact.dependent_passages.1",
+          "fact.dependent_passages.1.context"
+        ]
+      },
+      {
+        "target_id": "T7",
+        "kind": "text",
+        "utterance_index": 18,
+        "start": 150,
+        "end": 200,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Из Брод-стрит в её края каждый день ходила повозка",
+        "delete": {
+          "start": 150,
+          "end": 200,
+          "text": "Из Брод-стрит в её края каждый день ходила повозка"
+        },
+        "basis": [
+          "reader.findings.0"
+        ]
+      },
+      {
+        "target_id": "T8",
+        "kind": "text",
+        "utterance_index": 18,
+        "start": 150,
+        "end": 239,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Из Брод-стрит в её края каждый день ходила повозка, и ей обычно привозили большую бутыль.",
+        "delete": {
+          "start": 149,
+          "end": 239,
+          "text": " Из Брод-стрит в её края каждый день ходила повозка, и ей обычно привозили большую бутыль."
+        },
+        "basis": [
+          "reader.findings.0.context"
+        ]
+      },
+      {
+        "target_id": "T9",
+        "kind": "text",
+        "utterance_index": 19,
+        "start": 214,
+        "end": 333,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "вернулась к себе домой, в Ислингтон. Заболела и тоже умерла. По словам Сноу, ни там, ни там холеры в это время не было.",
+        "delete": {
+          "start": 214,
+          "end": 334,
+          "text": "вернулась к себе домой, в Ислингтон. Заболела и тоже умерла. По словам Сноу, ни там, ни там холеры в это время не было. "
+        },
+        "basis": [
+          "fact.findings.1"
+        ]
+      },
+      {
+        "target_id": "T10",
+        "kind": "text",
+        "utterance_index": 20,
+        "start": 0,
+        "end": 103,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Чем этот случай отличается от остальных? Здесь не человек приходит к колонке, а вода уезжает из района.",
+        "delete": {
+          "start": 0,
+          "end": 104,
+          "text": "Чем этот случай отличается от остальных? Здесь не человек приходит к колонке, а вода уезжает из района. "
+        },
+        "basis": [
+          "reader.findings.2"
+        ]
+      },
+      {
+        "target_id": "T11",
+        "kind": "text",
+        "utterance_index": 26,
+        "start": 59,
+        "end": 114,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Йорк нашёл, что из ямы могло уходить в грунт к колодцу.",
+        "delete": {
+          "start": 58,
+          "end": 114,
+          "text": " Йорк нашёл, что из ямы могло уходить в грунт к колодцу."
+        },
+        "basis": [
+          "reader.findings.1",
+          "reader.findings.1.context"
+        ]
+      },
+      {
+        "target_id": "B9",
+        "kind": "boundary",
+        "before_utterance_index": 9,
+        "basis": [
+          "fact.findings.0.context",
+          "fact.dependent_passages.0.context",
+          "fact.findings.0",
+          "fact.dependent_passages.0"
+        ]
+      },
+      {
+        "target_id": "B10",
+        "kind": "boundary",
+        "before_utterance_index": 10,
+        "basis": [
+          "fact.findings.0.context",
+          "fact.dependent_passages.0.context",
+          "fact.findings.0",
+          "fact.dependent_passages.0"
+        ]
+      },
+      {
+        "target_id": "B11",
+        "kind": "boundary",
+        "before_utterance_index": 11,
+        "basis": [
+          "fact.findings.0"
+        ]
+      },
+      {
+        "target_id": "B12",
+        "kind": "boundary",
+        "before_utterance_index": 12,
+        "basis": [
+          "fact.findings.0.context",
+          "fact.findings.0"
+        ]
+      },
+      {
+        "target_id": "B13",
+        "kind": "boundary",
+        "before_utterance_index": 13,
+        "basis": [
+          "fact.findings.0.context",
+          "fact.findings.0"
+        ]
+      },
+      {
+        "target_id": "B18",
+        "kind": "boundary",
+        "before_utterance_index": 18,
+        "basis": [
+          "fact.findings.1",
+          "fact.findings.1.context",
+          "fact.dependent_passages.1",
+          "fact.dependent_passages.1.context",
+          "reader.findings.0",
+          "reader.findings.0.context"
+        ]
+      },
+      {
+        "target_id": "B19",
+        "kind": "boundary",
+        "before_utterance_index": 19,
+        "basis": [
+          "fact.findings.1",
+          "fact.findings.1.context",
+          "fact.dependent_passages.1",
+          "fact.dependent_passages.1.context",
+          "reader.findings.0",
+          "reader.findings.0.context"
+        ]
+      },
+      {
+        "target_id": "B20",
+        "kind": "boundary",
+        "before_utterance_index": 20,
+        "basis": [
+          "fact.findings.1",
+          "reader.findings.2"
+        ]
+      },
+      {
+        "target_id": "B21",
+        "kind": "boundary",
+        "before_utterance_index": 21,
+        "basis": [
+          "reader.findings.2"
+        ]
+      },
+      {
+        "target_id": "B26",
+        "kind": "boundary",
+        "before_utterance_index": 26,
+        "basis": [
+          "reader.findings.1",
+          "reader.findings.1.context"
+        ]
+      },
+      {
+        "target_id": "B27",
+        "kind": "boundary",
+        "before_utterance_index": 27,
+        "basis": [
+          "reader.findings.1",
+          "reader.findings.1.context"
+        ]
+      }
+    ],
+    "sequences": []
+  },
+  "wire_output": {
+    "edits": [
+      {
+        "operation": "replace",
+        "target_id": "T1",
+        "text": "Если виновата вода, то там, где её не пили, смертей должно быть мало, даже посреди поражённых домов."
+      },
+      {
+        "operation": "replace",
+        "target_id": "T4",
+        "text": "Но контраст трудно не заметить: вокруг дома, где умирали от холеры, а там, где брали другую воду, смертей почти нет."
+      },
+      {
+        "operation": "replace",
+        "target_id": "T6",
+        "text": "В Хэмпстеде, далеко от Сохо, в местечке Уэст-Энд, жила вдова."
+      },
+      {
+        "operation": "replace",
+        "target_id": "T8",
+        "text": "С Брод-стрит туда каждый день ходила повозка, и ей обычно привозили большую бутыль."
+      },
+      {
+        "operation": "replace",
+        "target_id": "T9",
+        "text": "вернулась к себе домой, в Ислингтон. Заболела и тоже умерла. По словам Сноу, холеры в то время не было ни в Уэст-Энде, ни в окрестностях, где жила племянница."
+      },
+      {
+        "operation": "replace",
+        "target_id": "T10",
+        "text": "На этот раз не человек пришёл к колонке — вода сама уехала из района."
+      },
+      {
+        "operation": "replace",
+        "target_id": "T11",
+        "text": "А Йорк нашёл, как содержимое ямы могло просачиваться через грунт к колодцу."
+      }
+    ],
+    "composition_update": null
+  },
+  "application": {
+    "base_script_hash": "e1e23e9325879f3f3c2f917f0fe87a0c87c2d549b7552bb70305dc74370fdf0d",
+    "result_script_hash": "833162ee8ad5bf585f5b089e317e7c781dfd1d57c5ae53c1ba522adaf443e6f3",
+    "edits": [
+      {
+        "operation_index": 0,
+        "operation": "replace",
+        "target_id": "T1",
+        "utterance_index": 9,
+        "start": 168,
+        "end": 244,
+        "before": "Если виновата вода, то соседи, которые её не пили, должны пострадать меньше.",
+        "after": "Если виновата вода, то там, где её не пили, смертей должно быть мало, даже посреди поражённых домов."
+      },
+      {
+        "operation_index": 1,
+        "operation": "replace",
+        "target_id": "T4",
+        "utterance_index": 12,
+        "start": 98,
+        "end": 205,
+        "before": "Но совпадение трудно не заметить: та же улица, тот же воздух, другой источник воды — и совсем другой исход.",
+        "after": "Но контраст трудно не заметить: вокруг дома, где умирали от холеры, а там, где брали другую воду, смертей почти нет."
+      },
+      {
+        "operation_index": 2,
+        "operation": "replace",
+        "target_id": "T6",
+        "utterance_index": 18,
+        "start": 0,
+        "end": 47,
+        "before": "В районе Хэмпстеда, далеко от Сохо, жила вдова.",
+        "after": "В Хэмпстеде, далеко от Сохо, в местечке Уэст-Энд, жила вдова."
+      },
+      {
+        "operation_index": 3,
+        "operation": "replace",
+        "target_id": "T8",
+        "utterance_index": 18,
+        "start": 150,
+        "end": 239,
+        "before": "Из Брод-стрит в её края каждый день ходила повозка, и ей обычно привозили большую бутыль.",
+        "after": "С Брод-стрит туда каждый день ходила повозка, и ей обычно привозили большую бутыль."
+      },
+      {
+        "operation_index": 4,
+        "operation": "replace",
+        "target_id": "T9",
+        "utterance_index": 19,
+        "start": 214,
+        "end": 333,
+        "before": "вернулась к себе домой, в Ислингтон. Заболела и тоже умерла. По словам Сноу, ни там, ни там холеры в это время не было.",
+        "after": "вернулась к себе домой, в Ислингтон. Заболела и тоже умерла. По словам Сноу, холеры в то время не было ни в Уэст-Энде, ни в окрестностях, где жила племянница."
+      },
+      {
+        "operation_index": 5,
+        "operation": "replace",
+        "target_id": "T10",
+        "utterance_index": 20,
+        "start": 0,
+        "end": 103,
+        "before": "Чем этот случай отличается от остальных? Здесь не человек приходит к колонке, а вода уезжает из района.",
+        "after": "На этот раз не человек пришёл к колонке — вода сама уехала из района."
+      },
+      {
+        "operation_index": 6,
+        "operation": "replace",
+        "target_id": "T11",
+        "utterance_index": 26,
+        "start": 59,
+        "end": 114,
+        "before": "Йорк нашёл, что из ямы могло уходить в грунт к колодцу.",
+        "after": "А Йорк нашёл, как содержимое ямы могло просачиваться через грунт к колодцу."
+      }
+    ],
+    "unchanged_outside_targets": true,
+    "sequences": []
+  }
+}
