@@ -166,6 +166,10 @@ def create_manifest(repo, generation, command, journal, materials):
             "independent model readings; not evidence of human listening or production approval"
         )
     if revised:
+        from podgen.writing.revision.context import KEY as REVISION_CONTEXT_KEY
+        from podgen.writing.revision.context import VERSION as REVISION_CONTEXT_VERSION
+
+        manifest[REVISION_CONTEXT_KEY] = REVISION_CONTEXT_VERSION
         manifest["fact_review_schema_version"] = FACT_VERSION
         manifest["script_revision_contract"] = REVISION_VERSION
         manifest["revision_response_schemas"] = revision_schemas()

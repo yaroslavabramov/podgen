@@ -15,18 +15,19 @@ from tests.test_own_plan import own_dataset as own_dataset
 from tests.test_script_handoff_runtime import EditingProvider
 
 
-@pytest.mark.parametrize("historical", [False, True], ids=["new", "historical"])
-def test_native_reference_is_immutable_in_run_preview_and_resume(
-    own_dataset, tmp_path, monkeypatch, historical
-):
+@pytest.mark.parametrize("mode", ["current", "shared_reference", "before_reference"])
+def test_native_reference_is_immutable_in_run_preview_and_resume(own_dataset, tmp_path, monkeypatch, mode):
     resource, raw = reference_resource(tmp_path, monkeypatch)
     prefix, _, options, _, ref = prepare(own_dataset, "snow-pump", tmp_path, monkeypatch)
     options["review_mode"] = "independent-readings/1"
-    if historical:
+    if mode != "current":
         original = EvaluationJournal.create_run
 
         def old(journal, command, manifest):
-            return original(journal, command, {k: v for k, v in manifest.items() if k != "craft_reference"})
+            manifest.pop("revision_context_contract")
+            if mode == "before_reference":
+                manifest.pop("craft_reference")
+            return original(journal, command, manifest)
 
         monkeypatch.setattr(EvaluationJournal, "create_run", old)
     provider = EditingProvider()
@@ -35,7 +36,8 @@ def test_native_reference_is_immutable_in_run_preview_and_resume(
         invoke(prefix, "run", **options)
     journal = EvaluationJournal(own_dataset[0], own_dataset[1])
     manifest = journal.manifest(options["run_id"])
-    assert ("craft_reference" in manifest) != historical
+    assert ("craft_reference" in manifest) == (mode != "before_reference")
+    assert ("revision_context_contract" in manifest) == (mode == "current")
     pending = journal.request(journal.invocation(options["run_id"], "revise-1"))
     resource.write_text("Совсем новый образец, не для этого запуска.")
     for module, name in ((preview_module, "load_reference"), (manifest_module, "load_reference")):
@@ -78,7 +80,12 @@ def test_native_reference_is_immutable_in_run_preview_and_resume(
             else next(body for body in provider.requests if body["metadata"]["podgen_stage"] == "draft")
         )
         assert request == actual
-        assert payload(request).get("craft_reference") == (None if historical else raw.decode())
+        has_example = mode == "shared_reference" or (mode == "current" and stage == "draft")
+        assert payload(request).get("craft_reference") == (raw.decode() if has_example else None)
+        if stage == "revise-1":
+            assert ("listener_understanding" in payload(request)["revision_guidance"][0]) == (
+                mode != "current"
+            )
     for body in provider.requests:
         if body["metadata"]["podgen_stage"] != "draft":
             assert "craft_reference" not in payload(body)

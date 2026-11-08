@@ -12,6 +12,7 @@ from podgen.writing.model_references import CATALOG_KEY, run_references
 from podgen.writing.plan_selection import from_manifest as selection_from_manifest
 from podgen.writing.projection_versions import script_handoff
 from podgen.writing.reading_views import reading_audience
+from podgen.writing.revision.context import from_manifest as revision_context_from_manifest
 from podgen.writing.roles import WriteOutput
 
 from . import author_material
@@ -113,6 +114,7 @@ def execute_reading_stage(
             projection_version=manifest["role_projection_version"],
             reference_catalog=references,
             plan_selection_contract=selection_from_manifest(manifest),
+            revision_context_contract=revision_context_from_manifest(manifest),
             craft_reference=pinned_reference(manifest),
             **(revision.inputs if revision else {}),
         )

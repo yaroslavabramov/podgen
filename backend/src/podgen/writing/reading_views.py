@@ -22,6 +22,7 @@ from .projections import (
     knowledge_view,
     validate_model_content,
 )
+from .revision.context import VERSION as EDIT_ASSIGNMENT
 from .story_views import editorial_frame, selected_labels
 
 
@@ -48,6 +49,7 @@ def reading_payload(
     revision_operation=None,
     composition=None,
     plan_selection_contract=None,
+    revision_context_contract=None,
 ):
     packet = materials.packet
     payload = dict(
@@ -161,6 +163,11 @@ def reading_payload(
         if historical(projection_version):
             payload["necessary_limits"] = list(packet.dossier.throughline_constraints)
         payload["decision"] = deepcopy(decision)
-    attach_reference(payload, stage, craft_reference)
+    if stage == "revise" and revision_context_contract == EDIT_ASSIGNMENT:
+        # The editor's actionable and positive observations already address the supplied script.
+        for review in payload["revision_guidance"]:
+            review.pop("listener_understanding", None)
+    else:
+        attach_reference(payload, stage, craft_reference)
     validate_model_content(payload, materials.documents)
     return payload

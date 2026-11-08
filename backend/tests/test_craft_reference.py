@@ -63,7 +63,7 @@ def test_fresh_preview_sends_reference_only_to_ru_author_roles(tmp_path, monkeyp
     for stage, inputs in values.items():
         body = preview_request(uuid4(), stage, profile, materials, **inputs)
         visible = payload(body)
-        if stage in ("draft", "revise", "revise-1"):
+        if stage in ("draft", "revise"):
             assert visible["craft_reference"] == raw.decode()
             assert "Source material" not in body["instructions"]
         else:
