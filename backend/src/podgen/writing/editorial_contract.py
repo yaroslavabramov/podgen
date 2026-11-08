@@ -162,9 +162,12 @@ class FixedSourceDocument(RoleOutput):
     sha256: str = Field(pattern="^[0-9a-f]{64}$")
 
 
+EditorialPlan = PlanningChoiceOutput | PlanningOutputV9 | PlanningOutput
+
+
 class FixedEditorialInput(RoleOutput):
     contract: Literal["fixed-editorial-input/1", "fixed-editorial-input/2"]
     assignment_key: FullText
     shared_input_digest: str = Field(pattern="^[0-9a-f]{64}$")
     document: FixedSourceDocument
-    plan: PlanningChoiceOutput | PlanningOutputV9 | PlanningOutput
+    plan: EditorialPlan

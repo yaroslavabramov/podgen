@@ -15,7 +15,6 @@ from podgen.persistence.repository import Repository
 from podgen.runtime.evaluation.contracts import RunFailure, RunLimits, WritingRunCommand
 from podgen.runtime.evaluation.credit_recovery import recovery_hint
 from podgen.runtime.evaluation.export import export_run
-from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.profiles import create_profile
 from podgen.runtime.evaluation.service import WritingEvaluation
 from podgen.runtime.models.contracts import ProviderFault
@@ -59,6 +58,11 @@ def parser():
     )
     profile.add_argument("--operation-id", type=UUID)
     profile.add_argument("--out", type=Path, required=True)
+    accepted = sub.add_parser(
+        "accepted-plan-export", help="Get the exact reviewed plan reference for a subsequent fixed-plan run"
+    )
+    accepted.add_argument("--run-id", type=UUID, required=True)
+    accepted.add_argument("--out", type=Path, required=True)
     script = sub.add_parser("script-import")
     script.add_argument("--file", type=Path, required=True, help="Pure full WriteOutput JSON")
     script.add_argument("--out", type=Path, required=True)
@@ -141,6 +145,16 @@ def main(argv=None):
             from podgen.editorial_cli import execute
 
             print(json.dumps(execute(args, repo, wire_ref), ensure_ascii=False))
+            return 0
+        if args.command == "accepted-plan-export":
+            from podgen.runtime.evaluation.journal import EvaluationJournal
+            from podgen.runtime.evaluation.reusable_plan import export_plan_ref
+
+            result = export_plan_ref(EvaluationJournal(repo, args.project), args.run_id).model_dump(
+                mode="json"
+            )
+            args.out.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+            print(json.dumps(result))
             return 0
         if args.command == "script-import":
             from podgen.runtime.evaluation.script_import import import_script

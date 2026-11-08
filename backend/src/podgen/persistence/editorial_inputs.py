@@ -1,8 +1,11 @@
 """Admit versioned editorial data against exact, authorized source bytes; retain the complete originals."""
 
+from __future__ import annotations
+
 import json
 from dataclasses import dataclass
 from io import BytesIO
+from typing import TYPE_CHECKING
 from uuid import uuid5
 
 from pydantic import TypeAdapter
@@ -107,12 +110,16 @@ def import_fixed(repo, project, data, source_map, shared_ref, *, original_bytes=
     return saved
 
 
+if TYPE_CHECKING:
+    from podgen.runtime.evaluation.reusable_plan import ApprovedEditorialPlan
+
+
 @dataclass(frozen=True)
 class EditorialMaterials:
     packet: EditorialInput
     shared_ref: RuntimeRef
     documents: tuple
-    fixed: FixedEditorialInput | None = None
+    fixed: FixedEditorialInput | ApprovedEditorialPlan | None = None
     fixed_ref: RuntimeRef | None = None
 
     @property
@@ -174,6 +181,11 @@ def load_editorial_materials(repo, project, shared_ref, *, case_id, fixed_ref=No
     validate_editorial_content(packet, docs)
     repo.get_runtime(project, shared_ref)
     fixed = None
+    if fixed_ref is not None and fixed_ref.record_kind == "tool_execution":
+        from podgen.runtime.evaluation.reusable_plan import load_approved_plan
+
+        fixed = load_approved_plan(repo, project, shared_ref, packet, fixed_ref)
+        return EditorialMaterials(packet, shared_ref, tuple(docs), fixed, fixed_ref)
     if fixed_ref is not None:
         saved = peek_packet(repo, project, fixed_ref, fixed=True)
         if saved.get("contract") != "persisted-fixed-editorial-input/1" or saved[
