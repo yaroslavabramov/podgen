@@ -19,11 +19,21 @@ from .projections import (
 from .story_views import editorial_frame, selected_labels
 
 
+def reading_audience(assignment, manifest=None):
+    if manifest is None:
+        return assignment.listener_profile or assignment.audience
+    if "reading_audience" in manifest:
+        return manifest["reading_audience"]
+    # Earlier manifests used this exact default; their previews and unstarted rounds must replay.
+    return assignment.listener_profile or "General listeners; no prior topic knowledge is assumed."
+
+
 def reading_payload(
     stage,
     materials,
     *,
     script,
+    audience=None,
     readings=None,
     decision=None,
     approved_plan=None,
@@ -36,8 +46,7 @@ def reading_payload(
     packet = materials.packet
     payload = dict(
         script=indexed_draft(script),
-        audience=packet.assignment.listener_profile
-        or "General listeners; no prior topic knowledge is assumed.",
+        audience=audience or reading_audience(packet.assignment),
         format=materials.format,
         genre=packet.assignment.genre or "podcast",
         output_language=materials.output_language,

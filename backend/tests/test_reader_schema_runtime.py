@@ -1,6 +1,8 @@
 """Normal native/imported CLI readers pin schema semantics independently of projections."""
 
 import json
+from hashlib import sha256
+from pathlib import Path
 
 import pytest
 
@@ -10,9 +12,12 @@ from podgen.runtime.evaluation import service as service_module
 from podgen.runtime.evaluation.contracts import WritingRunCommand
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.role_schema import response_schema
+from podgen.writing.prompts import RoleInstructions, load_reading_instructions
 from podgen.writing.reader_schema import FIELDS, VERSION
 from podgen.writing.reader_schema import V1 as READER_V1
 from podgen.writing.reader_schema import V4 as READER_V4
+from podgen.writing.reader_schema import V5 as READER_V5
+from podgen.writing.reader_story import ORDER as STORY_ORDER
 from podgen.writing.reader_wording import FIELDS as WORDING_FIELDS
 from tests.historical_revisions import historical_revision_manifest
 from tests.test_editorial_independence import invoke, payload, prepare
@@ -21,11 +26,28 @@ from tests.test_own_plan import own_dataset as own_dataset
 
 
 @pytest.mark.parametrize("source", ["native", "imported"])
-@pytest.mark.parametrize("historical", [False, True, "v1", "v4"], ids=["new", "historical", "v1", "v4"])
+@pytest.mark.parametrize(
+    "historical", [False, True, "v1", "v4", "v5"], ids=["new", "historical", "v1", "v4", "v5"]
+)
 def test_cli_reader_schema_preview_and_resume_keep_their_pinned_semantics(
     own_dataset, tmp_path, monkeypatch, source, historical
 ):
-    reader_version = VERSION if not historical else {"v1": READER_V1, "v4": READER_V4}.get(historical)
+    reader_version = (
+        VERSION if not historical else {"v1": READER_V1, "v4": READER_V4, "v5": READER_V5}.get(historical)
+    )
+    if historical == "v5":
+        root = Path(__file__).resolve().parents[2]
+        old_wire = root / "evals/reports/2026-11-08-story-editing/controls/cases/a/request.json"
+        old_body = json.loads(old_wire.read_text())["instructions"]
+
+        def historical_prompt(stage):
+            if stage == "reader-review":
+                return RoleInstructions(
+                    "reader-review/sha256:" + sha256(old_body.encode()).hexdigest(), old_body
+                )
+            return load_reading_instructions(stage)
+
+        monkeypatch.setattr("podgen.writing.prompts.load_reading_instructions", historical_prompt)
     if source == "native":
         prefix, _, options, _, _ = prepare(own_dataset, "snow-pump", tmp_path, monkeypatch)
         options["review_mode"] = "independent-readings/1"
@@ -35,7 +57,8 @@ def test_cli_reader_schema_preview_and_resume_keep_their_pinned_semantics(
         original = EvaluationJournal.create_run
 
         def old_manifest(journal, command, manifest):
-            if historical != "v4":
+            manifest.pop("reading_audience")
+            if historical not in ("v4", "v5"):
                 manifest = historical_revision_manifest(manifest)
             if reader_version is None:
                 manifest.pop("reader_review_schema_version")
@@ -63,12 +86,19 @@ def test_cli_reader_schema_preview_and_resume_keep_their_pinned_semantics(
     assert (schema["properties"]["listener_answer"]["description"] == FIELDS["listener_answer"]) == (
         historical in ("v1", "v4")
     )
-    if not historical:
+    if historical == "v5":
+        assert pending["instructions"] == old_body and "## Worked edits" not in old_body
         assert schema["properties"]["listener_answer"]["description"] == WORDING_FIELDS["listener_answer"]
-    scoped = not historical or historical == "v4"
+    if historical:
+        assert payload(pending)["audience"] == "General listeners; no prior topic knowledge is assumed."
+    else:
+        assert schema["required"] == list(STORY_ORDER)
+        assert payload(pending)["audience"] == manifest["reading_audience"]
+        assert "## Worked edits" in pending["instructions"]
+    scoped = not historical or historical in ("v4", "v5")
     assert ("revision_scope" in schema["properties"]) == scoped
     assert "assignment" not in payload(pending) and "editorial_frame" not in payload(pending)
-    if not historical or historical == "v4":
+    if not historical or historical in ("v4", "v5"):
         script = dict(
             utterances=[
                 {k: v for k, v in row.items() if k != "index"}

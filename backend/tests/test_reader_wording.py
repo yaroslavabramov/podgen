@@ -12,7 +12,9 @@ from podgen.writing.reader_schema import V1 as READER_V1
 from podgen.writing.reader_schema import V2 as READER_V2
 from podgen.writing.reader_schema import V3 as READER_V3
 from podgen.writing.reader_schema import V4 as READER_V4
+from podgen.writing.reader_schema import V5 as READER_V5
 from podgen.writing.reader_schema import VERSION, feedback_model
+from podgen.writing.reader_story import ORDER as STORY_ORDER
 from podgen.writing.reader_wording import ORDER
 from tests.test_model_wire_schema import assert_reference_nodes
 from tests.test_script_handoff import wire_hash
@@ -32,31 +34,40 @@ def test_every_historical_reader_wire_stays_byte_identical_in_all_stages_and_pro
                 assert wire_hash(schema) == hashes[str(version)]
 
 
-def test_current_native_schema_exactly_matches_the_tested_wording_first_wire():
+def test_v5_schema_still_matches_the_tested_wording_first_wire():
     expected = json.loads(
         (ROOT / "evals/reports/2026-11-08-reader-voice/runs/wording-first/01/request.json").read_text()
     )["text"]["format"]["schema"]
-    schema = response_schema("reader-review", "editorial-role-packets/1", reader_schema_version=VERSION)
-    assert VERSION == "listener-experience/5"
+    schema = response_schema("reader-review", "editorial-role-packets/1", reader_schema_version=READER_V5)
     assert wire_hash(schema) == wire_hash(expected)
     assert list(schema["properties"]) == schema["required"] == ORDER
     assert_reference_nodes(schema)
-    assert feedback_model(VERSION) is feedback_model(READER_V4)
+    assert feedback_model(READER_V5) is feedback_model(READER_V4)
     for stage in ("reader-review-1", "reader-review-2"):
         assert wire_hash(
-            response_schema(stage, "editorial-role-packets/1", reader_schema_version=VERSION)
+            response_schema(stage, "editorial-role-packets/1", reader_schema_version=READER_V5)
         ) == wire_hash(schema)
 
 
-def test_recording_readiness_prompt_uses_a_concrete_cut_test_without_a_style_dictionary():
-    prompt = load_reading_instructions("reader-review").body
-    assert "mentally remove the surrounding phrases" in prompt
-    assert "hear what disappears" in prompt
-    assert "accept the passage for recording only after this change" in prompt
-    assert "equally acceptable for recording" in prompt
-    assert "new thought, a concrete image, a joke, tension" in prompt
-    assert "not a defect by itself" in prompt
-    assert "Leave `research_requests` empty" in prompt
-    assert "Use `keep` when no required repair remains" in prompt
-    assert not any("\u0400" <= c <= "\u04ff" for c in prompt)
-    assert all(word not in prompt.lower() for word in ("snow", "cholera", "court", "verdict", "83"))
+def test_current_schema_reconstructs_the_story_before_assigning_structural_and_line_edits():
+    assert VERSION == "listener-experience/6"
+    for stage in ("reader-review", "reader-review-1", "reader-review-2"):
+        schema = response_schema(stage, "editorial-role-packets/1", reader_schema_version=VERSION)
+        assert list(schema["properties"]) == schema["required"] == list(STORY_ORDER)
+        assert "First inspect the actual spoken wording" not in str(schema)
+        assert_reference_nodes(schema)
+    assert feedback_model(VERSION) is feedback_model(READER_V4)
+
+
+def test_worked_edits_are_bound_to_the_full_reader_prompt_only():
+    from hashlib import sha256
+
+    examples = ROOT / "backend/src/podgen/writing/prompts/examples/reader-edits.md"
+    samples = examples.read_text()
+    assert samples.count("- Draft:") == samples.count("- Assignment:") == samples.count("- Edited:") == 3
+    prompt = load_reading_instructions("reader-review")
+    assert prompt.body.endswith(samples)
+    assert prompt.version == "reader-review/sha256:" + sha256(prompt.body.encode()).hexdigest()
+    assert all(samples not in load_reading_instructions(role).body for role in ("fact-review", "dual-revise"))
+    assert not any("\u0400" <= c <= "\u04ff" for c in prompt.body)
+    assert all(word not in prompt.body.lower() for word in ("snow", "cholera", "wright"))

@@ -207,7 +207,7 @@ def test_default_saved_snow_two_isolated_readings_and_repeated_final(own_dataset
     ]
     first, fact, rewrite, final_read, final_fact = map(payload, provider.requests)
     assert set(first) == {"script", "audience", "format", "genre", "output_language", "duration_context"}
-    assert first["audience"] == "General listeners; no prior topic knowledge is assumed."
+    assert first["audience"] == json.loads((tmp_path / "shared.json").read_text())["assignment"]["audience"]
     assert first["genre"] == "podcast"
     assert [
         {k: v for k, v in row.items() if k != "index"} for row in first["script"]["utterances"]
@@ -232,7 +232,9 @@ def test_default_saved_snow_two_isolated_readings_and_repeated_final(own_dataset
     selected = rewrite["revision_guidance"][1]["findings"][0]["support_labels"][0]
     source = next(card for card in fact["support"] if card["label"] == selected)
     assert rewrite["support"][0] == {key: source[key] for key in ("claim", "context", "sources")}
-    assert "source_excerpts" not in rewrite["support"][0]  # No explicit narrative selection in this old packet.
+    assert (
+        "source_excerpts" not in rewrite["support"][0]
+    )  # No explicit narrative selection in this old packet.
     assert provider.requests[0]["instructions"] == load_reading_instructions("reader-review").body
     out = tmp_path / "export"
     assert (out / "final.txt").exists() and "Фактологическая проверка · версия 2" in (
