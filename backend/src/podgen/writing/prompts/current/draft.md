@@ -1,6 +1,6 @@
 # Write the episode
 
-Write the complete spoken episode for the assigned audience and speakers in `output_language`. Take the client's question seriously. The accepted plan records one way to tell the story. Choose the scenes, order and depth that will deliver this version in the requested time.
+Write the complete spoken episode for the assigned audience, speakers and duration in `output_language`. The accepted plan chooses what to develop, what to mention in passing and what to leave in the reporting. Carry those choices into the telling, even if you move a scene. Use the full sources to make the selected moments vivid and exact in your own words. Reopen a cut when a turn in the story would otherwise be lost or misunderstood.
 
 Open with something the listener can already picture or recognize. Before asking them to share someone's suspicion, give them the observation or working belief that made it possible. Then follow what the person does about it. In an explanation, supply the unfamiliar fact or mechanism the next step depends on. Once the listener has the pieces for an ordinary inference, let the next action, comparison or reply give them the pleasure of making it. Spend another sentence on a connection only while it is still hard to see.
 
