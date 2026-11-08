@@ -15,7 +15,6 @@ from podgen.persistence.repository import Repository
 from podgen.runtime.evaluation.contracts import RunFailure, RunLimits, WritingRunCommand
 from podgen.runtime.evaluation.credit_recovery import recovery_hint
 from podgen.runtime.evaluation.export import export_run
-from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.profiles import create_profile
 from podgen.runtime.evaluation.service import WritingEvaluation
 from podgen.runtime.models.contracts import ProviderFault
@@ -28,7 +27,9 @@ def wire_ref(value, model):
 
 
 def parser():
-    root = argparse.ArgumentParser(description="Frozen episode writing with independent listener and factual readings")
+    root = argparse.ArgumentParser(
+        description="Frozen episode writing with independent listener and factual readings"
+    )
     root.add_argument("--env-file", type=Path)
     root.add_argument("--project", type=UUID, required=True)
     root.add_argument("--actor", type=UUID, required=True)
@@ -57,12 +58,21 @@ def parser():
     )
     profile.add_argument("--operation-id", type=UUID)
     profile.add_argument("--out", type=Path, required=True)
+    accepted = sub.add_parser(
+        "accepted-plan-export", help="Get the exact reviewed plan reference for a subsequent fixed-plan run"
+    )
+    accepted.add_argument("--run-id", type=UUID, required=True)
+    accepted.add_argument("--out", type=Path, required=True)
     script = sub.add_parser("script-import")
     script.add_argument("--file", type=Path, required=True, help="Pure full WriteOutput JSON")
     script.add_argument("--out", type=Path, required=True)
     run = sub.add_parser("run")
     run.add_argument("--run-id", type=UUID, required=True)
     run.add_argument("--case", required=True)
+    from podgen.writing.behavior import NAMES
+
+    run.add_argument("--behavior-profile", choices=NAMES)
+    run.add_argument("--editorial-pass", type=int, choices=(1, 2, 3), default=1)
     run.add_argument("--fixed-plan-input-ref")
 
     run.add_argument(
@@ -136,6 +146,16 @@ def main(argv=None):
 
             print(json.dumps(execute(args, repo, wire_ref), ensure_ascii=False))
             return 0
+        if args.command == "accepted-plan-export":
+            from podgen.runtime.evaluation.journal import EvaluationJournal
+            from podgen.runtime.evaluation.reusable_plan import export_plan_ref
+
+            result = export_plan_ref(EvaluationJournal(repo, args.project), args.run_id).model_dump(
+                mode="json"
+            )
+            args.out.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+            print(json.dumps(result))
+            return 0
         if args.command == "script-import":
             from podgen.runtime.evaluation.script_import import import_script
 
@@ -198,6 +218,8 @@ def main(argv=None):
                 project_id=args.project,
                 actor_id=args.actor,
                 case_id=args.case,
+                behavior_profile=args.behavior_profile,
+                editorial_pass=args.editorial_pass,
                 fixed_plan_input_ref=wire_ref(args.fixed_plan_input_ref, RuntimeRef)
                 if args.fixed_plan_input_ref
                 else None,

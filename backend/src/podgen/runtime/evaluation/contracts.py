@@ -3,6 +3,7 @@ from typing import Literal
 from pydantic import Field, field_validator, model_validator
 
 from podgen.domain.contracts.common import UUID, ArtifactRef, Contract, PositiveInt, RuntimeRef
+from podgen.writing.behavior import ProfileName
 
 Stage = Literal[
     "draft",
@@ -50,6 +51,8 @@ class WritingRunCommand(Contract):
     max_plan_revisions: Literal[0, 1] = 1
     review_mode: Literal["informed-v1", "independent-readings/1"] = "independent-readings/1"
     max_script_revisions: Literal[0, 1, 2] = 2
+    behavior_profile: ProfileName | None = None
+    editorial_pass: Literal[1, 2, 3] = 1
     initial_script_ref: RuntimeRef | None = None
     planning_parent_run_id: UUID | None = None
     planning_continuation_limit: PositiveInt | None = None
@@ -104,6 +107,16 @@ class WritingRunCommand(Contract):
             raise ValueError("independent_readings_require_editorial_inputs")
         if self.initial_script_ref is not None and self.plan_mode == "own-plan":
             raise ValueError("initial_script_does_not_require_new_plan")
+        if self.editorial_pass > 1 and (
+            self.behavior_profile not in ("narrative-rebuild/1", "editorial-candidate/1")
+            or self.initial_script_ref is None
+            or self.plan_mode != "fixed-plan"
+        ):
+            raise ValueError("editorial_rereading_requires_imported_script_and_named_profile")
+        if self.behavior_profile in ("narrative-rebuild/1", "editorial-candidate/1") and (
+            self.review_mode != "independent-readings/1" or self.input_contract != "editorial-role-packets/1"
+        ):
+            raise ValueError("editorial_behavior_requires_independent_readings")
         return self
 
 
@@ -116,6 +129,10 @@ class RunFailure(Exception):
 def command_payload(command):
     """Keep fingerprints of pre-policy strict commands stable."""
     payload = command.model_dump(mode="json")
+    if command.behavior_profile is None:
+        payload.pop("behavior_profile")
+    if command.editorial_pass == 1:
+        payload.pop("editorial_pass")
     if command.planning_parent_run_id is None:
         payload.pop("planning_parent_run_id")
         payload.pop("planning_continuation_limit")

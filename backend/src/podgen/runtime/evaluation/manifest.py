@@ -9,21 +9,12 @@ from uuid import uuid5
 from podgen.domain.contracts.common import CodeProducer
 from podgen.persistence.repository import timestamp
 from podgen.writing.author_reply import contract_pin, offered
-from podgen.writing.craft_reference import load_reference
+from podgen.writing.behavior import resolve_behavior
 from podgen.writing.model_references import CATALOG_KEY, bind_schema, preview_references
 from podgen.writing.planning_choice import KEY as PLANNING_KEY
-from podgen.writing.planning_choice import for_input as planning_for_input
 from podgen.writing.planning_duration import KEY as DURATION_KEY
-from podgen.writing.planning_duration import for_input as duration_for_input
 from podgen.writing.projection_versions import CURRENT
-from podgen.writing.prompts import (
-    load_anchor_repair_instructions,
-    load_instruction_set,
-    load_plan_target_repair_instructions,
-)
 from podgen.writing.reader_schema import V2 as LEGACY_READER_SCHEMA_VERSION
-from podgen.writing.reader_schema import VERSION as READER_SCHEMA_VERSION
-from podgen.writing.reading_views import reading_audience
 from podgen.writing.revision.contracts import FACT_VERSION
 from podgen.writing.revision.contracts import VERSION as REVISION_VERSION
 
@@ -42,14 +33,14 @@ def create_manifest(repo, generation, command, journal, materials):
         from .planning_continuation.manifest import create
 
         return create(command, journal, materials)
-    planning_contract = (
-        planning_for_input(command.input_contract, CURRENT) if command.plan_mode == "own-plan" else None
-    )
+    behavior = resolve_behavior(command.behavior_profile, command.editorial_pass)
+    editorial = command.input_contract == "editorial-role-packets/1"
+    planning_contract = behavior.planning_contract if editorial and command.plan_mode == "own-plan" else None
     payload = materials.as_payload()
     revised = supports_revision(command)
-    reader_version = READER_SCHEMA_VERSION if revised else LEGACY_READER_SCHEMA_VERSION
+    reader_version = behavior.reader_schema if revised else LEGACY_READER_SCHEMA_VERSION
     reference = (
-        load_reference(materials.output_language)
+        behavior.craft(materials.output_language)
         if command.input_contract == "editorial-role-packets/1"
         and (command.initial_script_ref is None or command.max_script_revisions > 0)
         else None
@@ -64,26 +55,17 @@ def create_manifest(repo, generation, command, journal, materials):
     prompts = {}
     schemas = {}
     prompt_versions = {}
-    instruction_set = (
-        load_instruction_set(materials.format, include_planning=True)
-        if command.plan_mode == "own-plan"
-        else load_instruction_set(materials.format)
-    )
-    reading_prompts = {}
-    if independent(command):
-        from podgen.writing.prompts import load_reading_instructions
-
-        reading_prompts = {
-            name: load_reading_instructions(name) for name in ("reader-review", "fact-review", "dual-revise")
-        }
     for stage in stages_for(command):
-        profile_ref = profile_for(command, stage)
-        load_profile(generation, command.project_id, profile_ref, stage)
+        profile = load_profile(generation, command.project_id, profile_for(command, stage), stage)
+        behavior.validate_model(stage, profile)
         base = base_stage(stage)
         if independent(command) and base in ("reader-review", "fact-review", "revise"):
-            prompt = reading_prompts["dual-revise" if base == "revise" else base]
+            role = "dual-revise" if base == "revise" else base
+            if base == "reader-review" and stage != base and behavior.verification:
+                role = "revision-verification"
         else:
-            prompt = instruction_set[prompt_stage(stage)]
+            role = prompt_stage(stage)
+        prompt = behavior.instructions(role, materials.format)
         instructions = prompt.body
         prompt_versions[stage] = prompt.version
         prompt = repo.create(
@@ -105,6 +87,9 @@ def create_manifest(repo, generation, command, journal, materials):
                 stage,
                 command.input_contract,
                 planning_output_contract=planning_contract,
+                **(
+                    {"revision_verification_contract": behavior.verification} if behavior.verification else {}
+                ),
                 reader_schema_version=reader_version if independent(command) else None,
                 fact_schema_version=FACT_VERSION if revised else None,
             ),
@@ -128,7 +113,9 @@ def create_manifest(repo, generation, command, journal, materials):
         materials_hash=materials_hash(payload),
         prompt_refs=prompts,
         role_instructions_versions=prompt_versions,
-        anchor_repair_instructions=asdict(load_anchor_repair_instructions()),
+        anchor_repair_instructions=asdict(behavior.instructions("anchor-repair", materials.format)),
+        behavior_profile=behavior.name,
+        editorial_pass=behavior.editorial_pass,
         response_schemas=schemas,
         created_at=timestamp(),
         purpose="evaluation",
@@ -142,11 +129,11 @@ def create_manifest(repo, generation, command, journal, materials):
             "technical script versions; canonical EpisodeSpec/StoryPlan/ScriptRevision mapping remains open",
         ],
     )
+    if behavior.verification:
+        manifest["revision_verification_contract"] = behavior.verification
     if planning_contract is not None:
         manifest[PLANNING_KEY] = planning_contract
-    planning_duration = (
-        duration_for_input(command.input_contract, CURRENT) if command.plan_mode == "own-plan" else None
-    )
+    planning_duration = behavior.planning_duration if editorial and command.plan_mode == "own-plan" else None
     if planning_duration is not None:
         manifest[DURATION_KEY] = planning_duration
     if reference is not None:
@@ -159,7 +146,8 @@ def create_manifest(repo, generation, command, journal, materials):
         script = load_script(repo, command.project_id, command.initial_script_ref, materials.speaker_labels)
         manifest["initial_script_hash"] = materials_hash(script)
     if independent(command):
-        manifest["reading_audience"] = reading_audience(materials.packet.assignment)
+        if behavior.reading_audience_from_brief:
+            manifest["reading_audience"] = behavior.audience(materials.packet.assignment)
         manifest["reader_review_schema_version"] = reader_version
         manifest["review_workflow"] = VERSION
         manifest["limitations"][1] = (
@@ -167,19 +155,18 @@ def create_manifest(repo, generation, command, journal, materials):
         )
     if revised:
         from podgen.writing.revision.context import KEY as REVISION_CONTEXT_KEY
-        from podgen.writing.revision.context import VERSION as REVISION_CONTEXT_VERSION
 
-        manifest[REVISION_CONTEXT_KEY] = REVISION_CONTEXT_VERSION
+        if behavior.revision_context:
+            manifest[REVISION_CONTEXT_KEY] = behavior.revision_context
         manifest["fact_review_schema_version"] = FACT_VERSION
         manifest["script_revision_contract"] = REVISION_VERSION
         manifest["revision_response_schemas"] = revision_schemas()
     if command.input_contract == "editorial-role-packets/1":
         from podgen.writing.plan_selection import KEY as SELECTION_KEY
-        from podgen.writing.plan_selection import for_projection
         from podgen.writing.projections import SINGLE_INPUT_TOKEN_LIMIT, VISIBLE_BYTES_LIMIT
 
         manifest["role_projection_version"] = CURRENT
-        selection = for_projection(CURRENT)
+        selection = behavior.selection
         if selection is not None:
             manifest[SELECTION_KEY] = selection
         if offered("draft", CURRENT):
@@ -189,5 +176,7 @@ def create_manifest(repo, generation, command, journal, materials):
         )
     if command.plan_mode == "own-plan":
         manifest["plan_review_target_catalog"] = "planning-output-pointers-v1"
-        manifest["plan_target_repair_instructions"] = asdict(load_plan_target_repair_instructions())
+        manifest["plan_target_repair_instructions"] = asdict(
+            behavior.instructions("plan-target-repair", materials.format)
+        )
     return journal.create_run(command, manifest)
