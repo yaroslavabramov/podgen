@@ -1,0 +1,19 @@
+{
+  "shared_sha256": "b2a35b11118e60576a2873e935fcb65b847ea86c3ba47e60fd21dd371773fd80",
+  "original_shared_sha256": "f92ace1fc2ed82b2bea34565f5ada718792a7406862caf1fae8cd04989a850d8",
+  "schema": "backend/schemas/editorial-input.v2.schema.json",
+  "schema_sha256": "1f1744719c260637d29480edb5a1e7bfaa228052c0b2d7c0ab3c6b73067d3034",
+  "external_json_schema": "passed (Draft202012Validator)",
+  "pydantic": "passed",
+  "exact_excerpt_ranges": 19,
+  "knowledge_cards": 12,
+  "primary_documents": 3,
+  "file_sha256": {
+    "brief.md": "c1e3f69c3ec6181a07eb3384ff079197bfe9fd08ca611c716c7b1e8aeed68478",
+    "dossier.md": "4d6bf5934d1d7cf55bbd93b08af88e75dd4cbb55d7b8a39f6513381689523e5e",
+    "sources/orville-diary-1903-12-17.txt": "95ce29bdcbdccfb604a4ad68c65a94d20534513d799a15eb36d0f03b259822a8",
+    "sources/wright-statement-1904-01-05.txt": "296dc4810f48dfed758218ab48caff5f33edb5a4c8566b70d03364f30e637d19",
+    "sources/orville-telegram-1903-12-17.txt": "dfbbc53443c60919bc636b4f10ed800fd8b719d01a9a4a69b3633dff6bd65988"
+  },
+  "model_calls": 0
+}
