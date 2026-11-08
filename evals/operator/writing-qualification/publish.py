@@ -57,6 +57,25 @@ def receipts(run, seen, rates):
             )
 
 
+def classify_missing_usage(run, export):
+    unsent, unknown = [], []
+    missing = set(export["unknown_usage_invocations"])
+    for stage, selected in export["invocations"].items():
+        for attempt in selected["attempts"]:
+            identifier = attempt["invocation_id"]
+            if identifier not in missing:
+                continue
+            directory = run / "archive" / stage
+            if attempt["attempt_index"]:
+                directory /= f"attempt-{attempt['attempt_index']}"
+            events = read(directory / "events.json")
+            intent = any(e["event_kind"] == "submit_intent" for e in events)
+            (unknown if intent else unsent).append(identifier)
+    if set(unsent + unknown) != missing:
+        raise ValueError("Run exported missing usage without its invocation")
+    return dict(no_submission=unsent, unknown_usage=unknown)
+
+
 def publish(trial, destination):
     summary = read(trial / "terminal.json")
     destination.mkdir(parents=True, exist_ok=True)
@@ -75,7 +94,7 @@ def publish(trial, destination):
                 status=export["status"],
                 reason=export["failure_code"],
                 review_status=export.get("review_status"),
-                unknown_usage=export["unknown_usage_invocations"],
+                **classify_missing_usage(run, export),
             )
         )
         for stage in export["invocations"]:
