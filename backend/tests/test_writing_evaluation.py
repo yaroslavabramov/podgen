@@ -16,7 +16,6 @@ from podgen.runtime.evaluation.profiles import create_profile
 from podgen.runtime.evaluation.service import WritingEvaluation
 from podgen.runtime.models.contracts import ProviderFault, WireReply
 from podgen.writing.materials import AuthorDocument, AuthorMaterials
-from tests.author_responses import author_response
 
 
 class FakeProvider:
@@ -89,7 +88,7 @@ class FakeProvider:
                 dict(
                     type="message",
                     role="assistant",
-                    content=[dict(type="output_text", text=author_response(body, output))],
+                    content=[dict(type="output_text", text=json.dumps(output, ensure_ascii=False))],
                 )
             ],
             usage=dict(input_tokens=self.tokens, output_tokens=123),
