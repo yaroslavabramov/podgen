@@ -17,6 +17,17 @@ from tests.test_own_plan import own_dataset as own_dataset
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def current_planner_reply(source):
+    """A synthetic V9 planner chooses a new final moment while retaining the archived episode answer."""
+    reply = candidate_view(source, projection_version=CURRENT)
+    reply["plan"]["ending"] = dict(
+        last_moment="Последний документ закрывают на строке с датой наблюдения.",
+        why_end_here="Читатель уже может сопоставить дату с тем, что было известно героям.",
+        promises_to_close=reply["plan"]["ending"]["promises_to_close"],
+    )
+    return reply
+
+
 class QuestionFlowProvider:
     def __init__(self, initial, draft, question):
         self.initial = initial
@@ -41,7 +52,6 @@ class QuestionFlowProvider:
                 decision="revise" if change else "accept",
                 decision_reason=self.initial["plan"]["listener_promise"],
                 listener_answer=self.initial["plan"]["working_answer"],
-                important_limits=[],
                 strengths=[],
                 findings=[
                     dict(
@@ -58,6 +68,8 @@ class QuestionFlowProvider:
                 research_requests=[],
                 duration_note=self.initial["plan"]["duration_strategy"]["assumptions"][0],
             )
+            if "important_limits" in body["text"]["format"]["schema"]["properties"]:
+                output["important_limits"] = []
         elif stage == "draft":
             output = self.draft
         elif stage == "review":
@@ -116,7 +128,8 @@ def test_accepted_listener_question_reaches_author_and_review_without_replacing_
             (ROOT / "evals/reports/2026-11-05-planning/own-plan/snow-pump/draft.json").read_text()
         )["output"]
     before = json.dumps(initial, ensure_ascii=False)
-    provider = QuestionFlowProvider(initial, draft, question)
+    proposed = current_planner_reply(initial)
+    provider = QuestionFlowProvider(proposed, draft, question)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *args, **kwargs: provider)
     assert invoke(prefix, "run", **own) == 0
@@ -132,7 +145,7 @@ def test_accepted_listener_question_reaches_author_and_review_without_replacing_
     }
     assert views["review"]["editorial_frame"]["main_question"] == central
     assert views["review"]["draft"]["utterances"][0]["text"] == draft["utterances"][0]["text"]
-    assert views["plan-review"]["candidate_plan"] == candidate_view(initial, projection_version=CURRENT)
+    assert views["plan-review"]["candidate_plan"] == proposed
     assert all(v["assignment"]["audience"] == assignment["audience"] for v in views.values())
     if question is not None:
         assert views["plan-revise"]["revision_guidance"]["findings"][0]["requested_change"] == question
@@ -141,7 +154,7 @@ def test_accepted_listener_question_reaches_author_and_review_without_replacing_
         )
         restored = deepcopy(provider.accepted)
         restored["plan"]["main_question"] = initial["plan"]["main_question"]
-        assert restored == initial
+        assert restored == proposed
     else:
         assert central == assignment["question"]  # Still explicit when the accepted wording is unchanged.
     if case == "gps-clock":

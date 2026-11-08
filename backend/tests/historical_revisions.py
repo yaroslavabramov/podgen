@@ -7,9 +7,9 @@ from podgen.writing.model_references import CATALOG_KEY, ModelReferences, bind_s
 from podgen.writing.projection_versions import V8
 
 
-def historical_revision_manifest(value):
+def historical_revision_manifest(value, *, projection_version=V8):
     manifest = deepcopy(value)
-    manifest["role_projection_version"] = V8
+    manifest["role_projection_version"] = projection_version
     for field in (
         "writer_response_contract",
         "script_revision_contract",
@@ -23,7 +23,7 @@ def historical_revision_manifest(value):
             response_schema(
                 stage,
                 manifest["input_contract"],
-                projection_version=V8,
+                projection_version=projection_version,
                 reader_schema_version=manifest.get("reader_review_schema_version"),
             ),
             references,

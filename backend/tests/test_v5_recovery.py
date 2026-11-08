@@ -10,6 +10,7 @@ from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.models.contracts import WireReply
 from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.model_references import CATALOG_KEY, ModelReferences
+from podgen.writing.projection_versions import V5
 from tests.credit_provider import CreditProvider
 from tests.historical_revisions import historical_revision_manifest
 from tests.own_plan_provider import proposal
@@ -65,6 +66,15 @@ class RecoveryProvider(CurrentPlanProvider):
 @pytest.mark.parametrize("mode", ["pending", "target", "anchor", "credit"])
 def test_exact_v5_wire_survives_every_recovery_boundary(own_dataset, tmp_path, monkeypatch, mode):
     prefix, _, options, _, data, _, _, _, _, _ = admitted(legacy(), own_dataset, tmp_path, monkeypatch)
+    create = EvaluationJournal.create_run
+
+    def pinned(journal, command, manifest):
+        source = dict(manifest)
+        source.pop("craft_reference", None)
+        source.pop("reader_review_schema_version", None)
+        return create(journal, command, historical_revision_manifest(source, projection_version=V5))
+
+    monkeypatch.setattr(EvaluationJournal, "create_run", pinned)
     packet = EditorialInput.model_validate(data)
     refs = ModelReferences.create(packet)
     inner = RecoveryProvider(refs, packet, mode)
@@ -82,6 +92,8 @@ def test_exact_v5_wire_survives_every_recovery_boundary(own_dataset, tmp_path, m
     else:
         assert invoke(prefix, "run", **options) == (2 if mode in ("target", "credit") else 0)
     saved_manifest = deepcopy(journal.manifest(options["run_id"]))
+    assert saved_manifest["role_projection_version"] == V5
+    assert "writer_response_contract" not in saved_manifest
     assert saved_manifest[CATALOG_KEY] == refs.as_payload()
     resume = dict(run_id=options["run_id"], export_dir=tmp_path / "export")
     if mode == "target":

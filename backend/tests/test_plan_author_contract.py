@@ -19,11 +19,13 @@ from podgen.runtime.models.contracts import WireReply
 from podgen.writing.editorial_contract import EditorialInput, FixedEditorialInput
 from podgen.writing.plan_views import candidate_view
 from podgen.writing.planning_roles import PlanningOutput, PlanReviewOutput
-from podgen.writing.projection_versions import CURRENT, V3
+from podgen.writing.planning_v9 import PlanningOutputV9
+from podgen.writing.projection_versions import V3, V8
 from podgen.writing.projections import creative_knowledge_view
+from tests.historical_revisions import historical_revision_manifest
 from tests.test_editorial_independence import invoke, payload, prepare
 from tests.test_independent_readings import Paused, ReadingProvider, setup_review
-from tests.test_listener_question_flow import QuestionFlowProvider
+from tests.test_listener_question_flow import QuestionFlowProvider, current_planner_reply
 from tests.test_own_plan import own_dataset as own_dataset
 from tests.test_planning_roles import review_payload as review_payload
 
@@ -40,8 +42,12 @@ def test_new_and_legacy_plan_shapes_roundtrip_without_manufacturing_or_losing_fi
     assert all(act["limitations_to_voice"] for act in old["plan"]["acts"])
     assert old["plan"]["ending"]["qualifications"]
     assert PlanningOutput.model_validate_json(json.dumps(old)).model_dump(mode="json") == old
-    new = candidate_view(old, projection_version=CURRENT)
-    assert PlanningOutput.model_validate_json(json.dumps(new)).model_dump(mode="json") == new
+    historical = candidate_view(old, projection_version=V8)
+    assert PlanningOutput.model_validate(historical).model_dump(mode="json") == historical
+    new = current_planner_reply(old)
+    assert PlanningOutputV9.model_validate(new).model_dump(mode="json") == new
+    assert new["plan"]["working_answer"] == old["plan"]["working_answer"]
+    assert "last_moment" in new["plan"]["ending"]
     assert "limitations" not in new
     assert all("limitations_to_voice" not in act for act in new["plan"]["acts"])
     assert "qualifications" not in new["plan"]["ending"]
@@ -56,7 +62,10 @@ def test_new_and_legacy_plan_shapes_roundtrip_without_manufacturing_or_losing_fi
     assert ActPlan.model_validate(act).model_dump(mode="json") == act
     legacy = dict(act, limitations_to_voice=["  Полный исторический текст.\n" * 1000])
     assert ActPlan.model_validate(legacy).model_dump(mode="json") == legacy
-    assert Ending.model_validate(new["plan"]["ending"]).model_dump(mode="json") == new["plan"]["ending"]
+    assert (
+        Ending.model_validate(historical["plan"]["ending"]).model_dump(mode="json")
+        == historical["plan"]["ending"]
+    )
     assert Ending.model_validate(old["plan"]["ending"]).model_dump(mode="json") == old["plan"]["ending"]
 
 
@@ -93,7 +102,8 @@ def test_actual_six_act_snow_author_and_dual_revision_wires_keep_support_not_rec
     wire = preview_request(uuid4(), "draft", profile, materials, approved_plan=plan)
     author = payload(wire)
     assert "necessary_limits" not in author and "limitations" not in author["story"]
-    assert author["story"]["conclusion"] == dict(meaning=plan["plan"]["ending"]["answer_to_deliver"])
+    assert author["story"]["episode_answer"] == plan["plan"]["working_answer"]
+    assert author["story"]["ending"] is None
     assert author["story"]["duration_strategy"] == dict(
         estimated_seconds_range=plan["plan"]["duration_strategy"]["estimated_seconds_range"]
     )
@@ -143,9 +153,13 @@ def test_actual_six_act_snow_author_and_dual_revision_wires_keep_support_not_rec
         "main_question",
         "listener_promise",
         "unresolved_questions",
+        "episode_answer",
+        "ending",
         "route_summary",
         "authority",
     }
+    assert revised["editorial_frame"]["episode_answer"] == plan["plan"]["working_answer"]
+    assert revised["editorial_frame"]["ending"] is None
     assert "necessary_limits" not in revised
     assert all("important_limits" not in row for row in revised["revision_guidance"])
     assert revised["revision_guidance"][1]["findings"][0] == fact["findings"][0]
@@ -190,9 +204,6 @@ class CurrentPlanProvider(ReadingProvider):
             response = json.loads(reply.body)
             content = response["output"][0]["content"][0]
             review = json.loads(content["text"])
-            review.pop(
-                "important_limits"
-            )  # This local double returns the new strict wire, not a legacy reply.
             if self.break_target and body["metadata"]["podgen_stage"] == "plan-review":
                 review["findings"][0]["targets"] = ["/missing/field"]
             content["text"] = json.dumps(review, ensure_ascii=False)
@@ -200,23 +211,23 @@ class CurrentPlanProvider(ReadingProvider):
         return reply
 
 
-@pytest.mark.parametrize("legacy_candidate", [False, True])
+@pytest.mark.parametrize("repair_target", [False, True])
 def test_ordinary_new_plan_review_revision_author_and_dual_revision_without_obligation_fields(
-    own_dataset, tmp_path, monkeypatch, legacy_candidate
+    own_dataset, tmp_path, monkeypatch, repair_target
 ):
     prefix, _, own, _, _ = prepare(own_dataset, "snow-pump", tmp_path, monkeypatch)
     own["review_mode"] = "independent-readings/1"
     old = json.loads((ROOT / "evals/editorial-inputs/v1/snow-pump/fixed-plan.json").read_text())["plan"]
-    initial = deepcopy(old) if legacy_candidate else candidate_view(old, projection_version=CURRENT)
+    initial = current_planner_reply(old)
     script = json.loads(
         (ROOT / "evals/reports/2026-11-05-planning/own-plan/snow-pump/draft.json").read_text()
     )["output"]
     provider = CurrentPlanProvider(("revise", "keep"))
-    provider.break_target = legacy_candidate
+    provider.break_target = repair_target
     provider.upstream = QuestionFlowProvider(initial, script, "Как проверить основания решения?")
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *a, **k: provider)
-    assert invoke(prefix, "run", **own) == (2 if legacy_candidate else 0)
-    if legacy_candidate:
+    assert invoke(prefix, "run", **own) == (2 if repair_target else 0)
+    if repair_target:
         journal = EvaluationJournal(own_dataset[0], own_dataset[1])
         failed = journal.invocation(own["run_id"], "plan-review")
         assert (
@@ -256,11 +267,7 @@ def test_v3_pending_dual_rewrite_resumes_exact_saved_request(own_dataset, tmp_pa
     original = EvaluationJournal.create_run
 
     def pinned(journal, command, manifest):
-        from tests.historical_revisions import historical_revision_manifest
-
-        return original(
-            journal, command, dict(historical_revision_manifest(manifest), role_projection_version=V3)
-        )
+        return original(journal, command, historical_revision_manifest(manifest, projection_version=V3))
 
     monkeypatch.setattr(EvaluationJournal, "create_run", pinned)
     provider = ReadingProvider(("revise", "keep"), pause="revise-1")
