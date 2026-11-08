@@ -169,8 +169,10 @@ class WritingEvaluation:
                 ) != dict(visible_bytes=VISIBLE_BYTES_LIMIT, input_tokens=SINGLE_INPUT_TOKEN_LIMIT):
                     raise ContractError("role_input_contract_changed")
             from podgen.writing.plan_selection import from_manifest as selection_from_manifest
+            from podgen.writing.revision.context import from_manifest as revision_context_from_manifest
 
             selection_from_manifest(manifest)
+            revision_context_from_manifest(manifest)
             from podgen.writing.planning_duration import from_manifest as duration_from_manifest
 
             duration_from_manifest(manifest)

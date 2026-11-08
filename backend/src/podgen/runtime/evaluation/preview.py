@@ -20,6 +20,8 @@ from podgen.writing.prompts import (
 )
 from podgen.writing.reader_schema import VERSION as READER_SCHEMA_VERSION
 from podgen.writing.reading_views import reading_audience
+from podgen.writing.revision.context import VERSION as REVISION_CONTEXT_VERSION
+from podgen.writing.revision.context import from_manifest as revision_context_from_manifest
 from podgen.writing.revision.contracts import FACT_VERSION
 
 from .compiler import response_request
@@ -54,7 +56,10 @@ def preview_request(run_id, stage, profile, materials, *, snapshot=None, **input
     from podgen.writing.model_references import run_references
 
     references = run_references(materials, snapshot.manifest) if snapshot else None
-    if stage not in AUTHOR_STAGES:
+    revision_context = (
+        revision_context_from_manifest(snapshot.manifest) if snapshot else REVISION_CONTEXT_VERSION
+    )
+    if stage not in AUTHOR_STAGES or (stage.startswith("revise-") and revision_context is not None):
         reference = None
     elif snapshot:
         reference = pinned_reference(snapshot.manifest)
@@ -115,6 +120,7 @@ def preview_request(run_id, stage, profile, materials, *, snapshot=None, **input
             reference_catalog=references,
             plan_selection_contract=selection,
             craft_reference=reference,
+            revision_context_contract=revision_context,
             audience=reading_audience(materials.packet.assignment, snapshot.manifest if snapshot else None),
             script=inputs["draft"],
             readings=readings,

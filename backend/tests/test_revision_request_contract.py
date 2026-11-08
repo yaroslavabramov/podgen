@@ -52,7 +52,10 @@ def test_real_83_normal_preview_uses_targeted_schema_and_keeps_the_full_script()
     assert visible["revision_operation"]["mode"] == "targeted"
     assert "base_script_hash" not in visible["revision_operation"]
     reader, fact = visible["revision_guidance"]
-    assert reader["listener_understanding"] == reviews["reader"]["listener_answer"]
+    assert "listener_understanding" not in reader and "craft_reference" not in visible
+    assert reader["findings"] == reviews["reader"]["findings"]
+    assert reader["positive_observations"] == reviews["reader"]["strengths"]
+    assert fact["positive_observations"] == reviews["fact"]["strengths"]
     assert not {"listener_understanding", "duration_note", "important_limits"} & set(fact)
     assert len(fact["findings"]) == len(reviews["fact"]["findings"])
     assert all(finding["evidence"] and finding["preserve"] for finding in fact["findings"])
@@ -86,3 +89,26 @@ def test_every_new_provider_schema_has_valid_reference_nodes_and_explicit_requir
             if node.get("type") == "object":
                 assert set(node["required"]) == set(node["properties"])
                 assert node["additionalProperties"] is False
+
+
+def test_compact_revision_pin_requires_its_addressed_review_workflow():
+    import pytest
+
+    from podgen.domain.errors import ContractError
+    from podgen.writing.projection_versions import V8, V9
+    from podgen.writing.revision.context import KEY, VERSION, from_manifest
+
+    current = {
+        "role_projection_version": V9,
+        "script_revision_contract": "addressed-script-revision/1",
+        KEY: VERSION,
+    }
+    assert from_manifest(current) == VERSION
+    assert from_manifest({k: v for k, v in current.items() if k != KEY}) is None
+    for invalid in (
+        dict(current, role_projection_version=V8),
+        {k: v for k, v in current.items() if k != "script_revision_contract"},
+        dict(current, revision_context_contract="unknown"),
+    ):
+        with pytest.raises(ContractError, match="unsupported_revision_context_contract"):
+            from_manifest(invalid)

@@ -16,6 +16,7 @@ def historical_revision_manifest(value, *, projection_version=V8):
         "planning_output_contract",
         "planning_duration_contract",
         "script_revision_contract",
+        "revision_context_contract",
         "revision_response_schemas",
         "fact_review_schema_version",
     ):
