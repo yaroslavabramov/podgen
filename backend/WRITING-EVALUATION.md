@@ -204,3 +204,11 @@ uv run --directory backend ruff check src tests
 Для нового выпуска с `--plan-mode own-plan` добавьте к обычному `run` флаг `--stop-after-plan`. Планировщик и его редактор выполнят штатный цикл. После одобрения команда вернёт `plan_ready`. В каталоге экспорта будут `generated-plan.md`, полные ответы отдельных ролей и `planning-clearance.json` со ссылкой и хешем выбранной версии.
 
 Продолжите через `resume --run-id <тот же UUID> --export-dir <каталог>`. Автор получит ранее одобренный план, затем начнутся обычные чтения. Время ожидания оператора после одобрения исключается из лимита выполнения. Повтор `resume --stop-after-plan` до продолжения возвращает тот же результат. Этот флаг можно передать и в `continue-planning`, чтобы остановиться после одобрения дополнительной редакции.
+
+### Воспроизводимый запуск с автором Opus
+
+`run --behavior-profile narrative-rebuild/1` воспроизводит комплект архивного выпуска о Сноу. `editorial-candidate/1` выбирает план с привязкой материалов к конкретным сценам и редакторскую сверку переписанного текста. В обоих случаях план пишет Sol, сценарий пишет и правит Opus, рецензии даёт Terra. Без явного выбора используется `existing/1`.
+
+Для автора зарегистрируйте `profile-create --provider anthropic --model claude-opus-5-5 --context-limit 200000 --output-limit 24576 --reasoning-effort medium --verbosity high --roles writer --out writer.json`. Задайте `ANTHROPIC_API_KEY` для Messages и `OPENAI_API_KEY` для ролей OpenAI. Подсчёт входа и генерация идут через выбранного провайдера. В журнале сохраняются отправленный запрос, ответ и сведения об использовании токенов. Точный тариф применяется к квитанции каждого обращения.
+
+Для повторной редакторской сессии экспортируйте одобренный план командой `accepted-plan-export --run-id RUN_ID --out plan-ref.json`. Передайте его в `run --plan-mode fixed-plan --fixed-plan-input-ref @plan-ref.json` вместе с `--initial-script-ref` из последнего `review-outcome.json`, тем же комплектом и номером `--editorial-pass`.
