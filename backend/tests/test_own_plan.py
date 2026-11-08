@@ -262,7 +262,7 @@ def test_partial_resume_uses_exact_saved_plan_and_pinned_prompts(own_dataset, mo
     provider.on_count = None
     monkeypatch.setattr(
         manifest_module,
-        "load_instruction_set",
+        "resolve_behavior",
         lambda *args, **kwargs: pytest.fail("resume must not read active prompts"),
     )
     result = execute(own_dataset, command, provider)

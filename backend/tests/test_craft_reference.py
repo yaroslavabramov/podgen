@@ -10,6 +10,7 @@ import pytest
 from podgen.domain.errors import ContractError
 from podgen.runtime.evaluation.preview import preview_request
 from podgen.writing import craft_reference
+from podgen.writing.behavior import BehaviorProfile
 from tests.test_editorial_independence import payload
 from tests.test_prompt_resources import deployed_python
 from tests.test_prompt_resources import installed_package as installed_package
@@ -23,6 +24,8 @@ def reference_resource(tmp_path, monkeypatch):
     raw = "Source material\r\nДословный русский образец.\r\n".encode()
     resource.write_bytes(raw)
     monkeypatch.setattr(craft_reference, "files", lambda _: tmp_path)
+    # Give this release a temporary reference to exercise missing, changed and archived bytes.
+    monkeypatch.setattr(BehaviorProfile, "craft", lambda _, language: craft_reference.load_reference(language))
     return resource, raw
 
 

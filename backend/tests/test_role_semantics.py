@@ -206,7 +206,7 @@ def test_older_manifest_resume_keeps_pinned_schema_and_request(
     monkeypatch.setattr(provider, "count", count)
     monkeypatch.setattr(
         manifest,
-        "load_instruction_set",
+        "resolve_behavior",
         lambda *args, **kwargs: pytest.fail("must use archived instructions"),
     )
     assert service.run(command)["status"] == "completed_unaccepted"

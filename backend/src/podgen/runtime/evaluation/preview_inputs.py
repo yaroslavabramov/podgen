@@ -53,7 +53,7 @@ def validate_preview_inputs(stage, *, fixed, inputs):
             raise ContractError("preview_plan_source_required")
 
 
-def validate_preview_snapshots(stage, materials, inputs):
+def validate_preview_snapshots(stage, materials, inputs, *, projection_version=CURRENT):
     if base_stage(stage) == "fact-review" and inputs.get("approved_plan") is not None:
         if not is_scene_plan(inputs["approved_plan"]):
             raise ContractError("preview_incompatible_inputs")
@@ -76,7 +76,7 @@ def validate_preview_snapshots(stage, materials, inputs):
             raise ContractError("preview_speaker_assignment_mismatch")
     if inputs.get("plan_review") is not None:
         review = PlanReviewOutput.model_validate(inputs["plan_review"])
-        candidate = planning_snapshot(candidate_view(inputs["candidate"], projection_version=CURRENT))
+        candidate = planning_snapshot(candidate_view(inputs["candidate"], projection_version=projection_version))
         if stage == "plan-target-repair":
             review.validate_context(candidate, material_locators=materials.material_catalog)
         else:

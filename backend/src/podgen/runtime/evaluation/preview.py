@@ -9,7 +9,7 @@ from podgen.writing.plan_views import candidate_view
 from podgen.writing.planning_choice import from_manifest as planning_from_manifest
 from podgen.writing.planning_duration import from_manifest as duration_from_manifest
 from podgen.writing.planning_versions import planning_snapshot
-from podgen.writing.projection_versions import CURRENT, manifest_version
+from podgen.writing.projection_versions import manifest_version
 from podgen.writing.projections import CONTRACT, validate_model_content
 from podgen.writing.reading_views import reading_audience
 from podgen.writing.revision.context import from_manifest as revision_context_from_manifest
@@ -36,6 +36,9 @@ def preview_request(
     ):
         raise ContractError("preview_behavior_profile_mismatch")
     behavior = None if snapshot else resolve_behavior(behavior_profile, editorial_pass or 1)
+    if behavior:
+        behavior.validate_model(stage, profile)
+    projection = manifest_version(snapshot.manifest) if snapshot else behavior.projection
     if snapshot:
         from podgen.writing.author_reply import verify_pin
 
@@ -45,10 +48,9 @@ def preview_request(
             raise ContractError("preview_claim_scope_plan_mismatch")
         inputs["approved_plan"] = snapshot.fact_plan
     validate_preview_inputs(stage, fixed=materials.fixed is not None, inputs=inputs)
-    validate_preview_snapshots(stage, materials, inputs)
+    validate_preview_snapshots(stage, materials, inputs, projection_version=projection)
     validate_continuation_preview(stage, snapshot, inputs)
     inputs = {key: value for key, value in inputs.items() if value is not None}
-    projection = manifest_version(snapshot.manifest) if snapshot else CURRENT
     planning_contract = planning_from_manifest(snapshot.manifest) if snapshot else behavior.planning_contract
     planning_duration = duration_from_manifest(snapshot.manifest) if snapshot else behavior.planning_duration
     selection = selection_from_manifest(snapshot.manifest) if snapshot else behavior.selection
@@ -201,7 +203,7 @@ def preview_request(
         from podgen.writing.planning_roles import PlanReviewOutput
 
         plan = PlanTargetRepair.build(
-            planning_snapshot(candidate_view(inputs["candidate"], projection_version=CURRENT)),
+            planning_snapshot(candidate_view(inputs["candidate"], projection_version=projection)),
             PlanReviewOutput.model_validate(inputs["plan_review"]),
             materials.material_catalog,
         )
@@ -216,7 +218,8 @@ def preview_request(
         model = PlanTargetChoices
         role_stage = "plan-review"
         name = "plan_target_choices"
-    references = preview_references(materials, CURRENT)
+    if snapshot is None:
+        references = preview_references(materials, projection)
     if references is not None:
         payload = references.translate(payload)
     schema = model.model_json_schema()

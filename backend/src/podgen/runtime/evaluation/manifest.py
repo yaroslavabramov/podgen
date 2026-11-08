@@ -13,7 +13,6 @@ from podgen.writing.behavior import resolve_behavior
 from podgen.writing.model_references import CATALOG_KEY, bind_schema, preview_references
 from podgen.writing.planning_choice import KEY as PLANNING_KEY
 from podgen.writing.planning_duration import KEY as DURATION_KEY
-from podgen.writing.projection_versions import CURRENT
 from podgen.writing.reader_schema import V2 as LEGACY_READER_SCHEMA_VERSION
 from podgen.writing.revision.contracts import FACT_VERSION
 from podgen.writing.revision.contracts import VERSION as REVISION_VERSION
@@ -45,7 +44,7 @@ def create_manifest(repo, generation, command, journal, materials):
         and (command.initial_script_ref is None or command.max_script_revisions > 0)
         else None
     )
-    references = preview_references(materials, CURRENT)
+    references = preview_references(materials, behavior.projection)
     producer = CodeProducer(
         kind="code",
         component="whole-episode-evaluation",
@@ -86,6 +85,7 @@ def create_manifest(repo, generation, command, journal, materials):
             response_schema(
                 stage,
                 command.input_contract,
+                projection_version=behavior.projection,
                 planning_output_contract=planning_contract,
                 **(
                     {"revision_verification_contract": behavior.verification} if behavior.verification else {}
@@ -165,11 +165,11 @@ def create_manifest(repo, generation, command, journal, materials):
         from podgen.writing.plan_selection import KEY as SELECTION_KEY
         from podgen.writing.projections import SINGLE_INPUT_TOKEN_LIMIT, VISIBLE_BYTES_LIMIT
 
-        manifest["role_projection_version"] = CURRENT
+        manifest["role_projection_version"] = behavior.projection
         selection = behavior.selection
         if selection is not None:
             manifest[SELECTION_KEY] = selection
-        if offered("draft", CURRENT):
+        if offered("draft", behavior.projection):
             manifest["writer_response_contract"] = contract_pin(manifest, materials.speaker_labels)
         manifest["role_input_budget"] = dict(
             visible_bytes=VISIBLE_BYTES_LIMIT, input_tokens=SINGLE_INPUT_TOKEN_LIMIT

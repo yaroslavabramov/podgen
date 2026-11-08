@@ -838,7 +838,7 @@ def test_keep_cannot_be_previewed_as_a_paid_revision(repo, editorial, monkeypatc
     draft = dict(utterances=[dict(speaker="ВЕДУЩИЙ", text="Точный полный текст.")])
     monkeypatch.setattr(
         preview,
-        "load_instruction_set",
+        "compile_role_request",
         lambda *args, **kwargs: pytest.fail("impossible revision reached compiler"),
     )
     with pytest.raises(ContractError, match="preview_revision_not_required"):
