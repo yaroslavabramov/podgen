@@ -171,6 +171,9 @@ class WritingEvaluation:
             from podgen.writing.plan_selection import from_manifest as selection_from_manifest
 
             selection_from_manifest(manifest)
+            from podgen.writing.planning_duration import from_manifest as duration_from_manifest
+
+            duration_from_manifest(manifest)
             from podgen.writing.planning_choice import from_manifest as planning_from_manifest
 
             planning_contract = planning_from_manifest(manifest)

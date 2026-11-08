@@ -8,6 +8,8 @@ from podgen.writing.plan_selection import from_manifest as selection_from_manife
 from podgen.writing.plan_views import candidate_view
 from podgen.writing.planning_choice import for_input as planning_for_input
 from podgen.writing.planning_choice import from_manifest as planning_from_manifest
+from podgen.writing.planning_duration import for_input as duration_for_input
+from podgen.writing.planning_duration import from_manifest as duration_from_manifest
 from podgen.writing.planning_versions import planning_snapshot
 from podgen.writing.projection_versions import CURRENT, manifest_version
 from podgen.writing.projections import CONTRACT, validate_model_content
@@ -41,6 +43,9 @@ def preview_request(run_id, stage, profile, materials, *, snapshot=None, **input
     projection = manifest_version(snapshot.manifest) if snapshot else CURRENT
     planning_contract = (
         planning_from_manifest(snapshot.manifest) if snapshot else planning_for_input(CONTRACT, projection)
+    )
+    planning_duration = (
+        duration_from_manifest(snapshot.manifest) if snapshot else duration_for_input(CONTRACT, projection)
     )
     selection = (
         selection_from_manifest(snapshot.manifest) if snapshot else selection_for_projection(projection)
@@ -131,6 +136,7 @@ def preview_request(run_id, stage, profile, materials, *, snapshot=None, **input
             projection_version=projection,
             reference_catalog=references,
             plan_selection_contract=selection,
+            planning_duration_contract=planning_duration,
             craft_reference=reference,
             **inputs,
         )

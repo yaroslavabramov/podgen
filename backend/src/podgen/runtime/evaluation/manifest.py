@@ -13,6 +13,8 @@ from podgen.writing.craft_reference import load_reference
 from podgen.writing.model_references import CATALOG_KEY, bind_schema, preview_references
 from podgen.writing.planning_choice import KEY as PLANNING_KEY
 from podgen.writing.planning_choice import for_input as planning_for_input
+from podgen.writing.planning_duration import KEY as DURATION_KEY
+from podgen.writing.planning_duration import for_input as duration_for_input
 from podgen.writing.projection_versions import CURRENT
 from podgen.writing.prompts import (
     load_anchor_repair_instructions,
@@ -141,6 +143,11 @@ def create_manifest(repo, generation, command, journal, materials):
     )
     if planning_contract is not None:
         manifest[PLANNING_KEY] = planning_contract
+    planning_duration = (
+        duration_for_input(command.input_contract, CURRENT) if command.plan_mode == "own-plan" else None
+    )
+    if planning_duration is not None:
+        manifest[DURATION_KEY] = planning_duration
     if reference is not None:
         manifest["craft_reference"] = reference
     if references is not None:
