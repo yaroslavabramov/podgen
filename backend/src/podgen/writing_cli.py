@@ -28,7 +28,9 @@ def wire_ref(value, model):
 
 
 def parser():
-    root = argparse.ArgumentParser(description="Frozen episode writing with independent listener and factual readings")
+    root = argparse.ArgumentParser(
+        description="Frozen episode writing with independent listener and factual readings"
+    )
     root.add_argument("--env-file", type=Path)
     root.add_argument("--project", type=UUID, required=True)
     root.add_argument("--actor", type=UUID, required=True)
@@ -63,6 +65,10 @@ def parser():
     run = sub.add_parser("run")
     run.add_argument("--run-id", type=UUID, required=True)
     run.add_argument("--case", required=True)
+    from podgen.writing.behavior import NAMES
+
+    run.add_argument("--behavior-profile", choices=NAMES)
+    run.add_argument("--editorial-pass", type=int, choices=(1, 2, 3), default=1)
     run.add_argument("--fixed-plan-input-ref")
 
     run.add_argument(
@@ -198,6 +204,8 @@ def main(argv=None):
                 project_id=args.project,
                 actor_id=args.actor,
                 case_id=args.case,
+                behavior_profile=args.behavior_profile,
+                editorial_pass=args.editorial_pass,
                 fixed_plan_input_ref=wire_ref(args.fixed_plan_input_ref, RuntimeRef)
                 if args.fixed_plan_input_ref
                 else None,
