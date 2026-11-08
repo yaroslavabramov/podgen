@@ -129,7 +129,7 @@ def attach_author_support(
     if not creative_materials(projection_version):
         payload["support"] = knowledge_view(packet, labels=False, selected=selected)
         return
-    linked = plan_selection_contract == SCENE_SELECTION_VERSION
+    linked = plan is not None and plan_selection_contract == SCENE_SELECTION_VERSION
     cards = creative_knowledge_view(
         packet, labels=linked, selected=selected, projection_version=projection_version
     )

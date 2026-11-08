@@ -228,6 +228,7 @@ def test_default_saved_snow_two_isolated_readings_and_repeated_final(own_dataset
     assert [r["origin"] for r in rewrite["revision_guidance"]] == ["reader", "fact"]
     assert all("important_limits" not in guidance for guidance in rewrite["revision_guidance"])
     assert rewrite["revision_guidance"][1]["findings"][0]["preserve"] == ["Существенное ограничение."]
+    assert "accepted_plan_scenes" not in rewrite.get("editorial_frame", {})
     assert len(rewrite["support"]) == 1  # No plan: only the specific factual repair's support.
     selected = rewrite["revision_guidance"][1]["findings"][0]["support_labels"][0]
     source = next(card for card in fact["support"] if card["label"] == selected)
