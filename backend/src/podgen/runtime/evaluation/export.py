@@ -11,7 +11,7 @@ from podgen.domain.errors import Conflict
 from . import author_material
 from .contracts import STAGES
 from .journal import EvaluationJournal
-from .usage import refused_without_generation
+from .usage import refused_without_generation, unsent_without_generation
 
 
 def _write(path, data):
@@ -135,8 +135,12 @@ def export_run(repo, project, run_id, directory):
             if invocation["attempt_index"]:
                 base /= f"attempt-{invocation['attempt_index']}"
             _export_attempt(journal, invocation, base, write_json, directory)
-            result["input_tokens"] += invocation["input_tokens"] or 0
-            if invocation["output_tokens"] is None and not refused_without_generation(journal, invocation):
+            unsent = unsent_without_generation(journal, invocation)
+            if not unsent:
+                result["input_tokens"] += invocation["input_tokens"] or 0
+            if invocation["output_tokens"] is None and not (
+                unsent or refused_without_generation(journal, invocation)
+            ):
                 result["unknown_usage_invocations"].append(str(invocation["invocation_id"]))
             else:
                 result["output_tokens_known"] += invocation["output_tokens"] or 0

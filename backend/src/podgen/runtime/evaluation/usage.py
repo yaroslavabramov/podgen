@@ -18,7 +18,22 @@ def refused_without_generation(journal, row):
         return False
 
 
+def unsent_without_generation(journal, row):
+    from .input_budget_evidence import unsent_evidence
+
+    if row["status"] == "validation_failed":
+        try:
+            unsent_evidence(journal, row)
+        except RunFailure:
+            pass
+        else:
+            return True
+    return False
+
+
 def attempt_usage(journal, row, output_reservation):
+    if unsent_without_generation(journal, row):
+        return dict(input=0, output=0)
     return dict(
         input=row["input_tokens"] or 0,
         output=row["output_tokens"]
