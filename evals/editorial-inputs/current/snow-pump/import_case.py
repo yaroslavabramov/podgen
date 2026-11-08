@@ -1,4 +1,4 @@
-"""Admit the current case and its exact files through ordinary import commands; no models."""
+"""Admit a Snow packet and its exact files through ordinary import commands; no models."""
 
 import argparse
 import json
@@ -18,6 +18,12 @@ def main(argv=None):
     parser.add_argument("--objects", type=Path, required=True)
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--scope", required=True)
+    parser.add_argument(
+        "--input",
+        type=Path,
+        default=HERE / "shared.json",
+        help="Current or archived Snow packet",
+    )
     args = parser.parse_args(argv)
     args.out_dir.mkdir(parents=True, exist_ok=True)
     prefix = [
@@ -37,7 +43,7 @@ def main(argv=None):
         if code:
             raise SystemExit(code)
 
-    packet = json.loads((HERE / "shared.json").read_text())
+    packet = json.loads(args.input.read_text())
     mapping = {}
     for document in packet["documents"]:
         source_path = document["source_path"]
@@ -60,7 +66,7 @@ def main(argv=None):
     source_map.write_text(json.dumps(mapping, ensure_ascii=False, indent=2) + "\n")
     invoke(
         "editorial-import",
-        input=HERE / "shared.json",
+        input=args.input,
         source_map=source_map,
         out=args.out_dir / "shared-ref.json",
     )

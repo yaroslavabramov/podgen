@@ -29,7 +29,7 @@ from podgen.writing.roles import WriteOutput
 OUT = Path(__file__).resolve().parent
 ROOT = OUT.parents[3]
 BLIND = OUT.parent / "blind"
-SHARED = ROOT / "evals/editorial-inputs/current/snow-pump/shared.json"
+SHARED = ROOT / "evals/editorial-inputs/current/snow-pump/history/before-percolation-2026-11-08.json"
 SOURCES = ROOT / "evals/cases/development/wp02-batch-01/sources/snow"
 PROFILE = ROOT / "evals/reports/2026-11-08-story-editing/controls/profile.json"
 NS = uuid5(NAMESPACE_URL, "podgen/2026-11-08/blind-snow/fact-check")

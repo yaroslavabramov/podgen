@@ -24,7 +24,7 @@ def save(name, value):
 
 
 def main():
-    raw = (CASE / "shared.json").read_bytes()
+    raw = (CASE / "history/before-percolation-2026-11-08.json").read_bytes()
     assert sha256(raw).hexdigest() == FINAL_SHA256
     packet = EditorialInput.model_validate_json(raw)
     materials = EditorialMaterials(

@@ -67,7 +67,7 @@ def test_archived_snow_plan_review_replays_including_its_former_solo_writer_inst
     old = json.loads((archive / "calls/02-plan-review/request.json").read_bytes())
     candidate = json.loads((archive / "stages/plan.json").read_bytes())["output"]
     packet = EditorialInput.model_validate_json(
-        (evals / "editorial-inputs/current/snow-pump/shared.json").read_bytes()
+        (evals / "editorial-inputs/current/snow-pump/history/before-percolation-2026-11-08.json").read_bytes()
     )
     run_id = UUID(old["metadata"]["podgen_run_id"])
     materials = EditorialMaterials(packet, RuntimeRef(record_kind="user_input", record_id=run_id), ())

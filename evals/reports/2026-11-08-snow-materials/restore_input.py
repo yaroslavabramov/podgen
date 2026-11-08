@@ -1,4 +1,4 @@
-"""Rebuild the revised current input from a retained pre-revision packet and exact sources."""
+"""Rebuild the frozen source-restoration input from a retained pre-revision packet and exact sources."""
 
 import json
 from copy import deepcopy
@@ -20,9 +20,6 @@ def write(path, value):
 
 
 def main():
-    if not PREVIOUS.exists():
-        PREVIOUS.parent.mkdir(parents=True, exist_ok=True)
-        PREVIOUS.write_bytes((CASE / "shared.json").read_bytes())
     before = json.loads(PREVIOUS.read_text())
     data = deepcopy(before)
     text = (CORPUS / "sources/snow/snow-1855.txt").read_text()
@@ -164,7 +161,7 @@ def main():
         sha256=sha256(dossier.encode()).hexdigest(),
     )
     data = EditorialInput.model_validate(data).model_dump(mode="json")
-    write(CASE / "shared.json", data)
+    write(CASE / "history/before-percolation-2026-11-08.json", data)
     write(
         CASE / "source-restoration.json",
         {

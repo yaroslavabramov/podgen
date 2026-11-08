@@ -1,0 +1,18 @@
+{
+  "contract": "editorial-data-revision/1",
+  "date": "2026-11-08",
+  "previous_input": "history/before-percolation-2026-11-08.json",
+  "previous_sha256": "b52d0f03e8bc24fcee4c10960011557d8fe7e9a3adc74a1f36f721d3a0b080f5",
+  "previous_digest": "9273cf3e6e4f897c294658e287ce448b98b26c33cfb9f1b9529ecc34befd6f36",
+  "target_digest": "213c16a7df20f55d4d4b27889b4318021e6af3028ffc5eae5930ab476309240d",
+  "modified_card_ids": [
+    "C8b2adbd3e180",
+    "Cee554ab22bb8",
+    "C23d72f102d80"
+  ],
+  "added_card_ids": [],
+  "unchanged_primary_documents": [
+    "D3",
+    "D4"
+  ]
+}

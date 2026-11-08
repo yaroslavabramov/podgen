@@ -28,6 +28,11 @@ from tests.test_v5_role_wire import fixture
 
 ROOT = Path(__file__).resolve().parents[2]
 CASE = ROOT / "evals/editorial-inputs/current/snow-pump"
+RESTORED = CASE / "history/before-percolation-2026-11-08.json"
+YORK_CONCLUSION = (
+    "no doubt remains upon my\nmind that constant percolation, and for a con-\n"
+    "siderable period, had been conveying fluid matter\nfrom the drains into the well"
+)
 BOOK = ROOT / "evals/cases/development/wp02-batch-01/sources/snow/snow-1855"
 
 
@@ -47,7 +52,7 @@ def selected_plan(materials):
     selected = [
         card.card_id
         for card in materials.packet.dossier.knowledge_cards
-        if card.label in ("Осмотр воды", "Доставка воды")
+        if card.label in ("Осмотр воды", "Доставка воды", "Осмотр Йорка")
     ]
     plan["plan"]["opening"]["material_refs"] = selected[:1]
     for act in plan["plan"]["acts"]:
@@ -94,7 +99,7 @@ def test_data_revision_preserves_history_and_identifiers_without_changing_the_br
     revision = read(CASE / "source-restoration.json")
     previous_path = CASE / revision["previous_input"]
     before = read(previous_path)
-    after = read(CASE / "shared.json")
+    after = read(RESTORED)
     assert sha256(previous_path.read_bytes()).hexdigest() == revision["previous_sha256"]
     assert digest(before) == revision["previous_digest"]
     assert digest(after) == revision["target_digest"]
@@ -118,6 +123,35 @@ def test_data_revision_preserves_history_and_identifiers_without_changing_the_br
     assert delivery["excerpts"][0]["text"].startswith("Dr. Fraser also first called my attention")
     assert "ни в Уэст-Энде" in delivery["story_facts"]
     assert "пищеварительном" in by_label["Гипотеза передачи"]["story_facts"]
+
+
+def test_percolation_revision_preserves_the_experimental_packet_and_its_primary_sources():
+    revision = read(CASE / "percolation-revision.json")
+    assert CASE / revision["previous_input"] == RESTORED
+    assert sha256(RESTORED.read_bytes()).hexdigest() == revision["previous_sha256"]
+    old = read(RESTORED)
+    new = read(CASE / "shared.json")
+    assert (
+        digest(old) == revision["previous_digest"] == read(CASE / "source-restoration.json")["target_digest"]
+    )
+    assert digest(new) == revision["target_digest"]
+    assert old["assignment"] == new["assignment"]
+    for before, after in zip(old["documents"], new["documents"], strict=True):
+        assert (before != after) == (before["key"] == "D2")
+        for document in (before, after):
+            assert sha256(source_file(document).read_bytes()).hexdigest() == document["sha256"]
+    changed = []
+    for before, after in zip(
+        old["dossier"]["knowledge_cards"], new["dossier"]["knowledge_cards"], strict=True
+    ):
+        assert before["card_id"] == after["card_id"]
+        if before != after:
+            changed.append(after["card_id"])
+    assert changed == revision["modified_card_ids"]
+    early_inspection = next(
+        card for card in new["dossier"]["knowledge_cards"] if card["label"] == "Ранняя физическая проверка"
+    )
+    assert early_inspection["excerpts"][1]["text"].endswith("thence into the well itself.")
 
 
 def test_passages_preserve_full_text_attribution_and_distinct_sources_without_duplicates():
@@ -180,7 +214,7 @@ def test_curated_sources_remain_separate_from_complete_fact_check_evidence():
     materials = current_materials()
     _, _, _, _, script, *_ = fixture()
     planner = role_payload("plan", materials, projection_version=V9)
-    assert sum(len(card.get("source_excerpts", [])) for card in planner["dossier"]["knowledge_cards"]) == 7
+    assert sum(len(card.get("source_excerpts", [])) for card in planner["dossier"]["knowledge_cards"]) == 8
     clinical = next(
         card for card in materials.packet.dossier.knowledge_cards if card.label == "Возражение врача"
     )
@@ -191,7 +225,7 @@ def test_curated_sources_remain_separate_from_complete_fact_check_evidence():
     fact = reading_payload("fact-review", materials, script=script, projection_version=V9)
     for quote in clinical.excerpts:
         assert any(row["text"] == quote.text for row in fact["evidence"])
-    assert len(fact["evidence"]) == 46
+    assert len(fact["evidence"]) == 47
     reader = reading_payload("reader-review", materials, script=script, projection_version=V9)
     assert not {"support", "evidence", "source_excerpts"}.intersection(reader)
 
@@ -242,8 +276,9 @@ def test_v9_selected_passages_reach_author_and_both_revision_paths_without_unsel
         assert field not in visible
 
 
+@pytest.mark.parametrize("archived", [False, True], ids=["current", "frozen-b52d"])
 def test_import_helper_and_real_planner_writer_compilation_need_no_provider(
-    repo, scope, tmp_path, monkeypatch
+    repo, scope, tmp_path, monkeypatch, archived
 ):
     from podgen import writing_cli
 
@@ -271,6 +306,7 @@ def test_import_helper_and_real_planner_writer_compilation_need_no_provider(
                 str(output),
                 "--scope",
                 "source-restoration-test",
+                *(["--input", str(RESTORED)] if archived else []),
             ]
         )
         == 0
@@ -281,7 +317,7 @@ def test_import_helper_and_real_planner_writer_compilation_need_no_provider(
         RuntimeRef.model_validate(read(output / "shared-ref.json")),
         case_id="snow-pump",
     )
-    assert materials.packet.model_dump(mode="json") == read(CASE / "shared.json")
+    assert materials.packet.model_dump(mode="json") == read(RESTORED if archived else CASE / "shared.json")
     for document, original in zip(materials.documents, materials.packet.documents, strict=True):
         assert document.text == source_file(original.model_dump(mode="json")).read_text()
     plan, selected = selected_plan(materials)
@@ -306,3 +342,10 @@ def test_import_helper_and_real_planner_writer_compilation_need_no_provider(
                 ]
         else:
             assert_selected_sources(visible["support"], materials, selected)
+            passages = [e["text"] for card in visible["support"] for e in card.get("source_excerpts", [])]
+            assert (YORK_CONCLUSION in passages) == (not archived)
+    script = fixture()[4]
+    fact = payload(preview_request(uuid4(), "fact-review", profile, materials, draft=script))
+    excerpts = [e["text"] for e in fact["evidence"]]
+    assert (YORK_CONCLUSION in excerpts) == (not archived)
+    assert any(e.endswith("thence into the well itself.") for e in excerpts) == (not archived)
