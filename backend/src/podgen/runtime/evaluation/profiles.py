@@ -13,6 +13,7 @@ def create_profile(
     project,
     *,
     model,
+    provider="openai",
     context_limit,
     output_limit=65536,
     reasoning_effort="high",
@@ -23,10 +24,14 @@ def create_profile(
     operation_id=None,
     roles=None,
 ):
+    if provider not in {"openai", "anthropic"}:
+        raise ContractError("unsupported_model_provider")
+    if provider == "anthropic" and (background or store or reasoning_effort not in {"low", "medium", "high"}):
+        raise ContractError("unsupported_messages_parameters")
     operation_id = operation_id or uuid4()
     producer = CodeProducer(
         kind="code",
-        component="candidate-openai-profile",
+        component=f"candidate-{provider}-profile",
         build_id=COMPILER_VERSION,
         operation_id=operation_id,
     )
@@ -39,7 +44,7 @@ def create_profile(
             policy_kind="data",
             rules={
                 "configuration_only": True,
-                "external_provider": "openai",
+                "external_provider": provider,
                 "provider_response_storage": store,
                 "app_archive_audience": "evaluator",
                 "production_qualification": False,
@@ -52,11 +57,11 @@ def create_profile(
         project,
         "ModelProfile",
         dict(
-            provider="openai",
-            api_family="responses",
+            provider=provider,
+            api_family="messages" if provider == "anthropic" else "responses",
             model_id=model,
             model_revision_or_alias=model,
-            adapter_version="openai-responses-v1",
+            adapter_version="anthropic-messages-v1" if provider == "anthropic" else "openai-responses-v1",
             allowed_roles=roles if roles is not None else ["writer", "editorial_reviewer"],
             supported_modalities=["text"],
             context_limit=context_limit,

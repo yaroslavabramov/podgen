@@ -236,6 +236,8 @@ class EvaluationJournal:
                 provider_request_id=reply.request_id,
                 secret_redacted=reply.redacted,
             )
+            if getattr(reply, "wire_response", None) is not None:
+                payload["wire_response_blob"] = self.blob(reply.wire_response).model_dump(mode="json")
             if getattr(reply, "request_body", None) is not None:
                 wire = self.blob(reply.request_body)
                 payload["wire_request_blob"] = wire.model_dump(mode="json")

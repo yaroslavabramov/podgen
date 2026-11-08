@@ -27,15 +27,21 @@ def profile_role(stage):
         return "planner"
     if stage in ("plan-review", "plan-review-revised"):
         return "plan_reviewer"
-    return "editorial_reviewer" if stage == "review" or stage.startswith(("reader-review", "fact-review")) else "writer"
+    return (
+        "editorial_reviewer"
+        if stage == "review" or stage.startswith(("reader-review", "fact-review"))
+        else "writer"
+    )
 
 
 def validate_profile(profile: ModelProfile, stage):
     role = profile_role(stage)
     if (
-        profile.provider != "openai"
-        or profile.api_family != "responses"
-        or profile.adapter_version != "openai-responses-v1"
+        (profile.provider, profile.api_family, profile.adapter_version)
+        not in {
+            ("openai", "responses", "openai-responses-v1"),
+            ("anthropic", "messages", "anthropic-messages-v1"),
+        }
         or role not in profile.allowed_roles
         or profile.structured_output_mode != "json_schema"
         or profile.fallback_profile_refs
@@ -73,6 +79,13 @@ def validate_profile(profile: ModelProfile, stage):
         for name in ("rpc_timeout_seconds", "poll_deadline_seconds")
     ):
         raise ContractError("invalid_profile_timeout")
+    if profile.provider == "anthropic" and (
+        parameters["background"]
+        or parameters["store"]
+        or parameters["reasoning"]["effort"] not in {"low", "medium", "high"}
+        or set(parameters) - {"store", "background", "reasoning", "text"}
+    ):
+        raise ContractError("unsupported_messages_parameters")
     if set(parameters) - allowed:
         raise ContractError("unsupported_generation_parameter")
     if set(parameters.get("text", {})) - {"verbosity"} or set(parameters.get("reasoning", {})) - {"effort"}:

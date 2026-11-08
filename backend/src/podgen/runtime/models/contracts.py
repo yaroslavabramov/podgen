@@ -9,6 +9,7 @@ class WireReply:
     request_id: str | None = None
     redacted: bool = False
     request_body: bytes | None = None
+    wire_response: bytes | None = None
 
 
 class ProviderFault(Exception):
