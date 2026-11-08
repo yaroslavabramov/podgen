@@ -132,7 +132,7 @@ def test_real_ordinary_wire_and_own_candidate_delivery(own_dataset, case, tmp_pa
     for key in ("instructions", "input", "text"):
         assert provider.pre_generation[key] == provider.requests[0][key]
     before = payload(provider.pre_generation)
-    assert set(before) == {"output_language", "assignment", "dossier", "material_catalog"}
+    assert set(before) == {"output_language", "assignment", "duration_context", "dossier", "material_catalog"}
     assert set(before["dossier"]) == {"knowledge_cards"}
     cards = before["dossier"]["knowledge_cards"]
     assert len(cards) >= (6 if case == "gps-clock" else 12)
@@ -162,6 +162,7 @@ def test_real_ordinary_wire_and_own_candidate_delivery(own_dataset, case, tmp_pa
         act.pop("limitations_to_voice")
     assert payload(provider.requests[1])["candidate_plan"] == expected_candidate
     author_input = payload(provider.requests[2])
+    assert before["duration_context"] == author_input["duration_context"]
     expected_fields = {"output_language", "assignment", "story", "support", "duration_context"}
     if "craft_reference" in journal.manifest(own["run_id"]):
         expected_fields.add("craft_reference")
