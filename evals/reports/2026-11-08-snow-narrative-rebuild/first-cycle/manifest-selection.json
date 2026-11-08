@@ -1,0 +1,41 @@
+{
+  "role_instructions_versions": {
+    "plan": "whole-episode-a/sha256:1d12d15149edca1acc4923b16e301b047bfa4cfad9f30dedd2604327aee44ca7",
+    "plan-review": "whole-episode-a/sha256:17921fe962a615e8870b54e9834aea9e73765e16109642ccf3e40c1f58b3eee4",
+    "plan-revise": "whole-episode-a/sha256:cc0fc43bfa381d8b2d4e5c231f9a6b366379415f0bf411625edfd725533c0651",
+    "plan-review-revised": "whole-episode-a/sha256:17921fe962a615e8870b54e9834aea9e73765e16109642ccf3e40c1f58b3eee4",
+    "draft": "whole-episode-a/sha256:6a20c2861dd6adef0aede9359d83bf26fd9deeba0acd75bbd33ad755c838e9cc",
+    "reader-review": "reader-review/sha256:03402af235e5aa9eba712cdcbf16085f63bb2fc0cd2e7aa6fec23ade9f1a40a7",
+    "fact-review": "fact-review/sha256:3fe65017933190a483dd763177f83d2a57e1665159969663f586e096d2c07507",
+    "revise-1": "dual-revise/sha256:4e24ab82d03b0843f121fbc4f612c536a5e92c5ebfe93edea0338554d37f4ff4",
+    "reader-review-1": "reader-review/sha256:03402af235e5aa9eba712cdcbf16085f63bb2fc0cd2e7aa6fec23ade9f1a40a7",
+    "fact-review-1": "fact-review/sha256:3fe65017933190a483dd763177f83d2a57e1665159969663f586e096d2c07507",
+    "revise-2": "dual-revise/sha256:4e24ab82d03b0843f121fbc4f612c536a5e92c5ebfe93edea0338554d37f4ff4",
+    "reader-review-2": "reader-review/sha256:03402af235e5aa9eba712cdcbf16085f63bb2fc0cd2e7aa6fec23ade9f1a40a7",
+    "fact-review-2": "fact-review/sha256:3fe65017933190a483dd763177f83d2a57e1665159969663f586e096d2c07507"
+  },
+  "role_projection_version": "editorial-role-projections/9",
+  "reader_review_schema_version": "listener-experience/5",
+  "fact_review_schema_version": "fact-revision/2",
+  "writer_response_contract": {
+    "version": "author-result/1",
+    "speakers": [
+      "РАССКАЗЧИК"
+    ],
+    "stages": {
+      "draft": "a3ac4af8c8ac75f2859b2742fd6b0552976d5884ca8f0986220b2393b90222c3",
+      "revise-1": "a3ac4af8c8ac75f2859b2742fd6b0552976d5884ca8f0986220b2393b90222c3",
+      "revise-2": "a3ac4af8c8ac75f2859b2742fd6b0552976d5884ca8f0986220b2393b90222c3"
+    },
+    "revision_modes": {
+      "targeted": "0f357a8e74bbd79991d435289e629dc391e8d8c9ef88894ae56e84e4b8a890ad",
+      "sequence": "4c83cf101d0a429f2c996ea69852febe3ab990e26b0d7472f526fc1454d51544",
+      "structural": "39bd6df5b8e2eaf06deeefcdc1f03bf165c5cf82ec4b5c1aa0292f521f775990"
+    }
+  },
+  "script_revision_contract": "addressed-script-revision/1",
+  "materials_hash": "58f27db7e0fd39b7da9592c9dc091d1d21d7f7be79e1c21996e5448b77ccd282",
+  "plan_mode": "own-plan",
+  "review_workflow": "independent-readings/1",
+  "strategy": "A/whole-episode"
+}

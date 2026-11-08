@@ -1,0 +1,235 @@
+{
+  "contract": "addressed-script-revision/1",
+  "operation": {
+    "mode": "targeted",
+    "script_version": 1,
+    "targets": [
+      {
+        "target_id": "T1",
+        "kind": "text",
+        "utterance_index": 0,
+        "start": 194,
+        "end": 259,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Холера в округе появилась ещё в конце августа, несколько случаев.",
+        "delete": {
+          "start": 194,
+          "end": 260,
+          "text": "Холера в округе появилась ещё в конце августа, несколько случаев. "
+        },
+        "basis": [
+          "reader.findings.1",
+          "reader.findings.1.context"
+        ]
+      },
+      {
+        "target_id": "T2",
+        "kind": "text",
+        "utterance_index": 1,
+        "start": 82,
+        "end": 184,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Ещё в августе 1849 года вышла первая версия его работы о том, как передаётся холера. Рассуждал он так.",
+        "delete": {
+          "start": 82,
+          "end": 185,
+          "text": "Ещё в августе 1849 года вышла первая версия его работы о том, как передаётся холера. Рассуждал он так. "
+        },
+        "basis": [
+          "fact.findings.0"
+        ]
+      },
+      {
+        "target_id": "T3",
+        "kind": "text",
+        "utterance_index": 1,
+        "start": 442,
+        "end": 589,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "это вещество проглатывают. Доказать этого он тогда не мог. Это была его рабочая гипотеза. Нечаянно, конечно: никто не станет глотать такое нарочно.",
+        "delete": {
+          "start": 442,
+          "end": 590,
+          "text": "это вещество проглатывают. Доказать этого он тогда не мог. Это была его рабочая гипотеза. Нечаянно, конечно: никто не станет глотать такое нарочно. "
+        },
+        "basis": [
+          "reader.findings.0"
+        ]
+      },
+      {
+        "target_id": "T4",
+        "kind": "text",
+        "utterance_index": 1,
+        "start": 469,
+        "end": 531,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Доказать этого он тогда не мог. Это была его рабочая гипотеза.",
+        "delete": {
+          "start": 469,
+          "end": 532,
+          "text": "Доказать этого он тогда не мог. Это была его рабочая гипотеза. "
+        },
+        "basis": [
+          "fact.findings.0"
+        ]
+      },
+      {
+        "target_id": "T5",
+        "kind": "text",
+        "utterance_index": 6,
+        "start": 1115,
+        "end": 1192,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Если девочка заболела раньше всех, то, что выходило из неё, где-то оказалось.",
+        "delete": {
+          "start": 1115,
+          "end": 1193,
+          "text": "Если девочка заболела раньше всех, то, что выходило из неё, где-то оказалось. "
+        },
+        "basis": [
+          "reader.findings.1",
+          "reader.findings.1.context"
+        ]
+      },
+      {
+        "target_id": "T6",
+        "kind": "text",
+        "utterance_index": 6,
+        "start": 1411,
+        "end": 1496,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Двадцать восьмое августа — это до той ночи на первое сентября, когда вспышка рванула.",
+        "delete": {
+          "start": 1411,
+          "end": 1497,
+          "text": "Двадцать восьмое августа — это до той ночи на первое сентября, когда вспышка рванула. "
+        },
+        "basis": [
+          "reader.findings.1",
+          "reader.findings.1.context"
+        ]
+      },
+      {
+        "target_id": "B0",
+        "kind": "boundary",
+        "before_utterance_index": 0,
+        "basis": [
+          "reader.findings.1",
+          "reader.findings.1.context"
+        ]
+      },
+      {
+        "target_id": "B1",
+        "kind": "boundary",
+        "before_utterance_index": 1,
+        "basis": [
+          "reader.findings.1",
+          "reader.findings.1.context",
+          "fact.findings.0",
+          "reader.findings.0"
+        ]
+      },
+      {
+        "target_id": "B2",
+        "kind": "boundary",
+        "before_utterance_index": 2,
+        "basis": [
+          "fact.findings.0",
+          "reader.findings.0"
+        ]
+      },
+      {
+        "target_id": "B6",
+        "kind": "boundary",
+        "before_utterance_index": 6,
+        "basis": [
+          "reader.findings.1",
+          "reader.findings.1.context"
+        ]
+      },
+      {
+        "target_id": "B7",
+        "kind": "boundary",
+        "before_utterance_index": 7,
+        "basis": [
+          "reader.findings.1",
+          "reader.findings.1.context"
+        ]
+      }
+    ],
+    "sequences": []
+  },
+  "wire_output": {
+    "edits": [
+      {
+        "operation": "replace",
+        "target_id": "T2",
+        "text": "Ещё в августе 1849 года вышла первая, совсем тонкая версия его работы о том, как передаётся холера. А подробно ход его мысли виден по книге, которую он выпустил позже, в 1855 году. Сразу оговорюсь: это рабочая гипотеза, доказательства у Сноу не было. Рассуждал он так."
+      },
+      {
+        "operation": "replace",
+        "target_id": "T3",
+        "text": "это вещество проглатывают. Нечаянно, конечно: никто не станет глотать такое нарочно."
+      },
+      {
+        "operation": "replace",
+        "target_id": "T5",
+        "text": "А если запись верна, понос у неё начался ещё до той ночи на первое сентября, когда вспышка рванула. Тогда то, что выходило из ребёнка, должно было где-то оказаться."
+      },
+      {
+        "operation": "replace",
+        "target_id": "T6",
+        "text": "То есть за три с лишним дня до той ночи, когда вспышка рванула."
+      }
+    ],
+    "composition_update": null
+  },
+  "application": {
+    "base_script_hash": "bff610338d19d1f417fd842643e341c225442797b0586b22acd5ff879111a757",
+    "result_script_hash": "09d28f35cd0d0279f9c4104dc0de0b7a5b9665c9fd2dde56ce165c76f8bf4956",
+    "edits": [
+      {
+        "operation_index": 0,
+        "operation": "replace",
+        "target_id": "T2",
+        "utterance_index": 1,
+        "start": 82,
+        "end": 184,
+        "before": "Ещё в августе 1849 года вышла первая версия его работы о том, как передаётся холера. Рассуждал он так.",
+        "after": "Ещё в августе 1849 года вышла первая, совсем тонкая версия его работы о том, как передаётся холера. А подробно ход его мысли виден по книге, которую он выпустил позже, в 1855 году. Сразу оговорюсь: это рабочая гипотеза, доказательства у Сноу не было. Рассуждал он так."
+      },
+      {
+        "operation_index": 1,
+        "operation": "replace",
+        "target_id": "T3",
+        "utterance_index": 1,
+        "start": 442,
+        "end": 589,
+        "before": "это вещество проглатывают. Доказать этого он тогда не мог. Это была его рабочая гипотеза. Нечаянно, конечно: никто не станет глотать такое нарочно.",
+        "after": "это вещество проглатывают. Нечаянно, конечно: никто не станет глотать такое нарочно."
+      },
+      {
+        "operation_index": 2,
+        "operation": "replace",
+        "target_id": "T5",
+        "utterance_index": 6,
+        "start": 1115,
+        "end": 1192,
+        "before": "Если девочка заболела раньше всех, то, что выходило из неё, где-то оказалось.",
+        "after": "А если запись верна, понос у неё начался ещё до той ночи на первое сентября, когда вспышка рванула. Тогда то, что выходило из ребёнка, должно было где-то оказаться."
+      },
+      {
+        "operation_index": 3,
+        "operation": "replace",
+        "target_id": "T6",
+        "utterance_index": 6,
+        "start": 1411,
+        "end": 1496,
+        "before": "Двадцать восьмое августа — это до той ночи на первое сентября, когда вспышка рванула.",
+        "after": "То есть за три с лишним дня до той ночи, когда вспышка рванула."
+      }
+    ],
+    "unchanged_outside_targets": true,
+    "sequences": []
+  }
+}
