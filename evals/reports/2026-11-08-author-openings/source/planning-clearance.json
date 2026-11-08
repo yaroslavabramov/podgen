@@ -1,0 +1,20 @@
+{
+  "contract": "writing-planning-clearance-v1",
+  "run_id": "d726b8ee-0279-5cbe-b07e-42f94386d358",
+  "candidate_plan_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "342f3c0a-f68d-591c-8d61-7983a6cc43d5"
+  },
+  "candidate_plan_hash": "536ec8455135092a0a6631400275c4914739b903563ec9efad9cb5bb63566fb3",
+  "plan_review_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "90a445db-ec15-54f1-9210-d568756eecb1"
+  },
+  "executed_stages": [
+    "plan-revise",
+    "plan-review-revised"
+  ],
+  "decision": "accept",
+  "semantic_acceptance": false,
+  "production_ready": false
+}

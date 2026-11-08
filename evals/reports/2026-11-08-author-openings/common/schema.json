@@ -1,0 +1,44 @@
+{
+  "$defs": {
+    "WriteUtterance": {
+      "additionalProperties": false,
+      "properties": {
+        "speaker": {
+          "description": "Exact speaker identifier from the supplied assignment.",
+          "minLength": 1,
+          "title": "Speaker",
+          "type": "string"
+        },
+        "text": {
+          "description": "Complete spoken words, without speaker labels or editorial notes.",
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "speaker",
+        "text"
+      ],
+      "title": "WriteUtterance",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One complete episode in playback order, never a summary or a patch.",
+  "properties": {
+    "utterances": {
+      "items": {
+        "$ref": "#/$defs/WriteUtterance"
+      },
+      "minItems": 1,
+      "title": "Utterances",
+      "type": "array"
+    }
+  },
+  "required": [
+    "utterances"
+  ],
+  "title": "WriteOutput",
+  "type": "object"
+}
