@@ -41,6 +41,8 @@ The input pin is independent of V9 output schemas. A saved manifest without it r
 
 After a rewrite supplies its working composition, its current route and decisions govern the next revision. In `/2` the reviser can still consult the original acts in `accepted_plan_scenes` as source context. A run already pinned to `/1` reproduces its original draft and revision requests.
 
+New addressed revisions also pin `revision_context_contract=script-edit-assignment/1`. They deliver the actual script, revision targets, editors’ instructions and positive observations, source support and composition. Draft-writing exercises and the cold reader’s general retelling are omitted from this request. The initial writer still gets the exercises. Replaying an earlier manifest restores its original context. [Provider token counts on two archived edits](../../evals/reports/2026-11-08-editorial-revision/handoff-check/compact-sequence-counts.json)
+
 ### Offline certificates and limits
 
 `test_plan_selection.py` freezes the actual accepted Snow plan and author input from `tmp/snow-narrative-nov8/calls`. It verifies the three optional choices introduced with `/1`. Those choices include the optional 61/6/6 expansion. The source relationships introduced with `/2` can be checked independently against the stored plan and the complete catalog.
