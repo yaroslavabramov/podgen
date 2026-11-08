@@ -65,7 +65,7 @@ def _export_attempt(journal, invocation, base, write_json, directory):
         ref = RuntimeRef(record_kind="tool_execution", record_id=event["record_id"])
         record = journal.read(ref)
         events.append(dict(record_ref=ref.model_dump(mode="json"), **record))
-        for field in ("response_blob", "wire_request_blob"):
+        for field in ("response_blob", "wire_request_blob", "wire_response_blob"):
             if record.get(field):
                 _write(
                     directory / base / f"{index:03d}-{event['event_kind']}-{field}.json",

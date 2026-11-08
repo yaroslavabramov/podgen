@@ -28,7 +28,9 @@ def wire_ref(value, model):
 
 
 def parser():
-    root = argparse.ArgumentParser(description="Frozen episode writing with independent listener and factual readings")
+    root = argparse.ArgumentParser(
+        description="Frozen episode writing with independent listener and factual readings"
+    )
     root.add_argument("--env-file", type=Path)
     root.add_argument("--project", type=UUID, required=True)
     root.add_argument("--actor", type=UUID, required=True)
@@ -36,6 +38,7 @@ def parser():
     sub = root.add_subparsers(dest="command", required=True)
     profile = sub.add_parser("profile-create")
     profile.add_argument("--model", required=True)
+    profile.add_argument("--provider", choices=["openai", "anthropic"], default="openai")
     profile.add_argument("--context-limit", type=int, required=True)
     profile.add_argument("--output-limit", type=int, default=65536)
     profile.add_argument(
@@ -149,6 +152,7 @@ def main(argv=None):
                 repo,
                 args.project,
                 model=args.model,
+                provider=args.provider,
                 context_limit=args.context_limit,
                 output_limit=args.output_limit,
                 reasoning_effort=args.reasoning_effort,
@@ -227,6 +231,13 @@ def main(argv=None):
             )
 
         def provider(profile):
+            if profile.provider == "anthropic":
+                from podgen.runtime.models.anthropic_provider import AnthropicProvider
+
+                return AnthropicProvider(
+                    os.environ.get("ANTHROPIC_API_KEY", ""),
+                    timeout_seconds=profile.timeout_policy.get("rpc_timeout_seconds", 1800),
+                )
             return OpenAIProvider(
                 os.environ.get("OPENAI_API_KEY", ""),
                 timeout_seconds=profile.timeout_policy.get("rpc_timeout_seconds", 1800),
