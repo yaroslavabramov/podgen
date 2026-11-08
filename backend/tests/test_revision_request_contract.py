@@ -56,8 +56,15 @@ def test_real_83_normal_preview_uses_targeted_schema_and_keeps_the_full_script()
     assert not {"listener_understanding", "duration_note", "important_limits"} & set(fact)
     assert len(fact["findings"]) == len(reviews["fact"]["findings"])
     assert all(finding["evidence"] and finding["preserve"] for finding in fact["findings"])
-    assert request["text"]["format"]["schema"]["properties"]["result"]["anyOf"][0]["title"] == "TargetedRevision"
-    assert_reference_nodes(request["text"]["format"]["schema"])
+    schema = request["text"]["format"]["schema"]
+    assert schema["properties"]["result"]["anyOf"][0]["title"] == "TargetedRevision"
+    targets = visible["revision_operation"]["targets"]
+    text_ids = [row["target_id"] for row in targets if "text" in row]
+    boundaries = [row["target_id"] for row in targets if "before_utterance_index" in row]
+    for operation in ("ReplaceText", "DeleteText"):
+        assert schema["$defs"][operation]["properties"]["target_id"]["enum"] == text_ids
+    assert schema["$defs"]["InsertUtterances"]["properties"]["target_id"]["enum"] == boundaries
+    assert_reference_nodes(schema)
 
 
 def test_every_new_provider_schema_has_valid_reference_nodes_and_explicit_required_fields():
