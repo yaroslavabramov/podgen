@@ -195,7 +195,11 @@ def export_run(repo, project, run_id, directory):
                         + "\n"
                     ).encode(),
                 )
-    if manifest.get("review_workflow") == VERSION and "writer_material_request" not in result:
+    if (
+        row["status"] != "plan_ready"
+        and manifest.get("review_workflow") == VERSION
+        and "writer_material_request" not in result
+    ):
         from .reading_export import export_readings
 
         result.update(
@@ -215,5 +219,14 @@ def export_run(repo, project, run_id, directory):
             _write(directory / "generated-plan.md", readable.encode("utf-8"))
         if proof is not None:
             write_json(Path("planning-clearance.json"), proof)
+            if row["status"] == "plan_ready":
+                from .planning import clearance_ref
+
+                result.update(
+                    accepted_plan_ref=proof["candidate_plan_ref"],
+                    accepted_plan_hash=proof["candidate_plan_hash"],
+                    plan_review_ref=proof["plan_review_ref"],
+                    planning_clearance_ref=clearance_ref(run_id).model_dump(mode="json"),
+                )
     write_json(Path("run.json"), result)
     return result
