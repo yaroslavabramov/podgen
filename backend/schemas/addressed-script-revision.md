@@ -1,7 +1,7 @@
 # Addressed script revision
 
 New compact independent readings pin `addressed-script-revision/1`,
-`listener-experience/4`, `fact-revision/2`, and all three private response schemas
+`listener-experience/5`, `fact-revision/2`, and all three private response schemas
 in the run manifest. Public results remain complete `WriteOutput` scripts.
 Historical manifests retain their original full-script revision contract.
 

@@ -12,6 +12,8 @@ from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.writing.reader_schema import FIELDS, VERSION
 from podgen.writing.reader_schema import V1 as READER_V1
+from podgen.writing.reader_schema import V4 as READER_V4
+from podgen.writing.reader_wording import FIELDS as WORDING_FIELDS
 from tests.historical_revisions import historical_revision_manifest
 from tests.test_editorial_independence import invoke, payload, prepare
 from tests.test_independent_readings import Paused, ReadingProvider, setup_review
@@ -19,10 +21,11 @@ from tests.test_own_plan import own_dataset as own_dataset
 
 
 @pytest.mark.parametrize("source", ["native", "imported"])
-@pytest.mark.parametrize("historical", [False, True, "v1"], ids=["new", "historical", "v1"])
+@pytest.mark.parametrize("historical", [False, True, "v1", "v4"], ids=["new", "historical", "v1", "v4"])
 def test_cli_reader_schema_preview_and_resume_keep_their_pinned_semantics(
     own_dataset, tmp_path, monkeypatch, source, historical
 ):
+    reader_version = VERSION if not historical else {"v1": READER_V1, "v4": READER_V4}.get(historical)
     if source == "native":
         prefix, _, options, _, _ = prepare(own_dataset, "snow-pump", tmp_path, monkeypatch)
         options["review_mode"] = "independent-readings/1"
@@ -32,17 +35,18 @@ def test_cli_reader_schema_preview_and_resume_keep_their_pinned_semantics(
         original = EvaluationJournal.create_run
 
         def old_manifest(journal, command, manifest):
-            manifest = historical_revision_manifest(manifest)
-            if historical == "v1":
-                manifest["reader_review_schema_version"] = READER_V1
-            else:
+            if historical != "v4":
+                manifest = historical_revision_manifest(manifest)
+            if reader_version is None:
                 manifest.pop("reader_review_schema_version")
+            else:
+                manifest["reader_review_schema_version"] = reader_version
             for stage in manifest["response_schemas"]:
                 if stage.startswith("reader-review"):
                     manifest["response_schemas"][stage] = response_schema(
                         stage,
                         command.input_contract,
-                        reader_schema_version=READER_V1 if historical == "v1" else None,
+                        reader_schema_version=manifest.get("reader_review_schema_version"),
                     )
             return original(journal, command, manifest)
 
@@ -53,17 +57,18 @@ def test_cli_reader_schema_preview_and_resume_keep_their_pinned_semantics(
         invoke(prefix, "run", **options)
     journal = EvaluationJournal(own_dataset[0], own_dataset[1])
     manifest = journal.manifest(options["run_id"])
-    assert manifest.get("reader_review_schema_version") == (
-        READER_V1 if historical == "v1" else None if historical else VERSION
-    )
+    assert manifest.get("reader_review_schema_version") == reader_version
     pending = journal.request(journal.invocation(options["run_id"], "reader-review"))
     schema = pending["text"]["format"]["schema"]
     assert (schema["properties"]["listener_answer"]["description"] == FIELDS["listener_answer"]) == (
-        historical is not True
+        historical in ("v1", "v4")
     )
-    assert ("revision_scope" in schema["properties"]) == (not historical)
-    assert "assignment" not in payload(pending) and "editorial_frame" not in payload(pending)
     if not historical:
+        assert schema["properties"]["listener_answer"]["description"] == WORDING_FIELDS["listener_answer"]
+    scoped = not historical or historical == "v4"
+    assert ("revision_scope" in schema["properties"]) == scoped
+    assert "assignment" not in payload(pending) and "editorial_frame" not in payload(pending)
+    if not historical or historical == "v4":
         script = dict(
             utterances=[
                 {k: v for k, v in row.items() if k != "index"}
@@ -114,4 +119,4 @@ def test_cli_reader_schema_preview_and_resume_keep_their_pinned_semantics(
     )
     assert journal.manifest(options["run_id"]) == manifest
     output = journal.output(journal.invocation(options["run_id"], "reader-review"))["output"]
-    assert ("revision_scope" in output) == (not historical)
+    assert ("revision_scope" in output) == scoped

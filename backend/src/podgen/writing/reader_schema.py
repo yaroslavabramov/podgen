@@ -5,7 +5,8 @@ from podgen.domain.errors import ContractError
 V1 = "listener-experience/1"
 V2 = "listener-experience/2"
 V3 = "listener-experience/3"
-VERSION = "listener-experience/4"
+V4 = "listener-experience/4"
+VERSION = "listener-experience/5"
 
 FIELDS = {
     "listener_answer": (
@@ -43,12 +44,17 @@ FINDING_FIELDS = {
 def describe_reader(schema, version):
     if version is None:
         return
-    if version not in (V1, V2, V3, VERSION):
+    if version not in (V1, V2, V3, V4, VERSION):
         raise ContractError("unknown_reader_review_schema_version")
     for field, description in FIELDS.items():
         schema["properties"][field]["description"] = description
     for field, description in FINDING_FIELDS.items():
         schema["$defs"]["EditorialFinding"]["properties"][field]["description"] = description
+
+    if version == VERSION:
+        from .reader_wording import describe_wording_first
+
+        describe_wording_first(schema)
 
 
 def feedback_model(version):
@@ -64,7 +70,7 @@ def feedback_model(version):
         from .revision.scopes import ReaderAssessment
 
         return ReaderAssessment
-    if version == VERSION:
+    if version in (V4, VERSION):
         from .revision.scopes import ReaderAssessmentV4
 
         return ReaderAssessmentV4
@@ -77,7 +83,5 @@ def snapshot_model(value):
         return feedback_model(V1)
     scope = value["revision_scope"]
     if isinstance(scope, dict) and "dependent_passages" in scope:
-        return feedback_model(
-            V3 if scope["scale"] == "sequence" and "sequence_ranges" not in scope else VERSION
-        )
+        return feedback_model(V3 if scope["scale"] == "sequence" and "sequence_ranges" not in scope else V4)
     return feedback_model(V2)
