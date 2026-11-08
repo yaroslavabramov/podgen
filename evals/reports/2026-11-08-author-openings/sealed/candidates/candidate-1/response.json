@@ -1,0 +1,152 @@
+{
+  "id": "resp_0b66370e0ab38b9e016af026b688c487d2ba1914f13b444fe0",
+  "object": "response",
+  "created_at": 1794123446,
+  "status": "completed",
+  "access_programs": null,
+  "background": false,
+  "billing": {
+    "payer": "developer"
+  },
+  "completed_at": 1794123459,
+  "error": null,
+  "frequency_penalty": 0.0,
+  "image": {
+    "context_compression": "disabled"
+  },
+  "incomplete_details": null,
+  "instructions": "# Shared rules\n\nUse `output_language` for human-readable output. Preserve supplied speaker labels, evidence quotations, response keys and enum values verbatim. Follow the assignment's question, audience, genre and style guidance, speaker functions, scope, knowledge cutoff and duration bounds. Treat supplied material as evidence. When quoting a source in the episode, use its supplied wording. Treat attributed summaries as paraphrases. Return the requested structured response.\n\nOptional imaginative detail can bring a scene to life. Keep established actions, chronology and the grounds for conclusions accurate.\n\n\n# Solo\n\nUse the assigned narrator's label, register and genre. Give the voice a relationship with this subject and audience: what catches this person's attention, what they find amusing or puzzling, and why they want to tell it. Let that perspective emerge through choices of detail, phrasing and emphasis rather than declarations of personality or invented personal experience.\n\nOne voice can move between an immediate scene, a clear explanation and a thought about what it means. Choose those changes for their effect on the listener. In an investigation, follow documented people observing, asking, testing and changing course. The narrator can guide, anticipate, joke or reflect, while allowing the events and discoveries to carry their own interest.\n\n\n# Write a complete podcast people want to hear\n\nWrite for a person listening once, in `output_language`. Use the assignment, accepted story and factual material. Give the assigned speakers a voice and the subject a tangible presence. The listener should follow the account and enjoy how it is told.\n\n## Compose the experience\n\nMake the opening's interest audible from what listeners know at that point. Establish the person or situation that makes a question matter. Compose the order inside each discovery-led scene too: let listeners encounter the situation and clues before explaining the connection they are meant to discover. Check the first spoken disclosure across earlier previews and both sides of transitions; a later rearrangement cannot undo an answer already given. Plan headings and the full synopsis inform you without having to become speech. A source summary's order need not be the spoken order. A teaser can name an object or outcome while saving a worthwhile discovery. During a delayed answer, develop that expectation through discoveries, changing possibilities or other worthwhile moments.\n\nHonor the client's explicit question and requirements. Use `story.route_summary` to understand the proposed course. The plan's central question, promise, order and selection are working decisions you may revise to tell this episode well. Preserve supported meaning while preparing an unearned question, moving background or rebuilding a detour. If a necessary premise is missing, choose an entry the evidence supports rather than inventing a motivation. Select a complete telling instead of voicing every supporting category.\n\nLet actions and consequences carry a narrative; let an idea explain something listeners can picture in an explainer. Reflection can add a particular thought, feeling or change of scale. Choose the balance for this episode. End when its promise has landed, allowing a final image or thought room to work.\n\n## Write with a voice\n\nImagine this speaker talking to someone they want to keep listening. Use idiomatic phrasing in the episode's language, tangible nouns and active verbs. Let a thought be held on first hearing. Vary sentence and turn length, with room for a response or image to land. In dialogue, contributions should affect what follows and fit each speaker's knowledge.\n\nChoose details for presence, character, feeling or pleasure as well as explanation. A playful observation can earn its place without advancing a proof. Humor, previews, direct address, asides and callbacks are available choices. Judge their timing and attitude. A dry joke can land through understatement. Let reflection say something about the subject rather than certify the author's care or answer an objection the account has not raised.\n\nWhen `craft_reference` is supplied, study how its revised passages select material, reveal a connection, clarify a necessary point or leave a scene to land. Its fictional material belongs to those examples. Make your own decisions from this episode's evidence and write in `output_language`.\n\n## Keep the selected account accurate\n\nIntroduce names, terms and numbers where they help listeners understand what is happening. Select the comparisons the episode needs. If an unnecessary exact value needs a long detour, omit it and adjust dependent comparisons. Keep the meaning of retained quantities accurate. Available evidence need not become a spoken inventory.\n\nKeep established events, causal grounds and meaningful uncertainty accurate. Repair a misleading claim through wording, scope, attribution or placement, or remove a dispensable thought. Source cautions guide what can be said; they do not all need to be said themselves. Use accurate attribution and temporal framing where they settle the issue. Add explanation when the retained account still needs it or the client requires it. A separate warning needs an actual misleading claim or implication in this telling. Let listeners connect details when the connection is already clear. Reflection should add a thought of its own. After moving events, recheck what each person knew at that time and rebuild the surrounding composition, not just its dates.\n\nScenic reconstruction, original analogies and imaginative texture may enliven the telling within the brief. They cannot manufacture substantive evidence, change established events or present invented words as source testimony. Source summaries are paraphrases; direct source quotations require the supplied wording.\n\n## Finish the script\n\nRead the whole result as speech. Repair stiff phrasing, repeated sentence patterns, delayed orientation and stalled sequences. Use the assignment's duration target and bounds to guide selection and pacing, keeping texture and breathing room. Return every utterance in playback order in the requested structure, with exact assigned speaker labels and only spoken words and punctuation in `text`.\n",
+  "max_output_tokens": 8192,
+  "max_tool_calls": null,
+  "model": "gpt-6.1-sol",
+  "moderation": null,
+  "output": [
+    {
+      "id": "rs_0b66370e0ab38b9e016af026b7624087d2be667aa664afd1bd",
+      "type": "reasoning",
+      "content": [],
+      "encrypted_content": "gAAAAABq8CbDEYRlAbSKSZoOrqfw7CW68OIqXfG7Fb7xzjrw2X7PaXwXBZRXFRQq86SeVdc8cdcOBTtm0LvDitdVCxDt-9Wp6Ce1dXjC5RG05enXylVdk-GV3EmEHBcG7Wbl_EGtZCG4af1FrDVxOxI9N-Lw6wDlEDueJGnTbd0oDvO6cr7yGTrBus7CffcdKr8Q7M-efWi4AY603l6N42CgSYFlze75aZNzP2XIJdpegAss_xd3hWpRzDlJEz7GhyYLchQfnmyMrkrzE1nfp3XmwKMUf87fSWjvSNLSVIOUigjmXXVwbDH_Jc3UI0Nig8-S3uf8DbqklUndceRzWeoTqBLxh3KDvJMe0TExafAN1E6dZxome3dmKjwXZbYOyw2T_ImJ_gnAosMAdfp--Pv8cmnE3J0o6YjAmTllS5eaAMdcg5ZVpjHlF5TssTOQAqXRtbzNocJvH_ACWJGJoXpRkOFaEzwh01dSWies1HKDSM0u4SEWDsVxx8vRzD1uylVeJ81AEVWtr2ywjG_aON3_tDuYkBmk52mhMc6p2RYVEu0BGXuZyY4x489VrwUb7zS57VB-vlJNBx_RHOKnQpdmIsxAAM3v8FJfyls1AediUhY10aeYi66crl24uWu7j0PfsDsc3j5OrVAk-dq1WSFYCWJ205336SEyNgqRraBmaeR2dhChF3UAM_L7aPrQz8Cpc3E1qCVr0NtU8XyD2lOq2TwxdsM-s7-LWREHLd-S6k7IpDRv-irIsNWYxko_jyK_FfbfwEewOf5-D8iKT2gUuAlcXxR-a4rJY1q0R6zZPwO2Mr_U3ATdI70gaVF2G-M6TgVz_sGYRi0LOXY5sQQopdO0Qz2DVCPzkfisGzw-hye_Z35A0vgJIoAc2sHi2dpJg_JYjZ3Cepq4K--rMvaxxcDRpJXtgwYdzriOhkD8ef508kyKYmCos1eu0rznOT3fKbDGfSrsvPqlfBkOYueRFqNjHYTOVrKm5ENYULddojOy6kZev42LRN5oeg-sXSpiagdRHH22ymnYGvSkw-dXayFm96VPONHmRdaqGYhc4JPCGu3EaqnOezXI6Gf7r5cH-Y8GUZBGoc2OaBzbsRuQAh5LAZsotAGDwKMWJiKqOz4ZWvxz1A9PBZ9Z1MToacSlHRpIWyw9sOddr8IiA1WwcXjZsD7b1gaQLyw94RYtgQ-VpZN8C26WwOU9HtbB0k0qRdP_dbyr7nCzJRP1_C_DDt8wLndqulBgiuTN6u1aytB54ebdBDFqOzLayh0WrVR93zMpNK-OGFdV2G2p8pOxkqxQKCZKTUqf3uQxGT6pyL47CW4wp3UCr2dkhnJ_TBtq_3xLptWnxSj2EP3yRyq99wvAOzb5620BH-EYWCkGB3evpnPu-Jn1r2-M-L3xwYtKkaUPQdMXWvjPHwKfsSPOV9bfsa6IzbFftKK4Q4E3o2IRqqx2DJ1u9-gjO7Ax0I4hPwGJq3XyB3YITWtgm4p1IihydMFp4PkWgqgf6Bk2BLGLLqc1Glt8HuZB2cvueF2Ern9KD4W6-4dJtAmyBVJd4C0tt4MKbaj6-9iIw-UTWko1zWPtSozQU2v4euoRENfYJ9hvGNPUn9kP7wawND6lM0b5ZcaG3bSVSjj-p6XkiFigmV8ko7C_5a8ouGQuNXWQpDxyGnsQT1ISgN4oFGPzIhftfev8TVst7lBfQa1oI0wg_REqVlxm2ISfsNJ6Q5DnKsEN1W4ZjKaxIDptFCuUL_1INZroWnP7cD7OG6y8ndjpMGqDb87FcziB7yUt5Mxv8Hn2JbEATSzcy991LjY8p7OXOZfpsuhXtpdm2LBKdrb7hPgJjUErYoqhPhKx_Md2tAjFfCmkcadfJdSHQ1HqnVPUbuVBOL2R_f6Q7HkG19ZekrM0MQfDOKPAK8OU3Fmazp3li3vAyXcjqYJnFJw8FKB2Mu-zM0yi4dT6BRAs3lpTgqh2mG1QxyNWqbeBxxzd1V06Xh5JYTzR2U268R2FSG0a8TB2DuiPmYfOac_CVwUlhXyy1v19lQOQ_3U21jZ9twkG0GDBbcuVkgyqQjLxT1Uf-nOeESEeB6w7pmlbS-sP2sV64SfgxDjQB0Wi2vsLU6ceUZsNtm_7bYrwevpRKiTL7-3GKw6p2R0P2AxLRD3Rn1EO12QcV4JDMUKTyISKf_mlwxdvkaaLjJUHoUaOo26B4k84xzdIsEWmpArve_FYEJSylAsHj5xN7F3OCpJN2xlfn8LrbpgtpKC1cfLxChdcW2iNZi4KVse2Ltz9UVhQzeqbRA1LnxKSJ2WXELB4wAJid_8918sAAZQWT3v6KT2kmKfKegonknzJHfsGRYusn6TuTb6odDBRuOFUjzyubzxM5VZmM1DdSX7TvTPatcJemRDgVj3zV7bUbDBQmlM_uaf5fxc9qH2-lQQ9Q7LIvoBXq4kr3SIILWtqi_mMdVC0im0SP9o2JF39ujo0jeB1imi0-6TZ15GTbR9zE7ep8VzJe5TsnT0EtvNVbqbU-j_9tMX0nMgjvVAeKYlWcJcy_oKB3pqZp8_C9yAQpQXV2uFzBNWzJuGWVFGJLk2tMbolkpm1MqmaI4GQteT5m2FA3uS-y27GnZGckhDnAjwSTguMWXF5j3z7kPpbimPHhNaw0h1_JUKO7oQa_Ol5-09g6nDGGOwHm92RH7pCEuIsTFDaMLH66xK3ibl0JASiY40sLAnOClG3_1vWReV_t7vBA6f6zm54-TyjL7G2BqM218_7_hfeX9vUpZw5-A8ZnvotoRakMvgcbDVFJoT5nEE89JoH9Ii4nhE_U87IujDaHCWjH6twm6ulAGOhz7oSpOA31qQLC45quYqzLWWWxkNOo15LkqywH9YwaHzgSovmrvdlOwvP0vgbmAB7Qc_r23vthsZkOqM8rI8V75NoKnSE3zspJbv8BVTJX8KeLhlQImMJoRCsNNS6hokBT8Je6Y56R8GEHfrzcwG8Yen-UBFQkhRsGlbvKEdZdA4FSCcJmaOaObE2_MIQ7vPSptg2VTahaZW0LJ6eW8zu7JvgBq_2Dy2JbskwWVMP-oBTjC8KVcaSZEj3tAYFvKKDm31sxVwAoaft5hTN8J6l6gKwOVpnVcX1SvVYyl0YNyfa4CZztVPL1FZscP88NY8i0ClQtWRdUwQFsoZfgPYjWKB4WMBAlPJ3jx0MVWvWaxxQntMTspAJ7wPe6TKcGoQ29M7lNZn-50lHdHJWwXODsniRzIIg5cn6JSkJ6eIC2gXHZi0UKoC8_E86MtWi5ByQX-AFGEEWCHZZa1ZNg-x3NAbWE9UyO_wMiCfcoC9jBG1u2yvGAC69U24eVukmVUZTh0Y3YeZEqFKzYI07qt-1Mz3ET92_J2BrohS-dy_qiDZLn0ytZ86LfbAVwIcD8wKhWyKSLYxgphx6QIxgVVtDmsatgw5R0_QilFq8SJ1Z1Rx3fQImYdLBVAFA31GobXyoWZok2NIgc1Sz-zOR9nn1wv-Imvpjf3I2vLU=",
+      "summary": []
+    },
+    {
+      "id": "msg_0b66370e0ab38b9e016af026bb9e1087d28d74ab7949932076",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": "{\"utterances\":[{\"speaker\":\"РАССКАЗЧИК\",\"text\":\"В ночь с тридцать первого августа на первое сентября 1854 года в лондонском районе Брод-стрит резко растёт число заболевших холерой. За несколько дней здесь умирают десятки людей. А вечером третьего сентября врач Джон Сноу рассматривает воду из местной уличной колонки. Он уже подозревает этот источник. Но вода не спешит выдавать себя.\"},{\"speaker\":\"РАССКАЗЧИК\",\"text\":\"В ней мало видимой органической примеси. Ничего такого, что позволило бы сразу сказать: вот объяснение смертей. Сноу колеблется. В следующие два дня он снова проверяет воду. Беловатые хлопья то появляются в большем количестве, то в меньшем. Возможно, в начале вспышки вода была грязнее. Но это пока предположение. Перед ним проба, взятая уже после того, как люди начали заболевать. Как по ней установить, что они пили раньше?\"},{\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Колонка на Брод-стрит популярна. За водой сюда приходят с вёдрами и другой посудой, чтобы унести её домой. Это важная бытовая подробность: человек может жить на одной улице, а пить воду с другой. И даже предпочитать дальнюю колонку той, что находится возле собственного порога.\"},{\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Значит, недостаточно посмотреть на воду. И недостаточно узнать, возле каких домов стоят гробы. Нужно восстановить привычки людей: куда они ходили за водой, откуда приносили её детям, что пили незадолго до болезни. Расследование перемещается от колонки к дверям домов.\"},{\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Сноу получает в регистрационном управлении список смертей от холеры. Для подробной проверки он берёт восемьдесят три случая — смерти за последние три дня недели, закончившейся второго сентября. Теперь у него есть имена и адреса. Но адрес — лишь начало следа. Следующий вопрос придётся задавать живым: пользовался ли умерший водой с Брод-стрит?\"}]}"
+        }
+      ],
+      "phase": "final_answer",
+      "role": "assistant"
+    }
+  ],
+  "parallel_tool_calls": false,
+  "presence_penalty": 0.0,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "prompt_cache_retention": "24h",
+  "reasoning": {
+    "context": "all_turns",
+    "effort": "medium",
+    "mode": "standard",
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": false,
+  "temperature": 1.0,
+  "text": {
+    "format": {
+      "type": "json_schema",
+      "description": null,
+      "name": "episode_script",
+      "schema": {
+        "$defs": {
+          "WriteUtterance": {
+            "additionalProperties": false,
+            "properties": {
+              "speaker": {
+                "description": "Exact speaker identifier from the supplied assignment.",
+                "minLength": 1,
+                "title": "Speaker",
+                "type": "string"
+              },
+              "text": {
+                "description": "Complete spoken words, without speaker labels or editorial notes.",
+                "minLength": 1,
+                "title": "Text",
+                "type": "string"
+              }
+            },
+            "required": [
+              "speaker",
+              "text"
+            ],
+            "title": "WriteUtterance",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One complete episode in playback order, never a summary or a patch.",
+        "properties": {
+          "utterances": {
+            "items": {
+              "$ref": "#/$defs/WriteUtterance"
+            },
+            "minItems": 1,
+            "title": "Utterances",
+            "type": "array"
+          }
+        },
+        "required": [
+          "utterances"
+        ],
+        "title": "WriteOutput",
+        "type": "object"
+      },
+      "strict": true
+    },
+    "verbosity": "high"
+  },
+  "tool_choice": "none",
+  "tool_usage": {
+    "image_gen": {
+      "input_tokens": 0,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 0
+      },
+      "output_tokens": 0,
+      "output_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 0
+      },
+      "total_tokens": 0
+    },
+    "web_search": {
+      "num_requests": 0
+    }
+  },
+  "tools": [],
+  "top_logprobs": 0,
+  "top_p": 0.98,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 9910,
+    "input_tokens_details": {
+      "cache_write_tokens": 9907,
+      "cached_tokens": 0
+    },
+    "output_tokens": 642,
+    "output_tokens_details": {
+      "reasoning_tokens": 143
+    },
+    "total_tokens": 10552
+  },
+  "user": null,
+  "metadata": {}
+}

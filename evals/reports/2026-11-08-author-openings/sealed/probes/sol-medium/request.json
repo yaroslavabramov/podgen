@@ -1,0 +1,11 @@
+{
+  "model": "gpt-6.1-sol",
+  "input": "Reply with OK only.",
+  "max_output_tokens": 1024,
+  "reasoning": {
+    "effort": "medium"
+  },
+  "store": false,
+  "stream": false,
+  "service_tier": "default"
+}

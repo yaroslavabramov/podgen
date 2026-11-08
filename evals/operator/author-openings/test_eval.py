@@ -2,12 +2,13 @@
 
 import copy
 import json
+import shutil
 from pathlib import Path
 
 import pytest
 from artifacts import read, save, send_once
 from conditions import TASK, author_request, payload, words
-from providers import probe
+from providers import probe, select
 from results import estimate, replay
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -111,6 +112,12 @@ def test_listing_alone_does_not_prove_generation_access(tmp_path):
 
 def test_replay_is_offline_and_does_not_edit_or_filter_nonpreferred_length(tmp_path):
     original, common = read(REPORT / "source/request.json"), read(REPORT / "common/payload.json")
+    for name in ("source", "conditions.json"):
+        source = REPORT / name
+        if source.is_dir():
+            shutil.copytree(source, tmp_path / name)
+        else:
+            shutil.copy2(source, tmp_path / name)
     save(tmp_path / "common/payload.json", common)
     (tmp_path / "common/instructions.txt").write_text(original["instructions"])
     save(tmp_path / "pricing.json", read(REPORT / "pricing.json"))
@@ -155,3 +162,50 @@ def test_cost_includes_cache_categories_and_unknown_models_are_not_guessed():
     rates = {"known": {"input": "2", "output": "10", "cached": ".1", "write": "2.5"}}
     assert estimate(response, "openai", rates) == "0.000348"
     assert estimate(dict(response, model="unknown"), "openai", rates) is None
+
+
+def test_bad_probe_parameters_do_not_authorize_model_fallback(tmp_path):
+    def unsupported(body, client_id):
+        return 400, "unsupported", json.dumps({"error": {"param": "reasoning.effort"}}).encode()
+
+    with pytest.raises(RuntimeError, match="contract rejected"):
+        probe(tmp_path, "openai", "test-model", unsupported)
+
+
+def test_fallback_uses_newest_listed_active_opus_then_sonnet(tmp_path):
+    called = []
+
+    class Fake:
+        def __init__(self, provider):
+            self.provider = provider
+
+        def models(self):
+            rows = (
+                [{"id": "gpt-6.1-sol"}]
+                if self.provider == "openai"
+                else [
+                    {"id": "older-opus", "line": "opus", "lifecycle": "active", "created_at": "2026-01-01"},
+                    {"id": "latest-opus", "line": "opus", "lifecycle": "active", "created_at": "2026-09-01"},
+                    {
+                        "id": "latest-sonnet",
+                        "line": "sonnet",
+                        "lifecycle": "active",
+                        "created_at": "2026-10-01",
+                    },
+                ]
+            )
+            return {"data": rows, "http_status": 200}
+
+        def __call__(self, body, client_id):
+            model = body["model"]
+            called.append(model)
+            if model == "latest-opus":
+                return 403, "denied", json.dumps({"error": {"type": "permission_error"}}).encode()
+            value = envelope(self.provider, model, {})
+            return 200, "accepted", json.dumps(value).encode()
+
+    result = select(tmp_path, {name: Fake(name) for name in ("openai", "anthropic")})
+    assert called == ["gpt-6.1-sol", "latest-opus", "latest-sonnet"]
+    assert result[-1] == {"provider": "anthropic", "model": "latest-sonnet"}
+    assert select(tmp_path, {}) == result
+    assert len(called) == 3

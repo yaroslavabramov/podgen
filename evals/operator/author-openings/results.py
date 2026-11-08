@@ -4,8 +4,8 @@ import json
 from decimal import Decimal
 from pathlib import Path
 
-from artifacts import read, save, save_bytes, sha
-from conditions import payload, script, spoken, words
+from artifacts import read, save, save_bytes, sha, verified_response
+from conditions import TASK, author_request, payload, script, spoken, words
 
 
 def estimate(response, provider, rates):
@@ -36,6 +36,15 @@ def replay(directory):
     directory = Path(directory)
     common = read(directory / "common/payload.json")
     instructions = (directory / "common/instructions.txt").read_text()
+    original = read(directory / "source/request.json")
+    frozen = read(directory / "conditions.json")
+    assert frozen["source_request_sha256"] == sha((directory / "source/request.json").read_bytes())
+    assert frozen["source_response_sha256"] == sha((directory / "source/response.json").read_bytes())
+    assert frozen["instructions_sha256"] == sha(instructions.encode())
+    assert common == dict(payload(original), opening_task=TASK)
+    assert frozen["story_sha256"] == sha(
+        json.dumps(common["story"], ensure_ascii=False, sort_keys=True).encode()
+    )
     speakers = [row["label"] for row in common["assignment"]["speakers"]]
     identity = read(directory / "sealed/identity.json")
     rows = []
@@ -49,14 +58,14 @@ def replay(directory):
         else:
             assert json.loads(request["messages"][0]["content"][0]["text"]) == common
             assert request["system"] == instructions
-        assert request["model"] == entry["model"]
+        assert request == author_request(original, common, provider, entry["model"])
         assert read(folder / "submitted.json")["request_sha256"] == sha(
             (folder / "request.json").read_bytes()
         )
         assert read(folder / "transport.json")["response_sha256"] == sha(
             (folder / "response.bin").read_bytes()
         )
-        response = read(folder / "response.json")
+        response = verified_response(folder)
         assert response == json.loads((folder / "response.bin").read_bytes())
         assert response["model"] == entry["model"]
         assert read(folder / "transport.json")["status"] == 200
@@ -80,7 +89,7 @@ def replay(directory):
         folder = path.parent
         request = read(folder / "request.json")
         provider = "anthropic" if request["model"].startswith("claude-") else "openai"
-        response = read(path)
+        response = verified_response(folder)
         usd = estimate(response, provider, rates)
         if usd is not None:
             total += Decimal(usd)

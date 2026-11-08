@@ -67,8 +67,8 @@ def probe_body(provider, model):
         return dict(
             model=model,
             input="Reply with OK only.",
-            max_output_tokens=128,
-            reasoning={"effort": "none"},
+            max_output_tokens=1024,
+            reasoning={"effort": "medium"},
             store=False,
             stream=False,
             service_tier="default",
@@ -87,6 +87,9 @@ def probe(directory, provider, model, transport):
     status = read(directory / "transport.json")["status"]
     if status == 200 and response.get("model") == model and response_text(response, provider).strip():
         return True
+    error = response.get("error", {})
+    if status == 400 and error.get("param") != "model":
+        raise RuntimeError("Probe contract rejected; this does not establish model unavailability.")
     # Only a definite pre-generation refusal permits trying another model/provider.
     if status not in (400, 401, 403, 404):
         raise RuntimeError("Probe unresolved; no automatic fallback or resubmission.")
@@ -104,8 +107,9 @@ def select(directory, transports):
             save(path, transport.models())
         inventories[provider] = read(path)
     assert any(row["id"] == "gpt-6.1-sol" for row in inventories["openai"]["data"])
-    assert probe(directory / "sealed/probes/sol", "openai", "gpt-6.1-sol", transports["openai"])
+    assert probe(directory / "sealed/probes/sol-medium", "openai", "gpt-6.1-sol", transports["openai"])
     candidates = []
+    tested_anthropic = False
     for line in ("opus", "sonnet"):
         rows = [
             row
@@ -115,10 +119,15 @@ def select(directory, transports):
         # API-created dates, not guessed model IDs, determine the current candidate for each line.
         if rows:
             model = max(rows, key=lambda row: row["created_at"])["id"]
+            tested_anthropic = True
             if probe(directory / ("sealed/probes/" + line), "anthropic", model, transports["anthropic"]):
                 candidates.append(dict(provider="anthropic", model=model))
                 break
     if not candidates:
+        if not tested_anthropic:
+            raise RuntimeError(
+                "No listed Anthropic model was generation-tested; cannot infer a provider block."
+            )
         assert any(row["id"] == "gpt-6.1-terra" for row in inventories["openai"]["data"])
         assert probe(directory / "sealed/probes/terra", "openai", "gpt-6.1-terra", transports["openai"])
         candidates.append(dict(provider="openai", model="gpt-6.1-terra"))
