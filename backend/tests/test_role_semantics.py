@@ -12,10 +12,10 @@ from podgen.domain.contracts.common import RuntimeRef
 from podgen.persistence.editorial_inputs import EditorialMaterials
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.role_schema import response_schema
-from podgen.runtime.evaluation.workflow import stages_for
 from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.projection_versions import CURRENT, V1, V2, V3, V8, V9
 from podgen.writing.projections import role_payload
+from tests.historical_revisions import historical_revision_manifest
 from tests.independent_planner_provider import IndependentPlannerProvider
 from tests.test_editorial_independence import invoke, payload
 from tests.test_editorial_inputs import editorial as editorial
@@ -180,15 +180,10 @@ def test_older_manifest_resume_keeps_pinned_schema_and_request(
     original = EvaluationJournal.create_run
 
     def historical(journal, command, value):
-        value = dict(value)
-        value.pop("role_projection_version")
+        value = historical_revision_manifest(value, projection_version=version)
         value.pop("craft_reference", None)
-        if version in (V2, V3):
-            value["role_projection_version"] = version
-        value["response_schemas"] = {
-            stage: response_schema(stage, command.input_contract, projection_version=version)
-            for stage in stages_for(command)
-        }
+        if version == V1:
+            value.pop("role_projection_version")
         return original(journal, command, value)
 
     monkeypatch.setattr(EvaluationJournal, "create_run", historical)
@@ -216,7 +211,9 @@ def test_older_manifest_resume_keeps_pinned_schema_and_request(
     )
     assert service.run(command)["status"] == "completed_unaccepted"
     assert journal.request(journal.invocation(command.run_id, "review")) == saved
-    assert journal.manifest(command.run_id).get("role_projection_version", V1) == version
+    restored = journal.manifest(command.run_id)
+    assert restored.get("role_projection_version", V1) == version
+    assert "plan_selection_contract" not in restored and "writer_response_contract" not in restored
 
 
 def test_v2_payloads_and_schemas_keep_exact_pre_upgrade_serialization():

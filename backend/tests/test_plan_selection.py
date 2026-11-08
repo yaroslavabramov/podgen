@@ -30,18 +30,20 @@ OPTIONS_GUIDANCE = (
 FIXTURES = Path(__file__).parent / "fixtures/plan-selection"
 
 
-def snapshot(materials, profile, stage, contract):
-    refs = preview_references(materials, V9)
+def snapshot(materials, profile, stage, contract, *, projection_version=V9):
+    refs = preview_references(materials, projection_version)
     manifest = dict(
-        role_projection_version=V9,
+        role_projection_version=projection_version,
         response_schemas={
             stage: bind_schema(
-                response_schema(stage, "editorial-role-packets/1", projection_version=V9), refs
+                response_schema(stage, "editorial-role-packets/1", projection_version=projection_version),
+                refs,
             )
         },
         **{CATALOG_KEY: refs.as_payload()},
     )
-    manifest["writer_response_contract"] = contract_pin(manifest, materials.speaker_labels)
+    if projection_version == V9:
+        manifest["writer_response_contract"] = contract_pin(manifest, materials.speaker_labels)
     if contract is not None:
         manifest[KEY] = contract
     return PreviewSnapshot(manifest=manifest, instructions="Exact pinned author instructions.")
@@ -150,10 +152,16 @@ def test_saved_v9_preview_without_the_new_pin_preserves_the_entire_old_request()
     for version in (None, V8, V9):
         projection = {} if version is None else dict(role_projection_version=version)
         assert from_manifest(projection) is None
+
+
+@pytest.mark.parametrize(("projection_version", "contract"), [(V8, VERSION), (V9, "unknown")])
+def test_preview_rejects_a_selection_contract_incompatible_with_the_saved_projection(
+    projection_version, contract
+):
+    materials, _, plan, profile, *_ = fixture()
+    corrupt = snapshot(materials, profile, "draft", contract, projection_version=projection_version)
     with pytest.raises(ContractError, match="unsupported_plan_selection_contract"):
-        from_manifest(dict(role_projection_version=V9, **{KEY: "unknown"}))
-    with pytest.raises(ContractError, match="unsupported_plan_selection_contract"):
-        from_manifest(dict(role_projection_version=V8, **{KEY: VERSION}))
+        preview_request(uuid4(), "draft", profile, materials, approved_plan=plan, snapshot=corrupt)
 
 
 def test_two_saved_compositions_supersede_the_original_material_options():
