@@ -1,0 +1,157 @@
+{
+  "contract": "addressed-script-revision/1",
+  "operation": {
+    "mode": "targeted",
+    "script_version": 0,
+    "targets": [
+      {
+        "target_id": "T1",
+        "kind": "text",
+        "utterance_index": 2,
+        "start": 117,
+        "end": 156,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Из восемьдесят девяти смертей от холеры",
+        "delete": {
+          "start": 117,
+          "end": 156,
+          "text": "Из восемьдесят девяти смертей от холеры"
+        },
+        "basis": [
+          "reader.findings.0"
+        ]
+      },
+      {
+        "target_id": "T2",
+        "kind": "text",
+        "utterance_index": 2,
+        "start": 117,
+        "end": 260,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Из восемьдесят девяти смертей от холеры, зарегистрированных за неделю в трёх подрайонах Лондона, восемьдесят три пришлись на последние три дня.",
+        "delete": {
+          "start": 117,
+          "end": 261,
+          "text": "Из восемьдесят девяти смертей от холеры, зарегистрированных за неделю в трёх подрайонах Лондона, восемьдесят три пришлись на последние три дня. "
+        },
+        "basis": [
+          "reader.findings.0.context"
+        ]
+      },
+      {
+        "target_id": "T3",
+        "kind": "text",
+        "utterance_index": 13,
+        "start": 420,
+        "end": 513,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "И всё же две смерти далеко от колонки теперь связывал вполне конкретный маршрут одной бутыли.",
+        "delete": {
+          "start": 419,
+          "end": 513,
+          "text": " И всё же две смерти далеко от колонки теперь связывал вполне конкретный маршрут одной бутыли."
+        },
+        "basis": [
+          "fact.findings.0.context"
+        ]
+      },
+      {
+        "target_id": "T4",
+        "kind": "text",
+        "utterance_index": 13,
+        "start": 429,
+        "end": 512,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "две смерти далеко от колонки теперь связывал вполне конкретный маршрут одной бутыли",
+        "delete": {
+          "start": 429,
+          "end": 512,
+          "text": "две смерти далеко от колонки теперь связывал вполне конкретный маршрут одной бутыли"
+        },
+        "basis": [
+          "fact.findings.0"
+        ]
+      },
+      {
+        "target_id": "B2",
+        "kind": "boundary",
+        "before_utterance_index": 2,
+        "basis": [
+          "reader.findings.0",
+          "reader.findings.0.context"
+        ]
+      },
+      {
+        "target_id": "B3",
+        "kind": "boundary",
+        "before_utterance_index": 3,
+        "basis": [
+          "reader.findings.0",
+          "reader.findings.0.context"
+        ]
+      },
+      {
+        "target_id": "B13",
+        "kind": "boundary",
+        "before_utterance_index": 13,
+        "basis": [
+          "fact.findings.0.context",
+          "fact.findings.0"
+        ]
+      },
+      {
+        "target_id": "B14",
+        "kind": "boundary",
+        "before_utterance_index": 14,
+        "basis": [
+          "fact.findings.0.context",
+          "fact.findings.0"
+        ]
+      }
+    ],
+    "sequences": []
+  },
+  "wire_output": {
+    "edits": [
+      {
+        "operation": "replace",
+        "target_id": "T1",
+        "text": "Из восьмидесяти девяти смертей от холеры"
+      },
+      {
+        "operation": "replace",
+        "target_id": "T3",
+        "text": "И всё же у двух смертей далеко от колонки обнаружилась общая связь: обе женщины пили воду с Брод-стрит."
+      }
+    ],
+    "composition_update": null
+  },
+  "application": {
+    "base_script_hash": "89f1b0100d33c12e465d3088734b8de94d99d376ec42ce30bbb1d21c248a57db",
+    "result_script_hash": "00a0d55ed7bf7a3b1a895b88ea3f995c184234cf3f7a2a0741de81b78a10c610",
+    "edits": [
+      {
+        "operation_index": 0,
+        "operation": "replace",
+        "target_id": "T1",
+        "utterance_index": 2,
+        "start": 117,
+        "end": 156,
+        "before": "Из восемьдесят девяти смертей от холеры",
+        "after": "Из восьмидесяти девяти смертей от холеры"
+      },
+      {
+        "operation_index": 1,
+        "operation": "replace",
+        "target_id": "T3",
+        "utterance_index": 13,
+        "start": 420,
+        "end": 513,
+        "before": "И всё же две смерти далеко от колонки теперь связывал вполне конкретный маршрут одной бутыли.",
+        "after": "И всё же у двух смертей далеко от колонки обнаружилась общая связь: обе женщины пили воду с Брод-стрит."
+      }
+    ],
+    "unchanged_outside_targets": true,
+    "sequences": []
+  }
+}
