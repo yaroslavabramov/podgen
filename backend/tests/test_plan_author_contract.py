@@ -104,6 +104,8 @@ def test_actual_six_act_snow_author_and_dual_revision_wires_keep_support_not_rec
     assert "necessary_limits" not in author and "limitations" not in author["story"]
     assert author["story"]["episode_answer"] == plan["plan"]["working_answer"]
     assert author["story"]["ending"] is None
+    options = original["plan"]["duration_strategy"]["optional_material"]
+    assert options and author["story"]["material_options"]["choices"] == options
     assert author["story"]["duration_strategy"] == dict(
         estimated_seconds_range=plan["plan"]["duration_strategy"]["estimated_seconds_range"]
     )
@@ -153,11 +155,13 @@ def test_actual_six_act_snow_author_and_dual_revision_wires_keep_support_not_rec
         "main_question",
         "listener_promise",
         "unresolved_questions",
+        "material_options",
         "episode_answer",
         "ending",
         "route_summary",
         "authority",
     }
+    assert revised["editorial_frame"]["material_options"] == author["story"]["material_options"]
     assert revised["editorial_frame"]["episode_answer"] == plan["plan"]["working_answer"]
     assert revised["editorial_frame"]["ending"] is None
     assert "necessary_limits" not in revised
