@@ -1,0 +1,19 @@
+{
+  "contract": "independent-reading-outcome/1",
+  "run_id": "955071e1-2fbf-54f1-bb94-cafa45c6ae33",
+  "status": "revision_limit_exhausted",
+  "script_hash": "a4ac8230d3d0a3dc74efa367ce522cd18677288b64c6312ef5f11e27f9f5f8ea",
+  "semantic_acceptance": false,
+  "production_ready": false,
+  "code": "512f638",
+  "initial_script_path": "../../../2026-11-08-snow-full-authors/sealed/A/output.json",
+  "initial_script_digest": "dda20ad3a0ad5f18bf515b7e1614d73def5ac3ce655368720334689cfe4cdc13",
+  "before": {
+    "utterances": 33,
+    "words": 1664
+  },
+  "after": {
+    "utterances": 32,
+    "words": 1637
+  }
+}
