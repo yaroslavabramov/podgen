@@ -9,6 +9,8 @@ import pytest
 
 from podgen import writing_cli
 from podgen.runtime.evaluation.journal import EvaluationJournal
+from podgen.writing.plan_selection import KEY as PLAN_SELECTION_KEY
+from podgen.writing.plan_selection import VERSION as PLAN_SELECTION_VERSION
 from tests.editorial_boundary import editorial_leaks, inject_reviewed_leaks
 from tests.independent_planner_provider import IndependentPlannerProvider, WireCaptured
 from tests.test_own_plan import own_dataset as own_dataset
@@ -60,10 +62,10 @@ def payload(body):
     return json.loads(body["input"][0]["content"][0]["text"])
 
 
-def expected_current_story(proposal):
+def expected_current_story(proposal, *, plan_selection_contract=None):
     """Explicit wire contract, independent of the production projection helpers."""
     plan = proposal["plan"]
-    return dict(
+    result = dict(
         main_question=plan["main_question"],
         route_summary=plan["route_summary"],
         authority="revisable_authorial_decisions",
@@ -101,6 +103,18 @@ def expected_current_story(proposal):
             for row in proposal["research_requests"]
         ],
     )
+    if plan_selection_contract is not None:
+        assert plan_selection_contract == "plan-material-selection/1"
+        options = plan["duration_strategy"]["optional_material"]
+        if options:
+            result["material_options"] = dict(
+                guidance=(
+                    "Conditional extensions or cuts from the plan. Use them when adjusting the "
+                    "episode's scope; listing them does not mean every item should be spoken."
+                ),
+                choices=deepcopy(options),
+            )
+    return result
 
 
 @pytest.mark.parametrize("case", ["gps-clock", "snow-pump"])
@@ -153,7 +167,9 @@ def test_real_ordinary_wire_and_own_candidate_delivery(own_dataset, case, tmp_pa
         expected_fields.add("craft_reference")
     assert set(author_input) == expected_fields
     story = author_input["story"]
-    assert story == expected_current_story(chosen)
+    selection = journal.manifest(own["run_id"])[PLAN_SELECTION_KEY]
+    assert selection == PLAN_SELECTION_VERSION
+    assert story == expected_current_story(chosen, plan_selection_contract=selection)
     review_input = payload(provider.requests[3])
     assert set(review_input) == {
         "output_language",
@@ -200,6 +216,7 @@ def test_real_ordinary_wire_and_own_candidate_delivery(own_dataset, case, tmp_pa
         == 0
     )
     control = IndependentPlannerProvider()
+    control_run_id = uuid4()
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *args, **kwargs: control)
     assert (
         invoke(
@@ -207,7 +224,7 @@ def test_real_ordinary_wire_and_own_candidate_delivery(own_dataset, case, tmp_pa
             "run",
             **dict(
                 common,
-                run_id=uuid4(),
+                run_id=control_run_id,
                 fixed_plan_input_ref="@" + str(fixed_ref),
                 export_dir=tmp_path / "fixed-export",
             ),
@@ -216,7 +233,9 @@ def test_real_ordinary_wire_and_own_candidate_delivery(own_dataset, case, tmp_pa
     )
     assert [body["metadata"]["podgen_stage"] for body in control.requests] == ["draft", "review"]
     control_story = payload(control.requests[0])["story"]
-    assert control_story == expected_current_story(fixed_proposal)
+    control_selection = journal.manifest(control_run_id)[PLAN_SELECTION_KEY]
+    assert control_selection == PLAN_SELECTION_VERSION
+    assert control_story == expected_current_story(fixed_proposal, plan_selection_contract=control_selection)
 
 
 @pytest.mark.parametrize("case", ["gps-clock", "snow-pump"])

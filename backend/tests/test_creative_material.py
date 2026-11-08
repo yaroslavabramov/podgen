@@ -7,8 +7,11 @@ from uuid import uuid4
 
 import pytest
 
+from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.writing.creative_material import creative_card_view, creative_dossier_view
 from podgen.writing.editorial_contract import EditorialInput
+from podgen.writing.plan_selection import KEY as PLAN_SELECTION_KEY
+from podgen.writing.plan_selection import VERSION as PLAN_SELECTION_VERSION
 from podgen.writing.projections import evidence_view, knowledge_view
 from tests.test_current_snow_input import source_file
 from tests.test_editorial_independence import expected_current_story, invoke, payload, prepare
@@ -248,5 +251,26 @@ def test_current_gps_fixed_import_and_run_bind_the_current_snapshot(
         "reader-review",
         "fact-review",
     ]
-    assert payload(provider.requests[0])["story"] == expected_current_story(current_fixed["plan"])
+    journal = EvaluationJournal(own_dataset[0], own_dataset[1])
+    selection = journal.manifest(options["run_id"])[PLAN_SELECTION_KEY]
+    assert selection == PLAN_SELECTION_VERSION
+    historical_story = expected_current_story(current_fixed["plan"])
+    assert "material_options" not in historical_story
+    expected = expected_current_story(current_fixed["plan"], plan_selection_contract=selection)
+    assert expected == dict(
+        historical_story,
+        material_options=dict(
+            guidance=(
+                "Conditional extensions or cuts from the plan. Use them when adjusting the "
+                "episode's scope; listing them does not mean every item should be spoken."
+            ),
+            choices=[
+                "Краткое исключение с заранее известной высотой, если оно помогает снять реальное возражение."
+            ],
+        ),
+    )
+    assert payload(provider.requests[0])["story"] == expected
+    assert expected["episode_answer"] == (
+        "Приёмник совместно оценивает положение и одну общую часовую поправку по псевдодальностям."
+    )
     assert json.loads((tmp_path / "fixed-run/final.json").read_text())["output"] == provider.upstream.script
