@@ -48,3 +48,14 @@ The archived first option contains the free-prose locator `M4`. It is preserved 
 A separate clock-comparison example verifies the ordinary draft/revise preview, separation of positive selection and optional extension from timing assumptions, and replacement by current composition. Tests also cover two successive materialized compositions, byte-identical cold readings, unchanged V9 preview when the pin is absent, and native V8/V9 manifest/preview/resume.
 
 No model inference is part of these certificates. The minimum live follow-up is one ordinary plan-revise call on the same saved reporting and candidate with the new planning prompt. Check that its chosen detail is consistent across the acts and optional material, then inspect the resulting author input offline. A new full-episode generation is not needed to verify delivery; whether a model makes and follows a better editorial choice remains a separate live check.
+
+
+## Editorial instruction freeze: 2026-11-08
+
+This follow-up changes only the current `plan.md`, `plan-revise.md` and `plan-review.md` instructions. `why_end_here` explains why the movement of the whole telling completes at the selected moment and what that ending gives the listener. The last testimony or a knowledge limit can serve when it completes that telling; source exhaustion alone does not establish an ending. Genre governs the choice, with no prescribed image, moral or emotional effect.
+
+The acts choose the version to be heard and its level of detail; `optional_material` does not defer that selection to the writer. They supply new subject knowledge where needed while leaving ordinary inferences to listeners. The last Snow control established that making optional numbers visible alone did not solve this editorial problem.
+
+The active V9 descriptions remain compatible: `why_end_here` already asks why the selected story stops here and what remains with the listener; act descriptions permit the chosen account and its new knowledge; prerequisites are what this audience needs, not every inference. `plan-revise` uses the same V9 output schema as `plan` and assembles the full planner instructions before its revision suffix. No schema descriptions, output fields, historical pins, saved plans or other role instructions change. New runs archive the new content IDs; existing snapshots retain their own instruction bytes.
+
+Offline request tests cover all four planning stages, including `plan-review-revised`: fresh requests receive the edited bodies, while saved requests retain their archived instructions with identical inputs and schemas. Existing assembly and historical schema hash tests remain green. These checks establish delivery and compatibility, not improved model judgment; the new Snow generation remains the live editorial check.
