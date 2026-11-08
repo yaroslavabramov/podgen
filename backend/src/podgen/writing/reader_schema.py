@@ -6,7 +6,8 @@ V1 = "listener-experience/1"
 V2 = "listener-experience/2"
 V3 = "listener-experience/3"
 V4 = "listener-experience/4"
-VERSION = "listener-experience/5"
+V5 = "listener-experience/5"
+VERSION = "listener-experience/6"
 
 FIELDS = {
     "listener_answer": (
@@ -44,17 +45,21 @@ FINDING_FIELDS = {
 def describe_reader(schema, version):
     if version is None:
         return
-    if version not in (V1, V2, V3, V4, VERSION):
+    if version not in (V1, V2, V3, V4, V5, VERSION):
         raise ContractError("unknown_reader_review_schema_version")
     for field, description in FIELDS.items():
         schema["properties"][field]["description"] = description
     for field, description in FINDING_FIELDS.items():
         schema["$defs"]["EditorialFinding"]["properties"][field]["description"] = description
 
-    if version == VERSION:
+    if version == V5:
         from .reader_wording import describe_wording_first
 
         describe_wording_first(schema)
+    elif version == VERSION:
+        from .reader_story import describe_story_edit
+
+        describe_story_edit(schema)
 
 
 def feedback_model(version):
@@ -70,7 +75,7 @@ def feedback_model(version):
         from .revision.scopes import ReaderAssessment
 
         return ReaderAssessment
-    if version in (V4, VERSION):
+    if version in (V4, V5, VERSION):
         from .revision.scopes import ReaderAssessmentV4
 
         return ReaderAssessmentV4

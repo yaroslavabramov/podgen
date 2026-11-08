@@ -11,6 +11,7 @@ from podgen.writing.craft_reference import pinned_reference
 from podgen.writing.model_references import CATALOG_KEY, run_references
 from podgen.writing.plan_selection import from_manifest as selection_from_manifest
 from podgen.writing.projection_versions import script_handoff
+from podgen.writing.reading_views import reading_audience
 from podgen.writing.roles import WriteOutput
 
 from . import author_material
@@ -105,6 +106,7 @@ def execute_reading_stage(
             instructions,
             revision.schema if revision else manifest["response_schemas"][stage],
             script=script,
+            audience=reading_audience(materials.packet.assignment, manifest),
             readings=readings,
             decision=decision,
             approved_plan=approved_plan,

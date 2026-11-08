@@ -23,6 +23,7 @@ from podgen.writing.prompts import (
 )
 from podgen.writing.reader_schema import V2 as LEGACY_READER_SCHEMA_VERSION
 from podgen.writing.reader_schema import VERSION as READER_SCHEMA_VERSION
+from podgen.writing.reading_views import reading_audience
 from podgen.writing.revision.contracts import FACT_VERSION
 from podgen.writing.revision.contracts import VERSION as REVISION_VERSION
 
@@ -158,6 +159,7 @@ def create_manifest(repo, generation, command, journal, materials):
         script = load_script(repo, command.project_id, command.initial_script_ref, materials.speaker_labels)
         manifest["initial_script_hash"] = materials_hash(script)
     if independent(command):
+        manifest["reading_audience"] = reading_audience(materials.packet.assignment)
         manifest["reader_review_schema_version"] = reader_version
         manifest["review_workflow"] = VERSION
         manifest["limitations"][1] = (

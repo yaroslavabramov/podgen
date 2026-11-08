@@ -19,6 +19,7 @@ from podgen.writing.prompts import (
     load_plan_target_repair_instructions,
 )
 from podgen.writing.reader_schema import VERSION as READER_SCHEMA_VERSION
+from podgen.writing.reading_views import reading_audience
 from podgen.writing.revision.contracts import FACT_VERSION
 
 from .compiler import response_request
@@ -114,6 +115,7 @@ def preview_request(run_id, stage, profile, materials, *, snapshot=None, **input
             reference_catalog=references,
             plan_selection_contract=selection,
             craft_reference=reference,
+            audience=reading_audience(materials.packet.assignment, snapshot.manifest if snapshot else None),
             script=inputs["draft"],
             readings=readings,
             decision=combine(readings) if readings else None,

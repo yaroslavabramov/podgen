@@ -111,5 +111,8 @@ def load_reading_instructions(stage) -> RoleInstructions:
     """Dedicated files only: no shared author, plan, format or factual hints in cold reading."""
     if stage not in ("reader-review", "fact-review", "dual-revise"):
         raise ValueError("unknown_reading_prompt")
-    raw = files(__name__).joinpath("current").joinpath(stage + ".md").read_bytes()
+    root = files(__name__)
+    raw = root.joinpath("current", stage + ".md").read_bytes()
+    if stage == "reader-review":
+        raw += b"\n" + root.joinpath("examples", "reader-edits.md").read_bytes()
     return RoleInstructions(stage + "/sha256:" + hashlib.sha256(raw).hexdigest(), raw.decode("utf-8"))
