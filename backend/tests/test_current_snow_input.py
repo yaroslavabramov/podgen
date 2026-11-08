@@ -150,8 +150,11 @@ def test_current_snow_informed_cli_and_every_role_receive_the_assignment(repo, s
     assert "candidate_plan" not in payload(provider.requests[0])
     assert provider.plan["plan"]["main_question"] != USER_REQUEST
     assert payload(provider.requests[2])["story"]["main_question"] == provider.plan["plan"]["main_question"]
+    planned_opening = provider.plan["plan"]["opening"]
     assert payload(provider.requests[2])["story"]["opening"] == {
-        key: value for key, value in provider.plan["plan"]["opening"].items() if key != "material_refs"
+        "approach": planned_opening["approach"],
+        "question_to_open": planned_opening["question_to_open"],
+        "support_refs": planned_opening["material_refs"],
     }
     assert (tmp_path / "run/editorial-input-original.json").read_bytes() == (
         CURRENT / "shared.json"
