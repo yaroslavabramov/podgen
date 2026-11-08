@@ -232,6 +232,7 @@ def test_default_saved_snow_two_isolated_readings_and_repeated_final(own_dataset
     selected = rewrite["revision_guidance"][1]["findings"][0]["support_labels"][0]
     source = next(card for card in fact["support"] if card["label"] == selected)
     assert rewrite["support"][0] == {key: source[key] for key in ("claim", "context", "sources")}
+    assert "source_excerpts" not in rewrite["support"][0]  # No explicit narrative selection in this old packet.
     assert provider.requests[0]["instructions"] == load_reading_instructions("reader-review").body
     out = tmp_path / "export"
     assert (out / "final.txt").exists() and "Фактологическая проверка · версия 2" in (

@@ -373,7 +373,14 @@ def test_current_packet_migration_preserves_exact_legacy_bytes_and_reference_bin
     raw = source.read_bytes()
     mapping = json.loads((folder / "card-id-migration.json").read_text())
     before = EditorialInput.model_validate_json(raw)
-    packet = EditorialInput.model_validate_json((folder / "shared.json").read_bytes())
+    migration_input = folder / "shared.json"
+    # Data revisions retain the exact packet on which the historical ID migration operated.
+    revision_path = folder / "source-restoration.json"
+    if revision_path.exists():
+        revision = json.loads(revision_path.read_text())
+        migration_input = folder / revision["previous_input"]
+        assert hashlib.sha256(migration_input.read_bytes()).hexdigest() == revision["previous_sha256"]
+    packet = EditorialInput.model_validate_json(migration_input.read_bytes())
     assert mapping["source_sha256"] == hashlib.sha256(raw).hexdigest()
     assert mapping["source_digest"] == digest(before.model_dump(mode="json"))
     current = packet.model_dump(mode="json")

@@ -163,13 +163,17 @@ def test_ordinary_cli_compiles_creative_and_checker_inputs_from_current_packets(
     planner = requests["plan"]["dossier"]
     assert set(planner) == {"knowledge_cards"}
     assert [card["claim"] for card in planner["knowledge_cards"]] == [card["story_facts"] for card in cards]
-    assert all(set(card) == {"claim", "sources", "card_id"} for card in planner["knowledge_cards"])
+    assert all(
+        set(card) <= {"claim", "sources", "source_excerpts", "card_id"} for card in planner["knowledge_cards"]
+    )
     assert [card["claim"] for card in requests["draft"]["support"]] == [
         card["story_facts"] for card in cards if card["card_id"] in selected
     ]
-    assert all(set(card) == {"claim", "sources"} for card in requests["draft"]["support"])
+    assert all(set(card) <= {"claim", "sources", "source_excerpts"} for card in requests["draft"]["support"])
     assert requests["plan-review"]["dossier"] == planner
-    assert requests["plan-review"]["evidence"]
+    assert "evidence" not in requests["plan-review"]
+    for view, original in zip(planner["knowledge_cards"], cards, strict=True):
+        assert bool(view.get("source_excerpts")) == bool(original.get("narrative_excerpt_indices"))
     for stage in ("fact-review",):
         support = (
             requests[stage]["dossier"]["knowledge_cards"]

@@ -1,6 +1,6 @@
 """Versioned editorial data and backend-only source bindings, never a model request by itself."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, model_serializer, model_validator
 
@@ -76,13 +76,14 @@ class KnowledgeCard(RoleOutput):
     claim: FullText
     context: FullText
     story_facts: FullText | None = None
+    narrative_excerpt_indices: list[Annotated[int, Field(ge=0, strict=True)]] | None = None
     limitations: list[FullText]
     excerpts: list[ExactExcerpt] = Field(min_length=1)
 
     @model_serializer(mode="wrap")
     def preserve_historical_shape(self, handler):
         data = handler(self)
-        for field in ("card_id", "story_facts"):
+        for field in ("card_id", "story_facts", "narrative_excerpt_indices"):
             if data[field] is None:
                 data.pop(field)
         return data
@@ -113,6 +114,14 @@ class EditorialInput(RoleOutput):
     def bindings(self):
         modern = self.contract == "editorial-input/2"
         for card in self.dossier.knowledge_cards:
+            if "narrative_excerpt_indices" in card.model_fields_set:
+                if not modern:
+                    raise ValueError("editorial_narrative_excerpts_forbidden_in_v1")
+                indices = card.narrative_excerpt_indices
+                if indices is None:
+                    raise ValueError("editorial_narrative_excerpts_must_be_indices")
+                if len(set(indices)) != len(indices) or any(index >= len(card.excerpts) for index in indices):
+                    raise ValueError("editorial_invalid_narrative_excerpt_selection")
             if "story_facts" in card.model_fields_set:
                 if not modern:
                     raise ValueError("editorial_story_facts_forbidden_in_v1")

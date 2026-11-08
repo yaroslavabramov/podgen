@@ -1,0 +1,40 @@
+{
+  "contract": "editorial-data-revision/1",
+  "date": "2026-11-08",
+  "previous_input": "history/before-source-restoration-2026-11-08.json",
+  "previous_sha256": "5a7ac5d3471b1220c3fe1affd0f1eaf807bdf3b6095a655010b25ec009eb0987",
+  "previous_digest": "8d0e67b025df28fd82c4558cd1b83b74b9bb6c85a7a3ba3b1980cf6163f2a7fa",
+  "target_digest": "9273cf3e6e4f897c294658e287ce448b98b26c33cfb9f1b9529ecc34befd6f36",
+  "modified_card_ids": [
+    "C8f02286bc580",
+    "Cb1f0e697faba",
+    "Ce5cb095a3e6d",
+    "Cee554ab22bb8"
+  ],
+  "added_card_ids": [
+    "C0e414a5f3c87"
+  ],
+  "narrative_excerpt_selections": {
+    "Гипотеза передачи": [
+      1,
+      3
+    ],
+    "Осмотр воды": [
+      0
+    ],
+    "Доставка воды": [
+      0
+    ],
+    "Запись и мать": [
+      0
+    ],
+    "Осмотр Йорка": [
+      1,
+      4
+    ]
+  },
+  "unchanged_primary_documents": [
+    "D3",
+    "D4"
+  ]
+}

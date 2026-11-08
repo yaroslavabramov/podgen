@@ -15,11 +15,13 @@ from .projection_versions import (
     CURRENT,
     V1,
     V8,
+    V9,
     creative_materials,
     historical,
     script_handoff,
     validate_version,
 )
+from .source_passages import card_source_passages
 from .story_views import (
     editorial_frame,
     narrative_decisions,
@@ -100,7 +102,7 @@ def knowledge_view(packet, *, labels, selected=None):
     return cards
 
 
-def creative_knowledge_view(packet, *, labels, selected=None):
+def creative_knowledge_view(packet, *, labels, selected=None, projection_version=None):
     documents = {doc.key: doc for doc in packet.documents}
     result = []
     for card in packet.dossier.knowledge_cards:
@@ -108,10 +110,22 @@ def creative_knowledge_view(packet, *, labels, selected=None):
         if selected is not None and identity not in selected:
             continue
         value = creative_card_view(card, sources=[documents[quote.document].title for quote in card.excerpts])
+        if projection_version == V9:
+            passages = card_source_passages(card, documents)
+            if passages:
+                value["source_excerpts"] = passages
         if labels:
             value["card_id" if packet.contract == "editorial-input/2" else "label"] = identity
         result.append(value)
     return result
+
+
+def authoring_knowledge_view(packet, *, labels, selected=None, projection_version=CURRENT):
+    if creative_materials(projection_version):
+        return creative_knowledge_view(
+            packet, labels=labels, selected=selected, projection_version=projection_version
+        )
+    return knowledge_view(packet, labels=labels, selected=selected)
 
 
 def actionable_feedback(review, *, planning=False, projection_version=CURRENT):
@@ -175,11 +189,14 @@ def role_payload(
         )
         if creative_materials(projection_version) and (
             stage in ("plan", "plan-revise")
-            or projection_version == V8 and stage.startswith("plan-review")
+            or projection_version in (V8, V9)
+            and stage.startswith("plan-review")
         ):
-            payload["dossier"] = creative_dossier_view(creative_knowledge_view(packet, labels=True))
+            payload["dossier"] = creative_dossier_view(
+                creative_knowledge_view(packet, labels=True, projection_version=projection_version)
+            )
         payload["material_catalog"] = list(materials.material_catalog)
-        if stage.startswith("plan-review"):
+        if stage.startswith("plan-review") and projection_version != V9:
             payload["evidence"] = evidence_view(packet)
         if candidate is not None:
             payload["candidate_plan"] = candidate_view(candidate, projection_version=projection_version)
@@ -204,9 +221,12 @@ def role_payload(
         )
         if stage == "draft":
             payload["story"] = narrative_decisions(plan, projection_version=projection_version)
-            payload["support"] = (
-                creative_knowledge_view if creative_materials(projection_version) else knowledge_view
-            )(packet, labels=False, selected=selected_labels(plan, packet))
+            payload["support"] = authoring_knowledge_view(
+                packet,
+                labels=False,
+                selected=selected_labels(plan, packet),
+                projection_version=projection_version,
+            )
         elif stage == "review":
             if projection_version == V1:
                 payload["story_intent"] = story_intent(plan)
@@ -226,9 +246,12 @@ def role_payload(
             payload["revision_guidance"] = actionable_feedback(
                 feedback, projection_version=projection_version
             )
-            payload["support"] = (
-                creative_knowledge_view if creative_materials(projection_version) else knowledge_view
-            )(packet, labels=False, selected=selected_labels(plan, packet))
+            payload["support"] = authoring_knowledge_view(
+                packet,
+                labels=False,
+                selected=selected_labels(plan, packet),
+                projection_version=projection_version,
+            )
         else:
             raise ContractError("unknown_role_projection")
         if historical(projection_version):
