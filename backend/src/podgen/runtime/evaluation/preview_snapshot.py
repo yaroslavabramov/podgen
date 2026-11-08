@@ -15,6 +15,7 @@ class PreviewSnapshot:
     script: dict | None = None
     composition: dict | None = None
     planning_inputs: dict | None = None
+    revision_comparison: dict | None = None
 
 
 def load_preview_snapshot(journal, generation, run_id, stage, materials):
@@ -53,8 +54,19 @@ def load_preview_snapshot(journal, generation, run_id, stage, materials):
 
             script = journal.read(RuntimeRef.model_validate(source))["output"]
             composition = source_state(journal, source, script)
+    from podgen.writing.revision import verification
+
+    from . import recheck_source
     from .planning_continuation.preview import attach
 
+    comparison = None
+    if verification.applies(stage, manifest.get(verification.KEY)):
+        script, comparison = recheck_source.load(journal, run_id, stage)
+
     return attach(
-        PreviewSnapshot(manifest, instructions, script, composition), journal, run_id, stage, materials
+        PreviewSnapshot(manifest, instructions, script, composition, revision_comparison=comparison),
+        journal,
+        run_id,
+        stage,
+        materials,
     )

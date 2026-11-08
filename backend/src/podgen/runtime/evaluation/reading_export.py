@@ -73,8 +73,33 @@ def export_readings(journal, run_id, manifest, write_json, write_text):
             if ru
             else ("Listener reading" if base_stage(stage) == "reader-review" else "Fact review")
         )
+        if "assignment_results" in review:
+            title = "Редакторская перечитка" if ru else "Review of the revision"
         title += (" · версия " if ru else " · version ") + str(index + 1)
         lines.extend(["## " + title, "", review["recommendation"], "", review["listener_answer"], ""])
+        if "assignment_results" in review:
+            from .recheck_source import load
+
+            _, comparison = load(journal, run_id, stage)
+            orders = {row["id"]: row for row in comparison["assignments"]}
+            lines.extend(
+                [
+                    "### " + ("Что изменила перепись" if ru else "Effect of the revision"),
+                    "",
+                    review["effect_on_episode"],
+                    "",
+                ]
+            )
+            for result in review["assignment_results"]:
+                order = orders[result["assignment_id"]]
+                assignment = (
+                    order["requested_change"]
+                    if "requested_change" in order
+                    else comparison["scopes"][order["scope"]]["reason"]
+                )
+                lines.extend(
+                    [f"**{order['id']} · {result['outcome']}**", "", assignment, "", result["judgment"], ""]
+                )
         if "revision_scope" in review:
             scope = review["revision_scope"]
             lines.extend(

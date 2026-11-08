@@ -114,7 +114,10 @@ def validate_preview_snapshots(stage, materials, inputs):
             )
             review = model.model_validate(inputs[field])
             review.validate_against(WriteOutput.model_validate(inputs["draft"]))
-            if review.reading_mode != mode:
+            expected_mode = (
+                "informed" if field == "reader_feedback" and "assignment_results" in inputs[field] else mode
+            )
+            if review.reading_mode != expected_mode:
                 raise ContractError("preview_review_access_mode_mismatch")
             if field == "fact_feedback" and any(
                 set(f.support_labels) - set(materials.material_catalog) for f in review.findings

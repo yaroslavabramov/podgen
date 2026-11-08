@@ -38,7 +38,13 @@ def response_schema(
     reader_schema_version=None,
     fact_schema_version=None,
     planning_output_contract=None,
+    revision_verification_contract=None,
 ):
+    from podgen.writing.revision import verification
+
+    if verification.applies(stage, revision_verification_contract):
+        return verification.schema()
+
     from podgen.writing.planning_choice import validate as validate_planning_contract
 
     validate_planning_contract(

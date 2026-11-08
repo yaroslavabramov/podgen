@@ -4,6 +4,7 @@ from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import Conflict
 from podgen.persistence.database import one
+from podgen.writing.revision import verification
 
 from .reading_cycle import combine, outcome_ref
 from .reading_workflow import VERSION, round_stage
@@ -62,6 +63,12 @@ def read_outcome(journal, run_id):
                 or request["context"]["script_hash"] != digest(script)
             ):
                 raise Conflict("independent_round_reading_mismatch")
+            if verification.applies(stage, manifest.get(verification.KEY)):
+                from .recheck_source import verify_saved
+
+                verify_saved(
+                    journal, run_id, stage, previous, script, invocation, request["context"], output["output"]
+                )
             readings[origin] = output["output"]
         if record["decision"] != combine(readings):
             raise Conflict("independent_round_decision_mismatch")
