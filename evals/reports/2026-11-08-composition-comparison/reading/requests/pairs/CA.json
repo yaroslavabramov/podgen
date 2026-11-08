@@ -50,8 +50,7 @@
                 "$ref": "#/$defs/Evidence"
               },
               "ending": {
-                "$ref": "#/$defs/Evidence",
-                "description": "A quotation at the actual close, heard against what preceded it, and its effect."
+                "$ref": "#/$defs/Evidence"
               },
               "recording_status": {
                 "enum": [

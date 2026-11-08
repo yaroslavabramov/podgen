@@ -1,0 +1,93 @@
+{
+  "changes": "Only the redundant description alongside the ending reference was removed. The independent paired reading task already contains the instruction to quote the ending. No comparison was generated on these requests; no usage was returned. Original wires remain in commit f988db8.",
+  "failed_attempts": [
+    {
+      "order": "AC",
+      "http_status": 400,
+      "request_id": "req_071098a50a654dd3af2660168a91b9c5",
+      "error": {
+        "message": "Invalid schema for response_format 'editorial_feedback': context=('properties', 'ending'), $ref cannot have keywords {'description'}.",
+        "type": "invalid_request_error",
+        "param": "text.format.schema",
+        "code": "invalid_json_schema"
+      }
+    },
+    {
+      "order": "AD",
+      "http_status": 400,
+      "request_id": "req_24c572d1909c497d9b4b8a2f1739b238",
+      "error": {
+        "message": "Invalid schema for response_format 'editorial_feedback': context=('properties', 'ending'), $ref cannot have keywords {'description'}.",
+        "type": "invalid_request_error",
+        "param": "text.format.schema",
+        "code": "invalid_json_schema"
+      }
+    },
+    {
+      "order": "BC",
+      "http_status": 400,
+      "request_id": "req_3d848fd0190d4cf38bb19ac18238cb5c",
+      "error": {
+        "message": "Invalid schema for response_format 'editorial_feedback': context=('properties', 'ending'), $ref cannot have keywords {'description'}.",
+        "type": "invalid_request_error",
+        "param": "text.format.schema",
+        "code": "invalid_json_schema"
+      }
+    },
+    {
+      "order": "BD",
+      "http_status": 400,
+      "request_id": "req_1249381495b148fe85a1d635646c7ae2",
+      "error": {
+        "message": "Invalid schema for response_format 'editorial_feedback': context=('properties', 'ending'), $ref cannot have keywords {'description'}.",
+        "type": "invalid_request_error",
+        "param": "text.format.schema",
+        "code": "invalid_json_schema"
+      }
+    },
+    {
+      "order": "CA",
+      "http_status": 400,
+      "request_id": "req_2f353c614e1848b480f27734560035c3",
+      "error": {
+        "message": "Invalid schema for response_format 'editorial_feedback': context=('properties', 'ending'), $ref cannot have keywords {'description'}.",
+        "type": "invalid_request_error",
+        "param": "text.format.schema",
+        "code": "invalid_json_schema"
+      }
+    },
+    {
+      "order": "CB",
+      "http_status": 400,
+      "request_id": "req_2a0814ca910f4bfda21aafce06e6c864",
+      "error": {
+        "message": "Invalid schema for response_format 'editorial_feedback': context=('properties', 'ending'), $ref cannot have keywords {'description'}.",
+        "type": "invalid_request_error",
+        "param": "text.format.schema",
+        "code": "invalid_json_schema"
+      }
+    },
+    {
+      "order": "DA",
+      "http_status": 400,
+      "request_id": "req_aacfd21be68a4307bae5bae4c1166749",
+      "error": {
+        "message": "Invalid schema for response_format 'editorial_feedback': context=('properties', 'ending'), $ref cannot have keywords {'description'}.",
+        "type": "invalid_request_error",
+        "param": "text.format.schema",
+        "code": "invalid_json_schema"
+      }
+    },
+    {
+      "order": "DB",
+      "http_status": 400,
+      "request_id": "req_706d4fff43ba434396e3c72ddd438b2d",
+      "error": {
+        "message": "Invalid schema for response_format 'editorial_feedback': context=('properties', 'ending'), $ref cannot have keywords {'description'}.",
+        "type": "invalid_request_error",
+        "param": "text.format.schema",
+        "code": "invalid_json_schema"
+      }
+    }
+  ]
+}

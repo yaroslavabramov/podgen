@@ -156,7 +156,10 @@ def read_one(entry, live):
     )
     if live:
         response = send_once(
-            ROOT / "tmp/composition-blind-reading" / kind / label,
+            ROOT
+            / "tmp/composition-blind-reading"
+            / ("pair-schema-2" if kind == "pairs" else kind)
+            / label,
             wire,
             Transport("openai", credentials(ROOT)["openai"]),
         )

@@ -22,9 +22,7 @@ class Evidence(Form):
 
 class RecordingRead(Form):
     decisive_passage: Evidence
-    ending: Evidence = Field(
-        description="A quotation at the actual close, heard against what preceded it, and its effect."
-    )
+    ending: Evidence
     recording_status: Literal["ready", "needs_edit", "needs_rebuilding"]
 
 
