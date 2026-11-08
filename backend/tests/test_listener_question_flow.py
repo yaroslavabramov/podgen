@@ -11,6 +11,7 @@ from podgen.runtime.models.contracts import WireReply
 from podgen.writing.plan_views import candidate_view
 from podgen.writing.projection_versions import CURRENT
 from tests.author_responses import author_response
+from tests.planning_choice_cases import answer_requested_selection
 from tests.test_editorial_independence import invoke, payload, prepare
 from tests.test_own_plan import own_dataset as own_dataset
 
@@ -85,6 +86,7 @@ class QuestionFlowProvider:
             )
         else:
             raise AssertionError("No rewrite or further generation authorized in this test")
+        output = answer_requested_selection(output, body)
         return WireReply(
             json.dumps(
                 dict(

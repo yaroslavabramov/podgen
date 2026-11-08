@@ -18,6 +18,7 @@ from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.runtime.models.contracts import WireReply
 from podgen.writing.editorial_contract import EditorialInput, FixedEditorialInput
 from podgen.writing.plan_views import candidate_view
+from podgen.writing.planning_choice import VERSION as PLANNING_VERSION
 from podgen.writing.planning_roles import PlanningOutput, PlanReviewOutput
 from podgen.writing.planning_v9 import PlanningOutputV9
 from podgen.writing.projection_versions import V3, V8
@@ -71,7 +72,7 @@ def test_new_and_legacy_plan_shapes_roundtrip_without_manufacturing_or_losing_fi
 
 def test_published_current_schemas_and_real_model_contract_have_no_obligation_lists():
     for stage, name in (("plan", "planning-output"), ("plan-review", "plan-review-output")):
-        schema = response_schema(stage, "editorial-role-packets/1")
+        schema = response_schema(stage, "editorial-role-packets/1", planning_output_contract=PLANNING_VERSION)
         assert schema == json.loads((ROOT / f"backend/schemas/{name}.current.schema.json").read_text())
         for definition in [schema, *schema.get("$defs", {}).values()]:
             if definition.get("type") == "object":

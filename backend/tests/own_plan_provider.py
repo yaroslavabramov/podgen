@@ -3,6 +3,7 @@
 import json
 
 from podgen.runtime.models.contracts import ProviderFault, WireReply
+from tests.planning_choice_cases import answer_requested_selection
 from tests.test_writing_evaluation import FakeProvider
 
 
@@ -117,6 +118,7 @@ class OwnPlanProvider(FakeProvider):
             )
             if fault == "pointer":
                 output["strengths"][0]["targets"] = ["/plan/acts/99"]
+        output = answer_requested_selection(output, body)
         response = dict(
             id="resp_" + stage.replace("-", "_"),
             status="completed",

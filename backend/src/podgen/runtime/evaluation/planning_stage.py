@@ -9,6 +9,7 @@ from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.domain.errors import ContractError
 from podgen.writing.model_references import CATALOG_KEY, run_references
 from podgen.writing.plan_views import candidate_view
+from podgen.writing.planning_choice import from_manifest as planning_from_manifest
 from podgen.writing.projection_versions import V1, manifest_version
 
 from .compiler import response_request
@@ -134,15 +135,18 @@ def execute_planning_stage(
             else:
                 parsed = output_model(
                     stage,
+                    planning_output_contract=planning_from_manifest(manifest),
                     projection_version=manifest_version(manifest)
                     if command.input_contract == "editorial-role-packets/1"
                     else V1,
                 ).model_validate_json(raw)
             wire_output = parsed.model_dump(mode="json")
             if references is not None:
-                parsed = output_model(stage, projection_version=manifest_version(manifest)).model_validate(
-                    references.translate(wire_output, inbound=True)
-                )
+                parsed = output_model(
+                    stage,
+                    projection_version=manifest_version(manifest),
+                    planning_output_contract=planning_from_manifest(manifest),
+                ).model_validate(references.translate(wire_output, inbound=True))
             validate_planning(
                 parsed,
                 stage,

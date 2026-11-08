@@ -11,6 +11,7 @@ from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.service import WritingEvaluation
 from podgen.runtime.models.contracts import WireReply
 from tests.own_plan_provider import proposal, question
+from tests.planning_choice_cases import answer_requested_selection
 from tests.test_editorial_independence import payload, prepare
 from tests.test_independent_readings import Paused, ReadingProvider
 
@@ -79,6 +80,7 @@ class ContinuationProvider(ReadingProvider):
                 research_requests=[question()] if self.plan_decision == "needs_research" else [],
                 duration_note="SYNTHETIC estimate.",
             )
+        result = answer_requested_selection(result, body)
         return WireReply(
             json.dumps(
                 dict(

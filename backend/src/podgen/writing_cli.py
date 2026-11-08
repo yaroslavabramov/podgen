@@ -100,7 +100,13 @@ def parser():
     from podgen.runtime.evaluation.planning_continuation.cli import add_command
 
     add_commands(sub)
-    add_command(sub)
+    continuation = add_command(sub)
+    for action in (run, sub.choices["resume"], continuation):
+        action.add_argument(
+            "--stop-after-plan",
+            action="store_true",
+            help="Return the approved own plan before writing. Resume this run ID to write the episode.",
+        )
     return root
 
 
@@ -180,6 +186,8 @@ def main(argv=None):
         elif args.command == "continue-planning":
             from podgen.runtime.evaluation.planning_continuation.cli import command_for, prepare
 
+            if args.preview_only and args.stop_after_plan:
+                raise ContractError("choose_preview_or_stop_after_plan")
             command = command_for(args, journal)
             if args.preview_only:
                 print(json.dumps(prepare(repo, command, args.export_dir), ensure_ascii=False))
@@ -234,6 +242,7 @@ def main(argv=None):
         try:
             result = WritingEvaluation(repo, provider).run(
                 command,
+                stop_after_plan=args.stop_after_plan,
                 repair_review_anchors=getattr(args, "repair_review_anchors", False),
                 retry_credit_refusal=getattr(args, "retry_credit_refusal", None),
                 repair_plan_targets=getattr(args, "repair_plan_targets", None),

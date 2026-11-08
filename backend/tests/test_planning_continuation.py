@@ -179,7 +179,12 @@ def test_ordinary_cli_prepares_runs_and_resumes_the_same_descendant(own_dataset,
     ]
     assert writing_cli.main([*prefix, *options, "--preview-only"]) == 0
     assert not provider.requests and not provider.counts
-    assert writing_cli.main([*prefix, *options]) == 0
+    assert writing_cli.main([*prefix, *options, "--stop-after-plan"]) == 0
+    assert [r["metadata"]["podgen_stage"] for r in provider.requests] == [
+        "plan-revise",
+        "plan-review-revised",
+    ]
+    assert json.loads((tmp_path / "cli-child/run.json").read_bytes())["status"] == "plan_ready"
     assert (
         writing_cli.main(
             [

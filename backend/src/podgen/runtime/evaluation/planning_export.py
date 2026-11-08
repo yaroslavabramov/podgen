@@ -12,6 +12,12 @@ RU = {
     "research": "Для плана нужен материал",
     "accepted": "Редактор плана допустил эту версию к автору.",
     "evaluation": "Оценочный кандидат; не является принятым производственным StoryPlan.",
+    "story_selection": "Выбор рассказа",
+    "first": "Первый замысел",
+    "second": "Второй замысел",
+    "difference": "Существенное различие",
+    "selected": "Выбранный вариант",
+    "why_selected": "Что даёт этот выбор",
     "question": "Главный вопрос",
     "promise": "Обещание слушателю",
     "answer": "Рабочий ответ",
@@ -110,6 +116,14 @@ def render_plan(candidate, review, accepted, language, *, material_titles=None):
 
     def seconds(value):
         return f"{value['min_seconds']}–{value['max_seconds']} {labels['seconds']}"
+
+    choice = output.get("story_selection")
+    if choice is not None:
+        section("story_selection")
+        for key in ("first", "second", "difference"):
+            field(key, choice[key])
+        field("selected", labels[choice["selected"]])
+        field("why_selected", choice["why_selected"])
 
     if plan:
         section("question")

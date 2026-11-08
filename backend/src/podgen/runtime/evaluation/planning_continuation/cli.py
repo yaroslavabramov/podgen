@@ -29,6 +29,7 @@ def add_command(sub):
     parser.add_argument("--max-additional-plan-revisions", type=int)
     parser.add_argument("--preview-only", action="store_true", help="Freeze and export; no model calls")
     parser.add_argument("--export-dir", type=Path, required=True)
+    return parser
 
 
 def command_for(args, journal):

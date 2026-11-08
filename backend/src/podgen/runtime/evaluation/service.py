@@ -17,6 +17,8 @@ from .contracts import STAGES, RunFailure, WritingRunCommand, command_payload
 from .journal import EvaluationJournal
 from .manifest import create_manifest
 from .planning import execute_planning
+from .planning_checkpoint import PlanningCheckpoint
+from .planning_checkpoint import result as plan_ready_result
 from .reading_workflow import VERSION, independent
 from .recovery import authorize_recovery
 from .role_schema import response_schema
@@ -66,12 +68,16 @@ class WritingEvaluation:
         repair_review_anchors=False,
         retry_credit_refusal=None,
         repair_plan_targets=None,
+        stop_after_plan=False,
     ):
         if command.actor_id != self.repo.actor_id:
             raise AccessDenied()
+        if stop_after_plan and command.plan_mode != "own-plan":
+            raise ContractError("stop_after_plan_requires_own_plan")
         journal = EvaluationJournal(self.repo, command.project_id)
         with journal.lock(command.run_id):
             existing = journal.run(command.run_id)
+            checkpoint = PlanningCheckpoint(command.run_id)
             if existing:
                 historical = journal.manifest(command.run_id)["command"]
                 if "input_contract" not in historical and "input_contract" not in command.model_fields_set:
@@ -81,6 +87,12 @@ class WritingEvaluation:
                 if existing["input_fingerprint"] != digest(command_payload(command)):
                     raise Conflict("run_id_reused_with_different_input")
                 manifest = journal.manifest(command.run_id)
+                if command.plan_mode == "own-plan":
+                    checkpoint = PlanningCheckpoint.load(journal, command.run_id)
+                    if stop_after_plan and (
+                        checkpoint.resumed or journal.invocation(command.run_id, "draft")
+                    ):
+                        raise Conflict("planning_checkpoint_already_passed")
                 terminal = None
                 if author_material.offered("draft", manifest.get("role_projection_version")):
                     from podgen.writing.author_reply import verify_pin
@@ -159,6 +171,9 @@ class WritingEvaluation:
             from podgen.writing.plan_selection import from_manifest as selection_from_manifest
 
             selection_from_manifest(manifest)
+            from podgen.writing.planning_choice import from_manifest as planning_from_manifest
+
+            planning_contract = planning_from_manifest(manifest)
             if independent(command) and manifest.get("review_workflow") != VERSION:
                 raise ContractError("review_workflow_changed")
             if manifest["compiler_version"] != COMPILER_VERSION:
@@ -176,6 +191,7 @@ class WritingEvaluation:
                         stage,
                         command.input_contract,
                         projection_version=manifest_version(manifest),
+                        planning_output_contract=planning_contract,
                         reader_schema_version=manifest.get("reader_review_schema_version"),
                         fact_schema_version=manifest.get("fact_review_schema_version"),
                     ),
@@ -199,8 +215,9 @@ class WritingEvaluation:
                 current = self._materials(command)
                 if materials_hash(current.as_payload()) != manifest["materials_hash"]:
                     raise Conflict("frozen_materials_changed")
+                now = datetime.now(timezone.utc)
                 elapsed = (
-                    datetime.now(timezone.utc) - datetime.fromisoformat(manifest["created_at"])
+                    now - datetime.fromisoformat(manifest["created_at"]) - checkpoint.wait_time(now)
                 ).total_seconds()
                 if elapsed > command.limits.max_elapsed_seconds:
                     raise RunFailure("run_elapsed_budget_exceeded", run_id=command.run_id)
@@ -212,6 +229,8 @@ class WritingEvaluation:
                 plan_target=repair_plan_targets,
                 guard=guard,
             )
+            if not stop_after_plan:
+                checkpoint.mark(journal, "resumed", datetime.now(timezone.utc))
             journal.status(command.run_id, "running")
             try:
                 own_plan = None
@@ -228,6 +247,10 @@ class WritingEvaluation:
                         totals=totals,
                         guard=guard,
                     )
+                    if stop_after_plan:
+                        checkpoint.mark(journal, "paused", datetime.now(timezone.utc))
+                        journal.status(command.run_id, "plan_ready")
+                        return plan_ready_result(command, own_plan, totals)
                 if independent(command):
                     from .reading_cycle import execute_reading_cycle
                     from .reading_outcome import outcome_result
