@@ -37,8 +37,8 @@ def _read(root, names):
 
 
 def _component_names(stage, format):
-    if stage == "plan":
-        return ("plan.md",)
+    if stage in ("plan", "plan-review"):
+        return (f"{stage}.md",)
     if stage == "plan-revise":
         return ("plan.md", "plan-revise.md")
     return ("common.md", f"{format}.md", f"{stage}.md")
@@ -50,7 +50,7 @@ def _assemble(stage, format, components):
     framed = [[name, components[name]] for name in names]
     identity = (
         ["semantic-body/2", stage, framed]
-        if stage in ("plan", "plan-revise")
+        if stage in _PLANNING_STAGES
         else ["semantic-body/1", stage, format, framed]
     )
     source = json.dumps(
