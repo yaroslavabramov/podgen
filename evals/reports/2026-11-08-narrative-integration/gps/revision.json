@@ -1,0 +1,74 @@
+{
+  "contract": "addressed-script-revision/1",
+  "operation": {
+    "mode": "targeted",
+    "script_version": 0,
+    "targets": [
+      {
+        "target_id": "T1",
+        "kind": "text",
+        "utterance_index": 27,
+        "start": 0,
+        "end": 23,
+        "speaker": "НИНА",
+        "quote": "Гораздо слишком грубая.",
+        "delete": {
+          "start": 0,
+          "end": 24,
+          "text": "Гораздо слишком грубая. "
+        },
+        "basis": [
+          "reader.findings.0",
+          "reader.findings.0.context"
+        ]
+      },
+      {
+        "target_id": "B27",
+        "kind": "boundary",
+        "before_utterance_index": 27,
+        "basis": [
+          "reader.findings.0",
+          "reader.findings.0.context"
+        ]
+      },
+      {
+        "target_id": "B28",
+        "kind": "boundary",
+        "before_utterance_index": 28,
+        "basis": [
+          "reader.findings.0",
+          "reader.findings.0.context"
+        ]
+      }
+    ],
+    "sequences": []
+  },
+  "wire_output": {
+    "edits": [
+      {
+        "operation": "replace",
+        "target_id": "T1",
+        "text": "Да, слишком грубая."
+      }
+    ],
+    "composition_update": null
+  },
+  "application": {
+    "base_script_hash": "acfae6f108a4b6e76545b17b2b3d301844c56a89b87b5699d4aa15ca0696b982",
+    "result_script_hash": "a026794c67d4a446d7807b00721136adda4c3a9c048b6223130c18cf69d0c947",
+    "edits": [
+      {
+        "operation_index": 0,
+        "operation": "replace",
+        "target_id": "T1",
+        "utterance_index": 27,
+        "start": 0,
+        "end": 23,
+        "before": "Гораздо слишком грубая.",
+        "after": "Да, слишком грубая."
+      }
+    ],
+    "unchanged_outside_targets": true,
+    "sequences": []
+  }
+}
