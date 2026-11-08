@@ -13,6 +13,8 @@ from podgen.writing.plan_selection import VERSION as SELECTION_VERSION
 from podgen.writing.plan_views import candidate_view
 from podgen.writing.planning_choice import KEY as PLANNING_KEY
 from podgen.writing.planning_choice import VERSION as PLANNING_VERSION
+from podgen.writing.planning_duration import KEY as DURATION_KEY
+from podgen.writing.planning_duration import VERSION as DURATION_VERSION
 from podgen.writing.projection_versions import V8, V9
 from tests.test_editorial_independence import invoke, payload, prepare
 from tests.test_independent_readings import Paused, ReadingProvider
@@ -35,6 +37,7 @@ def test_native_planning_snapshot_and_resume_keep_the_exact_wire(
                 manifest.pop("writer_response_contract", None)
                 manifest.pop("plan_selection_contract", None)
             manifest.pop("planning_output_contract", None)
+            manifest.pop("planning_duration_contract", None)
             for stage in manifest["response_schemas"]:
                 manifest["response_schemas"][stage] = response_schema(
                     stage,
@@ -53,11 +56,13 @@ def test_native_planning_snapshot_and_resume_keep_the_exact_wire(
     journal = EvaluationJournal(own_dataset[0], own_dataset[1])
     manifest = journal.manifest(options["run_id"])
     assert manifest.get(SELECTION_KEY) == (SELECTION_VERSION if version == V9 else None)
+    assert manifest.get(DURATION_KEY) == (DURATION_VERSION if choice else None)
     assert manifest.get(PLANNING_KEY) == (PLANNING_VERSION if choice else None)
     candidate = journal.output(journal.invocation(options["run_id"], "plan"))["output"]
     assert ("story_selection" in candidate) == choice
     assert ("last_moment" in candidate["plan"]["ending"]) == (version == V9)
     pending = journal.request(journal.invocation(options["run_id"], "plan-review"))
+    assert ("duration_context" in payload(pending)) == choice
     source = tmp_path / "candidate.json"
     source.write_text(json.dumps(candidate, ensure_ascii=False))
     preview = tmp_path / "preview.json"

@@ -10,6 +10,7 @@ from podgen.domain.errors import ContractError
 from podgen.writing.model_references import CATALOG_KEY, run_references
 from podgen.writing.plan_views import candidate_view
 from podgen.writing.planning_choice import from_manifest as planning_from_manifest
+from podgen.writing.planning_duration import from_manifest as duration_from_manifest
 from podgen.writing.projection_versions import V1, manifest_version
 
 from .compiler import response_request
@@ -103,6 +104,7 @@ def execute_planning_stage(
                 manifest["response_schemas"][stage],
                 projection_version=manifest_version(manifest),
                 reference_catalog=references,
+                planning_duration_contract=duration_from_manifest(manifest),
                 candidate=candidate,
                 plan_review=review,
             )

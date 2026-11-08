@@ -11,6 +11,7 @@ from .craft_reference import attach_reference
 from .creative_material import creative_card_view, creative_dossier_view
 from .duration_views import duration_context
 from .plan_views import candidate_view
+from .planning_duration import validate as validate_planning_duration
 from .projection_versions import (
     CURRENT,
     V1,
@@ -172,8 +173,10 @@ def role_payload(
     draft=None,
     feedback=None,
     plan_selection_contract=None,
+    planning_duration_contract=None,
 ):
     validate_version(projection_version)
+    validate_planning_duration(planning_duration_contract, projection_version)
     packet = materials.packet
     payload = dict(output_language=materials.output_language)
     if projection_version != V1 and stage in ("review", "revise"):
@@ -182,6 +185,8 @@ def role_payload(
     if script_handoff(projection_version) and stage in ("draft", "review", "revise"):
         payload["duration_context"] = duration_context(packet.assignment, draft, include_requested=False)
     if stage.startswith("plan"):
+        if planning_duration_contract is not None:
+            payload["duration_context"] = duration_context(packet.assignment, include_requested=False)
         payload["dossier"] = dict(
             summary=packet.dossier.summary,
             throughline_constraints=list(packet.dossier.throughline_constraints),

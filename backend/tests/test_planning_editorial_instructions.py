@@ -9,6 +9,8 @@ from podgen.runtime.evaluation.preview_snapshot import PreviewSnapshot
 from podgen.writing.author_reply import contract_pin
 from podgen.writing.model_references import CATALOG_KEY, preview_references
 from podgen.writing.planning_choice import KEY, VERSION
+from podgen.writing.planning_duration import KEY as DURATION_KEY
+from podgen.writing.planning_duration import VERSION as DURATION_VERSION
 from podgen.writing.projection_versions import V9
 from podgen.writing.prompts import load_instruction_set
 from tests.test_v5_role_wire import fixture
@@ -37,7 +39,7 @@ def test_current_planning_and_revision_requests_use_new_instructions_but_saved_r
     manifest = dict(
         role_projection_version=V9,
         response_schemas={stage: fresh["text"]["format"]["schema"]},
-        **{CATALOG_KEY: refs.as_payload(), KEY: VERSION},
+        **{CATALOG_KEY: refs.as_payload(), KEY: VERSION, DURATION_KEY: DURATION_VERSION},
     )
     manifest["writer_response_contract"] = contract_pin(manifest, materials.speaker_labels)
     pinned_body = "Exact archived planning instructions.\r\nPreserve this old pin.\n"
