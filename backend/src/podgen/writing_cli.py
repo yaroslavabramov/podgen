@@ -147,7 +147,6 @@ def main(argv=None):
             print(json.dumps(execute(args, repo, wire_ref), ensure_ascii=False))
             return 0
         if args.command == "accepted-plan-export":
-            from podgen.runtime.evaluation.journal import EvaluationJournal
             from podgen.runtime.evaluation.reusable_plan import export_plan_ref
 
             result = export_plan_ref(EvaluationJournal(repo, args.project), args.run_id).model_dump(
