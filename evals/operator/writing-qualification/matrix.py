@@ -159,21 +159,23 @@ class Matrix:
 
     def execute(self, trial, identifier, args, log):
         export = trial / str(identifier)
-        if not (export / "run.json").exists():
-            result = self.cli(
-                *args, "--run-id", identifier, "--export-dir", export, log=log
-            )
-            if not (export / "run.json").exists():
-                raise RuntimeError(
-                    f"Run {identifier} exited {result} before export; inspect its log and journal."
-                )
-        return export, read(export / "run.json")
+        report = export / "run.json"
+        if report.exists():
+            saved = read(report)
+            if saved["status"] not in {"prepared", "running"}:
+                return export, saved
+            args = ["resume"]
+        result = self.cli(*args, "--run-id", identifier, "--export-dir", export, log=log)
+        if not report.exists() or read(report)["status"] in {"prepared", "running"}:
+            raise RuntimeError(f"Run {identifier} is unfinished after exit {result}; inspect its journal.")
+        return export, read(report)
 
     def trial(self, case, release, repeat):
         label = release.split("/")[0] + "-" + case + "-" + str(repeat)
         folder = self.workspace / "trials" / label
         folder.mkdir(parents=True, exist_ok=True)
-        profile = lambda role: at(self.workspace / f"profile-{role}.json")
+        def profile(role):
+            return at(self.workspace / f"profile-{role}.json")
         common = [
             "run",
             "--case",
@@ -220,14 +222,17 @@ class Matrix:
                 log,
             )
             sessions = [original.name]
-            if result.get("failure_code") == "planning_revision_limit_exhausted":
+            for _ in range(2):
+                if result.get("failure_code") != "planning_revision_limit_exhausted":
+                    break
+                parent = UUID(original.name)
                 original, result = self.execute(
                     folder,
-                    continuation_id(first),
+                    continuation_id(parent),
                     [
                         "continue-planning",
                         "--source-run-id",
-                        first,
+                        parent,
                         "--max-additional-plan-revisions",
                         2,
                     ],
