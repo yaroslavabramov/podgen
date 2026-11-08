@@ -15,6 +15,7 @@ from podgen.persistence.repository import Repository
 from podgen.runtime.evaluation.contracts import RunFailure, RunLimits, WritingRunCommand
 from podgen.runtime.evaluation.credit_recovery import recovery_hint
 from podgen.runtime.evaluation.export import export_run
+from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.profiles import create_profile
 from podgen.runtime.evaluation.service import WritingEvaluation
 from podgen.runtime.models.contracts import ProviderFault
