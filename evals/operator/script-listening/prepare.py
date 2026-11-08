@@ -18,9 +18,32 @@ PACKET = HERE.parents[1] / "editorial-inputs/current/snow-pump/shared.json"
 EPISODE = (
     HERE.parents[1] / "reports/2026-11-07-snow-short-editorial/after-reader-fix.md"
 )
+WRIGHT = HERE.parents[1] / "reports/2026-11-08-story-editing/transfer"
 
 
-def prepare(profile_path: Path, output: Path, *, include_episode: bool = False) -> None:
+def wright_case():
+    speech = (WRIGHT / "script.md").read_bytes()
+    if (
+        hashlib.sha256(speech).hexdigest()
+        != "216e343a76f3ec926e3c596942e506db0cb5e2f641890fe71a45dd153caf3227"
+    ):
+        raise ValueError(
+            "Reassess the Wright positive control before changing its text"
+        )
+    packet = (WRIGHT / "input/shared.json").read_bytes()
+    assignment = json.loads(packet)["assignment"]
+    return {
+        "case": "Братья Райт — полный выпуск",
+        "packet": packet,
+        "genre": assignment["genre"],
+        "duration": assignment["duration"],
+        "variants": {"preserve_story": speech.decode().rstrip("\n").split("\n\n")},
+    }
+
+
+def prepare(
+    profile_path: Path, output: Path, *, include_episode=False, include_wright=False
+) -> None:
     profile = ModelProfile.model_validate_json(profile_path.read_bytes())
     cases = json.loads((HERE / "pairs.ru.json").read_text())["cases"]
     packet_bytes = PACKET.read_bytes()
@@ -44,9 +67,11 @@ def prepare(profile_path: Path, output: Path, *, include_episode: bool = False) 
                 },
             }
         )
+    if include_wright:
+        cases.append(wright_case())
     requests, key = [], {}
     for case in cases:
-        packet = json.loads(packet_bytes)
+        packet = json.loads(case.get("packet", packet_bytes))
         packet["assignment"].update(
             genre=case["genre"],
             duration=case.get(
@@ -97,5 +122,15 @@ if __name__ == "__main__":
         action="store_true",
         help="Also prepare the full Snow negative control",
     )
+    parser.add_argument(
+        "--include-wright",
+        action="store_true",
+        help="Also prepare the full Wright positive control",
+    )
     args = parser.parse_args()
-    prepare(args.profile, args.output, include_episode=args.include_episode)
+    prepare(
+        args.profile,
+        args.output,
+        include_episode=args.include_episode,
+        include_wright=args.include_wright,
+    )
