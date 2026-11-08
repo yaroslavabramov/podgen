@@ -171,20 +171,15 @@ def export_run(repo, project, run_id, directory):
                     ).encode(),
                 )
     if manifest.get("input_contract") == "editorial-role-packets/1":
-        for name, key in (
-            ("editorial-input-original.json", "author_ref"),
-            ("fixed-editorial-input-original.json", "fixed_plan_input_ref"),
-        ):
-            value = manifest["command"].get(key)
-            if value is not None:
-                packet_ref = RuntimeRef.model_validate(value)
-                packet = repo.get_runtime(project, packet_ref)
-                _write(
-                    directory / name,
-                    repo.read_runtime_blob(
-                        project, packet_ref, BlobRef.model_validate(packet["original_input_blob"])
-                    ),
-                )
+        from .editorial_input_export import export_inputs
+
+        export_inputs(
+            repo,
+            project,
+            manifest,
+            write_json=write_json,
+            write_bytes=lambda name, data: _write(directory / name, data),
+        )
         from .finalization import final_ref, finalization_view, read_finalization
 
         final = read_finalization(journal, run_id)
