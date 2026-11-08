@@ -11,9 +11,10 @@ from podgen.domain.errors import ContractError
 from podgen.writing.projection_versions import V9
 from podgen.writing.prompts import RoleInstructions
 
-ProfileName = Literal["existing/1", "narrative-rebuild/1", "editorial-candidate/1"]
+ProfileName = Literal["existing/1", "narrative-rebuild/1", "editorial-candidate/1", "editorial-candidate/2"]
 DEFAULT: ProfileName = "existing/1"
-NAMES = ("existing/1", "narrative-rebuild/1", "editorial-candidate/1")
+CANDIDATES = ("editorial-candidate/1", "editorial-candidate/2")
+NAMES = ("existing/1", "narrative-rebuild/1", *CANDIDATES)
 ROOT = files(__name__)
 
 
@@ -32,7 +33,7 @@ class BehaviorProfile:
 
     @property
     def verification(self):
-        return "editorial-recheck/1" if self.name == "editorial-candidate/1" else None
+        return "editorial-recheck/1" if self.name in CANDIDATES else None
 
     def instructions(self, role, format):
         if role in ("anchor-repair", "plan-target-repair"):
@@ -73,7 +74,8 @@ class BehaviorProfile:
             profile.model_revision_or_alias != model
             or profile.output_limit != 24576
             or profile.context_limit != 200000
-            or profile.generation_parameters != {
+            or profile.generation_parameters
+            != {
                 "reasoning": {"effort": "medium"},
                 "text": {"verbosity": "high"},
                 "store": False,
@@ -99,9 +101,10 @@ def resolve_behavior(name=None, editorial_pass=1):
     modern = name == "existing/1"
     catalog = ("existing-1" if modern else "narrative-rebuild-1") + ".json"
     resources = json.loads(ROOT.joinpath(catalog).read_text(encoding="utf-8"))
-    if name == "editorial-candidate/1":
-        # A separately released overlay contains only the roles changed in the candidate.
-        overlay = ROOT.joinpath("editorial-candidate-1.json")
+    overlays = CANDIDATES[: CANDIDATES.index(name) + 1] if name in CANDIDATES else ()
+    for release in overlays:
+        # Each overlay inherits the preceding release and replaces only its owned roles.
+        overlay = ROOT.joinpath(release.replace("/", "-") + ".json")
         if not overlay.is_file():
             raise ContractError("writing_behavior_not_released", name)
         change = json.loads(overlay.read_text(encoding="utf-8"))
@@ -113,7 +116,7 @@ def resolve_behavior(name=None, editorial_pass=1):
         editorial_pass,
         resources,
         "planning-scene-development/1"
-        if name == "editorial-candidate/1"
+        if name in CANDIDATES
         else "planning-story-choice/1"
         if modern
         else None,
