@@ -31,6 +31,7 @@ def reading_payload(
     craft_reference=None,
     revision_operation=None,
     composition=None,
+    plan_selection_contract=None,
 ):
     packet = materials.packet
     payload = dict(
@@ -79,7 +80,9 @@ def reading_payload(
         selected.update(needed_labels)
         payload["assignment"] = assignment_view(packet)
         if plan:
-            payload["editorial_frame"] = editorial_frame(plan, projection_version=projection_version)
+            payload["editorial_frame"] = editorial_frame(
+                plan, projection_version=projection_version, plan_selection_contract=plan_selection_contract
+            )
             if "revision_scope" in readings["reader"]:
                 payload["editorial_frame"]["authority"] = "revisable_authorial_decisions"
         if composition is not None:

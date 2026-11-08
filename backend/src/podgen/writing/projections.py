@@ -171,6 +171,7 @@ def role_payload(
     approved_plan=None,
     draft=None,
     feedback=None,
+    plan_selection_contract=None,
 ):
     validate_version(projection_version)
     packet = materials.packet
@@ -220,7 +221,9 @@ def role_payload(
             else None
         )
         if stage == "draft":
-            payload["story"] = narrative_decisions(plan, projection_version=projection_version)
+            payload["story"] = narrative_decisions(
+                plan, projection_version=projection_version, plan_selection_contract=plan_selection_contract
+            )
             payload["support"] = authoring_knowledge_view(
                 packet,
                 labels=False,
@@ -232,7 +235,11 @@ def role_payload(
                 payload["story_intent"] = story_intent(plan)
                 payload["draft"] = indexed_draft(draft)
             else:
-                payload["editorial_frame"] = editorial_frame(plan, projection_version=projection_version)
+                payload["editorial_frame"] = editorial_frame(
+                    plan,
+                    projection_version=projection_version,
+                    plan_selection_contract=plan_selection_contract,
+                )
             payload["support"] = knowledge_view(packet, labels=True)
             payload["evidence"] = evidence_view(packet)
         elif stage == "revise":
@@ -240,7 +247,11 @@ def role_payload(
                 payload["story_intent"] = story_intent(plan)
                 payload["draft"] = indexed_draft(draft)
             else:
-                payload["editorial_frame"] = editorial_frame(plan, projection_version=projection_version)
+                payload["editorial_frame"] = editorial_frame(
+                    plan,
+                    projection_version=projection_version,
+                    plan_selection_contract=plan_selection_contract,
+                )
             if feedback is None:
                 raise ContractError("feedback_required")
             payload["revision_guidance"] = actionable_feedback(

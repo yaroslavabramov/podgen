@@ -3,6 +3,8 @@
 from podgen.domain.errors import ContractError
 from podgen.writing.craft_reference import AUTHOR_STAGES, load_reference, pinned_reference
 from podgen.writing.model_references import preview_references
+from podgen.writing.plan_selection import for_projection as selection_for_projection
+from podgen.writing.plan_selection import from_manifest as selection_from_manifest
 from podgen.writing.plan_views import candidate_view
 from podgen.writing.planning_versions import planning_snapshot
 from podgen.writing.projection_versions import CURRENT, manifest_version
@@ -35,6 +37,9 @@ def preview_request(run_id, stage, profile, materials, *, snapshot=None, **input
     validate_continuation_preview(stage, snapshot, inputs)
     inputs = {key: value for key, value in inputs.items() if value is not None}
     projection = manifest_version(snapshot.manifest) if snapshot else CURRENT
+    selection = (
+        selection_from_manifest(snapshot.manifest) if snapshot else selection_for_projection(projection)
+    )
     from podgen.writing.model_references import run_references
 
     references = run_references(materials, snapshot.manifest) if snapshot else None
@@ -96,6 +101,7 @@ def preview_request(run_id, stage, profile, materials, *, snapshot=None, **input
             revision.schema if revision else schema(),
             projection_version=projection,
             reference_catalog=references,
+            plan_selection_contract=selection,
             craft_reference=reference,
             script=inputs["draft"],
             readings=readings,
@@ -118,6 +124,7 @@ def preview_request(run_id, stage, profile, materials, *, snapshot=None, **input
             schema(),
             projection_version=projection,
             reference_catalog=references,
+            plan_selection_contract=selection,
             craft_reference=reference,
             **inputs,
         )

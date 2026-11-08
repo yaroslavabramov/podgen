@@ -156,6 +156,9 @@ class WritingEvaluation:
                     "role_input_budget"
                 ) != dict(visible_bytes=VISIBLE_BYTES_LIMIT, input_tokens=SINGLE_INPUT_TOKEN_LIMIT):
                     raise ContractError("role_input_contract_changed")
+            from podgen.writing.plan_selection import from_manifest as selection_from_manifest
+
+            selection_from_manifest(manifest)
             if independent(command) and manifest.get("review_workflow") != VERSION:
                 raise ContractError("review_workflow_changed")
             if manifest["compiler_version"] != COMPILER_VERSION:

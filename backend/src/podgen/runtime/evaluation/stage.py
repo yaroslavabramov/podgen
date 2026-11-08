@@ -10,6 +10,7 @@ from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.domain.errors import ContractError
 from podgen.writing.craft_reference import pinned_reference
 from podgen.writing.model_references import CATALOG_KEY, run_references
+from podgen.writing.plan_selection import from_manifest as selection_from_manifest
 from podgen.writing.projection_versions import manifest_version, script_handoff
 
 from . import author_material
@@ -65,6 +66,7 @@ def execute_stage(
             manifest["response_schemas"][stage],
             projection_version=manifest_version(manifest),
             reference_catalog=references,
+            plan_selection_contract=selection_from_manifest(manifest),
             craft_reference=pinned_reference(manifest),
             approved_plan=own_plan["accepted_plan"] if own_plan else None,
             draft=outputs.get("draft"),

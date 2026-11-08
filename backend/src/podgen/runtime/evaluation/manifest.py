@@ -153,9 +153,14 @@ def create_manifest(repo, generation, command, journal, materials):
         manifest["script_revision_contract"] = REVISION_VERSION
         manifest["revision_response_schemas"] = revision_schemas()
     if command.input_contract == "editorial-role-packets/1":
+        from podgen.writing.plan_selection import KEY as SELECTION_KEY
+        from podgen.writing.plan_selection import for_projection
         from podgen.writing.projections import SINGLE_INPUT_TOKEN_LIMIT, VISIBLE_BYTES_LIMIT
 
         manifest["role_projection_version"] = CURRENT
+        selection = for_projection(CURRENT)
+        if selection is not None:
+            manifest[SELECTION_KEY] = selection
         if offered("draft", CURRENT):
             manifest["writer_response_contract"] = contract_pin(manifest, materials.speaker_labels)
         manifest["role_input_budget"] = dict(

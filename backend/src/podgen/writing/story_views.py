@@ -5,6 +5,7 @@ from copy import deepcopy
 from podgen.domain.errors import ContractError
 
 from .card_catalog import catalog
+from .plan_selection import attach as attach_selection
 from .projection_versions import CURRENT, V1, V2, V8, V9, historical, script_handoff
 
 
@@ -22,7 +23,7 @@ def selected_labels(plan, packet):
     return set(refs)
 
 
-def narrative_decisions(plan, *, projection_version=CURRENT):
+def narrative_decisions(plan, *, projection_version=CURRENT, plan_selection_contract=None):
     source = plan["plan"]
     if source is None:
         raise ContractError("writing_plan_required")
@@ -89,6 +90,7 @@ def narrative_decisions(plan, *, projection_version=CURRENT):
     result["unresolved_questions"] = [
         dict(question=q["question"], why_needed=q["why_needed"]) for q in plan["research_requests"]
     ]
+    attach_selection(result, plan, version=plan_selection_contract, projection=projection_version)
     return result
 
 
@@ -110,7 +112,7 @@ def story_intent(plan):
     )
 
 
-def editorial_frame(plan, *, projection_version=CURRENT):
+def editorial_frame(plan, *, projection_version=CURRENT, plan_selection_contract=None):
     if plan is None or plan.get("plan") is None:
         raise ContractError("writing_plan_required")
     result = {"main_question": plan["plan"]["main_question"]} if projection_version not in (V1, V2) else {}
@@ -130,4 +132,5 @@ def editorial_frame(plan, *, projection_version=CURRENT):
         dict(question=q["question"], why_needed=q["why_needed"]) for q in plan["research_requests"]
     ]
 
+    attach_selection(result, plan, version=plan_selection_contract, projection=projection_version)
     return result

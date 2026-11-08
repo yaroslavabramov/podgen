@@ -8,6 +8,8 @@ import pytest
 from podgen import writing_cli
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.role_schema import response_schema
+from podgen.writing.plan_selection import KEY as SELECTION_KEY
+from podgen.writing.plan_selection import VERSION as SELECTION_VERSION
 from podgen.writing.plan_views import candidate_view
 from podgen.writing.projection_versions import V8, V9
 from tests.test_editorial_independence import invoke, payload, prepare
@@ -26,6 +28,7 @@ def test_native_planning_snapshot_and_resume_keep_the_exact_wire(own_dataset, tm
             manifest = deepcopy(manifest)
             manifest["role_projection_version"] = V8
             manifest.pop("writer_response_contract", None)
+            manifest.pop("plan_selection_contract", None)
             for stage in manifest["response_schemas"]:
                 manifest["response_schemas"][stage] = response_schema(
                     stage,
@@ -43,6 +46,7 @@ def test_native_planning_snapshot_and_resume_keep_the_exact_wire(own_dataset, tm
         invoke(prefix, "run", **options)
     journal = EvaluationJournal(own_dataset[0], own_dataset[1])
     manifest = journal.manifest(options["run_id"])
+    assert manifest.get(SELECTION_KEY) == (SELECTION_VERSION if version == V9 else None)
     candidate = journal.output(journal.invocation(options["run_id"], "plan"))["output"]
     assert ("last_moment" in candidate["plan"]["ending"]) == (version == V9)
     pending = journal.request(journal.invocation(options["run_id"], "plan-review"))

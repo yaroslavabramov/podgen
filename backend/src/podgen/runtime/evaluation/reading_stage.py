@@ -9,6 +9,7 @@ from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.domain.errors import Conflict, ContractError
 from podgen.writing.craft_reference import pinned_reference
 from podgen.writing.model_references import CATALOG_KEY, run_references
+from podgen.writing.plan_selection import from_manifest as selection_from_manifest
 from podgen.writing.projection_versions import script_handoff
 from podgen.writing.roles import WriteOutput
 
@@ -109,6 +110,7 @@ def execute_reading_stage(
             approved_plan=approved_plan,
             projection_version=manifest["role_projection_version"],
             reference_catalog=references,
+            plan_selection_contract=selection_from_manifest(manifest),
             craft_reference=pinned_reference(manifest),
             **(revision.inputs if revision else {}),
         )
