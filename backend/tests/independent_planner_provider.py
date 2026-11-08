@@ -6,6 +6,7 @@ from copy import deepcopy
 from podgen.runtime.models.contracts import WireReply
 from tests.author_responses import author_response
 from tests.own_plan_provider import proposal
+from tests.planning_choice_cases import answer_requested_selection
 
 
 class WireCaptured(Exception):
@@ -123,6 +124,7 @@ class IndependentPlannerProvider:
             self.revised_script = deepcopy(output)
         else:
             raise AssertionError(f"Unexpected paid stage: {stage}")
+        output = answer_requested_selection(output, body)
         return WireReply(
             json.dumps(
                 dict(

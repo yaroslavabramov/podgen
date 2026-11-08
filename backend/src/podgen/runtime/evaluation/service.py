@@ -171,6 +171,9 @@ class WritingEvaluation:
             from podgen.writing.plan_selection import from_manifest as selection_from_manifest
 
             selection_from_manifest(manifest)
+            from podgen.writing.planning_choice import from_manifest as planning_from_manifest
+
+            planning_contract = planning_from_manifest(manifest)
             if independent(command) and manifest.get("review_workflow") != VERSION:
                 raise ContractError("review_workflow_changed")
             if manifest["compiler_version"] != COMPILER_VERSION:
@@ -188,6 +191,7 @@ class WritingEvaluation:
                         stage,
                         command.input_contract,
                         projection_version=manifest_version(manifest),
+                        planning_output_contract=planning_contract,
                         reader_schema_version=manifest.get("reader_review_schema_version"),
                         fact_schema_version=manifest.get("fact_review_schema_version"),
                     ),

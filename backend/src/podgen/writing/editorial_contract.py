@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 from pydantic import Field, model_serializer, model_validator
 
 from .card_catalog import catalog
+from .planning_choice import PlanningChoiceOutput
 from .planning_roles import PlanningOutput
 from .planning_v9 import PlanningOutputV9
 from .roles import FullText, RoleOutput
@@ -166,4 +167,4 @@ class FixedEditorialInput(RoleOutput):
     assignment_key: FullText
     shared_input_digest: str = Field(pattern="^[0-9a-f]{64}$")
     document: FixedSourceDocument
-    plan: PlanningOutputV9 | PlanningOutput
+    plan: PlanningChoiceOutput | PlanningOutputV9 | PlanningOutput

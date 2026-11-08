@@ -31,7 +31,13 @@ def test_pending_planning_schema_is_pinned_and_drift_still_blocks_resume(
     def frozen(journal, command, manifest):
         assert manifest["role_projection_version"] == CURRENT
         assert manifest["response_schemas"]["plan"] == bind_schema(
-            response_schema("plan", command.input_contract, projection_version=CURRENT), refs
+            response_schema(
+                "plan",
+                command.input_contract,
+                projection_version=CURRENT,
+                planning_output_contract=manifest.get("planning_output_contract"),
+            ),
+            refs,
         )
         manifest = historical_revision_manifest(manifest)
         manifest.pop("reader_review_schema_version", None)

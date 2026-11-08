@@ -31,10 +31,22 @@ DESCRIPTIONS = {
 
 
 def response_schema(
-    stage, input_contract, *, projection_version=CURRENT, reader_schema_version=None, fact_schema_version=None
+    stage,
+    input_contract,
+    *,
+    projection_version=CURRENT,
+    reader_schema_version=None,
+    fact_schema_version=None,
+    planning_output_contract=None,
 ):
+    from podgen.writing.planning_choice import validate as validate_planning_contract
+
+    validate_planning_contract(
+        planning_output_contract, projection_version if input_contract == "editorial-role-packets/1" else V1
+    )
     schema = output_model(
         stage,
+        planning_output_contract=planning_output_contract,
         reader_schema_version=reader_schema_version,
         fact_schema_version=fact_schema_version,
         projection_version=projection_version if input_contract == "editorial-role-packets/1" else V1,
@@ -78,6 +90,10 @@ def response_schema(
         from podgen.writing.planning_v9 import describe_plan
 
         describe_plan(schema)
+        if planning_output_contract is not None:
+            from podgen.writing.planning_choice import describe_schema
+
+            describe_schema(schema)
     if projection_version in (V8, V9) and stage.startswith("plan-review"):
         describe_plan_review(schema)
         if projection_version == V9:

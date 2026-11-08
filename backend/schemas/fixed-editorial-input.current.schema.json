@@ -247,6 +247,64 @@
       "title": "PlanningAct",
       "type": "object"
     },
+    "PlanningChoiceOutput": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "ready",
+            "needs_research"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "plan": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanProposalV9"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Complete selected story, or null when material cannot support one."
+        },
+        "limitations": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "research_requests": {
+          "items": {
+            "$ref": "#/$defs/PlanningResearchRequest"
+          },
+          "title": "Research Requests",
+          "type": "array"
+        },
+        "story_selection": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StorySelection"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Compare two distinct tellings before developing the selected one in plan. Null is allowed only when no plan is supported."
+        }
+      },
+      "required": [
+        "status",
+        "plan",
+        "research_requests",
+        "story_selection"
+      ],
+      "title": "PlanningChoiceOutput",
+      "type": "object"
+    },
     "PlanningDurationStrategy": {
       "additionalProperties": false,
       "properties": {
@@ -587,6 +645,52 @@
       ],
       "title": "PlanningTransitions",
       "type": "object"
+    },
+    "StorySelection": {
+      "additionalProperties": false,
+      "properties": {
+        "first": {
+          "description": "Brief first concept: the story's movement and where it leads.",
+          "minLength": 1,
+          "title": "First",
+          "type": "string"
+        },
+        "second": {
+          "description": "Brief genuinely different telling, not a paraphrase or stylistic variant.",
+          "minLength": 1,
+          "title": "Second",
+          "type": "string"
+        },
+        "difference": {
+          "description": "The substantive editorial difference between these tellings.",
+          "minLength": 1,
+          "title": "Difference",
+          "type": "string"
+        },
+        "selected": {
+          "enum": [
+            "first",
+            "second"
+          ],
+          "title": "Selected",
+          "type": "string"
+        },
+        "why_selected": {
+          "description": "Brief editorial result: what the selected telling offers this audience within the brief. Not a reasoning transcript.",
+          "minLength": 1,
+          "title": "Why Selected",
+          "type": "string"
+        }
+      },
+      "required": [
+        "first",
+        "second",
+        "difference",
+        "selected",
+        "why_selected"
+      ],
+      "title": "StorySelection",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -614,6 +718,9 @@
     },
     "plan": {
       "anyOf": [
+        {
+          "$ref": "#/$defs/PlanningChoiceOutput"
+        },
         {
           "$ref": "#/$defs/PlanningOutputV9"
         },

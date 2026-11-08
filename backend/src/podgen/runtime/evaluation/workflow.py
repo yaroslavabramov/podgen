@@ -30,7 +30,14 @@ def profile_for(command, stage):
     )
 
 
-def output_model(stage, *, reader_schema_version=None, fact_schema_version=None, projection_version=V1):
+def output_model(
+    stage,
+    *,
+    reader_schema_version=None,
+    fact_schema_version=None,
+    projection_version=V1,
+    planning_output_contract=None,
+):
     stage = base_stage(stage)
     if stage == "fact-review":
         from podgen.writing.fact_review import feedback_model
@@ -44,7 +51,11 @@ def output_model(stage, *, reader_schema_version=None, fact_schema_version=None,
         from podgen.writing.planning_roles import PlanReviewOutput
         from podgen.writing.planning_versions import planning_model
 
-        return PlanReviewOutput if stage.startswith("plan-review") else planning_model(projection_version)
+        return (
+            PlanReviewOutput
+            if stage.startswith("plan-review")
+            else planning_model(projection_version, planning_output_contract=planning_output_contract)
+        )
     return EditorialFeedback if stage == "review" else WriteOutput
 
 

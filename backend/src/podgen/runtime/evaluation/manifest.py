@@ -11,6 +11,8 @@ from podgen.persistence.repository import timestamp
 from podgen.writing.author_reply import contract_pin, offered
 from podgen.writing.craft_reference import load_reference
 from podgen.writing.model_references import CATALOG_KEY, bind_schema, preview_references
+from podgen.writing.planning_choice import KEY as PLANNING_KEY
+from podgen.writing.planning_choice import for_input as planning_for_input
 from podgen.writing.projection_versions import CURRENT
 from podgen.writing.prompts import (
     load_anchor_repair_instructions,
@@ -37,6 +39,9 @@ def create_manifest(repo, generation, command, journal, materials):
         from .planning_continuation.manifest import create
 
         return create(command, journal, materials)
+    planning_contract = (
+        planning_for_input(command.input_contract, CURRENT) if command.plan_mode == "own-plan" else None
+    )
     payload = materials.as_payload()
     revised = supports_revision(command)
     reader_version = READER_SCHEMA_VERSION if revised else LEGACY_READER_SCHEMA_VERSION
@@ -96,6 +101,7 @@ def create_manifest(repo, generation, command, journal, materials):
             response_schema(
                 stage,
                 command.input_contract,
+                planning_output_contract=planning_contract,
                 reader_schema_version=reader_version if independent(command) else None,
                 fact_schema_version=FACT_VERSION if revised else None,
             ),
@@ -133,6 +139,8 @@ def create_manifest(repo, generation, command, journal, materials):
             "technical script versions; canonical EpisodeSpec/StoryPlan/ScriptRevision mapping remains open",
         ],
     )
+    if planning_contract is not None:
+        manifest[PLANNING_KEY] = planning_contract
     if reference is not None:
         manifest["craft_reference"] = reference
     if references is not None:

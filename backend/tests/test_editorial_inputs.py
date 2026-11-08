@@ -26,6 +26,7 @@ from podgen.runtime.models.contracts import WireReply
 from podgen.writing.projection_versions import V6
 from podgen.writing.projections import role_payload
 from tests.author_responses import author_response, read_work
+from tests.planning_choice_cases import answer_requested_selection
 from tests.test_writing_evaluation import setup_writer as setup_writer
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -349,6 +350,7 @@ def test_own_plan_uses_only_shared_packet_and_structured_creative_decisions(repo
                     research_requests=[],
                     duration_note="Не измерена",
                 )
+            output = answer_requested_selection(output, body)
             return WireReply(
                 json.dumps(
                     dict(

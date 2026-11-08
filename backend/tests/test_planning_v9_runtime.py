@@ -11,29 +11,35 @@ from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.writing.plan_selection import KEY as SELECTION_KEY
 from podgen.writing.plan_selection import VERSION as SELECTION_VERSION
 from podgen.writing.plan_views import candidate_view
+from podgen.writing.planning_choice import KEY as PLANNING_KEY
+from podgen.writing.planning_choice import VERSION as PLANNING_VERSION
 from podgen.writing.projection_versions import V8, V9
 from tests.test_editorial_independence import invoke, payload, prepare
 from tests.test_independent_readings import Paused, ReadingProvider
 from tests.test_own_plan import own_dataset as own_dataset
 
 
-@pytest.mark.parametrize("version", [V8, V9])
-def test_native_planning_snapshot_and_resume_keep_the_exact_wire(own_dataset, tmp_path, monkeypatch, version):
+@pytest.mark.parametrize(("version", "choice"), [(V8, False), (V9, False), (V9, True)])
+def test_native_planning_snapshot_and_resume_keep_the_exact_wire(
+    own_dataset, tmp_path, monkeypatch, version, choice
+):
     prefix, _, options, _, _ = prepare(own_dataset, "snow-pump", tmp_path, monkeypatch)
     options["review_mode"] = "independent-readings/1"
-    if version == V8:
+    if not choice:
         original = EvaluationJournal.create_run
 
         def pinned(journal, command, manifest):
             manifest = deepcopy(manifest)
-            manifest["role_projection_version"] = V8
-            manifest.pop("writer_response_contract", None)
-            manifest.pop("plan_selection_contract", None)
+            manifest["role_projection_version"] = version
+            if version == V8:
+                manifest.pop("writer_response_contract", None)
+                manifest.pop("plan_selection_contract", None)
+            manifest.pop("planning_output_contract", None)
             for stage in manifest["response_schemas"]:
                 manifest["response_schemas"][stage] = response_schema(
                     stage,
                     command.input_contract,
-                    projection_version=V8,
+                    projection_version=version,
                     reader_schema_version=manifest.get("reader_review_schema_version"),
                     fact_schema_version=manifest.get("fact_review_schema_version"),
                 )
@@ -47,7 +53,9 @@ def test_native_planning_snapshot_and_resume_keep_the_exact_wire(own_dataset, tm
     journal = EvaluationJournal(own_dataset[0], own_dataset[1])
     manifest = journal.manifest(options["run_id"])
     assert manifest.get(SELECTION_KEY) == (SELECTION_VERSION if version == V9 else None)
+    assert manifest.get(PLANNING_KEY) == (PLANNING_VERSION if choice else None)
     candidate = journal.output(journal.invocation(options["run_id"], "plan"))["output"]
+    assert ("story_selection" in candidate) == choice
     assert ("last_moment" in candidate["plan"]["ending"]) == (version == V9)
     pending = journal.request(journal.invocation(options["run_id"], "plan-review"))
     source = tmp_path / "candidate.json"
