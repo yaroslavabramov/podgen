@@ -33,13 +33,31 @@ def compile_role_request(
 
 
 def compile_reading_request(
-    run_id, stage, profile, materials, instructions, schema, *, reference_catalog=None, **inputs
+    run_id,
+    stage,
+    profile,
+    materials,
+    instructions,
+    schema,
+    *,
+    reference_catalog=None,
+    revision_comparison=None,
+    **inputs,
 ):
     from podgen.writing.reading_views import reading_payload
 
     from .reading_workflow import base_stage
 
     payload = reading_payload(base_stage(stage), materials, **inputs)
+    if revision_comparison is not None:
+        from podgen.writing.revision.verification import STAGES, bind_assignments
+
+        if stage not in STAGES:
+            from podgen.domain.errors import ContractError
+
+            raise ContractError("revision_verification_stage_mismatch")
+        payload["revision_check"] = revision_comparison
+        schema = bind_assignments(schema, revision_comparison)
     references = reference_catalog or preview_references(materials, inputs.get("projection_version", CURRENT))
     if references is not None:
         payload = references.translate(payload)

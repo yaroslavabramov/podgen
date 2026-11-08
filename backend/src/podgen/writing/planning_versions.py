@@ -5,12 +5,16 @@ from .projection_versions import V9, validate_version
 
 
 def planning_model(projection_version, *, legacy=False, planning_output_contract=None):
-    from .planning_choice import PlanningChoiceOutput, validate
+    from .planning_choice import SCENE_VERSION, PlanningChoiceOutput, validate
 
     validate(planning_output_contract, projection_version)
     if planning_output_contract is not None:
         if legacy:
             raise ValueError("planning_story_choice_requires_editorial_input")
+        if planning_output_contract == SCENE_VERSION:
+            from .scene_plan import ScenePlanningOutput
+
+            return ScenePlanningOutput
         return PlanningChoiceOutput
     validate_version(projection_version)
     if projection_version == V9 and not legacy:
@@ -21,6 +25,10 @@ def planning_model(projection_version, *, legacy=False, planning_output_contract
 
 
 def snapshot_model(value):
+    from .scene_plan import ScenePlanningOutput, is_scene_plan
+
+    if is_scene_plan(value):
+        return ScenePlanningOutput
     if "story_selection" in value:
         from .planning_choice import PlanningChoiceOutput
 

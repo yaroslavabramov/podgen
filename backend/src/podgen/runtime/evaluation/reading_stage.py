@@ -12,6 +12,7 @@ from podgen.writing.model_references import CATALOG_KEY, run_references
 from podgen.writing.plan_selection import from_manifest as selection_from_manifest
 from podgen.writing.projection_versions import script_handoff
 from podgen.writing.reading_views import reading_audience
+from podgen.writing.revision import verification
 from podgen.writing.revision.context import from_manifest as revision_context_from_manifest
 from podgen.writing.roles import WriteOutput
 
@@ -50,10 +51,17 @@ def execute_reading_stage(
 ):
     references = run_references(materials, manifest)
     base = base_stage(stage)
+    recheck_pin = manifest.get(verification.KEY)
+    recheck = None
+    if verification.applies(stage, recheck_pin):
+        from . import recheck_source
+
+        _, recheck = recheck_source.load(journal, command.run_id, stage, script_ref=script_ref, script=script)
     model = output_model(
         stage,
         reader_schema_version=manifest.get("reader_review_schema_version"),
         fact_schema_version=manifest.get("fact_review_schema_version"),
+        revision_verification_contract=recheck_pin,
     )
     revision = prepare_revision(
         journal,
@@ -87,12 +95,16 @@ def execute_reading_stage(
     )
     if references is not None:
         context[CATALOG_KEY] = references.as_payload()
+    if recheck is not None:
+        context["revision_verification"] = dict(contract=recheck_pin, comparison_hash=digest(recheck))
     if revision:
         context.update(revision.context)
-    if script_handoff(manifest["role_projection_version"]) and base == "revise":
-        selected = approved_plan or (
-            materials.fixed.plan.model_dump(mode="json") if materials.fixed else None
-        )
+    from podgen.writing.scene_plan import is_scene_plan
+
+    selected = approved_plan or (materials.fixed.plan.model_dump(mode="json") if materials.fixed else None)
+    if script_handoff(manifest["role_projection_version"]) and (
+        base == "revise" or base == "fact-review" and is_scene_plan(selected)
+    ):
         context["approved_plan_hash"] = digest(selected) if selected is not None else None
     invocation = journal.invocation(command.run_id, stage)
     if invocation is None:
@@ -115,6 +127,7 @@ def execute_reading_stage(
             reference_catalog=references,
             plan_selection_contract=selection_from_manifest(manifest),
             revision_context_contract=revision_context_from_manifest(manifest),
+            revision_comparison=recheck,
             craft_reference=pinned_reference(manifest),
             **(revision.inputs if revision else {}),
         )
@@ -171,7 +184,9 @@ def execute_reading_stage(
                 output, composition, revised = revision.apply(wire_output)
             elif base in ("reader-review", "fact-review"):
                 parsed.validate_against(WriteOutput.model_validate(script))
-                expected = "script_only" if base == "reader-review" else "informed"
+                if recheck is not None:
+                    parsed.verify_assignments(recheck)
+                expected = "script_only" if base == "reader-review" and recheck is None else "informed"
                 if parsed.reading_mode != expected:
                     raise ValueError("reading_access_mode_mismatch")
                 if base == "fact-review" and any(

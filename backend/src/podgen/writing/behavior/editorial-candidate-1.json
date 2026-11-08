@@ -1,0 +1,38 @@
+{
+  "formats": {
+    "solo": {
+      "plan": {
+        "version": "whole-episode-a/sha256:2c19422fdf325be7611f957b5369df4b82c2c56b4f46a4ab54217bbe1b3d40c0",
+        "sha256": "1363ab4ff2508634d6037efc276455972d2bd562e865ac28378df4dfc1c60ba9"
+      },
+      "plan-review": {
+        "version": "whole-episode-a/sha256:95af81263f726a1fbc7787053905ea71d017891a5c3fa54121f175a49b3fab1b",
+        "sha256": "65cd1c4da5651777a8f9ec89a495ccf0922d4484a331270544db9cf6acb0d228"
+      },
+      "plan-revise": {
+        "version": "whole-episode-a/sha256:364041ecb5a7b83d63d6d6304aef68dc80d2bfc0b091295deda96fb6e9c8c88a",
+        "sha256": "6049f24771fdc24f36a960e7ec209a9d81b02fa3bdef1d933b88477695082887"
+      }
+    },
+    "dialogue": {
+      "plan": {
+        "version": "whole-episode-a/sha256:2c19422fdf325be7611f957b5369df4b82c2c56b4f46a4ab54217bbe1b3d40c0",
+        "sha256": "1363ab4ff2508634d6037efc276455972d2bd562e865ac28378df4dfc1c60ba9"
+      },
+      "plan-review": {
+        "version": "whole-episode-a/sha256:95af81263f726a1fbc7787053905ea71d017891a5c3fa54121f175a49b3fab1b",
+        "sha256": "65cd1c4da5651777a8f9ec89a495ccf0922d4484a331270544db9cf6acb0d228"
+      },
+      "plan-revise": {
+        "version": "whole-episode-a/sha256:364041ecb5a7b83d63d6d6304aef68dc80d2bfc0b091295deda96fb6e9c8c88a",
+        "sha256": "6049f24771fdc24f36a960e7ec209a9d81b02fa3bdef1d933b88477695082887"
+      }
+    }
+  },
+  "readings": {
+    "revision-verification": {
+      "version": "revision-verification/sha256:a639a7ebc7859636def959008834eb744d00cfe3d5db0eb85cddd0bcd3ab6e38",
+      "sha256": "a639a7ebc7859636def959008834eb744d00cfe3d5db0eb85cddd0bcd3ab6e38"
+    }
+  }
+}

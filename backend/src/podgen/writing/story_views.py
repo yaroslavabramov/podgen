@@ -4,9 +4,11 @@ from copy import deepcopy
 
 from podgen.domain.errors import ContractError
 
+from . import scene_plan_views
 from .card_catalog import catalog
 from .plan_selection import attach as attach_selection
 from .projection_versions import CURRENT, V1, V2, V8, V9, historical, script_handoff
+from .scene_plan import is_scene_plan
 
 
 def selected_labels(plan, packet):
@@ -18,6 +20,8 @@ def selected_labels(plan, packet):
         *(ref for act in body["acts"] for ref in act["material_refs"]),
         *(ref for question in plan["research_requests"] for ref in question["material_refs"]),
     ]
+    if is_scene_plan(plan):
+        refs.extend(body["ending"]["material_refs"])
     if set(refs) - set(catalog(packet)):
         raise ContractError("unknown_editorial_support_label")
     return set(refs)
@@ -27,6 +31,10 @@ def narrative_decisions(plan, *, projection_version=CURRENT, plan_selection_cont
     source = plan["plan"]
     if source is None:
         raise ContractError("writing_plan_required")
+    if is_scene_plan(plan):
+        result = scene_plan_views.story(plan, projection_version)
+        attach_selection(result, plan, version=plan_selection_contract, projection=projection_version)
+        return result
     if projection_version == V1:
         ending = deepcopy(source["ending"])
         ending.pop("promises_to_close")
@@ -115,6 +123,10 @@ def story_intent(plan):
 def editorial_frame(plan, *, projection_version=CURRENT, plan_selection_contract=None):
     if plan is None or plan.get("plan") is None:
         raise ContractError("writing_plan_required")
+    if is_scene_plan(plan):
+        result = scene_plan_views.frame(plan, projection_version)
+        attach_selection(result, plan, version=plan_selection_contract, projection=projection_version)
+        return result
     result = {"main_question": plan["plan"]["main_question"]} if projection_version not in (V1, V2) else {}
     result["listener_promise"] = plan["plan"]["listener_promise"]
     if script_handoff(projection_version):

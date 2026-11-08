@@ -23,6 +23,7 @@ from .projection_versions import (
     script_handoff,
     validate_version,
 )
+from .scene_plan import is_scene_plan
 from .scene_sources import link_scene_sources
 from .source_passages import card_source_passages
 from .story_views import (
@@ -129,7 +130,7 @@ def attach_author_support(
     if not creative_materials(projection_version):
         payload["support"] = knowledge_view(packet, labels=False, selected=selected)
         return
-    linked = plan is not None and plan_selection_contract == SCENE_SELECTION_VERSION
+    linked = is_scene_plan(plan) or (plan is not None and plan_selection_contract == SCENE_SELECTION_VERSION)
     cards = creative_knowledge_view(
         packet, labels=linked, selected=selected, projection_version=projection_version
     )
@@ -216,6 +217,12 @@ def role_payload(
             payload["evidence"] = evidence_view(packet)
         if candidate is not None:
             payload["candidate_plan"] = candidate_view(candidate, projection_version=projection_version)
+            if is_scene_plan(candidate):
+                cited = {ref for note in candidate["editorial_notes"] for ref in note["material_refs"]}
+                if cited:
+                    payload["note_evidence"] = [
+                        row for row in evidence_view(packet) if cited.intersection(row["supports"])
+                    ]
         if stage.startswith("plan-review"):
             from .plan_targets import allowed_review_targets
 
