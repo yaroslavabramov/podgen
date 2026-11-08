@@ -335,6 +335,15 @@
           "type": "string",
           "title": "Story Facts"
         },
+        "narrative_excerpt_indices": {
+          "items": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array",
+          "title": "Narrative Excerpt Indices",
+          "uniqueItems": true
+        },
         "limitations": {
           "items": {
             "minLength": 1,

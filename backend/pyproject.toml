@@ -13,7 +13,11 @@ dependencies = [
     "python-dotenv>=1,<2",
 ]
 [dependency-groups]
-dev = ["pytest>=8,<9", "ruff>=0.9,<1"]
+dev = [
+    "jsonschema>=4.23,<5",
+    "pytest>=8,<9",
+    "ruff>=0.9,<1",
+]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
