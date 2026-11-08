@@ -1,0 +1,183 @@
+{
+  "contract": "addressed-script-revision/1",
+  "operation": {
+    "mode": "targeted",
+    "script_version": 1,
+    "targets": [
+      {
+        "target_id": "T1",
+        "kind": "text",
+        "utterance_index": 13,
+        "start": 0,
+        "end": 45,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Нужна улика, которая не зависит от календаря.",
+        "delete": {
+          "start": 0,
+          "end": 46,
+          "text": "Нужна улика, которая не зависит от календаря. "
+        },
+        "basis": [
+          "reader.findings.1",
+          "reader.findings.1.context"
+        ]
+      },
+      {
+        "target_id": "T2",
+        "kind": "text",
+        "utterance_index": 19,
+        "start": 22,
+        "end": 134,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Рассказ матери даёт возможную последовательность событий, а раскоп показывает, что путь для отходов существовал.",
+        "delete": {
+          "start": 22,
+          "end": 135,
+          "text": "Рассказ матери даёт возможную последовательность событий, а раскоп показывает, что путь для отходов существовал. "
+        },
+        "basis": [
+          "reader.findings.0.context"
+        ]
+      },
+      {
+        "target_id": "T3",
+        "kind": "text",
+        "utterance_index": 19,
+        "start": 82,
+        "end": 133,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "раскоп показывает, что путь для отходов существовал",
+        "delete": {
+          "start": 82,
+          "end": 133,
+          "text": "раскоп показывает, что путь для отходов существовал"
+        },
+        "basis": [
+          "reader.findings.0"
+        ]
+      },
+      {
+        "target_id": "T4",
+        "kind": "text",
+        "utterance_index": 20,
+        "start": 0,
+        "end": 12,
+        "speaker": "РАССКАЗЧИК",
+        "quote": "Путь найден.",
+        "delete": {
+          "start": 0,
+          "end": 13,
+          "text": "Путь найден. "
+        },
+        "basis": [
+          "reader.findings.0",
+          "reader.findings.0.context"
+        ]
+      },
+      {
+        "target_id": "B13",
+        "kind": "boundary",
+        "before_utterance_index": 13,
+        "basis": [
+          "reader.findings.1",
+          "reader.findings.1.context"
+        ]
+      },
+      {
+        "target_id": "B14",
+        "kind": "boundary",
+        "before_utterance_index": 14,
+        "basis": [
+          "reader.findings.1",
+          "reader.findings.1.context"
+        ]
+      },
+      {
+        "target_id": "B19",
+        "kind": "boundary",
+        "before_utterance_index": 19,
+        "basis": [
+          "reader.findings.0.context",
+          "reader.findings.0"
+        ]
+      },
+      {
+        "target_id": "B20",
+        "kind": "boundary",
+        "before_utterance_index": 20,
+        "basis": [
+          "reader.findings.0.context",
+          "reader.findings.0"
+        ]
+      },
+      {
+        "target_id": "B21",
+        "kind": "boundary",
+        "before_utterance_index": 21,
+        "basis": [
+          "reader.findings.0",
+          "reader.findings.0.context"
+        ]
+      }
+    ],
+    "sequences": []
+  },
+  "wire_output": {
+    "edits": [
+      {
+        "operation": "replace",
+        "target_id": "T1",
+        "text": "Нужна улика, которая не зависит от того, когда сняли ручку."
+      },
+      {
+        "operation": "replace",
+        "target_id": "T2",
+        "text": "Рассказ матери даёт возможную последовательность событий, а раскоп показывает возможный путь для отходов: из ямы через раскисшую землю в сторону колодца."
+      },
+      {
+        "operation": "replace",
+        "target_id": "T4",
+        "text": "Возможный путь найден."
+      }
+    ],
+    "composition_update": null
+  },
+  "application": {
+    "base_script_hash": "f567e0e57ec4e26a53b52d2b64fa20147a36a560f8da3ae44450534258b19fe2",
+    "result_script_hash": "4505c3437c1c369ee7f876313e11f499f8ecfec019802f19f5a71d3c04df79ae",
+    "edits": [
+      {
+        "operation_index": 0,
+        "operation": "replace",
+        "target_id": "T1",
+        "utterance_index": 13,
+        "start": 0,
+        "end": 45,
+        "before": "Нужна улика, которая не зависит от календаря.",
+        "after": "Нужна улика, которая не зависит от того, когда сняли ручку."
+      },
+      {
+        "operation_index": 1,
+        "operation": "replace",
+        "target_id": "T2",
+        "utterance_index": 19,
+        "start": 22,
+        "end": 134,
+        "before": "Рассказ матери даёт возможную последовательность событий, а раскоп показывает, что путь для отходов существовал.",
+        "after": "Рассказ матери даёт возможную последовательность событий, а раскоп показывает возможный путь для отходов: из ямы через раскисшую землю в сторону колодца."
+      },
+      {
+        "operation_index": 2,
+        "operation": "replace",
+        "target_id": "T4",
+        "utterance_index": 20,
+        "start": 0,
+        "end": 12,
+        "before": "Путь найден.",
+        "after": "Возможный путь найден."
+      }
+    ],
+    "unchanged_outside_targets": true,
+    "sequences": []
+  }
+}
