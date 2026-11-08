@@ -30,10 +30,14 @@ def test_current_planning_and_revision_requests_use_new_instructions_but_saved_r
     for task in ("ordinary inferences", "why_end_here", "moral or emotional effect"):
         assert task in fresh["instructions"]
     if stage in ("plan", "plan-revise"):
-        assert "marking detail as optional does not select the version" in fresh["instructions"]
+        assert "select what will actually be developed at that scale" in fresh["instructions"]
         assert "new subject knowledge listeners need" in fresh["instructions"]
+        assert "what listeners have already heard" in fresh["instructions"]
+        assert "When uncertainty only narrows a claim, narrow it there" in fresh["instructions"]
     else:
-        assert "An optional-material list does not make this choice" in fresh["instructions"]
+        assert "A list of optional cuts cannot fix an overfull act" in fresh["instructions"]
+        assert "what the earlier scenes have established" in fresh["instructions"]
+        assert "read the affected sequence with just the precise claim in place" in fresh["instructions"]
 
     refs = preview_references(materials, V9)
     manifest = dict(
@@ -47,3 +51,53 @@ def test_current_planning_and_revision_requests_use_new_instructions_but_saved_r
     replay = preview_request(run_id, stage, profile, materials, snapshot=saved, **inputs)
     assert replay == dict(fresh, instructions=pinned_body)
     assert preview_request(run_id, stage, profile, materials, snapshot=saved, **inputs) == replay
+
+
+def test_archived_snow_plan_review_replays_including_its_former_solo_writer_instructions():
+    import json
+    from pathlib import Path
+    from uuid import UUID
+
+    from podgen.domain.contracts.common import RuntimeRef
+    from podgen.persistence.editorial_inputs import EditorialMaterials
+    from podgen.writing.editorial_contract import EditorialInput
+
+    evals = Path(__file__).resolve().parents[2] / "evals"
+    archive = evals / "reports/2026-11-08-route-selection/snow"
+    old = json.loads((archive / "calls/02-plan-review/request.json").read_bytes())
+    candidate = json.loads((archive / "stages/plan.json").read_bytes())["output"]
+    packet = EditorialInput.model_validate_json(
+        (evals / "editorial-inputs/current/snow-pump/shared.json").read_bytes()
+    )
+    run_id = UUID(old["metadata"]["podgen_run_id"])
+    materials = EditorialMaterials(packet, RuntimeRef(record_kind="user_input", record_id=run_id), ())
+    _, _, _, profile, *_ = fixture()
+    profile.model_revision_or_alias = old["model"]
+    profile.output_limit = old["max_output_tokens"]
+    profile.generation_parameters.update(
+        reasoning=old["reasoning"], text={"verbosity": old["text"]["verbosity"]}
+    )
+    refs = preview_references(materials, V9)
+    manifest = {
+        "role_projection_version": V9,
+        "response_schemas": {"plan-review": old["text"]["format"]["schema"]},
+        CATALOG_KEY: refs.as_payload(),
+        KEY: VERSION,
+    }
+    manifest["writer_response_contract"] = contract_pin(manifest, materials.speaker_labels)
+    pinned = PreviewSnapshot(manifest, old["instructions"])
+    replay = preview_request(run_id, "plan-review", profile, materials, snapshot=pinned, candidate=candidate)
+    assert replay == old
+
+    fresh = preview_request(run_id, "plan-review", profile, materials, candidate=candidate)
+    assert "# Solo" in old["instructions"] and "# Solo" not in fresh["instructions"]
+
+    def user_input(request):
+        return json.loads(request["input"][0]["content"][0]["text"])
+
+    old_input = user_input(old)
+    new_input = user_input(fresh)
+    for field in ("candidate_plan", "dossier", "assignment", "material_catalog", "allowed_review_targets"):
+        assert new_input[field] == old_input[field]
+    assert new_input["assignment"]["format"] == "solo"
+    assert fresh["text"]["format"] == old["text"]["format"]
