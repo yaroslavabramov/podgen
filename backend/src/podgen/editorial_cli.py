@@ -172,13 +172,15 @@ def execute(args, repo, wire_ref):
         result = dict(
             request=body, visible_bytes=visible_sizes(body), input_contract=CONTRACT, endpoint_called=False
         )
+        from podgen.writing.behavior import resolve_behavior
         from podgen.writing.model_references import CATALOG_KEY, preview_references, run_references
-        from podgen.writing.projection_versions import CURRENT
 
         references = (
             run_references(materials, snapshot.manifest)
             if snapshot
-            else preview_references(materials, CURRENT)
+            else preview_references(
+                materials, resolve_behavior(args.behavior_profile, args.editorial_pass or 1).projection
+            )
         )
         if references is not None:
             result[CATALOG_KEY] = references.as_payload()

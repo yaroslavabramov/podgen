@@ -8,6 +8,7 @@ from importlib.resources import files
 from typing import Literal
 
 from podgen.domain.errors import ContractError
+from podgen.writing.projection_versions import V9
 from podgen.writing.prompts import RoleInstructions
 
 ProfileName = Literal["existing/1", "narrative-rebuild/1", "editorial-candidate/1"]
@@ -27,6 +28,7 @@ class BehaviorProfile:
     revision_context: str | None
     reader_schema: str
     reading_audience_from_brief: bool
+    projection: str = V9
 
     @property
     def verification(self):
@@ -67,12 +69,16 @@ class BehaviorProfile:
             "plan": "gpt-6.1-sol",
             "plan-revise": "gpt-6.1-sol",
         }.get(kind, "gpt-6.1-terra")
-        params = profile.generation_parameters
         if (
             profile.model_revision_or_alias != model
             or profile.output_limit != 24576
-            or params["reasoning"]["effort"] != "medium"
-            or params["text"]["verbosity"] != "high"
+            or profile.context_limit != 200000
+            or profile.generation_parameters != {
+                "reasoning": {"effort": "medium"},
+                "text": {"verbosity": "high"},
+                "store": False,
+                "background": False,
+            }
         ):
             raise ContractError("behavior_model_profile_mismatch", stage)
 
