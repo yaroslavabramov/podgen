@@ -172,7 +172,10 @@ def test_ordinary_cli_compiles_creative_and_checker_inputs_from_current_packets(
     assert [card["claim"] for card in requests["draft"]["support"]] == [
         card["story_facts"] for card in cards if card["card_id"] in selected
     ]
-    assert all(set(card) <= {"claim", "sources", "source_excerpts"} for card in requests["draft"]["support"])
+    assert all(
+        {"claim", "sources", "ref"} <= set(card) <= {"claim", "sources", "source_excerpts", "ref"}
+        for card in requests["draft"]["support"]
+    )
     assert requests["plan-review"]["dossier"] == planner
     assert "evidence" not in requests["plan-review"]
     for view, original in zip(planner["knowledge_cards"], cards, strict=True):
@@ -256,8 +259,15 @@ def test_current_gps_fixed_import_and_run_bind_the_current_snapshot(
     assert selection == PLAN_SELECTION_VERSION
     historical_story = expected_current_story(current_fixed["plan"])
     assert "material_options" not in historical_story
-    expected = expected_current_story(current_fixed["plan"], plan_selection_contract=selection)
-    assert expected == dict(
+    shared = json.loads((folder / "shared.json").read_text())
+    expected = expected_current_story(
+        current_fixed["plan"],
+        plan_selection_contract=selection,
+        material_catalog=[card["card_id"] for card in shared["dossier"]["knowledge_cards"]],
+    )
+    assert expected_current_story(
+        current_fixed["plan"], plan_selection_contract="plan-material-selection/1"
+    ) == dict(
         historical_story,
         material_options=dict(
             guidance=(

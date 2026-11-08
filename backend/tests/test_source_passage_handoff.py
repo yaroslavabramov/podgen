@@ -238,13 +238,17 @@ def test_previous_creative_versions_keep_their_old_material_shape(version):
     assert all("source_excerpts" not in card for card in expected)
 
 
-def assert_selected_sources(support, materials, selected):
+def assert_selected_sources(support, materials, selected, *, linked=False):
     cards = [card for card in materials.packet.dossier.knowledge_cards if card.card_id in selected]
     documents = {document.key: document for document in materials.packet.documents}
     assert len(support) == len(cards)
     for view, card in zip(support, cards, strict=True):
         expected = card_source_passages(card, documents)
-        assert set(view) == ({"claim", "sources", "source_excerpts"} if expected else {"claim", "sources"})
+        fields = {"claim", "sources", "source_excerpts"} if expected else {"claim", "sources"}
+        if linked:
+            fields.add("ref")
+            assert view["ref"] == f"M{materials.material_catalog.index(card.card_id) + 1}"
+        assert set(view) == fields
         assert view["claim"] == card.story_facts
         assert view.get("source_excerpts", []) == expected
 
@@ -341,7 +345,7 @@ def test_import_helper_and_real_planner_writer_compilation_need_no_provider(
                     for quote in (card.excerpts[index] for index in card.narrative_excerpt_indices or [])
                 ]
         else:
-            assert_selected_sources(visible["support"], materials, selected)
+            assert_selected_sources(visible["support"], materials, selected, linked=True)
             passages = [e["text"] for card in visible["support"] for e in card.get("source_excerpts", [])]
             assert (YORK_CONCLUSION in passages) == (not archived)
     script = fixture()[4]

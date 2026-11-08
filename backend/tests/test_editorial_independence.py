@@ -62,7 +62,7 @@ def payload(body):
     return json.loads(body["input"][0]["content"][0]["text"])
 
 
-def expected_current_story(proposal, *, plan_selection_contract=None):
+def expected_current_story(proposal, *, plan_selection_contract=None, material_catalog=None):
     """Explicit wire contract, independent of the production projection helpers."""
     plan = proposal["plan"]
     result = dict(
@@ -104,7 +104,12 @@ def expected_current_story(proposal, *, plan_selection_contract=None):
         ],
     )
     if plan_selection_contract is not None:
-        assert plan_selection_contract == "plan-material-selection/1"
+        if plan_selection_contract == "plan-material-selection/2":
+            refs = {value: f"M{i}" for i, value in enumerate(material_catalog, 1)}
+            for scene, source in zip(
+                [result["opening"], *result["acts"]], [plan["opening"], *plan["acts"]], strict=True
+            ):
+                scene["support_refs"] = [refs[key] for key in source["material_refs"]]
         options = plan["duration_strategy"]["optional_material"]
         if options:
             result["material_options"] = dict(
@@ -170,7 +175,9 @@ def test_real_ordinary_wire_and_own_candidate_delivery(own_dataset, case, tmp_pa
     story = author_input["story"]
     selection = journal.manifest(own["run_id"])[PLAN_SELECTION_KEY]
     assert selection == PLAN_SELECTION_VERSION
-    assert story == expected_current_story(chosen, plan_selection_contract=selection)
+    assert story == expected_current_story(
+        chosen, plan_selection_contract=selection, material_catalog=before["material_catalog"]
+    )
     review_input = payload(provider.requests[3])
     assert set(review_input) == {
         "output_language",
@@ -236,7 +243,9 @@ def test_real_ordinary_wire_and_own_candidate_delivery(own_dataset, case, tmp_pa
     control_story = payload(control.requests[0])["story"]
     control_selection = journal.manifest(control_run_id)[PLAN_SELECTION_KEY]
     assert control_selection == PLAN_SELECTION_VERSION
-    assert control_story == expected_current_story(fixed_proposal, plan_selection_contract=control_selection)
+    assert control_story == expected_current_story(
+        fixed_proposal, plan_selection_contract=control_selection, material_catalog=before["material_catalog"]
+    )
 
 
 @pytest.mark.parametrize("case", ["gps-clock", "snow-pump"])

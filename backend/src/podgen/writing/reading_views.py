@@ -6,11 +6,17 @@ from podgen.domain.errors import ContractError
 
 from .craft_reference import attach_reference
 from .duration_views import duration_context
-from .projection_versions import CURRENT, brief_reading_audience, creative_materials, historical, script_handoff
+from .projection_versions import (
+    CURRENT,
+    brief_reading_audience,
+    creative_materials,
+    historical,
+    script_handoff,
+)
 from .projections import (
     actionable_feedback,
     assignment_view,
-    authoring_knowledge_view,
+    attach_author_support,
     evidence_view,
     indexed_draft,
     knowledge_view,
@@ -123,8 +129,14 @@ def reading_payload(
                     for field in ("listener_understanding", "duration_note", "important_limits"):
                         guidance.pop(field, None)
         if creative_materials(projection_version):
-            payload["support"] = authoring_knowledge_view(
-                packet, labels=False, selected=selected, projection_version=projection_version
+            attach_author_support(
+                payload,
+                packet,
+                plan,
+                draft=False,
+                selected=selected,
+                projection_version=projection_version,
+                plan_selection_contract=plan_selection_contract,
             )
         else:
             payload["support"] = knowledge_view(
