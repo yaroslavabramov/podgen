@@ -1,0 +1,429 @@
+{
+  "model": "gpt-6.1-sol",
+  "instructions": "# Edit the episode for recording\n\nRead the complete spoken script in playback order for the stated audience and genre. Report `reading_mode=script_only`. Write editorial prose in `output_language`; preserve speaker labels, keys and exact quotations.\n\n## Decide the story edit first\n\nReconstruct the experience from the opening through the last beat. When did a detail make you want the next scene? Where did you have to wait, learn the answer before the discovery, or hear a point you had already grasped? At a decisive action, use only what the audience has heard so far: is the character's choice intelligible? Supply the missing specialist premise when it matters. Trust ordinary inferences. Consider where the strongest advance actually happens and what the ending contributes after it. An unresolved question can make a satisfying last moment.\n\nChoose what you would send to recording. A strong story may already be in place. When a passage has the right material but the listener gets the discovery, explanation or consequence in the wrong order, audition the whole passage another way. Name what opens it, what changes and what it should land on. If a necessary closing beat is missing, commission the writer to compose it from the available material. Leave the words with the writer; keep reported events grounded. Treat a scene with several symptoms of the same fault as one editing job. Say which observation, joke, voice or image it must retain.\n\n## Set the scope, then edit the lines\n\nWhen the repair involves moving a reveal, changing how a scene unfolds or writing a new landing, choose `sequence`. Identify the connected editable passage in `sequence_ranges` with short exact quotes from its first and last utterances, inclusive. They may be in the same utterance. This gives the writer room to compose the join. Choose `whole_episode` when the underlying route across the episode needs rebuilding. Use `local` for repairs that leave the surrounding sequence in place. For a local deletion quote all the words to remove; two surviving phrases do not authorize deleting the words between them.\n\nNow hear individual lines for idiom, grammar, cadence and the speaker's attitude. What does this aside do here? A dry joke needs no literal misconception to refute. Keep an earned laugh; remove an explanation that steps on it. A serious correction needs a real misunderstanding in the preceding words. Distinguish specialist knowledge from a restatement of an obvious consequence. Identify the exact terms of a genuine grammar error and require the correction even in a strong scene.\n\nUse the worked edits below as illustrations of editing decisions. Quote only the submitted episode in the response. Give each required finding an exact quotation and zero-based utterance index, a concrete assignment and what to preserve. Use important or blocking for work required before recording, optional for equally recordable alternatives, and keep when no required change remains. Use duration estimates for pace. Leave `research_requests` empty; verification belongs to the evidence editor.\n\n## Worked edits\n\n**A listener needs one piece of shop knowledge.**\n- Draft: “On the poster the cyclist's red cap floated an inch above her head. Inez laid the colour stencils over their pins. Two holes keep each stencil in place. If a hole gets wider, the stencil can move. Moving the stencil moves the colour. The left hole in the red stencil had torn into an oval.”\n- Problem: The pins are new information. After that, the torn hole shows what went wrong.\n- Assignment: Local. Keep how the stencils are held and what Inez finds. Cut the intervening lesson.\n- Edited: “On the poster the cyclist's red cap floated an inch above her head. Inez laid the colour stencils over their pins. Two holes keep each stencil in place. The left hole in the red stencil had torn into an oval.”\n\n**A dry line has done its job.**\n- Draft: “Nora tried to open her new scissors. She pulled at the plastic. She tried her teeth. ‘I know a tool for this,’ she said. She meant the scissors inside the package.”\n- Problem: We can see what Nora can see. The following explanation takes the laugh away from her.\n- Assignment: Local. Keep the struggle and Nora's own line exactly; end there.\n- Edited: “Nora tried to open her new scissors. She pulled at the plastic. She tried her teeth. ‘I know a tool for this,’ she said.”\n\n**The answer arrives before anyone has a reason to want it.**\n- Draft: “An old register identified the boy as Nico Vera. In Kit's classroom photograph every child had a name except the one with the drum. Kit had tried matching his face to other photographs. A builder later found the school band register behind a wall. It listed the musicians by instrument. There was a single entry for drum, Nico Vera. So the search was successful. Photographs and records work well together.”\n- Problem: Giving the name away makes the search idle. Cutting only the final summary would still leave the reveal in the wrong place.\n- Assignment: Sequence, from the first mention of the register through the close. Give Kit her unanswered question, keep the failed search by face, then let the recovered register change how we look. Compose the last beat from its actual entry.\n- Edited: “In Kit's classroom photograph, only the boy with the drum had no name. She tried matching his face to other photographs. Then a builder found the school band register behind a wall. The musicians were listed by instrument. This time Kit didn't need to recognize his face. Under ‘Drum’ there was one name: Nico Vera.”\n",
+  "input": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "{\"script\":{\"utterances\":[{\"index\":0,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Утро 17 декабря 1903 года, побережье Северной Каролины. Ровный песок, рядом лагерь, неподалёку песчаный холм Килл-Девил. Дует сильный холодный ветер. Возле лагеря стоят два брата, Орвилл и Уилбур Райт, и их аппарат: лёгкие крылья, двигатель, винты. Задача, которую братья поставили себе на сегодня, звучит просто, а выполнить её трудно. Нужно взлететь не с горки, как планер, а с ровного места: разогнаться и подняться в воздух силой собственного мотора. И потом не упасть сразу, а удержаться в воздухе.\"},{\"index\":1,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Братья выносят машину и подают знак людям со станции на берегу. Приходят пятеро. Одного из них стоит запомнить: Джон Дэниелс. Сегодня ему достанется роль фотографа, и это ещё не последняя его роль за день. На песке укладывают длинный направляющий рельс. По нему аппарат будет разгоняться, как по дорожке, против ветра. Прогревают двигатель. Летать решили низко, у самой земли: так безопаснее при падении. Но у этого решения есть обратная сторона. Если порыв качнёт машину, на исправление ошибки почти не останется высоты. В 10:35 Орвилл ложится на своё место. Мотор работает. Аппарат пока держит верёвка.\"},{\"index\":2,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Верёвку отпускают. Машина бежит по рельсу, набирает скорость и поднимается с него в воздух. В эту секунду Дэниелс нажимает на спуск фотоаппарата.\"},{\"index\":3,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"А дальше полёт совсем не похож на плавное скольжение. Аппарат вдруг взмывает метра на три, а потом так же резко бросается к земле. Снова вверх. Снова вниз.\"},{\"index\":4,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Вот что происходит. Впереди у машины есть передний руль: он наклоняет её носом вверх или вниз. Орвилл потом записал в дневнике, что руль был уравновешен слишком близко к центру. Стоило ему начать поворачиваться, как он сам доворачивался дальше, чем нужно. Орвилл поправляет, и руль уходит слишком далеко в одну сторону. Поправляет снова, и слишком далеко в другую. Отсюда и эти броски: машина то резко взмывает, то ныряет к земле.\"},{\"index\":5,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Очередной бросок вниз, метрах в тридцати от конца рельса, и полёт окончен. Сколько он длился? Около двенадцати секунд. Около, потому что секундомер, по признанию Орвилла, остановили не сразу. Двенадцать секунд, и почти всё это время человек боролся с рулём. Но машина поднялась сама, с ровного места, и летела.\"},{\"index\":6,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Посадка не прошла даром: сломаны рычаг, которым выключают двигатель, и полоз под рулём. Братья чинят, помощники снова тащат аппарат к старту. Теперь очередь Уилбура. Около 11:20 он поднимается в воздух. Та же история: вверх, вниз, вверх. Пролетает он чуть дальше, а по времени выходит примерно столько же.\"},{\"index\":7,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Около 11:40 снова летит Орвилл, снова в порывистом ветре. Третий отрыв за утро. Значит, первый не был случайностью. Машина взлетает раз за разом. Но спокойно лететь на ней пока никто не может.\"},{\"index\":8,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Ровно в полдень Уилбур начинает четвёртую попытку. Сначала всё как раньше: машину бросает вверх и вниз. Но пролетев метров сто, Уилбур, кажется, находит общий язык с рулём. Аппарат идёт заметно ровнее. Орвилл с земли видит уже не череду бросков, а почти спокойный путь над песком. Впервые за этот день меняется не только дальность, но и сам характер полёта.\"},{\"index\":9,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Так продолжается, пока впереди не появляется небольшой песчаный бугорок. Около него машину снова начинает раскачивать, и она резко врезается в землю.\"},{\"index\":10,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Тогда братья меряют. Пятьдесят девять секунд. Дальность — восемьсот пятьдесят два фута, около двухсот шестидесяти метров. Почти минута в воздухе. Рама переднего руля разбита, но основная рама цела.\"},{\"index\":11,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Руль снимают, машину несут к лагерю и ставят в нескольких шагах от постройки. Все стоят рядом и обсуждают последний полёт. И тут налетает порыв ветра. Аппарат, который только что держался в воздухе почти минуту, начинает переворачиваться прямо на земле. Все бросаются его удерживать. Уилбур не успевает добежать. Орвилл и Дэниелс хватаются за раму сзади, но ничего не могут сделать. Дэниелс, никогда прежде не имевший дела с такими машинами, вцепляется в неё изнутри и кувыркается вместе с ней, между двигателем и цепями. Он выбирается. Орвилл назовёт это чудом. Аппарат сильно изломан, и летать в тот день он больше не будет.\"},{\"index\":12,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"После обеда братья идут в посёлок Китти-Хок, на телеграф. Отцу, Милтону Райту, уходит короткое сообщение: четыре успешных полёта, все против ветра, старт с ровного места, только на силе двигателя. Пусть сообщит прессе.\"},{\"index\":13,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"И последние слова телеграммы: домой к Рождеству.\"}]},\"audience\":\"Взрослый неспециалист, впервые слышащий эту историю.\",\"format\":\"solo\",\"genre\":\"Короткая документальная история\",\"output_language\":\"ru\",\"duration_context\":{\"current_text\":{\"word_count\":660},\"audio_measured\":false,\"requested\":{\"target_seconds\":360,\"min_seconds\":300,\"max_seconds\":420},\"estimated_word_target\":660,\"estimated_word_range\":{\"min\":550,\"max\":770},\"estimate_basis\":\"Russian solo reference reading at 110 words/minute\",\"estimated_current_seconds\":360}}"
+        }
+      ]
+    }
+  ],
+  "max_output_tokens": 24576,
+  "text": {
+    "verbosity": "high",
+    "format": {
+      "type": "json_schema",
+      "name": "reader_review",
+      "schema": {
+        "$defs": {
+          "DependentPassage": {
+            "additionalProperties": false,
+            "properties": {
+              "reason": {
+                "description": "Why this passage must change with the addressed repair.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              }
+            },
+            "required": [
+              "reason",
+              "anchors"
+            ],
+            "title": "DependentPassage",
+            "type": "object"
+          },
+          "EditorialFinding": {
+            "additionalProperties": false,
+            "properties": {
+              "dimension": {
+                "enum": [
+                  "promise",
+                  "mechanism",
+                  "structure",
+                  "transition",
+                  "repetition",
+                  "oral_style",
+                  "speaker_contribution",
+                  "factuality",
+                  "attribution",
+                  "duration",
+                  "ending"
+                ],
+                "title": "Dimension",
+                "type": "string"
+              },
+              "priority": {
+                "enum": [
+                  "blocking",
+                  "important",
+                  "optional"
+                ],
+                "title": "Priority",
+                "type": "string"
+              },
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "observation": {
+                "description": "Specific effect of these spoken words on the listener: impression, interest, clarity, selection, pace or language, as relevant to this text's genre.",
+                "minLength": 1,
+                "title": "Observation",
+                "type": "string"
+              },
+              "requested_change": {
+                "description": "Actionable editorial change and its intended effect on this listening experience. May concern selection, wording, impression or structure as well as understanding; preserve what works and the text's genre.",
+                "minLength": 1,
+                "title": "Requested Change",
+                "type": "string"
+              },
+              "preserve": {
+                "description": "Useful properties of the passage to retain; may be empty.",
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Preserve",
+                "type": "array"
+              }
+            },
+            "required": [
+              "dimension",
+              "priority",
+              "anchors",
+              "observation",
+              "requested_change",
+              "preserve"
+            ],
+            "title": "EditorialFinding",
+            "type": "object"
+          },
+          "EditorialStrength": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "reason": {
+                "description": "What works for the listener and should survive revision.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "reason"
+            ],
+            "title": "EditorialStrength",
+            "type": "object"
+          },
+          "PinpointAssessment": {
+            "additionalProperties": false,
+            "properties": {
+              "scale": {
+                "description": "Local includes multiple independent pinpoint repairs at any distance; whole_episode explicitly authorizes recomposing the complete telling.",
+                "enum": [
+                  "none",
+                  "local",
+                  "whole_episode"
+                ],
+                "title": "Scale",
+                "type": "string"
+              },
+              "reason": {
+                "description": "Concrete editorial reason for this scale and its intended effect on the listening experience; do not infer quality from counts.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "anchors": {
+                "description": "Exact passages supporting this choice. Required repair needs at least one; none may use an empty list.",
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "title": "Anchors",
+                "type": "array"
+              },
+              "dependent_passages": {
+                "description": "Explicitly addressed dependent passages; no automatic neighboring-text permission. Empty when none are needed.",
+                "items": {
+                  "$ref": "#/$defs/DependentPassage"
+                },
+                "title": "Dependent Passages",
+                "type": "array"
+              }
+            },
+            "required": [
+              "scale",
+              "reason",
+              "anchors",
+              "dependent_passages"
+            ],
+            "title": "PinpointAssessment",
+            "type": "object"
+          },
+          "ResearchNeed": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "question": {
+                "minLength": 1,
+                "title": "Question",
+                "type": "string"
+              },
+              "why_needed": {
+                "minLength": 1,
+                "title": "Why Needed",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "question",
+              "why_needed"
+            ],
+            "title": "ResearchNeed",
+            "type": "object"
+          },
+          "SequenceAssessment": {
+            "additionalProperties": false,
+            "properties": {
+              "scale": {
+                "const": "sequence",
+                "title": "Scale",
+                "type": "string"
+              },
+              "reason": {
+                "description": "Concrete editorial reason for this scale and its intended effect on the listening experience; do not infer quality from counts.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "anchors": {
+                "description": "Exact passages supporting this choice. Required repair needs at least one; none may use an empty list.",
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "title": "Anchors",
+                "type": "array"
+              },
+              "dependent_passages": {
+                "description": "Explicitly addressed dependent passages; no automatic neighboring-text permission. Empty when none are needed.",
+                "items": {
+                  "$ref": "#/$defs/DependentPassage"
+                },
+                "title": "Dependent Passages",
+                "type": "array"
+              },
+              "sequence_ranges": {
+                "description": "Explicit editable sequences; do not infer their boundaries from scattered findings. Text outside them remains protected except separately addressed local repairs.",
+                "items": {
+                  "$ref": "#/$defs/SequenceRange"
+                },
+                "minItems": 1,
+                "title": "Sequence Ranges",
+                "type": "array"
+              }
+            },
+            "required": [
+              "scale",
+              "reason",
+              "anchors",
+              "dependent_passages",
+              "sequence_ranges"
+            ],
+            "title": "SequenceAssessment",
+            "type": "object"
+          },
+          "SequenceRange": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "description": "First and last editable utterances, in that order. Quotes identify the boundaries; the complete inclusive range is authorized.",
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "reason": {
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "reason"
+            ],
+            "title": "SequenceRange",
+            "type": "object"
+          },
+          "UtteranceAnchor": {
+            "additionalProperties": false,
+            "properties": {
+              "utterance_index": {
+                "description": "Zero-based position in the exact supplied WriteOutput.utterances list.",
+                "minimum": 0,
+                "title": "Utterance Index",
+                "type": "integer"
+              },
+              "quote": {
+                "description": "Exact nonempty substring of that utterance's spoken text.",
+                "minLength": 1,
+                "title": "Quote",
+                "type": "string"
+              }
+            },
+            "required": [
+              "utterance_index",
+              "quote"
+            ],
+            "title": "UtteranceAnchor",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "reading_mode": {
+            "description": "script_only only if plan, dossier, author notes and prior reviews were not visible.",
+            "enum": [
+              "script_only",
+              "informed"
+            ],
+            "title": "Reading Mode",
+            "type": "string"
+          },
+          "listener_answer": {
+            "description": "Follow this particular telling from the first thing the listener wants to know to its last moment. Identify what advances or interrupts the story and how the ending lands.",
+            "minLength": 1,
+            "title": "Listener Answer",
+            "type": "string"
+          },
+          "revision_scope": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PinpointAssessment"
+              },
+              {
+                "$ref": "#/$defs/SequenceAssessment"
+              }
+            ],
+            "title": "Revision Scope",
+            "description": "Choose the scale needed to deliver that complete story. If changing the order or development of a connected scene, authorize its inclusive range. A cluster of separate wording edits cannot authorize that work."
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/$defs/EditorialFinding"
+            },
+            "title": "Findings",
+            "type": "array",
+            "description": "Commission each change once. Lead with any necessary story edit, giving its intended effect, the passage to rebuild and what to keep. Follow with independent line repairs. May be empty."
+          },
+          "strengths": {
+            "items": {
+              "$ref": "#/$defs/EditorialStrength"
+            },
+            "title": "Strengths",
+            "type": "array",
+            "description": "Anchored observations about what works for this listener in this genre. A good passage or complete text may need no change."
+          },
+          "important_limits": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Important Limits",
+            "type": "array",
+            "description": "Only limits in the supplied text that materially affect this listening experience. May be empty; do not invent problems or require a list of caveats in the script."
+          },
+          "research_requests": {
+            "items": {
+              "$ref": "#/$defs/ResearchNeed"
+            },
+            "title": "Research Requests",
+            "type": "array"
+          },
+          "duration_note": {
+            "description": "Evidence and uncertainty about duration; never invented timing.",
+            "minLength": 1,
+            "title": "Duration Note",
+            "type": "string"
+          },
+          "recommendation": {
+            "enum": [
+              "keep",
+              "revise",
+              "needs_material"
+            ],
+            "title": "Recommendation",
+            "type": "string",
+            "description": "Would you send this telling and its actual words to recording? A required scene edit or a genuine language error requires revise. Keep a finished episode that works."
+          }
+        },
+        "required": [
+          "reading_mode",
+          "listener_answer",
+          "revision_scope",
+          "findings",
+          "strengths",
+          "important_limits",
+          "research_requests",
+          "duration_note",
+          "recommendation"
+        ],
+        "title": "ReaderAssessmentV4",
+        "type": "object"
+      },
+      "strict": true
+    }
+  },
+  "tools": [],
+  "tool_choice": "none",
+  "parallel_tool_calls": false,
+  "truncation": "disabled",
+  "stream": false,
+  "metadata": {
+    "podgen_run_id": "7aa301b3-1539-4608-b2f6-c396b8be9de2",
+    "podgen_invocation_id": "0038ef90-2e66-55fb-b2f9-e80ef47ab067",
+    "podgen_stage": "reader-review",
+    "compiler_version": "whole-episode-baseline-a/1"
+  },
+  "reasoning": {
+    "effort": "medium"
+  },
+  "store": false,
+  "background": false
+}
