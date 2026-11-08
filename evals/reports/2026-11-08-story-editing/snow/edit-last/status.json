@@ -1,0 +1,81 @@
+{
+  "run_id": "fb86cb97-2a52-5978-98c0-19bec3b2a397",
+  "status": "completed_unaccepted",
+  "failure_code": null,
+  "review_status": "keep",
+  "plan_mode": "fixed-plan",
+  "materials_hash": "58f27db7e0fd39b7da9592c9dc091d1d21d7f7be79e1c21996e5448b77ccd282",
+  "composition_contract": "addressed-script-revision/1",
+  "prompt_versions": {
+    "draft": "whole-episode-a/sha256:8611877a1f3fad20760a7107aa60e3cc0ae6dd0ecfb2a9c7b46bf05d9576d841",
+    "reader-review": "reader-review/sha256:beb6837039bc8ae18e494044121e0572a9d43747b847c813dc5b5b02e2013018",
+    "fact-review": "fact-review/sha256:3fe65017933190a483dd763177f83d2a57e1665159969663f586e096d2c07507",
+    "revise-1": "dual-revise/sha256:1b2f8838c762e496aac4ef8b1feb6dec9921929d51037d20a22e6d795869ae23",
+    "reader-review-1": "reader-review/sha256:beb6837039bc8ae18e494044121e0572a9d43747b847c813dc5b5b02e2013018",
+    "fact-review-1": "fact-review/sha256:3fe65017933190a483dd763177f83d2a57e1665159969663f586e096d2c07507",
+    "revise-2": "dual-revise/sha256:1b2f8838c762e496aac4ef8b1feb6dec9921929d51037d20a22e6d795869ae23",
+    "reader-review-2": "reader-review/sha256:beb6837039bc8ae18e494044121e0572a9d43747b847c813dc5b5b02e2013018",
+    "fact-review-2": "fact-review/sha256:3fe65017933190a483dd763177f83d2a57e1665159969663f586e096d2c07507"
+  },
+  "speech": [
+    {
+      "stage": "draft",
+      "script_hash": "35a4f6a7007d724b2f1e3f2dc678689537ecb18802f6c1eecb2898b949a2a299",
+      "utterances": 9,
+      "words": 1908,
+      "seconds_at_110wpm": 1041
+    },
+    {
+      "stage": "revise-1",
+      "script_hash": "37be6fb221b33142ccabf3dac4ae43fd807df8d5e93864af8bffcdb77a6f68dc",
+      "utterances": 9,
+      "words": 1941,
+      "seconds_at_110wpm": 1059
+    }
+  ],
+  "reviews": [
+    {
+      "stage": "reader-review",
+      "recommendation": "revise",
+      "findings": [
+        {
+          "priority": "important",
+          "dimension": "mechanism"
+        },
+        {
+          "priority": "important",
+          "dimension": "repetition"
+        },
+        {
+          "priority": "important",
+          "dimension": "ending"
+        }
+      ],
+      "script_hash": "35a4f6a7007d724b2f1e3f2dc678689537ecb18802f6c1eecb2898b949a2a299"
+    },
+    {
+      "stage": "fact-review",
+      "recommendation": "keep",
+      "findings": [],
+      "script_hash": "35a4f6a7007d724b2f1e3f2dc678689537ecb18802f6c1eecb2898b949a2a299"
+    },
+    {
+      "stage": "reader-review-1",
+      "recommendation": "keep",
+      "findings": [],
+      "script_hash": "37be6fb221b33142ccabf3dac4ae43fd807df8d5e93864af8bffcdb77a6f68dc"
+    },
+    {
+      "stage": "fact-review-1",
+      "recommendation": "keep",
+      "findings": [],
+      "script_hash": "37be6fb221b33142ccabf3dac4ae43fd807df8d5e93864af8bffcdb77a6f68dc"
+    }
+  ],
+  "planning": {},
+  "final_script_hash": "37be6fb221b33142ccabf3dac4ae43fd807df8d5e93864af8bffcdb77a6f68dc",
+  "final_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "4a607442-91d6-55d8-9032-9c95606b59c7"
+  }
+}

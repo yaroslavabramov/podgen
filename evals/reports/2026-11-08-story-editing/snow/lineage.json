@@ -1,0 +1,38 @@
+{
+  "project": "08e7215b-1b31-4e62-8100-42e73bf6906e",
+  "actor": "094b7df9-c573-4c3e-afc4-e1b2a6e74eab",
+  "runs": {
+    "edit-last": "fb86cb97-2a52-5978-98c0-19bec3b2a397",
+    "fresh": "d1cf35ad-5331-582c-b9f1-e8f7813203a0"
+  },
+  "input_refs": {
+    "shared": {
+      "record_kind": "user_input",
+      "record_id": "24470aaf-0f9f-5dca-83ee-c736eee60790"
+    },
+    "author": {
+      "artifact_id": "53d8cb94-2400-45aa-bca8-c27ec68518b6",
+      "revision_id": "d108f16f-5117-4139-81eb-b4a183ec2132",
+      "kind": "ModelProfile"
+    },
+    "planner": {
+      "artifact_id": "dce4f12e-08c4-4b9d-9634-3a0f4c1b95e3",
+      "revision_id": "83846184-f127-44d8-9d8f-1f7df9c3cee8",
+      "kind": "ModelProfile"
+    },
+    "reviewer": {
+      "artifact_id": "a83f028a-0e34-4167-93c5-482af3374532",
+      "revision_id": "bb8d57d1-ea07-4ce9-b23f-a107bbecf206",
+      "kind": "ModelProfile"
+    }
+  },
+  "source_run": "26e8fa9c-0afb-5d60-b5dd-5251f9afb1b9",
+  "source_script_hash": "35a4f6a7007d724b2f1e3f2dc678689537ecb18802f6c1eecb2898b949a2a299",
+  "initial_script_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "9cf7c6ea-0fec-587b-90f6-facf4ba0df5b"
+  },
+  "source_plan_run": "78d923e8-f57b-413b-8371-a70125c928ce",
+  "accepted_plan_hash": "c648b881358d5e3344548564e433b5fbc63484ec3d03b1543fd4392f7b80bd1e",
+  "packet_sha256": "b52d0f03e8bc24fcee4c10960011557d8fe7e9a3adc74a1f36f721d3a0b080f5"
+}
