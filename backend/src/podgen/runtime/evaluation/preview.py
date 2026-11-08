@@ -1,26 +1,17 @@
 """Compile ordinary and dedicated repair wires without a provider or token endpoint."""
 
 from podgen.domain.errors import ContractError
-from podgen.writing.craft_reference import AUTHOR_STAGES, load_reference, pinned_reference
+from podgen.writing.behavior import resolve_behavior
+from podgen.writing.craft_reference import AUTHOR_STAGES, pinned_reference
 from podgen.writing.model_references import preview_references
-from podgen.writing.plan_selection import for_projection as selection_for_projection
 from podgen.writing.plan_selection import from_manifest as selection_from_manifest
 from podgen.writing.plan_views import candidate_view
-from podgen.writing.planning_choice import for_input as planning_for_input
 from podgen.writing.planning_choice import from_manifest as planning_from_manifest
-from podgen.writing.planning_duration import for_input as duration_for_input
 from podgen.writing.planning_duration import from_manifest as duration_from_manifest
 from podgen.writing.planning_versions import planning_snapshot
 from podgen.writing.projection_versions import CURRENT, manifest_version
 from podgen.writing.projections import CONTRACT, validate_model_content
-from podgen.writing.prompts import (
-    load_anchor_repair_instructions,
-    load_instruction_set,
-    load_plan_target_repair_instructions,
-)
-from podgen.writing.reader_schema import VERSION as READER_SCHEMA_VERSION
 from podgen.writing.reading_views import reading_audience
-from podgen.writing.revision.context import VERSION as REVISION_CONTEXT_VERSION
 from podgen.writing.revision.context import from_manifest as revision_context_from_manifest
 from podgen.writing.revision.contracts import FACT_VERSION
 
@@ -31,10 +22,20 @@ from .role_schema import response_schema
 from .workflow import prompt_stage
 
 
-def preview_request(run_id, stage, profile, materials, *, snapshot=None, **inputs):
+def preview_request(
+    run_id, stage, profile, materials, *, snapshot=None, behavior_profile=None, editorial_pass=None, **inputs
+):
     from .planning_continuation.preview import validate as validate_continuation_preview
     from .preview_inputs import validate_preview_inputs, validate_preview_snapshots
 
+    if snapshot and (
+        behavior_profile is not None
+        and behavior_profile != snapshot.manifest.get("behavior_profile")
+        or editorial_pass is not None
+        and editorial_pass != snapshot.manifest.get("editorial_pass", 1)
+    ):
+        raise ContractError("preview_behavior_profile_mismatch")
+    behavior = None if snapshot else resolve_behavior(behavior_profile, editorial_pass or 1)
     if snapshot:
         from podgen.writing.author_reply import verify_pin
 
@@ -44,31 +45,25 @@ def preview_request(run_id, stage, profile, materials, *, snapshot=None, **input
     validate_continuation_preview(stage, snapshot, inputs)
     inputs = {key: value for key, value in inputs.items() if value is not None}
     projection = manifest_version(snapshot.manifest) if snapshot else CURRENT
-    planning_contract = (
-        planning_from_manifest(snapshot.manifest) if snapshot else planning_for_input(CONTRACT, projection)
-    )
-    planning_duration = (
-        duration_from_manifest(snapshot.manifest) if snapshot else duration_for_input(CONTRACT, projection)
-    )
-    selection = (
-        selection_from_manifest(snapshot.manifest) if snapshot else selection_for_projection(projection)
-    )
+    planning_contract = planning_from_manifest(snapshot.manifest) if snapshot else behavior.planning_contract
+    planning_duration = duration_from_manifest(snapshot.manifest) if snapshot else behavior.planning_duration
+    selection = selection_from_manifest(snapshot.manifest) if snapshot else behavior.selection
     from podgen.writing.model_references import run_references
 
     references = run_references(materials, snapshot.manifest) if snapshot else None
     revision_context = (
-        revision_context_from_manifest(snapshot.manifest) if snapshot else REVISION_CONTEXT_VERSION
+        revision_context_from_manifest(snapshot.manifest) if snapshot else behavior.revision_context
     )
     if stage not in AUTHOR_STAGES or (stage.startswith("revise-") and revision_context is not None):
         reference = None
     elif snapshot:
         reference = pinned_reference(snapshot.manifest)
     else:
-        current = load_reference(materials.output_language)
+        current = behavior.craft(materials.output_language)
         reference = current["text"] if current is not None else None
     pinned_instructions = snapshot.instructions if snapshot else None
     reader_version = (
-        snapshot.manifest.get("reader_review_schema_version") if snapshot else READER_SCHEMA_VERSION
+        snapshot.manifest.get("reader_review_schema_version") if snapshot else behavior.reader_schema
     )
     fact_version = snapshot.manifest.get("fact_review_schema_version") if snapshot else FACT_VERSION
 
@@ -81,6 +76,11 @@ def preview_request(run_id, stage, profile, materials, *, snapshot=None, **input
             projection_version=projection,
             planning_output_contract=planning_contract,
             reader_schema_version=reader_version,
+            **(
+                {"revision_verification_contract": behavior.verification}
+                if behavior and behavior.verification
+                else {}
+            ),
             fact_schema_version=fact_version,
         )
 
@@ -89,27 +89,26 @@ def preview_request(run_id, stage, profile, materials, *, snapshot=None, **input
     from .reading_workflow import ALL_READING_STAGES, base_stage
 
     if stage in ALL_READING_STAGES:
-        from podgen.writing.prompts import load_reading_instructions
-
         from .reading_cycle import combine
         from .role_request import compile_reading_request
 
         base = base_stage(stage)
         recheck = None
-        if snapshot and verification.applies(stage, snapshot.manifest.get(verification.KEY)):
+        verification_pin = snapshot.manifest.get(verification.KEY) if snapshot else behavior.verification
+        if verification.applies(stage, verification_pin):
+            if snapshot is None:
+                raise ContractError("preview_revision_verification_requires_saved_rewrite")
             if snapshot.script != inputs["draft"] or snapshot.revision_comparison is None:
                 raise ContractError("preview_revision_verification_source_mismatch")
             recheck = snapshot.revision_comparison
         instructions = pinned_instructions
         if instructions is None:
-            name = (
-                "revision-verification"
-                if recheck is not None
-                else "dual-revise"
-                if base == "revise"
-                else base
-            )
-            instructions = load_reading_instructions(name).body
+            if snapshot:
+                raise ContractError("preview_stage_not_pinned")
+            role = "dual-revise" if base == "revise" else base
+            if stage != base and base == "reader-review" and behavior.verification:
+                role = "revision-verification"
+            instructions = behavior.instructions(role, materials.format).body
         readings = None
         revision = None
         if base == "revise":
@@ -136,7 +135,9 @@ def preview_request(run_id, stage, profile, materials, *, snapshot=None, **input
             craft_reference=reference,
             revision_context_contract=revision_context,
             revision_comparison=recheck,
-            audience=reading_audience(materials.packet.assignment, snapshot.manifest if snapshot else None),
+            audience=reading_audience(materials.packet.assignment, snapshot.manifest)
+            if snapshot
+            else behavior.audience(materials.packet.assignment),
             script=inputs["draft"],
             readings=readings,
             decision=combine(readings) if readings else None,
@@ -146,9 +147,9 @@ def preview_request(run_id, stage, profile, materials, *, snapshot=None, **input
     if stage not in ("anchor-repair", "plan-target-repair"):
         instructions = pinned_instructions
         if instructions is None:
-            instructions = load_instruction_set(materials.format, include_planning=True)[
-                prompt_stage(stage)
-            ].body
+            if snapshot:
+                raise ContractError("preview_stage_not_pinned")
+            instructions = behavior.instructions(prompt_stage(stage), materials.format).body
         return compile_role_request(
             run_id,
             stage,
@@ -183,7 +184,11 @@ def preview_request(run_id, stage, profile, materials, *, snapshot=None, **input
         if not plan.broken:
             raise ContractError("review_anchor_repair_not_eligible")
         payload = anchor_payload(plan)
-        instructions = load_anchor_repair_instructions().body
+        instructions = (
+            snapshot.manifest["anchor_repair_instructions"]["body"]
+            if snapshot
+            else behavior.instructions("anchor-repair", materials.format).body
+        )
         model = AnchorChoices
         role_stage = "fact-review" if feedback_model == FactFeedback else "review"
         name = "anchor_choices"
@@ -199,7 +204,11 @@ def preview_request(run_id, stage, profile, materials, *, snapshot=None, **input
         if not plan.invalid:
             raise ContractError("plan_target_repair_not_eligible")
         payload = target_payload(plan)
-        instructions = load_plan_target_repair_instructions().body
+        instructions = (
+            snapshot.manifest["plan_target_repair_instructions"]["body"]
+            if snapshot
+            else behavior.instructions("plan-target-repair", materials.format).body
+        )
         model = PlanTargetChoices
         role_stage = "plan-review"
         name = "plan_target_choices"

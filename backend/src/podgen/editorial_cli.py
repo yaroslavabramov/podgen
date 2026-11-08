@@ -34,6 +34,10 @@ def add_commands(sub):
     preview.add_argument("--shared-ref", required=True)
     preview.add_argument("--fixed-ref")
     preview.add_argument("--case", required=True)
+    from podgen.writing.behavior import NAMES
+
+    preview.add_argument("--behavior-profile", choices=NAMES)
+    preview.add_argument("--editorial-pass", type=int, choices=(1, 2, 3))
     preview.add_argument(
         "--stage",
         choices=[
@@ -155,7 +159,16 @@ def execute(args, repo, wire_ref):
         snapshot = load_preview_snapshot(
             EvaluationJournal(repo, args.project), generation, args.run_id, args.stage, materials
         )
-        body = preview_request(args.run_id, args.stage, profile, materials, snapshot=snapshot, **values)
+        body = preview_request(
+            args.run_id,
+            args.stage,
+            profile,
+            materials,
+            snapshot=snapshot,
+            behavior_profile=args.behavior_profile,
+            editorial_pass=args.editorial_pass,
+            **values,
+        )
         result = dict(
             request=body, visible_bytes=visible_sizes(body), input_contract=CONTRACT, endpoint_called=False
         )
