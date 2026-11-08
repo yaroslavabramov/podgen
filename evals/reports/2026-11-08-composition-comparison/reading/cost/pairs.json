@@ -1,0 +1,165 @@
+{
+  "estimated_total_usd": "0.11758400",
+  "calls": [
+    {
+      "case": "BC",
+      "id": "resp_00c8b711d3e648d2016af0b175755c87d2b6ad1239d139932f",
+      "model": "gpt-6.1-terra",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 6953,
+        "input_tokens_details": {
+          "cache_write_tokens": 6950,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1350,
+        "output_tokens_details": {
+          "reasoning_tokens": 679
+        },
+        "total_tokens": 8303
+      },
+      "estimated_usd": "0.0154405",
+      "request_sha256": "36b2a0bc11d4f5c8869416e0fff696431fa9bf7d02e5153f61ae88ce8c79281c"
+    },
+    {
+      "case": "CB",
+      "id": "resp_0f24849c0ccdd6b8016af0b1759b0c87d28c0b5567cf4defdb",
+      "model": "gpt-6.1-terra",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 6953,
+        "input_tokens_details": {
+          "cache_write_tokens": 6950,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1027,
+        "output_tokens_details": {
+          "reasoning_tokens": 359
+        },
+        "total_tokens": 7980
+      },
+      "estimated_usd": "0.0138255",
+      "request_sha256": "5fa5423a12872c6ed439865c96bb527223c5a5cb4a8630910fe64656eda08575"
+    },
+    {
+      "case": "CA",
+      "id": "resp_0b9d87e8d0c9c639016af0b1759bbc87d2bd801547eb9d8094",
+      "model": "gpt-6.1-terra",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 7321,
+        "input_tokens_details": {
+          "cache_write_tokens": 7318,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1022,
+        "output_tokens_details": {
+          "reasoning_tokens": 254
+        },
+        "total_tokens": 8343
+      },
+      "estimated_usd": "0.0142605",
+      "request_sha256": "bb160602aca4e766f7650e5444e3b875f58b68186b146b978ba493d163c11f9e"
+    },
+    {
+      "case": "AC",
+      "id": "resp_09fb5f0ed209b4e3016af0b17587b487d2958e9de9dcce1082",
+      "model": "gpt-6.1-terra",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 7321,
+        "input_tokens_details": {
+          "cache_write_tokens": 7318,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1141,
+        "output_tokens_details": {
+          "reasoning_tokens": 311
+        },
+        "total_tokens": 8462
+      },
+      "estimated_usd": "0.0148555",
+      "request_sha256": "4af9d4634eca7a8d5b74d72a3e984ffde22559941e87440fa1fab6bba1afd84e"
+    },
+    {
+      "case": "AD",
+      "id": "resp_0d736eb38ec74931016af0b1836d0487d2a0dfe9c0d244ca14",
+      "model": "gpt-6.1-terra",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 7592,
+        "input_tokens_details": {
+          "cache_write_tokens": 7589,
+          "cached_tokens": 0
+        },
+        "output_tokens": 938,
+        "output_tokens_details": {
+          "reasoning_tokens": 264
+        },
+        "total_tokens": 8530
+      },
+      "estimated_usd": "0.01417925",
+      "request_sha256": "f5af6731da8b0af6cdb706a3d7a1293abfe536d00461c573e0a0a64260af873e"
+    },
+    {
+      "case": "DA",
+      "id": "resp_0a4d42da0ae5f563016af0b1848c3087d2b0267de1eb497a69",
+      "model": "gpt-6.1-terra",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 7592,
+        "input_tokens_details": {
+          "cache_write_tokens": 7589,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1099,
+        "output_tokens_details": {
+          "reasoning_tokens": 429
+        },
+        "total_tokens": 8691
+      },
+      "estimated_usd": "0.01498425",
+      "request_sha256": "2471b3c1723474c83d9283e5ee3c2c51045ac0882ff09d2390845fd9bb59e86b"
+    },
+    {
+      "case": "BD",
+      "id": "resp_0d870f3e50213e76016af0b18776c887d2922948520537a06a",
+      "model": "gpt-6.1-terra",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 7224,
+        "input_tokens_details": {
+          "cache_write_tokens": 7221,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1286,
+        "output_tokens_details": {
+          "reasoning_tokens": 552
+        },
+        "total_tokens": 8510
+      },
+      "estimated_usd": "0.01545925",
+      "request_sha256": "7aa00b330eebfe01dfc15ea07f8f74a1ed03ffc2c53cf4f73e5893abb698678a"
+    },
+    {
+      "case": "DB",
+      "id": "resp_05360110a52c5cfa016af0b189b48c87d29d6069841533f1c8",
+      "model": "gpt-6.1-terra",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 7224,
+        "input_tokens_details": {
+          "cache_write_tokens": 7221,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1110,
+        "output_tokens_details": {
+          "reasoning_tokens": 415
+        },
+        "total_tokens": 8334
+      },
+      "estimated_usd": "0.01457925",
+      "request_sha256": "ebf872e3024af57575763d1bd118d28ace06d9532ab1bffbf4c7516247ef3f78"
+    }
+  ]
+}
