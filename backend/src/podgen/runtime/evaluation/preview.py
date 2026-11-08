@@ -84,6 +84,8 @@ def preview_request(
             fact_schema_version=fact_version,
         )
 
+    from podgen.writing.revision import verification
+
     from .reading_workflow import ALL_READING_STAGES, base_stage
 
     if stage in ALL_READING_STAGES:
@@ -91,6 +93,14 @@ def preview_request(
         from .role_request import compile_reading_request
 
         base = base_stage(stage)
+        recheck = None
+        verification_pin = snapshot.manifest.get(verification.KEY) if snapshot else behavior.verification
+        if verification.applies(stage, verification_pin):
+            if snapshot is None:
+                raise ContractError("preview_revision_verification_requires_saved_rewrite")
+            if snapshot.script != inputs["draft"] or snapshot.revision_comparison is None:
+                raise ContractError("preview_revision_verification_source_mismatch")
+            recheck = snapshot.revision_comparison
         instructions = pinned_instructions
         if instructions is None:
             if snapshot:
@@ -124,6 +134,7 @@ def preview_request(
             plan_selection_contract=selection,
             craft_reference=reference,
             revision_context_contract=revision_context,
+            revision_comparison=recheck,
             audience=reading_audience(materials.packet.assignment, snapshot.manifest)
             if snapshot
             else behavior.audience(materials.packet.assignment),

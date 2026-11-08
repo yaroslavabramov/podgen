@@ -8,6 +8,7 @@ from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import ContractError
 from podgen.writing.anchor_selection import AnchorChoices, AnchorRepairPlan
+from podgen.writing.revision import verification
 from podgen.writing.roles import WriteOutput
 
 from .compiler import indexed_script
@@ -31,17 +32,22 @@ LEGACY_REPAIR_INSTRUCTIONS_V1 = (
 def _rejected_feedback(journal, original, request):
     if not is_reading(original["stage"]):
         raise RunFailure("review_anchor_repair_not_eligible")
+    manifest = journal.manifest(original["run_id"])
     feedback, _, _ = rejected_output(
         journal,
         original,
         output_model(
             original["stage"],
-            reader_schema_version=journal.manifest(original["run_id"]).get("reader_review_schema_version"),
-            fact_schema_version=journal.manifest(original["run_id"]).get("fact_review_schema_version"),
+            reader_schema_version=manifest.get("reader_review_schema_version"),
+            revision_verification_contract=manifest.get(verification.KEY),
+            fact_schema_version=manifest.get("fact_review_schema_version"),
         ),
         code="review_anchor_repair_not_eligible",
     )
-    expected_mode = "script_only" if base_stage(original["stage"]) == "reader-review" else "informed"
+    recheck = verification.applies(original["stage"], manifest.get(verification.KEY))
+    expected_mode = (
+        "script_only" if base_stage(original["stage"]) == "reader-review" and not recheck else "informed"
+    )
     if feedback.reading_mode != expected_mode:
         raise RunFailure("review_anchor_repair_not_eligible")
     return feedback

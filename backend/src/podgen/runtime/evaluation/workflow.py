@@ -37,7 +37,12 @@ def output_model(
     fact_schema_version=None,
     projection_version=V1,
     planning_output_contract=None,
+    revision_verification_contract=None,
 ):
+    from podgen.writing.revision.verification import RevisionReading, applies
+
+    if applies(stage, revision_verification_contract):
+        return RevisionReading
     stage = base_stage(stage)
     if stage == "fact-review":
         from podgen.writing.fact_review import feedback_model

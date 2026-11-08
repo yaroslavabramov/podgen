@@ -84,6 +84,10 @@ def feedback_model(version):
 
 def snapshot_model(value):
     """A supplied snapshot selects its published shape; run output uses the manifest pin."""
+    if "assignment_results" in value:
+        from .revision.verification import RevisionReading
+
+        return RevisionReading
     if "revision_scope" not in value:
         return feedback_model(V1)
     scope = value["revision_scope"]
