@@ -6,7 +6,7 @@ from podgen.domain.errors import ContractError
 
 from .craft_reference import attach_reference
 from .duration_views import duration_context
-from .projection_versions import CURRENT, creative_materials, historical, script_handoff
+from .projection_versions import CURRENT, brief_reading_audience, creative_materials, historical, script_handoff
 from .projections import (
     actionable_feedback,
     assignment_view,
@@ -19,12 +19,12 @@ from .projections import (
 from .story_views import editorial_frame, selected_labels
 
 
-def reading_audience(assignment, manifest=None):
-    if manifest is None:
-        return assignment.listener_profile or assignment.audience
-    if "reading_audience" in manifest:
+def reading_audience(assignment, manifest=None, *, projection_version=CURRENT):
+    if manifest is not None and "reading_audience" in manifest:
         return manifest["reading_audience"]
-    # Earlier manifests used this exact default; their previews and unstarted rounds must replay.
+    if manifest is None and brief_reading_audience(projection_version):
+        return assignment.listener_profile or assignment.audience
+    # Older projections and runs without an audience pin used this exact default.
     return assignment.listener_profile or "General listeners; no prior topic knowledge is assumed."
 
 
@@ -46,7 +46,7 @@ def reading_payload(
     packet = materials.packet
     payload = dict(
         script=indexed_draft(script),
-        audience=audience or reading_audience(packet.assignment),
+        audience=audience or reading_audience(packet.assignment, projection_version=projection_version),
         format=materials.format,
         genre=packet.assignment.genre or "podcast",
         output_language=materials.output_language,

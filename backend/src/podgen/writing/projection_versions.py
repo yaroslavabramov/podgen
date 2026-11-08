@@ -38,3 +38,8 @@ def creative_materials(version):
 def script_handoff(version):
     validate_version(version)
     return version in (V7, V8, V9)
+
+
+def brief_reading_audience(version):
+    validate_version(version)
+    return version not in (V1, V2, V3, V4, V5, V6, V7, V8)
