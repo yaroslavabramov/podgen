@@ -4,7 +4,7 @@
   "code_snapshot": "fb6dab557427b91c744fce0f745f4e2989596198",
   "source_packet_sha256": "b52d0f03e8bc24fcee4c10960011557d8fe7e9a3adc74a1f36f721d3a0b080f5",
   "production_card_count": 15,
-  "both_arms_card_count": 17,
+  "both_arms_card_count": 15,
   "production_position_in_common": [
     1,
     2,
@@ -22,11 +22,14 @@
     16,
     17
   ],
-  "stock_sha256": "5bb61a38945c9f12b9c2a4b0f373018ecbfcd83d67a9cb1975936d22a3449330",
+  "stock_sha256": "7ae6ba4c92019f4d380eeb9ad675b92017c5f6b29a17209b3d5afa72300ed333",
   "excerpts": 7,
   "cards_without_editorial_alias": true,
-  "production_to_planned": [
-    "support: use entire 17-card authored dossier in original order, including workhouse and map omitted by plan filter"
+  "production_to_planned": [],
+  "production_messages_byte_identical": true,
+  "unused_dossier_cards": [
+    "Poland Street workhouse",
+    "map"
   ],
   "planned_to_independent": [
     {
@@ -54,7 +57,7 @@
     "independent": 2
   },
   "actual_wire_sha256": {
-    "with-plan": "cea22ba7f790b740f9ce68042864b2a71e5137c01c633891486b63784db648a1",
-    "independent": "f947cae90ab2a7335cd9e77e732c117e7e150e85842ff331eff4e9c6e5f2ed92"
+    "with-plan": "538f849ca94f27620b14c67edeacd9aa179d3cafded6927f0ac0e1a107164be0",
+    "independent": "af7a90c1b2c9bedb8b6fa785520bc2149139990a2ecdf54d316135588003c947"
   }
 }
