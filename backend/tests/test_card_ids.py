@@ -19,6 +19,7 @@ from podgen.writing.card_catalog import catalog
 from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.editorial_schema import packet_schema
 from podgen.writing.model_references import CATALOG_KEY, ModelReferences
+from tests.author_responses import author_response, read_work
 from tests.test_editorial_independence import invoke, payload, prepare
 from tests.test_independent_readings import ReadingProvider
 from tests.test_own_plan import own_dataset as own_dataset
@@ -152,7 +153,7 @@ class CardProvider(ReadingProvider):
         stage = body["metadata"]["podgen_stage"]
         response = json.loads(reply.body)
         content = response["output"][0]["content"][0]
-        output = json.loads(content["text"])
+        output = read_work(body, content["text"])
         if stage == "plan":
             refs = ["Cforeign" if self.bad_plan else self.chosen]
             output["plan"]["opening"]["material_refs"] = refs
@@ -174,7 +175,7 @@ class CardProvider(ReadingProvider):
             ]
             second["observation"] = "Второе независимое замечание."
             output["findings"].append(second)
-        content["text"] = json.dumps(output, ensure_ascii=False)
+        content["text"] = author_response(body, output)
         return WireReply(json.dumps(response, ensure_ascii=False).encode())
 
 

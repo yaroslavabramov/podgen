@@ -4,6 +4,7 @@ import json
 from copy import deepcopy
 
 from podgen.runtime.models.contracts import WireReply
+from tests.author_responses import author_response
 from tests.revision_cases import actual_case, composition, corrections_83, scope
 from tests.test_editorial_independence import payload
 from tests.test_independent_readings import ReadingProvider
@@ -21,7 +22,7 @@ def reply(body, output):
                     dict(
                         type="message",
                         role="assistant",
-                        content=[dict(type="output_text", text=json.dumps(output, ensure_ascii=False))],
+                        content=[dict(type="output_text", text=author_response(body, output))],
                     )
                 ],
                 usage=dict(input_tokens=100, output_tokens=100),

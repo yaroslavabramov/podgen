@@ -20,6 +20,12 @@ def assemble(command, parent, binding):
     )
     for field in ("prompt_refs", "role_instructions_versions", "response_schemas"):
         manifest[field] = {stage: manifest[field][stage] for stage in stages}
+    if "writer_response_contract" in manifest:
+        from podgen.writing.author_reply import contract_pin, verify_pin
+
+        labels = parent["writer_response_contract"]["speakers"]
+        verify_pin(parent, labels)
+        manifest["writer_response_contract"] = contract_pin(manifest, labels)
     return manifest
 
 

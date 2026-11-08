@@ -4,6 +4,7 @@ import json
 from copy import deepcopy
 
 from podgen.runtime.models.contracts import WireReply
+from tests.author_responses import author_response
 from tests.own_plan_provider import proposal
 
 
@@ -133,7 +134,7 @@ class IndependentPlannerProvider:
                         dict(
                             type="message",
                             role="assistant",
-                            content=[dict(type="output_text", text=json.dumps(output, ensure_ascii=False))],
+                            content=[dict(type="output_text", text=author_response(body, output))],
                         )
                     ],
                     usage=dict(input_tokens=100, output_tokens=100),

@@ -8,6 +8,7 @@ from uuid import uuid4
 from podgen.domain.contracts.common import BlobRef, RuntimeRef
 from podgen.domain.errors import Conflict
 
+from . import author_material
 from .contracts import STAGES
 from .journal import EvaluationJournal
 from .usage import refused_without_generation
@@ -145,6 +146,17 @@ def export_run(repo, project, run_id, directory):
         )
         if selected["output_record_id"]:
             output = journal.output(selected)
+            if output.get("contract") == author_material.CONTRACT:
+                stopped = author_material.result(output)
+                write_json(Path("material-request.json"), output)
+                if stopped["last_script_ref"] is not None:
+                    write_json(Path("last-script-ref.json"), stopped["last_script_ref"])
+                need = output["material_request"]
+                review = f"{need['question']}\n\n{need['why_needed']}\n"
+                _write(directory / "review-result.md", review.encode())
+                result["writer_material_request"] = stopped
+                result["review_status"] = stopped["review_status"]
+                continue
             write_json(Path(stage + ".json"), output)
             if base_stage(stage) in ("draft", "revise"):
                 _write(
@@ -183,7 +195,7 @@ def export_run(repo, project, run_id, directory):
                         + "\n"
                     ).encode(),
                 )
-    if manifest.get("review_workflow") == VERSION:
+    if manifest.get("review_workflow") == VERSION and "writer_material_request" not in result:
         from .reading_export import export_readings
 
         result.update(

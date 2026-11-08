@@ -14,6 +14,7 @@ from podgen.runtime.evaluation.contracts import WritingRunCommand
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.reading_stage import execute_reading_stage
 from podgen.runtime.models.contracts import WireReply
+from tests.author_responses import author_response
 from tests.test_editorial_independence import invoke, payload, prepare
 from tests.test_independent_readings import Paused, ReadingProvider, setup_review
 from tests.test_own_plan import own_dataset as own_dataset
@@ -65,7 +66,7 @@ class EditingProvider(ReadingProvider):
                                 type="message",
                                 role="assistant",
                                 content=[
-                                    dict(type="output_text", text=json.dumps(result, ensure_ascii=False))
+                                    dict(type="output_text", text=author_response(body, result))
                                 ],
                             )
                         ],

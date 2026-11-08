@@ -12,6 +12,7 @@ from podgen.writing.model_references import CATALOG_KEY, run_references
 from podgen.writing.projection_versions import script_handoff
 from podgen.writing.roles import WriteOutput
 
+from . import author_material
 from .contracts import RunFailure
 from .profiles import load_profile
 from .reading_workflow import VERSION, base_stage
@@ -136,6 +137,19 @@ def execute_reading_stage(
             guard=guard,
         )
         try:
+            raw = author_material.unwrap(raw, stage, manifest.get("role_projection_version"))
+            if isinstance(raw, author_material.MaterialRequest):
+                author_material.pause(
+                    journal,
+                    command,
+                    invocation,
+                    raw,
+                    script_ref=script_ref,
+                    script=script,
+                    totals=totals,
+                    prior=prior,
+                    profile=profile,
+                )
             load_unique_json(raw)
             repair_choices = None
             if invocation["operation_kind"] == "anchor_repair":

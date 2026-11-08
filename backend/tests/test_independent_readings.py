@@ -15,6 +15,7 @@ from podgen.runtime.evaluation.reading_outcome import read_outcome
 from podgen.runtime.evaluation.reading_workflow import VERSION
 from podgen.runtime.models.contracts import WireReply
 from podgen.writing.prompts import load_reading_instructions
+from tests.author_responses import author_response
 from tests.independent_planner_provider import IndependentPlannerProvider
 from tests.test_editorial_independence import invoke, payload, prepare
 from tests.test_own_plan import own_dataset as own_dataset
@@ -169,7 +170,7 @@ class ReadingProvider:
                         dict(
                             type="message",
                             role="assistant",
-                            content=[dict(type="output_text", text=json.dumps(result, ensure_ascii=False))],
+                            content=[dict(type="output_text", text=author_response(body, result))],
                         )
                     ],
                     usage=dict(input_tokens=100, output_tokens=100),

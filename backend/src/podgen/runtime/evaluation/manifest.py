@@ -8,6 +8,7 @@ from uuid import uuid5
 
 from podgen.domain.contracts.common import CodeProducer
 from podgen.persistence.repository import timestamp
+from podgen.writing.author_reply import contract_pin, offered
 from podgen.writing.craft_reference import load_reference
 from podgen.writing.model_references import CATALOG_KEY, bind_schema, preview_references
 from podgen.writing.projection_versions import CURRENT
@@ -155,6 +156,8 @@ def create_manifest(repo, generation, command, journal, materials):
         from podgen.writing.projections import SINGLE_INPUT_TOKEN_LIMIT, VISIBLE_BYTES_LIMIT
 
         manifest["role_projection_version"] = CURRENT
+        if offered("draft", CURRENT):
+            manifest["writer_response_contract"] = contract_pin(manifest, materials.speaker_labels)
         manifest["role_input_budget"] = dict(
             visible_bytes=VISIBLE_BYTES_LIMIT, input_tokens=SINGLE_INPUT_TOKEN_LIMIT
         )

@@ -26,6 +26,10 @@ def preview_request(run_id, stage, profile, materials, *, snapshot=None, **input
     from .planning_continuation.preview import validate as validate_continuation_preview
     from .preview_inputs import validate_preview_inputs, validate_preview_snapshots
 
+    if snapshot:
+        from podgen.writing.author_reply import verify_pin
+
+        verify_pin(snapshot.manifest, materials.speaker_labels)
     validate_preview_inputs(stage, fixed=materials.fixed is not None, inputs=inputs)
     validate_preview_snapshots(stage, materials, inputs)
     validate_continuation_preview(stage, snapshot, inputs)

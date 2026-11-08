@@ -8,6 +8,7 @@ from podgen import writing_cli
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.models.contracts import WireReply
 from podgen.writing.reader_schema import VERSION
+from tests.author_responses import author_response, read_work
 from tests.test_craft_reference import reference_resource
 from tests.test_editorial_independence import invoke, payload, prepare
 from tests.test_independent_readings import Paused
@@ -25,11 +26,11 @@ class WholeEpisodeProvider(EditingProvider):
         if body["metadata"]["podgen_stage"] == "draft":
             envelope = json.loads(reply.body)
             content = envelope["output"][0]["content"][0]
-            script = json.loads(content["text"])
+            script = read_work(body, content["text"])
             for index, row in enumerate(script["utterances"]):
                 row["text"] = f"Эпизод {index}. " + row["text"]
             self.original = script
-            content["text"] = json.dumps(script, ensure_ascii=False)
+            content["text"] = author_response(body, script)
             reply = WireReply(json.dumps(envelope, ensure_ascii=False).encode())
         if (
             body["metadata"]["podgen_stage"] == "reader-review"

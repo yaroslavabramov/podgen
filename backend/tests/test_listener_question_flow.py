@@ -10,6 +10,7 @@ from podgen import writing_cli
 from podgen.runtime.models.contracts import WireReply
 from podgen.writing.plan_views import candidate_view
 from podgen.writing.projection_versions import CURRENT
+from tests.author_responses import author_response
 from tests.test_editorial_independence import invoke, payload, prepare
 from tests.test_own_plan import own_dataset as own_dataset
 
@@ -83,7 +84,7 @@ class QuestionFlowProvider:
                         dict(
                             type="message",
                             role="assistant",
-                            content=[dict(type="output_text", text=json.dumps(output, ensure_ascii=False))],
+                            content=[dict(type="output_text", text=author_response(body, output))],
                         )
                     ],
                     usage=dict(input_tokens=100, output_tokens=100),

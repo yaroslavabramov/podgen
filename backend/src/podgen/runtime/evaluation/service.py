@@ -10,6 +10,7 @@ from podgen.writing.materials import load_author_materials, load_own_plan_materi
 from podgen.writing.model_references import bind_schema, run_references
 from podgen.writing.projection_versions import manifest_version
 
+from . import author_material
 from .compiler import COMPILER_VERSION, materials_hash
 from .completion import completed_result
 from .contracts import STAGES, RunFailure, WritingRunCommand, command_payload
@@ -80,31 +81,35 @@ class WritingEvaluation:
                 if existing["input_fingerprint"] != digest(command_payload(command)):
                     raise Conflict("run_id_reused_with_different_input")
                 manifest = journal.manifest(command.run_id)
+                terminal = None
+                if author_material.offered("draft", manifest.get("role_projection_version")):
+                    from podgen.writing.author_reply import verify_pin
+
+                    verify_pin(manifest, self._materials(command).speaker_labels)
+                    terminal = author_material.saved_result(journal, command)
                 if command.planning_parent_run_id is not None:
                     from .planning_continuation.source import verify
 
                     verify(journal, command, manifest, self._materials(command))
-                if independent(command):
+                if terminal is None and independent(command):
                     from .reading_outcome import outcome_result, read_outcome
 
                     outcome = read_outcome(journal, command.run_id)
                     if outcome is not None:
-                        if (
-                            materials_hash(self._materials(command).as_payload())
-                            != manifest["materials_hash"]
-                        ):
-                            raise Conflict("frozen_materials_changed")
-                        authorize_recovery(
-                            journal,
-                            command,
-                            credit_target=retry_credit_refusal,
-                            plan_target=repair_plan_targets,
-                            guard=lambda: None,
-                            allow_create=False,
-                        )
-                        result = outcome_result(outcome, command)
-                        journal.status(command.run_id, result["status"], result["failure_code"])
-                        return result
+                        terminal = outcome_result(outcome, command)
+                if terminal is not None:
+                    if materials_hash(self._materials(command).as_payload()) != manifest["materials_hash"]:
+                        raise Conflict("frozen_materials_changed")
+                    authorize_recovery(
+                        journal,
+                        command,
+                        credit_target=retry_credit_refusal,
+                        plan_target=repair_plan_targets,
+                        guard=lambda: None,
+                        allow_create=False,
+                    )
+                    journal.status(command.run_id, terminal["status"], terminal["failure_code"])
+                    return terminal
                 saved = [journal.invocation(command.run_id, stage) for stage in STAGES]
                 finalized = False
                 if command.input_contract == "editorial-role-packets/1":
@@ -275,6 +280,9 @@ class WritingEvaluation:
                     totals["input"] += result.input_tokens
                     totals["output"] += result.output_tokens_or_reservation
                 journal.status(command.run_id, "completed_unaccepted")
+            except author_material.NeedsWritingMaterial as stop:
+                journal.status(command.run_id, stop.result["status"], stop.result["failure_code"])
+                return stop.result
             except (RunFailure, ContractError) as error:
                 journal.status(command.run_id, "needs_attention", error.code)
                 raise

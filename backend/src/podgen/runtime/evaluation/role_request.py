@@ -1,5 +1,6 @@
 """One compiler boundary for all modern semantic projections and offline previews."""
 
+from podgen.writing.author_reply import offered, wire_schema
 from podgen.writing.model_references import bind_schema, preview_references
 from podgen.writing.projection_versions import CURRENT
 from podgen.writing.projections import role_payload, validate_model_content
@@ -24,6 +25,8 @@ def compile_role_request(
     if references is not None:
         payload = references.translate(payload)
         schema = bind_schema(schema, references)
+    if offered(stage, projection_version):
+        schema = wire_schema(schema, speaker_labels=materials.speaker_labels)
     validate_model_content(dict(instructions=instructions, schema=schema), materials.documents)
     body = response_request(run_id, stage, profile, payload, instructions, schema)
     return body
@@ -41,4 +44,6 @@ def compile_reading_request(
     if references is not None:
         payload = references.translate(payload)
         schema = bind_schema(schema, references)
+    if offered(stage, inputs.get("projection_version", CURRENT)):
+        schema = wire_schema(schema, speaker_labels=materials.speaker_labels)
     return response_request(run_id, stage, profile, payload, instructions, schema)

@@ -12,6 +12,7 @@ from podgen.writing.craft_reference import pinned_reference
 from podgen.writing.model_references import CATALOG_KEY, run_references
 from podgen.writing.projection_versions import manifest_version, script_handoff
 
+from . import author_material
 from .compiler import COMPILER_VERSION, compile_request
 from .contracts import RunFailure
 from .profiles import load_profile
@@ -144,6 +145,19 @@ def execute_stage(
             if invocation["operation_kind"] == "anchor_repair":
                 output, repair_choices = apply_anchor_repair(journal, invocation, raw, draft=outputs["draft"])
             else:
+                raw = author_material.unwrap(raw, stage, manifest.get("role_projection_version"))
+                if isinstance(raw, author_material.MaterialRequest):
+                    author_material.pause(
+                        journal,
+                        command,
+                        invocation,
+                        raw,
+                        script_ref=records.get("draft"),
+                        script=outputs.get("draft"),
+                        totals=totals,
+                        prior=prior,
+                        profile=profile,
+                    )
                 output = validate_output(
                     stage, raw, speaker_labels=materials.speaker_labels, draft=outputs.get("draft")
                 )

@@ -25,6 +25,7 @@ from podgen.runtime.evaluation.service import WritingEvaluation
 from podgen.runtime.models.contracts import WireReply
 from podgen.writing.projection_versions import V6
 from podgen.writing.projections import role_payload
+from tests.author_responses import author_response, read_work
 from tests.test_writing_evaluation import setup_writer as setup_writer
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -212,7 +213,7 @@ class LocalProvider:
                         dict(
                             type="message",
                             role="assistant",
-                            content=[dict(type="output_text", text=json.dumps(output, ensure_ascii=False))],
+                            content=[dict(type="output_text", text=author_response(body, output))],
                         )
                     ],
                     usage=dict(input_tokens=self.tokens, output_tokens=20),
@@ -444,7 +445,7 @@ def test_compact_anchor_repair_rejects_unoffered_real_selector(repo, editorial, 
                 )
             else:
                 response = json.loads(reply.body)
-                output = json.loads(response["output"][0]["content"][0]["text"])
+                output = read_work(body, response["output"][0]["content"][0]["text"])
                 if stage == "draft":
                     output = script
                 if stage == "review":
@@ -459,7 +460,7 @@ def test_compact_anchor_repair_rejects_unoffered_real_selector(repo, editorial, 
                             preserve=[],
                         )
                     ]
-                response["output"][0]["content"][0]["text"] = json.dumps(output, ensure_ascii=False)
+                response["output"][0]["content"][0]["text"] = author_response(body, output)
             return WireReply(json.dumps(response, ensure_ascii=False).encode())
 
     profile = create_profile(repo, project, model="local-double", context_limit=1050000, output_limit=32768)
