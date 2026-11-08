@@ -122,13 +122,22 @@ def test_exact_v5_wire_survives_every_recovery_boundary(own_dataset, tmp_path, m
     assert review["output"]["findings"][0]["material_refs"] == [refs.card_ids[0]]
     assert review["wire_output"]["findings"][0]["material_refs"] == ["M1"]
     views = {body["metadata"]["podgen_stage"]: payload(body) for body in inner.requests}
+    initial = views["plan"]["dossier"]["knowledge_cards"]
     for stage in ("plan-review", "plan-review-revised"):
         actual = next(
-            payload(body)
+            payload(body)["dossier"]
             for body in inner.requests
             if body["metadata"]["podgen_stage"] == stage and "dossier" in payload(body)
         )
-        assert actual["dossier"] == views["plan"]["dossier"]
+        assert actual["summary"] == packet.dossier.summary
+        assert actual["throughline_constraints"] == packet.dossier.throughline_constraints
+        assert actual["threads"] == refs.translate(
+            [thread.model_dump(mode="json") for thread in packet.dossier.threads]
+        )
+        cards = actual["knowledge_cards"]
+        assert [row["label"] for row in cards] == [row.label for row in packet.dossier.knowledge_cards]
+        for compact, reviewed in zip(initial, cards, strict=True):
+            assert {key: reviewed[key] for key in compact} == compact
     assert set(views["plan-revise"]["dossier"]) == {"knowledge_cards"}
     assert views["draft"]["story"]["main_question"] == "The accepted question remains whole?"
     assert views["draft"]["story"]["acts"][0]["prerequisite_concepts"] == ["A prerequisite remains complete."]
