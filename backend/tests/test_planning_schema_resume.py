@@ -78,7 +78,7 @@ def test_pending_planning_schema_is_pinned_and_drift_still_blocks_resume(
     assert len(provider.requests) == call_count
     monkeypatch.setattr(service_module, "response_schema", response_schema)
     monkeypatch.setattr(
-        manifest_module, "load_instruction_set", lambda *a, **k: pytest.fail("Resume must use pinned prompts")
+        manifest_module, "resolve_behavior", lambda *a, **k: pytest.fail("Resume must use pinned prompts")
     )
     provider.pause = None
     assert invoke(prefix, "resume", run_id=options["run_id"], export_dir=tmp_path / "export") == 0

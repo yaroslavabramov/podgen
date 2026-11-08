@@ -5,8 +5,7 @@ import json
 import pytest
 
 from podgen import writing_cli
-from podgen.runtime.evaluation import manifest as manifest_module
-from podgen.runtime.evaluation import preview as preview_module
+from podgen.writing.behavior import BehaviorProfile
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from tests.test_craft_reference import reference_resource
 from tests.test_editorial_independence import invoke, payload, prepare
@@ -40,8 +39,7 @@ def test_native_reference_is_immutable_in_run_preview_and_resume(own_dataset, tm
     assert ("revision_context_contract" in manifest) == (mode == "current")
     pending = journal.request(journal.invocation(options["run_id"], "revise-1"))
     resource.write_text("Совсем новый образец, не для этого запуска.")
-    for module, name in ((preview_module, "load_reference"), (manifest_module, "load_reference")):
-        monkeypatch.setattr(module, name, lambda *a: pytest.fail("Use the immutable reference"))
+    monkeypatch.setattr(BehaviorProfile, "craft", lambda *a: pytest.fail("Use the immutable reference"))
     script_files = {}
     for name in ("draft", "plan", "reader-review", "fact-review"):
         script_files[name] = tmp_path / (name + ".json")
@@ -102,7 +100,7 @@ def test_read_only_imported_script_run_does_not_load_an_author_reference(own_dat
     resource.unlink()
     prefix, options, _ = setup_review(own_dataset, tmp_path, monkeypatch)
     options["max_script_revisions"] = 0
-    monkeypatch.setattr(manifest_module, "load_reference", lambda *a: pytest.fail("No author role executes"))
+    monkeypatch.setattr(BehaviorProfile, "craft", lambda *a: pytest.fail("No author role executes"))
     provider = ReadingProvider()
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *a, **k: provider)
     assert invoke(prefix, "run", **options) == 0

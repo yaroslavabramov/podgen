@@ -165,19 +165,19 @@ def test_installed_resume_and_replay_use_archived_bodies_without_prompt_files(
 ):
     command, loader, _ = setup_writer
     if historical_version:
-        from podgen.runtime.evaluation import manifest as service
+        from podgen.writing.behavior import BehaviorProfile
 
-        monkeypatch.setattr(
-            service,
-            "load_instruction_set",
-            lambda format: {
-                stage: prompts.RoleInstructions(
-                    historical_version,
-                    prompts.role_instructions_for_version(stage, format, version=historical_version),
-                )
-                for stage in ("draft", "review", "revise")
-            },
-        )
+        released = BehaviorProfile.instructions
+
+        def recorded_role(profile, stage, format):
+            if stage not in ("draft", "review", "revise"):
+                return released(profile, stage, format)
+            return prompts.RoleInstructions(
+                historical_version,
+                prompts.role_instructions_for_version(stage, format, version=historical_version),
+            )
+
+        monkeypatch.setattr(BehaviorProfile, "instructions", recorded_role)
         create_run = EvaluationJournal.create_run
 
         def legacy_manifest(journal, command, manifest):

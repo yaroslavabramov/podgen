@@ -429,8 +429,8 @@ def test_resume_uses_archived_prompts_after_editor_publishes_new_version(
     monkeypatch.setattr(prompts, "files", lambda _: resources)
     assert prompts.role_instructions("revise", "dialogue") != saved_revise_body
     monkeypatch.setattr(
-        __import__("podgen.runtime.evaluation.manifest", fromlist=["load_instruction_set"]),
-        "load_instruction_set",
+        __import__("podgen.runtime.evaluation.manifest", fromlist=["resolve_behavior"]),
+        "resolve_behavior",
         lambda *args: pytest.fail("must not read current resources for an existing run"),
     )
     # A complete stored run must not inspect the newly published role templates.
@@ -478,8 +478,8 @@ def test_late_completed_replay_ignores_new_budgets_compiler_and_prompts(
     monkeypatch.setattr(service, "datetime", FutureDatetime)
     monkeypatch.setattr(service, "COMPILER_VERSION", "some-future-compiler")
     monkeypatch.setattr(
-        __import__("podgen.runtime.evaluation.manifest", fromlist=["load_instruction_set"]),
-        "load_instruction_set",
+        __import__("podgen.runtime.evaluation.manifest", fromlist=["resolve_behavior"]),
+        "resolve_behavior",
         lambda *args: pytest.fail("must not read live prompts"),
     )
 

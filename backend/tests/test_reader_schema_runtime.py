@@ -12,7 +12,8 @@ from podgen.runtime.evaluation import service as service_module
 from podgen.runtime.evaluation.contracts import WritingRunCommand
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.role_schema import response_schema
-from podgen.writing.prompts import RoleInstructions, load_reading_instructions
+from podgen.writing.behavior import BehaviorProfile
+from podgen.writing.prompts import RoleInstructions
 from podgen.writing.reader_schema import FIELDS, VERSION
 from podgen.writing.reader_schema import V1 as READER_V1
 from podgen.writing.reader_schema import V4 as READER_V4
@@ -40,14 +41,16 @@ def test_cli_reader_schema_preview_and_resume_keep_their_pinned_semantics(
         old_wire = root / "evals/reports/2026-11-08-story-editing/controls/cases/a/request.json"
         old_body = json.loads(old_wire.read_text())["instructions"]
 
-        def historical_prompt(stage):
+        released = BehaviorProfile.instructions
+
+        def historical_prompt(profile, stage, format):
             if stage == "reader-review":
                 return RoleInstructions(
                     "reader-review/sha256:" + sha256(old_body.encode()).hexdigest(), old_body
                 )
-            return load_reading_instructions(stage)
+            return released(profile, stage, format)
 
-        monkeypatch.setattr("podgen.writing.prompts.load_reading_instructions", historical_prompt)
+        monkeypatch.setattr(BehaviorProfile, "instructions", historical_prompt)
     if source == "native":
         prefix, _, options, _, _ = prepare(own_dataset, "snow-pump", tmp_path, monkeypatch)
         options["review_mode"] = "independent-readings/1"
@@ -138,7 +141,7 @@ def test_cli_reader_schema_preview_and_resume_keep_their_pinned_semantics(
         assert len(provider.requests) == count
         monkeypatch.setattr(service_module, "response_schema", response_schema)
     monkeypatch.setattr(
-        "podgen.writing.prompts.load_reading_instructions",
+        BehaviorProfile, "instructions",
         lambda *a: pytest.fail("Resume must use pinned instructions"),
     )
     provider.pause = None

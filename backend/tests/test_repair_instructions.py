@@ -23,7 +23,7 @@ def test_legacy_repair_suffix_is_byte_identical():
 
 
 @pytest.mark.parametrize("legacy", [False, True])
-def test_edit_repair_file_pins_new_runs_and_never_rebuilds_existing_attempt(
+def test_editing_current_repair_does_not_change_released_or_existing_runs(
     repo, setup_writer, tmp_path, monkeypatch, legacy
 ):
     resources = tmp_path / "resources"
@@ -61,7 +61,7 @@ def test_edit_repair_file_pins_new_runs_and_never_rebuilds_existing_attempt(
     with pytest.raises(RunFailure, match="role_output_validation_failed"):
         run(repo, later, loader, FakeProvider(fault="anchor"))
     later_manifest = journal.manifest(later.run_id)
-    assert later_manifest["anchor_repair_instructions"] == asdict(edited_suffix)
+    assert later_manifest["anchor_repair_instructions"] == asdict(initial_suffix)
     assert later_manifest["role_instructions_versions"] == manifest["role_instructions_versions"]
 
     draft_invocation = journal.invocation(command.run_id, "draft")
