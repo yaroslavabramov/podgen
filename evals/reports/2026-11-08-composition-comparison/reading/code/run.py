@@ -113,7 +113,7 @@ def prepare():
         }
         user = {
             "assignment": assignment.question,
-            "audience": assignment.listener_profile or assignment.listener,
+            "audience": assignment.listener_profile or assignment.audience,
             "genre": assignment.genre,
             "requested_seconds": assignment.duration.model_dump(mode="json"),
             "output_language": assignment.output_language,
