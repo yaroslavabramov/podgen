@@ -86,6 +86,71 @@
       "title": "PlanProposal",
       "type": "object"
     },
+    "PlanProposalV9": {
+      "additionalProperties": false,
+      "properties": {
+        "main_question": {
+          "minLength": 1,
+          "title": "Main Question",
+          "type": "string"
+        },
+        "listener_promise": {
+          "minLength": 1,
+          "title": "Listener Promise",
+          "type": "string"
+        },
+        "working_answer": {
+          "description": "Provisional supported answer, including justified uncertainty.",
+          "minLength": 1,
+          "title": "Working Answer",
+          "type": "string"
+        },
+        "route_summary": {
+          "description": "Connected route from initial understanding to the ending.",
+          "minLength": 1,
+          "title": "Route Summary",
+          "type": "string"
+        },
+        "opening": {
+          "$ref": "#/$defs/PlanningOpening"
+        },
+        "acts": {
+          "items": {
+            "$ref": "#/$defs/PlanningAct"
+          },
+          "minItems": 1,
+          "title": "Acts",
+          "type": "array"
+        },
+        "ending": {
+          "$ref": "#/$defs/PlanningFinalMoment"
+        },
+        "host_functions": {
+          "items": {
+            "$ref": "#/$defs/PlanningHostFunction"
+          },
+          "minItems": 1,
+          "title": "Host Functions",
+          "type": "array"
+        },
+        "duration_strategy": {
+          "$ref": "#/$defs/PlanningDurationStrategy"
+        }
+      },
+      "required": [
+        "main_question",
+        "listener_promise",
+        "working_answer",
+        "route_summary",
+        "opening",
+        "acts",
+        "ending",
+        "host_functions",
+        "duration_strategy"
+      ],
+      "title": "PlanProposalV9",
+      "type": "object"
+    },
     "PlanningAct": {
       "additionalProperties": false,
       "properties": {
@@ -245,6 +310,38 @@
       "title": "PlanningEnding",
       "type": "object"
     },
+    "PlanningFinalMoment": {
+      "additionalProperties": false,
+      "properties": {
+        "last_moment": {
+          "description": "The chosen last action, observation, discovery or thought the listener encounters; not a recap of the episode's answer or prescribed spoken lines.",
+          "minLength": 1,
+          "title": "Last Moment",
+          "type": "string"
+        },
+        "why_end_here": {
+          "description": "Why this is the stopping point for the chosen story and promise; what remains with the listener without another summary.",
+          "minLength": 1,
+          "title": "Why End Here",
+          "type": "string"
+        },
+        "promises_to_close": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Promises To Close",
+          "type": "array"
+        }
+      },
+      "required": [
+        "last_moment",
+        "why_end_here",
+        "promises_to_close"
+      ],
+      "title": "PlanningFinalMoment",
+      "type": "object"
+    },
     "PlanningHostFunction": {
       "additionalProperties": false,
       "properties": {
@@ -354,6 +451,52 @@
         "research_requests"
       ],
       "title": "PlanningOutput",
+      "type": "object"
+    },
+    "PlanningOutputV9": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "ready",
+            "needs_research"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "plan": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanProposalV9"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Complete selected story, or null when material cannot support one."
+        },
+        "limitations": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "research_requests": {
+          "items": {
+            "$ref": "#/$defs/PlanningResearchRequest"
+          },
+          "title": "Research Requests",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status",
+        "plan",
+        "research_requests"
+      ],
+      "title": "PlanningOutputV9",
       "type": "object"
     },
     "PlanningResearchRequest": {
@@ -470,7 +613,15 @@
       "$ref": "#/$defs/FixedSourceDocument"
     },
     "plan": {
-      "$ref": "#/$defs/PlanningOutput"
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PlanningOutputV9"
+        },
+        {
+          "$ref": "#/$defs/PlanningOutput"
+        }
+      ],
+      "title": "Plan"
     }
   },
   "required": [

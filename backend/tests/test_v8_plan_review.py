@@ -10,9 +10,10 @@ import pytest
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.persistence.editorial_inputs import EditorialMaterials
 from podgen.runtime.evaluation.preview import preview_request
+from podgen.runtime.evaluation.preview_snapshot import PreviewSnapshot
 from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.writing.editorial_contract import EditorialInput
-from podgen.writing.model_references import ModelReferences, bind_schema, preview_references
+from podgen.writing.model_references import CATALOG_KEY, ModelReferences, bind_schema, preview_references
 from podgen.writing.plan_review_descriptions import FIELDS
 from podgen.writing.projection_versions import V7, V8
 from podgen.writing.projections import role_payload
@@ -33,7 +34,15 @@ def test_v8_changes_only_model_facing_meaning_and_places_the_decision_after_the_
         assert new["properties"][name]["description"] == description
     assert new["required"] == old["required"]
     materials, _, plan, profile, *_ = fixture()
-    request = preview_request(uuid4(), stage, profile, materials, candidate=plan)
+    snapshot = PreviewSnapshot(
+        manifest=dict(
+            role_projection_version=V8,
+            response_schemas={stage: new},
+            **{CATALOG_KEY: preview_references(materials, V8).as_payload()},
+        ),
+        instructions="Pinned V8 review instructions.",
+    )
+    request = preview_request(uuid4(), stage, profile, materials, candidate=plan, snapshot=snapshot)
     assert request["text"]["format"]["schema"] == bind_schema(new, preview_references(materials, V8))
 
 
@@ -54,10 +63,25 @@ def test_v8_matches_the_experiment_exactly_and_keeps_all_evidence_and_aliases(st
     new = role_payload(stage, materials, candidate=plan, projection_version=V8)
     assert new == dict(old, dossier=creative)
     assert set(creative) == {"knowledge_cards"}
-    critical_excerpt = packet.dossier.knowledge_cards[-1].excerpts[-1].text
+    critical_excerpt = next(
+        excerpt.text
+        for card in packet.dossier.knowledge_cards
+        for excerpt in card.excerpts
+        if "cannot now be dis-\ncovered" in excerpt.text
+    )
     assert "cannot now be dis-\ncovered" in critical_excerpt
     assert any(passage["text"] == critical_excerpt for passage in new["evidence"])
-    request = preview_request(uuid4(), stage, fixture()[3], materials, candidate=plan)
+    pinned = PreviewSnapshot(
+        manifest=dict(
+            role_projection_version=V8,
+            response_schemas={
+                stage: response_schema(stage, "editorial-role-packets/1", projection_version=V8)
+            },
+            **{CATALOG_KEY: refs.as_payload()},
+        ),
+        instructions="Pinned V8 review instructions.",
+    )
+    request = preview_request(uuid4(), stage, fixture()[3], materials, candidate=plan, snapshot=pinned)
     from tests.test_editorial_independence import payload
 
     assert payload(request) == refs.translate(new)
@@ -75,7 +99,7 @@ def test_legacy_cards_without_story_facts_keep_the_full_supported_claim_and_cont
         dict(material_catalog=materials.material_catalog, speaker_labels=materials.speaker_labels), "legacy"
     )
     for stage in ("plan-review", "plan-review-revised"):
-        view = role_payload(stage, materials, candidate=plan)
+        view = role_payload(stage, materials, candidate=plan, projection_version=V8)
         for actual, card in zip(
             view["dossier"]["knowledge_cards"], packet.dossier.knowledge_cards, strict=True
         ):

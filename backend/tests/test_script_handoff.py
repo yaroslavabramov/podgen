@@ -15,7 +15,7 @@ from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.writing.duration_views import duration_context
 from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.model_references import ModelReferences
-from podgen.writing.projection_versions import CURRENT, V6, V7
+from podgen.writing.projection_versions import V6, V7, V8
 from podgen.writing.projections import actionable_feedback, role_payload
 from podgen.writing.reading_views import reading_payload
 from tests.test_editorial_independence import payload
@@ -69,7 +69,7 @@ def test_pre_change_payload_and_schema_bytes_stay_reproducible(version):
         frozen = response_schema(stage, "editorial-role-packets/1", projection_version=version)
         assert wire_hash(frozen) == hash_value
         if not stage.startswith("plan-review"):
-            assert response_schema(stage, "editorial-role-packets/1", projection_version=CURRENT) == frozen
+            assert response_schema(stage, "editorial-role-packets/1", projection_version=V8) == frozen
 
 
 @pytest.mark.parametrize("case", ["snow-pump", "gps-clock"])

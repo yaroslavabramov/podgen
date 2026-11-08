@@ -68,7 +68,8 @@ def expected_current_story(proposal):
         route_summary=plan["route_summary"],
         authority="revisable_authorial_decisions",
         listener_promise=plan["listener_promise"],
-        conclusion=dict(meaning=plan["ending"]["answer_to_deliver"]),
+        episode_answer=plan["working_answer"],
+        ending=deepcopy(plan["ending"]) if "last_moment" in plan["ending"] else None,
         opening={key: plan["opening"][key] for key in ("approach", "question_to_open")},
         duration_strategy=dict(estimated_seconds_range=plan["duration_strategy"]["estimated_seconds_range"]),
         acts=[

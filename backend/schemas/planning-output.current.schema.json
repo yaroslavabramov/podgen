@@ -1,13 +1,13 @@
 {
   "$defs": {
-    "PlanProposal": {
+    "PlanProposalV9": {
       "additionalProperties": false,
       "properties": {
         "main_question": {
           "minLength": 1,
           "title": "Main Question",
           "type": "string",
-          "description": "Central question of the episode for this audience; the opening may raise the same question or a local one."
+          "description": "The central question of the selected story for this audience; preserve an explicit client question, and prepare the premises a newcomer needs to follow it."
         },
         "listener_promise": {
           "minLength": 1,
@@ -16,13 +16,13 @@
           "description": "What following the chosen story offers this audience."
         },
         "working_answer": {
-          "description": "The chosen answer to the episode's question, with the context needed to understand it.",
+          "description": "The supported meaning or answer established across the complete episode, including uncertainty that changes it. This is not a required final speech or the selected last moment.",
           "minLength": 1,
           "title": "Working Answer",
           "type": "string"
         },
         "route_summary": {
-          "description": "The chosen story from opening to ending: what happens or becomes clear, how its developments connect, and where they lead.",
+          "description": "The central story from its prepared opening through connected developments to the chosen last moment. Select or combine branches that repeat the same contribution; keep event chronology and the timing of discoveries accurate.",
           "minLength": 1,
           "title": "Route Summary",
           "type": "string"
@@ -39,7 +39,7 @@
           "type": "array"
         },
         "ending": {
-          "$ref": "#/$defs/PlanningEnding"
+          "$ref": "#/$defs/PlanningFinalMoment"
         },
         "host_functions": {
           "items": {
@@ -64,7 +64,7 @@
         "host_functions",
         "duration_strategy"
       ],
-      "title": "PlanProposal",
+      "title": "PlanProposalV9",
       "type": "object"
     },
     "PlanningAct": {
@@ -101,7 +101,7 @@
           },
           "title": "Prerequisite Concepts",
           "type": "array",
-          "description": "Technical knowledge needed to follow this part; an empty list is valid."
+          "description": "Situational premises or concepts this audience needs before following this part; establish them earlier or introduce them before the dependent question or discovery. Empty is valid when none are needed."
         },
         "material_refs": {
           "description": "Exact supplied locators supporting this act's reasoning.",
@@ -192,14 +192,20 @@
       "title": "PlanningDurationStrategy",
       "type": "object"
     },
-    "PlanningEnding": {
+    "PlanningFinalMoment": {
       "additionalProperties": false,
       "properties": {
-        "answer_to_deliver": {
+        "last_moment": {
+          "description": "The chosen last action, observation, discovery or thought the listener encounters; not a recap of the episode's answer or prescribed spoken lines.",
           "minLength": 1,
-          "title": "Answer To Deliver",
-          "type": "string",
-          "description": "The answer reached at the ending."
+          "title": "Last Moment",
+          "type": "string"
+        },
+        "why_end_here": {
+          "description": "Why this is the stopping point for the chosen story and promise; what remains with the listener without another summary.",
+          "minLength": 1,
+          "title": "Why End Here",
+          "type": "string"
         },
         "promises_to_close": {
           "items": {
@@ -211,10 +217,11 @@
         }
       },
       "required": [
-        "answer_to_deliver",
+        "last_moment",
+        "why_end_here",
         "promises_to_close"
       ],
-      "title": "PlanningEnding",
+      "title": "PlanningFinalMoment",
       "type": "object"
     },
     "PlanningHostFunction": {
@@ -392,13 +399,13 @@
     "plan": {
       "anyOf": [
         {
-          "$ref": "#/$defs/PlanProposal"
+          "$ref": "#/$defs/PlanProposalV9"
         },
         {
           "type": "null"
         }
       ],
-      "description": "Complete proposal, or null when material cannot support one."
+      "description": "Complete selected story, or null when material cannot support one."
     },
     "research_requests": {
       "items": {
@@ -413,6 +420,6 @@
     "plan",
     "research_requests"
   ],
-  "title": "PlanningOutput",
+  "title": "PlanningOutputV9",
   "type": "object"
 }

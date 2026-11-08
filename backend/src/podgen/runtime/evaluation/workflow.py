@@ -1,5 +1,6 @@
 """Versioned role stages and profiles; historical runs retain their three-stage contract."""
 
+from podgen.writing.projection_versions import V1
 from podgen.writing.roles import EditorialFeedback, WriteOutput
 
 from .contracts import ALL_STAGES, PLANNING_STAGES, STAGES
@@ -29,7 +30,7 @@ def profile_for(command, stage):
     )
 
 
-def output_model(stage, *, reader_schema_version=None, fact_schema_version=None):
+def output_model(stage, *, reader_schema_version=None, fact_schema_version=None, projection_version=V1):
     stage = base_stage(stage)
     if stage == "fact-review":
         from podgen.writing.fact_review import feedback_model
@@ -40,9 +41,10 @@ def output_model(stage, *, reader_schema_version=None, fact_schema_version=None)
 
         return feedback_model(reader_schema_version)
     if stage.startswith("plan"):
-        from podgen.writing.planning_roles import PlanningOutput, PlanReviewOutput
+        from podgen.writing.planning_roles import PlanReviewOutput
+        from podgen.writing.planning_versions import planning_model
 
-        return PlanReviewOutput if stage.startswith("plan-review") else PlanningOutput
+        return PlanReviewOutput if stage.startswith("plan-review") else planning_model(projection_version)
     return EditorialFeedback if stage == "review" else WriteOutput
 
 

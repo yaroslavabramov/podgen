@@ -132,10 +132,17 @@ def execute_planning_stage(
                     journal, invocation, raw, candidate=candidate, candidate_ref=candidate_ref
                 )
             else:
-                parsed = output_model(stage).model_validate_json(raw)
+                parsed = output_model(
+                    stage,
+                    projection_version=manifest_version(manifest)
+                    if command.input_contract == "editorial-role-packets/1"
+                    else V1,
+                ).model_validate_json(raw)
             wire_output = parsed.model_dump(mode="json")
             if references is not None:
-                parsed = output_model(stage).model_validate(references.translate(wire_output, inbound=True))
+                parsed = output_model(stage, projection_version=manifest_version(manifest)).model_validate(
+                    references.translate(wire_output, inbound=True)
+                )
             validate_planning(
                 parsed,
                 stage,
@@ -203,10 +210,10 @@ def execute_planning_stage(
 
 def validate_planning(parsed, stage, catalog, candidate, speakers, *, projection_version=V1):
     if stage.startswith("plan-review"):
+        from podgen.writing.planning_versions import planning_snapshot
+
         parsed.validate_against(
-            output_model("plan").model_validate(
-                candidate_view(candidate, projection_version=projection_version)
-            ),
+            planning_snapshot(candidate_view(candidate, projection_version=projection_version)),
             material_locators=catalog,
         )
     else:

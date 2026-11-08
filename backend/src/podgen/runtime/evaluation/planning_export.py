@@ -34,6 +34,8 @@ RU = {
     "optional": "дополнительный",
     "ending": "Финал",
     "ending_answer": "Ответ в финале",
+    "last_moment": "Последний момент",
+    "why_end_here": "Почему закончить здесь",
     "qualifications": "Оговорки",
     "close": "Закрыть обещания",
     "hosts": "Ведущие",
@@ -137,7 +139,11 @@ def render_plan(candidate, review, accepted, language, *, material_titles=None):
             field("addressed", act["promises_addressed"])
             field("time", seconds(act["estimated_seconds_range"]) + "; " + labels[act["priority"]])
         section("ending")
-        field("ending_answer", plan["ending"]["answer_to_deliver"])
+        if "last_moment" in plan["ending"]:
+            field("last_moment", plan["ending"]["last_moment"])
+            field("why_end_here", plan["ending"]["why_end_here"])
+        else:
+            field("ending_answer", plan["ending"]["answer_to_deliver"])
         field("qualifications", plan["ending"].get("qualifications"))
         field("close", plan["ending"]["promises_to_close"])
         section("hosts")

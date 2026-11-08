@@ -5,7 +5,7 @@ from copy import deepcopy
 from podgen.domain.errors import ContractError
 
 from .card_catalog import catalog
-from .projection_versions import CURRENT, V1, V2, V8, historical, script_handoff
+from .projection_versions import CURRENT, V1, V2, V8, V9, historical, script_handoff
 
 
 def selected_labels(plan, packet):
@@ -32,7 +32,7 @@ def narrative_decisions(plan, *, projection_version=CURRENT):
         result = dict(ending=ending, duration_strategy=deepcopy(source["duration_strategy"]))
     else:
         result = {"main_question": source["main_question"]} if projection_version not in (V1, V2) else {}
-        conclusion = dict(meaning=source["ending"]["answer_to_deliver"])
+        conclusion = dict(meaning=source["ending"].get("answer_to_deliver", source["working_answer"]))
         if historical(projection_version):
             conclusion["qualifications"] = deepcopy(source["ending"]["qualifications"])
         duration = source["duration_strategy"]
@@ -43,6 +43,12 @@ def narrative_decisions(plan, *, projection_version=CURRENT):
             if historical(projection_version)
             else dict(estimated_seconds_range=deepcopy(duration["estimated_seconds_range"])),
         )
+    if projection_version == V9:
+        result.pop("conclusion", None)
+        result["episode_answer"] = source["working_answer"]
+        result["ending"] = deepcopy(source["ending"]) if "last_moment" in source["ending"] else None
+    elif "last_moment" in source["ending"]:
+        raise ContractError("planning_final_moment_requires_v9")
     result["opening"] = {key: deepcopy(source["opening"][key]) for key in ("approach", "question_to_open")}
     if script_handoff(projection_version):
         result["route_summary"] = source["route_summary"]
@@ -59,7 +65,7 @@ def narrative_decisions(plan, *, projection_version=CURRENT):
     if not historical(projection_version):
         act_fields = tuple(field for field in act_fields if field != "limitations_to_voice")
     result["acts"] = [{key: deepcopy(act[key]) for key in act_fields} for act in source["acts"]]
-    if projection_version == V8:
+    if projection_version in (V8, V9):
         result["authority"] = "revisable_authorial_decisions"
         for act in result["acts"]:
             act["suggested_priority"] = act.pop("priority")
@@ -91,8 +97,8 @@ def story_intent(plan):
         raise ContractError("writing_plan_required")
     body = plan["plan"]
     return dict(
-        answer=body["ending"]["answer_to_deliver"],
-        qualifications=deepcopy(body["ending"]["qualifications"]),
+        answer=body["ending"].get("answer_to_deliver", body["working_answer"]),
+        qualifications=deepcopy(body["ending"].get("qualifications", [])),
         steps=[
             dict(
                 question=act["listener_question"],
@@ -111,8 +117,12 @@ def editorial_frame(plan, *, projection_version=CURRENT):
     result["listener_promise"] = plan["plan"]["listener_promise"]
     if script_handoff(projection_version):
         result["route_summary"] = plan["plan"]["route_summary"]
-    if projection_version == V8:
+    if projection_version in (V8, V9):
         result["authority"] = "revisable_authorial_decisions"
+    if projection_version == V9:
+        result["episode_answer"] = plan["plan"]["working_answer"]
+        ending = plan["plan"]["ending"]
+        result["ending"] = deepcopy(ending) if "last_moment" in ending else None
     if historical(projection_version):
         result["qualifications"] = deepcopy(plan["plan"]["ending"]["qualifications"])
         result["limitations"] = deepcopy(plan["limitations"])

@@ -14,7 +14,7 @@ from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.runtime.evaluation.workflow import stages_for
 from podgen.writing.editorial_contract import EditorialInput
-from podgen.writing.projection_versions import CURRENT, V1, V2, V3
+from podgen.writing.projection_versions import CURRENT, V1, V2, V3, V8, V9
 from podgen.writing.projections import role_payload
 from tests.independent_planner_provider import IndependentPlannerProvider
 from tests.test_editorial_independence import invoke, payload
@@ -47,15 +47,21 @@ def test_v1_projection_and_schemas_reproduce_real_legacy_wire():
         )
 
 
-def test_legacy_plan_meaning_is_preserved_without_a_second_reference_script():
+@pytest.mark.parametrize("projection", [V8, V9])
+def test_legacy_plan_meaning_is_preserved_without_a_second_reference_script(projection):
     materials = archived_materials()
     plan = json.loads((ARCHIVE / "accepted-plan.json").read_text())["output"]
     original = json.dumps(plan, ensure_ascii=False)
     draft = json.loads((ARCHIVE / "draft.json").read_text())["output"]
     feedback = json.loads((ARCHIVE / "script-review.json").read_text())["output"]
-    author = role_payload("draft", materials, approved_plan=plan)
-    assert author["story"]["conclusion"]["meaning"] == plan["plan"]["ending"]["answer_to_deliver"]
-    assert "qualifications" not in author["story"]["conclusion"]
+    author = role_payload("draft", materials, approved_plan=plan, projection_version=projection)
+    if projection == V8:
+        assert author["story"]["conclusion"]["meaning"] == plan["plan"]["ending"]["answer_to_deliver"]
+        assert "qualifications" not in author["story"]["conclusion"]
+    else:
+        assert author["story"]["episode_answer"] == plan["plan"]["working_answer"]
+        assert author["story"]["ending"] is None
+        assert "conclusion" not in author["story"]
     assert "limitations" not in author["story"]
     assert author["story"]["listener_promise"] == plan["plan"]["listener_promise"]
     assert [v["interaction_purpose"] for v in author["story"]["speaker_contributions"]] == [
@@ -68,6 +74,7 @@ def test_legacy_plan_meaning_is_preserved_without_a_second_reference_script():
             approved_plan=plan,
             draft=draft,
             feedback=feedback if stage == "revise" else None,
+            projection_version=projection,
         )
         assert (
             list(view).index("draft") < list(view).index("assignment") < list(view).index("editorial_frame")
@@ -76,9 +83,13 @@ def test_legacy_plan_meaning_is_preserved_without_a_second_reference_script():
         assert view["editorial_frame"]["listener_promise"] == plan["plan"]["listener_promise"]
         assert "qualifications" not in view["editorial_frame"]
         assert "limitations" not in view["editorial_frame"]
-        assert plan["plan"]["ending"]["answer_to_deliver"] not in json.dumps(
-            view["editorial_frame"], ensure_ascii=False
-        )
+        if projection == V8:
+            assert plan["plan"]["ending"]["answer_to_deliver"] not in json.dumps(
+                view["editorial_frame"], ensure_ascii=False
+            )
+        else:
+            assert view["editorial_frame"]["episode_answer"] == plan["plan"]["working_answer"]
+            assert view["editorial_frame"]["ending"] is None
         assert view["draft"]["utterances"][-1]["text"] == draft["utterances"][-1]["text"]
     assert json.dumps(plan, ensure_ascii=False) == original
 

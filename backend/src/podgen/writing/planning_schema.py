@@ -4,6 +4,7 @@ LEGACY_FIELDS = {
     "PlanningAct": "limitations_to_voice",
     "PlanningEnding": "qualifications",
     "PlanningOutput": "limitations",
+    "PlanningOutputV9": "limitations",
     "PlanReviewOutput": "important_limits",
 }
 

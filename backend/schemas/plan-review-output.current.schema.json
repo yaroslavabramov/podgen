@@ -144,7 +144,7 @@
       "minLength": 1,
       "title": "Listener Answer",
       "type": "string",
-      "description": "Reconstruct the story this exact sequence would let the audience follow: what listeners know before each discovery, how interest and understanding develop, what the ending leaves them with, and what is explained again after it is already clear. Compare the planner's added editorial question and emphasis with the client's actual request; the chosen plan is revisable."
+      "description": "Follow this selected central story as a newcomer: the premises available before the opening question, developments and first disclosures, chronology of actions and knowledge, the supported episode-wide answer and the chosen last moment. Identify duplicate branches or another conclusion after that stopping point."
     },
     "strengths": {
       "items": {
@@ -160,7 +160,7 @@
       },
       "title": "Findings",
       "type": "array",
-      "description": "Addressed editorial problems in the proposed telling, including selection, order of disclosure, repetition and an added task that displaces the client request. A factually correct act can still need repair. May be empty when the plan works; do not manufacture a problem or caveat."
+      "description": "Addressed problems in the selected story, novice prerequisites, opening promise and its resolution, chronological implications, overlapping branches or chosen ending. An episode-wide answer is not a required closing recap. Empty is valid when the plan works."
     },
     "research_requests": {
       "items": {

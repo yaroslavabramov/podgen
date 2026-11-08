@@ -5,7 +5,8 @@ from uuid import UUID, uuid5
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import ContractError
-from podgen.writing.planning_roles import PlanningOutput, PlanReviewOutput
+from podgen.writing.planning_roles import PlanReviewOutput
+from podgen.writing.planning_versions import planning_snapshot
 
 from ..compiler import materials_hash
 from ..contracts import WritingRunCommand
@@ -120,7 +121,7 @@ def source_binding(journal, command, materials):
     if manifest["materials_hash"] != materials_hash(materials.as_payload()):
         raise ContractError("planning_continuation_material_binding_mismatch")
     candidate_ref, candidate, review_ref, review = last_pair(journal, parent)
-    proposal = PlanningOutput.model_validate(candidate["output"])
+    proposal = planning_snapshot(candidate["output"])
     assessment = PlanReviewOutput.model_validate(review["output"])
     proposal.validate_against(
         material_locators=materials.material_catalog, speaker_ids=materials.speaker_labels

@@ -4,7 +4,7 @@ from podgen.writing.fact_review import describe_schema as describe_fact_schema
 from podgen.writing.plan_review_descriptions import describe_plan_review
 from podgen.writing.planning_descriptions import describe_selected_story
 from podgen.writing.planning_schema import planning_schema
-from podgen.writing.projection_versions import CURRENT, V1, V2, V6, V7, V8, historical, validate_version
+from podgen.writing.projection_versions import CURRENT, V1, V2, V6, V7, V8, V9, historical, validate_version
 from podgen.writing.reader_schema import describe_reader
 
 from .reading_workflow import base_stage
@@ -34,7 +34,10 @@ def response_schema(
     stage, input_contract, *, projection_version=CURRENT, reader_schema_version=None, fact_schema_version=None
 ):
     schema = output_model(
-        stage, reader_schema_version=reader_schema_version, fact_schema_version=fact_schema_version
+        stage,
+        reader_schema_version=reader_schema_version,
+        fact_schema_version=fact_schema_version,
+        projection_version=projection_version if input_contract == "editorial-role-packets/1" else V1,
     ).model_json_schema()
     if base_stage(stage) == "reader-review":
         describe_reader(schema, reader_schema_version)
@@ -71,6 +74,14 @@ def response_schema(
         )
     if projection_version in (V6, V7, V8) and stage in ("plan", "plan-revise"):
         describe_selected_story(schema)
-    if projection_version == V8 and stage.startswith("plan-review"):
+    if projection_version == V9 and stage in ("plan", "plan-revise"):
+        from podgen.writing.planning_v9 import describe_plan
+
+        describe_plan(schema)
+    if projection_version in (V8, V9) and stage.startswith("plan-review"):
         describe_plan_review(schema)
+        if projection_version == V9:
+            from podgen.writing.planning_v9 import describe_review
+
+            describe_review(schema)
     return describe_fact_schema(schema, base_stage(stage), fact_schema_version)

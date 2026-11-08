@@ -4,6 +4,7 @@ from podgen.domain.errors import ContractError
 from podgen.writing.craft_reference import AUTHOR_STAGES, load_reference, pinned_reference
 from podgen.writing.model_references import preview_references
 from podgen.writing.plan_views import candidate_view
+from podgen.writing.planning_versions import planning_snapshot
 from podgen.writing.projection_versions import CURRENT, manifest_version
 from podgen.writing.projections import CONTRACT, validate_model_content
 from podgen.writing.prompts import (
@@ -142,10 +143,10 @@ def preview_request(run_id, stage, profile, materials, *, snapshot=None, **input
         name = "anchor_choices"
     else:
         from podgen.writing.plan_targets import PlanTargetChoices, PlanTargetRepair
-        from podgen.writing.planning_roles import PlanningOutput, PlanReviewOutput
+        from podgen.writing.planning_roles import PlanReviewOutput
 
         plan = PlanTargetRepair.build(
-            PlanningOutput.model_validate(candidate_view(inputs["candidate"], projection_version=CURRENT)),
+            planning_snapshot(candidate_view(inputs["candidate"], projection_version=CURRENT)),
             PlanReviewOutput.model_validate(inputs["plan_review"]),
             materials.material_catalog,
         )

@@ -48,6 +48,13 @@ class IndependentPlannerProvider:
             )
             own["ending"]["answer_to_deliver"] = "СОБСТВЕННЫЙ ОТВЕТ, ВЫБРАННЫЙ ЛОКАЛЬНЫМ ПРОВАЙДЕРОМ."
             own["duration_strategy"]["estimated_seconds_range"] = dict(min_seconds=780, max_seconds=1080)
+            if "PlanningFinalMoment" in body["text"]["format"]["schema"].get("$defs", {}):
+                own["working_answer"] = own["ending"]["answer_to_deliver"]
+                own["ending"] = dict(
+                    last_moment="Синтетический последний момент: наблюдение, после которого рассказ останавливается.",
+                    why_end_here="Этот момент завершает выбранное обещание без повторного объяснения.",
+                    promises_to_close=[],
+                )
             output = self.plan
         elif stage == "plan-review":
             output = dict(

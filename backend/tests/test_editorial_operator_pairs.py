@@ -13,6 +13,7 @@ from podgen.persistence.editorial_inputs import EditorialMaterials
 from podgen.runtime.evaluation.preview import preview_request
 from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.model_references import ModelReferences
+from podgen.writing.plan_views import candidate_view
 from podgen.writing.planning_roles import PlanningOutput
 from podgen.writing.projection_versions import CURRENT
 from podgen.writing.projections import actionable_feedback
@@ -50,16 +51,18 @@ def inputs(case):
 @pytest.mark.parametrize("case", SUITE["cases"], ids=lambda case: case["id"])
 def test_local_operator_case_exports_actual_preview_without_annotations(case, tmp_path):
     run_id, materials, candidate = inputs(case)
+    # A NEW current preview of a frozen legacy plan, not replay of a saved V8 request.
     # Existing offline compiler profile; no provider adapter, token counting, or model call.
     request = preview_request(run_id, "plan-review", fixture()[3], materials, candidate=candidate)
     refs = ModelReferences.create(materials.packet)
-    assert payload(request)["candidate_plan"] == refs.translate(candidate)
+    assert payload(request)["candidate_plan"] == refs.translate(
+        candidate_view(candidate, projection_version=CURRENT)
+    )
     assert set(payload(request)) == {
         "output_language",
         "assignment",
         "dossier",
         "material_catalog",
-        "evidence",
         "candidate_plan",
         "review_target_root",
         "allowed_review_targets",
@@ -92,7 +95,10 @@ def test_no_fact_coverage_quota_or_automatic_caveat_insertion(selection):
     candidate["research_requests"] = []
     author = payload(preview_request(run_id, "draft", fixture()[3], materials, approved_plan=candidate))
     assert len(author["support"]) == len(chosen)
-    assert all(set(card) == {"claim", "sources"} for card in author["support"])
+    assert all(
+        {"claim", "sources"} <= set(card) <= {"claim", "sources", "source_excerpts"}
+        for card in author["support"]
+    )
     assert "necessary_limits" not in author
     assert all("limitations_to_voice" not in act for act in author["story"]["acts"])
 

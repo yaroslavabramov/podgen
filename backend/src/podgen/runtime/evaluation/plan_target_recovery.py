@@ -11,7 +11,8 @@ from podgen.persistence.database import one
 from podgen.writing.model_references import CATALOG_KEY, context_references
 from podgen.writing.plan_targets import PlanTargetChoices, PlanTargetRepair
 from podgen.writing.plan_views import candidate_view
-from podgen.writing.planning_roles import PlanningOutput, PlanReviewOutput
+from podgen.writing.planning_roles import PlanReviewOutput
+from podgen.writing.planning_versions import planning_snapshot
 from podgen.writing.projection_versions import V1
 from podgen.writing.prompts import load_plan_target_repair_instructions
 
@@ -37,7 +38,7 @@ def repair_plan(journal, original):
         journal, original, PlanReviewOutput, code="plan_target_repair_not_eligible"
     )
     payload = load_unique_json(request["input"][0]["content"][0]["text"])
-    candidate = PlanningOutput.model_validate(payload["candidate_plan"])
+    candidate = planning_snapshot(payload["candidate_plan"])
     context = journal.read(RuntimeRef(record_kind="tool_execution", record_id=original["request_record_id"]))[
         "context"
     ]
