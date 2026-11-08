@@ -199,6 +199,7 @@ class WritingEvaluation:
                         planning_output_contract=planning_contract,
                         reader_schema_version=manifest.get("reader_review_schema_version"),
                         fact_schema_version=manifest.get("fact_review_schema_version"),
+                        revision_verification_contract=manifest.get("revision_verification_contract"),
                     ),
                     references,
                 ):
