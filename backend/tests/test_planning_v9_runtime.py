@@ -36,6 +36,7 @@ def test_native_planning_snapshot_and_resume_keep_the_exact_wire(
             if version == V8:
                 manifest.pop("writer_response_contract", None)
                 manifest.pop("plan_selection_contract", None)
+                manifest.pop("revision_context_contract", None)
             manifest.pop("planning_output_contract", None)
             manifest.pop("planning_duration_contract", None)
             for stage in manifest["response_schemas"]:

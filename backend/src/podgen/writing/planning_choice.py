@@ -12,6 +12,7 @@ from .roles import FullText, RoleOutput
 
 KEY = "planning_output_contract"
 VERSION = "planning-story-choice/1"
+SCENE_VERSION = "planning-scene-development/1"
 
 
 class StorySelection(RoleOutput):
@@ -39,7 +40,7 @@ class PlanningChoiceOutput(PlanningOutputV9):
 
 
 def validate(version, projection):
-    if version is not None and (version != VERSION or projection != V9):
+    if version is not None and (version not in (VERSION, SCENE_VERSION) or projection != V9):
         raise ContractError("unsupported_planning_output_contract")
     return version
 

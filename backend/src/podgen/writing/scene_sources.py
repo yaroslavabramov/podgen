@@ -2,6 +2,8 @@
 
 from .card_catalog import catalog
 from .model_references import material_aliases
+from .scene_plan import is_scene_plan
+from .scene_plan_views import scenes
 
 
 def link_scene_sources(frame, plan, packet, cards, *, draft):
@@ -14,6 +16,16 @@ def link_scene_sources(frame, plan, packet, cards, *, draft):
 
     def refs(scene):
         return [aliases[key] for key in scene["material_refs"]]
+
+    if is_scene_plan(plan):
+        view = frame if draft else scenes(body)
+        for key in ("opening", "ending"):
+            view[key]["support_refs"] = refs(body[key])
+        for scene, act in zip(view["acts"], body["acts"], strict=True):
+            scene["support_refs"] = refs(act)
+        if not draft:
+            frame["accepted_plan_scenes"] = view
+        return
 
     if draft:
         frame["opening"]["support_refs"] = refs(body["opening"])

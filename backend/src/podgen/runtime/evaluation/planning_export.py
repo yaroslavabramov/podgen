@@ -27,6 +27,10 @@ RU = {
     "opening_question": "Вопрос открытия",
     "refs": "Опоры",
     "acts": "Акты",
+    "development": "Ход сцены",
+    "editorial_notes": "Редакторские заметки",
+    "claim_scope": "Основание утверждения",
+    "editorial_choice": "Редакторский выбор",
     "act_question": "Вопрос акта",
     "change": "Что поймёт слушатель",
     "prerequisites": "Что нужно объяснить раньше",
@@ -130,36 +134,43 @@ def render_plan(candidate, review, accepted, language, *, material_titles=None):
         field("question", plan["main_question"])
         field("promise", plan["listener_promise"])
         field("answer", plan["working_answer"])
-        section("route")
-        lines.append(plan["route_summary"])
-        section("opening")
-        field("approach", plan["opening"]["approach"])
-        field("opening_question", plan["opening"]["question_to_open"])
-        field("refs", material_names(plan["opening"]["material_refs"]))
-        section("acts")
-        for index, act in enumerate(plan["acts"], 1):
-            lines.extend(["", f"### {index}. {act['title']}"])
-            for label, key in [
-                ("act_question", "listener_question"),
-                ("change", "intended_change_in_understanding"),
-                ("prerequisites", "prerequisite_concepts"),
-                ("voice_limits", "limitations_to_voice"),
-            ]:
-                field(label, act.get(key))
-            field("refs", material_names(act["material_refs"]))
-            field("previous", act["transitions"]["from_previous"])
-            field("next", act["transitions"]["toward_next"])
-            field("opened", act["promises_opened"])
-            field("addressed", act["promises_addressed"])
-            field("time", seconds(act["estimated_seconds_range"]) + "; " + labels[act["priority"]])
-        section("ending")
-        if "last_moment" in plan["ending"]:
-            field("last_moment", plan["ending"]["last_moment"])
-            field("why_end_here", plan["ending"]["why_end_here"])
+        if "editorial_notes" in output:
+            from .scene_plan_export import render_scenes
+
+            render_scenes(
+                plan, output["editorial_notes"], lines, labels, section, field, material_names, seconds
+            )
         else:
-            field("ending_answer", plan["ending"]["answer_to_deliver"])
-        field("qualifications", plan["ending"].get("qualifications"))
-        field("close", plan["ending"]["promises_to_close"])
+            section("route")
+            lines.append(plan["route_summary"])
+            section("opening")
+            field("approach", plan["opening"]["approach"])
+            field("opening_question", plan["opening"]["question_to_open"])
+            field("refs", material_names(plan["opening"]["material_refs"]))
+            section("acts")
+            for index, act in enumerate(plan["acts"], 1):
+                lines.extend(["", f"### {index}. {act['title']}"])
+                for label, key in [
+                    ("act_question", "listener_question"),
+                    ("change", "intended_change_in_understanding"),
+                    ("prerequisites", "prerequisite_concepts"),
+                    ("voice_limits", "limitations_to_voice"),
+                ]:
+                    field(label, act.get(key))
+                field("refs", material_names(act["material_refs"]))
+                field("previous", act["transitions"]["from_previous"])
+                field("next", act["transitions"]["toward_next"])
+                field("opened", act["promises_opened"])
+                field("addressed", act["promises_addressed"])
+                field("time", seconds(act["estimated_seconds_range"]) + "; " + labels[act["priority"]])
+            section("ending")
+            if "last_moment" in plan["ending"]:
+                field("last_moment", plan["ending"]["last_moment"])
+                field("why_end_here", plan["ending"]["why_end_here"])
+            else:
+                field("ending_answer", plan["ending"]["answer_to_deliver"])
+            field("qualifications", plan["ending"].get("qualifications"))
+            field("close", plan["ending"]["promises_to_close"])
         section("hosts")
         for host in plan["host_functions"]:
             lines.append("**" + host["speaker_id"] + "**")

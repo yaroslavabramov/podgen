@@ -23,6 +23,7 @@ from .projections import (
     validate_model_content,
 )
 from .revision.context import VERSION as EDIT_ASSIGNMENT
+from .scene_plan import claim_scopes
 from .story_views import editorial_frame, selected_labels
 
 
@@ -76,6 +77,10 @@ def reading_payload(
             required_topics=list(assignment.required_topics),
             knowledge_cutoff=assignment.knowledge_cutoff,
         )
+        selected_plan = approved_plan or (materials.fixed.plan.model_dump(mode="json") if materials.fixed else None)
+        scoped_claims = claim_scopes(selected_plan)
+        if scoped_claims:
+            payload["factual_remit"]["claims_to_check"] = scoped_claims
         if assignment.excluded_topics:
             payload["factual_remit"]["excluded_topics"] = list(assignment.excluded_topics)
         payload.update(

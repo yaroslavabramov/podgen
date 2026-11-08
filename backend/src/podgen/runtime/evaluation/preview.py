@@ -1,6 +1,5 @@
 """Compile ordinary and dedicated repair wires without a provider or token endpoint."""
 
-from podgen.domain.errors import ContractError
 from podgen.writing.craft_reference import AUTHOR_STAGES, load_reference, pinned_reference
 from podgen.writing.model_references import preview_references
 from podgen.writing.plan_selection import for_projection as selection_for_projection
@@ -39,6 +38,12 @@ def preview_request(run_id, stage, profile, materials, *, snapshot=None, **input
         from podgen.writing.author_reply import verify_pin
 
         verify_pin(snapshot.manifest, materials.speaker_labels)
+    if snapshot and snapshot.fact_plan is not None:
+        if inputs.get("approved_plan") not in (None, snapshot.fact_plan):
+            from podgen.domain.errors import ContractError
+
+            raise ContractError("preview_claim_scope_plan_mismatch")
+        inputs["approved_plan"] = snapshot.fact_plan
     validate_preview_inputs(stage, fixed=materials.fixed is not None, inputs=inputs)
     validate_preview_snapshots(stage, materials, inputs)
     validate_continuation_preview(stage, snapshot, inputs)

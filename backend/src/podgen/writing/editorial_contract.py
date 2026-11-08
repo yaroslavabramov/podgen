@@ -9,6 +9,7 @@ from .planning_choice import PlanningChoiceOutput
 from .planning_roles import PlanningOutput
 from .planning_v9 import PlanningOutputV9
 from .roles import FullText, RoleOutput
+from .scene_plan import ScenePlanningOutput
 
 
 class EditorialDuration(RoleOutput):
@@ -167,4 +168,4 @@ class FixedEditorialInput(RoleOutput):
     assignment_key: FullText
     shared_input_digest: str = Field(pattern="^[0-9a-f]{64}$")
     document: FixedSourceDocument
-    plan: PlanningChoiceOutput | PlanningOutputV9 | PlanningOutput
+    plan: ScenePlanningOutput | PlanningChoiceOutput | PlanningOutputV9 | PlanningOutput
