@@ -113,9 +113,15 @@ def publish(trial, destination):
             original = run / (item + ".json")
             if original.exists():
                 save(out / original.name, read(original))
-        final = run / "candidate-final.json"
-        if final.exists():
-            write_episode(final, destination / "last-script.md")
+        if identifier == summary["final"] and (run / "review-outcome.json").exists():
+            outcome = read(run / "review-outcome.json")
+            filename = "final.json" if outcome["status"] == "keep" else "candidate-final.json"
+            final = run / filename
+            if final.exists():
+                last = read(final)
+                if last["script_hash"] != outcome["script_hash"] or last["script_ref"] != outcome["script_ref"]:
+                    raise ValueError("Exported final script differs from the reviewed script")
+                write_episode(final, destination / "last-script.md")
     cost = sum((Decimal(row["usd"]) for row in calls), Decimal(0))
     save(
         destination / "receipts.json",
