@@ -113,7 +113,9 @@ def test_actual_six_act_snow_author_and_dual_revision_wires_keep_support_not_rec
     assert all("limitations_to_voice" not in act for act in author["story"]["acts"])
     assert author["assignment"]["required_topics"] == list(packet.assignment.required_topics)
     expected = creative_knowledge_view(packet, labels=False)
-    assert all(card in expected for card in author["support"])
+    assert all(
+        card == dict(expected[int(card["ref"][1:]) - 1], ref=card["ref"]) for card in author["support"]
+    )
     script = dict(
         utterances=[dict(speaker=packet.assignment.speakers[0].label, text="Точный произносимый текст.")]
     )
@@ -153,6 +155,7 @@ def test_actual_six_act_snow_author_and_dual_revision_wires_keep_support_not_rec
         )
     )
     assert set(revised["editorial_frame"]) == {
+        "accepted_plan_scenes",
         "main_question",
         "listener_promise",
         "unresolved_questions",

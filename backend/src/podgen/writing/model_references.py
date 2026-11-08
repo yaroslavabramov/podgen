@@ -13,6 +13,10 @@ CATALOG_KEY = "model_material_references"
 REFERENCE_LISTS = {"material_refs", "support_labels", "supports", "material_catalog"}
 
 
+def material_aliases(card_ids):
+    return {identity: f"M{index}" for index, identity in enumerate(card_ids, 1)}
+
+
 @dataclass(frozen=True)
 class ModelReferences:
     packet_digest: str
@@ -53,7 +57,7 @@ class ModelReferences:
 
     @property
     def aliases(self):
-        return tuple(f"M{index}" for index in range(1, len(self.card_ids) + 1))
+        return tuple(material_aliases(self.card_ids).values())
 
     def as_payload(self):
         return dict(

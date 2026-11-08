@@ -7,7 +7,8 @@ from podgen.domain.errors import ContractError
 from .projection_versions import V9, manifest_version
 
 KEY = "plan_selection_contract"
-VERSION = "plan-material-selection/1"
+OPTIONS_VERSION = "plan-material-selection/1"
+VERSION = "plan-material-selection/2"
 
 
 def for_projection(version):
@@ -15,7 +16,7 @@ def for_projection(version):
 
 
 def validate(version, projection):
-    if version is not None and (version != VERSION or projection != V9):
+    if version is not None and (version not in (OPTIONS_VERSION, VERSION) or projection != V9):
         raise ContractError("unsupported_plan_selection_contract")
     return version
 

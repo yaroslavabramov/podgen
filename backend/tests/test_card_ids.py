@@ -251,7 +251,17 @@ def test_ordinary_ids_survive_duplicate_names_reordering_author_revision_and_fro
         by_id[correction]["claim"],
     }
     assert all("card_id" not in c for stage in ("draft", "revise-1") for c in views[stage]["support"])
-    findings = views["revise-1"]["revision_guidance"][1]["findings"]
+    draft, revision = views["draft"], views["revise-1"]
+    assert [c["ref"] for c in draft["support"]] == [chosen_wire]
+    assert {c["ref"] for c in revision["support"]} == {chosen_wire, correction_wire}
+    scenes = revision["editorial_frame"]["accepted_plan_scenes"]
+    assert scenes["opening"]["support_refs"] == draft["story"]["opening"]["support_refs"]
+    for initial, retained in zip(draft["story"]["acts"], scenes["acts"], strict=True):
+        assert retained == {
+            key: initial[key] for key in ("title", "intended_change_in_understanding", "support_refs")
+        }
+        assert retained["support_refs"] == [chosen_wire]
+    findings = revision["revision_guidance"][1]["findings"]
     documents = {doc["key"]: doc["title"] for doc in data["documents"]}
     for finding, identity in zip(findings, (correction, chosen), strict=True):
         assert "support_labels" not in finding

@@ -14,7 +14,7 @@ from podgen.runtime.evaluation.preview_snapshot import PreviewSnapshot
 from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.writing.author_reply import contract_pin
 from podgen.writing.model_references import CATALOG_KEY, bind_schema, preview_references
-from podgen.writing.plan_selection import KEY, VERSION, from_manifest
+from podgen.writing.plan_selection import KEY, OPTIONS_VERSION, VERSION, from_manifest
 from podgen.writing.projection_versions import V8, V9
 from podgen.writing.reading_views import reading_payload
 from podgen.writing.story_views import narrative_decisions
@@ -124,6 +124,9 @@ def test_independent_preview_keeps_the_selected_detail_and_optional_extension_se
             composition=current,
         )
     )
+    without_recomposition = revised["editorial_frame"]["accepted_plan_scenes"]
+    assert after["editorial_frame"]["accepted_plan_scenes"] == without_recomposition
+    assert without_recomposition["acts"][0]["intended_change_in_understanding"] == chosen
     assert after["editorial_frame"]["decisions"] == current["decisions"]
     assert option not in json.dumps(after["editorial_frame"])
     assert "material_options" not in after["editorial_frame"]
@@ -134,7 +137,7 @@ def test_saved_v9_preview_without_the_new_pin_preserves_the_entire_old_request()
     plan = deepcopy(plan)
     plan["plan"]["duration_strategy"]["optional_material"] = ["A concrete optional scene."]
     old = snapshot(materials, profile, "draft", None)
-    new = snapshot(materials, profile, "draft", VERSION)
+    new = snapshot(materials, profile, "draft", OPTIONS_VERSION)
     run_id = uuid4()
     baseline = preview_request(run_id, "draft", profile, materials, approved_plan=plan, snapshot=old)
     changed = preview_request(run_id, "draft", profile, materials, approved_plan=plan, snapshot=new)
@@ -209,12 +212,13 @@ def test_two_saved_compositions_supersede_the_original_material_options():
     assert plan == before
 
 
-def test_cold_readings_remain_byte_identical_when_the_plan_handoff_is_enabled():
+@pytest.mark.parametrize("pin", [OPTIONS_VERSION, VERSION])
+def test_cold_readings_remain_byte_identical_when_the_plan_handoff_is_enabled(pin):
     materials, _, _, _, script, *_ = fixture()
     for stage in ("reader-review", "fact-review"):
         old = reading_payload(stage, materials, script=script, projection_version=V9)
         new = reading_payload(
-            stage, materials, script=script, projection_version=V9, plan_selection_contract=VERSION
+            stage, materials, script=script, projection_version=V9, plan_selection_contract=pin
         )
         assert json.dumps(new, ensure_ascii=False, separators=(",", ":")) == json.dumps(
             old, ensure_ascii=False, separators=(",", ":")

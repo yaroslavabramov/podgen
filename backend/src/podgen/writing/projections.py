@@ -10,6 +10,7 @@ from .card_catalog import card_id
 from .craft_reference import attach_reference
 from .creative_material import creative_card_view, creative_dossier_view
 from .duration_views import duration_context
+from .plan_selection import VERSION as SCENE_SELECTION_VERSION
 from .plan_views import candidate_view
 from .planning_duration import validate as validate_planning_duration
 from .projection_versions import (
@@ -22,6 +23,7 @@ from .projection_versions import (
     script_handoff,
     validate_version,
 )
+from .scene_sources import link_scene_sources
 from .source_passages import card_source_passages
 from .story_views import (
     editorial_frame,
@@ -121,12 +123,20 @@ def creative_knowledge_view(packet, *, labels, selected=None, projection_version
     return result
 
 
-def authoring_knowledge_view(packet, *, labels, selected=None, projection_version=CURRENT):
-    if creative_materials(projection_version):
-        return creative_knowledge_view(
-            packet, labels=labels, selected=selected, projection_version=projection_version
-        )
-    return knowledge_view(packet, labels=labels, selected=selected)
+def attach_author_support(
+    payload, packet, plan, *, draft, selected, projection_version, plan_selection_contract
+):
+    if not creative_materials(projection_version):
+        payload["support"] = knowledge_view(packet, labels=False, selected=selected)
+        return
+    linked = plan_selection_contract == SCENE_SELECTION_VERSION
+    cards = creative_knowledge_view(
+        packet, labels=linked, selected=selected, projection_version=projection_version
+    )
+    if linked:
+        frame = payload.get("story" if draft else "editorial_frame")
+        link_scene_sources(frame, plan, packet, cards, draft=draft)
+    payload["support"] = cards
 
 
 def actionable_feedback(review, *, planning=False, projection_version=CURRENT):
@@ -229,12 +239,6 @@ def role_payload(
             payload["story"] = narrative_decisions(
                 plan, projection_version=projection_version, plan_selection_contract=plan_selection_contract
             )
-            payload["support"] = authoring_knowledge_view(
-                packet,
-                labels=False,
-                selected=selected_labels(plan, packet),
-                projection_version=projection_version,
-            )
         elif stage == "review":
             if projection_version == V1:
                 payload["story_intent"] = story_intent(plan)
@@ -262,14 +266,18 @@ def role_payload(
             payload["revision_guidance"] = actionable_feedback(
                 feedback, projection_version=projection_version
             )
-            payload["support"] = authoring_knowledge_view(
-                packet,
-                labels=False,
-                selected=selected_labels(plan, packet),
-                projection_version=projection_version,
-            )
         else:
             raise ContractError("unknown_role_projection")
+        if stage in ("draft", "revise"):
+            attach_author_support(
+                payload,
+                packet,
+                plan,
+                draft=stage == "draft",
+                selected=selected_labels(plan, packet),
+                projection_version=projection_version,
+                plan_selection_contract=plan_selection_contract,
+            )
         if historical(projection_version):
             payload["necessary_limits"] = list(packet.dossier.throughline_constraints)
     attach_reference(payload, stage, craft_reference)

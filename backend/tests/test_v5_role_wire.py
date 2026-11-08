@@ -100,7 +100,7 @@ def fixture():
     return materials, references, plan, profile, script, reader, fact, review
 
 
-def test_every_v5_role_uses_its_real_creative_or_checker_view_without_losing_questions():
+def test_current_roles_use_their_creative_or_checker_view_without_losing_questions():
     materials, refs, plan, profile, script, reader, fact, review = fixture()
     frozen = materials.packet.model_dump(mode="json")
     stages = {
@@ -142,7 +142,7 @@ def test_every_v5_role_uses_its_real_creative_or_checker_view_without_losing_que
     assert wires["plan-revise"]["revision_guidance"]["findings"][0]["material_refs"] == ["M1"]
     for stage in ("draft", "revise", "revise-1"):
         assert wires[stage]["support"]
-        assert all(set(card) == {"claim", "sources"} for card in wires[stage]["support"])
+        assert all(set(card) == {"claim", "sources", "ref"} for card in wires[stage]["support"])
         assert all(
             card["claim"] in {c.story_facts for c in materials.packet.dossier.knowledge_cards}
             for card in wires[stage]["support"]

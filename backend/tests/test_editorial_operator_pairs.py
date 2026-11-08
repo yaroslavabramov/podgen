@@ -101,7 +101,7 @@ def test_no_fact_coverage_quota_or_automatic_caveat_insertion(selection):
     author = payload(preview_request(run_id, "draft", fixture()[3], materials, approved_plan=candidate))
     assert len(author["support"]) == len(chosen)
     assert all(
-        {"claim", "sources"} <= set(card) <= {"claim", "sources", "source_excerpts"}
+        {"claim", "sources", "ref"} <= set(card) <= {"claim", "sources", "source_excerpts", "ref"}
         for card in author["support"]
     )
     assert "necessary_limits" not in author
