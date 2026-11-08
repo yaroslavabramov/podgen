@@ -1,0 +1,13 @@
+{
+  "role": "old",
+  "case": "02",
+  "endpoint_called": false,
+  "reuse_archival": false,
+  "prompt_cid": "reader-review/sha256:aae4e16c642969ea41ba1101bde0bb3863bb1db33bf6e5e4f80f54ca50825348",
+  "visible_bytes": {
+    "instructions": 5303,
+    "input": 20182,
+    "schema": 7674,
+    "total": 33159
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "initial_pass": false,
+  "01": "Required exact grammatical repair found; no wording finding and no cumulative style repair. Initial success criterion failed.",
+  "04": "Empty findings; no false positive.",
+  "05": "Empty findings; good metaphor retained without a finding.",
+  "conditional_02_03": "Not called because the preregistered initial criterion failed.",
+  "decision": "Do not introduce a separate production copyeditor on this evidence."
+}

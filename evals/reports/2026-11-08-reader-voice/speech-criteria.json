@@ -1,0 +1,141 @@
+{
+  "operator_only": true,
+  "frozen_before_calls": true,
+  "hypothesis": "An independent consecutive-excerpt language pass without summary or story-design assessment detects grammar and cumulative voice separately.",
+  "inputs": "01-04 first four consecutive utterances; 05 complete unrelated three-utterance story. Exactly the previously frozen words; original indices retained. No author A/B samples, votes, criteria or previous reviews in requests.",
+  "initial_cases": [
+    "01",
+    "04",
+    "05"
+  ],
+  "followup_cases_only_if_initial_pass": [
+    "02",
+    "03"
+  ],
+  "initial_success": {
+    "01": "Both a required exact case correction and a required concrete passage/wording repair grounded in neighboring stylized opening phrases, preserving the inspection-to-interviews transition. Grammar-only is failure. Praise or a vague style label is not repair.",
+    "04": "No invented grammar defect or required opening style rewrite; optional justified copyediting allowed. Useful image and transition remain allowed.",
+    "05": "No invented grammar defect or required style rewrite; the train-window metaphor is not treated as intrinsically defective. Empty findings is valid."
+  },
+  "followup_success": {
+    "02": "Required cumulative wording repair despite corrected grammar; no accusation about corrected numeral.",
+    "03": "Required correction of the retained case error; no required cumulative rewrite of the already edited opening."
+  },
+  "stop": "At most three initial calls and two conditional calls; no prompt iteration or automatic retries. If initial criteria fail, save the failure and stop. All calls use Terra medium, strict schema, identical prompt and 24576 max output tokens.",
+  "requests": [
+    {
+      "case": "01",
+      "request_sha256": "0edaf10b7662dff33f491131c2a8993ba3efb35c21eca121fd02ebc3b475fd04"
+    },
+    {
+      "case": "02",
+      "request_sha256": "2df44488a16eadf57e6422386e4507c1e5b6e62ea531a0e32477f8074111bbbf"
+    },
+    {
+      "case": "03",
+      "request_sha256": "551d79bfc3d054a79810ebf68ec6ffa520572c15be6124e42e427a20d25c410b"
+    },
+    {
+      "case": "04",
+      "request_sha256": "3c69dc37c1a472cee5603d7624fe8d57da3a4b6a3467207019a8cd6b70201015"
+    },
+    {
+      "case": "05",
+      "request_sha256": "e97692039d3649cc3a16f0509429223249574206e96e0aef11f29426479cae47"
+    }
+  ],
+  "prompt_sha256": "4bca934686f8f7548d9f722854252bf38c4e66484aebbd132c3f76b6d563c207",
+  "schema": {
+    "$defs": {
+      "Anchor": {
+        "additionalProperties": false,
+        "properties": {
+          "utterance_index": {
+            "minimum": 0,
+            "title": "Utterance Index",
+            "type": "integer"
+          },
+          "quote": {
+            "minLength": 1,
+            "title": "Quote",
+            "type": "string"
+          }
+        },
+        "required": [
+          "utterance_index",
+          "quote"
+        ],
+        "title": "Anchor",
+        "type": "object"
+      },
+      "SpeechFinding": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "grammar",
+              "wording"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "anchors": {
+            "items": {
+              "$ref": "#/$defs/Anchor"
+            },
+            "minItems": 1,
+            "title": "Anchors",
+            "type": "array"
+          },
+          "observation": {
+            "minLength": 1,
+            "title": "Observation",
+            "type": "string"
+          },
+          "requested_change": {
+            "minLength": 1,
+            "title": "Requested Change",
+            "type": "string"
+          },
+          "preserve": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Preserve",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "required",
+          "anchors",
+          "observation",
+          "requested_change",
+          "preserve"
+        ],
+        "title": "SpeechFinding",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "properties": {
+      "findings": {
+        "items": {
+          "$ref": "#/$defs/SpeechFinding"
+        },
+        "title": "Findings",
+        "type": "array"
+      }
+    },
+    "required": [
+      "findings"
+    ],
+    "title": "SpeechProofread",
+    "type": "object"
+  }
+}

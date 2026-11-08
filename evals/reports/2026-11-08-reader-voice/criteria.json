@@ -1,0 +1,47 @@
+{
+  "frozen_before_prompt_change": true,
+  "hypotheses": [
+    "A coherent narrative move can still require correction of its wording; objective grammatical errors need local correction."
+  ],
+  "meanings_to_preserve": [
+    "Suspicion followed by inconclusive water inspection, then a death register and household inquiries.",
+    "The unexplained distant-household cases lead into the unchanged next passage."
+  ],
+  "style_target": "The opening accumulates personified detective language and staged verdicts. Request a concrete repair while preserving the move from inspection to inquiries, rather than praising the move as proof of ready prose.",
+  "no_forced_whole_episode_decision": true,
+  "unaffected_text": "For cases 01–04, utterances from index 4 onward are byte-identical.",
+  "scope": "Human editorial criteria remain outside every model request. Calls are independent script_only Terra medium readings, never comparisons.",
+  "bounded_live_plan": {
+    "initial_new_calls": 9,
+    "max_followup_calls": 3,
+    "old_archival_reading_reused_for": "01"
+  },
+  "cases": {
+    "01": {
+      "source": "archived full episode",
+      "grammar": "required local correction",
+      "opening_style": "required passage/sequence repair"
+    },
+    "02": {
+      "source": "archived full episode; only declension repaired",
+      "grammar": "no finding",
+      "opening_style": "required passage/sequence repair"
+    },
+    "03": {
+      "source": "edited first four utterances; archived declension retained",
+      "grammar": "required local correction",
+      "opening_style": "no required finding"
+    },
+    "04": {
+      "source": "edited first four utterances",
+      "grammar": "no finding",
+      "opening_style": "no required finding"
+    },
+    "05": {
+      "source": "original fictional transfer control",
+      "grammar": "no finding",
+      "opening_style": "no required finding",
+      "metaphor": "train diving into a tunnel; window becoming a mirror; preserve unless an actual contextual defect is shown"
+    }
+  }
+}

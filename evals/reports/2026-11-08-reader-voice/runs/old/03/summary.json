@@ -1,0 +1,22 @@
+{
+  "role": "old",
+  "case": "03",
+  "reused": false,
+  "response_id": "resp_03df43b6fcf5f55c016af02762d4d487d2bf74648084c26be0",
+  "usage": {
+    "input_tokens": 5459,
+    "input_tokens_details": {
+      "cache_write_tokens": 3078,
+      "cached_tokens": 2378
+    },
+    "output_tokens": 2946,
+    "output_tokens_details": {
+      "reasoning_tokens": 892
+    },
+    "total_tokens": 8405
+  },
+  "estimated_usd": "0.0186994",
+  "request_sha256": "a96aee1631c5f3cc081c112c3ac64b482bf035b714487c6de7ba889bb0bb395a",
+  "recommendation": "revise",
+  "scale": "local"
+}

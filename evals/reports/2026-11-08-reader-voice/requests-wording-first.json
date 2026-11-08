@@ -1,0 +1,21 @@
+{
+  "diagnostic_only": true,
+  "production_wiring": false,
+  "requests": [
+    {
+      "role": "wording-first",
+      "case": "01",
+      "path": "evals/reports/2026-11-08-reader-voice/runs/wording-first/01/request.json"
+    },
+    {
+      "role": "wording-first",
+      "case": "04",
+      "path": "evals/reports/2026-11-08-reader-voice/runs/wording-first/04/request.json"
+    },
+    {
+      "role": "wording-first",
+      "case": "05",
+      "path": "evals/reports/2026-11-08-reader-voice/runs/wording-first/05/request.json"
+    }
+  ]
+}

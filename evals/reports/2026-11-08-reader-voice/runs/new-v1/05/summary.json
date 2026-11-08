@@ -1,0 +1,22 @@
+{
+  "role": "new-v1",
+  "case": "05",
+  "reused": false,
+  "response_id": "resp_082ab5b284b60f6d016af0278d73d887d2994b3a7677e5a42a",
+  "usage": {
+    "input_tokens": 2960,
+    "input_tokens_details": {
+      "cache_write_tokens": 393,
+      "cached_tokens": 2564
+    },
+    "output_tokens": 1024,
+    "output_tokens_details": {
+      "reasoning_tokens": 289
+    },
+    "total_tokens": 3984
+  },
+  "estimated_usd": "0.00574245",
+  "request_sha256": "b795b68070e20bf1b477c4cfa3288d5fbf4b46033fddb8b3cd191ad7650091e9",
+  "recommendation": "keep",
+  "scale": "none"
+}

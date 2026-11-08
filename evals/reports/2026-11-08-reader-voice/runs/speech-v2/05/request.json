@@ -1,0 +1,133 @@
+{
+  "model": "gpt-6.1-terra",
+  "instructions": "You are a director preparing this consecutive spoken excerpt for recording. Work on its actual words in its language.\n\nAround each action or observation, mentally remove the surrounding phrases and listen to what disappears. Is it a new thought, a concrete image, a joke, tension, necessary orientation or a distinctive voice? Or is it another statement of something the listener already understands? Locate the words where the narrator starts commenting on the story's own progress or performing its significance for the listener. Request a cut, compression or rewrite when the accumulated commentary weakens the passage, while preserving the action, connection or experience that makes it worth telling.\n\nRespect a deliberate genre voice. A metaphor, aside or reflection can earn its place through pleasure, attitude or a particular thought. Do not require each line to advance an argument, and do not replace distinctive speech with plainness by default. Judge each proposed removal by its concrete loss; do not manufacture a cut when the wording works.\n\nAlso check grammatical forms and sentence construction as written. Do not silently correct an error while reading. An objective grammatical error requires repair even when its intended meaning is clear; distinguish it from intentional conversational phrasing or ellipsis.\n\nFor each finding, quote exact words at their supplied zero-based utterance indices, explain the concrete problem, request a specific correction or editorial operation, and name what should survive. Distinguish a required repair from an optional refinement. Do not summarize the story or assess its overall design. Return an empty findings array when no repair is needed.\n\nWrite response text in output_language. Preserve quoted anchors and identifiers exactly. Preserve the facts and the intended meaning when requesting changes.\n",
+  "input": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "{\"output_language\":\"ru\",\"utterances\":[{\"index\":0,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Поезд ныряет в тоннель, и окно напротив Ирины становится зеркалом. Она видит своё отражение и коробку на коленях. В коробке — отцовский радиоприёмник. Неделю назад отец собрался его выбросить: крутил ручку настройки, а слышал только треск. Ирина забрала приёмник и отнесла в мастерскую.\"},{\"index\":1,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Теперь надо довезти его домой. На поворотах коробка съезжает с колен, Ирина придерживает её ладонью. Выйдя из тоннеля, поезд проходит мимо дач, потом за окном появляются склады. До станции осталось совсем немного.\"},{\"index\":2,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Дома Ирина ставит коробку на кухонный стол. Отец снимает упаковочную бумагу, включает приёмник и поворачивает ручку. Сквозь короткий шум пробивается музыка. Он оставляет руку на колёсике настройки и слушает. Ирина развязывает шарф и вешает его на спинку стула.\"}]}"
+        }
+      ]
+    }
+  ],
+  "max_output_tokens": 24576,
+  "text": {
+    "verbosity": "high",
+    "format": {
+      "type": "json_schema",
+      "name": "speech_proofread",
+      "schema": {
+        "$defs": {
+          "Anchor": {
+            "additionalProperties": false,
+            "properties": {
+              "utterance_index": {
+                "minimum": 0,
+                "title": "Utterance Index",
+                "type": "integer"
+              },
+              "quote": {
+                "minLength": 1,
+                "title": "Quote",
+                "type": "string"
+              }
+            },
+            "required": [
+              "utterance_index",
+              "quote"
+            ],
+            "title": "Anchor",
+            "type": "object"
+          },
+          "SpeechFinding": {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "grammar",
+                  "wording"
+                ],
+                "title": "Kind",
+                "type": "string"
+              },
+              "required": {
+                "title": "Required",
+                "type": "boolean"
+              },
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/Anchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "observation": {
+                "minLength": 1,
+                "title": "Observation",
+                "type": "string"
+              },
+              "requested_change": {
+                "minLength": 1,
+                "title": "Requested Change",
+                "type": "string"
+              },
+              "preserve": {
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "title": "Preserve",
+                "type": "array"
+              }
+            },
+            "required": [
+              "kind",
+              "required",
+              "anchors",
+              "observation",
+              "requested_change",
+              "preserve"
+            ],
+            "title": "SpeechFinding",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "findings": {
+            "items": {
+              "$ref": "#/$defs/SpeechFinding"
+            },
+            "title": "Findings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "findings"
+        ],
+        "title": "SpeechProofread",
+        "type": "object"
+      },
+      "strict": true
+    }
+  },
+  "tools": [],
+  "tool_choice": "none",
+  "parallel_tool_calls": false,
+  "truncation": "disabled",
+  "stream": false,
+  "metadata": {
+    "podgen_run_id": "adfd8747-aa68-539f-9ab0-70122a690885",
+    "podgen_invocation_id": "e65563b2-c80b-51ec-8d5b-415220ffb5d0",
+    "podgen_stage": "reader-review-2",
+    "compiler_version": "whole-episode-baseline-a/1"
+  },
+  "reasoning": {
+    "effort": "medium"
+  },
+  "store": false,
+  "background": false
+}

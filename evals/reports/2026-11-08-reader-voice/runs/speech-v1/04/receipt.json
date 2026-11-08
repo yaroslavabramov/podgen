@@ -1,0 +1,208 @@
+{
+  "id": "resp_007d9c8f056375cc016af0296b2ab087d2a4e513ad18abb993",
+  "object": "response",
+  "created_at": 1794124139,
+  "status": "completed",
+  "access_programs": {
+    "cyber": "standard"
+  },
+  "background": false,
+  "billing": {
+    "payer": "developer"
+  },
+  "completed_at": 1794124143,
+  "error": null,
+  "frequency_penalty": 0.0,
+  "image": {
+    "context_compression": "disabled"
+  },
+  "incomplete_details": null,
+  "instructions": "You are a copyeditor preparing spoken text for recording. Read the supplied consecutive excerpt in its language, as written, including neighboring sentences together.\n\nFind wording that needs repair: grammatical errors, unnatural idiom or sentence construction, and passages whose combined wording makes the voice stiff, inflated, patronizing or monotonous. Assess the words separately from the value of the narrative move they serve. A useful image, question or transition can survive a required rewrite of its wording.\n\nFor each finding, quote the exact words at their supplied zero-based utterance indices, explain the concrete problem, request a specific correction or editorial operation, and name what should survive. Distinguish a required repair from an optional refinement. An objective grammatical error requires repair even when the intended meaning is clear. An accumulation of individually intelligible phrases can also require a passage rewrite.\n\nRespect intentional conversational phrasing, ellipsis and the speaker's voice. Figurative language and unusual images are not defects by themselves; do not impose a preference for plainness. Do not summarize the story or assess its overall design. Do not invent a problem to fill the form: return an empty findings array when the wording works.\n\nWrite response text in output_language. Preserve quoted anchors and identifiers exactly. Preserve the facts and the intended meaning when requesting changes.\n",
+  "max_output_tokens": 24576,
+  "max_tool_calls": null,
+  "model": "gpt-6.1-terra",
+  "moderation": null,
+  "output": [
+    {
+      "id": "rs_007d9c8f056375cc016af0296bf97c87d296b339d972868f3c",
+      "type": "reasoning",
+      "content": [],
+      "encrypted_content": "gAAAAABq8ClvY9K4-2ocozs4ToiteMyZwN9TfVO6twdC4uCO7X6YfpgyrrBhzrmoxcJ0iRMwegtV_4MkwV3-AYX95zT6aCBnhwSc7attCMC7VQe75xlxFf61nxHLnB-EdMzZCPaCQkOTaLSAddEe9mvWWJdVdW706RUBRGA5P-F71uLYl1RjIeBLJtcc44rpWJpBELyMGMmq35oVa0K5AzF9PLCc5REf2EnkQVcdFBi9hQdkXkeYeZRVtuQh7C_brVUijjlkVyX7aLfXOwo0BUKQNdoa5amsjr6lZ66ZMS2LgL83Gitt9BR2ekxubYwTLXJXZsQMgINvxn3TH2bmc9A_d7e1qdsQUBwP3UW74rAfcbQX3yZ6nKPKzxGuoANK7P82UY_SlNjTv9nkatPHRsHQKkL7BvIADlgIR9PtWhXD97t4GgSR4Epi6Ke60Xr2A1Ss6Nr8pVqFVzmPaIpSuIrUpN0QzhTtPDhopd6ReCtkNdW3UabbmYjhcyF_xQDfiKkguldI6bDLdbQB3mEbo-1CFKaLauggxSVsKr0fPeEM2FFWx-wW4SudC4qCaravDEM3nA8_flh9x2pvxIh_Vu66dnWTtlnxAXbj0Weu_ywVi-F3gZGKwVz8YRk2WYaXXe4JuyB2C73lNERS7eqjivJJFa2fyIBSnZErP6wUOFziI7JQMRtbnkcLyFX5813HsbgQnSbFRhQUENuplyZ4m5LRZS6scmL2WnJf8TvEFnrZ3ErkTbX-hysxv2jq6dtOpZrpn4kMcKmEnGry17kRmt7zp2JDP4eU1jCnYayISjjbxogcPe9eyr-gVV9x1RDXSp37tNcBCakFjbjPGc9y8H3lg01UD2eF5p3KBh1KhA4mDF1Fb0XfwKG2TUzsAydz_LHNPK_quHkWc6BYsu0GsHBep_fSjAg6Dbdu45XjjP8BgfUX-cbOBpt_HkAfWPKw7qrvxsT1OhIGehNLXuAe4P6MFyzfOkqMFpan3QYd4OHfZjbArUQJucKdkbdJAm5D6UWMVoHltErb19BNlHMwRsb3AUqzI-aXLrvri7HZ1CRbs95vq9Wnu00Jkoqc6Hhqq9IBcnLv_eZ6Xobav1-eZ4YSze_Zt2lxW5OOumFPS6qQw8fG6PPouPErOUIoG6LwiUOG9Bl_gejEEoyXwOousiqHK8TSR27Wo_WpHmq57d3mreHREPdt0brxnSzBuJK71dP0zN8SKrYNYxIE_HtxzdtWR13jb7sTsULmekmNceNWPhXUn_LnhZXH0hlauSW9OLTmYum8N0uRscJV8zChZ25P8_7lN8fha1LE4kNFR5Pvq7_kz1mE8Q-pCM6oCEHgwF-WrChi53brz4YDF-bnPR6kJu0EnbeuyjfdB5_ylx6yFu4-InjanzaBJdEqPHT2CQ2AHH86J0G_qTETqR_jVmHHTxXnWpwrGkWpfaXeHakcwOmSvNhMupBsRNwi5ycY1qhJf-0t4ERi5HT1oiheJJc1vkypflqt5vibklU4DL0ptkL29AtW5q0cx-djKzkhpjZX8Cxry6V_hpVNA27bk6lQN8xFQPJS_T-vA1rHzV5_kdWgYEQPdKPennXkP2R2OmftpHBFdkqjlR0sXf7hM1lGGXVqzomiXKnqoBdQXor36yNOOQ_irbvPIz2Z2r0W2jjeGqIJPZYPRw0aPrejwTPJNiBimfLUBDTZvYyhFHuht2J9mQEBr-tWQ5DZC3ezIwleNZSSY7OYFhrnaAMJEJD7sF-Rrp1iuHy6ybAI8bWUupdErX1BNFaWanajOH1pACRA_OAQ1ZYbA7um97wilR3ikv3sjSONkFrUsr_uzncOk9W_4hbPEPDUNjoVbJ-1M0gUIbwCSqZjJVsHWsPdY0yd93yOrOhZFlC7u0cMzEt3WPCuSBfWPq4_yD9LoDjdYpdE_R8DfvfGyXscZg5MWQVkctcxCnMuNksf3iONpn1qhthpaIz521IibnuXv_hlUraUEszKe6kWbXAxX_WfUas4-A4LynQd5pFxzqpSiMem5INcxUQ99aXE7h01UjerOQaUZbGLDs2JeLN79rqjKkMpNJuSTF8DbVVErENb6Z4dD4C7CR6uVz56IxMxur_5kyBKJZUR4FSCYLezbJ3DOjwC7Mqrb4285W8eGREKRiWWJdfs6UiTD_7P34u-jst58TA_rtYfFoOQ3esJaGHW0o5A6saFH7Qw95QnPwssYdeE2qN5dQxu4Mx09CNlA0BhDAwSZ_tzXKFjbkCurqCxlzRSAED_1jWTWSzMv-Y4fApBTCwF4Ct3nPyY24VLyV2Aou5uDmCXeRJCiwVnLLxzQxXnMG5yije12zfwBUVk1ZDbhHD2hdbhngEpK3Ud2jYBDjYLyUMsyVpOQz4yEtR88VFMBF47SY2tvCY-DYtJGh2PhKwttSqmGwi0ZrptQD0wEt-d8dL42QRhx3-JVF_duhzjt3mclWxlQhZ6Yz4neO6sQoLkuKUcC2-84Yor-D5hU754QnahZq_ye9hUfiAjD_Turfzi85ic0nXZt6QYyRxSd0F1yLp3oCt729PcwrVAuXlIDA1ZoaW6zSaJQdOV6tbtJ1ZZ3MWoJvzbr4RHQ_6_cWRXwhymWV5JPt9WGTfdyy3nse1uN-ILbZI781BUjjzt5RmEkmkJD3M8oUAGxGoGdYEXeP2QtY2ogwMesdwu-x-NXcJVREhYShGoXCFepzwpz4FlY1fQXSO4gNOXg3zzKQ28ZYwBoEplyymMcn6O0b0zQnmDK3uYat37fEPGqjfWf00i_B23VWlJUm7VWL7BNSSxVp1n2umQ1M_FECsBModtdfRZXYbACN0VuNIpNu8L2pW5RuJwkyzKI_rvfP6NH1otZrzecDVqqv2tWPL2Wb_XqxL6jx4g999jI3LOSf82dx_MdX-ofc3P-gItOubwdk7e0OIdC6zHJjBkAwFQ7t8LwxO-m_b-SmMDGZsDeunDczTTW7YCuv_IZj_Tr8aetjfWbAKnXKZGu0G25lShWpjuhPzRZJzSRKLtp6xJxNYk84TlN73E1XumIs76hkUJ-zz4FzhtOa_BOHlhtiUnDprffxQG8rPd4ufeykRYzqTg17WoOjgCyeRXyAGyew2p3mbOboUZl7kdFoNwP6xSbTy5iwCNzHErHBkLEm0JnRXjHdHus2EU3hgpswZoBQuhw7Oby5KYwUrqK31bbVHiA7pRpemgmWaT7dxrpFQ8QRSf6h8cnpw1HuEmO21DAQlqELr4VTLBow3hF0U5CaCOlRe6SXX2ukAHJqxOBCM1uPUp4fjDjmbC7D2R-ZVq2LE7zzAVMcy_d_hIcJm7LoShu1yvdYRWd7o9kpyzK2FKZVRt_aQEPqoVm2y3fVCKbw09iZM_tT7eI7zy2bA58bqD5q0w11u5tTgIL4mFBCDeEmJqKXMFuUuB9mco9KfXqz2FvhEI7iLKUnyjCDgc4aYto6X0lH-CP4IerRw1Lg3azoJ8br-i5viVREG55uvvuXi_r7OVaWWvNw5scp5Uf6yat0TyQ8Vs28DYgn2GbHhrQOluONhX3tV1C0402WqCtnrMnkygQndru-gbsM--bbFnOFsek1GZF74PYtNQzjlYSuIco0rTVGMhOAyvXnf6LWk-noRL5AKc1fLaY87bVXPCvx770K0hTc63jU1s0nDz0W11tW_lhR_B5SaigHYdab7RAcqAoqm_crGRC67h1SPF16QyaP-dznUpnIs5d_cIXa6Zdeo93R2QqY_vowhi2kioA3YFaPnSGPnsmbup9XY0Ur0XfHkmxGuVITQXPUyIfzAYs36KSvTS57RrDsO5Aenc0_M4X-TRkWP5NEEv3-y715J2uFkHIxIcP4eosxQgtj34ZYtOX1TLaf2ViOe6dlkN80E3aWS9xqYC1H5w3jC58-ZGvaGX6uXpQSCHsMN_vkVJ7OkJYDqNtz896LCMLroai2QCgygXCpOmgD3beuH_sBBdJHuN0Fmq8pWsyjeefyqyjgGlvdEZQYOPmifqYwi-n6Y_tz2SuQUK95T_8lrfhEfzEyC0Ek351-pSMa7-JDEevbaoIW04wYljTel3sO3Ejm2i2xAkYJulRSAjcsH_duLRddrvSs3QiwCnONuNInPNB5-6AYK5vrbE___x6ilc63meCQybcfJl_DAe3kqSh7bkDOZaIKVUZVtwmosKzDErw4ir2D8yiEuujvQzKYCpjKntGkebi7YbL_vqUb_2x0vOumVX398BpWxa9GDuaFAEdRHivc_uOCuqQFH-sU_xmB_DYOsDvNSK8PilYJdmURUqqLwv-yRSBiVG-N8IXQAWADlV8EDAVIazFV4a847sNOLDiJyDz92PHLQZJlof1Ftp-tCzyHHNBI_9WWjLayHlpnFlaRIlpgn9Hj8GRTJxbieMKg3IND7GFWd9CjOjmy1iwYRG6gQ4NfJPqXLeQDZ3iYCLcsJfTtrN19_iGYYJ83zApJoS1T9SEzPZZOuTePCwmzo892_KgYqtl9ZFzOo1Uv0n7yoi4Fq3iEQhgqcj8qsPZp75BRc0sMooCei6OrcIz_msRcnz_qpzmwtki7poreUeFLc-0ctlwrFmgpr_EWrwDBfn0QTu1EIsPMc61KQXAks_I13mMZIHHzqC0Z3J6k4wr16w4YUdugazWom8luAmHjiPO5ghs-kMVr94lXkqo1qV45U8pCJtL2j7bgZkRR2MsBeyaZUT3I2_E-0wOlb2AaVNXI4zTIGu2A62deehoxzM77gQ8Sjk--d-pN9RzLTFQfKQIL-kivy1_w2DxINYPT6uVY-CmReNN088mergTZ_ioiw09ts6UKWH-wctGig8ZfBp7Avl-kXoaaMdd_yUtIUdk3F5iR14twspbJPX73CoumlIy7iA9KtAqB-UCyjhv1KrT7pdTZFBAGy6xuu8Ee1pFKiE0Bwb5sEFDvHFg733Bifqal23XpFyHkJr73PDzeT2aT5vJrOwRB0DQE8RJvcEiHp-_69VUGfiB029nUDGXwX1RdcF_C2vVpwbBbPeVN5s4CmJtGM-xgV2NP277rlXjBWXLh-F3E3if1jK8qAkypfCGFtQNQSRBvYjxWLz55QF-xyGYBDkxyAbxdPLOqhuyJ3oSEt3IOtORYyqHKOeX-uYMFxbDlRaiTWJfHhx6pd_z5xceP1ESNOGyd51zGnmi2xm340YxaKET5mH_K85QZIzB-7etE3kb49VbeJ-KUZe4em5-lR3TSAZaAio2k9aFFCOoiw_CaulF5R57ad_QLnsLdz5tZcZM3JpCbsxqPXBIRhwsKPVZB-NtomLM1x0TfLSQkshwGWrBOPVRfGYBMqTiC7oewZ-to5Y-U8sQrZHZkJXRo5v-KrP0uPvA4lI08yBiEvJn6KDBIOa0E7UQoDQ96BXPR_ft0gMCHlRwR16cWynGXwOnXL8jpzzCwY-tPawhxvf62_ocuv63EuLda0f",
+      "summary": []
+    },
+    {
+      "id": "msg_007d9c8f056375cc016af0296ee87487d2b289e052a33e849f",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": "{\"findings\":[]}"
+        }
+      ],
+      "phase": "final_answer",
+      "role": "assistant"
+    }
+  ],
+  "parallel_tool_calls": false,
+  "presence_penalty": 0.0,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "prompt_cache_retention": "24h",
+  "reasoning": {
+    "context": "all_turns",
+    "effort": "medium",
+    "mode": "standard",
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": false,
+  "temperature": 1.0,
+  "text": {
+    "format": {
+      "type": "json_schema",
+      "description": null,
+      "name": "speech_proofread",
+      "schema": {
+        "$defs": {
+          "Anchor": {
+            "additionalProperties": false,
+            "properties": {
+              "utterance_index": {
+                "minimum": 0,
+                "title": "Utterance Index",
+                "type": "integer"
+              },
+              "quote": {
+                "minLength": 1,
+                "title": "Quote",
+                "type": "string"
+              }
+            },
+            "required": [
+              "utterance_index",
+              "quote"
+            ],
+            "title": "Anchor",
+            "type": "object"
+          },
+          "SpeechFinding": {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "grammar",
+                  "wording"
+                ],
+                "title": "Kind",
+                "type": "string"
+              },
+              "required": {
+                "title": "Required",
+                "type": "boolean"
+              },
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/Anchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "observation": {
+                "minLength": 1,
+                "title": "Observation",
+                "type": "string"
+              },
+              "requested_change": {
+                "minLength": 1,
+                "title": "Requested Change",
+                "type": "string"
+              },
+              "preserve": {
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "title": "Preserve",
+                "type": "array"
+              }
+            },
+            "required": [
+              "kind",
+              "required",
+              "anchors",
+              "observation",
+              "requested_change",
+              "preserve"
+            ],
+            "title": "SpeechFinding",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "findings": {
+            "items": {
+              "$ref": "#/$defs/SpeechFinding"
+            },
+            "title": "Findings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "findings"
+        ],
+        "title": "SpeechProofread",
+        "type": "object"
+      },
+      "strict": true
+    },
+    "verbosity": "high"
+  },
+  "tool_choice": "none",
+  "tool_usage": {
+    "image_gen": {
+      "input_tokens": 0,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 0
+      },
+      "output_tokens": 0,
+      "output_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 0
+      },
+      "total_tokens": 0
+    },
+    "web_search": {
+      "num_requests": 0
+    }
+  },
+  "tools": [],
+  "top_logprobs": 0,
+  "top_p": 0.98,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 989,
+    "input_tokens_details": {
+      "cache_write_tokens": 0,
+      "cached_tokens": 0
+    },
+    "output_tokens": 276,
+    "output_tokens_details": {
+      "reasoning_tokens": 259
+    },
+    "total_tokens": 1265
+  },
+  "user": null,
+  "metadata": {
+    "podgen_run_id": "878bf1c0-139d-532a-8605-dd7ecc2a9d22",
+    "podgen_invocation_id": "87af5366-c8ee-5632-a366-7c7ba6aceb06",
+    "podgen_stage": "reader-review-2",
+    "compiler_version": "whole-episode-baseline-a/1"
+  }
+}

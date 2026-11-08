@@ -1,0 +1,208 @@
+{
+  "id": "resp_080837c63935a3b3016af02a1f59e487d29258dae1d72fbc4c",
+  "object": "response",
+  "created_at": 1794124319,
+  "status": "completed",
+  "access_programs": {
+    "cyber": "standard"
+  },
+  "background": false,
+  "billing": {
+    "payer": "developer"
+  },
+  "completed_at": 1794124320,
+  "error": null,
+  "frequency_penalty": 0.0,
+  "image": {
+    "context_compression": "disabled"
+  },
+  "incomplete_details": null,
+  "instructions": "You are a director preparing this consecutive spoken excerpt for recording. Work on its actual words in its language.\n\nAround each action or observation, mentally remove the surrounding phrases and listen to what disappears. Is it a new thought, a concrete image, a joke, tension, necessary orientation or a distinctive voice? Or is it another statement of something the listener already understands? Locate the words where the narrator starts commenting on the story's own progress or performing its significance for the listener. Request a cut, compression or rewrite when the accumulated commentary weakens the passage, while preserving the action, connection or experience that makes it worth telling.\n\nRespect a deliberate genre voice. A metaphor, aside or reflection can earn its place through pleasure, attitude or a particular thought. Do not require each line to advance an argument, and do not replace distinctive speech with plainness by default. Judge each proposed removal by its concrete loss; do not manufacture a cut when the wording works.\n\nAlso check grammatical forms and sentence construction as written. Do not silently correct an error while reading. An objective grammatical error requires repair even when its intended meaning is clear; distinguish it from intentional conversational phrasing or ellipsis.\n\nFor each finding, quote exact words at their supplied zero-based utterance indices, explain the concrete problem, request a specific correction or editorial operation, and name what should survive. Distinguish a required repair from an optional refinement. Do not summarize the story or assess its overall design. Return an empty findings array when no repair is needed.\n\nWrite response text in output_language. Preserve quoted anchors and identifiers exactly. Preserve the facts and the intended meaning when requesting changes.\n",
+  "max_output_tokens": 24576,
+  "max_tool_calls": null,
+  "model": "gpt-6.1-terra",
+  "moderation": null,
+  "output": [
+    {
+      "id": "rs_080837c63935a3b3016af02a1fece887d29b58f51b0292b7f0",
+      "type": "reasoning",
+      "content": [],
+      "encrypted_content": "gAAAAABq8CogLh3LF9eiLTDBwUodV7mpBPb7ijqM6m6P1LTcy4rpaPwhVKP321rqciXSWKE26woNLjYUbTpQEC808dIxK_pAO8zjM8t6p1XO4qv5-KiZBswfuBZkN3ggIwQB53CnDuCPFRU5G969z-iCPJDc-o530ZCKIlYbFJAg9_obE19kBZDKA4nPgqfMWsuhhaqjsS1V3OPigV1dIv9QdIyVG-mCglW5DhjZR8ywbF_ZsdMyiUmDzhjIUMrdsUYTjYoQ_nLmH8_qM0xcLTh7plkGuqOabdhwk1seVQOtAnNPlRKJs1tg1t5p-xvBU1cjJI6FypaKNb-r245PixtNaeWac6TcOtVhRf97sAj_d-YqqgxmxbuRGq-d2DJrNj9v2xFD5ZVfWk3PpDcyndP21QTlDVhTvhXSUFv2bGgHY2yxmdD7GttFe8u8aX2NwMkbn8y-BxTr2SuYnQPFuzgcUb7xOSx4I5YyJZ5qgS7hpe2yIxyFDKBEI1lkSQ9lXOvxjJ0esbIzEgxeHAwk0FI5K-tRfL5Lkp-kCNCEd_k6AvxLYLPnCZld3if8WKQWyXMJUZ5mw4lMwaD02PJ9-6RvtZx3hlEpCqWgh5Nysm-xm0SAxp4EWNqkRzb98GVajwStNL0MAMc6ptMe2Cbh8AOA7EL8f3THP4dHMDJ88yfNZLfIwb9TpOSUfrQ7qoaTclPHc6Z0Lls0Iu5ioFVS8HruU0YL_4JBpbv7EZurSwgVmj-yFoIcnflvvfSzz_ilFx_yPoItwgmyz23yHFqMnVLZdxPR7X6hy22oVKdEpaTUNXQkXGqB9CVZWloMAGF80ANC_uPlKMjYp23BKtRX3hrNAkUFRGuUM3jW2186kxWfCt0lmvIq5K-8you1ZRM_s70DVc_kLOJf7m6qt_kXZ-4kSEfJqF7jRwjb_3RvfyTK3hc1r0xnsMrqTxO9YciULb4m1VLhN05BbMOIMylpVNBgfzGn15plONIw8OIq_doEN3_Fi4XqzW1iQqpwPTi4vxrrvTSmhcllYq3s_iA7TcPpXQqqvhrKalrZywHvYOZWXMJZGItL3HIGHavznBbMPpYiQNFnvkxCKFWLsCjHVVwKniE_4QgBVMnRL8HMUB6SRHYxSv6KE21xhcD8zv3CZwYVWrFfdIMbaB3zFcvmpj9FK2p6w-KDLZsji6pZHRx8iGQx0KczwA1XSnNGX4gadPzItIx9JDANzuH-nfc0bVdiER9BK19Ghl_c0kiCVcZISMBWxKWSOxrSXK4ZskKF-cFOU_xzuwbnENCHgIq8FLag9BNXcDL0D9g62TQYWtWnlZolxRzhN3vK2cYmNoi7gX8eaPhfSGYCOrt_cKe85OC9TVXRb6fgcKr5oDbyvy7D3946mVQSXr0zsPsoX9RDkBWUn0zsRFAucllzsZymKQ5TNd0TnAnWmezlMQKC4WmeF-2O_OEhUKOZnXYKxj6StbYiOx557mV0jUMVKed-hlmjaM0GyanfDq8J8iYb8kCWnQJcjr0pe2O6nzInqexlfDbnu8G5g4gAQFOrPXMXQR8RFGlLqtSamNKNSAOjLPuujMm9EIh7zPVzQ9a-bHmD56Gq_7nSiPy6qVqs_n1eON-7WP4a9o1MfzmLKv_ImuBa5Ij2zkFnmqiLm5QDDavQdjm-pxS65FB4fGTEUiT_LwnbH7Kpa_X5yHGtNvO2hvCMfuA0-7WSKBJ-4Le2MhF_r7QKdN7WhGONZ_Yc4IxnW43t1yZiAbllDy16cE2_jG8cPV93b5nmqhPZZtP2PgVh8-fN3axj1UGZUlTCG6qPqYpJyXwiZ3-EbvYkzVrYHY611LgzkTCwZKI3A-WKXX9rGx7flN8TTC4RyNoGUi1BHLOiVbcyYvz_koiRYJg2VyppnXtyNLqPP3P-etI6m2IMyigs53uSq6aiVyy54dfwltKOiJeYeKM9ydr8JtYGBOf7UcAmIM2PiIosEULGDN8cx4u31drN_dPK-Y1MQfTqT4uqaUaSUiN6YJGH-0Ouz6q3hpgS34-qK6-t1zp2xEy8qdusAkd0fTKuHGUrPJ2pCHkJN14_7fiJTcTVcRbOPQLJFTohFQNuwsdBNlDUnBkCZxxSn6yOiSapHEogrcqScmr6VDlQ4GMz9Zbc6k9jSyiucKc9xe_0hNIlkubc1-CBiBmfRorQ0lsB45uO3uKeaBvJiIf_7K_hZW6J4EkByC0Xr8z-k-AI77N6wKE-jr-YVW1VsRaT0kX4knrSmZvGNUk8ntDlnw5ZI3JfhAx4IGDreRAzGRnHBGB174m8YqM1FpaadR9UrXdcQMxU_G0LQ0zEYnxUJZjq28QlRQ-umUB-Ko3K0P7k__BB-ZPH8MtYzwR3uBrZVDzc0Y2TNj_RBySrPqAOskHIN3K-Kj3yCOX8pDBvdgT3jhslBr38iCaFeX3H264RfCOIw04Qd3wXg36RbyVi5X09YSTjtLtvbL7M56jqXDma27EfPxHyoD7HO3Qvn8yxSf73xkb8F1f3WRTIL5-rL_tKfoOIVjlCu85PXOEFhVd9xme2MHek4ceydB8wtcVegSRJuPGG5FW5ECCUy49ZoXO3PQ==",
+      "summary": []
+    },
+    {
+      "id": "msg_080837c63935a3b3016af02a20c3fc87d2ace57d6330714444",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": "{\"findings\":[]}"
+        }
+      ],
+      "phase": "final_answer",
+      "role": "assistant"
+    }
+  ],
+  "parallel_tool_calls": false,
+  "presence_penalty": 0.0,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "prompt_cache_retention": "24h",
+  "reasoning": {
+    "context": "all_turns",
+    "effort": "medium",
+    "mode": "standard",
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": false,
+  "temperature": 1.0,
+  "text": {
+    "format": {
+      "type": "json_schema",
+      "description": null,
+      "name": "speech_proofread",
+      "schema": {
+        "$defs": {
+          "Anchor": {
+            "additionalProperties": false,
+            "properties": {
+              "utterance_index": {
+                "minimum": 0,
+                "title": "Utterance Index",
+                "type": "integer"
+              },
+              "quote": {
+                "minLength": 1,
+                "title": "Quote",
+                "type": "string"
+              }
+            },
+            "required": [
+              "utterance_index",
+              "quote"
+            ],
+            "title": "Anchor",
+            "type": "object"
+          },
+          "SpeechFinding": {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "grammar",
+                  "wording"
+                ],
+                "title": "Kind",
+                "type": "string"
+              },
+              "required": {
+                "title": "Required",
+                "type": "boolean"
+              },
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/Anchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "observation": {
+                "minLength": 1,
+                "title": "Observation",
+                "type": "string"
+              },
+              "requested_change": {
+                "minLength": 1,
+                "title": "Requested Change",
+                "type": "string"
+              },
+              "preserve": {
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "title": "Preserve",
+                "type": "array"
+              }
+            },
+            "required": [
+              "kind",
+              "required",
+              "anchors",
+              "observation",
+              "requested_change",
+              "preserve"
+            ],
+            "title": "SpeechFinding",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "findings": {
+            "items": {
+              "$ref": "#/$defs/SpeechFinding"
+            },
+            "title": "Findings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "findings"
+        ],
+        "title": "SpeechProofread",
+        "type": "object"
+      },
+      "strict": true
+    },
+    "verbosity": "high"
+  },
+  "tool_choice": "none",
+  "tool_usage": {
+    "image_gen": {
+      "input_tokens": 0,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 0
+      },
+      "output_tokens": 0,
+      "output_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 0
+      },
+      "total_tokens": 0
+    },
+    "web_search": {
+      "num_requests": 0
+    }
+  },
+  "tools": [],
+  "top_logprobs": 0,
+  "top_p": 0.98,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 814,
+    "input_tokens_details": {
+      "cache_write_tokens": 0,
+      "cached_tokens": 0
+    },
+    "output_tokens": 85,
+    "output_tokens_details": {
+      "reasoning_tokens": 68
+    },
+    "total_tokens": 899
+  },
+  "user": null,
+  "metadata": {
+    "podgen_run_id": "adfd8747-aa68-539f-9ab0-70122a690885",
+    "podgen_invocation_id": "e65563b2-c80b-51ec-8d5b-415220ffb5d0",
+    "podgen_stage": "reader-review-2",
+    "compiler_version": "whole-episode-baseline-a/1"
+  }
+}

@@ -1,0 +1,133 @@
+{
+  "model": "gpt-6.1-terra",
+  "instructions": "You are a copyeditor preparing spoken text for recording. Read the supplied consecutive excerpt in its language, as written, including neighboring sentences together.\n\nFind wording that needs repair: grammatical errors, unnatural idiom or sentence construction, and passages whose combined wording makes the voice stiff, inflated, patronizing or monotonous. Assess the words separately from the value of the narrative move they serve. A useful image, question or transition can survive a required rewrite of its wording.\n\nFor each finding, quote the exact words at their supplied zero-based utterance indices, explain the concrete problem, request a specific correction or editorial operation, and name what should survive. Distinguish a required repair from an optional refinement. An objective grammatical error requires repair even when the intended meaning is clear. An accumulation of individually intelligible phrases can also require a passage rewrite.\n\nRespect intentional conversational phrasing, ellipsis and the speaker's voice. Figurative language and unusual images are not defects by themselves; do not impose a preference for plainness. Do not summarize the story or assess its overall design. Do not invent a problem to fill the form: return an empty findings array when the wording works.\n\nWrite response text in output_language. Preserve quoted anchors and identifiers exactly. Preserve the facts and the intended meaning when requesting changes.\n",
+  "input": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "{\"output_language\":\"ru\",\"utterances\":[{\"index\":0,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"В ночь с тридцать первого августа на первое сентября 1854 года в одном лондонском квартале резко растёт число заболевших холерой. Люди, ещё недавно ходившие по своим делам, заболевают и умирают. Через несколько дней врач Джон Сноу осматривает воду из уличной колонки на Брод-стрит. Он уже подозревает её. Колонка популярная, за водой сюда ходят многие. Если подозрение верно, каждый новый человек с ведром может унести опасность домой. Но вода не торопится выдавать свою тайну.\"},{\"index\":1,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Вечером третьего сентября Сноу находит в ней совсем немного органической примеси. Он колеблется. В следующие два дня количество беловатых хлопьев меняется. Возможно, в начале вспышки вода была грязнее? Возможно. Но это пока предположение, а не улика, с которой можно закрыть источник для целого квартала. Осмотр не позволяет ни обвинить колонку, ни оправдать её. Значит, придётся искать следы в другом месте. Не в стакане, а в том, что происходило с людьми, которые из него пили.\"},{\"index\":2,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Для начала Сноу нужен список умерших. Он получает разрешение взять сведения из Главного регистрационного управления. Из восемьдесят девяти смертей от холеры, зарегистрированных за неделю в трёх подрайонах Лондона, восемьдесят три пришлись на последние три дня. Эти восемьдесят три случая он расследует подробно. За каждой строкой — дом, семья, чья-то привычка. Кто приносил воду? Откуда? Пил ли её умерший? Вопросы будничные. Но именно через них предстоит выяснить, что связывало людей перед болезнью.\"},{\"index\":3,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Почти все смерти произошли недалеко от колонки. Это важное совпадение, но пока только начало. Соседи делят между собой многое: улицу, воздух, условия жизни. Близость к колонке сама по себе ещё не означает, что человек пил её воду. И вот первые неудобные адреса: десять умерших жили явно ближе к другим колонкам. Казалось бы, эти случаи должны работать против версии Сноу. Если опасна вода на Брод-стрит, почему погибли люди, которым удобнее было брать её в другом месте?\"}]}"
+        }
+      ]
+    }
+  ],
+  "max_output_tokens": 24576,
+  "text": {
+    "verbosity": "high",
+    "format": {
+      "type": "json_schema",
+      "name": "speech_proofread",
+      "schema": {
+        "$defs": {
+          "Anchor": {
+            "additionalProperties": false,
+            "properties": {
+              "utterance_index": {
+                "minimum": 0,
+                "title": "Utterance Index",
+                "type": "integer"
+              },
+              "quote": {
+                "minLength": 1,
+                "title": "Quote",
+                "type": "string"
+              }
+            },
+            "required": [
+              "utterance_index",
+              "quote"
+            ],
+            "title": "Anchor",
+            "type": "object"
+          },
+          "SpeechFinding": {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "grammar",
+                  "wording"
+                ],
+                "title": "Kind",
+                "type": "string"
+              },
+              "required": {
+                "title": "Required",
+                "type": "boolean"
+              },
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/Anchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "observation": {
+                "minLength": 1,
+                "title": "Observation",
+                "type": "string"
+              },
+              "requested_change": {
+                "minLength": 1,
+                "title": "Requested Change",
+                "type": "string"
+              },
+              "preserve": {
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "title": "Preserve",
+                "type": "array"
+              }
+            },
+            "required": [
+              "kind",
+              "required",
+              "anchors",
+              "observation",
+              "requested_change",
+              "preserve"
+            ],
+            "title": "SpeechFinding",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "findings": {
+            "items": {
+              "$ref": "#/$defs/SpeechFinding"
+            },
+            "title": "Findings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "findings"
+        ],
+        "title": "SpeechProofread",
+        "type": "object"
+      },
+      "strict": true
+    }
+  },
+  "tools": [],
+  "tool_choice": "none",
+  "parallel_tool_calls": false,
+  "truncation": "disabled",
+  "stream": false,
+  "metadata": {
+    "podgen_run_id": "5edb354d-f663-59f1-843a-7d5f286def4c",
+    "podgen_invocation_id": "158eb15e-4c3b-5855-a9d2-d6d3cb416dd4",
+    "podgen_stage": "reader-review-2",
+    "compiler_version": "whole-episode-baseline-a/1"
+  },
+  "reasoning": {
+    "effort": "medium"
+  },
+  "store": false,
+  "background": false
+}

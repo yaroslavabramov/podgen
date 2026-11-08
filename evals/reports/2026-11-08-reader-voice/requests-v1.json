@@ -1,0 +1,58 @@
+{
+  "new_role_cid": "reader-review/sha256:e7eb511c3ade29c88aaffe566626aed9719f86cbdd577f13070cca4fdfebe830",
+  "requests": [
+    {
+      "role": "old",
+      "case": "01",
+      "path": "evals/reports/2026-11-08-reader-voice/runs/old/01/request.json"
+    },
+    {
+      "role": "new-v1",
+      "case": "01",
+      "path": "evals/reports/2026-11-08-reader-voice/runs/new-v1/01/request.json"
+    },
+    {
+      "role": "old",
+      "case": "02",
+      "path": "evals/reports/2026-11-08-reader-voice/runs/old/02/request.json"
+    },
+    {
+      "role": "new-v1",
+      "case": "02",
+      "path": "evals/reports/2026-11-08-reader-voice/runs/new-v1/02/request.json"
+    },
+    {
+      "role": "old",
+      "case": "03",
+      "path": "evals/reports/2026-11-08-reader-voice/runs/old/03/request.json"
+    },
+    {
+      "role": "new-v1",
+      "case": "03",
+      "path": "evals/reports/2026-11-08-reader-voice/runs/new-v1/03/request.json"
+    },
+    {
+      "role": "old",
+      "case": "04",
+      "path": "evals/reports/2026-11-08-reader-voice/runs/old/04/request.json"
+    },
+    {
+      "role": "new-v1",
+      "case": "04",
+      "path": "evals/reports/2026-11-08-reader-voice/runs/new-v1/04/request.json"
+    },
+    {
+      "role": "old",
+      "case": "05",
+      "path": "evals/reports/2026-11-08-reader-voice/runs/old/05/request.json"
+    },
+    {
+      "role": "new-v1",
+      "case": "05",
+      "path": "evals/reports/2026-11-08-reader-voice/runs/new-v1/05/request.json"
+    }
+  ],
+  "model": "gpt-6.1-terra",
+  "reasoning": "medium",
+  "new_calls": 9
+}

@@ -1,0 +1,12 @@
+{
+  "source_request": "tmp/snow-edit-nov7/continued-native/reader-review-2-187d6d06-2de4-5288-a9fc-52fe59b9d1bb/request.json",
+  "old_prompt_sha256": "aae4e16c642969ea41ba1101bde0bb3863bb1db33bf6e5e4f80f54ca50825348",
+  "case_sha256": {
+    "01": "565a31a7e47a17b23fa2cb7a1a38ddaf2a63ba13d64580a9dcab95320be4df0d",
+    "02": "4243c70fb0a0b4eaee207d74742ecbd2dbfc07bfeef94d505286d562930d41d5",
+    "03": "c277b2e0cce319a7fc77545e43c8165fe365d3daea20e68aa1a7f2b137a9f938",
+    "04": "cbd0f2106c71f7001c66bacec2e0c2583c73fa92bf2ab1a7c24140101f660237",
+    "05": "32150cafff553d6dfcbe135a16cf1517da899d8840d0c341ae633210eca98847"
+  },
+  "criteria_sha256": "d40e42990a726ea510e7d28185caec48957b2b0e822b6271ba5cb79c1ff01745"
+}

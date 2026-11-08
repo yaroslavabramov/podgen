@@ -1,0 +1,19 @@
+{
+  "case": "04",
+  "response_id": "resp_0f325b2039bd4f54016af02a1f59dc87d2a6ec852887d47f86",
+  "usage": {
+    "input_tokens": 1058,
+    "input_tokens_details": {
+      "cache_write_tokens": 1055,
+      "cached_tokens": 0
+    },
+    "output_tokens": 963,
+    "output_tokens_details": {
+      "reasoning_tokens": 380
+    },
+    "total_tokens": 2021
+  },
+  "estimated_usd": "0.00613675",
+  "required": 0,
+  "request_sha256": "612ec432f2ebb716316e620ac4c64b521782608c759b6f749c2adb298f334155"
+}
