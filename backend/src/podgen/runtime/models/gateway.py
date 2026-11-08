@@ -58,7 +58,7 @@ class ModelGateway:
                 self._fail(invocation, "role_projection_version_mismatch", status="validation_failed")
         from podgen.runtime.evaluation.input_budget_recovery import effective_limits
 
-        local_limits = effective_limits(j, invocation)
+        local_limits = effective_limits(j, invocation, manifest=manifest)
         if contract == "editorial-role-packets/1" and invocation["status"] == "prepared":
             j.event(
                 invocation,

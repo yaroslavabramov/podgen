@@ -72,10 +72,13 @@ def authorize_input_retry(journal, command, target_id, max_bytes, max_tokens, *,
     )
 
 
-def effective_limits(journal, row):
+def effective_limits(journal, row, *, manifest=None):
     """An allowance follows only identical operational retries, never other stages or repairs."""
+    if manifest is None:
+        manifest = journal.manifest(row["run_id"])
+    base = manifest.get("role_input_budget", DEFAULTS)
     if not row["attempt_index"]:
-        return DEFAULTS.copy()
+        return base.copy()
     rows = journal.attempts(row["run_id"], row["stage"])
     body, context = journal.request(row), request_record(journal, row)["context"]
     while row["attempt_index"]:
@@ -94,7 +97,7 @@ def effective_limits(journal, row):
                 or auth.get("measured_bytes") != measured
                 or auth.get("maximum_new_attempts") != 1
                 or set(limits) != set(DEFAULTS)
-                or any(type(v) is not int or v < DEFAULTS[k] for k, v in limits.items())
+                or any(type(v) is not int or v < base[k] for k, v in limits.items())
                 or limits["visible_bytes"] < measured["total"]
                 or limits["input_tokens"] < (parent["input_tokens"] or 0)
                 or context != request_record(journal, parent)["context"]
@@ -109,4 +112,4 @@ def effective_limits(journal, row):
         if row["attempt_kind"] != "credit_retry":
             break
         row = parent
-    return DEFAULTS.copy()
+    return base.copy()
