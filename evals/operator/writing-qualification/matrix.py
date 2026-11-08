@@ -165,17 +165,23 @@ class Matrix:
             if saved["status"] not in {"prepared", "running"}:
                 return export, saved
             args = ["resume"]
-        result = self.cli(*args, "--run-id", identifier, "--export-dir", export, log=log)
+        result = self.cli(
+            *args, "--run-id", identifier, "--export-dir", export, log=log
+        )
         if not report.exists() or read(report)["status"] in {"prepared", "running"}:
-            raise RuntimeError(f"Run {identifier} is unfinished after exit {result}; inspect its journal.")
+            raise RuntimeError(
+                f"Run {identifier} is unfinished after exit {result}; inspect its journal."
+            )
         return export, read(report)
 
     def trial(self, case, release, repeat):
         label = release.split("/")[0] + "-" + case + "-" + str(repeat)
         folder = self.workspace / "trials" / label
         folder.mkdir(parents=True, exist_ok=True)
+
         def profile(role):
             return at(self.workspace / f"profile-{role}.json")
+
         common = [
             "run",
             "--case",
