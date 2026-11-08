@@ -11,6 +11,7 @@ import pytest
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.persistence.editorial_inputs import EditorialMaterials
 from podgen.runtime.evaluation.preview import preview_request
+from podgen.writing.duration_views import duration_context
 from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.model_references import ModelReferences
 from podgen.writing.plan_views import candidate_view
@@ -63,10 +64,14 @@ def test_local_operator_case_exports_actual_preview_without_annotations(case, tm
         "assignment",
         "dossier",
         "material_catalog",
+        "duration_context",
         "candidate_plan",
         "review_target_root",
         "allowed_review_targets",
     }
+    assert payload(request)["duration_context"] == duration_context(
+        materials.packet.assignment, include_requested=False
+    )
     assert case["target"] in payload(request)["allowed_review_targets"]
     for name, content in dict(
         request=request,
