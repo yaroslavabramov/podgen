@@ -1,0 +1,87 @@
+{
+  "shared_file_sha256": "b52d0f03e8bc24fcee4c10960011557d8fe7e9a3adc74a1f36f721d3a0b080f5",
+  "common_digest": "7abc0bc044e43501a5da281538355e7a88ed83194806a44ff287a3ec476268c4",
+  "fact_schema_version": "fact-revision/2",
+  "schema_digest": "399960c36a0d467742c8a19cd7c209d1a80a8c4779072ba9c9c19711bfa88a18",
+  "prompt_sha256": "3fe65017933190a483dd763177f83d2a57e1665159969663f586e096d2c07507",
+  "profile_source": "evals/reports/2026-11-08-story-editing/controls/profile.json",
+  "profile_file_sha256": "6c4389f6118a71414e892b02400325d25c6e43e16c892fdbd9d77fcb1fa2a75a",
+  "card_and_excerpt_counts": [
+    17,
+    46
+  ],
+  "stable_references": {
+    "contract": "model-material-references/1",
+    "packet_digest": "9273cf3e6e4f897c294658e287ce448b98b26c33cfb9f1b9529ecc34befd6f36",
+    "entries": [
+      {
+        "ref": "M1",
+        "card_id": "C14b82a922a73"
+      },
+      {
+        "ref": "M2",
+        "card_id": "C8f02286bc580"
+      },
+      {
+        "ref": "M3",
+        "card_id": "C6e16f4eded9a"
+      },
+      {
+        "ref": "M4",
+        "card_id": "Cc5ef8f053199"
+      },
+      {
+        "ref": "M5",
+        "card_id": "Cf09c44d3d10b"
+      },
+      {
+        "ref": "M6",
+        "card_id": "Cc8ff1484b011"
+      },
+      {
+        "ref": "M7",
+        "card_id": "Cb1f0e697faba"
+      },
+      {
+        "ref": "M8",
+        "card_id": "C37abad3bffb1"
+      },
+      {
+        "ref": "M9",
+        "card_id": "Ca49628392361"
+      },
+      {
+        "ref": "M10",
+        "card_id": "Cf17597a5a330"
+      },
+      {
+        "ref": "M11",
+        "card_id": "C36479ab5239d"
+      },
+      {
+        "ref": "M12",
+        "card_id": "C8b2adbd3e180"
+      },
+      {
+        "ref": "M13",
+        "card_id": "Ce5cb095a3e6d"
+      },
+      {
+        "ref": "M14",
+        "card_id": "Cee554ab22bb8"
+      },
+      {
+        "ref": "M15",
+        "card_id": "Cd392f2fdcffb"
+      },
+      {
+        "ref": "M16",
+        "card_id": "C23d72f102d80"
+      },
+      {
+        "ref": "M17",
+        "card_id": "C0e414a5f3c87"
+      }
+    ]
+  }
+}

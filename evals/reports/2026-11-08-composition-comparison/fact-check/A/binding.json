@@ -1,0 +1,16 @@
+{
+  "blind_source": "evals/reports/2026-11-08-composition-comparison/blind/A.json",
+  "script_file_sha256": "1b58cabb74c9e7966fece3f26214d2c38eceb5b002577bbc2383f62e956901bc",
+  "canonical_script_digest": "a6ae4533256f84405e5810642dcd2303ba5c4567af94594d28682105b33a2e0e",
+  "common_digest": "7abc0bc044e43501a5da281538355e7a88ed83194806a44ff287a3ec476268c4",
+  "anchor_count": {
+    "strengths": 6,
+    "findings": 14,
+    "research_requests": 0,
+    "revision_scope": 8,
+    "dependent_passages": 6,
+    "sequence_ranges": 0
+  },
+  "repaired_anchor_count": 0,
+  "all_support_labels_resolved": true
+}
