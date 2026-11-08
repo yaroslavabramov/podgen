@@ -1,0 +1,428 @@
+{
+  "model": "gpt-6.1-terra",
+  "instructions": "# Listen to the episode in playback order\n\nDecide whether you would give this script to the assigned speakers to record. Read only its words, the genre, format and stated audience. Report `reading_mode=script_only`. Use `output_language` for prose. Preserve speaker labels, quotes and keys exactly.\n\n## Follow one listening\n\nAt each decisive action, stop before the next sentence. From the words heard so far, what would this audience think prompted the action? How does the reported observation bear on the person's question? For an explanation, ask which premise lets a first-time listener make the connection. If your answer relies on your own subject knowledge, locate the gap in the speech. Ask for the specific missing connection or a different entry. An intended mystery leaves the answer open while giving listeners a reason to care. If the missing basis makes the central action or question arbitrary, require a repair even when the ending eventually makes sense.\n\nFollow interest through the whole episode. For a promise, compare what it leads listeners to expect with what the next scene delivers. Identify the first words that reveal a discovery and what remains worth hearing afterward. Across consecutive scenes, ask what changes in our knowledge, attention or feeling. When multiple scenes deliver the same point, identify which one could be cut or moved and how the surviving pieces would join. At the ending, locate where the answer has already landed. What do the remaining words add? A final image, a joke, a retrospective or a changed view may be exactly why the ending works.\n\n## Hear the wording\n\nHear the actual words as spoken, including case, agreement, idiom and cadence. An objective grammatical error requires an `important` finding and local correction. Distinguish it from a speaker's deliberate conversational phrasing. Around an action, mentally remove the surrounding phrases and hear what disappears: a new thought, a concrete image, a joke, tension, needed orientation, or one more description of what the listener already knows? Attend to the combined effect of nearby lines. A figurative phrase is not a defect by itself. In dialogue, judge the exchange in the context of the speakers' roles.\n\nNotice a narrator instructing the audience how to react, discussing how responsibly the account is being told, or rebutting a claim nobody has made. Quote the actual implication when a qualification is needed. Keep pleasure, attitude, vivid detail, a well-timed aside or suspense when the words deliver them.\n\n## Give an actionable decision\n\nIf you would accept the passage for recording only after this change, use `important` or `blocking` and recommend `revise`. Use `optional` for alternatives equally acceptable for recording. Use `keep` when no required repair remains. Consider the listening effect, independently of how short the edit would be. Praise for a story choice can coexist with a required change to its wording.\n\nAnchor each finding with exact nonempty quotations and supplied zero-based utterance indices. Name what the listener heard, what it does to this particular passage, the editorial operation and what should survive. Anchor a missing premise to the words that depend on it. For a failed promise or repeated ending, address both the setup and the later passage. Choose local, sequence or whole-episode scope according to what must change. Use `duration_context` as an estimate when considering pace and selection. Leave `research_requests` empty. External verification belongs to the evidence reading; do not claim measured audio or human listening.\n",
+  "input": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "{\"script\":{\"utterances\":[{\"index\":0,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"В кукольном театре репетируют ночь на море. Из-за ширмы должна подняться луна, постоять над кораблём и скрыться за волной. Но артист ещё завязывает на корабле парус, а луна уже съездила наверх и обратно. Ей достались первые аплодисменты. Остальным до поклонов ещё целый спектакль.\"},{\"index\":1,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Луну поднимает маленький мотор. Во время представления за ширмой так тесно, что до самого мотора можно добраться, только вынув море. Прошлой зимой у пульта порвался кабель. Лида тогда поставила на мотор датчик: теперь ей достаточно мигнуть фонариком из зала, и луна едет вверх. Кто подал команду раньше времени? Ответ нашёлся в последнем ряду.\"},{\"index\":2,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Там сидит фотограф. Светотехник Лида просит его повторить снимок. Щёлкает затвор, белым на миг становится весь зал. Луна снова поднимается. Лида просит сделать ещё один кадр, теперь без вспышки. Щёлк. Корабль один под пустым небом.\"},{\"index\":3,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"На спектакле фотографа посадили за кулисы. Оттуда хорошо видны лица артистов, которые держат кукол. Вечером он приносит Лиде снимок: на сцене шторм, а за волной у матроса старательно поправляют усы.\"}]},\"audience\":\"Взрослый слушатель, впервые слышит эту историю и не знаком с этой мастерской.\",\"format\":\"solo\",\"genre\":\"Короткий художественный рассказ\",\"output_language\":\"ru\",\"duration_context\":{\"current_text\":{\"word_count\":161},\"audio_measured\":false,\"requested\":{\"target_seconds\":90,\"min_seconds\":60,\"max_seconds\":120},\"estimated_word_target\":165,\"estimated_word_range\":{\"min\":110,\"max\":220},\"estimate_basis\":\"Russian solo reference reading at 110 words/minute\",\"estimated_current_seconds\":88}}"
+        }
+      ]
+    }
+  ],
+  "max_output_tokens": 24576,
+  "text": {
+    "verbosity": "high",
+    "format": {
+      "type": "json_schema",
+      "name": "reader_review_2",
+      "schema": {
+        "$defs": {
+          "DependentPassage": {
+            "additionalProperties": false,
+            "properties": {
+              "reason": {
+                "description": "Why this passage must change with the addressed repair.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              }
+            },
+            "required": [
+              "reason",
+              "anchors"
+            ],
+            "title": "DependentPassage",
+            "type": "object"
+          },
+          "EditorialFinding": {
+            "additionalProperties": false,
+            "properties": {
+              "dimension": {
+                "enum": [
+                  "promise",
+                  "mechanism",
+                  "structure",
+                  "transition",
+                  "repetition",
+                  "oral_style",
+                  "speaker_contribution",
+                  "factuality",
+                  "attribution",
+                  "duration",
+                  "ending"
+                ],
+                "title": "Dimension",
+                "type": "string"
+              },
+              "priority": {
+                "enum": [
+                  "blocking",
+                  "important",
+                  "optional"
+                ],
+                "title": "Priority",
+                "type": "string"
+              },
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "observation": {
+                "description": "Specific defect in the quoted words or their combined effect on the passage. For grammar, name the erroneous form or construction. For style, explain what the actual sequence does to the voice or listening experience, rather than imposing a preference for plainness.",
+                "minLength": 1,
+                "title": "Observation",
+                "type": "string"
+              },
+              "requested_change": {
+                "description": "Concrete correction or editorial operation on the addressed words, with the narrative contribution to preserve. Distinguish a self-contained copyedit from rewriting a passage. A style label alone is not an actionable repair.",
+                "minLength": 1,
+                "title": "Requested Change",
+                "type": "string"
+              },
+              "preserve": {
+                "description": "Useful properties of the passage to retain; may be empty.",
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Preserve",
+                "type": "array"
+              }
+            },
+            "required": [
+              "dimension",
+              "priority",
+              "anchors",
+              "observation",
+              "requested_change",
+              "preserve"
+            ],
+            "title": "EditorialFinding",
+            "type": "object"
+          },
+          "EditorialStrength": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "reason": {
+                "description": "What works for the listener and should survive revision.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "reason"
+            ],
+            "title": "EditorialStrength",
+            "type": "object"
+          },
+          "PinpointAssessment": {
+            "additionalProperties": false,
+            "properties": {
+              "scale": {
+                "description": "Local includes multiple independent pinpoint repairs at any distance; whole_episode explicitly authorizes recomposing the complete telling.",
+                "enum": [
+                  "none",
+                  "local",
+                  "whole_episode"
+                ],
+                "title": "Scale",
+                "type": "string"
+              },
+              "reason": {
+                "description": "Concrete editorial reason for this scale and its intended effect on the listening experience; do not infer quality from counts.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "anchors": {
+                "description": "Exact passages supporting this choice. Required repair needs at least one; none may use an empty list.",
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "title": "Anchors",
+                "type": "array"
+              },
+              "dependent_passages": {
+                "description": "Explicitly addressed dependent passages; no automatic neighboring-text permission. Empty when none are needed.",
+                "items": {
+                  "$ref": "#/$defs/DependentPassage"
+                },
+                "title": "Dependent Passages",
+                "type": "array"
+              }
+            },
+            "required": [
+              "scale",
+              "reason",
+              "anchors",
+              "dependent_passages"
+            ],
+            "title": "PinpointAssessment",
+            "type": "object"
+          },
+          "ResearchNeed": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "question": {
+                "minLength": 1,
+                "title": "Question",
+                "type": "string"
+              },
+              "why_needed": {
+                "minLength": 1,
+                "title": "Why Needed",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "question",
+              "why_needed"
+            ],
+            "title": "ResearchNeed",
+            "type": "object"
+          },
+          "SequenceAssessment": {
+            "additionalProperties": false,
+            "properties": {
+              "scale": {
+                "const": "sequence",
+                "title": "Scale",
+                "type": "string"
+              },
+              "reason": {
+                "description": "Concrete editorial reason for this scale and its intended effect on the listening experience; do not infer quality from counts.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "anchors": {
+                "description": "Exact passages supporting this choice. Required repair needs at least one; none may use an empty list.",
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "title": "Anchors",
+                "type": "array"
+              },
+              "dependent_passages": {
+                "description": "Explicitly addressed dependent passages; no automatic neighboring-text permission. Empty when none are needed.",
+                "items": {
+                  "$ref": "#/$defs/DependentPassage"
+                },
+                "title": "Dependent Passages",
+                "type": "array"
+              },
+              "sequence_ranges": {
+                "description": "Explicit editable sequences; do not infer their boundaries from scattered findings. Text outside them remains protected except separately addressed local repairs.",
+                "items": {
+                  "$ref": "#/$defs/SequenceRange"
+                },
+                "minItems": 1,
+                "title": "Sequence Ranges",
+                "type": "array"
+              }
+            },
+            "required": [
+              "scale",
+              "reason",
+              "anchors",
+              "dependent_passages",
+              "sequence_ranges"
+            ],
+            "title": "SequenceAssessment",
+            "type": "object"
+          },
+          "SequenceRange": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "description": "First and last editable utterances, in that order. Quotes identify the boundaries; the complete inclusive range is authorized.",
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "reason": {
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "reason"
+            ],
+            "title": "SequenceRange",
+            "type": "object"
+          },
+          "UtteranceAnchor": {
+            "additionalProperties": false,
+            "properties": {
+              "utterance_index": {
+                "description": "Zero-based position in the exact supplied WriteOutput.utterances list.",
+                "minimum": 0,
+                "title": "Utterance Index",
+                "type": "integer"
+              },
+              "quote": {
+                "description": "Exact nonempty substring of that utterance's spoken text.",
+                "minLength": 1,
+                "title": "Quote",
+                "type": "string"
+              }
+            },
+            "required": [
+              "utterance_index",
+              "quote"
+            ],
+            "title": "UtteranceAnchor",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "reading_mode": {
+            "description": "script_only only if plan, dossier, author notes and prior reviews were not visible.",
+            "enum": [
+              "script_only",
+              "informed"
+            ],
+            "title": "Reading Mode",
+            "type": "string"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/$defs/EditorialFinding"
+            },
+            "title": "Findings",
+            "type": "array",
+            "description": "First inspect the actual spoken wording, before summarizing or praising the story. Check grammatical forms and sentence construction, then the combined effect of neighboring phrases. Report addressed language repairs as well as structural problems. A clear story does not establish that its wording is ready. Findings may be empty when the words work; do not manufacture a defect or treat figurative language itself as one."
+          },
+          "revision_scope": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PinpointAssessment"
+              },
+              {
+                "$ref": "#/$defs/SequenceAssessment"
+              }
+            ],
+            "title": "Revision Scope"
+          },
+          "listener_answer": {
+            "description": "After assessing the actual words, reconstruct what the listener can follow and experience. A useful narrative move can survive a required rewrite of its wording; do not use the move to certify the wording.",
+            "minLength": 1,
+            "title": "Listener Answer",
+            "type": "string"
+          },
+          "important_limits": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Important Limits",
+            "type": "array",
+            "description": "Only limits in the supplied text that materially affect this listening experience. May be empty; do not invent problems or require a list of caveats in the script."
+          },
+          "research_requests": {
+            "items": {
+              "$ref": "#/$defs/ResearchNeed"
+            },
+            "title": "Research Requests",
+            "type": "array"
+          },
+          "strengths": {
+            "items": {
+              "$ref": "#/$defs/EditorialStrength"
+            },
+            "title": "Strengths",
+            "type": "array",
+            "description": "What works in these actual words or in the narrative move they serve. Distinguish the two: a useful image or transition may need to be preserved through a wording repair. Do not withdraw praise merely because another passage needs correction."
+          },
+          "duration_note": {
+            "description": "Evidence and uncertainty about duration; never invented timing.",
+            "minLength": 1,
+            "title": "Duration Note",
+            "type": "string"
+          },
+          "recommendation": {
+            "enum": [
+              "keep",
+              "revise",
+              "needs_material"
+            ],
+            "title": "Recommendation",
+            "type": "string",
+            "description": "Decision after checking the words and the complete telling. Objective grammatical errors require correction even when the meaning is clear. Judge cumulative style by its concrete effect, preserving artistic freedom. Keep is valid when no required repair remains."
+          }
+        },
+        "required": [
+          "reading_mode",
+          "findings",
+          "revision_scope",
+          "listener_answer",
+          "important_limits",
+          "research_requests",
+          "strengths",
+          "duration_note",
+          "recommendation"
+        ],
+        "title": "ReaderAssessmentV4",
+        "type": "object"
+      },
+      "strict": true
+    }
+  },
+  "tools": [],
+  "tool_choice": "none",
+  "parallel_tool_calls": false,
+  "truncation": "disabled",
+  "stream": false,
+  "metadata": {
+    "podgen_run_id": "4e12eb8e-d172-5953-8fd6-34d25b475979",
+    "podgen_invocation_id": "5ebe6fd1-3fa9-5ce3-9724-2d241a6241ff",
+    "podgen_stage": "reader-review-2",
+    "compiler_version": "whole-episode-baseline-a/1"
+  },
+  "reasoning": {
+    "effort": "medium"
+  },
+  "store": false,
+  "background": false
+}
