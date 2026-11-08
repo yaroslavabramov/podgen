@@ -1,0 +1,60 @@
+{
+  "source_run": "38ab1938-4611-53e2-8fb7-fa9503470599",
+  "accepted_plan_sha256": "ed8a0e3389cd06e36362a8088c444c8f174c7272fea4d3b6e89ba0d20bc1313b",
+  "code_snapshot": "fb6dab557427b91c744fce0f745f4e2989596198",
+  "source_packet_sha256": "b52d0f03e8bc24fcee4c10960011557d8fe7e9a3adc74a1f36f721d3a0b080f5",
+  "production_card_count": 15,
+  "both_arms_card_count": 17,
+  "production_position_in_common": [
+    1,
+    2,
+    3,
+    4,
+    6,
+    7,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17
+  ],
+  "stock_sha256": "5bb61a38945c9f12b9c2a4b0f373018ecbfcd83d67a9cb1975936d22a3449330",
+  "excerpts": 7,
+  "cards_without_editorial_alias": true,
+  "production_to_planned": [
+    "support: use entire 17-card authored dossier in original order, including workhouse and map omitted by plan filter"
+  ],
+  "planned_to_independent": [
+    {
+      "path": "system",
+      "old": "The accepted plan records one way to tell the story. Choose the scenes, order and depth that will deliver this version in the requested time.",
+      "new": "Build the episode’s composition yourself from the assignment and source material. Choose the scenes, their order and their depth for the requested time."
+    },
+    {
+      "path": "system",
+      "old": "If the outline runs out before the story feels finished, write the missing beat from the material.",
+      "new": "If the story needs another beat to feel finished, write it from the material."
+    },
+    {
+      "path": "messages[0].content[0].text.story",
+      "change": "remove projected accepted story; all other JSON remains identical"
+    }
+  ],
+  "response_envelope_verified": true,
+  "model": "claude-opus-5-5",
+  "effort": "medium",
+  "max_tokens": 24576,
+  "tools": [],
+  "calls_requested": {
+    "with-plan": 2,
+    "independent": 2
+  },
+  "actual_wire_sha256": {
+    "with-plan": "cea22ba7f790b740f9ce68042864b2a71e5137c01c633891486b63784db648a1",
+    "independent": "f947cae90ab2a7335cd9e77e732c117e7e150e85842ff331eff4e9c6e5f2ed92"
+  }
+}
