@@ -60,7 +60,9 @@ def boxes():
 def prepare():
     for k in LABELS:
         assert (BLIND / f"{k}.md").is_file()
-    assignment = Assignment.model_validate(read(BLIND / "assignment.json"))
+    assert (BLIND / "COMPLETE").is_file()
+    brief = read(HERE.parent / "preflight/assignment.json")
+    assignment = Assignment.model_validate(dict(key="blind-listening", **brief))
     prompt = load_reading_instructions("reader-review")
     assert prompt.version == PIN
     schema = response_schema(
