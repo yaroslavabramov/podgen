@@ -1,0 +1,55 @@
+{
+  "run_id": "7daaed1a-ef98-5159-a57d-49d7c17c83fe",
+  "frozen_sha": "84831228ef9cc45916ccd562c7bbaaff07829a44",
+  "plan_mode": "fixed-plan",
+  "status": "completed_unaccepted",
+  "failure_code": null,
+  "versions": [
+    {
+      "stage": "draft",
+      "script_hash": "950ae6537d51b22ab8f58eb80cb61bf037d30e357c92cb28236eaf220940700f",
+      "utterances": 29,
+      "words": 1660,
+      "estimated_seconds": 906
+    },
+    {
+      "stage": "revise-1",
+      "script_hash": "76ab3ba429ca3fa6c907368826ac54ac8e5db4277a5767d581c026c6043bfc53",
+      "utterances": 29,
+      "words": 1756,
+      "estimated_seconds": 958,
+      "mode": "sequence"
+    }
+  ],
+  "readings": [
+    {
+      "stage": "reader-review",
+      "script_hash": "950ae6537d51b22ab8f58eb80cb61bf037d30e357c92cb28236eaf220940700f",
+      "recommendation": "revise",
+      "scale": "sequence",
+      "findings": 2
+    },
+    {
+      "stage": "fact-review",
+      "script_hash": "950ae6537d51b22ab8f58eb80cb61bf037d30e357c92cb28236eaf220940700f",
+      "recommendation": "revise",
+      "scale": "local",
+      "findings": 4
+    },
+    {
+      "stage": "reader-review-1",
+      "script_hash": "76ab3ba429ca3fa6c907368826ac54ac8e5db4277a5767d581c026c6043bfc53",
+      "recommendation": "keep",
+      "scale": "none",
+      "findings": 1
+    },
+    {
+      "stage": "fact-review-1",
+      "script_hash": "76ab3ba429ca3fa6c907368826ac54ac8e5db4277a5767d581c026c6043bfc53",
+      "recommendation": "keep",
+      "scale": "none",
+      "findings": 0
+    }
+  ],
+  "editorial_outcome": "keep"
+}
