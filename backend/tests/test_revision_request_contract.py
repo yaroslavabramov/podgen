@@ -112,3 +112,47 @@ def test_compact_revision_pin_requires_its_addressed_review_workflow():
     ):
         with pytest.raises(ContractError, match="unsupported_revision_context_contract"):
             from_manifest(invalid)
+
+
+def test_compact_rewrite_wire_changes_only_the_tutorial_and_listener_recap():
+    from dataclasses import replace
+
+    from podgen.writing.author_reply import contract_pin
+    from podgen.writing.craft_reference import load_reference
+    from podgen.writing.plan_selection import VERSION as SCENE_LINKS
+    from podgen.writing.revision.context import KEY, VERSION
+    from tests.revision_cases import scope
+    from tests.test_plan_selection import snapshot
+
+    materials, _, plan, profile, script, reader, fact, _ = fixture()
+    for review in (reader, fact):
+        review["revision_scope"] = scope(anchors=review["findings"][0]["anchors"])
+    prior = snapshot(materials, profile, "revise-1", SCENE_LINKS)
+    prior.manifest.update(
+        script_revision_contract="addressed-script-revision/1",
+        revision_response_schemas=script_revision.schemas(),
+        craft_reference=load_reference(materials.output_language),
+        output_language=materials.output_language,
+    )
+    prior.manifest["writer_response_contract"] = contract_pin(prior.manifest, materials.speaker_labels)
+    current = replace(prior, manifest={**prior.manifest, KEY: VERSION})
+    run_id = uuid4()
+    old, new = [
+        preview_request(
+            run_id,
+            "revise-1",
+            profile,
+            materials,
+            approved_plan=plan,
+            draft=script,
+            reader_feedback=reader,
+            fact_feedback=fact,
+            snapshot=pin,
+        )
+        for pin in (prior, current)
+    ]
+    old_payload = payload(old)
+    assert old_payload.pop("craft_reference") == prior.manifest["craft_reference"]["text"]
+    assert old_payload["revision_guidance"][0].pop("listener_understanding") == reader["listener_answer"]
+    assert old_payload == payload(new)
+    assert {k: v for k, v in old.items() if k != "input"} == {k: v for k, v in new.items() if k != "input"}
