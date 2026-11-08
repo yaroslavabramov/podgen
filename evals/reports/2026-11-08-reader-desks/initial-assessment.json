@@ -1,0 +1,12 @@
+{
+  "eligible_for_followup": false,
+  "assessed_by": "Parent operator after reading the complete 01/04/05 outputs",
+  "observations": {
+    "01": "Required declension repair found; required cumulative opening-style repair missed. Language desk contains the form repair and an optional wording refinement elsewhere.",
+    "04": "No required finding against the corrected opening; an optional wording refinement elsewhere.",
+    "05": "No findings, keep."
+  },
+  "conclusion": "The initial condition failed; do not call 02/03 and do not adopt the nested two-desk contract.",
+  "new_calls": 3,
+  "estimated_total_usd": "0.04967135"
+}

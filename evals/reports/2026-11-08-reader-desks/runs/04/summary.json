@@ -1,0 +1,23 @@
+{
+  "case": "04",
+  "response_id": "resp_05d55a3ad9bc3f68016af02ac7903887d2a22da8ad273a7376",
+  "model": "gpt-6.1-terra",
+  "usage": {
+    "input_tokens": 6417,
+    "input_tokens_details": {
+      "cache_write_tokens": 6414,
+      "cached_tokens": 0
+    },
+    "output_tokens": 3051,
+    "output_tokens_details": {
+      "reasoning_tokens": 1155
+    },
+    "total_tokens": 9468
+  },
+  "estimated_usd": "0.0232755",
+  "language_findings": 1,
+  "reader_findings": 1,
+  "recommendation": "revise",
+  "revision_scope": "local",
+  "language_recommendation_consistent": true
+}
