@@ -1,0 +1,9 @@
+{
+  "status": "valid",
+  "validator": "author_material.unwrap + validate_output(draft)",
+  "script_sha256": "ae310c8293893993b76d24671c90a454a9f60ff42a97841e73ba54750c9a5270",
+  "utterances": 28,
+  "words": 1720,
+  "count": 1,
+  "reviewed": false
+}
