@@ -31,17 +31,19 @@ V9 source-excerpt selection and author material requests are separate integratio
 
 ## Material-selection handoff (separate input pin)
 
-New V9 runs pin `plan_selection_contract=plan-material-selection/1`. The planner expresses the chosen level of detail in the acts themselves, as the actual account the audience will follow. `duration_strategy.assumptions` remains a working timing calculation; it is not the sole carrier of editorial selection. Concrete extensions or cuts belong in `optional_material` and name the material itself, with catalog locators kept in reference fields.
+New V9 runs pin `plan_selection_contract=plan-material-selection/2`. The planner expresses the chosen level of detail in the acts themselves, as the account the audience will follow. `duration_strategy.assumptions` holds timing calculations. Concrete extensions or cuts belong in `optional_material` and name the material itself, with catalog locators kept in reference fields.
 
-Under the new pin, the existing `optional_material` values reach the author and the initial revision frame as `material_options.choices`. Its model-facing `guidance` explicitly describes conditional extensions or cuts and says that listing an item does not mean it should be spoken. They remain revisable choices, not a coverage requirement. Empty options do not add a field. The full `assumptions` list, backend IDs and hashes are not forwarded. No prose is rewritten or shortened during persistence or handoff.
+Both `/1` and `/2` pass the existing `optional_material` values to the author and the initial revision frame as `material_options.choices`. The accompanying guidance explains when a change in duration warrants an extension or a cut. The field is omitted when there are no options.
+
+Under `/2`, the draft writer can follow `story.opening.support_refs` and each act’s `support_refs` to a single shared list of evidence cards. Each card has a short `ref` such as `M3` and keeps its complete selected source material. The reviser receives `editorial_frame.accepted_plan_scenes` with the original opening and each act’s title, intended change in understanding and source references. This supplies the emphasis chosen for each scene even when the draft has moved it. Utterance ranges for edits still come from the reviewers and refer to the actual script. The cold reader and fact checker keep their independent inputs.
 
 The input pin is independent of V9 output schemas. A saved manifest without it retains the previous payload, including in preview and continuation; resume never adds the pin to a saved run. Fresh previews use the current handoff. An unsupported pin or a pin attached to another projection is rejected. Existing reader, factual-review and revision output schemas do not change.
 
-After a rewrite supplies its working composition, that composition replaces the initial editorial frame. Its current route and decisions govern the next revision; the initial material options are not reinserted over a new selection. The old plan remains archived.
+After a rewrite supplies its working composition, its current route and decisions govern the next revision. In `/2` the reviser can still consult the original acts in `accepted_plan_scenes` as source context. A run already pinned to `/1` reproduces its original draft and revision requests.
 
 ### Offline certificates and limits
 
-`test_plan_selection.py` freezes the actual accepted Snow plan and author input from `tmp/snow-narrative-nov8/calls`. The old handoff reproduces that input's story exactly; the new one adds only the three optional editorial choices. Thus the 61/6/6 expansion is delivered as optional instead of being visible only in supporting material. The original act is unchanged, including its existing detailed breakdown: reducing that choice still requires an editorial revision of the plan.
+`test_plan_selection.py` freezes the actual accepted Snow plan and author input from `tmp/snow-narrative-nov8/calls`. It verifies the three optional choices introduced with `/1`. Those choices include the optional 61/6/6 expansion. The source relationships introduced with `/2` can be checked independently against the stored plan and the complete catalog.
 
 The archived first option contains the free-prose locator `M4`. It is preserved verbatim; no regex or guessed replacement migrates source prose. New planning instructions require naming the actual material in such decisions. This historical nuance is not evidence that a newly generated plan has followed the instruction.
 
