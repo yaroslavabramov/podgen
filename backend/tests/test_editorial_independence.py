@@ -132,18 +132,18 @@ def test_real_ordinary_wire_and_own_candidate_delivery(own_dataset, case, tmp_pa
     )
     assert not editorial_leaks(case, provider.pre_generation)
     chosen = provider.plan
-    assert chosen["plan"]["ending"]["answer_to_deliver"] not in json.dumps(
-        provider.pre_generation, ensure_ascii=False
-    )
+    for decision in (chosen["plan"]["working_answer"], chosen["plan"]["ending"]["last_moment"]):
+        assert decision not in json.dumps(provider.pre_generation, ensure_ascii=False)
     assert json.loads((tmp_path / "export/plan.json").read_text())["output"] == chosen
     journal = EvaluationJournal(own_dataset[0], own_dataset[1])
     assert journal.output(journal.invocation(own["run_id"], "plan"))["output"] == chosen
-    assert chosen["limitations"] and chosen["plan"]["ending"]["qualifications"]
+    assert chosen["limitations"]
+    assert set(chosen["plan"]["ending"]) == {"last_moment", "why_end_here", "promises_to_close"}
+    assert chosen["plan"]["ending"]["last_moment"] and chosen["plan"]["ending"]["why_end_here"]
     assert all(act["limitations_to_voice"] for act in chosen["plan"]["acts"])
     assert chosen["plan"]["duration_strategy"]["assumptions"]
     expected_candidate = deepcopy(chosen)
     expected_candidate.pop("limitations")
-    expected_candidate["plan"]["ending"].pop("qualifications")
     for act in expected_candidate["plan"]["acts"]:
         act.pop("limitations_to_voice")
     assert payload(provider.requests[1])["candidate_plan"] == expected_candidate
@@ -169,19 +169,23 @@ def test_real_ordinary_wire_and_own_candidate_delivery(own_dataset, case, tmp_pa
         route_summary=chosen["plan"]["route_summary"],
         authority="revisable_authorial_decisions",
         listener_promise=chosen["plan"]["listener_promise"],
+        episode_answer=chosen["plan"]["working_answer"],
+        ending=chosen["plan"]["ending"],
         unresolved_questions=story["unresolved_questions"],
     )
     final = json.loads((tmp_path / "export/final.json").read_text())
     assert final["output"] == provider.script
     assert all(
-        row["text"] != chosen["plan"]["ending"]["answer_to_deliver"] for row in final["output"]["utterances"]
+        row["text"] not in (chosen["plan"]["working_answer"], chosen["plan"]["ending"]["last_moment"])
+        for row in final["output"]["utterances"]
     )
     assert len({row["text"] for row in final["output"]["utterances"]}) == len(final["output"]["utterances"])
     fixed_path = ROOT / f"evals/editorial-inputs/v1/{case}/fixed-plan.json"
     fixed_proposal = json.loads(fixed_path.read_text())["plan"]
     fixed = fixed_proposal["plan"]
     assert story["opening"]["approach"] != fixed["opening"]["approach"]
-    assert story["conclusion"]["meaning"] != fixed["ending"]["answer_to_deliver"]
+    assert story["episode_answer"] != fixed["working_answer"]
+    assert story["ending"] != fixed["ending"]
     # The separately admitted fixed control is allowed to carry its own prepared plot.
     fixed_ref = tmp_path / "fixed-ref.json"
     assert (

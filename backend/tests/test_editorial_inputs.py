@@ -99,13 +99,19 @@ def test_role_views_preserve_meaning_and_keep_backend_private(repo, editorial):
         "route_summary",
         "authority",
         "listener_promise",
-        "conclusion",
+        "episode_answer",
+        "ending",
         "duration_strategy",
         "opening",
         "acts",
         "speaker_contributions",
         "unresolved_questions",
     }
+    assert writer["story"]["episode_answer"] == plan["plan"]["working_answer"]
+    assert (
+        writer["story"]["ending"] is None
+    )  # A new V9 view does not invent a final moment for a legacy plan.
+    assert "conclusion" not in writer["story"]
     assert "act_id" not in wire and "material_refs" not in wire
     draft = {"utterances": [{"speaker": "ВЕДУЩИЙ", "text": "Весь сценарий без усечения."}]}
     feedback = dict(
@@ -326,6 +332,12 @@ def test_own_plan_uses_only_shared_packet_and_structured_creative_decisions(repo
                 output = proposal(
                     dict(material_catalog=payload["material_catalog"], speaker_labels=["ВЕДУЩИЙ"]), stage
                 )
+                if "PlanningFinalMoment" in body["text"]["format"]["schema"].get("$defs", {}):
+                    output["plan"]["ending"] = dict(
+                        last_moment="Отдельный синтетический последний момент.",
+                        why_end_here="Выбранное обещание завершено без повторного вывода.",
+                        promises_to_close=[],
+                    )
             else:
                 output = dict(
                     decision="accept",

@@ -43,7 +43,14 @@ class ContinuationProvider(ReadingProvider):
                 stage,
             )
             result.pop("limitations")
-            result["plan"]["ending"].pop("qualifications")
+            if "PlanningFinalMoment" in body["text"]["format"]["schema"].get("$defs", {}):
+                result["plan"]["ending"] = dict(
+                    last_moment="SYNTHETIC selected stopping point.",
+                    why_end_here="SYNTHETIC promise completed without a recap.",
+                    promises_to_close=[],
+                )
+            else:
+                result["plan"]["ending"].pop("qualifications")
             for act in result["plan"]["acts"]:
                 act.pop("limitations_to_voice")
         elif stage == "plan-revise":

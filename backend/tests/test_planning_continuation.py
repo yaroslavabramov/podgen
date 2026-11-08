@@ -36,6 +36,8 @@ def test_native_continuation_preview_accept_writing_export_and_resume(own_datase
     seed = json.loads((folder / "planning-seed-plan.json").read_text())
     review = json.loads((folder / "planning-seed-review.json").read_text())
     assert payload(preview)["candidate_plan"]["plan"]["route_summary"] == seed["plan"]["route_summary"]
+    assert payload(preview)["candidate_plan"]["plan"]["ending"] == seed["plan"]["ending"]
+    assert set(seed["plan"]["ending"]) == {"last_moment", "why_end_here", "promises_to_close"}
     assert payload(preview)["revision_guidance"]["decision_reason"] == review["decision_reason"]
     assert frozen["materials_blob"] == before["materials_blob"]
     assert frozen["prompt_refs"]["plan-revise"] == before["prompt_refs"]["plan-revise"]
@@ -44,6 +46,8 @@ def test_native_continuation_preview_accept_writing_export_and_resume(own_datase
     stages = [r["metadata"]["podgen_stage"] for r in provider.requests]
     assert stages == ["plan-revise", "plan-review-revised", "draft", "reader-review", "fact-review"]
     assert provider.requests[0] == preview
+    revised = journal.output(journal.invocation(child.run_id, "plan-revise"))["output"]
+    assert revised["plan"]["ending"] == seed["plan"]["ending"]
     assert service.run(child)["status"] == "completed_unaccepted"
     assert len(provider.requests) == 5
     assert journal.manifest(source.run_id) == before
@@ -120,7 +124,7 @@ def test_continuation_identity_and_concurrency_prevent_duplicate_paid_descendant
     def block(stage):
         if stage == "plan-revise":
             entered.set()
-            assert release.wait(30)
+            assert release.wait(120)
 
     provider = ContinuationProvider("accept", on_plan=block)
     service = WritingEvaluation(own_dataset[0], lambda _: provider)
@@ -134,12 +138,13 @@ def test_continuation_identity_and_concurrency_prevent_duplicate_paid_descendant
     worker = Thread(target=run)
     worker.start()
     try:
-        assert entered.wait(30)
+        assert entered.wait(120)
         with pytest.raises(Conflict, match="evaluation_run_busy"):
             service.run(build_command(journal, source.run_id, limit=2))
     finally:
         release.set()
-        worker.join(30)
+        # Completion includes real archive/ACL work; this is a coordination timeout, not a run budget.
+        worker.join(120)
     assert not worker.is_alive() and not errors
     assert [r["metadata"]["podgen_stage"] for r in provider.requests].count("plan-revise") == 1
 
@@ -189,3 +194,28 @@ def test_ordinary_cli_prepares_runs_and_resumes_the_same_descendant(own_dataset,
         == 0
     )
     assert len(provider.requests) == 5
+
+
+@pytest.mark.parametrize("version", ["editorial-role-projections/8", "editorial-role-projections/9"])
+def test_continuation_provider_emits_the_exact_pinned_planner_shape(version):
+    from podgen.runtime.evaluation.role_schema import response_schema
+    from podgen.writing.planning_versions import planning_model
+
+    visible = dict(material_catalog=["test-material"], assignment=dict(speakers=[dict(label="NARRATOR")]))
+    body = dict(
+        model="local-test-only",
+        metadata=dict(podgen_stage="plan"),
+        input=[dict(role="user", content=[dict(type="input_text", text=json.dumps(visible))])],
+        text=dict(
+            format=dict(
+                schema=response_schema("plan", "editorial-role-packets/1", projection_version=version)
+            )
+        ),
+    )
+    response = json.loads(ContinuationProvider().submit(body, client_request_id="local-test-only").body)
+    result = json.loads(response["output"][0]["content"][0]["text"])
+    parsed = planning_model(version).model_validate(result)
+    parsed.validate_against(material_locators=visible["material_catalog"], speaker_ids=["NARRATOR"])
+    assert parsed.model_dump(mode="json") == result
+    assert ("last_moment" in result["plan"]["ending"]) == version.endswith("/9")
+    assert ("answer_to_deliver" in result["plan"]["ending"]) == version.endswith("/8")
