@@ -40,6 +40,12 @@ def preview_request(
         from podgen.writing.author_reply import verify_pin
 
         verify_pin(snapshot.manifest, materials.speaker_labels)
+    if snapshot and snapshot.fact_plan is not None:
+        if inputs.get("approved_plan") not in (None, snapshot.fact_plan):
+            from podgen.domain.errors import ContractError
+
+            raise ContractError("preview_claim_scope_plan_mismatch")
+        inputs["approved_plan"] = snapshot.fact_plan
     validate_preview_inputs(stage, fixed=materials.fixed is not None, inputs=inputs)
     validate_preview_snapshots(stage, materials, inputs)
     validate_continuation_preview(stage, snapshot, inputs)

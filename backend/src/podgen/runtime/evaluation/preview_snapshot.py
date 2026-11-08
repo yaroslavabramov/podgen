@@ -16,6 +16,7 @@ class PreviewSnapshot:
     composition: dict | None = None
     planning_inputs: dict | None = None
     revision_comparison: dict | None = None
+    fact_plan: dict | None = None
 
 
 def load_preview_snapshot(journal, generation, run_id, stage, materials):
@@ -63,10 +64,15 @@ def load_preview_snapshot(journal, generation, run_id, stage, materials):
     if verification.applies(stage, manifest.get(verification.KEY)):
         script, comparison = recheck_source.load(journal, run_id, stage)
 
-    return attach(
-        PreviewSnapshot(manifest, instructions, script, composition, revision_comparison=comparison),
-        journal,
-        run_id,
-        stage,
-        materials,
+    from podgen.writing.planning_choice import KEY, SCENE_VERSION
+
+    fact_plan = None
+    if base_stage(stage) == "fact-review" and manifest.get(KEY) == SCENE_VERSION:
+        from .planning import verify_clearance
+
+        proof = verify_clearance(journal, run_id)
+        fact_plan = journal.read(RuntimeRef.model_validate(proof["candidate_plan_ref"]))["output"]
+    snapshot = PreviewSnapshot(
+        manifest, instructions, script, composition, fact_plan=fact_plan, revision_comparison=comparison
     )
+    return attach(snapshot, journal, run_id, stage, materials)

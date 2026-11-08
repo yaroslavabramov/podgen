@@ -6,6 +6,7 @@ from podgen.writing.planning_roles import PlanReviewOutput
 from podgen.writing.planning_versions import planning_snapshot
 from podgen.writing.projection_versions import CURRENT
 from podgen.writing.roles import EditorialFeedback, WriteOutput
+from podgen.writing.scene_plan import is_scene_plan
 
 from .contracts import RunFailure
 from .finalization import review_action
@@ -37,6 +38,8 @@ def validate_preview_inputs(stage, *, fixed, inputs):
     supplied = {key for key, value in inputs.items() if value is not None}
     required = REQUIRED[stage]
     allowed = required | ({"approved_plan"} if stage in WRITING else set())
+    if base_stage(stage) == "fact-review" and not fixed:
+        allowed.add("approved_plan")
     if stage in ("revise-1", "revise-2"):
         allowed |= {"approved_plan", "composition"}
     if supplied - allowed or fixed and stage not in (WRITING | READINGS | {"revise-1", "revise-2"}):
@@ -51,6 +54,9 @@ def validate_preview_inputs(stage, *, fixed, inputs):
 
 
 def validate_preview_snapshots(stage, materials, inputs):
+    if base_stage(stage) == "fact-review" and inputs.get("approved_plan") is not None:
+        if not is_scene_plan(inputs["approved_plan"]):
+            raise ContractError("preview_incompatible_inputs")
     if inputs.get("composition") is not None:
         from podgen.writing.revision.contracts import CompositionState
 

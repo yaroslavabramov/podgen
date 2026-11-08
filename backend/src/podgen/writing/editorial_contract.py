@@ -9,6 +9,7 @@ from .planning_choice import PlanningChoiceOutput
 from .planning_roles import PlanningOutput
 from .planning_v9 import PlanningOutputV9
 from .roles import FullText, RoleOutput
+from .scene_plan import ScenePlanningOutput
 
 
 class EditorialDuration(RoleOutput):
@@ -162,7 +163,7 @@ class FixedSourceDocument(RoleOutput):
     sha256: str = Field(pattern="^[0-9a-f]{64}$")
 
 
-EditorialPlan = PlanningChoiceOutput | PlanningOutputV9 | PlanningOutput
+EditorialPlan = ScenePlanningOutput | PlanningChoiceOutput | PlanningOutputV9 | PlanningOutput
 
 
 class FixedEditorialInput(RoleOutput):

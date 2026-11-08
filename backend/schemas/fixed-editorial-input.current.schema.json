@@ -1,5 +1,99 @@
 {
   "$defs": {
+    "ActDevelopment": {
+      "additionalProperties": false,
+      "properties": {
+        "development": {
+          "description": "What listeners encounter in order: the action, observation, demonstration or thought that changes the situation and carries the story forward. Give enough specific material to write this scene.",
+          "minLength": 1,
+          "title": "Development",
+          "type": "string"
+        },
+        "material_refs": {
+          "description": "Offered material supporting this scene.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Material Refs",
+          "type": "array"
+        },
+        "act_id": {
+          "description": "Unique short act label. The names opening and ending are reserved.",
+          "minLength": 1,
+          "title": "Act Id",
+          "type": "string"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "estimated_seconds_range": {
+          "$ref": "#/$defs/PlanningSecondsRange"
+        },
+        "priority": {
+          "enum": [
+            "essential",
+            "optional"
+          ],
+          "title": "Priority",
+          "type": "string"
+        }
+      },
+      "required": [
+        "development",
+        "material_refs",
+        "act_id",
+        "title",
+        "estimated_seconds_range",
+        "priority"
+      ],
+      "title": "ActDevelopment",
+      "type": "object"
+    },
+    "EditorialNote": {
+      "additionalProperties": false,
+      "properties": {
+        "scene": {
+          "description": "The exact act_id, opening or ending.",
+          "minLength": 1,
+          "title": "Scene",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "editorial_choice",
+            "claim_scope"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "note": {
+          "description": "An editorial choice and its reason, or the precise distinction a primary source supports for a particular claim. An internal note for review.",
+          "minLength": 1,
+          "title": "Note",
+          "type": "string"
+        },
+        "material_refs": {
+          "description": "Sources bearing on this note. A claim_scope needs at least one.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Material Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "scene",
+        "kind",
+        "note",
+        "material_refs"
+      ],
+      "title": "EditorialNote",
+      "type": "object"
+    },
     "FixedSourceDocument": {
       "additionalProperties": false,
       "properties": {
@@ -646,6 +740,156 @@
       "title": "PlanningTransitions",
       "type": "object"
     },
+    "SceneDevelopment": {
+      "additionalProperties": false,
+      "properties": {
+        "development": {
+          "description": "What listeners encounter in order: the action, observation, demonstration or thought that changes the situation and carries the story forward. Give enough specific material to write this scene.",
+          "minLength": 1,
+          "title": "Development",
+          "type": "string"
+        },
+        "material_refs": {
+          "description": "Offered material supporting this scene.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Material Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "development",
+        "material_refs"
+      ],
+      "title": "SceneDevelopment",
+      "type": "object"
+    },
+    "ScenePlan": {
+      "additionalProperties": false,
+      "properties": {
+        "main_question": {
+          "minLength": 1,
+          "title": "Main Question",
+          "type": "string"
+        },
+        "listener_promise": {
+          "minLength": 1,
+          "title": "Listener Promise",
+          "type": "string"
+        },
+        "working_answer": {
+          "description": "The episode-wide answer, stated as precisely as the reporting allows.",
+          "minLength": 1,
+          "title": "Working Answer",
+          "type": "string"
+        },
+        "opening": {
+          "$ref": "#/$defs/SceneDevelopment"
+        },
+        "acts": {
+          "items": {
+            "$ref": "#/$defs/ActDevelopment"
+          },
+          "minItems": 1,
+          "title": "Acts",
+          "type": "array"
+        },
+        "ending": {
+          "$ref": "#/$defs/SceneDevelopment"
+        },
+        "host_functions": {
+          "items": {
+            "$ref": "#/$defs/PlanningHostFunction"
+          },
+          "minItems": 1,
+          "title": "Host Functions",
+          "type": "array"
+        },
+        "duration_strategy": {
+          "$ref": "#/$defs/PlanningDurationStrategy"
+        }
+      },
+      "required": [
+        "main_question",
+        "listener_promise",
+        "working_answer",
+        "opening",
+        "acts",
+        "ending",
+        "host_functions",
+        "duration_strategy"
+      ],
+      "title": "ScenePlan",
+      "type": "object"
+    },
+    "ScenePlanningOutput": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "ready",
+            "needs_research"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "plan": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScenePlan"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limitations": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "research_requests": {
+          "items": {
+            "$ref": "#/$defs/PlanningResearchRequest"
+          },
+          "title": "Research Requests",
+          "type": "array"
+        },
+        "story_selection": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StorySelection"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Compare two distinct tellings before developing the selected one in plan. Null is allowed only when no plan is supported."
+        },
+        "editorial_notes": {
+          "description": "Record consequential source or selection judgments separately from the listening order. Empty when none need recording.",
+          "items": {
+            "$ref": "#/$defs/EditorialNote"
+          },
+          "title": "Editorial Notes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status",
+        "plan",
+        "research_requests",
+        "story_selection",
+        "editorial_notes"
+      ],
+      "title": "ScenePlanningOutput",
+      "type": "object"
+    },
     "StorySelection": {
       "additionalProperties": false,
       "properties": {
@@ -718,6 +962,9 @@
     },
     "plan": {
       "anyOf": [
+        {
+          "$ref": "#/$defs/ScenePlanningOutput"
+        },
         {
           "$ref": "#/$defs/PlanningChoiceOutput"
         },

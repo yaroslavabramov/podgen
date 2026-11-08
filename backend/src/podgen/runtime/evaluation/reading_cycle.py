@@ -78,6 +78,7 @@ def execute_reading_cycle(
                 **common,
                 script=script,
                 script_ref=script_ref,
+                approved_plan=own_plan["accepted_plan"] if origin == "fact" and own_plan else None,
                 repair_review_anchors=repair_review_anchors,
             )
             readings[origin], refs[origin] = result.output, result.ref.model_dump(mode="json")

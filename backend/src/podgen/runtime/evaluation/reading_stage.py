@@ -99,10 +99,12 @@ def execute_reading_stage(
         context["revision_verification"] = dict(contract=recheck_pin, comparison_hash=digest(recheck))
     if revision:
         context.update(revision.context)
-    if script_handoff(manifest["role_projection_version"]) and base == "revise":
-        selected = approved_plan or (
-            materials.fixed.plan.model_dump(mode="json") if materials.fixed else None
-        )
+    from podgen.writing.scene_plan import is_scene_plan
+
+    selected = approved_plan or (materials.fixed.plan.model_dump(mode="json") if materials.fixed else None)
+    if script_handoff(manifest["role_projection_version"]) and (
+        base == "revise" or base == "fact-review" and is_scene_plan(selected)
+    ):
         context["approved_plan_hash"] = digest(selected) if selected is not None else None
     invocation = journal.invocation(command.run_id, stage)
     if invocation is None:

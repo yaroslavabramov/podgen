@@ -40,6 +40,7 @@ def response_schema(
     planning_output_contract=None,
     revision_verification_contract=None,
 ):
+    from podgen.writing.planning_choice import SCENE_VERSION
     from podgen.writing.revision import verification
 
     if verification.applies(stage, revision_verification_contract):
@@ -95,7 +96,8 @@ def response_schema(
     if projection_version == V9 and stage in ("plan", "plan-revise"):
         from podgen.writing.planning_v9 import describe_plan
 
-        describe_plan(schema)
+        if planning_output_contract != SCENE_VERSION:
+            describe_plan(schema)
         if planning_output_contract is not None:
             from podgen.writing.planning_choice import describe_schema
 
@@ -105,5 +107,10 @@ def response_schema(
         if projection_version == V9:
             from podgen.writing.planning_v9 import describe_review
 
-            describe_review(schema)
+            if planning_output_contract == SCENE_VERSION:
+                schema["properties"]["listener_answer"]["description"] = (
+                    "The listener's experience reconstructed from the developments in order, from the opening through the last scene."
+                )
+            else:
+                describe_review(schema)
     return describe_fact_schema(schema, base_stage(stage), fact_schema_version)
