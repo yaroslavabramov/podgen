@@ -1,0 +1,185 @@
+{
+  "mode": "sequence",
+  "sequences": [
+    {
+      "range_id": "R1",
+      "start": 4,
+      "end": 5,
+      "declarations": [
+        {
+          "origin": "reader",
+          "index": 0,
+          "anchors": [
+            {
+              "utterance_index": 4,
+              "quote": "В карточке приёма номер фотографии был указан карандашом."
+            },
+            {
+              "utterance_index": 4,
+              "quote": "В соседней графе стояла дата поступления."
+            }
+          ],
+          "reason": "Удалить всю заключительную реплику, чтобы финальной репликой стала память о месте, откуда зрители начинали нырять."
+        }
+      ]
+    }
+  ],
+  "targets": [
+    {
+      "target_id": "T1",
+      "kind": "text",
+      "utterance_index": 1,
+      "start": 189,
+      "end": 305,
+      "speaker": "РАССКАЗЧИК",
+      "quote": "На последнем кадре двое рабочих укладывают в машину короткий кусок перил. Льва, стало быть, оставили. Почему перила?",
+      "delete": {
+        "start": 188,
+        "end": 305,
+        "text": " На последнем кадре двое рабочих укладывают в машину короткий кусок перил. Льва, стало быть, оставили. Почему перила?"
+      },
+      "basis": [
+        "reader.findings.0"
+      ]
+    },
+    {
+      "target_id": "T2",
+      "kind": "text",
+      "utterance_index": 3,
+      "start": 109,
+      "end": 148,
+      "speaker": "РАССКАЗЧИК",
+      "quote": "Лак стёрся только здесь, узкой полосой.",
+      "delete": {
+        "start": 109,
+        "end": 149,
+        "text": "Лак стёрся только здесь, узкой полосой. "
+      },
+      "basis": [
+        "reader.findings.0",
+        "reader.findings.0.context"
+      ]
+    },
+    {
+      "target_id": "T3",
+      "kind": "text",
+      "utterance_index": 3,
+      "start": 256,
+      "end": 282,
+      "speaker": "РАССКАЗЧИК",
+      "quote": "— Оттуда начинали нырять».",
+      "delete": {
+        "start": 255,
+        "end": 282,
+        "text": " — Оттуда начинали нырять»."
+      },
+      "basis": [
+        "reader.findings.0.context",
+        "reader.findings.1.context"
+      ]
+    },
+    {
+      "target_id": "T4",
+      "kind": "text",
+      "utterance_index": 3,
+      "start": 258,
+      "end": 280,
+      "speaker": "РАССКАЗЧИК",
+      "quote": "Оттуда начинали нырять",
+      "delete": {
+        "start": 258,
+        "end": 280,
+        "text": "Оттуда начинали нырять"
+      },
+      "basis": [
+        "reader.findings.0",
+        "reader.findings.1"
+      ]
+    },
+    {
+      "target_id": "T5",
+      "kind": "text",
+      "utterance_index": 4,
+      "start": 0,
+      "end": 57,
+      "speaker": "РАССКАЗЧИК",
+      "quote": "В карточке приёма номер фотографии был указан карандашом.",
+      "delete": {
+        "start": 0,
+        "end": 58,
+        "text": "В карточке приёма номер фотографии был указан карандашом. "
+      },
+      "basis": [
+        "reader.findings.1",
+        "reader.findings.1.context"
+      ]
+    },
+    {
+      "target_id": "T6",
+      "kind": "text",
+      "utterance_index": 4,
+      "start": 100,
+      "end": 141,
+      "speaker": "РАССКАЗЧИК",
+      "quote": "В соседней графе стояла дата поступления.",
+      "delete": {
+        "start": 99,
+        "end": 141,
+        "text": " В соседней графе стояла дата поступления."
+      },
+      "basis": [
+        "reader.findings.1",
+        "reader.findings.1.context"
+      ]
+    }
+  ],
+  "insertions": [
+    {
+      "target_id": "B1",
+      "kind": "boundary",
+      "before_utterance_index": 1,
+      "basis": [
+        "reader.findings.0"
+      ]
+    },
+    {
+      "target_id": "B2",
+      "kind": "boundary",
+      "before_utterance_index": 2,
+      "basis": [
+        "reader.findings.0"
+      ]
+    },
+    {
+      "target_id": "B3",
+      "kind": "boundary",
+      "before_utterance_index": 3,
+      "basis": [
+        "reader.findings.0",
+        "reader.findings.0.context",
+        "reader.findings.1.context",
+        "reader.findings.1"
+      ]
+    },
+    {
+      "target_id": "B4",
+      "kind": "boundary",
+      "before_utterance_index": 4,
+      "basis": [
+        "reader.findings.0",
+        "reader.findings.0.context",
+        "reader.findings.1.context",
+        "reader.findings.1"
+      ]
+    },
+    {
+      "target_id": "B5",
+      "kind": "boundary",
+      "before_utterance_index": 5,
+      "basis": [
+        "reader.findings.1",
+        "reader.findings.1.context"
+      ]
+    }
+  ]
+}

@@ -8,14 +8,6 @@ from decimal import Decimal
 from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
 
-HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[3]
-sys.path.insert(0, str(ROOT / "evals/operator/author-openings"))
-
-from artifacts import read, save, send_once, sha
-from conditions import response_text
-from providers import Transport, credentials
-from results import estimate
 from podgen.domain.contracts.configuration import ModelProfile
 from podgen.persistence.editorial_inputs import EditorialMaterials
 from podgen.runtime.evaluation.role_request import compile_reading_request
@@ -26,6 +18,15 @@ from podgen.writing.projection_versions import V9
 from podgen.writing.prompts import load_reading_instructions
 from podgen.writing.reader_schema import VERSION, snapshot_model
 from podgen.writing.roles import WriteOutput
+
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parents[3]
+sys.path.insert(0, str(ROOT / "evals/operator/author-openings"))
+
+from artifacts import read, save, send_once, sha
+from conditions import response_text
+from providers import Transport, credentials
+from results import estimate
 
 CASE_IDS = tuple("abcdefgh")
 RATES = read(HERE.parents[1] / "2026-11-08-author-openings/pricing.json")[
