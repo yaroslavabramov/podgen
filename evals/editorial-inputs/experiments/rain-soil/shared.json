@@ -1,0 +1,225 @@
+{
+  "contract": "editorial-input/2",
+  "assignment": {
+    "key": "rain-soil",
+    "title": "Дождь и почвенные бактерии",
+    "question": "Как дождь поднимает почвенные бактерии в воздух? Расскажи, как это удалось увидеть.",
+    "audience": "Взрослые слушатели, которым интересно, как устроены повседневные вещи.",
+    "listener_outcome": "Понять, как дождь может поднимать почвенные бактерии в воздух и как исследователи это проверили.",
+    "format": "solo",
+    "output_language": "ru",
+    "speakers": [
+      {
+        "label": "РАССКАЗЧИК",
+        "function": "Рассказывает историю опыта.",
+        "speech_register": "Разговорный русский."
+      }
+    ],
+    "duration": {
+      "target_seconds": 300,
+      "min_seconds": 240,
+      "max_seconds": 360
+    },
+    "knowledge_cutoff": "2026-11-08T00:00:00Z",
+    "required_topics": [],
+    "excluded_topics": [],
+    "style_guidance": [],
+    "genre": "Научно-популярный подкаст"
+  },
+  "documents": [
+    {
+      "key": "B1",
+      "title": "Заказ на выпуск",
+      "purpose": "brief",
+      "source_path": "brief.md",
+      "sha256": "67d9f07ba0133c206684626a48a0e0b75db9df8aa02d932970187044152670bf"
+    },
+    {
+      "key": "D1",
+      "title": "Капли дождя и почвенные бактерии",
+      "purpose": "dossier",
+      "source_path": "dossier.md",
+      "sha256": "6a7bd82871849d7f0837c104ece6db1e6c895200da887f67914f48753fb0c832"
+    },
+    {
+      "key": "P1",
+      "title": "Joung, Ge & Buie, Bioaerosol generation by raindrops on soil (2017)",
+      "purpose": "primary",
+      "source_path": "sources/joung-ge-buie-2017.txt",
+      "sha256": "de0a20f30271a2dcea58e00f4f784ae2ebb2b97af993b99639f2607ef7c16852"
+    }
+  ],
+  "dossier": {
+    "summary": "В лабораторном опыте удар капли отделял от почвы аэрозоль с живыми бактериями. Выход зависел от свойств почвы и условий удара.",
+    "summary_support_labels": [
+      "R1",
+      "R4",
+      "R5"
+    ],
+    "throughline_constraints": [],
+    "threads": [],
+    "knowledge_cards": [
+      {
+        "card_id": "R1",
+        "label": "Пузырьки",
+        "title": "Пузырьки",
+        "claim": "Капля дождя, ударяясь о пористую поверхность, может захватить воздух. Внутри образуются пузырьки. Когда они лопаются у поверхности воды, в воздух вылетают гораздо более мелкие капли. Некоторые из них уносят бактерии с поверхности почвы.",
+        "story_facts": "Капля дождя, ударяясь о пористую поверхность, может захватить воздух. Внутри образуются пузырьки. Когда они лопаются у поверхности воды, в воздух вылетают гораздо более мелкие капли. Некоторые из них уносят бактерии с поверхности почвы.",
+        "context": "Лабораторные наблюдения в работе Joung, Ge и Buie.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "document": "P1",
+            "start": 3480,
+            "end": 4171,
+            "text": "of aerosol generation by raindrops hitting soil 30 (Fig. 1a–d).\nWe demonstrated that when a raindrop hits soils, small bubbles\nare formed inside the raindrop and then small droplets eject\nwhen the bubbles burst at the air/raindrop interface. Depending\non soil wetting-properties and raindrop impact speed, the amount\nof aerosols varies. Interestingly, for particular wetting conditions\nand impact speeds, hundreds of aerosols are generated from a\nsingle raindrop within a few microseconds (Supplementary\nMovie 1). On soils with wetting properties similar to sandy-clay\nand clay soils, most aerosols are generated when raindrops fall\nat velocities corresponding to light and moderate rain 30."
+          },
+          {
+            "document": "P1",
+            "start": 517,
+            "end": 965,
+            "text": "atmosphere. Here we report a previously unknown mechanism by which rain disperses\nsoil bacteria into the air. Bubbles, tens of micrometres in size, formed inside the raindrops\ndisperse micro-droplets containing soil bacteria during raindrop impingement. A single\nraindrop can transfer 0.01% of bacteria on the soil surface and the bacteria can survive more\nthan one hour after the aerosol generation process. This work further reveals that bacteria"
+          }
+        ]
+      },
+      {
+        "card_id": "R2",
+        "label": "Ловушка над почвой",
+        "title": "Ловушка над почвой",
+        "claim": "В лаборатории каплю направляли на образец грунта через отверстие в пластинке. На пластинке над грунтом оседали капельки, вылетевшие вверх. Их рассматривали под микроскопом.",
+        "story_facts": "В лаборатории каплю направляли на образец грунта через отверстие в пластинке. На пластинке над грунтом оседали капельки, вылетевшие вверх. Их рассматривали под микроскопом.",
+        "context": "Лабораторные наблюдения в работе Joung, Ge и Buie.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "document": "P1",
+            "start": 39592,
+            "end": 40150,
+            "text": "pre-permeated with cells or microspheres. The impact velocity of raindrops was\nvaried with different dropping heights from the surfaces. The raindrops hit on the\nsurfaces after passing through the hole at the centre of the sampling plate located\nabove the surface. The height of the sampling plate was varied from 2 to 15 mm\nto ﬁnd the optimal height of the sampling plate for the maximum collection\nefﬁciency. In this work, we used 10 mm of the sampling height. The surface\ntemperature of soils and TLC plates was varied from 5 to 50/C176C with a house-made"
+          },
+          {
+            "document": "P1",
+            "start": 6736,
+            "end": 6991,
+            "text": "air via aerosols generated by rain. Aerosols are collected on the\nsampling plates positioned above the soil of interest (Fig. 1e).\nFluorescent microscopy images are obtained by using soils pre-\npermeated with a red-ﬂuorescence dye (Rhodamine B) and green-"
+          }
+        ]
+      },
+      {
+        "card_id": "R3",
+        "label": "Две метки",
+        "title": "Две метки",
+        "claim": "Для наблюдения применили два флуоресцентных красителя. На снимке следы осевших аэрозольных капель выглядят красными кружками, а внутри некоторых видны жёлтые точки — бактерии. Число бактерий в отдельных каплях сильно различалось.",
+        "story_facts": "Для наблюдения применили два флуоресцентных красителя. На снимке следы осевших аэрозольных капель выглядят красными кружками, а внутри некоторых видны жёлтые точки — бактерии. Число бактерий в отдельных каплях сильно различалось.",
+        "context": "Лабораторные наблюдения в работе Joung, Ge и Buie.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "document": "P1",
+            "start": 6736,
+            "end": 7757,
+            "text": "air via aerosols generated by rain. Aerosols are collected on the\nsampling plates positioned above the soil of interest (Fig. 1e).\nFluorescent microscopy images are obtained by using soils pre-\npermeated with a red-ﬂuorescence dye (Rhodamine B) and green-\nﬂuorescence (SYTO BC) bacteria (Fig. 1f). The soils were fully\ndried under common laboratory environment after pre-treatment\nwith red ﬂuorescent dye. In this work, we used three species of\nsoil bacteria:Corynebacterium glutamicum(C. glutamicumATCC\n13032), Bacillus subtilis (B. subtilis JMA222) and Pseudomonas\nsyringae (P. syringae ATCC 55389), and six kinds of soil: two\ndifferent types of clay, sandy-clay and sand (Table 1). In addition,\ntwo different thin layer chromatography plates (TLC) were used\nas reference porous surfaces (ideal soil-like surfaces). The aerosols\nand bacteria appear as red circles (aerosols) and yellow dots\n(bacteria; Fig. 1g,h). Depending on the species and strains of\nbacteria, it is known that bacteria show different aerosolization"
+          },
+          {
+            "document": "P1",
+            "start": 8017,
+            "end": 8446,
+            "text": "numbers of dead cells on the surfaces. In Fig. 1g, the aerosol sizes\nrange from a few microns to hundreds of microns; but with the\nhigher magniﬁcation microscope-lens, we can observe submicron\ndroplets on the plates. The number of bacteria varies from zero to\nseveral thousand in a single aerosol, mainly depending on the soil\ntypes, the bacterial surface density, the surface temperature and\nthe raindrop impact speed (Fig. 1h)."
+          }
+        ]
+      },
+      {
+        "card_id": "R4",
+        "label": "Что осталось живым",
+        "title": "Что осталось живым",
+        "claim": "Для проверки жизнеспособности исследователи выдерживали пластинки с осевшим на них материалом в лаборатории различное время, затем переносили материал на питательную среду. На ней вырастали колонии. Для трёх исследованных видов жизнеспособные бактерии обнаруживались и спустя час после образования аэрозоля.",
+        "story_facts": "Для проверки жизнеспособности исследователи выдерживали пластинки с осевшим на них материалом в лаборатории различное время, затем переносили материал на питательную среду. На ней вырастали колонии. Для трёх исследованных видов жизнеспособные бактерии обнаруживались и спустя час после образования аэрозоля.",
+        "context": "Лабораторные наблюдения в работе Joung, Ge и Buie.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "document": "P1",
+            "start": 8447,
+            "end": 9026,
+            "text": "Viability of bacteria dispersed by aerosols. All the bacteria used\nin this work can be transferred from soil to air by aerosols while\nremaining viable. The bioaerosols are collected on the sampling\nplates and the plates are kept in a standard laboratory environ-\nment for a speciﬁc amount of time. Subsequently the aerosols on\nthe plates are transferred to agar plates to measure the number of\naerosols containing live bacteria. Depending upon the bacterial\nspecies and the soil, different numbers of colonies on the agar\nplates are observed (Fig. 2a,b). The most bioaerosols are"
+          },
+          {
+            "document": "P1",
+            "start": 9487,
+            "end": 9810,
+            "text": "types tested and in the bacterial species (P40.05). As a result,\nthe three different soil bacteria remained alive even 1 h after\naerosolization. This result suggests two important conclusions;\n(1) bacteria can survive aerosolization by drop impingement, and\n(2) bacteria can be convectively transferred to distant locations"
+          },
+          {
+            "document": "P1",
+            "start": 17988,
+            "end": 18752,
+            "text": "Figure 2 | Viability of bacteria transferred by aerosols.(a) Colonies of three kinds of soil bacteria,C. glutamicum, P. syringae and B. subtilis, cultured on\nagar plates for 2 days after they were aerosolized by raindrops on sandy-clay soil (Sandy clay-A in T able 1). The inner black circles indicate the location\nwhere raindrops hit on the soil. The yellow dots indicate the colonies where bacteria grew. The scale bars represent 10 mm. (b) Viability test with respect to\nthe duration of drying the aerosols collected on the sampling plates. The time, displayed in the images, indicate the drying duration. Aerosols were\ngenerated from TLC plates (TLC-C in T able 1) pre-permeated withC. glutamicum. The colonies were cultured on agar plates for 2 days after the"
+          }
+        ]
+      },
+      {
+        "card_id": "R5",
+        "label": "Почвы",
+        "title": "Почвы",
+        "claim": "В опытах сравнили шесть образцов грунта и три вида бактерий. Больше всего капелек с бактериями в опытах по выживанию дали песчано-глинистые почвы. Из исследованных песчаных почв таких капелек не зарегистрировали: вода в песок впитывалась слишком быстро для этого механизма.",
+        "story_facts": "В опытах сравнили шесть образцов грунта и три вида бактерий. Больше всего капелек с бактериями в опытах по выживанию дали песчано-глинистые почвы. Из исследованных песчаных почв таких капелек не зарегистрировали: вода в песок впитывалась слишком быстро для этого механизма.",
+        "context": "Лабораторные наблюдения в работе Joung, Ge и Buie.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "document": "P1",
+            "start": 7117,
+            "end": 7628,
+            "text": "with red ﬂuorescent dye. In this work, we used three species of\nsoil bacteria:Corynebacterium glutamicum(C. glutamicumATCC\n13032), Bacillus subtilis (B. subtilis JMA222) and Pseudomonas\nsyringae (P. syringae ATCC 55389), and six kinds of soil: two\ndifferent types of clay, sandy-clay and sand (Table 1). In addition,\ntwo different thin layer chromatography plates (TLC) were used\nas reference porous surfaces (ideal soil-like surfaces). The aerosols\nand bacteria appear as red circles (aerosols) and yellow dots"
+          },
+          {
+            "document": "P1",
+            "start": 8841,
+            "end": 9353,
+            "text": "aerosols containing live bacteria. Depending upon the bacterial\nspecies and the soil, different numbers of colonies on the agar\nplates are observed (Fig. 2a,b). The most bioaerosols are\ngenerated on the sandy-clay soils but no bioaerosol is observed\nfrom the sand soils. This result can be explained by our previous\nwork showing that sandy-clay soils have the optimal wetting\nproperties for aerosolization, but sand soils absorb raindrops too\nfast to generate aerosols30. The bacteria transferred to the aerosols"
+          }
+        ]
+      },
+      {
+        "card_id": "R6",
+        "label": "Скорость удара",
+        "title": "Скорость удара",
+        "claim": "На глинистых и песчано-глинистых образцах максимум образования аэрозоля наблюдали при скоростях удара, соответствующих слабому и умеренному дождю. Имеют значение и скорость впитывания, и скорость падения капли.",
+        "story_facts": "На глинистых и песчано-глинистых образцах максимум образования аэрозоля наблюдали при скоростях удара, соответствующих слабому и умеренному дождю. Имеют значение и скорость впитывания, и скорость падения капли.",
+        "context": "Лабораторные наблюдения в работе Joung, Ge и Buie.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "document": "P1",
+            "start": 3607,
+            "end": 4295,
+            "text": "are formed inside the raindrop and then small droplets eject\nwhen the bubbles burst at the air/raindrop interface. Depending\non soil wetting-properties and raindrop impact speed, the amount\nof aerosols varies. Interestingly, for particular wetting conditions\nand impact speeds, hundreds of aerosols are generated from a\nsingle raindrop within a few microseconds (Supplementary\nMovie 1). On soils with wetting properties similar to sandy-clay\nand clay soils, most aerosols are generated when raindrops fall\nat velocities corresponding to light and moderate rain 30.\nFurthermore, we have shown that ﬂuorescent dyes permeated\nin the soil can be dispersed by aerosols30. Based on our ﬁndings,"
+          }
+        ]
+      },
+      {
+        "card_id": "R7",
+        "label": "Полёт",
+        "title": "Полёт",
+        "claim": "На замедленной съёмке над пористой контрольной пластинкой видны искривлённые воздушным потоком траектории выброшенных капелек. Часть аэрозоля следующих капель дождя может быть смыта обратно, другую часть воздух может унести.",
+        "story_facts": "На замедленной съёмке над пористой контрольной пластинкой видны искривлённые воздушным потоком траектории выброшенных капелек. Часть аэрозоля следующих капель дождя может быть смыта обратно, другую часть воздух может унести.",
+        "context": "Лабораторные наблюдения в работе Joung, Ge и Buie.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "document": "P1",
+            "start": 5551,
+            "end": 6165,
+            "text": "h\nFigure 1 | Bioaerosol generation by raindrops.(a–d) Aerosols generated by drop impingement on a reference surface, which maximized the aerosol\ngeneration (a TLC plate (TLC-C) in T able 1). The TLC plates served as an ideal soil-like surface. The white lines are the trajectories of aerosols ejected from\nthe initial droplet after impact over a period of 400 ms. Due to air ﬂow above the droplet, the trajectories of the ejected aerosols are curved. The scalebars\nindicate 1 mm. For more details, see Supplementary Movie 1. (e) Schematic illustration of the experimental procedure for drop impingement on soil and"
+          },
+          {
+            "document": "P1",
+            "start": 31765,
+            "end": 32256,
+            "text": "population of bacteria could be dispersed by raindrops. However,\nthis estimate should be considered an upper bound because\nsuccessive raindrops can wash the aerosols out of the air.\nAs discussed in our previous work30, however, aerosols can be\nconvectively migrated by wind, and thus it is expected that a\nreasonable fraction of bioaerosols can be dispersed into the\natmosphere and evade washout by successive raindrops. Others\nhave shown that aerosol concentration in the atmosphere rapidly"
+          }
+        ]
+      }
+    ]
+  }
+}
