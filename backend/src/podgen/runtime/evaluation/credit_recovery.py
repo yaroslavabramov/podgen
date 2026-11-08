@@ -136,8 +136,8 @@ def authorize_credit_retry(journal, run_id, target_id, *, guard, allow_create=Tr
 def recovery_hint(code):
     return {
         "legacy_outbound_disabled_start_compact_run": "Старый полный запрос сохранён для просмотра. Сетевое продолжение отключено: создайте новый запуск с editorial-role-packets/1 и новым run-id.",
-        "role_visible_byte_budget_exceeded": "Видимый запрос превышает 128 КиБ. Просмотрите сохранённый запрос или offline preview; уточните редакционное задание без усечения исходников.",
-        "role_input_token_budget_exceeded": "Подсчёт превысил 32 768 входных токенов; генерация не отправлена.",
+        "role_visible_byte_budget_exceeded": "Запрос сохранён и генерация не отправлена. Для этого UUID доступен resume --retry-input-budget UUID --max-visible-bytes 262144 --max-input-tokens 65536; реальные токены, контекст модели и общий бюджет проверяются заново.",
+        "role_input_token_budget_exceeded": "Подсчёт превысил местный токенный порог; генерация не отправлена. Адресное продолжение: resume --retry-input-budget UUID --max-input-tokens 65536. Контекст модели и общий бюджет остаются обязательными.",
         "editorial_needs_material": "Отзыв сохранён; для правки требуются дополнительные источники. Генерация правки не отправлена.",
         "contradictory_editorial_decision": "Отзыв сохранён, но решение не согласуется с правками или вопросами. Требуется явное редакционное решение.",
         "plan_target_repair_not_eligible": "Исправление адресов допустимо только для сохранённого plan-review с невалидными указателями и неизменённым планом; суждения и решение не переписываются.",

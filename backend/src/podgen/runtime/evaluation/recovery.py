@@ -8,10 +8,36 @@ from .plan_target_recovery import authorize_plan_target_repair
 from .workflow import stages_for
 
 
-def authorize_recovery(journal, command, *, credit_target=None, plan_target=None, guard, allow_create=True):
-    if credit_target is not None and plan_target is not None:
+def authorize_recovery(
+    journal,
+    command,
+    *,
+    credit_target=None,
+    plan_target=None,
+    budget_target=None,
+    max_visible_bytes=None,
+    max_input_tokens=None,
+    guard,
+    allow_create=True,
+):
+    if (budget_target is None) != (max_visible_bytes is None and max_input_tokens is None):
+        raise ContractError("input_budget_target_and_allowance_required")
+    if sum(value is not None for value in (credit_target, plan_target, budget_target)) > 1:
         raise ContractError("one_recovery_action_required")
-    if credit_target is not None:
+    if budget_target is not None:
+        from .input_budget_recovery import authorize_input_retry
+
+        row = authorize_input_retry(
+            journal,
+            command,
+            budget_target,
+            max_visible_bytes,
+            max_input_tokens,
+            guard=guard,
+            allow_create=allow_create,
+        )
+        prefix = "input_budget_retry"
+    elif credit_target is not None:
         row = authorize_credit_retry(
             journal, command.run_id, credit_target, guard=guard, allow_create=allow_create
         )

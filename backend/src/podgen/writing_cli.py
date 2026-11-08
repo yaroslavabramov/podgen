@@ -108,6 +108,17 @@ def parser():
             action = command_parser.add_mutually_exclusive_group()
             action.add_argument("--retry-credit-refusal", type=UUID, metavar="INVOCATION_UUID")
             action.add_argument("--repair-plan-targets", type=UUID, metavar="INVOCATION_UUID")
+            action.add_argument("--retry-input-budget", type=UUID, metavar="INVOCATION_UUID")
+            command_parser.add_argument(
+                "--max-input-tokens",
+                type=int,
+                help="Local token allowance for the exact unsent request; context and total run limits still apply",
+            )
+            command_parser.add_argument(
+                "--max-visible-bytes",
+                type=int,
+                help="Local byte allowance for the exact unsent request; token/context/run limits still apply",
+            )
     from podgen.editorial_cli import add_commands
     from podgen.runtime.evaluation.planning_continuation.cli import add_command
 
@@ -277,6 +288,9 @@ def main(argv=None):
                 repair_review_anchors=getattr(args, "repair_review_anchors", False),
                 retry_credit_refusal=getattr(args, "retry_credit_refusal", None),
                 repair_plan_targets=getattr(args, "repair_plan_targets", None),
+                retry_input_budget=getattr(args, "retry_input_budget", None),
+                max_visible_bytes=getattr(args, "max_visible_bytes", None),
+                max_input_tokens=getattr(args, "max_input_tokens", None),
             )
         finally:
             if journal.run(command.run_id):

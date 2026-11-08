@@ -56,19 +56,20 @@ class ModelGateway:
         if expected_contract == "editorial-role-packets/1" and "role_projection_version" in manifest:
             if record["context"].get("role_projection_version") != manifest["role_projection_version"]:
                 self._fail(invocation, "role_projection_version_mismatch", status="validation_failed")
-        if contract == "editorial-role-packets/1" and invocation["status"] == "prepared":
-            from podgen.writing.projections import SINGLE_INPUT_TOKEN_LIMIT, VISIBLE_BYTES_LIMIT
+        from podgen.runtime.evaluation.input_budget_recovery import effective_limits
 
+        local_limits = effective_limits(j, invocation)
+        if contract == "editorial-role-packets/1" and invocation["status"] == "prepared":
             j.event(
                 invocation,
                 "role_input_measurement",
                 data=dict(
                     visible_bytes=visible_sizes(body),
-                    limits=dict(visible_bytes=VISIBLE_BYTES_LIMIT, input_tokens=SINGLE_INPUT_TOKEN_LIMIT),
+                    limits=dict(**local_limits),
                 ),
             )
         try:
-            check_visible(body, contract)
+            check_visible(body, contract, max_visible_bytes=local_limits["visible_bytes"])
         except ContractError as error:
             self._fail(invocation, error.code, status="validation_failed")
         provider = self.provider_factory(profile)
@@ -93,8 +94,10 @@ class ModelGateway:
             invocation = j.transition(invocation, "counted", input_tokens=count)
         if invocation["status"] == "counted":
             try:
-                check_visible(body, contract)
-                check_tokens(invocation["input_tokens"], contract)
+                check_visible(body, contract, max_visible_bytes=local_limits["visible_bytes"])
+                check_tokens(
+                    invocation["input_tokens"], contract, max_input_tokens=local_limits["input_tokens"]
+                )
             except ContractError as error:
                 self._fail(invocation, error.code, status="validation_failed")
             if invocation["input_tokens"] + profile.output_limit > profile.context_limit:

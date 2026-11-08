@@ -68,6 +68,9 @@ class WritingEvaluation:
         repair_review_anchors=False,
         retry_credit_refusal=None,
         repair_plan_targets=None,
+        retry_input_budget=None,
+        max_visible_bytes=None,
+        max_input_tokens=None,
         stop_after_plan=False,
     ):
         if command.actor_id != self.repo.actor_id:
@@ -117,6 +120,9 @@ class WritingEvaluation:
                         command,
                         credit_target=retry_credit_refusal,
                         plan_target=repair_plan_targets,
+                        budget_target=retry_input_budget,
+                        max_visible_bytes=max_visible_bytes,
+                        max_input_tokens=max_input_tokens,
                         guard=lambda: None,
                         allow_create=False,
                     )
@@ -138,6 +144,9 @@ class WritingEvaluation:
                         command,
                         credit_target=retry_credit_refusal,
                         plan_target=repair_plan_targets,
+                        budget_target=retry_input_budget,
+                        max_visible_bytes=max_visible_bytes,
+                        max_input_tokens=max_input_tokens,
                         guard=lambda: None,
                         allow_create=False,
                     )
@@ -152,7 +161,16 @@ class WritingEvaluation:
                     raise ContractError("legacy_outbound_disabled_start_compact_run")
                 materials = self._materials(command)
             else:
-                if retry_credit_refusal is not None or repair_plan_targets is not None:
+                if any(
+                    value is not None
+                    for value in (
+                        retry_credit_refusal,
+                        repair_plan_targets,
+                        retry_input_budget,
+                        max_visible_bytes,
+                        max_input_tokens,
+                    )
+                ):
                     raise RunFailure("credit_refusal_retry_not_eligible", run_id=command.run_id)
                 if (
                     command.input_contract == "legacy-author-materials/1"
@@ -233,6 +251,9 @@ class WritingEvaluation:
                 command,
                 credit_target=retry_credit_refusal,
                 plan_target=repair_plan_targets,
+                budget_target=retry_input_budget,
+                max_visible_bytes=max_visible_bytes,
+                max_input_tokens=max_input_tokens,
                 guard=guard,
             )
             if not stop_after_plan:
