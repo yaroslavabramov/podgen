@@ -9,8 +9,6 @@ def link_scene_sources(frame, plan, packet, cards, *, draft):
     identity = "card_id" if packet.contract == "editorial-input/2" else "label"
     for card in cards:
         card["ref"] = aliases[card.pop(identity)]
-    if plan is None:
-        return
 
     body = plan["plan"]
 
