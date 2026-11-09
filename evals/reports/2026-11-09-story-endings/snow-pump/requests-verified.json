@@ -1,0 +1,18 @@
+{
+  "provider_requests_by_stage": {
+    "plan": 1,
+    "plan-review": 1,
+    "plan-revise": 1,
+    "plan-review-revised": 1,
+    "draft": 1,
+    "reader-review": 1,
+    "fact-review": 1,
+    "revise-1": 1,
+    "reader-review-1": 1,
+    "fact-review-1": 1,
+    "revise-2": 1,
+    "reader-review-2": 1,
+    "fact-review-2": 1
+  },
+  "production_instructions_exact": true
+}

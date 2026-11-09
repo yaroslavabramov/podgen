@@ -1,0 +1,112 @@
+{
+  "run_id": "93e65dd5-48f3-476d-8f45-5f4370f00c21",
+  "status": "needs_attention",
+  "failure": "independent_review_revision_limit_exhausted",
+  "review_outcome": "revision_limit_exhausted",
+  "configuration": "production/1",
+  "author_source_excerpts": "selected-card-excerpts/1",
+  "revision_limit": 2,
+  "stages": {
+    "plan": "ready",
+    "plan-review": "revise",
+    "plan-revise": "ready",
+    "plan-review-revised": "accept",
+    "draft": null,
+    "reader-review": "revise",
+    "fact-review": "revise",
+    "revise-1": null,
+    "reader-review-1": "revise",
+    "fact-review-1": "revise",
+    "revise-2": null,
+    "reader-review-2": "revise",
+    "fact-review-2": "revise"
+  },
+  "provider_calls": 14,
+  "word_counts": {
+    "draft": 1966,
+    "revise-1": 2043,
+    "revise-2": 2065
+  },
+  "support": {
+    "draft": {
+      "selected": 15,
+      "with_excerpts": 15,
+      "excerpts": 44,
+      "per_card": {
+        "M1": 1,
+        "M2": 1,
+        "M3": 2,
+        "M4": 1,
+        "M6": 1,
+        "M7": 1,
+        "M9": 5,
+        "M10": 2,
+        "M11": 5,
+        "M12": 2,
+        "M13": 2,
+        "M14": 6,
+        "M15": 7,
+        "M16": 4,
+        "M17": 4
+      }
+    },
+    "revise-1": {
+      "selected": 15,
+      "with_excerpts": 15,
+      "excerpts": 44,
+      "per_card": {
+        "M1": 1,
+        "M2": 1,
+        "M3": 2,
+        "M4": 1,
+        "M6": 1,
+        "M7": 1,
+        "M9": 5,
+        "M10": 2,
+        "M11": 5,
+        "M12": 2,
+        "M13": 2,
+        "M14": 6,
+        "M15": 7,
+        "M16": 4,
+        "M17": 4
+      }
+    },
+    "revise-2": {
+      "selected": 15,
+      "with_excerpts": 15,
+      "excerpts": 44,
+      "per_card": {
+        "M1": 1,
+        "M2": 1,
+        "M3": 2,
+        "M4": 1,
+        "M6": 1,
+        "M7": 1,
+        "M9": 5,
+        "M10": 2,
+        "M11": 5,
+        "M12": 2,
+        "M13": 2,
+        "M14": 6,
+        "M15": 7,
+        "M16": 4,
+        "M17": 4
+      }
+    }
+  },
+  "author_request_sizes": {
+    "draft": {
+      "visible_bytes": 107747,
+      "input_tokens": 29752
+    },
+    "revise-1": {
+      "visible_bytes": 181415,
+      "input_tokens": 50492
+    },
+    "revise-2": {
+      "visible_bytes": 156903,
+      "input_tokens": 43094
+    }
+  }
+}
