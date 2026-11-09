@@ -8,7 +8,7 @@ from uuid import uuid5
 
 from podgen.domain.contracts.common import CodeProducer
 from podgen.persistence.repository import timestamp
-from podgen.writing import author_plan, source_passages
+from podgen.writing import author_plan, ending_guidance, source_passages
 from podgen.writing.author_reply import contract_pin, offered
 from podgen.writing.behavior import resolve_behavior
 from podgen.writing.model_references import CATALOG_KEY, bind_schema, preview_references
@@ -90,6 +90,7 @@ def create_manifest(repo, generation, command, journal, materials):
                 command.input_contract,
                 projection_version=behavior.projection,
                 plan_review_schema_version=behavior.plan_review_schema if editorial else None,
+                planning_ending_guidance=behavior.planning_ending_guidance if editorial else None,
                 planning_output_contract=planning_contract,
                 **(
                     {"revision_verification_contract": behavior.verification} if behavior.verification else {}
@@ -135,6 +136,8 @@ def create_manifest(repo, generation, command, journal, materials):
     )
     if editorial and behavior.plan_review_schema is not None:
         manifest[PRESERVE_KEY] = behavior.plan_review_schema
+    if editorial and behavior.planning_ending_guidance is not None:
+        manifest[ending_guidance.KEY] = behavior.planning_ending_guidance
     if behavior.verification:
         manifest["revision_verification_contract"] = behavior.verification
     if planning_contract is not None:

@@ -41,6 +41,12 @@ class BehaviorProfile:
     projection: str = V9
 
     @property
+    def planning_ending_guidance(self):
+        from podgen.writing.ending_guidance import VERSION
+
+        return VERSION if self.name == PRODUCTION else None
+
+    @property
     def author_source_excerpts(self):
         from podgen.writing.source_passages import VERSION
 

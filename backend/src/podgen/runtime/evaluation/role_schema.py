@@ -1,5 +1,6 @@
 """Versioned model-facing semantics; persisted fields and historical schemas retain their identities."""
 
+from podgen.writing import ending_guidance
 from podgen.writing.fact_review import describe_schema as describe_fact_schema
 from podgen.writing.plan_review_descriptions import describe_plan_review, validate_schema_version
 from podgen.writing.planning_descriptions import describe_selected_story
@@ -40,10 +41,14 @@ def response_schema(
     planning_output_contract=None,
     revision_verification_contract=None,
     plan_review_schema_version=None,
+    planning_ending_guidance=None,
 ):
     from podgen.writing.planning_choice import SCENE_VERSION
     from podgen.writing.revision import verification
 
+    ending_guidance.validate(
+        planning_ending_guidance, projection_version if input_contract == "editorial-role-packets/1" else V1
+    )
     validate_schema_version(
         plan_review_schema_version, projection_version if input_contract == "editorial-role-packets/1" else V1
     )
@@ -117,4 +122,5 @@ def response_schema(
                 )
             else:
                 describe_review(schema)
+    ending_guidance.describe(schema, stage, planning_ending_guidance)
     return describe_fact_schema(schema, base_stage(stage), fact_schema_version)

@@ -74,6 +74,7 @@ def test_released_production_is_one_catalog_and_old_missing_command_fields_keep_
     assert production.name == DEFAULT == PRODUCTION == "production/1"
     assert production.author_plan_handoff == "approved-story/1"
     assert production.planning_contract is None
+    assert production.planning_ending_guidance == "story-resolution/1"
     assert production.reader_schema == "listener-experience/5" and production.verification is None
     base = resolve_behavior("narrative-rebuild/1")
     for fmt in ("solo", "dialogue"):
@@ -84,8 +85,6 @@ def test_released_production_is_one_catalog_and_old_missing_command_fields_keep_
             draft.body.partition("# Write the episode")[0]
             == original.body.partition("# Write the episode")[0]
         )
-        assert production.instructions("plan", fmt) == base.instructions("plan", fmt)
-        assert production.instructions("plan-revise", fmt) == base.instructions("plan-revise", fmt)
         for role in ("anchor-repair", "plan-target-repair"):
             assert production.instructions(role, fmt) == base.instructions(role, fmt)
         for role in ("reader-review", "fact-review"):
