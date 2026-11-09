@@ -1,0 +1,52 @@
+{
+  "run_id": "f8058d7d-cbcc-446a-ba46-6a27b71f225c",
+  "state": "needs_attention",
+  "failure": "independent_review_revision_limit_exhausted",
+  "calls": {
+    "saved-draft-review": {
+      "resp_0eebfe2f748d6c32016af20353c9e887d2bffa721bbcf205e9": "0.033891"
+    },
+    "first-saved-draft-review": {
+      "resp_0eda5d9fe42afc59016af201b7d5f087d2a1c10eed4a447385": "0.0279635"
+    },
+    "second-saved-draft-review": {
+      "resp_09edff6ddb75cc6e016af202baf5b087d291b4b50178868b47": "0.02518975"
+    },
+    "reader-review-1": {
+      "resp_00d198dbade2d888016af2052497ac87d2a3b3b4e3af92a9a8": "0.0189686"
+    },
+    "draft": {
+      "resp_msg_011CgsktkweUKainiZDYdnw6": "0.261128"
+    },
+    "revise-2": {
+      "resp_msg_011CgsmHHmQn6XXjWLnGSzCn": "0.149753"
+    },
+    "fact-review": {
+      "resp_08b8be85f321475f016af204cf741c87d2a8e3cbe9504b75df": "0.037038"
+    },
+    "fact-review-1": {
+      "resp_093766bbf8d81eba016af20550122087d28018bb6e62c80517": "0.01943"
+    },
+    "plan": {
+      "resp_0e349d7be9bdb1ad016af203a9fc8087d2a714adfb3c479154": "0.078396"
+    },
+    "reader-review-2": {
+      "resp_033986ec0f8d88e4016af205a726cc87d28b0dbff528170434": "0.0214516",
+      "resp_01a0c4faf459491a016af205dced6487d2b61bb98e95651943": "0.001777"
+    },
+    "fact-review-2": {
+      "resp_0c3c289a014bd042016af205e2785887d2bf7a36554cb46799": "0.021028",
+      "resp_0170bc4ba80fd049016af2061a520087d2ab699afb0fed3e4f": "0.001994"
+    },
+    "revise-1": {
+      "resp_msg_011Cgsm7u6ewxxw9HMy1q3yv": "0.278981"
+    },
+    "reader-review": {
+      "resp_08b31a19043066dd016af204980c2087d2806ca988a0d298e0": "0.0239756"
+    },
+    "plan-review": {
+      "resp_04c277d2dac796ca016af204290eb487d2b4c096883cd8cf46": "0.025991"
+    }
+  },
+  "total_usd": "1.02695605"
+}

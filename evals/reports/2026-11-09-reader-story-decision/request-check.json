@@ -1,0 +1,63 @@
+{
+  "plan": {
+    "archive_exact": true,
+    "changed_request_fields": []
+  },
+  "plan-review": {
+    "archive_exact": true,
+    "changed_request_fields": []
+  },
+  "plan-revise": {
+    "archive_exact": true,
+    "changed_request_fields": []
+  },
+  "plan-review-revised": {
+    "archive_exact": true,
+    "changed_request_fields": []
+  },
+  "draft": {
+    "archive_exact": true,
+    "changed_request_fields": []
+  },
+  "reader-review": {
+    "archive_exact": true,
+    "changed_request_fields": [
+      "instructions",
+      "text"
+    ]
+  },
+  "fact-review": {
+    "archive_exact": true,
+    "changed_request_fields": []
+  },
+  "revise-1": {
+    "archive_exact": true,
+    "changed_request_fields": []
+  },
+  "reader-review-1": {
+    "archive_exact": true,
+    "changed_request_fields": [
+      "instructions",
+      "text"
+    ]
+  },
+  "fact-review-1": {
+    "archive_exact": true,
+    "changed_request_fields": []
+  },
+  "revise-2": {
+    "archive_exact": true,
+    "changed_request_fields": []
+  },
+  "reader-review-2": {
+    "archive_exact": true,
+    "changed_request_fields": [
+      "instructions",
+      "text"
+    ]
+  },
+  "fact-review-2": {
+    "archive_exact": true,
+    "changed_request_fields": []
+  }
+}
