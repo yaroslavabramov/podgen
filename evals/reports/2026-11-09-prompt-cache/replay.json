@@ -1,0 +1,205 @@
+{
+  "plan": {
+    "frozen_request_exact": true,
+    "semantic_fields_verified": [
+      "assignment",
+      "dossier",
+      "material_catalog",
+      "output_language"
+    ],
+    "new_semantic_fields": [],
+    "provider": "openai",
+    "cache_boundary_count": 0
+  },
+  "plan-review": {
+    "frozen_request_exact": true,
+    "semantic_fields_verified": [
+      "allowed_review_targets",
+      "assignment",
+      "candidate_plan",
+      "dossier",
+      "material_catalog",
+      "output_language",
+      "review_target_root"
+    ],
+    "new_semantic_fields": [],
+    "provider": "openai",
+    "cache_boundary_count": 2,
+    "same_prefix_as": "plan-review-revised"
+  },
+  "plan-revise": {
+    "frozen_request_exact": true,
+    "semantic_fields_verified": [
+      "assignment",
+      "candidate_plan",
+      "dossier",
+      "material_catalog",
+      "output_language",
+      "revision_guidance"
+    ],
+    "new_semantic_fields": [],
+    "provider": "openai",
+    "cache_boundary_count": 0
+  },
+  "plan-review-revised": {
+    "frozen_request_exact": true,
+    "semantic_fields_verified": [
+      "allowed_review_targets",
+      "assignment",
+      "candidate_plan",
+      "dossier",
+      "material_catalog",
+      "output_language",
+      "review_target_root"
+    ],
+    "new_semantic_fields": [],
+    "provider": "openai",
+    "cache_boundary_count": 2
+  },
+  "draft": {
+    "frozen_request_exact": true,
+    "semantic_fields_verified": [
+      "assignment",
+      "craft_reference",
+      "duration_context",
+      "output_language",
+      "story",
+      "support"
+    ],
+    "new_semantic_fields": [],
+    "provider": "anthropic",
+    "cache_boundary_count": 0
+  },
+  "reader-review": {
+    "frozen_request_exact": true,
+    "semantic_fields_verified": [
+      "audience",
+      "duration_context",
+      "format",
+      "genre",
+      "output_language",
+      "script"
+    ],
+    "new_semantic_fields": [],
+    "provider": "openai",
+    "cache_boundary_count": 1,
+    "same_prefix_as": "reader-review-1"
+  },
+  "fact-review": {
+    "frozen_request_exact": true,
+    "semantic_fields_verified": [
+      "evidence",
+      "factual_remit",
+      "necessary_limits",
+      "output_language",
+      "script",
+      "support"
+    ],
+    "new_semantic_fields": [],
+    "provider": "openai",
+    "cache_boundary_count": 2,
+    "same_prefix_as": "fact-review-1"
+  },
+  "revise-1": {
+    "frozen_request_exact": true,
+    "semantic_fields_verified": [
+      "assignment",
+      "audience",
+      "craft_reference",
+      "decision",
+      "duration_context",
+      "editorial_frame",
+      "format",
+      "genre",
+      "output_language",
+      "revision_guidance",
+      "revision_operation",
+      "script",
+      "support"
+    ],
+    "new_semantic_fields": [
+      "accepted_plan"
+    ],
+    "provider": "anthropic",
+    "cache_boundary_count": 2,
+    "same_prefix_as": "revise-2"
+  },
+  "reader-review-1": {
+    "frozen_request_exact": true,
+    "semantic_fields_verified": [
+      "audience",
+      "duration_context",
+      "format",
+      "genre",
+      "output_language",
+      "script"
+    ],
+    "new_semantic_fields": [],
+    "provider": "openai",
+    "cache_boundary_count": 1
+  },
+  "fact-review-1": {
+    "frozen_request_exact": true,
+    "semantic_fields_verified": [
+      "evidence",
+      "factual_remit",
+      "necessary_limits",
+      "output_language",
+      "script",
+      "support"
+    ],
+    "new_semantic_fields": [],
+    "provider": "openai",
+    "cache_boundary_count": 2
+  },
+  "revise-2": {
+    "frozen_request_exact": true,
+    "semantic_fields_verified": [
+      "accepted_plan",
+      "assignment",
+      "audience",
+      "craft_reference",
+      "decision",
+      "duration_context",
+      "editorial_frame",
+      "format",
+      "genre",
+      "output_language",
+      "revision_guidance",
+      "revision_operation",
+      "script",
+      "support"
+    ],
+    "new_semantic_fields": [],
+    "provider": "anthropic",
+    "cache_boundary_count": 2
+  },
+  "reader-review-2": {
+    "frozen_request_exact": true,
+    "semantic_fields_verified": [
+      "audience",
+      "duration_context",
+      "format",
+      "genre",
+      "output_language",
+      "script"
+    ],
+    "new_semantic_fields": [],
+    "provider": "openai",
+    "cache_boundary_count": 1
+  },
+  "fact-review-2": {
+    "frozen_request_exact": true,
+    "semantic_fields_verified": [
+      "evidence",
+      "factual_remit",
+      "necessary_limits",
+      "output_language",
+      "script",
+      "support"
+    ],
+    "new_semantic_fields": [],
+    "provider": "openai",
+    "cache_boundary_count": 2
+  }
+}

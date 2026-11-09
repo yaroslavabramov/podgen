@@ -1,0 +1,21 @@
+{
+  "stage": "revise-2",
+  "request_id": "667de53a-bc7a-4217-85bf-a36e616cda6d",
+  "provider_id": "resp_msg_011CgsdVtMSFPRUUZbU91uid",
+  "model": "claude-opus-5-5",
+  "status": "completed",
+  "usage": {
+    "input_tokens": 43051,
+    "output_tokens": 825,
+    "input_tokens_details": {
+      "cached_tokens": 30848,
+      "cache_write_tokens": 0
+    }
+  },
+  "uncached_input_tokens": 12203,
+  "estimated_usd": "0.0714816",
+  "input_usd_at_uncached_rate": "0.172204",
+  "actual_input_usd": "0.0549816",
+  "applied_with_production_validator": true,
+  "logical_request_sha256_excluding_run_ids": "5b52ab0e6570e4e3798f308b30d646e50e5eb486104737956b97338244c9a70d"
+}

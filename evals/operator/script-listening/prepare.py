@@ -11,6 +11,7 @@ from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.contracts.configuration import ModelProfile
 from podgen.persistence.editorial_inputs import EditorialMaterials
 from podgen.runtime.evaluation.preview import preview_request
+from podgen.runtime.evaluation.request_payload import request_payload
 from podgen.writing.editorial_contract import EditorialInput
 
 HERE = Path(__file__).resolve().parent
@@ -89,7 +90,7 @@ def prepare(
             body = preview_request(
                 run_id, "reader-review", profile, materials, draft=script
             )
-            data = json.loads(body["input"][0]["content"][0]["text"])
+            data = request_payload(body)
             if set(data) != {
                 "script",
                 "audience",
