@@ -15,12 +15,16 @@
   },
   "readings": {
     "reader-review-1": {
-      "version": "reader-review/sha256:ab67d1e24f4869e19ee4272b726d533f24764d8ae3d36fc6041bc294e3fd4618",
-      "sha256": "ab67d1e24f4869e19ee4272b726d533f24764d8ae3d36fc6041bc294e3fd4618"
+      "version": "reader-review/sha256:6f16a00bdf081b408417ff831d93ed15d271d244b729e33a4df29831040db95f",
+      "sha256": "6f16a00bdf081b408417ff831d93ed15d271d244b729e33a4df29831040db95f"
     },
     "dual-revise": {
       "version": "dual-revise/sha256:da114c48881b03405f25b7c2abba095d4de55dba59a2f1a695b5e69b5b8d2517",
       "sha256": "da114c48881b03405f25b7c2abba095d4de55dba59a2f1a695b5e69b5b8d2517"
+    },
+    "fact-review": {
+      "version": "fact-review/sha256:b9a9a5bf888aedbe37aead292712a8a59c5e7a97bc5ad9bdcdf932c6c92ab49f",
+      "sha256": "b9a9a5bf888aedbe37aead292712a8a59c5e7a97bc5ad9bdcdf932c6c92ab49f"
     }
   }
 }
