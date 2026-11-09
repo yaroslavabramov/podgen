@@ -1,0 +1,129 @@
+{
+  "previous_run": "d567f7b6-6a5c-43b9-aa0e-3280d5262c1a",
+  "old_requests_reproduced": {
+    "plan": {
+      "saved_request_sha256": "97ffefbcb55cace7a49c72eabe04606f4d10406c7a5350a7ee57860779686ee8"
+    },
+    "plan-review": {
+      "saved_request_sha256": "89377ca03926ccb9d692989968804bd85044c7c1fe4f0e4619346501770a02aa"
+    },
+    "plan-revise": {
+      "saved_request_sha256": "a8bed5890e4204d5bd1930483ee34d8ad5bbb94834cea8ebce782262794cc64c"
+    },
+    "plan-review-revised": {
+      "saved_request_sha256": "95898e38331d6bcbd9766fed4dbb666d1936e64003b9c94744b82462087dddce"
+    },
+    "draft": {
+      "saved_request_sha256": "26e7c65bf6c39c0b8a52ebf8e3b5ea4e8423eb12c3ed5a768a25130ef4199bde",
+      "new_support": {
+        "selected": 15,
+        "with_excerpts": 15,
+        "excerpts": 41,
+        "per_card": {
+          "M1": 1,
+          "M2": 1,
+          "M3": 2,
+          "M4": 1,
+          "M5": 1,
+          "M6": 1,
+          "M7": 1,
+          "M9": 5,
+          "M10": 2,
+          "M11": 5,
+          "M12": 2,
+          "M13": 2,
+          "M14": 6,
+          "M15": 7,
+          "M17": 4
+        }
+      },
+      "visible_bytes": 100441
+    },
+    "reader-review": {
+      "saved_request_sha256": "7ea7b7945e1df0d7bc8369667bab8360adcc7335d3b7e6f2d5c092f51c023e68"
+    },
+    "fact-review": {
+      "saved_request_sha256": "927c50f2fb9a04fbcf4b8b517328722da041da427a042236dbfd2f0c4f0cc6ef"
+    },
+    "revise-1": {
+      "saved_request_sha256": "8e537e824f87cf0c77ff202d1f9863e66db570eb056c42efad40bb6291bd0d25",
+      "new_support": {
+        "selected": 15,
+        "with_excerpts": 15,
+        "excerpts": 41,
+        "per_card": {
+          "M1": 1,
+          "M2": 1,
+          "M3": 2,
+          "M4": 1,
+          "M5": 1,
+          "M6": 1,
+          "M7": 1,
+          "M9": 5,
+          "M10": 2,
+          "M11": 5,
+          "M12": 2,
+          "M13": 2,
+          "M14": 6,
+          "M15": 7,
+          "M17": 4
+        }
+      },
+      "visible_bytes": 184854
+    },
+    "reader-review-1": {
+      "saved_request_sha256": "af081e2daa86a09dd891762278b5e2ed67d37c896bb47e904c8e05127dec2168"
+    },
+    "fact-review-1": {
+      "saved_request_sha256": "47ce02979f16dc4e804f93cc1db190f83d51c5c44a87b2e73cc9ab122d502019"
+    },
+    "revise-2": {
+      "saved_request_sha256": "fffa3f2c335a45d59db35b76edfd32a79dcb1abf90798bf3c930afb23cddb793",
+      "new_support": {
+        "selected": 15,
+        "with_excerpts": 15,
+        "excerpts": 41,
+        "per_card": {
+          "M1": 1,
+          "M2": 1,
+          "M3": 2,
+          "M4": 1,
+          "M5": 1,
+          "M6": 1,
+          "M7": 1,
+          "M9": 5,
+          "M10": 2,
+          "M11": 5,
+          "M12": 2,
+          "M13": 2,
+          "M14": 6,
+          "M15": 7,
+          "M17": 4
+        }
+      },
+      "visible_bytes": 157644
+    },
+    "reader-review-2": {
+      "saved_request_sha256": "38a50d43e0ca29702e45221ece88a20f6870eb2473238c96f46b06ec29e9e317"
+    },
+    "fact-review-2": {
+      "saved_request_sha256": "bfe06e1773dc1a72d8ff6d0a9458994a3019da8907801f5e467050806a91d996"
+    }
+  },
+  "historical_missing_excerpts": {
+    "draft": {
+      "selected": 15,
+      "absent": 10
+    },
+    "revise-1": {
+      "selected": 15,
+      "absent": 10
+    },
+    "revise-2": {
+      "selected": 15,
+      "absent": 10
+    }
+  },
+  "old_terminal_outcome_identical": true,
+  "unchanged_active_plan_and_fact_requests": true
+}
