@@ -79,8 +79,10 @@ def test_released_production_is_one_catalog_and_old_missing_command_fields_keep_
         assert production.instructions("draft", fmt) == base.instructions("draft", fmt)
         assert production.instructions("plan", fmt) == base.instructions("plan", fmt)
         assert production.instructions("plan-revise", fmt) == base.instructions("plan-revise", fmt)
-        for role in ("anchor-repair", "plan-target-repair", "fact-review"):
+        for role in ("anchor-repair", "plan-target-repair"):
             assert production.instructions(role, fmt) == base.instructions(role, fmt)
+        for role in ("reader-review", "fact-review"):
+            assert production.instructions(role, fmt) != base.instructions(role, fmt)
     for name in (
         "existing/1",
         "narrative-rebuild/1",
