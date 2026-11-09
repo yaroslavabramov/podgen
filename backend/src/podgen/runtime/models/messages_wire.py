@@ -42,15 +42,26 @@ def _native_schema(node, *, output):
     return result
 
 
+def _text_block(piece):
+    if piece["type"] != "input_text":
+        raise ProviderFault("unsupported_anthropic_input")
+    block = {"type": "text", "text": piece["text"]}
+    if "prompt_cache_breakpoint" in piece:
+        if piece["prompt_cache_breakpoint"] != {"mode": "explicit"}:
+            raise ProviderFault("unsupported_anthropic_cache_breakpoint")
+        block["cache_control"] = {"type": "ephemeral", "ttl": "5m"}
+    return block
+
+
 def messages_request(body, *, counting=False):
     messages = []
     for message in body["input"]:
-        if message["role"] != "user" or any(piece["type"] != "input_text" for piece in message["content"]):
+        if message["role"] != "user":
             raise ProviderFault("unsupported_anthropic_input")
         messages.append(
             {
                 "role": "user",
-                "content": [{"type": "text", "text": piece["text"]} for piece in message["content"]],
+                "content": [_text_block(piece) for piece in message["content"]],
             }
         )
     result = dict(
@@ -133,15 +144,19 @@ def normalize_message(message, request):
     if stop == "refusal":
         parts = [dict(type="message", role="assistant", status="completed", content=[dict(type="refusal")])]
     usage = message["usage"]
-    input_count = _usage_count(usage, "input_tokens") + sum(
-        _usage_count(usage, k, optional=True)
-        for k in ("cache_creation_input_tokens", "cache_read_input_tokens")
+    cached = _usage_count(usage, "cache_read_input_tokens", optional=True)
+    written = _usage_count(usage, "cache_creation_input_tokens", optional=True)
+    accounting = dict(
+        input_tokens=_usage_count(usage, "input_tokens") + cached + written,
+        output_tokens=_usage_count(usage, "output_tokens"),
     )
+    if "cache_read_input_tokens" in usage or "cache_creation_input_tokens" in usage:
+        accounting["input_tokens_details"] = dict(cached_tokens=cached, cache_write_tokens=written)
     return dict(
         id="resp_" + message["id"],
         model=message["model"],
         metadata=request["metadata"],
         status="completed" if stop in ("end_turn", "tool_use", "refusal") else "incomplete",
         output=parts,
-        usage=dict(input_tokens=input_count, output_tokens=_usage_count(usage, "output_tokens")),
+        usage=accounting,
     )

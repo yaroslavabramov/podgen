@@ -1,3 +1,5 @@
+import json
+
 import httpx
 import pytest
 
@@ -58,6 +60,41 @@ def test_error_body_redaction_and_no_automatic_retry():
     assert secret.encode() not in caught.value.reply.body
     assert caught.value.reply.redacted is True
     assert caught.value.code == "provider_http_401" and caught.value.ambiguous is False
+
+
+def test_sdk_preserves_explicit_cache_boundary_and_excludes_changing_tail():
+    body = {
+        "model": "gpt-6.1-terra",
+        "instructions": "Review the episode.",
+        "prompt_cache_options": {"mode": "explicit"},
+        "input": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": "Evidence",
+                        "prompt_cache_breakpoint": {"mode": "explicit"},
+                    },
+                    {"type": "input_text", "text": "Current script"},
+                ],
+            }
+        ],
+    }
+
+    def server(request):
+        sent = json.loads(request.content)
+        assert sent["input"] == body["input"]
+        if request.url.path.endswith("/input_tokens"):
+            assert "prompt_cache_options" not in sent
+        else:
+            assert sent["prompt_cache_options"] == {"mode": "explicit"}
+        return httpx.Response(200, json={})
+
+    with httpx.Client(transport=httpx.MockTransport(server)) as client:
+        provider = OpenAIProvider("secret-test", http_client=client)
+        provider.count(body)
+        provider.submit(body, client_request_id="cache-test")
 
 
 @pytest.mark.parametrize("status,ambiguous", [(429, False), (500, True), (503, True)])
