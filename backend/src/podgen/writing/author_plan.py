@@ -4,6 +4,7 @@ from copy import deepcopy
 
 from podgen.domain.errors import ContractError
 
+from .behavior import PRODUCTION
 from .projection_versions import V9, manifest_version
 from .story_views import narrative_decisions
 
@@ -13,6 +14,8 @@ VERSION = "approved-story/1"
 
 def from_manifest(manifest):
     value = manifest.get(KEY)
+    if value is None and manifest.get("behavior_profile") == PRODUCTION:
+        raise ContractError("missing_author_plan_handoff")
     if value is not None and (value != VERSION or manifest_version(manifest) != V9):
         raise ContractError("unsupported_author_plan_handoff")
     return value

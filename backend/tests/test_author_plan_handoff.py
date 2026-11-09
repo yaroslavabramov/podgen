@@ -58,6 +58,8 @@ def test_historical_author_handoff_stays_pinned_and_unknown_versions_fail_closed
     historical = role_payload("draft", materials, approved_plan=plan, projection_version=V9)
     assert historical["story"]["duration_strategy"].keys() == {"estimated_seconds_range"}
     assert author_plan.from_manifest(dict(role_projection_version=V9)) is None
+    with pytest.raises(ContractError, match="missing_author_plan_handoff"):
+        author_plan.from_manifest(dict(role_projection_version=V9, behavior_profile="production/1"))
     for projection, handoff in ((V8, author_plan.VERSION), (V9, "unknown")):
         with pytest.raises(ContractError, match="unsupported_author_plan_handoff"):
             author_plan.from_manifest(dict(role_projection_version=projection, author_plan_handoff=handoff))
