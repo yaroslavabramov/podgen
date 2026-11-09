@@ -47,8 +47,8 @@
       "sha256": "0197ebeabeb73862948781fa5f75be3a5341a4c993437511d60ada5f4d5f86ca"
     },
     "fact-review": {
-      "version": "fact-review/sha256:5dfece81435f8da67f1bda4b26b4fbd05df306352be8530e06b178e7c41b9811",
-      "sha256": "5dfece81435f8da67f1bda4b26b4fbd05df306352be8530e06b178e7c41b9811"
+      "version": "fact-review/sha256:95cd729fa682b90685db4beb7d6a45ebba4760d824696df33a3680f4838be91c",
+      "sha256": "95cd729fa682b90685db4beb7d6a45ebba4760d824696df33a3680f4838be91c"
     }
   }
 }
