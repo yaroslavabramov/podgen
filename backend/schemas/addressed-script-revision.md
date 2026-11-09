@@ -29,8 +29,11 @@ source hashes, record references, offsets, or authorization metadata.
 
 Composition contains `main_question`, `listener_promise`, `route_summary`, and
 `decisions`. The server carries unresolved research questions alongside it.
-Subsequent revisions receive this current composition rather than reimposing the
-original plan. Original plans, scripts, reviews and requests remain archived.
+New production runs give the next writer the current question, listener promise,
+route and unresolved questions. Targeted and sequence edits use that frame with
+the current script. Structural edits also receive the original plan. The full
+composition, including the writer’s decisions, stays in the archive alongside the
+plans, scripts, reviews and requests. Earlier runs use their pinned request layout.
 
 ## Addressing and application
 
