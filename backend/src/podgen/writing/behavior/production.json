@@ -1,0 +1,26 @@
+{
+  "formats": {
+    "solo": {
+      "plan-review": {
+        "version": "whole-episode-a/sha256:37ad6a903542c300cf52dcae1e49ffb0543a486fdaee77502a14e9c36b151c17",
+        "sha256": "873be967454756359a038d41abff67d28d75d985ce3f67d5e66028e07caa3e14"
+      }
+    },
+    "dialogue": {
+      "plan-review": {
+        "version": "whole-episode-a/sha256:6af761bde12fca6da8a184d735b122cfa05928699f5924dd71fc2d8804713ccf",
+        "sha256": "910ce5e9927c8f6f7623745650db4f2781ca56482f92af6dd514adc8db581f57"
+      }
+    }
+  },
+  "readings": {
+    "reader-review-1": {
+      "version": "reader-review/sha256:ab67d1e24f4869e19ee4272b726d533f24764d8ae3d36fc6041bc294e3fd4618",
+      "sha256": "ab67d1e24f4869e19ee4272b726d533f24764d8ae3d36fc6041bc294e3fd4618"
+    },
+    "dual-revise": {
+      "version": "dual-revise/sha256:da114c48881b03405f25b7c2abba095d4de55dba59a2f1a695b5e69b5b8d2517",
+      "sha256": "da114c48881b03405f25b7c2abba095d4de55dba59a2f1a695b5e69b5b8d2517"
+    }
+  }
+}
