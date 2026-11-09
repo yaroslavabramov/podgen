@@ -2,37 +2,53 @@
   "formats": {
     "solo": {
       "plan-review": {
-        "version": "whole-episode-a/sha256:37ad6a903542c300cf52dcae1e49ffb0543a486fdaee77502a14e9c36b151c17",
-        "sha256": "873be967454756359a038d41abff67d28d75d985ce3f67d5e66028e07caa3e14"
+        "version": "whole-episode-a/sha256:c5d169fa8594c170c13af60bf72bdcd8a7783c2d8e38e09b3fd4601d998ded3f",
+        "sha256": "b042b1e96d0e77f838984b03ac4f74012834ac73a20802f00c80a64fc1355014"
       },
       "draft": {
-        "version": "whole-episode-a/sha256:f0fe7b18e54cdb7e7cf330e834e4d19a111da7689e465a3c2ad5b06b50ac8437",
-        "sha256": "0000b5105f3dc42c1d4f618fd179a639ee99cb7a012f928f8b42f73ab921705e"
+        "version": "whole-episode-a/sha256:891532a3d042d96c5d7a3e7ec83bf4ba424f774b79854c7180b0c5ca7bb11d63",
+        "sha256": "6d8e2b027999a96f245fec0a90abfbb433b234a7cf3d131da4ae99955c558952"
+      },
+      "plan": {
+        "version": "whole-episode-a/sha256:b71a06d5e029c11e64c5b197069409e65fb680756ea7ebd314dfc8756c3f782a",
+        "sha256": "2219c9245f9efe29c975e9ba6c89eb915fcd889f7427a49fa224b4403bf650cc"
+      },
+      "plan-revise": {
+        "version": "whole-episode-a/sha256:713df767d8888210cafe6049da3c2977c105d2778640fedd800961e1d4c70cbd",
+        "sha256": "1eb31ffa13c7d74da40dbff8754d493249ccc77cbcde150ecf5c4ba5b50c9fd7"
       }
     },
     "dialogue": {
       "plan-review": {
-        "version": "whole-episode-a/sha256:6af761bde12fca6da8a184d735b122cfa05928699f5924dd71fc2d8804713ccf",
-        "sha256": "910ce5e9927c8f6f7623745650db4f2781ca56482f92af6dd514adc8db581f57"
+        "version": "whole-episode-a/sha256:b5770bf5f5d9824561672bf2d9f91989f49102bef41e7e54552b0a63c14cf0cd",
+        "sha256": "a61d3abe67d5d519802af12daaa59c014dbba6e0e55a426d9acfcde824b36935"
       },
       "draft": {
-        "version": "whole-episode-a/sha256:f99db5145c9a6afff3c334ac56878f6727460c2dd9beac93673882dbf64ababa",
-        "sha256": "aad4b64250724e30380f0577e196b9356eca9c3a4db8f61baaa316e579a77e47"
+        "version": "whole-episode-a/sha256:84b0e28c4f0df8bfb07236a7882b18d10f56b6cf73cb8a52c46e2788b3f83b43",
+        "sha256": "d3eabaf95603803dba50735c7fd8b7a4fe9d397f7f489a0ef02bab7cb4d8e237"
+      },
+      "plan": {
+        "version": "whole-episode-a/sha256:b71a06d5e029c11e64c5b197069409e65fb680756ea7ebd314dfc8756c3f782a",
+        "sha256": "2219c9245f9efe29c975e9ba6c89eb915fcd889f7427a49fa224b4403bf650cc"
+      },
+      "plan-revise": {
+        "version": "whole-episode-a/sha256:713df767d8888210cafe6049da3c2977c105d2778640fedd800961e1d4c70cbd",
+        "sha256": "1eb31ffa13c7d74da40dbff8754d493249ccc77cbcde150ecf5c4ba5b50c9fd7"
       }
     }
   },
   "readings": {
     "reader-review-1": {
-      "version": "reader-review/sha256:a195c81382f0f6c3093983fe0e5f8c55ca6c1359d734a7fa7cc0866e5ab9af81",
-      "sha256": "a195c81382f0f6c3093983fe0e5f8c55ca6c1359d734a7fa7cc0866e5ab9af81"
+      "version": "reader-review/sha256:3269ffb8cd626190a6dace3604d3d3284aed0abb097738064458a1d069fe54ae",
+      "sha256": "3269ffb8cd626190a6dace3604d3d3284aed0abb097738064458a1d069fe54ae"
     },
     "dual-revise": {
-      "version": "dual-revise/sha256:2ca176ad3a7dd2f045f41160cb3345e42e245dc89401d5888795be2f0dc87082",
-      "sha256": "2ca176ad3a7dd2f045f41160cb3345e42e245dc89401d5888795be2f0dc87082"
+      "version": "dual-revise/sha256:b189e9adf77451c0fb84b4d1164d49173b92e91c4730cbeae45a43950963a902",
+      "sha256": "b189e9adf77451c0fb84b4d1164d49173b92e91c4730cbeae45a43950963a902"
     },
     "fact-review": {
-      "version": "fact-review/sha256:687e462143a8b91507e74681a97225a52bc2559e53269b15a1d23bb3afa36d39",
-      "sha256": "687e462143a8b91507e74681a97225a52bc2559e53269b15a1d23bb3afa36d39"
+      "version": "fact-review/sha256:5dfece81435f8da67f1bda4b26b4fbd05df306352be8530e06b178e7c41b9811",
+      "sha256": "5dfece81435f8da67f1bda4b26b4fbd05df306352be8530e06b178e7c41b9811"
     }
   }
 }
