@@ -8,7 +8,7 @@ from uuid import uuid5
 
 from podgen.domain.contracts.common import CodeProducer
 from podgen.persistence.repository import timestamp
-from podgen.writing import author_plan, ending_guidance, prompt_cache, source_passages
+from podgen.writing import author_plan, ending_guidance, fact_context, prompt_cache, source_passages
 from podgen.writing.author_reply import contract_pin, offered
 from podgen.writing.behavior import resolve_behavior
 from podgen.writing.model_references import CATALOG_KEY, bind_schema, preview_references
@@ -16,7 +16,6 @@ from podgen.writing.plan_review_descriptions import PRESERVE_KEY
 from podgen.writing.planning_choice import KEY as PLANNING_KEY
 from podgen.writing.planning_duration import KEY as DURATION_KEY
 from podgen.writing.reader_schema import V2 as LEGACY_READER_SCHEMA_VERSION
-from podgen.writing.revision.contracts import FACT_VERSION
 from podgen.writing.revision.contracts import VERSION as REVISION_VERSION
 
 from .compiler import COMPILER_VERSION, materials_hash
@@ -96,7 +95,7 @@ def create_manifest(repo, generation, command, journal, materials):
                     {"revision_verification_contract": behavior.verification} if behavior.verification else {}
                 ),
                 reader_schema_version=reader_version if independent(command) else None,
-                fact_schema_version=FACT_VERSION if revised else None,
+                fact_schema_version=behavior.fact_schema if revised else None,
             ),
             references,
         )
@@ -167,7 +166,9 @@ def create_manifest(repo, generation, command, journal, materials):
 
         if behavior.revision_context:
             manifest[REVISION_CONTEXT_KEY] = behavior.revision_context
-        manifest["fact_review_schema_version"] = FACT_VERSION
+        manifest["fact_review_schema_version"] = behavior.fact_schema
+        if editorial and behavior.fact_context is not None:
+            manifest[fact_context.KEY] = behavior.fact_context
         manifest["script_revision_contract"] = REVISION_VERSION
         manifest["revision_response_schemas"] = revision_schemas(
             prompt_cache_layout=behavior.prompt_cache_layout if editorial else None

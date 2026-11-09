@@ -20,9 +20,10 @@ class FactFeedback(EditorialFeedback):
 def feedback_model(version=None):
     if version is None:
         return FactFeedback
+    from .fact_context import SCHEMA_VERSION
     from .revision.contracts import FACT_V1, FACT_VERSION
 
-    if version not in (FACT_V1, FACT_VERSION):
+    if version not in (FACT_V1, FACT_VERSION, SCHEMA_VERSION):
         raise ContractError("unknown_fact_review_schema_version")
     from .revision.scopes import FactAssessment, FactAssessmentV2
 
@@ -41,10 +42,15 @@ def snapshot_model(value):
 
 
 def describe_schema(schema, stage, version):
+    from .fact_context import SCHEMA_VERSION
     from .revision.contracts import FACT_VERSION
 
-    if stage == "fact-review" and version == FACT_VERSION:
+    if stage == "fact-review" and version in (FACT_VERSION, SCHEMA_VERSION):
         from .fact_review_descriptions import describe_fact_review
 
         describe_fact_review(schema)
+        if version == SCHEMA_VERSION:
+            from .fact_claim_descriptions import describe_fact_claims
+
+            describe_fact_claims(schema)
     return schema

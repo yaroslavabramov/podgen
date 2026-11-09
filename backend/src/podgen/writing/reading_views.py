@@ -4,6 +4,7 @@ from copy import deepcopy
 
 from podgen.domain.errors import ContractError
 
+from . import fact_context
 from .craft_reference import attach_reference
 from .duration_views import duration_context
 from .projection_versions import (
@@ -59,7 +60,9 @@ def reading_payload(
     author_plan_handoff=None,
     author_source_excerpts=None,
     prompt_cache_layout=None,
+    fact_context_contract=None,
 ):
+    fact_context.validate(fact_context_contract, projection_version)
     validate_cache_layout(prompt_cache_layout, projection_version)
     validate_excerpt_strategy(author_source_excerpts, projection_version)
     packet = materials.packet
@@ -95,11 +98,25 @@ def reading_payload(
             payload["factual_remit"]["claims_to_check"] = scoped_claims
         if assignment.excluded_topics:
             payload["factual_remit"]["excluded_topics"] = list(assignment.excluded_topics)
-        payload.update(
-            support=knowledge_view(packet, labels=True),
-            evidence=evidence_view(packet),
-            necessary_limits=list(packet.dossier.throughline_constraints),
-        )
+        if fact_context_contract is not None:
+            primary_evidence, context_excerpts = fact_context.evidence_views(packet)
+            context = knowledge_view(packet, labels=True)
+            for card in context:
+                card.pop("limitations")
+            payload.update(
+                evidence=primary_evidence,
+                source_bibliography=fact_context.bibliography(materials),
+                context=context,
+                research_cautions=fact_context.research_cautions(packet),
+            )
+            if context_excerpts:
+                payload["context_excerpts"] = context_excerpts
+        else:
+            payload.update(
+                support=knowledge_view(packet, labels=True),
+                evidence=evidence_view(packet),
+                necessary_limits=list(packet.dossier.throughline_constraints),
+            )
     else:
         if readings is None or set(readings) != {"reader", "fact"}:
             raise ContractError("independent_readings_required")

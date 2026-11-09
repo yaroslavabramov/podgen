@@ -12,7 +12,16 @@ STATIC = {
     "plan": ("dossier", "material_catalog"),
     "plan-revise": ("dossier", "material_catalog"),
     "plan-review": ("dossier", "material_catalog", "review_target_root"),
-    "fact-review": ("factual_remit", "support", "evidence", "necessary_limits"),
+    "fact-review": (
+        "factual_remit",
+        "support",
+        "evidence",
+        "necessary_limits",
+        "source_bibliography",
+        "context",
+        "context_excerpts",
+        "research_cautions",
+    ),
     "draft": ("story", "support"),
 }
 

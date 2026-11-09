@@ -7,7 +7,7 @@ from pydantic import ValidationError
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.domain.errors import Conflict, ContractError
-from podgen.writing import author_plan, prompt_cache, source_passages
+from podgen.writing import author_plan, fact_context, prompt_cache, source_passages
 from podgen.writing.craft_reference import pinned_reference
 from podgen.writing.model_references import CATALOG_KEY, run_references
 from podgen.writing.plan_selection import from_manifest as selection_from_manifest
@@ -127,6 +127,7 @@ def execute_reading_stage(
             projection_version=manifest["role_projection_version"],
             reference_catalog=references,
             prompt_cache_layout=prompt_cache.from_manifest(manifest),
+            fact_context_contract=fact_context.from_manifest(manifest),
             plan_selection_contract=selection_from_manifest(manifest),
             author_plan_handoff=author_plan.from_manifest(manifest),
             author_source_excerpts=source_passages.from_manifest(manifest),

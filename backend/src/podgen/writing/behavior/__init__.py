@@ -41,6 +41,19 @@ class BehaviorProfile:
     projection: str = V9
 
     @property
+    def fact_context(self):
+        from podgen.writing.fact_context import VERSION
+
+        return VERSION if self.name == PRODUCTION else None
+
+    @property
+    def fact_schema(self):
+        from podgen.writing.fact_context import SCHEMA_VERSION
+        from podgen.writing.revision.contracts import FACT_VERSION
+
+        return SCHEMA_VERSION if self.name == PRODUCTION else FACT_VERSION
+
+    @property
     def prompt_cache_layout(self):
         from podgen.writing.prompt_cache import VERSION
 

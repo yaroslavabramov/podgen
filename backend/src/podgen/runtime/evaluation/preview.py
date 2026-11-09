@@ -1,7 +1,7 @@
 """Compile ordinary and dedicated repair wires without a provider or token endpoint."""
 
 from podgen.domain.errors import ContractError
-from podgen.writing import author_plan, ending_guidance, prompt_cache, source_passages
+from podgen.writing import author_plan, ending_guidance, fact_context, prompt_cache, source_passages
 from podgen.writing.behavior import resolve_behavior
 from podgen.writing.craft_reference import AUTHOR_STAGES, pinned_reference
 from podgen.writing.model_references import preview_references
@@ -15,7 +15,6 @@ from podgen.writing.projection_versions import manifest_version
 from podgen.writing.projections import CONTRACT, validate_model_content
 from podgen.writing.reading_views import reading_audience
 from podgen.writing.revision.context import from_manifest as revision_context_from_manifest
-from podgen.writing.revision.contracts import FACT_VERSION
 
 from .compiler import response_request
 from .repair_projection import anchor_payload, target_payload
@@ -84,7 +83,7 @@ def preview_request(
     reader_version = (
         snapshot.manifest.get("reader_review_schema_version") if snapshot else behavior.reader_schema
     )
-    fact_version = snapshot.manifest.get("fact_review_schema_version") if snapshot else FACT_VERSION
+    fact_version = snapshot.manifest.get("fact_review_schema_version") if snapshot else behavior.fact_schema
 
     def schema():
         if snapshot and stage in snapshot.manifest["response_schemas"]:
@@ -155,6 +154,9 @@ def preview_request(
             projection_version=projection,
             reference_catalog=references,
             prompt_cache_layout=cache_layout,
+            fact_context_contract=fact_context.from_manifest(snapshot.manifest)
+            if snapshot
+            else behavior.fact_context,
             plan_selection_contract=selection,
             author_plan_handoff=handoff,
             author_source_excerpts=excerpts,
