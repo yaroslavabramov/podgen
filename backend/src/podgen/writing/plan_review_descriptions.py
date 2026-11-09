@@ -1,5 +1,28 @@
 """V8 reviews the story a selected plan permits, not only its factual explanation."""
 
+from podgen.domain.errors import ContractError
+
+from .projection_versions import V9, manifest_version
+
+PRESERVE_KEY = "plan_review_schema_version"
+PRESERVE_VERSION = "plan-review-preserve/1"
+PRESERVE_DESCRIPTION = (
+    "Preserve a useful story choice or the supported meaning of a claim. "
+    "A factual boundary limits what the revision can imply; it calls for an explicit explanation "
+    "only when the listener needs it to understand the retained claim. May be empty."
+)
+
+
+def validate_schema_version(version, projection):
+    if version is not None and (version != PRESERVE_VERSION or projection != V9):
+        raise ContractError("unsupported_plan_review_schema_version")
+    return version
+
+
+def schema_version_from_manifest(manifest):
+    return validate_schema_version(manifest.get(PRESERVE_KEY), manifest_version(manifest))
+
+
 FIELDS = {
     "listener_answer": (
         "Reconstruct the story this exact sequence would let the audience follow: what listeners know "
@@ -27,7 +50,7 @@ FIELDS = {
 }
 
 
-def describe_plan_review(schema):
+def describe_plan_review(schema, *, version=None):
     for field, description in FIELDS.items():
         schema["properties"][field]["description"] = description
     definitions = schema["$defs"]
@@ -37,7 +60,9 @@ def describe_plan_review(schema):
     for field, description in {
         "observation": "Specific effect of this choice on the story the listener would receive, whether or not its facts are correct.",
         "requested_change": "Actionable repair of the underlying editorial problem; distinguish a proposed remedy from a new client requirement.",
-        "preserve": "Useful story properties, supported meaning or necessary factual conditions to retain through the repair; may be empty.",
+        "preserve": PRESERVE_DESCRIPTION
+        if version == PRESERVE_VERSION
+        else "Useful story properties, supported meaning or necessary factual conditions to retain through the repair; may be empty.",
     }.items():
         definitions["PlanReviewFinding"]["properties"][field]["description"] = description
     properties = schema["properties"]

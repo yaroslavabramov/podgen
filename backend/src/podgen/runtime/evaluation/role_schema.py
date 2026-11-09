@@ -1,7 +1,7 @@
 """Versioned model-facing semantics; persisted fields and historical schemas retain their identities."""
 
 from podgen.writing.fact_review import describe_schema as describe_fact_schema
-from podgen.writing.plan_review_descriptions import describe_plan_review
+from podgen.writing.plan_review_descriptions import describe_plan_review, validate_schema_version
 from podgen.writing.planning_descriptions import describe_selected_story
 from podgen.writing.planning_schema import planning_schema
 from podgen.writing.projection_versions import CURRENT, V1, V2, V6, V7, V8, V9, historical, validate_version
@@ -39,10 +39,14 @@ def response_schema(
     fact_schema_version=None,
     planning_output_contract=None,
     revision_verification_contract=None,
+    plan_review_schema_version=None,
 ):
     from podgen.writing.planning_choice import SCENE_VERSION
     from podgen.writing.revision import verification
 
+    validate_schema_version(
+        plan_review_schema_version, projection_version if input_contract == "editorial-role-packets/1" else V1
+    )
     if verification.applies(stage, revision_verification_contract):
         return verification.schema()
 
@@ -103,7 +107,7 @@ def response_schema(
 
             describe_schema(schema)
     if projection_version in (V8, V9) and stage.startswith("plan-review"):
-        describe_plan_review(schema)
+        describe_plan_review(schema, version=plan_review_schema_version)
         if projection_version == V9:
             from podgen.writing.planning_v9 import describe_review
 

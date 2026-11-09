@@ -3,7 +3,7 @@ from typing import Literal
 from pydantic import Field, field_validator, model_validator
 
 from podgen.domain.contracts.common import UUID, ArtifactRef, Contract, PositiveInt, RuntimeRef
-from podgen.writing.behavior import CANDIDATES, ProfileName
+from podgen.writing.behavior import CANDIDATES, NARRATIVES, ProfileName
 
 Stage = Literal[
     "draft",
@@ -108,12 +108,12 @@ class WritingRunCommand(Contract):
         if self.initial_script_ref is not None and self.plan_mode == "own-plan":
             raise ValueError("initial_script_does_not_require_new_plan")
         if self.editorial_pass > 1 and (
-            self.behavior_profile not in ("narrative-rebuild/1", *CANDIDATES)
+            self.behavior_profile not in (*NARRATIVES, *CANDIDATES)
             or self.initial_script_ref is None
             or self.plan_mode != "fixed-plan"
         ):
             raise ValueError("editorial_rereading_requires_imported_script_and_named_profile")
-        if self.behavior_profile in ("narrative-rebuild/1", *CANDIDATES) and (
+        if self.behavior_profile in (*NARRATIVES, *CANDIDATES) and (
             self.review_mode != "independent-readings/1" or self.input_contract != "editorial-role-packets/1"
         ):
             raise ValueError("editorial_behavior_requires_independent_readings")

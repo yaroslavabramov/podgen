@@ -4,6 +4,7 @@ from podgen.domain.errors import ContractError
 from podgen.writing.behavior import resolve_behavior
 from podgen.writing.craft_reference import AUTHOR_STAGES, pinned_reference
 from podgen.writing.model_references import preview_references
+from podgen.writing.plan_review_descriptions import schema_version_from_manifest
 from podgen.writing.plan_selection import from_manifest as selection_from_manifest
 from podgen.writing.plan_views import candidate_view
 from podgen.writing.planning_choice import from_manifest as planning_from_manifest
@@ -51,6 +52,9 @@ def preview_request(
     validate_preview_snapshots(stage, materials, inputs, projection_version=projection)
     validate_continuation_preview(stage, snapshot, inputs)
     inputs = {key: value for key, value in inputs.items() if value is not None}
+    plan_review_version = (
+        schema_version_from_manifest(snapshot.manifest) if snapshot else behavior.plan_review_schema
+    )
     planning_contract = planning_from_manifest(snapshot.manifest) if snapshot else behavior.planning_contract
     planning_duration = duration_from_manifest(snapshot.manifest) if snapshot else behavior.planning_duration
     selection = selection_from_manifest(snapshot.manifest) if snapshot else behavior.selection
@@ -81,6 +85,7 @@ def preview_request(
             CONTRACT,
             projection_version=projection,
             planning_output_contract=planning_contract,
+            plan_review_schema_version=plan_review_version,
             reader_schema_version=reader_version,
             **(
                 {"revision_verification_contract": behavior.verification}

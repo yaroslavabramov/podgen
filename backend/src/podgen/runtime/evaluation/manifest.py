@@ -11,6 +11,7 @@ from podgen.persistence.repository import timestamp
 from podgen.writing.author_reply import contract_pin, offered
 from podgen.writing.behavior import resolve_behavior
 from podgen.writing.model_references import CATALOG_KEY, bind_schema, preview_references
+from podgen.writing.plan_review_descriptions import PRESERVE_KEY
 from podgen.writing.planning_choice import KEY as PLANNING_KEY
 from podgen.writing.planning_duration import KEY as DURATION_KEY
 from podgen.writing.reader_schema import V2 as LEGACY_READER_SCHEMA_VERSION
@@ -86,6 +87,7 @@ def create_manifest(repo, generation, command, journal, materials):
                 stage,
                 command.input_contract,
                 projection_version=behavior.projection,
+                plan_review_schema_version=behavior.plan_review_schema if editorial else None,
                 planning_output_contract=planning_contract,
                 **(
                     {"revision_verification_contract": behavior.verification} if behavior.verification else {}
@@ -129,6 +131,8 @@ def create_manifest(repo, generation, command, journal, materials):
             "technical script versions; canonical EpisodeSpec/StoryPlan/ScriptRevision mapping remains open",
         ],
     )
+    if editorial and behavior.plan_review_schema is not None:
+        manifest[PRESERVE_KEY] = behavior.plan_review_schema
     if behavior.verification:
         manifest["revision_verification_contract"] = behavior.verification
     if planning_contract is not None:

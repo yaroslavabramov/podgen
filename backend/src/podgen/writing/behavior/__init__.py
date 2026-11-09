@@ -11,10 +11,17 @@ from podgen.domain.errors import ContractError
 from podgen.writing.projection_versions import V9
 from podgen.writing.prompts import RoleInstructions
 
-ProfileName = Literal["existing/1", "narrative-rebuild/1", "editorial-candidate/1", "editorial-candidate/2"]
+ProfileName = Literal[
+    "existing/1",
+    "narrative-rebuild/1",
+    "narrative-rebuild/2",
+    "editorial-candidate/1",
+    "editorial-candidate/2",
+]
 DEFAULT: ProfileName = "existing/1"
 CANDIDATES = ("editorial-candidate/1", "editorial-candidate/2")
-NAMES = ("existing/1", "narrative-rebuild/1", *CANDIDATES)
+NARRATIVES = ("narrative-rebuild/1", "narrative-rebuild/2")
+NAMES = ("existing/1", *NARRATIVES, *CANDIDATES)
 ROOT = files(__name__)
 
 
@@ -30,6 +37,12 @@ class BehaviorProfile:
     reader_schema: str
     reading_audience_from_brief: bool
     projection: str = V9
+
+    @property
+    def plan_review_schema(self):
+        from podgen.writing.plan_review_descriptions import PRESERVE_VERSION
+
+        return PRESERVE_VERSION if self.name == "narrative-rebuild/2" else None
 
     @property
     def verification(self):
@@ -102,6 +115,8 @@ def resolve_behavior(name=None, editorial_pass=1):
     catalog = ("existing-1" if modern else "narrative-rebuild-1") + ".json"
     resources = json.loads(ROOT.joinpath(catalog).read_text(encoding="utf-8"))
     overlays = CANDIDATES[: CANDIDATES.index(name) + 1] if name in CANDIDATES else ()
+    if name == "narrative-rebuild/2":
+        overlays = (name,)
     for release in overlays:
         # Each overlay inherits the preceding release and replaces only its owned roles.
         overlay = ROOT.joinpath(release.replace("/", "-") + ".json")
