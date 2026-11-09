@@ -1,0 +1,21 @@
+{
+  "full_run_request_sha256": "ad5f4804a731a00ca9f47dbcbe4dd2ced2a2014ee0a2285d704b36a203882d4a",
+  "repeat_request_sha256": "cbcc256707031835c4e977026725c4c96d034a423ac66608d690c2ed711fdcc7",
+  "released_request_sha256": "a0dccf83e3943a0d9d663288c92e0b4e699191513face38a90ff65fba466b888",
+  "full_run_excerpt_count": 47,
+  "repeated_passage": {
+    "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+    "text": "covered, owing to the altered state of the drain.\nHENRY WHITEHEAD, M.A.\n",
+    "supports": [
+      "M16"
+    ]
+  },
+  "released_passage": {
+    "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+    "text": "HENRY WHITEHEAD, M.A.\n",
+    "supports": [
+      "M16"
+    ]
+  },
+  "script_sha256": "46ae362bf24b762f4417571ae3686dafb7a7752dfd9b4c36616a16f38baba773"
+}
