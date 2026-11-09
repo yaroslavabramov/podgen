@@ -7,7 +7,7 @@ from podgen.domain.errors import Conflict, ContractError
 from podgen.writing import prompt_cache
 from podgen.writing.revision.apply import materialize
 from podgen.writing.revision.assignment import required_readings
-from podgen.writing.revision.context import REQUIRED_VERSION
+from podgen.writing.revision.context import required_assignment
 from podgen.writing.revision.contracts import VERSION, SequenceRevision, StructuralRevision, TargetedRevision
 from podgen.writing.revision.scopes import select_mode
 from podgen.writing.revision.sequences import sequence_catalog
@@ -63,7 +63,7 @@ def validate_manifest(manifest):
 
 def operation(script, readings, version, *, revision_context_contract=None):
     try:
-        required_only = revision_context_contract == REQUIRED_VERSION
+        required_only = required_assignment(revision_context_contract)
         if required_only:
             readings = required_readings(readings)
         mode = select_mode(readings)

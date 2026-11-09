@@ -138,7 +138,17 @@ def compile_request(
     return response_request(run_id, stage, profile, payload, instructions, schema)
 
 
-def response_request(run_id, stage, profile, payload, instructions, schema, *, prompt_cache_layout=None):
+def response_request(
+    run_id,
+    stage,
+    profile,
+    payload,
+    instructions,
+    schema,
+    *,
+    prompt_cache_layout=None,
+    stable_support_ids=None,
+):
     validate_profile(profile, stage)
     parameters = deepcopy(profile.generation_parameters)
     text = parameters.pop("text", {})
@@ -183,7 +193,7 @@ def response_request(run_id, stage, profile, payload, instructions, schema, *, p
     )
     from .cache_layout import apply
 
-    return apply(body, payload, stage, profile, prompt_cache_layout)
+    return apply(body, payload, stage, profile, prompt_cache_layout, stable_support_ids=stable_support_ids)
 
 
 def materials_hash(materials):

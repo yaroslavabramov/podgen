@@ -33,7 +33,7 @@ def role(stage):
     return "plan-review" if stage.startswith("plan-review") else base_stage(stage)
 
 
-def content(payload, stage, *, version):
+def content(payload, stage, *, version, stable_support_ids=None):
     validate(version)
     remaining = dict(payload)
     base = role(stage)
@@ -54,7 +54,11 @@ def content(payload, stage, *, version):
     append(context, cached=reusable)
     static = {key: remaining.pop(key) for key in STATIC.get(base, ()) if key in remaining}
     if base == "revise" and "support" in remaining:
-        selected = set(_refs(context.get("accepted_plan", {})))
+        selected = (
+            set(_refs(context.get("accepted_plan", {})))
+            if stable_support_ids is None
+            else set(stable_support_ids)
+        )
         support = remaining.pop("support")
         stable = [card for card in support if card.get("card_id", card.get("label")) in selected]
         extra = [card for card in support if card.get("card_id", card.get("label")) not in selected]
@@ -66,10 +70,15 @@ def content(payload, stage, *, version):
     return blocks
 
 
-def apply(body, payload, stage, profile, version):
+def apply(body, payload, stage, profile, version, *, stable_support_ids=None):
     if version is None:
         return body
-    body["input"] = [dict(role="user", content=content(payload, stage, version=version))]
+    body["input"] = [
+        dict(
+            role="user",
+            content=content(payload, stage, version=version, stable_support_ids=stable_support_ids),
+        )
+    ]
     body["metadata"]["podgen_prompt_cache_layout"] = VERSION
     base = role(stage)
     body["text"]["format"]["name"] = (

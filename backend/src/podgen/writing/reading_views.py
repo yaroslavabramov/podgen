@@ -4,7 +4,6 @@ from copy import deepcopy
 
 from podgen.domain.errors import ContractError
 
-from . import author_plan
 from .craft_reference import attach_reference
 from .duration_views import duration_context
 from .projection_versions import (
@@ -25,11 +24,12 @@ from .projections import (
 from .prompt_cache import validate as validate_cache_layout
 from .revision import assignment as edit_assignment
 from .revision import feedback as legacy_feedback
-from .revision.context import REQUIRED_VERSION
+from .revision.context import COMPACT_VERSION, required_assignment
 from .revision.context import VERSION as EDIT_ASSIGNMENT
+from .revision.frame import frame_view
 from .scene_plan import claim_scopes
 from .source_passages import validate_strategy as validate_excerpt_strategy
-from .story_views import editorial_frame, selected_labels
+from .story_views import selected_labels
 
 
 def reading_audience(assignment, manifest=None, *, projection_version=CURRENT):
@@ -113,52 +113,22 @@ def reading_payload(
         }
         selected.update(needed_labels)
         payload["assignment"] = assignment_view(packet)
-        if plan:
-            payload["editorial_frame"] = (
-                author_plan.story(plan)
-                if author_plan_handoff
-                else editorial_frame(
-                    plan,
-                    projection_version=projection_version,
-                    plan_selection_contract=plan_selection_contract,
-                )
+        payload.update(
+            frame_view(
+                plan,
+                composition,
+                projection_version=projection_version,
+                plan_selection_contract=plan_selection_contract,
+                author_plan_handoff=author_plan_handoff,
+                prompt_cache_layout=prompt_cache_layout,
+                scoped="revision_scope" in readings["reader"],
+                compact=revision_context_contract == COMPACT_VERSION,
+                mode=revision_operation["mode"] if revision_operation is not None else None,
             )
-            if "revision_scope" in readings["reader"]:
-                payload["editorial_frame"]["authority"] = "revisable_authorial_decisions"
-            if prompt_cache_layout is not None:
-                payload["accepted_plan"] = deepcopy(payload["editorial_frame"])
-                if composition is None:
-                    payload["editorial_frame"] = {
-                        key: deepcopy(payload["accepted_plan"][key])
-                        for key in (
-                            "authority",
-                            "main_question",
-                            "listener_promise",
-                            "route_summary",
-                            "unresolved_questions",
-                        )
-                        if key in payload["accepted_plan"]
-                    }
-        if composition is not None:
-            if author_plan_handoff and plan and prompt_cache_layout is None:
-                payload["accepted_plan"] = payload["editorial_frame"]
-            questions = deepcopy(payload.get("editorial_frame", {}).get("unresolved_questions", []))
-            payload["editorial_frame"] = dict(
-                authority="revisable_authorial_decisions",
-                unresolved_questions=questions,
-                **{
-                    key: deepcopy(value)
-                    for key, value in composition.items()
-                    if key != "unresolved_questions"
-                },
-            )
-            if "unresolved_questions" in composition:
-                payload["editorial_frame"]["unresolved_questions"] = deepcopy(
-                    composition["unresolved_questions"]
-                )
+        )
         if revision_operation is not None:
             payload["revision_operation"] = deepcopy(revision_operation)
-        compact = revision_context_contract == REQUIRED_VERSION
+        compact = required_assignment(revision_context_contract)
         if not compact:
             payload["revision_guidance"] = legacy_feedback.guidance(
                 readings, projection_version=projection_version, addressed=revision_operation is not None
@@ -191,7 +161,7 @@ def reading_payload(
         # The editor's actionable and positive observations already address the supplied script.
         for review in payload["revision_guidance"]:
             review.pop("listener_understanding", None)
-    elif not (stage == "revise" and revision_context_contract == REQUIRED_VERSION):
+    elif not (stage == "revise" and required_assignment(revision_context_contract)):
         attach_reference(payload, stage, craft_reference)
     validate_model_content(payload, materials.documents)
     return payload

@@ -70,6 +70,24 @@ def compile_reading_request(
         schema = bind_schema(schema, references)
     if offered(stage, inputs.get("projection_version", CURRENT)):
         schema = wire_schema(schema, speaker_labels=materials.speaker_labels)
+    from podgen.writing.revision.context import COMPACT_VERSION
+    from podgen.writing.story_views import selected_labels
+
+    stable_support_ids = None
+    if base_stage(stage) == "revise" and inputs.get("revision_context_contract") == COMPACT_VERSION:
+        plan = inputs.get("approved_plan") or (
+            materials.fixed.plan.model_dump(mode="json") if materials.fixed else None
+        )
+        stable_support_ids = sorted(selected_labels(plan, materials.packet)) if plan is not None else []
+        if references is not None:
+            stable_support_ids = references.translate({"material_refs": stable_support_ids})["material_refs"]
     return response_request(
-        run_id, stage, profile, payload, instructions, schema, prompt_cache_layout=prompt_cache_layout
+        run_id,
+        stage,
+        profile,
+        payload,
+        instructions,
+        schema,
+        prompt_cache_layout=prompt_cache_layout,
+        stable_support_ids=stable_support_ids,
     )

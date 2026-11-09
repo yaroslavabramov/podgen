@@ -11,7 +11,7 @@ from podgen.runtime.evaluation.preview_snapshot import PreviewSnapshot
 from podgen.runtime.evaluation.reading_cycle import combine
 from podgen.runtime.evaluation.request_payload import request_payload
 from podgen.writing.revision.assignment import tasks
-from podgen.writing.revision.context import KEY, REQUIRED_VERSION, from_manifest
+from podgen.writing.revision.context import COMPACT_VERSION, KEY, REQUIRED_VERSION, from_manifest
 
 from tests.revision_cases import composition, scope
 from tests.source_excerpt_cases import Captured, CaptureGateway, data_and_profile, release
@@ -59,7 +59,7 @@ def test_both_real_rewrites_share_exact_tasks_permissions_and_existing_sources(m
     materials, plan, script, readings, profile = case(scale)
     original = deepcopy((plan, script, readings))
     store, journal, command, manifest = release(monkeypatch, materials, profile)
-    assert manifest[KEY] == REQUIRED_VERSION
+    assert manifest[KEY] == COMPACT_VERSION
     previous_prefix = None
     for number in (1, 2):
         stage = f"revise-{number}"
