@@ -12,7 +12,14 @@
     "fact-review-1": 1,
     "revise-2": 1,
     "reader-review-2": 1,
-    "fact-review-2": 1
+    "fact-review-2": 2
   },
-  "production_instructions_exact": true
+  "production_instructions_exact": true,
+  "additional_request": {
+    "stage": "fact-review-2",
+    "kind": "anchor-repair",
+    "cause": "feedback_quote_mismatch",
+    "provider_responses": 1,
+    "estimated_usd": "0.001683"
+  }
 }
