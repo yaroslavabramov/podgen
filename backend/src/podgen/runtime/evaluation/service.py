@@ -190,11 +190,12 @@ class WritingEvaluation:
                 if manifest.get("input_contract") != command.input_contract:
                     raise ContractError("role_input_contract_changed")
                 validate_manifest_budget(manifest)
-            from podgen.writing import author_plan
+            from podgen.writing import author_plan, source_passages
             from podgen.writing.plan_selection import from_manifest as selection_from_manifest
             from podgen.writing.revision.context import from_manifest as revision_context_from_manifest
 
             author_plan.from_manifest(manifest)
+            source_passages.from_manifest(manifest)
             selection_from_manifest(manifest)
             revision_context_from_manifest(manifest)
             from podgen.writing.planning_duration import from_manifest as duration_from_manifest

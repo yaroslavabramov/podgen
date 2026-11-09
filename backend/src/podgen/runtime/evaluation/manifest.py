@@ -8,7 +8,7 @@ from uuid import uuid5
 
 from podgen.domain.contracts.common import CodeProducer
 from podgen.persistence.repository import timestamp
-from podgen.writing import author_plan
+from podgen.writing import author_plan, source_passages
 from podgen.writing.author_reply import contract_pin, offered
 from podgen.writing.behavior import resolve_behavior
 from podgen.writing.model_references import CATALOG_KEY, bind_schema, preview_references
@@ -171,6 +171,8 @@ def create_manifest(repo, generation, command, journal, materials):
         from podgen.writing.plan_selection import KEY as SELECTION_KEY
 
         manifest["role_projection_version"] = behavior.projection
+        if behavior.author_source_excerpts:
+            manifest[source_passages.KEY] = behavior.author_source_excerpts
         if behavior.author_plan_handoff:
             manifest[author_plan.KEY] = behavior.author_plan_handoff
         selection = behavior.selection

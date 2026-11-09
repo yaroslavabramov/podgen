@@ -27,6 +27,7 @@ from .projection_versions import (
 from .scene_plan import is_scene_plan
 from .scene_sources import link_scene_sources
 from .source_passages import card_source_passages
+from .source_passages import validate_strategy as validate_excerpt_strategy
 from .story_views import (
     editorial_frame,
     narrative_decisions,
@@ -107,7 +108,9 @@ def knowledge_view(packet, *, labels, selected=None):
     return cards
 
 
-def creative_knowledge_view(packet, *, labels, selected=None, projection_version=None):
+def creative_knowledge_view(
+    packet, *, labels, selected=None, projection_version=None, author_source_excerpts=None
+):
     documents = {doc.key: doc for doc in packet.documents}
     result = []
     for card in packet.dossier.knowledge_cards:
@@ -116,7 +119,7 @@ def creative_knowledge_view(packet, *, labels, selected=None, projection_version
             continue
         value = creative_card_view(card, sources=[documents[quote.document].title for quote in card.excerpts])
         if projection_version == V9:
-            passages = card_source_passages(card, documents)
+            passages = card_source_passages(card, documents, strategy=author_source_excerpts)
             if passages:
                 value["source_excerpts"] = passages
         if labels:
@@ -135,6 +138,7 @@ def attach_author_support(
     projection_version,
     plan_selection_contract,
     author_plan_handoff=None,
+    author_source_excerpts=None,
 ):
     if not creative_materials(projection_version):
         payload["support"] = knowledge_view(packet, labels=False, selected=selected)
@@ -145,6 +149,7 @@ def attach_author_support(
         labels=bool(author_plan_handoff or linked),
         selected=selected,
         projection_version=projection_version,
+        author_source_excerpts=author_source_excerpts,
     )
     if linked and not author_plan_handoff:
         frame = payload.get("story" if draft else "editorial_frame")
@@ -198,8 +203,10 @@ def role_payload(
     plan_selection_contract=None,
     planning_duration_contract=None,
     author_plan_handoff=None,
+    author_source_excerpts=None,
 ):
     validate_version(projection_version)
+    validate_excerpt_strategy(author_source_excerpts, projection_version)
     validate_planning_duration(planning_duration_contract, projection_version)
     packet = materials.packet
     payload = dict(output_language=materials.output_language)
@@ -304,6 +311,7 @@ def role_payload(
                 draft=stage == "draft",
                 selected=selected_labels(plan, packet),
                 author_plan_handoff=author_plan_handoff,
+                author_source_excerpts=author_source_excerpts,
                 projection_version=projection_version,
                 plan_selection_contract=plan_selection_contract,
             )

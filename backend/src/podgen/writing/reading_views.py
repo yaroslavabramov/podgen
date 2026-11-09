@@ -25,6 +25,7 @@ from .projections import (
 )
 from .revision.context import VERSION as EDIT_ASSIGNMENT
 from .scene_plan import claim_scopes
+from .source_passages import validate_strategy as validate_excerpt_strategy
 from .story_views import editorial_frame, selected_labels
 
 
@@ -53,7 +54,9 @@ def reading_payload(
     plan_selection_contract=None,
     revision_context_contract=None,
     author_plan_handoff=None,
+    author_source_excerpts=None,
 ):
+    validate_excerpt_strategy(author_source_excerpts, projection_version)
     packet = materials.packet
     payload = dict(
         script=indexed_draft(script),
@@ -154,6 +157,7 @@ def reading_payload(
                 plan,
                 draft=False,
                 author_plan_handoff=author_plan_handoff,
+                author_source_excerpts=author_source_excerpts,
                 selected=selected,
                 projection_version=projection_version,
                 plan_selection_contract=plan_selection_contract,
