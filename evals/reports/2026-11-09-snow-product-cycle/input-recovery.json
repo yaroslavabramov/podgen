@@ -1,0 +1,5 @@
+{
+  "invocation_id": "adf46396-d6c3-5289-926e-1d3e71efdd05",
+  "max_input_tokens": 65536,
+  "reason": "Native local recovery for the exact unsent request. No payload changes."
+}

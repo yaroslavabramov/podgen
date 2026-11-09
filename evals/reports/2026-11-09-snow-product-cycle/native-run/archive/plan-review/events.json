@@ -1,0 +1,124 @@
+[
+  {
+    "record_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "e6b3b879-9614-452a-a0fa-61106de78583"
+    },
+    "contract": "model-invocation-event-v1",
+    "invocation_id": "2114748d-5ada-53ef-9e52-75e89eed3585",
+    "event_kind": "role_input_measurement",
+    "request_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "f557040a-3e2f-5a73-a4df-d203399b9e9f"
+    },
+    "data": {
+      "visible_bytes": {
+        "instructions": 8337,
+        "input": 65354,
+        "schema": 4781,
+        "total": 78472
+      },
+      "limits": {
+        "visible_bytes": 131072,
+        "input_tokens": 32768
+      }
+    }
+  },
+  {
+    "record_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "6d9e98f8-495f-4a3b-a7a6-56064d59e269"
+    },
+    "contract": "model-invocation-event-v1",
+    "invocation_id": "2114748d-5ada-53ef-9e52-75e89eed3585",
+    "event_kind": "count_intent",
+    "request_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "f557040a-3e2f-5a73-a4df-d203399b9e9f"
+    },
+    "data": {
+      "request_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/b5c63d2ee916b14eb531b1a2e4d7c92c2b493ff38ee03d2f4838d020f660f82d-bacb769b46f6d169",
+        "sha256": "b5c63d2ee916b14eb531b1a2e4d7c92c2b493ff38ee03d2f4838d020f660f82d",
+        "byte_length": 78743,
+        "media_type": "application/json"
+      }
+    }
+  },
+  {
+    "record_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "ea0d9e8e-1f74-4b5c-9d3e-873df51eaee6"
+    },
+    "contract": "model-invocation-event-v1",
+    "invocation_id": "2114748d-5ada-53ef-9e52-75e89eed3585",
+    "event_kind": "count_response",
+    "request_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "f557040a-3e2f-5a73-a4df-d203399b9e9f"
+    },
+    "data": {},
+    "response_blob": {
+      "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/9c8072d4310e7a453bbeb05d07733e5a742d9fe47ce50458610d9ab60a2a3228-bacb769b46f6d169",
+      "sha256": "9c8072d4310e7a453bbeb05d07733e5a742d9fe47ce50458610d9ab60a2a3228",
+      "byte_length": 64,
+      "media_type": "application/json"
+    },
+    "provider_http_status": 200,
+    "provider_request_id": "req_5e14f169a5ee48ec8e9f20c7131455c5",
+    "secret_redacted": false,
+    "wire_request_blob": {
+      "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/9d87e9ee2fbea6a7c23051ecd61e0a7d00d3e061e429c814e11cc782cc6c71b1-bacb769b46f6d169",
+      "sha256": "9d87e9ee2fbea6a7c23051ecd61e0a7d00d3e061e429c814e11cc782cc6c71b1",
+      "byte_length": 78743,
+      "media_type": "application/json"
+    }
+  },
+  {
+    "record_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "801d4ec2-3748-4c21-b36e-749792df9824"
+    },
+    "contract": "model-invocation-event-v1",
+    "invocation_id": "2114748d-5ada-53ef-9e52-75e89eed3585",
+    "event_kind": "submit_intent",
+    "request_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "f557040a-3e2f-5a73-a4df-d203399b9e9f"
+    },
+    "data": {
+      "client_request_id": "2114748d-5ada-53ef-9e52-75e89eed3585"
+    }
+  },
+  {
+    "record_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "c32df254-cb62-4792-aaf0-aff3925995cd"
+    },
+    "contract": "model-invocation-event-v1",
+    "invocation_id": "2114748d-5ada-53ef-9e52-75e89eed3585",
+    "event_kind": "provider_response",
+    "request_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "f557040a-3e2f-5a73-a4df-d203399b9e9f"
+    },
+    "data": {
+      "provider_response_id": "resp_08e4c8e11179c9fe016af190cf646087d2a2401d6720b4b3fe"
+    },
+    "response_blob": {
+      "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/68d516dc8e0262f101d205c69f9db8bbac5da8bc18e8e556597f0cee530c3eb5-bacb769b46f6d169",
+      "sha256": "68d516dc8e0262f101d205c69f9db8bbac5da8bc18e8e556597f0cee530c3eb5",
+      "byte_length": 44359,
+      "media_type": "application/json"
+    },
+    "provider_http_status": 200,
+    "provider_request_id": "req_cf978228b9784f8dbc34207edf5c33c7",
+    "secret_redacted": false,
+    "wire_request_blob": {
+      "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/d01621827cd5a3e9b36d9534fd5f47d1c1b2fb0de0d2e55a9096638c43004c77-bacb769b46f6d169",
+      "sha256": "d01621827cd5a3e9b36d9534fd5f47d1c1b2fb0de0d2e55a9096638c43004c77",
+      "byte_length": 79024,
+      "media_type": "application/json"
+    }
+  }
+]

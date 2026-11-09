@@ -1,0 +1,13 @@
+[
+  "--project",
+  "d24132ce-d2c3-4084-bf89-9905b7d765a7",
+  "--actor",
+  "2c663590-c8be-49c4-a8d0-a2b7f60fc2d6",
+  "--objects",
+  "/Users/yaroslavabramov/side/podgen/tmp/behavior-qualification/objects",
+  "resume",
+  "--run-id",
+  "1b681f7c-e331-4e2d-bcbf-937815dc03c5",
+  "--export-dir",
+  "/Users/yaroslavabramov/side/podgen/tmp/snow-product-cycle-nov9/export"
+]

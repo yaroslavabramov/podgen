@@ -1,0 +1,544 @@
+{
+  "id": "resp_0dcfb18bb7aeb9f3016af191b60ecc87d28d3e5ba01a54952b",
+  "object": "response",
+  "created_at": 1794216374,
+  "status": "completed",
+  "access_programs": {
+    "cyber": "standard"
+  },
+  "background": false,
+  "billing": {
+    "payer": "developer"
+  },
+  "completed_at": 1794216435,
+  "error": null,
+  "frequency_penalty": 0.0,
+  "image": {
+    "context_compression": "disabled"
+  },
+  "incomplete_details": null,
+  "instructions": "# Check the episode against its evidence\n\nIndependently check the complete supplied script's actual claims and the explicit client request in `factual_remit`. Use the supplied context and attributed evidence as support, not a coverage checklist. Report `reading_mode=informed`. Assess this version, whether it is a draft or a final; confident wording does not establish accuracy.\n\nMatch the spoken claims and implications to the supplied evidence: scope, dates, quantities, attribution, confidence and causal links. Check units and calculations. Distinguish observation, report and inference, and independent evidence from repeated accounts. Read the relevant passages together. A secondhand or later report of a detail can coexist with an earlier firsthand account. Change attribution when the evidence shows that the script misassigns a statement or knowledge. Distinguish contradiction from missing confirmation in an excerpt. If a necessary distinction remains unverified, describe that evidence gap rather than asserting an alternative account. Check source quotations against supplied wording and distinguish paraphrases.\n\nOptional imaginative detail can bring a scene to life. Assess whether established actions, chronology and the grounds for conclusions remain accurate. Repair a false inference where it is created, including genuinely dependent passages.\n\nFor a required repair, distinguish the misleading meaning that must change from a proposed way to change it. Identify the actual assertion or implication and its consequence for this account. For a quantity, check its unit, population, period and relation to any total before requiring qualifiers. Consider removing a dispensable number or claim before prescribing additions. If it must remain, explain what explicit client requirement or retained reasoning needs it. A suggested wording is one option, not a required spoken line. Require explanation only when the retained account still needs it or an explicit client requirement demands it. Source cautions are evidence boundaries, not a list of warnings to deliver. Evidence useful to research, including statistical categories, need not all be voiced. Optional suggestions should benefit this episode; completeness alone does not justify a finding.\n\nAnchor each material problem to exact nonempty substrings at supplied zero-based utterance indices. Give the relevant source passages and copy their supplied `support_labels` exactly. For an omission, anchor real neighboring words. In `preserve`, name the supported contribution that matters; do not freeze every subgroup, number or existing caveat. A dispensable passage may be cut with its claim. Follow such a cut into dependent claims and calculations. Use `important` or `blocking` for required repairs and keep the final decision consistent with their severity.\n\nRecommend `revise` when existing material permits an adequate correction, qualification, explanation or removal within the supplied scope. Missing support does not automatically require new research. Recommend `needs_material` only when a specific evidence gap prevents an adequate version within that scope; anchor each research request to the affected claim and state exactly what must be established and why it matters. An honestly bounded answer about uncertainty may be sufficient. Recommend `keep` when no required factual repair or blocking evidence gap remains; optional refinements may remain.\n\nUse `output_language` for prose, preserving speaker labels, source labels, quotations and response keys verbatim. Return only the requested structured review. This is an evidence assessment of the supplied script, not a claim of human listening or measured audio.\n\nFor cards with `card_id`, return only their exact offered IDs in `support_labels`; `label` and `title` are display names and may repeat. For historical cards without `card_id`, use their offered label keys.\n",
+  "max_output_tokens": 24576,
+  "max_tool_calls": null,
+  "model": "gpt-6.1-terra",
+  "moderation": null,
+  "output": [
+    {
+      "id": "rs_0dcfb18bb7aeb9f3016af191b6cfe487d2be79a47b4761d8ce",
+      "type": "reasoning",
+      "content": [],
+      "encrypted_content": "gAAAAABq8ZHzoTWWI_IkZAbb8V56NiCcniG3K7rpSj2pwsq125M125FA80I914msx2Kr0_ou1xFGIo_4uqaUV3-2mfoLglNo7wanfNgzluApxr_53BNM4zPFHKqLnXRIztMCJmCCTpIS1-DHmMnXqveYM8xv8FU66YmuMZY345zCKkrswPEMFvc9VZO1IRse8-Ppq4M-sIXLCwoUohMD5Ah5hyx7y3SxSkHqgV5jqVlQK4yKnE4_H2fHPe4d_6hE9BSH9kzN5sU3ppfyC0dZCHQAoX6Hqaj_Dpxb9u1NWBIhz5C5VkKzmM6qNH-WwJMGZlnkH1l9miBg8FbTYSq6jTUSy9cBO_-1wI1lce-0ZMNolxZcH36gKipDZNwtIcpcBKrF9yPQJ8-J52kBXepKlqEkpOyI6TximoGMZW6pqLu1ODBdIm9UN_kHvpznzVIv3pCPd5qx4YQRoIdREU2of73PJd4tjbef99xRv0kR11-EWnzKYhlAiMjdqxbmny0nKljxYb1Soc9bvw4c0yt3OALidXTw9gp_TlTZ_GFZf-UH1WO_qYawu_UKPh_foo6tjXrgms13MaVk-Ee1Yqz3UXOV5xDeT3SIsXMZ43ifDju6HDlTcIVRyt2-IYfu0Lo3O7VTgtiwmxE6CTk61suBqMKVgdRylJKKdVyD7ObaLElkrGGWFIXUxiArVZsGqq3dWR_iYUZLP-LmmFBMR2UxcphstGa8gqlQzaxF51BOIOS1h7wJ8eoBuDl4NdqSs9_i-H-DHLMGE6b1QZnlzE4idSa3ICFg3K4bx6fzAZzGrezQe2YoPVRtIr1Uh_777wUSbZ5-iZkIzmNsvQZG5IMZNu-gytk4QS-doL6QQTjBk_8WCxndDdDLHj9lKSMzNzHg6v903jKNIQUJlyN9VzfCYsfcv2lNnSr-hn6qkkDv2-g1-1hliCr4BmcVdwJmLSQIMJSJzWz6HOpp9V89rxJFu-oJ_6L_ERD0GKfHCMPxU35VoRctHcrkdAo6LYfO6NzrxXIHa09o1BNBqR_E8WlsVes6LEE6hf9vnu2P3P4IDJIUfqCN3W9fdxbYo3CwlwpTo1jreRFwWp09mGfdfe2y5BstJoIWsE4FxOUyUN56PoKPDDvLX8h4aECQFgrvKrWIP7bfd6ngG1X-4CuPxyi_Cf8VIv_q9kLWCutU1RTPO1-m6EHPQxTxIP-b3a6A-XmG02iQHjJvqmsLVaQNd1sDrL1xlgic7S-yqCq_ECutDezsiN3GFoBkWgECOMuOm-Q7vUGj_DXTMn2ZwPBJrCl8J7xZvOn3Uoba18Y_lMyFX_AqfexSe29f2yi9zhtsm21gI4wDHXrZylmBEXaKWIwL5IlhdicQy3j_yKPRt8DOS9tE83tUzRNI8TeMCbHNNqKcMTSnP70f_u0ajTC_NXylgWEbEVJNuxZ0pW7QrCmjy1vyEt4AHyJcn3Bd5JY38AwEpOOmgfXmbsGicLnJ806iLvNt7Q_9YX0lGtOvjo712pEOzfLLnFleDm0UOrCfiQ8mo0lgpBSTQHigi76iiq-2c4RotGKIWOehoFfwfzEbBKGbUiwB8Sfeuj9gsglJig9avwIUvG8y33EfP4yJo9QcViP4au0JjXUAH6ypXyalp2sMLtSaRxtcYy6gwfVSh9kyhSH1LNwRrCDtkgqwu74Z2CoAc6ZYU9DiX82uXQIFV6Yeg9Ij7jt1-VWNjr026HY6kIZWgYjLCWnAXUcNH7NSuk0MquFvEDxtLkN6dPKOHx69Uhj8VJ1qMQVrR3Duztxi9RS1LohIvp6sssIyfgXbdGXA__uDvKeP7m7kb-dVMmTnTnBmuubVgIHqNfcm3i2RnvOIny5zCkVgacH2381tGtaNQxvonD1y6rPQEK-U_fSXVIhBn1DaN_NQB5TTM1WK6UmHvsfP7X6Cv7iknKh9HQ83be8773pAIqJdB_w4g-S5PVf_IWR--5GWJaZ2iHW8smiZu3Jwa8RuSpps8ICMbtpZN6HV_UVAgHfYIEGOmhT75Np_ZYUmw_X03cMK7q2Yjr81v7rmpnZChWJOBzF7tbs3oPwyB24_hpwsx-sur6f2lq2EfSRqeHsvxG_q1AA0qD7wrN154NW3f47h_gnElOyxEtxBmsGbaYDe3xRWX7agQey8ADc8vL-OAP-fMY2J8lJ7ajUqc8TwIGmNb78-f6uAY3FrNm3QDYypJw4VhJFITprtAxtOUJUJfL2fhcRst94ajRdMXjBc7nVr4uN60OKG8twVApx6Is4m4UWvQpRnYS1tkQ3Q70EkzxEsY_qr0VEt17req5nnBGUMUa7AdfVQBAQ6mVUf7ecNaoroyxhphzuZM3w4e1j6d4Rxrb5WnpNU_wv-REx8Wf1fx09kLkFJwxlXv6HDHZIQupUmUt9zCy55s39TLsMyDIF_SF3WT5DfZitDzpSfulDHsY7-V3XbuVmqltsGw_WIlSnqxNVDDsh5xkQ06PDrGupgj-mu3OBE54TOL6gbxSmeyLMp6coqkZzn0IPlNmFv5u4F58w33gfL1wqudC3zhg2M1gQ4n7XswKFCHSTUAMSBJQmg71M9nDNFxYKK6yCm8tXtndVNh8KwVWiAGg4xWk97hkXTOlZ2IUpQ5e6zHiTJ5MTlJz0wx37RMVh2dQPEl0tEuHVD45ZxTjEl3ZdTm0UN4bEYp5JvUWSa-QxsocFUBbz8u--5l5eN2hCzoN0cFiqXlJNZqS-TfGguw8vK62lEg9JS-SDCWn_kZqhuO5Tic8z0MmfSQedstTRIFiANxYmAFZ3lDfqCD-mqJmwEeZWDK_33KkH8AtwtrXn4LPCc-VNyJwG6ejhIF7BKl3T5MHK0-AsF9yc1XH28joUIcCRMVuequ4OBfy_OLR4_2mciU6oOHKB2R7SzdHt_9UBwdgbO6KcvurrHtHFIIqua7PizS_bSkuMnipEXm1y594Ky3q86UMaqtQVMVMYRYYtxwuejYImvUknHwiU8OJhWdp_tnrUDYc8rX2PR6pG0B-WSs4Ynofmh_HUegM71PN7SA0hAaF4nNb1QNflWRC93j_D4oPZIuctOnnZ1KzAIOMHxdPxm4aT2GJRHcYn39-qLcZvxlsJo29Lkli3ZFgpZYMUXty3uUu7QiqcP21lc50Uub7JU6vD99uzfTHODH45_h4SMUInAucyfV3BJFMaWzgTmq3CC8XJa7xh7wCqD5xvWQw1O430vZGYqLsViHtPCof7d0LSys1x0qHs0LDu9e4-nM2JsrL0QQH5e-SNKz9-aGYM8ASmYQGfZRMULEGHGY_oiXu3nynxB3y0Url31HZ_RVBYhS1_046tqTQuTZFAcHMyrv5Oi0H-2NpwhBbKzoR1vpdF92eIqBVeMwx-9_Y5HBw1vEnmqmgAkId9FNtOldiHnraq4JPpbhQYSF49ENXX0PofR89XThRKb11oR55guVrlHtFvGnGagJaX1qItMKtzOq8RDjsRJnY0G1Oh1wIcPXxrBkoAroUdz771rqmfBlzdlr1iJ_bo5lGa0FYWhGqnSk2iSURi9Vw7C-VY3T_aKAv133krplCEx-nD7sjn5HaUJC0hH1s02nPdtMa8axQ6rLbQK74isG5be7OwORlycoTBCY-4hCIcBTtUuRqep7cHAaJktLMl7hBq3PETw5-0aqUD5Gee_AVHyKd6hJTT130subkYTA4-TnCglt3hTuWZiLOJg_Zz2OphhqEhzodTFF8aH_GSxcsgCNPnxbYAUyJ2QzihSkQuvcj2WA-EG750t4amM8V_ZHv6llja9sXY-iGCjRFhmJBktqZ3kF7UqZWemQ1mhqqCZ9RXjHj4IDgYSQkHJkCvO8obJGK0EezsWNe_HZtpCcH4kEoTbWFDLTSG9B6Y6eySCrE4vLPdbJJkbYGLQndBZyeyRv2D953Ddy1_UrLDirT9CCvpy3bORCGGRPiTWOZnxSdv08qEUX8cgwRrdA3vvV45N-b8BXmi3Ltcshrx6PYiBDyUgXlG1OsMyJ9L0b1Eqtr4WUcbfaE8KXyQDXSASltgStqIoes6g5P8Ye9IbFe0UIVQWlUZauqgkoSCiRbHB6dk6XQSqgB5GGfQQLJKwB5WVvYc2Oc_lKlKLXu4kyvLMcWUT244RYFUld3wFA95KasNE8J2B3JH9UwghLckZucE6B1K8rZAO6_nUhHFYajSTzG5MviZHnB-EIHBII4-za5J4erQZaHqj0-s6eTJ0To24BgkUUy3gjSqfqHUsbWEvdGyJ40EQARsBvm2tPslFhJm5uOocYNNUKCRmhZ62X2xl07aZMtZ-M-PP4uNsrvNouJTyejYhsKzWKXzwk7vlUeLAirtqTJSuSIgd68mE-sjNLNJdqvZbX_YdGtMz_OJXyXEUt8HzsSK5shmtZRRP8ULbltEEZt-FGEXsJYfLUr6mPCx8K9wLsxAmlRIbcAAs5o4vpYRc4ygBRIXYuYBxZlcBrYtpiXTvgr6hNdLeqXhyIcTjTpiQM8zURMzlUHp2zBXm_Z7UkiZcLvTi_XNTLGpR8DKRLiC_DM8c6pA3QmwakGeOeVJw2UvNIhwQbUQSv0ms1tfiVsPBDRQBGKLoAid6DL8IQHD0r9z6XkZ1ARlafvYNFDc-a5AS9Slln0YSBpyeywos9jTBFR0J7hfkYonupRxVdvhV_2iiVBCssV9gtLJN_Y5QzgIALDV5Uk2k5EC0NpZJD8fgCb2Zasolk5o4jV606Tu_0R8z0mi1sM9scxFQNlCJ47eO7YD-f5Njo4WW57huXkWYMi25B4enMDjIX4bMj_aTAdYtG8OsFsDtByZtkpSNBlMgeIGMKf3vhJjELnadWQnt-170siZWp2KwySrrG0O4TWxl-kCNnqG7kIht8SC5s8jBn13UME0DjmM83ek8L8xYR1JyCzjtQcf5VpCCuRZ_tZ0mHSG-hJivWQ8DW-4Xp5B-cV9hEz0CypTFCvQ-bltcvUbQXmXYB9TRX5Mgqy-vS9_GqudXtlQxCttFSukaVqrKM5CkG5Q60p5OiKXfQr56FWoW7fOjz7yOOMSpn9JVRu7kogdasau5l6r9exLlPKCzrOUcEDOBao5KN3FU6WWCL0NkU91AlGbIs9f6Vsf9H2OgkTGjCqyD-Wj_HkjbxhFX5tHTDGJWn3GLaVPqrtzCg-TEtsQxPzEklHMcz5vD3W2fP-eenpwa7YEsRO7Q-Of_UKetg5Pt2XKbSBBr5ffNvf8zeepeoVzQK_e1hH3BZwxbglWUFxbdYXg3Grzx4HRYYfScJ4g6twntd-gTAQAgvqoSuegieGmq-AvqfE7bhFJknS_kfNxNFt5e_8WmyPUenNKjQHpft2kQwIaGdIdHM0gQx941kIpWySst3Yo2Mm0l0H9vVLuKIQLAwKWpJKNX5HtdCUBPXKsSvP8dTyukw6KRaGYV-XiJ42T3RL3NyPdisquIzzdvLnQ1KepzX6_KTtPZBCbAcDtPBigHF1-Kt58mF9YAMWqLDpZw_XXCdJsL0JmBn4G_VJ7RhQ3uLyjAbhR28aLEKxKpokD9EaiE4XZ5tjSo6ifAzga8HQdC7gqLW47LVMTO8LusCPsDEDWHTwiXaIpd8R_V2KY62r0x5curYqxUUdQ5BDWgEflWfxiEQNmKgBN2s6QAhz89Rmo5WKu-U1IWQxMN2VE6FMa73L_25pT9Bvk9Sil2Hn7AvsECrWdsDfdDCzxdxWiqDhAbWUxy-KHpDjSGT6W3TlX_7Ive7luRZMXToFm64Etm0P8lWaEUGlhLYj6FFheAs5MOfPBUeAd-sqMoVfojWkfFtyGMoxTOhskVwsDugVY01oaAKKyONSnWzt89_pANzUHfZ2Gyi44o5rlmZ2O-h42fLY4aRq-qtODrOikxXSoTdkRBlXCblINFssuEwCRwSjltXhYCPeu3kR1emlcfq5AXlybg_RnSHeIEdL8kOQC1PtET7v-JQlB9iz17-bsaNoGGDjhf7CpZT1KOdcmM7EOg5cZRM-NkvHRdTUDD2NVONDG0Cgz1FpAhhwOTpkWgPU-qQH6q6HV9MmNVS2duyet98CrBX9I7axyc2GVLo2wlWePQuOe0mS7vbezB4xhI-m2kgQEDcpaE3VDsMFtYtsRf-eCH4Wcin6nhT7ULgZczAg1v3raFa2KhdFpT-yKn_BnDuK59yu9TfA7iCb5l_SJPgo7SbCCbFpcT4pX6B0hZ1eC7wfrFuA9POy4coMdZEBeUayHGowA5ZxAljiwjv19QwTZcvzOA1ttkUV0_V5xC1PT-sAH0JxvX3t4SL0lmW_o8CDvgFoBDqu1sEXhrhT4Uiq0u0ZQXBXWdta1FeT9rqBDk7EXy_CvM0FlJQvDvuukjEwJnLVV8CI1oXZRrv9SYHDPK-QDk6_8K0XtsviDZSd3j0nJbqGmz-MyeWxnOnSBrRnsGB-5xCwjKFUy-GcJPgYcnNV7yxrnI2OKfLNkjd_z2FgrqJQe8Sv4i6JtZP3Zbw3MakTMXFGmeG-y-spSCybCxeoUANI2sronndICCBu1ngL8Y2Tu6Y9lEAzHajTiVJZXACnEMmZGy6Z9zx-CPB9MRbLyv_fuy0EHvPnSjtX_EXiUbK_tnsmTZ3KeJJeaS8ZR12sUcu0fN6fAFiXMJHaUg2p3kMdxY5PJqd4JsCY_U8QmecUpgtJSwfLuON5L8okmehI1ENOTGrxQI7QpuRE1cqNOZ9C8mPnNNrXCD8vSNhdPcw9QH_RflAHpIojIdTuZ7kT5co-R9dfkyemqVf5f5Wcpo5Mav9UaTd5B5eUBZ0R1c518DRcDCiFJjf5LQAK9oPGL_2MxfDhMFMRCocG8DVLOh4S2HxZ6ZOpylBvVc7EtNo1wBEyZreTnYoqqCHYhTf0kRFaYv2bqgJHH9yYt3s7nWXnR-rwGqDcbzOmqqFbb34wCEbfwCh9FAOxZaejCvA-GQCma3_zK4doCbcrCtX9bK9ap_U3xUFhJ0bJ5swLPCzKk9TxAC4eugFB5YrE5GF6RPy5SWn-yFc46yX_V-F7b2in1RWVfgCldF6r6D2bGtxHLAY_ppqBNFG9jGhj0UZ9ItRf1IF3vAZiBltp2ex_5jCxx-Z_i7juCoMmOb94sNR0c_anzhp8cAfyVKsd2eBaAVtk9m9HdVa44Cm9HIn5njVz2t3pEDQxWPxpNxs9LKnAwCMBt8NfByA97i0WdlKYJj-YjIKNyTgHxIeg4QqqZxGeTHKA8ZUzMeZxEUdiJwA0VuEc1gqTeZXCAuBbjXNxw9vcpNDvaDL-q2wEURjQu49MRuiTU6k0U8HObeDKFDGO0d3KvhnIgh0bgfPh9Vz_c4MIF4I0o1_W3FFGo6rj8l_VPJt_zK-QELKcF02c4ry9aQNlaBFboDCtUT9lkcNOEar8p6hse8Zu9wBJyDq3riaoheWxftfHelE0w2WIELAD5hrP9791T93-eLadxzgM_BpcJKqNg0xkwlWKAKg4MIgHfDZasLfbH5lp4a98H-sIwTvDhw7orfMmhGsXWThhtseeQOxIEv8miXCXm6ZJGwmqj3aft0Y_dn7e7K1XkXsZvjgRpu8ENa3Ffgp4YMejYGj6U-QbaUhsZC79eawLzKEfqggWzl3hf-ZZutsvH1qBc2Vc_jIFI8lvdI1qhGLT9v2WWY1ezFSb5ve6e2oj4RIwQPoKr8FjAbubJBBSVWYQyTEsR1MUnOvACu5MoYLn1aMILU60iTEaTSr9OsWWT1rejdo8Mf08euM7YroiJvivIgBBYLrpYikbhIus6l-Cpo-iyIq1fqYgGctmBu2JM_iG3UT2kdC5l4oZncli6ohrF8fVGi2PdquvzJe27SUHAI0whCkp21xgEl5MtZWPCx1RNhYC8n6Bu8KhDxGJiTMr8VfOFYir8iV-SjumQ4RecS8heCtC2atzneX8gRtrhwVOzVtpONAxh3XbNmDGqhybWUA8kPHqk2UtflZoH3U5EAULQ70aqqqFIDxBnuDYlr_2xdGYk86IV4HO-1pV_67zD0-nOkoshJOcXBj9M-EoeNwACz_tUlIZWslsci2ad18vfgRD0CASwYnlEPdQuUC6WFF2NtUHiuLYbFr-PnwrPuId31yiq1IJYWXLcHBdBpO-hRsQ5A8uDYrummGdm6dOZaPW_fpnqsZ2XBxNL9tafWi7fqxJfpjbB8CjGn2uLjSbkv-3j2FV3n7afDAIiT_w_IGmI0st4YwAiHhO-p-kawko0U96aXBXGTYmCQivGWNM9B11xyCpqkG3ox3Ab-2U9_rlHUUOeSAMlSsZyGBL812C58S36SfbdOkSFQNBFz_iTjWlQE83Dl0U0PlcrVce5SLXoxRLM4pk_cIdwOV9uxgED-M1CmF-C1URSnzfLCWzdKeQesMKn-UbaY5rxRzbhC3XKg9F-F_0ks0TvrdsoCXH-a-9c3otwiVNRgwXr6CV3IJ53W8E8NxvAr0J-8OuH-m-uYB505aP1_M6kGHgTccR7DrxpPEFRlsAURpkRiEjUZ8kBPjJgXclx_LaPcIFYRxCxGk2wCQPSTm01e3zFtdxOeMA8uPhISPv0EPkfso9hmcm0FaluO-Jehr7qYDoD-uuZbc2bcQPwhbvTTICLeYIX988iJ5g6Cr5OExCnTLzl6mhesTocwTYbclRcndzXmb-2MtnSgFlblZOHTgqMA39mvNkAEM0BKq8M84Irl7_1xk8s_-yTr4rlMWdmR6oKl7IO3wA1KpNnOCvAhtOjb-Lt0Y3Lza6qtOoL4jTuoDi_olOJbXg-aVX853TpIoJo4v0F7XM9mWu9kAFnqer9IlLm2k-W-TednKRJMMEOq9TQtqFJIpxUBnHS0J4D683yc",
+      "summary": []
+    },
+    {
+      "id": "rs_0dcfb18bb7aeb9f3016af191c254d487d2beaa79cc5f81fb28",
+      "type": "reasoning",
+      "content": [],
+      "encrypted_content": "gAAAAABq8ZHz5PRRhFyqkMBqHhWexHgO4hBEOFbF-1rbh1y9QQgaG8-3w77logjo1ZCM-0-sA3UXrJBFhDNeNvaViPSjjTGktCp_eQLLbbBAEtWc703909HszFDqZwbcUVITUoWNVyeU0tFsbosQcPiU0sAiU1rmmhOecIveq77bXqLBcXfPRFWt44fb803YWU98Ha2bjUiW0QRuNEB2Z3ax_iblfIeb3k_XIzl9ln8moR2J81NEQHZ-9r2Uw36vLABSwBEIyfPpt44kN5t8UfJVxs4mH3Xru0O2u_CsDWU1VjmTefDpWWVYZ4iWNEwiUlqOa_das7KngK0l9aJtCK1u-UQCx5j9aqvBD4_yTNgXXx7Om4vV38ao1Lq23zmM8jH_Nswj7wDoYnj8p95d-_L49lQI6epH23qYJoY3UW1YnIkWLI-LYjR_HIOyOH3whUaoV7IP9XHHwjArchwyJ-OdY94rgjpVDO48iP7pd-Bk4dJGz9iuSzIQdX_RMMbtakktJTg8mYqh_7zxqcPFDt-GtMdxeLW3rkRuCfn_7wlc6Myx7wvgHHlsySuqNJBQr4iB5Iy__jUe_MD3GOkgt1Ynyu4JESX9aYuXhcf_6j36JtYJaPekTQmlKX_iCKzLTA21pUEl6N194e1jh7WJO_gzT8ULHl-1q45oLyViL1MT4IeBnbxfj8Xh4umGLQxgIAG1ikAguXtq9CBS40Os7orHdyazwzM31v50X-W74gCsK8JoDHaR9qizJLeOnaDv7Wia8kSFC47wG5MEdN725U53Bak8iqoUn5bVCi3Oiivs_fUf0PHSnDX0f_ZQyMyszkBzESHy_jIZg19-QyHmQtp7wCiTOwq7_zOnJ81Xa7Rn1Fv7hZrjRwTzwcIOK_dcyqs4RvTfWT1yj8ijE63NY-NvH0zs2tV0UfjO1CSwQnHnG86MDDkmq8pvoZAAq6zY_u7IDT1Dhropy-0i4XiNXkoq_UGBZvLH1xrrIxV2m2KH9aSN9k3I3K8XyOvqXWVke4A3ilcUoJj6MzKJ5JKyV3dwVRR6KnjHIBjX44p84cpqNgy3v8_BPNvd1kBBnVKlo6A8HrYWTOWx5u3HBOOWePc19YH2Lj_T06mGwR7fyKDzJhxPGWuNvgK1WGSnx8BkCKy0CYABYnyE_UkgnvDq8lukgsD1hPlFCtxxM5fC9-Pen5zXRN9tzvSTbWU1zK3H11StGGz3lhXDuVuYUpvbTjIa8OLHJDWoMLLcap8JXilqcZd5-fmEsyRkajkCG5aOalh_xELO3rmiE9qhaJBrkFQ1k0ycRAFYASXPQFZp21ZekCLGR49oi5Fe6lCwyXUnoBAqzU_hlzu5JxtP0fO6AphReR2CTI-51Gg4ZN2eHUYli3yDh_BfvuhZWOTNxnvYub697FiMi_bB_vg0_RkZPdyp6V4tKUk-_rk2pRLDi5uYJ_tbyGat2qllSAxOuWCi41qkKr424ombK8EHLkAEbesEA36ctOtBzEvxdXY_-tLyVUxnUh_Cb2rjZKNshMGgut1hvAEIMRmBuTbaUTvegm6GH2LLY1imcjsBdcFugl9wM-GhMsDyqvwLPYbaQfXB3vOLHTvhFqTZ4yGjUGwYhgtgkH9l-AmQxKKUsP0_p__u2JpkeS0YZOGfN4_IxzebNlsMGhpjtfCp2Zj0BWrYsDcheqTLLMeuwm20TF9tMAhb7HTXc4mYMR4DHWJ5qNpLKoQ6-Z3o6YddYvH_dOgMqSBiktA2e41ZTLfl3TucTHgl5RQNKFJWkAGv3Zk-sJq-W7Q31FcKmAonNNqzvYPTlSFWMB3YARWJOcqwIbdkmWMbSfiSP5a7JIUAQoh-SLLQV3TKMlNR-k7Xg-dqqunFjTYI4tkmEVa1LzZbaNUwRWDJuODSzvImqnphGYnwn0PzrIyW2FtiCsNPV4QqLdG_OclTS5RPV0Jnx3nK1Qb-mARk4vT9bHnhYdLYsPtugoLa4Zhy3CpoSBKn2QeYxKEzjrDbwKUdtq-wB2KvSLzRR7DrttP39RMa5znwuMugo9FUMu-q3YKHHzNNvZlj2ioTXrzkBsum0_qYYK_yUnTJQeQ9gyTfBh43BejlaK3gaxBecVZn-GVClyoHhfSaBAUY-hEfF3zz4m7YMT5R1PntbRfCWAJXj9kBuYawiu2Rb_KGVX_erAwiCXtvHA0aiX0Vd4aTlecxLYERH8ZZHd8TYubzxCCCF2P_TSSkhoNiF3rIPA1GLbI3BL_V61-XH_CC0dvz6se1ar_-yGNgabOfWXNWiRzRNa8O15LsqksjQ-0f6nE4dKKUEaIV_RcVg_5pWkUo1qGng-l8Z2zTCYgPG2gifHomFaDVq5UIcCrhoYA5wWfjxlpa6cujfy7RZLp1yRd08Kg8_OISwbCu8V1nyf2a7wAj85zyNy6_vYM-YubINoyWTu-fn7O4t_TnBgej-4hHVakuvUJi-Fw1HKSX_QQGp7CS1CGp7FuHz0Q3JtZKl_ElCzCte_CYjMCs0skt24YziCHG63eSZKzXJDhkqzZC402aK1DTrvgENal9JUTFDG1tFL9AzEfvtktqW-2QPrkINQ5bczMr0i68uwxRISFTvBuJSyEbbFIwWoyYiCzs7KrtP3Zaf98rivnBVd_DH0J8prjwCMm611L5FgTaFwVAA0kSYVWIy2VHqJxpiw816Z9R1w5lQeGX0R15oHnUMi1pMhK6ApVifObvDG8XqmkAgZ_qQXjsfbLSnYJvjkwg9Iw3Nfj_Deuk6lDgQR0n-EmfEKFglujtP7ltGQp8tckSKWF6G6hufp0U7gIBVwBZudsApPd0iMC8GE6MSRYEGHWfl4Y1LQljYjP7FsTeh3dwXoMN-hte9tMMKYQDpJmTv-u4MhlH5M79nBvau7KkmVRK-uMMhv3g9o_V5aPbkOs-Bjq992k5hqSwLjEU4zsmusNMh0xLNf64OuAR5XTyO3zo4O4j1bYx6XuMiABKkTFf3XDmRtjMAYE3pmu8GiWMnlXZ3_w7tEXXb0p7jV_1lWnmAb-xUKPvpw2yRUqfsUpiDns_YbrBvxuJMqvAUDwDnFE3uzURpU6Ceb5vOLwat8Y3i7UabbqPHLW2IyEbHkE-i5ajuOyx6TUYLxEGdDHo75g8X3QXlsVO0bNRMAzLk_OgE-8UXQb284NbrSeY9Zh6KXMSI_gnNt_24MdpKl-HzzfBgDQe390ec_0ykD-YkIrbGj3WmcSWtyBfoa5F7LykMVQIRmgB8idrjX9SZJxtZM-zA7o4YrGjA0JTnPyw9RaRxI8qx331uOvwwuev8tVSnqzI0kG334wkpW8nd1FGaUo2fQFb4qcqWVKf4jKXUejU_Ob4Lt2QwdOHWDod5h_2mzzl2O8IgnNhmJAzDPZA_r6usw9uhOtjV0C7aaHHhXUGigJ9VXcHpZGqR06R-WmTBNd7qKdJ1lcsE8DLAPInnpLqaxptsSLU_R0_G1CFLxfzPsqLFz2oYRyc7rnc9BAQjnGm9_nCrfCkstUMNAyw2YB3gDEV1ryjv3ga3l8KWRceFeSnSXowaAjXejRIdF8l4YsvPrsjDdKJ_oX7UPkbEu5azQiBM2TZwilobk1-qIHcs9NX7H0i9KxFN4zLXN2FTD5KHugsvc5q9dWlldZ__BM9XEKe5J1YOmGUQIc_P83Dt7qcfvdcD8LcISMPKBVFUqOIfP1u1_-rfsA7HYYmt-g07acJtmRw3L4cVkwlJ5P_9mjBbjWa5bWQLTeRS9D5XUj_dID_LLgSs6_s3B3CoEGGkzWJTH11UAsO9w2yFp0zXll9wfs54qj4Ba5VS8WzxPnpfuDBC8R_8aK3M0C07sccUa_mPjl_5fSPDB2gYfyLM8570XvCJn9LYlMxqwpKMhfr01Nn-iqjo9kYAWtUEeL6mIJIZAfCtg71iZ07oth5iuGKPCJuRO-Wwp_1qyxAlYSZthDHAQ4ELzRVsbCVb9hSHspWgp8hKmwtcPsFl-tjOE-GZPm_Tny6yDLjL01YoP8N1CMOiSD7XI9kXqYsvRdNVGJp1lhOTkWhwNLNKfgVh22tw_DKp15Fz0AMWus2n_F5Mn56wSxhfVf1N8d__DOR3bZ03B2rXsRWqglc60vlla2UATrGvsjiICS2x1lVej_k_75nJcaH6ucoQbGVXfD7etRe-xJ3MJ-yWAikojTdHQQQ95B31XCnQJEH_oHLoVK6TLMJs6S95oJ6n6ccJ74FHjEECX8nsoE-tkHzOz1SH1MgcsGmx9JPCbtyv8ySNiFxuXmSxUFyUleEgcSQkuWMJqm1_H5BJPj9GEqIGWs0vRhw0P67D04UDaophEtGYmKuQgwjUtY16rSSOwGGP59kq1RHp-PCLjTCoC7DUbyBfl-r3lJARsh8WqA1blJYEdNvIuCUBo0D5KRPASQm4Tjd_rxsqlxcsNygrw09gPGp8pGxNJzLZ0bqAxD4rEN22N_bRIckUQF1IrFApk6pzPP8So7MGoozofoiTxx5TqaJW5aT5e1NJ_MEcLKt4GuaMtGxQtKxv_fpIdOLl8HGcoVMXVgRcuVdtkdIGAcU1B0dNrZuupq5b489o9zxhj18DPHgL9EnuJ3rQZodCX14GdY7EbHmRRZpJXCyh3wsuva8lnX6MS-30ZI87V7M_4VtaYraVwvVBxLr-1jTrfpQ9vJ2_JGIpcwvzmIVIjKwA9gs0dtWzo9d0eCONrM2OLd4-sA0KIaif4k20L2VsYYpcxFiUxbo9ZGJNkhv_uz9InaE_pOdG2yrZILlGU35jyvCb_QxHZqLlqP9yCqDPmyJv1girKIGOYLdVr6pQ2LYh-__NSM7wPjzNsCqSXi2O61md_9lIHlXRgnTcmEB7nUL0slKkd5YiDJHL8_GyoJtIfiZm4lRKixoV82k9Eyk6OuL6WL8nY6PBRMoD0Gf-pBYPSuw0BVfxSztown0CuOnO21dhke5q9TZlcqn5_hPnNGGVpkl8GQQUf--lUFNEP4d90_vZiRrN486RQ4498_cyjIUKIVOai0eko7SDjVHyWZTK4CZcw27f7vNsNIaXYJJdkyFYSwXqnmkAviHOyUrnmM1EWHObuFOKhSx2ff8O0DGeTTeFKvFBuqVa5Koekl-grb02YflyKr3ktZg-2ND-bOS-fkDwgfkfDhYkY5PDvMJ7ejbuPLYH9n8lIGLN7jIR5Hk4blXwBpUwOxjjIrXsIO3RfYBaNCANZTfUHdBjnCIiX894fuMw1sSu3yYklBWJA6p-P85uNatsQntoEEDcjEkPgWCeUoMZiHW-KcxSekQsxJDwmtqR-nOumF3dPpgoxInbGuSoFOU670rOG_I3LoE0WGZucleZcnyBJ-_gRsfgixx0ipLJIWKeTFjv1bP4koF6zF82crvCq_HC8iOE9X0JZZI_U3BDSu31TRUDDuCIKnMMuVCxzb0cYsm6mweIrlNsxC5HR4iUMcnozbJlobBDsGRCtiwK0bZwt9oHq1Q4HDCtBByNczQc6Rw7pOPInu4YTfKgWjv5ZyxtxYzjWrxUWZM8ERfSUaLyWgnRjlkfWVxEGF3x8vJgp-TvtRawXj_LRROoQyITXn9_jG8QAHqxcVq5HSCDDRhnfFMQbK_HNIwDSkkdJvBZa5RxFB61KgszEsGHFP8oys-kx7dj126-Vy9iEnG68oTKZ89ErGB3Z1-QnqDgv20UEmuEkdLw6QODdGI57elQkgqklablcD8hbfWYmUqLpPuKZN9noTUEF_c4kfU02DyUSqZ292hQdJ1KgyHvghHgObTn4a_f-jD47Y6IjNGy92bN18MnQ46D4JLg02FI7RSGtM5AmlnpPgf-5tXileuRyZ9yYtbEAmJroWomkqtPz0iMjlz75ouc01G8ubYQRcV-IP13-r3qZYa595fuAbHz7zhwyZrh6Md18k5spxht5UWojiTVlw66PWG6Pxej_cm8ddxAJXRriKf76jqbJZbBl1WmgHD7HlaVC6zBfgwFTB7tOiHoL0w5hNhB-oJ6gPjkOB8dZXIsAH6SPChw1W0kXpbFYjSwzw0T6y_LPk5ZvKy7TfejqApSxyJAD773py7TouqwSRuVDy73QmkwBeRBEL-3Id5PP8chCXRKbHC58jlcThySyYuNJQ0i1f-pz8FWnHA2oQ5hNus2tRGkknhrY8V20Uka7EN1p89i091rsqndv-nrP1iExJPDxT4T7U-QajDB6ZMaamH6zrXatiEOhV1jALmfUeuxJLuJ7LpzBv78yPHqxYYlr_rbAB0fUZcUXkkPKaeAQ8rD3Vr5I1R9ebKWeMO5vcqvLnpj1oDz3ZcRf-FwFjAfVKqNOMOx-UgCVd4WUCjO-0lE-_rJ_f09nfI8ORFmJ1v_Ywyjl-OgwaesNTvPCucOfVe0i9Git7dpDGLuSW8VEZk1uy-nbLsJ2Q_mHVh3OtmP9H9c9wnYd7ybvFymHtd7XMSCNa8JzrmNAG2S2g8hof6l135f-lnMBIf5B8Vstlu3CnjLnFAeVUiWdDV1fLIPCtkHdjyJ9IgvesKxM7x9RpxJGdUBLYY09_MyM4tk7iplgdJ2uEuZ1jPd46vjihfnNHd9Ry3SNrouVipvLdLrrpIpY0oSZs1d95H3gq_h07pK5D1r7SEbiqSuObQf-OTIkxayz7LHGNAIjpYNRY45HJyVD8gs25e-xWZbQOQn7U23gE1qO_1r0LnSCgke7LAebr2WeyHcn97wu4_M_mUm31dAySwTuG1DZe5sVlUIkwPfVLefsa3GoPIYNz___3xZ8fRoxbG2NRQVV62fFTnO3lYJiA8tWIHCkbHs9fRmJhdSJ75q4b2ZLJLJnJsABZxvzkGrXZVtWd_UIwzEl--BjzY5PhGCkA57byOcHNh1NEMPk816wzHvz18JJoRTNeHGgC1rW625J1cOzio6aV3_o56B4rEttH7a7yb6RvG04_lYpXRInFC6798QhoeP7aUMql6mGFgxjY_QbwTmNnqTXKnbeOSk2JR12aO_g4OSDW5hJpGIoK241aRd4xWPyS2B1nMRk5hmwfrjq9j83qyOWHZm43q0dnlnTAzFfR2v2pmTmauMuduWVWhgYW_tUoQ_3bdpxaYNFvSN1ndzitOYcKKxp3qdo-jEd2pdst7tmF_dQDMrdBJ5ISbEVova5vQOgjSeAcPUu6HfFb1lNyg3clwBa4g37FlOG_XI9DG64dkW1D9a_K25Yq0DYa9sjhRcAPXY0opZGhdLz6TzeEk7KG8K8RZ9hEGZ8GtKd9xq4J0rpw2duHh-_l6tVe9K1GcHjJDjXWSCvuziH87H2_vlrQBce5wjbHCWgo4WD9ksgRL4FUmXMRwX8Ko2blP1aBteW4fLia0nhMSKu2KD37ZjrZuvYJeXzYLolNOyNn2rrwRQiMHsLyfIkHKm3jrDUJxoFS3DyzBMGQXgpHwMgLC4e5nMUJv2K1iwmLOE2Y-_jOVZ3qOCqRaotDtqDJOS83n790af4KoFEc_DaTlNycmgZf_yJIqty1OkvrqPReqqqni4H7rPqEH2_a1aTBH70zoN8dTFVPLGnm21z3bj0_7MTN_hda0LmtbHwoJTYyUlCYeB9gk4SNuVZgWtfR2AkkVq0hW9kVzdFu3cPH8s1GEW69FyK_B6jzCw9DsTZYeYCN1_KcEaDl2P0UbW7S4CdS_UNVsGVjgxnFNB93ULibSnmYq5E7vv7O5Bc02aZvZiB2utNzh2Eg0ribKQENLWbwcGth6_GQOlaPDJpAsIhmmmoMdcoTWQWt8ERlv2l5M8ZOEHH4aWUAUUVoghP_rIDxbQGc7f-EO8vTrJZ-JJiKbM-M2crGGUBDi7AL4yl-TOqBOAvG4tCJUTrAokISFoWY53JSUJjKfksTWrakgTQcdbgFgmNMcmGjPNlp191QLqUF6Drkppxo6M2mg8RM5ywjrtHKTX54_AqoN3B2t26-iP0UIfgZfITOZNNCjpWPL7leFD48HaAXS9a2M0P6yeHlGSRXWK1MIJyU2tQ_S_G0lYWYE7J7uM53YA5zTxkFVt19ucfrU21nMtsGhKlwwSd527CkFMpyUsEHz2EKNFEKCMw_U6SvX8SCHHFI5BYTusqQThsPpP__CjNDoHrPRuDlpqD-4K0KbpIxK_ffQW53D6NHcnLd1Qtt6rJcpXK2_1J9ddYvWHI_DcYRgEo6bSkSILB_I9_HTOXIe3vfCvTC4Z5j5uNWhJGGvZgDsSQmuDhKnvrNeajA_krQYQB3cpt4g9Flby7nhZWKZkh8vWF4qpFmZJfYlvY4xpxGjVbi0dK2nXe2Dzj8jMO1g7JWnGG7Fo9u7J8zgN_AiCK2JuJTiMHV7tWcnX4-U0icPcOavb9LCUP3Ow6T9EO1QXjG7MyS2lfyiwoOxDtnICz3lPR3bS9_TpkWQY0b4PeFCjphhTbgadqQoB2jC88gcfSWyXur1KrVd7XOH5QlLsnTOZj7Hk2ELrKO6UlYopZBHQLbSnkSLm7nTIDl4zTtm1NRuq4yihxE6_AMvfzrNfoYE8PrtYDiyR6OljIoLnzIyoUTmJYjiNwZVYWMuOOYd_Z8bUp32xN-Ltxi_xOBgpCYrniCxdT8yYjMB1gWAFuB3IsQkfc08e1rkzBpiPaORwh3vGgUqeiZPX5nHLu2qtcGZ9VwTkCzGB1AOSw22",
+      "summary": []
+    },
+    {
+      "id": "rs_0dcfb18bb7aeb9f3016af191cd0eec87d2b651d01683422896",
+      "type": "reasoning",
+      "content": [],
+      "encrypted_content": "gAAAAABq8ZHzUjUW0i_c6tC9_5aPRvADwSH4Eqxq4ngmbOg92EIQ1jKve59rt-w-FxrM1eczT6km4_8hsZCjla8FsAjvwzp7AAfOsndg-vNOOTDGkEPyWm4bZbl1ZyJ_9z4qf90X0tu-y5CEwmTkhgVruEbjKdSAUO-hYESs5rRn6UMXc-57cYoqYgq13N2mvrJAWBFLp1N5QZUM9q5NwsuQoju6UBOms3qbCFSzqwtMsrogrsFDXtonxdaAYPuJrvHY1cdT9-n7D9OvNCEZIwDekwwktB56Ooq-xr1UIRqcW_HOGwbfo7ujpAzArg1Xbmu6-BIHCQ4qb2poPAPvVYg6baJ1HUBCJzcQzYrbBmMPCPtMLhNUqSHwvenE9FHpQYRIr1DQi_PvspGx8Rnw9Xg_fRU6ENCTgD7DZ8dybjbj282byFqVoNCjTLNQVMPd-FM9b_9lBqqjWxx75SgRPerdhlMiLSXuNlfliy32RqyPpQKZIDZAkhXhKet3IuRy_UgR07QPtxtkgOFEl5xd0Ce7BN-w4AE2TpL4yZ9NmHsvTZ0KFmSACOBSKXWyb4ep9C4SHsi8V0ZEAX8gyDLcLmwi7T9wWQXerQAdxjkWChQ5882t5P76ubeqhiamFvygx3Bj9KivfZBNQnpMirRYCTFHOjSgwp4RePYddDDu-PVaxpvQQ94PMwwYHrdtECE8JIiXGEO6UxKpUDrpCUp5WaEV6dTDFuLpkonDAjQwcll2uNEVLLlzZIXuwKsBwwYrglRdbYRnWa-oQ7y_MVFYax_zBpP1cuUcmbuFEvGBq4XrKW60aF_kBCmcOZ7LtWN4gxd4IKTV9UEAY0oL20Z-WDU2MvdN_Ywn3veLwt4SS5cQpKUa0iN6Gn9s6SZe3dUpg3I-TA7NXLO25QYAWlymhSbqcDci4a5W_rGMbReDUhPm1AMcQ-8PyKVi_ZGXtDNVxXztbEJPoiMLgR5LZ8seO8NYLVk96yNIeoH65YexJd3zMW6baTY1iT_4cxt1cAb3qko_AH6R3VstwwVj9OjKAROAf0ACTSY183VrbTdPkSFqeB1Nd53HrMquu8KUsTHZI4vTzW_v8acTBaaANrsDAnyHZsnILiVjhFkIBVDYFN2hq3aVaqbg5xYH-cWCwOTxT1-o4zWPrFAIwBNWA7Q85CoRrkPL2Fs3Z-0ql4BHfj1keJaTJGYvrONHa5J9xamoeroW5Cc1aNB4-kEslFSby3b3DJH6JrsGHg7yfMT1s7ZrkIPVysySlkhK1KB6End8q3CQdrHI9eAQFxC7RMAiOIH9YFWXtx0lMw9TgZglQXAZl8XTEY91a4iyNzGIBvNDiUYOcCt5bRqAyvUFRqQk-iS7nzNkjKniw4FFVNz6A8SBGDM2zd9xLF3S-cu0DhmAG_o24uQ2bw_jZlPTGQJ0l9pytibJTFYMzAcbXbu86vsg9INDPP5RsMP4nPYdC7ipMXN2g0Hjdg3tnx5GzIXi4vCTkvyFhvuPleQxeOcGIe3vcUXQZI_rP_l7lxyajpSECb56baKpyDOY3lXSwkKZVl6g6871W15mCGdC4d9JKTruZ2ucAt3m2sJrYYo5o6Y_GP0eykZLijOJFJ9BkgOXt5YPJdXjoRVJ5BUxRar_G6kXekWzGzKdCVKm7HkQ9kd8747H6DjU-JAsDMnDrnHwhjOf2amzutdoxHSOpa_I052Ama0q-FIIksN7QFKqXPjlRfjR7pEYVp_1E3XQJlYm58CXy5W2kRXLdOHW4oLIuMEOU7xe8C1ULouP9lejYcVnoqZ3NhqZFx1qTau3K8fh69zP5dbIniJKKqDRFWZu7ZueL3UnOUSRp4EbBLuLrMBN3pTLjSDDm9i8ik77qA7NmYJTlrLsF6IWdQNgHikiDFg53n5BgzKESOioJCtchD6ZVjcbh38VVO8swxwUSoq01R920nS4YWeqzX8JrQOH8bQE3QX9C2zSRyhautdBwNz-LOICUlvxiTcPrfmjB92k0g8QZSn0VPDd0fwHyezqPxwQQdUUO1UtKwe6M27Aw6vQicFoiXBdESULjfo2ybRtoYdtzt2fa4ADoyALb0gWyaR7FFiNvqSfL4_2g4CGks2HQCd-m2xoiOR1uoMKAIvzSeojfwHKRTFBOaOTvmJiVZAfWC6OMTVihqt0lIgQ66DAAIDYVm3l4XtVpDAqpLn7UaXe_I9KBSNskusrwfLiXN1oXqW41Wz08BPGWwj_SFyDSiwgxSB8dphFf4GFsQRiMa4pttSwGHPPIT-FV0I-Iuqn4u_W3G0DkX8IZ7TpO6xhYRCHccTL8rtyZ5g5-rxawDTe_2hkZpi9GJWbRlx9lX9qx3063sUFfmo=",
+      "summary": []
+    },
+    {
+      "id": "msg_0dcfb18bb7aeb9f3016af191ce60f087d2bb56607e0eb8fb29",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": "{\n  \"reading_mode\": \"informed\",\n  \"listener_answer\": \"\u0412 \u0441\u0435\u043d\u0442\u044f\u0431\u0440\u0435 1854 \u0433\u043e\u0434\u0430 \u0414\u0436\u043e\u043d \u0421\u043d\u043e\u0443 \u0437\u0430\u043f\u043e\u0434\u043e\u0437\u0440\u0438\u043b, \u0447\u0442\u043e \u0432\u0441\u043f\u044b\u0448\u043a\u0430 \u0445\u043e\u043b\u0435\u0440\u044b \u0432 \u0421\u043e\u0445\u043e \u0441\u0432\u044f\u0437\u0430\u043d\u0430 \u0441 \u0432\u043e\u0434\u043e\u0439 \u043a\u043e\u043b\u043e\u043d\u043a\u0438 \u043d\u0430 \u0411\u0440\u043e\u0434-\u0441\u0442\u0440\u0438\u0442. \u041e\u0441\u043c\u043e\u0442\u0440 \u0432\u043e\u0434\u044b \u043d\u0435 \u043e\u0431\u043d\u0430\u0440\u0443\u0436\u0438\u043b \u0432\u043e\u0437\u0431\u0443\u0434\u0438\u0442\u0435\u043b\u044f, \u043f\u043e\u044d\u0442\u043e\u043c\u0443 \u043e\u043d \u0441\u043e\u043f\u043e\u0441\u0442\u0430\u0432\u0438\u043b \u0441\u043c\u0435\u0440\u0442\u0438, \u0430\u0434\u0440\u0435\u0441\u0430 \u0438 \u0441\u0432\u0435\u0434\u0435\u043d\u0438\u044f \u043e \u0442\u043e\u043c, \u043a\u0430\u043a\u0443\u044e \u0432\u043e\u0434\u0443 \u043f\u0438\u043b\u0438 \u043b\u044e\u0434\u0438. \u0412 \u0440\u0430\u0441\u0441\u043a\u0430\u0437\u0435 \u043f\u0438\u0432\u043e\u0432\u0430\u0440\u043d\u044f \u0441 \u0441\u043e\u0431\u0441\u0442\u0432\u0435\u043d\u043d\u044b\u043c\u0438 \u0438\u0441\u0442\u043e\u0447\u043d\u0438\u043a\u0430\u043c\u0438 \u0432\u043e\u0434\u044b \u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u0441\u044f \u0435\u0449\u0451 \u043e\u0434\u043d\u0438\u043c \u043a\u043e\u043d\u0442\u0440\u0430\u0441\u0442\u043e\u043c \u043f\u0435\u0440\u0435\u0434 \u0435\u0433\u043e \u043e\u0431\u0440\u0430\u0449\u0435\u043d\u0438\u0435\u043c \u043a \u043f\u043e\u043f\u0435\u0447\u0438\u0442\u0435\u043b\u044f\u043c 7 \u0441\u0435\u043d\u0442\u044f\u0431\u0440\u044f. \u041d\u0430 \u0441\u043b\u0435\u0434\u0443\u044e\u0449\u0438\u0439 \u0434\u0435\u043d\u044c \u0440\u0443\u0447\u043a\u0443 \u043a\u043e\u043b\u043e\u043d\u043a\u0438 \u0441\u043d\u044f\u043b\u0438, \u043d\u043e \u0441\u043c\u0435\u0440\u0442\u0435\u043b\u044c\u043d\u044b\u0435 \u043f\u0440\u0438\u0441\u0442\u0443\u043f\u044b \u0443\u0436\u0435 \u043f\u043e\u0448\u043b\u0438 \u043d\u0430 \u0441\u043f\u0430\u0434, \u0438 \u044d\u0444\u0444\u0435\u043a\u0442 \u0441\u043d\u044f\u0442\u0438\u044f \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c \u043d\u0435\u043b\u044c\u0437\u044f. \u041f\u043e\u0437\u0434\u043d\u0435\u0435 \u0440\u0430\u0441\u0441\u043a\u0430\u0437 \u043e \u0434\u043e\u0441\u0442\u0430\u0432\u043b\u0435\u043d\u043d\u043e\u0439 \u0432 \u0425\u044d\u043c\u043f\u0441\u0442\u0435\u0434 \u0432\u043e\u0434\u0435 \u0443\u043a\u0440\u0435\u043f\u0438\u043b \u0441\u0432\u044f\u0437\u044c \u0441 \u043a\u043e\u043b\u043e\u043d\u043a\u043e\u0439. \u0412\u0435\u0441\u0435\u043d\u043d\u0435\u0435 \u0440\u0430\u0441\u0441\u043b\u0435\u0434\u043e\u0432\u0430\u043d\u0438\u0435 \u043e\u0431\u043d\u0430\u0440\u0443\u0436\u0438\u043b\u043e \u0432\u043e\u0437\u043c\u043e\u0436\u043d\u044b\u0439 \u043f\u0443\u0442\u044c \u0441\u0442\u043e\u043a\u043e\u0432 \u043a \u043a\u043e\u043b\u043e\u0434\u0446\u0443 \u0438 \u0441\u043b\u0443\u0447\u0430\u0439 \u0431\u043e\u043b\u044c\u043d\u043e\u0439 \u0434\u0435\u0432\u043e\u0447\u043a\u0438 \u0432 \u0441\u043e\u0441\u0435\u0434\u043d\u0435\u043c \u0434\u043e\u043c\u0435; \u0435\u0451 \u0434\u0438\u0430\u0433\u043d\u043e\u0437 \u043e\u0441\u0442\u0430\u043b\u0441\u044f \u0441\u043f\u043e\u0440\u043d\u044b\u043c. \u041f\u0440\u0438 \u044d\u0442\u043e\u043c \u0441\u0446\u0435\u043d\u0430\u0440\u0438\u0439 \u0441\u043d\u0430\u0447\u0430\u043b\u0430 \u0433\u043e\u0432\u043e\u0440\u0438\u0442, \u0447\u0442\u043e \u043f\u043e\u0434 \u0432\u043e\u043f\u0440\u043e\u0441\u043e\u043c \u0442\u043e\u043b\u044c\u043a\u043e \u043d\u0430\u0447\u0430\u043b\u043e \u0446\u0435\u043f\u043e\u0447\u043a\u0438, \u0430 \u0437\u0430\u0442\u0435\u043c \u0441\u043e\u043e\u0431\u0449\u0430\u0435\u0442, \u0447\u0442\u043e \u0423\u0430\u0439\u0442\u0445\u0435\u0434 \u043d\u0435 \u0441\u043c\u043e\u0433 \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c \u0438 \u0442\u043e\u0447\u043d\u044b\u0439 \u043f\u0443\u0442\u044c \u043f\u043e\u043f\u0430\u0434\u0430\u043d\u0438\u044f \u0437\u0430\u0440\u0430\u0437\u043d\u043e\u0433\u043e \u043c\u0430\u0442\u0435\u0440\u0438\u0430\u043b\u0430.\",\n  \"important_limits\": [\n    \"83 \u0441\u043c\u0435\u0440\u0442\u0438, \u043f\u043e\u0434\u0440\u043e\u0431\u043d\u043e \u0440\u0430\u0441\u0441\u043b\u0435\u0434\u043e\u0432\u0430\u043d\u043d\u044b\u0435 \u0421\u043d\u043e\u0443, \u0432\u0445\u043e\u0434\u0438\u043b\u0438 \u0432 89 \u0441\u043c\u0435\u0440\u0442\u0435\u0439, \u0437\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u043e\u0432\u0430\u043d\u043d\u044b\u0445 \u0437\u0430 \u043d\u0435\u0434\u0435\u043b\u044e \u0432 \u0442\u0440\u0451\u0445 \u043f\u043e\u0434\u0440\u0430\u0439\u043e\u043d\u0430\u0445. \u042d\u0442\u043e \u043d\u0435 \u0432\u0441\u0435 \u0441\u043c\u0435\u0440\u0442\u0438 \u043e\u0442 \u0432\u0441\u043f\u044b\u0448\u043a\u0438: \u043f\u043e\u0437\u0434\u043d\u0438\u0435 \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u0438 \u0438 \u0441\u043c\u0435\u0440\u0442\u0438 \u0432 \u0431\u043e\u043b\u044c\u043d\u0438\u0446\u0430\u0445 \u043f\u043e\u043f\u0430\u0434\u0430\u043b\u0438 \u0432 \u0432\u044b\u0431\u043e\u0440\u043a\u0443 \u043d\u0435 \u043f\u043e\u043b\u043d\u043e\u0441\u0442\u044c\u044e. \u0420\u0430\u0441\u0441\u043a\u0430\u0437 \u043f\u0440\u0430\u0432\u0438\u043b\u044c\u043d\u043e \u0440\u0430\u0441\u043f\u0440\u0435\u0434\u0435\u043b\u044f\u0435\u0442 83 \u0441\u043b\u0443\u0447\u0430\u044f \u0438 \u043d\u0435 \u043d\u0430\u0437\u044b\u0432\u0430\u0435\u0442 \u0438\u0445 \u043e\u0431\u0449\u0438\u043c \u0438\u0442\u043e\u0433\u043e\u043c \u0432\u0441\u043f\u044b\u0448\u043a\u0438.\",\n    \"\u0414\u0430\u043d\u043d\u044b\u0435 \u043e \u043f\u0438\u0432\u043e\u0432\u0430\u0440\u043d\u0435 \u043f\u0435\u0440\u0435\u0434\u0430\u043d\u044b \u0441\u043e \u0441\u043b\u043e\u0432 \u0432\u043b\u0430\u0434\u0435\u043b\u044c\u0446\u0430 \u0432 \u043a\u043d\u0438\u0433\u0435 \u0421\u043d\u043e\u0443 1855 \u0433\u043e\u0434\u0430. \u041e\u043d\u0438 \u043d\u0435 \u0443\u0441\u0442\u0430\u043d\u0430\u0432\u043b\u0438\u0432\u0430\u044e\u0442, \u043a\u043e\u0433\u0434\u0430 \u0421\u043d\u043e\u0443 \u043f\u043e\u043b\u0443\u0447\u0438\u043b \u044d\u0442\u0438 \u0441\u0432\u0435\u0434\u0435\u043d\u0438\u044f \u0438 \u043c\u043e\u0433 \u043b\u0438 \u0438\u0441\u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u044c \u0438\u0445 \u043d\u0430 \u0432\u0441\u0442\u0440\u0435\u0447\u0435 7 \u0441\u0435\u043d\u0442\u044f\u0431\u0440\u044f.\",\n    \"\u0422\u0430\u0431\u043b\u0438\u0446\u0430 \u0441\u0447\u0438\u0442\u0430\u0435\u0442 \u043d\u0430\u0447\u0430\u043b\u0430 \u0431\u043e\u043b\u0435\u0437\u043d\u0438 \u0442\u043e\u043b\u044c\u043a\u043e \u0443 \u0442\u0435\u0445, \u043a\u0442\u043e \u0432\u043f\u043e\u0441\u043b\u0435\u0434\u0441\u0442\u0432\u0438\u0438 \u0443\u043c\u0435\u0440; \u0447\u0430\u0441\u0442\u044c \u0434\u0430\u0442 \u0440\u0430\u0441\u0441\u0447\u0438\u0442\u0430\u043d\u0430 \u043f\u043e \u0434\u043b\u0438\u0442\u0435\u043b\u044c\u043d\u043e\u0441\u0442\u0438 \u0431\u043e\u043b\u0435\u0437\u043d\u0438. \u0423\u043a\u0430\u0437\u0430\u043d\u043d\u044b\u0435 \u0432 \u0441\u0446\u0435\u043d\u0430\u0440\u0438\u0438 \u0447\u0438\u0441\u043b\u0430 \u0432\u0435\u0440\u043d\u044b \u0438 \u043f\u043e\u043a\u0430\u0437\u044b\u0432\u0430\u044e\u0442 \u0441\u0443\u0449\u0435\u0441\u0442\u0432\u0435\u043d\u043d\u044b\u0439 \u0441\u043f\u0430\u0434 \u0434\u043e \u0441\u043d\u044f\u0442\u0438\u044f \u0440\u0443\u0447\u043a\u0438, \u0445\u043e\u0442\u044f 7 \u0441\u0435\u043d\u0442\u044f\u0431\u0440\u044f \u0432 \u0442\u0430\u0431\u043b\u0438\u0446\u0435 \u0435\u0441\u0442\u044c \u043b\u043e\u043a\u0430\u043b\u044c\u043d\u044b\u0439 \u043f\u043e\u0434\u044a\u0451\u043c.\",\n    \"\u0420\u0430\u0441\u0441\u043a\u0430\u0437 \u043c\u0430\u0442\u0435\u0440\u0438, \u043f\u043e\u0441\u043b\u0435\u0434\u0443\u044e\u0449\u0438\u0439 \u043e\u0441\u043c\u043e\u0442\u0440 \u0419\u043e\u0440\u043a\u0430 \u0438 \u043c\u0435\u0434\u0438\u0446\u0438\u043d\u0441\u043a\u043e\u0435 \u0437\u0430\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u0435 \u0420\u043e\u0434\u0436\u0435\u0440\u0441\u0430 \u0438\u043c\u0435\u044e\u0442 \u0440\u0430\u0437\u043d\u044b\u0435 \u043e\u0441\u043d\u043e\u0432\u0430\u043d\u0438\u044f. \u041e\u0441\u043c\u043e\u0442\u0440 \u043f\u043e\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442 \u043f\u0443\u0442\u044c \u043f\u0440\u043e\u0441\u0430\u0447\u0438\u0432\u0430\u043d\u0438\u044f \u0441\u0442\u043e\u043a\u043e\u0432, \u043d\u043e \u043d\u0435 \u0443\u0441\u0442\u0430\u043d\u0430\u0432\u043b\u0438\u0432\u0430\u0435\u0442 \u0434\u0438\u0430\u0433\u043d\u043e\u0437 \u0440\u0435\u0431\u0451\u043d\u043a\u0430 \u0438\u043b\u0438 \u0442\u043e\u0447\u043d\u043e\u0435 \u043c\u0435\u0441\u0442\u043e \u0438 \u0441\u043f\u043e\u0441\u043e\u0431 \u043f\u043e\u043f\u0430\u0434\u0430\u043d\u0438\u044f \u0438\u043c\u0435\u043d\u043d\u043e \u0437\u0430\u0440\u0430\u0437\u043d\u043e\u0433\u043e \u043c\u0430\u0442\u0435\u0440\u0438\u0430\u043b\u0430.\",\n    \"\u0417\u0430\u043f\u0438\u0441\u044c \u043e \u0431\u043e\u043b\u0435\u0437\u043d\u0438 \u0434\u0435\u0432\u043e\u0447\u043a\u0438 \u0437\u0430 \u0447\u0435\u0442\u044b\u0440\u0435 \u0434\u043d\u044f \u0434\u043e \u0441\u043c\u0435\u0440\u0442\u0438 \u0438 \u043d\u0430\u0437\u0432\u0430\u043d\u043d\u043e\u0435 \u043c\u0430\u0442\u0435\u0440\u044c\u044e \u043d\u0430\u0447\u0430\u043b\u043e 28 \u0430\u0432\u0433\u0443\u0441\u0442\u0430 \u043d\u0435 \u0441\u043e\u0432\u043f\u0430\u0434\u0430\u044e\u0442 \u0431\u0443\u043a\u0432\u0430\u043b\u044c\u043d\u043e: \u0434\u043e 2 \u0441\u0435\u043d\u0442\u044f\u0431\u0440\u044f \u043e\u0442 28 \u0430\u0432\u0433\u0443\u0441\u0442\u0430 \u043f\u044f\u0442\u044c \u043a\u0430\u043b\u0435\u043d\u0434\u0430\u0440\u043d\u044b\u0445 \u0434\u043d\u0435\u0439. \u041e\u0431\u0435 \u0434\u0430\u0442\u0438\u0440\u043e\u0432\u043a\u0438, \u043e\u0434\u043d\u0430\u043a\u043e, \u043f\u043e\u043c\u0435\u0449\u0430\u044e\u0442 \u043d\u0430\u0447\u0430\u043b\u043e \u0431\u043e\u043b\u0435\u0437\u043d\u0438 \u0434\u043e \u0440\u0435\u0437\u043a\u043e\u0433\u043e \u0432\u0441\u043f\u043b\u0435\u0441\u043a\u0430, \u043d\u0430 \u0447\u0451\u043c \u0438 \u0441\u0442\u0440\u043e\u0438\u0442\u0441\u044f \u0430\u0440\u0433\u0443\u043c\u0435\u043d\u0442 \u0441\u0446\u0435\u043d\u0430\u0440\u0438\u044f.\",\n    \"\u0418\u0441\u0442\u043e\u0440\u0438\u044f \u0441 \u0432\u043e\u0434\u043e\u0439 \u0432 \u0425\u044d\u043c\u043f\u0441\u0442\u0435\u0434\u0435 \u0438\u0437\u043b\u043e\u0436\u0435\u043d\u0430 \u043f\u043e\u0441\u043b\u0435 \u0440\u0435\u0448\u0435\u043d\u0438\u044f \u043e \u0441\u043d\u044f\u0442\u0438\u0438 \u0440\u0443\u0447\u043a\u0438 \u0438 \u043e\u0442\u043d\u0435\u0441\u0435\u043d\u0430 \u043a \u043a\u043d\u0438\u0433\u0435 1855 \u0433\u043e\u0434\u0430; \u0441\u0446\u0435\u043d\u0430\u0440\u0438\u0439 \u043d\u0435 \u0434\u0435\u043b\u0430\u0435\u0442 \u0435\u0451 \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u043b\u0435\u043d\u043d\u043e\u0439 \u0447\u0430\u0441\u0442\u044c\u044e \u0430\u0440\u0433\u0443\u043c\u0435\u043d\u0442\u0430 \u043d\u0430 \u0437\u0430\u0441\u0435\u0434\u0430\u043d\u0438\u0438 7 \u0441\u0435\u043d\u0442\u044f\u0431\u0440\u044f.\"\n  ],\n  \"findings\": [\n    {\n      \"dimension\": \"attribution\",\n      \"priority\": \"important\",\n      \"anchors\": [\n        {\n          \"utterance_index\": 13,\n          \"quote\": \"\u0410 \u043f\u043e\u0442\u043e\u043c \u043e\u043d \u0437\u0430\u043c\u0435\u0447\u0430\u0435\u0442 \u0438\u0441\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u0435 \u0441 \u0434\u0440\u0443\u0433\u043e\u0439 \u0441\u0442\u043e\u0440\u043e\u043d\u044b\"\n        },\n        {\n          \"utterance_index\": 16,\n          \"quote\": \"\u0415\u043c\u0443 \u043d\u0443\u0436\u043d\u043e \u0443\u0431\u0435\u0434\u0438\u0442\u044c \u0442\u0435\u0445, \u043a\u0442\u043e \u0435\u044e \u0440\u0430\u0441\u043f\u043e\u0440\u044f\u0436\u0430\u0435\u0442\u0441\u044f.\"\n        },\n        {\n          \"utterance_index\": 17,\n          \"quote\": \"\u0421\u043d\u043e\u0443 \u0438\u0437\u043b\u0430\u0433\u0430\u0435\u0442 \u0441\u043e\u0431\u0440\u0430\u043d\u043d\u044b\u0435 \u043e\u0431\u0441\u0442\u043e\u044f\u0442\u0435\u043b\u044c\u0441\u0442\u0432\u0430 \u043f\u043e\u043f\u0435\u0447\u0438\u0442\u0435\u043b\u044f\u043c\"\n        }\n      ],\n      \"observation\": \"\u041f\u043e\u0441\u043b\u0435\u0434\u043e\u0432\u0430\u0442\u0435\u043b\u044c\u043d\u043e\u0441\u0442\u044c \u043f\u0440\u0435\u0434\u0441\u0442\u0430\u0432\u043b\u044f\u0435\u0442 \u043f\u0438\u0432\u043e\u0432\u0430\u0440\u043d\u044e \u043a\u0430\u043a \u043e\u0442\u043a\u0440\u044b\u0442\u0438\u0435 \u043f\u043e\u0441\u043b\u0435 \u0430\u0434\u0440\u0435\u0441\u043d\u044b\u0445 \u0440\u0430\u0441\u0441\u043f\u0440\u043e\u0441\u043e\u0432 \u0438 \u043a\u0430\u043a \u0447\u0430\u0441\u0442\u044c \u043c\u0430\u0442\u0435\u0440\u0438\u0430\u043b\u0430, \u043a\u043e\u0442\u043e\u0440\u044b\u0439 \u0421\u043d\u043e\u0443 \u0433\u043e\u0442\u043e\u0432\u0438\u0442 \u0434\u043b\u044f \u0432\u0441\u0442\u0440\u0435\u0447\u0438 7 \u0441\u0435\u043d\u0442\u044f\u0431\u0440\u044f. \u0412 \u043a\u043d\u0438\u0433\u0435 1855 \u0433\u043e\u0434\u0430 \u0421\u043d\u043e\u0443 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0442\u0435\u043b\u044c\u043d\u043e \u0440\u0430\u0441\u0441\u043a\u0430\u0437\u044b\u0432\u0430\u0435\u0442, \u0447\u0442\u043e \u043f\u043e\u0441\u0435\u0442\u0438\u043b \u0432\u043b\u0430\u0434\u0435\u043b\u044c\u0446\u0430 \u0438 \u0443\u0441\u043b\u044b\u0448\u0430\u043b \u043e\u0442 \u043d\u0435\u0433\u043e \u043e \u0440\u0430\u0431\u043e\u0442\u043d\u0438\u043a\u0430\u0445 \u0438 \u0438\u0441\u0442\u043e\u0447\u043d\u0438\u043a\u0430\u0445 \u0432\u043e\u0434\u044b, \u043d\u043e \u0434\u0430\u0442\u0430 \u043f\u043e\u043b\u0443\u0447\u0435\u043d\u0438\u044f \u044d\u0442\u0438\u0445 \u0441\u0432\u0435\u0434\u0435\u043d\u0438\u0439 \u043d\u0435 \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u043b\u0435\u043d\u0430. \u0418\u0437 \u044d\u0442\u043e\u0433\u043e \u043f\u043e\u0437\u0434\u043d\u0435\u0433\u043e \u0440\u0430\u0441\u0441\u043a\u0430\u0437\u0430 \u043d\u0435\u043b\u044c\u0437\u044f \u0437\u0430\u043a\u043b\u044e\u0447\u0438\u0442\u044c, \u0447\u0442\u043e \u043f\u0440\u0438\u043c\u0435\u0440 \u0443\u0436\u0435 \u0431\u044b\u043b \u0438\u0437\u0432\u0435\u0441\u0442\u0435\u043d \u043d\u0430 \u0437\u0430\u0441\u0435\u0434\u0430\u043d\u0438\u0438.\",\n      \"requested_change\": \"\u0423\u0431\u0440\u0430\u0442\u044c \u043f\u043e\u0434\u0440\u0430\u0437\u0443\u043c\u0435\u0432\u0430\u0435\u043c\u0443\u044e \u0443\u0432\u0435\u0440\u0435\u043d\u043d\u043e\u0441\u0442\u044c, \u0447\u0442\u043e \u0421\u043d\u043e\u0443 \u0443\u0437\u043d\u0430\u043b \u043e \u043f\u0438\u0432\u043e\u0432\u0430\u0440\u043d\u0435 \u0434\u043e \u0432\u0441\u0442\u0440\u0435\u0447\u0438 \u0438\u043b\u0438 \u043f\u0440\u0435\u0434\u0441\u0442\u0430\u0432\u0438\u043b \u0435\u0451 \u043f\u043e\u043f\u0435\u0447\u0438\u0442\u0435\u043b\u044f\u043c. \u041f\u0440\u0438\u043c\u0435\u0440 \u043c\u043e\u0436\u043d\u043e \u0441\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u0441 \u0431\u043e\u043b\u0435\u0435 \u0441\u0432\u043e\u0431\u043e\u0434\u043d\u043e\u0439 \u0445\u0440\u043e\u043d\u043e\u043b\u043e\u0433\u0438\u0435\u0439 \u043b\u0438\u0431\u043e \u043f\u0435\u0440\u0435\u043d\u0435\u0441\u0442\u0438 \u043a \u043f\u043e\u0437\u0434\u043d\u0435\u0435 \u043e\u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u043d\u043d\u044b\u043c \u0441\u0432\u0438\u0434\u0435\u0442\u0435\u043b\u044c\u0441\u0442\u0432\u0430\u043c; \u0435\u0433\u043e \u0442\u0430\u043a\u0436\u0435 \u043c\u043e\u0436\u043d\u043e \u0441\u043e\u043a\u0440\u0430\u0442\u0438\u0442\u044c \u0438\u043b\u0438 \u0443\u0434\u0430\u043b\u0438\u0442\u044c.\",\n      \"preserve\": [\n        \"\u041d\u0430\u0431\u043b\u044e\u0434\u0430\u0442\u0435\u043b\u044c\u043d\u044b\u0439 \u043a\u043e\u043d\u0442\u0440\u0430\u0441\u0442 \u043c\u0435\u0436\u0434\u0443 \u043e\u0431\u0449\u0435\u0439 \u0431\u043b\u0438\u0437\u043e\u0441\u0442\u044c\u044e \u043a \u043a\u043e\u043b\u043e\u043d\u043a\u0435 \u0438 \u0440\u0430\u0437\u043b\u0438\u0447\u043d\u044b\u043c\u0438 \u0438\u0441\u0442\u043e\u0447\u043d\u0438\u043a\u0430\u043c\u0438 \u043f\u0438\u0442\u044c\u0435\u0432\u043e\u0439 \u0432\u043e\u0434\u044b.\",\n        \"\u0420\u0430\u0437\u043b\u0438\u0447\u0438\u0435 \u043c\u0435\u0436\u0434\u0443 \u0443\u0432\u0435\u0440\u0435\u043d\u043d\u043e\u0441\u0442\u044c\u044e \u0425\u0430\u0433\u0433\u0438\u043d\u0441\u0430 \u043d\u0430\u0441\u0447\u0451\u0442 \u0443\u043b\u0438\u0447\u043d\u043e\u0439 \u043a\u043e\u043b\u043e\u043d\u043a\u0438 \u0438 \u0435\u0433\u043e \u043f\u0440\u0435\u0434\u043f\u043e\u043b\u043e\u0436\u0435\u043d\u0438\u0435\u043c, \u0447\u0442\u043e \u0440\u0430\u0431\u043e\u0447\u0438\u0435 \u0432\u043e\u043e\u0431\u0449\u0435 \u043d\u0435 \u043f\u0438\u043b\u0438 \u0432\u043e\u0434\u0443.\"\n      ],\n      \"support_labels\": [\n        \"M1\",\n        \"M6\"\n      ]\n    },\n    {\n      \"dimension\": \"mechanism\",\n      \"priority\": \"important\",\n      \"anchors\": [\n        {\n          \"utterance_index\": 40,\n          \"quote\": \"\u041e\u0441\u0442\u0430\u0451\u0442\u0441\u044f \u043f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u0435\u0451 \u043f\u0435\u0440\u0432\u043e\u0435 \u0437\u0432\u0435\u043d\u043e: \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0442\u0435\u043b\u044c\u043d\u043e \u043b\u0438 \u0434\u0435\u0432\u043e\u0447\u043a\u0430 \u0431\u043e\u043b\u0435\u043b\u0430 \u0445\u043e\u043b\u0435\u0440\u043e\u0439?\"\n        },\n        {\n          \"utterance_index\": 42,\n          \"quote\": \"\u0421\u043e\u043c\u043d\u0435\u043d\u0438\u0435 \u043a\u0430\u0441\u0430\u0435\u0442\u0441\u044f \u0442\u043e\u043b\u044c\u043a\u043e \u043f\u0435\u0440\u0432\u043e\u0433\u043e \u0437\u0432\u0435\u043d\u0430.\"\n        },\n        {\n          \"utterance_index\": 42,\n          \"quote\": \"\u041f\u043e\u0434 \u0432\u043e\u043f\u0440\u043e\u0441\u043e\u043c \u043b\u0438\u0448\u044c \u043e\u0434\u043d\u043e: \u0441 \u043a\u043e\u0433\u043e \u0432\u0441\u0451 \u043d\u0430\u0447\u0430\u043b\u043e\u0441\u044c.\"\n        },\n        {\n          \"utterance_index\": 45,\n          \"quote\": \"\u0442\u043e\u0442 \u0441\u0430\u043c\u044b\u0439 \u043a\u0438\u0440\u043f\u0438\u0447, \u0447\u0435\u0440\u0435\u0437 \u043a\u043e\u0442\u043e\u0440\u044b\u0439 \u0441\u043e\u0447\u0438\u043b\u0430\u0441\u044c \u0432\u043e\u0434\u0430\"\n        }\n      ],\n      \"observation\": \"\u0421\u0446\u0435\u043d\u0430\u0440\u0438\u0439 \u0434\u0435\u043b\u0430\u0435\u0442 \u0434\u0438\u0430\u0433\u043d\u043e\u0437 \u0434\u0435\u0432\u043e\u0447\u043a\u0438 \u0435\u0434\u0438\u043d\u0441\u0442\u0432\u0435\u043d\u043d\u044b\u043c \u043d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u044b\u043c \u0437\u0432\u0435\u043d\u043e\u043c \u0438 \u0437\u0430\u0442\u0435\u043c \u0433\u043e\u0432\u043e\u0440\u0438\u0442 \u043e \u043a\u0438\u0440\u043f\u0438\u0447\u0435, \u0447\u0435\u0440\u0435\u0437 \u043a\u043e\u0442\u043e\u0440\u044b\u0439 \u0432\u043e\u0434\u0430 \u0443\u0436\u0435 \u043e\u043f\u0440\u0435\u0434\u0435\u043b\u0451\u043d\u043d\u043e \u0441\u043e\u0447\u0438\u043b\u0430\u0441\u044c. \u0419\u043e\u0440\u043a \u0437\u0430\u043a\u043b\u044e\u0447\u0438\u043b, \u0447\u0442\u043e \u0441\u0442\u043e\u0447\u043d\u0430\u044f \u0436\u0438\u0434\u043a\u043e\u0441\u0442\u044c \u0434\u043e\u043b\u0433\u043e \u043f\u0440\u043e\u0441\u0430\u0447\u0438\u0432\u0430\u043b\u0430\u0441\u044c \u0432 \u043a\u043e\u043b\u043e\u0434\u0435\u0446, \u043d\u043e \u043e\u0441\u043c\u043e\u0442\u0440 \u043d\u0435 \u043f\u0440\u043e\u0441\u043b\u0435\u0434\u0438\u043b \u043a\u043e\u043d\u043a\u0440\u0435\u0442\u043d\u0443\u044e \u043f\u043e\u0440\u0446\u0438\u044e \u043e\u0442\u0445\u043e\u0434\u043e\u0432 \u0440\u0435\u0431\u0451\u043d\u043a\u0430. \u0423\u0430\u0439\u0442\u0445\u0435\u0434, \u0432 \u0441\u0432\u043e\u044e \u043e\u0447\u0435\u0440\u0435\u0434\u044c, \u0441\u0447\u0438\u0442\u0430\u043b \u043d\u0435\u0432\u043e\u0437\u043c\u043e\u0436\u043d\u044b\u043c \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c \u0442\u043e\u0447\u043d\u043e\u0435 \u043c\u0435\u0441\u0442\u043e \u0438 \u0441\u043f\u043e\u0441\u043e\u0431 \u043f\u043e\u043f\u0430\u0434\u0430\u043d\u0438\u044f \u0437\u0430\u0440\u0430\u0437\u043d\u043e\u0433\u043e \u043c\u0430\u0442\u0435\u0440\u0438\u0430\u043b\u0430 \u043f\u043e\u0441\u043b\u0435 \u043f\u0435\u0440\u0435\u0434\u0435\u043b\u043a\u0438 \u0441\u0442\u043e\u043a\u0430. \u041f\u043e\u044d\u0442\u043e\u043c\u0443 \u043f\u043e\u0441\u043b\u0435\u0434\u0443\u044e\u0449\u0438\u0439 \u0432\u044b\u0432\u043e\u0434 \u043e \u043d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u043e\u043c \u043c\u0430\u0440\u0448\u0440\u0443\u0442\u0435 \u043f\u0440\u043e\u0442\u0438\u0432\u043e\u0440\u0435\u0447\u0438\u0442 \u0431\u043e\u043b\u0435\u0435 \u0440\u0430\u043d\u043d\u0435\u043c\u0443 \u0443\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043d\u0438\u044e, \u0447\u0442\u043e \u043f\u043e\u0434 \u0432\u043e\u043f\u0440\u043e\u0441\u043e\u043c \u0442\u043e\u043b\u044c\u043a\u043e \u0434\u0438\u0430\u0433\u043d\u043e\u0437.\",\n      \"requested_change\": \"\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u0444\u0438\u0437\u0438\u0447\u0435\u0441\u043a\u0438\u0439 \u043f\u0443\u0442\u044c \u043a\u0430\u043a \u043e\u0431\u043e\u0441\u043d\u043e\u0432\u0430\u043d\u043d\u044b\u0439 \u0432\u044b\u0432\u043e\u0434 \u0419\u043e\u0440\u043a\u0430, \u043d\u043e \u043d\u0435 \u0432\u044b\u0434\u0430\u0432\u0430\u0442\u044c \u043f\u043e\u043b\u043d\u0443\u044e \u0446\u0435\u043f\u043e\u0447\u043a\u0443 \u043e\u0442 \u043f\u0435\u043b\u0451\u043d\u043e\u043a \u0434\u0435\u0432\u043e\u0447\u043a\u0438 \u0434\u043e \u043a\u043e\u043b\u043e\u0434\u0446\u0430 \u0437\u0430 \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u043b\u0435\u043d\u043d\u0443\u044e, \u043a\u0440\u043e\u043c\u0435 \u0435\u0451 \u0434\u0438\u0430\u0433\u043d\u043e\u0437\u0430. \u0412 \u0437\u0430\u0432\u0438\u0441\u0438\u043c\u043e\u043c \u0444\u0438\u043d\u0430\u043b\u044c\u043d\u043e\u043c \u043f\u0430\u0441\u0441\u0430\u0436\u0435 \u043d\u0435 \u043e\u0431\u043e\u0437\u043d\u0430\u0447\u0430\u0442\u044c \u043a\u043e\u043d\u043a\u0440\u0435\u0442\u043d\u044b\u0439 \u043a\u0438\u0440\u043f\u0438\u0447 \u043a\u0430\u043a \u0434\u043e\u043a\u0430\u0437\u0430\u043d\u043d\u043e\u0435 \u043c\u0435\u0441\u0442\u043e \u043f\u0440\u043e\u0441\u0430\u0447\u0438\u0432\u0430\u043d\u0438\u044f \u0437\u0430\u0440\u0430\u0437\u043d\u043e\u0433\u043e \u043c\u0430\u0442\u0435\u0440\u0438\u0430\u043b\u0430. \u0414\u043e\u0441\u0442\u0430\u0442\u043e\u0447\u043d\u043e \u044f\u0441\u043d\u043e \u043e\u0441\u0442\u0430\u0432\u0438\u0442\u044c \u043e\u0442\u043a\u0440\u044b\u0442\u044b\u043c\u0438 \u0440\u043e\u043b\u044c \u0440\u0435\u0431\u0451\u043d\u043a\u0430 \u0438 \u0442\u043e\u0447\u043d\u044b\u0439 \u043f\u0443\u0442\u044c \u043f\u043e\u043f\u0430\u0434\u0430\u043d\u0438\u044f \u0437\u0430\u0440\u0430\u0437\u043d\u043e\u0433\u043e \u043c\u0430\u0442\u0435\u0440\u0438\u0430\u043b\u0430.\",\n      \"preserve\": [\n        \"\u041e\u0441\u043c\u043e\u0442\u0440 \u043f\u043e\u0432\u0440\u0435\u0436\u0434\u0451\u043d\u043d\u044b\u0445 \u0441\u043e\u043e\u0440\u0443\u0436\u0435\u043d\u0438\u0439 \u0438 \u0433\u0440\u0443\u043d\u0442\u0430 \u043a\u0430\u043a \u043e\u0442\u0434\u0435\u043b\u044c\u043d\u043e\u0435 \u0441\u0432\u0438\u0434\u0435\u0442\u0435\u043b\u044c\u0441\u0442\u0432\u043e \u0432\u043e\u0437\u043c\u043e\u0436\u043d\u043e\u0433\u043e \u0444\u0438\u0437\u0438\u0447\u0435\u0441\u043a\u043e\u0433\u043e \u043f\u0443\u0442\u0438.\",\n        \"\u0421\u043e\u043c\u043d\u0435\u043d\u0438\u0435 \u043a\u043e\u043c\u0438\u0441\u0441\u0438\u0438 \u0432 \u0434\u0438\u0430\u0433\u043d\u043e\u0437\u0435 \u0438 \u043e\u0441\u0442\u043e\u0440\u043e\u0436\u043d\u043e\u0441\u0442\u044c \u0420\u043e\u0434\u0436\u0435\u0440\u0441\u0430 \u043e\u0442\u043d\u043e\u0441\u0438\u0442\u0435\u043b\u044c\u043d\u043e \u0441\u043e\u0431\u0441\u0442\u0432\u0435\u043d\u043d\u043e\u0439 \u043f\u0430\u043c\u044f\u0442\u0438.\",\n        \"\u0424\u0438\u043d\u0430\u043b\u044c\u043d\u044b\u0439 \u0432\u043e\u043f\u0440\u043e\u0441 \u0423\u0430\u0439\u0442\u0445\u0435\u0434\u0430 \u043e \u0442\u043e\u0447\u043d\u043e\u043c \u043c\u0435\u0441\u0442\u0435 \u0438 \u0441\u043f\u043e\u0441\u043e\u0431\u0435 \u0437\u0430\u0433\u0440\u044f\u0437\u043d\u0435\u043d\u0438\u044f.\"\n      ],\n      \"support_labels\": [\n        \"M13\",\n        \"M14\",\n        \"M15\",\n        \"M16\"\n      ]\n    },\n    {\n      \"dimension\": \"structure\",\n      \"priority\": \"optional\",\n      \"anchors\": [\n        {\n          \"utterance_index\": 30,\n          \"quote\": \"25 \u043d\u043e\u044f\u0431\u0440\u044f 1854 \u0433\u043e\u0434\u0430 \u043d\u0430\u0447\u0438\u043d\u0430\u0435\u0442 \u0440\u0430\u0431\u043e\u0442\u0443 \u043a\u043e\u043c\u0438\u0441\u0441\u0438\u044f \u043f\u0440\u0438\u0445\u043e\u0434\u0430 \u0421\u0435\u043d\u0442-\u0414\u0436\u0435\u0439\u043c\u0441, \u0438 \u0421\u043d\u043e\u0443 \u0432\u0445\u043e\u0434\u0438\u0442 \u0432 \u043d\u0435\u0451.\"\n        }\n      ],\n      \"observation\": \"\u0421\u043e\u0441\u0435\u0434\u0441\u0442\u0432\u043e \u0442\u043e\u0447\u043d\u043e\u0439 \u0434\u0430\u0442\u044b \u043d\u0430\u0447\u0430\u043b\u0430 \u0440\u0430\u0431\u043e\u0442\u044b \u043a\u043e\u043c\u0438\u0441\u0441\u0438\u0438 \u0438 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u044f \u043e\u0431 \u0443\u0447\u0430\u0441\u0442\u0438\u0438 \u0421\u043d\u043e\u0443 \u043c\u043e\u0436\u0435\u0442 \u0441\u043e\u0437\u0434\u0430\u0442\u044c \u0432\u043f\u0435\u0447\u0430\u0442\u043b\u0435\u043d\u0438\u0435, \u0447\u0442\u043e \u043e\u043d \u0432\u043e\u0448\u0451\u043b \u0432 \u043d\u0435\u0451 \u0438\u043c\u0435\u043d\u043d\u043e \u0442\u043e\u0433\u0434\u0430. \u0412 \u0441\u043f\u0438\u0441\u043a\u0435 \u0443\u0447\u0430\u0441\u0442\u043d\u0438\u043a\u043e\u0432 \u043e\u0442\u0447\u0451\u0442\u0430 \u0421\u043d\u043e\u0443 \u043e\u0442\u043c\u0435\u0447\u0435\u043d \u043a\u0430\u043a \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d\u043d\u044b\u0439 \u043a \u043f\u0435\u0440\u0432\u043e\u043d\u0430\u0447\u0430\u043b\u044c\u043d\u043e\u043c\u0443 \u0441\u043e\u0441\u0442\u0430\u0432\u0443 \u0432\u043f\u043e\u0441\u043b\u0435\u0434\u0441\u0442\u0432\u0438\u0438.\",\n      \"requested_change\": \"\u041f\u0440\u0438 \u0436\u0435\u043b\u0430\u043d\u0438\u0438 \u043e\u0442\u0434\u0435\u043b\u0438\u0442\u044c \u0434\u0430\u0442\u0443 \u043d\u0430\u0447\u0430\u043b\u0430 \u0440\u0430\u0431\u043e\u0442\u044b \u043a\u043e\u043c\u0438\u0441\u0441\u0438\u0438 \u043e\u0442 \u043f\u043e\u0441\u043b\u0435\u0434\u0443\u044e\u0449\u0435\u0433\u043e \u0432\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u044f \u0421\u043d\u043e\u0443, \u043d\u0435 \u043d\u0430\u0437\u043d\u0430\u0447\u0430\u044f \u043d\u0435\u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0451\u043d\u043d\u043e\u0439 \u0434\u0430\u0442\u044b \u0435\u0433\u043e \u0432\u0441\u0442\u0443\u043f\u043b\u0435\u043d\u0438\u044f.\",\n      \"preserve\": [\n        \"\u0420\u0430\u0437\u0433\u0440\u0430\u043d\u0438\u0447\u0435\u043d\u0438\u0435 \u0441\u0435\u043d\u0442\u044f\u0431\u0440\u044c\u0441\u043a\u043e\u0433\u043e \u0440\u0435\u0448\u0435\u043d\u0438\u044f \u0438 \u043f\u043e\u0437\u0434\u043d\u0435\u0439\u0448\u0435\u0433\u043e \u043f\u0440\u0438\u0445\u043e\u0434\u0441\u043a\u043e\u0433\u043e \u0440\u0430\u0441\u0441\u043b\u0435\u0434\u043e\u0432\u0430\u043d\u0438\u044f.\"\n      ],\n      \"support_labels\": [\n        \"M11\"\n      ]\n    }\n  ],\n  \"research_requests\": [],\n  \"strengths\": [\n    {\n      \"anchors\": [\n        {\n          \"utterance_index\": 4,\n          \"quote\": \"\u043d\u0430\u0445\u043e\u0434\u0438\u0442 \u0432 \u043d\u0435\u0439 \u0442\u0430\u043a \u043c\u0430\u043b\u043e \u043e\u0440\u0433\u0430\u043d\u0438\u0447\u0435\u0441\u043a\u043e\u0439 \u043f\u0440\u0438\u043c\u0435\u0441\u0438, \u0447\u0442\u043e \u043a\u043e\u043b\u0435\u0431\u043b\u0435\u0442\u0441\u044f\"\n        },\n        {\n          \"utterance_index\": 5,\n          \"quote\": \"\u0425\u043b\u043e\u043f\u044c\u044f \u0432 \u0441\u0442\u0430\u043a\u0430\u043d\u0435 \u0435\u0449\u0451 \u043d\u0435 \u0432\u043e\u0437\u0431\u0443\u0434\u0438\u0442\u0435\u043b\u044c \u0431\u043e\u043b\u0435\u0437\u043d\u0438.\"\n        }\n      ],\n      \"reason\": \"\u041e\u0441\u043c\u043e\u0442\u0440 \u0432\u043e\u0434\u044b \u043d\u0435 \u043f\u0440\u0435\u0432\u0440\u0430\u0449\u0451\u043d \u0432 \u043e\u0431\u043d\u0430\u0440\u0443\u0436\u0435\u043d\u0438\u0435 \u0432\u043e\u0437\u0431\u0443\u0434\u0438\u0442\u0435\u043b\u044f: \u043d\u0430\u0431\u043b\u044e\u0434\u0435\u043d\u0438\u0435, \u043a\u043e\u043b\u0435\u0431\u0430\u043d\u0438\u0435 \u0421\u043d\u043e\u0443 \u0438 \u0435\u0433\u043e \u043f\u0440\u0435\u0434\u043f\u043e\u043b\u043e\u0436\u0435\u043d\u0438\u0435 \u043e \u0431\u043e\u043b\u0435\u0435 \u0440\u0430\u043d\u043d\u0435\u0439 \u0432\u043e\u0434\u0435 \u0440\u0430\u0437\u0434\u0435\u043b\u0435\u043d\u044b.\"\n    },\n    {\n      \"anchors\": [\n        {\n          \"utterance_index\": 11,\n          \"quote\": \"\u041f\u0440\u043e \u0434\u0432\u043e\u0438\u0445 \u0438\u0437\u0432\u0435\u0441\u0442\u043d\u043e, \u0447\u0442\u043e \u043e\u043d\u0438 \u043f\u0438\u043b\u0438 \u0435\u0451 \u0432\u043e\u0434\u0443. \u041f\u0440\u043e \u0442\u0440\u0435\u0442\u044c\u0435\u0433\u043e \u0440\u043e\u0434\u0438\u0442\u0435\u043b\u0438 \u0433\u043e\u0432\u043e\u0440\u044f\u0442: \u0432\u0435\u0440\u043e\u044f\u0442\u043d\u043e, \u0442\u043e\u0436\u0435.\"\n        },\n        {\n          \"utterance_index\": 12,\n          \"quote\": \"\u0418 \u0435\u0449\u0451 \u0432 \u0448\u0435\u0441\u0442\u0438 \u0435\u043c\u0443 \u043e\u0442\u0432\u0435\u0447\u0430\u044e\u0442, \u0447\u0442\u043e \u0434\u043e \u0431\u043e\u043b\u0435\u0437\u043d\u0438 \u044d\u0442\u043e\u0439 \u0432\u043e\u0434\u044b \u0447\u0435\u043b\u043e\u0432\u0435\u043a \u043d\u0435 \u043f\u0438\u043b.\"\n        }\n      ],\n      \"reason\": \"\u0410\u0434\u0440\u0435\u0441\u043d\u044b\u0435 \u0440\u0430\u0441\u0441\u043f\u0440\u043e\u0441\u044b \u0441\u043e\u0445\u0440\u0430\u043d\u044f\u044e\u0442 \u0440\u0430\u0437\u043d\u0438\u0446\u0443 \u043c\u0435\u0436\u0434\u0443 \u0438\u0437\u0432\u0435\u0441\u0442\u043d\u044b\u043c, \u0432\u0435\u0440\u043e\u044f\u0442\u043d\u044b\u043c, \u043e\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u044e\u0449\u0438\u043c\u0438 \u0441\u0432\u0435\u0434\u0435\u043d\u0438\u044f\u043c\u0438 \u0438 \u043e\u0442\u0440\u0438\u0446\u0430\u0442\u0435\u043b\u044c\u043d\u044b\u043c\u0438 \u043e\u0442\u0432\u0435\u0442\u0430\u043c\u0438.\"\n    },\n    {\n      \"anchors\": [\n        {\n          \"utterance_index\": 19,\n          \"quote\": \"\u042d\u0442\u043e \u0434\u0435\u043d\u044c, \u043a\u043e\u0433\u0434\u0430 \u0437\u0430\u0431\u043e\u043b\u0435\u043b \u0447\u0435\u043b\u043e\u0432\u0435\u043a, \u043a\u043e\u0442\u043e\u0440\u044b\u0439 \u043f\u043e\u0442\u043e\u043c \u0443\u043c\u0435\u0440.\"\n        },\n        {\n          \"utterance_index\": 22,\n          \"quote\": \"\u041d\u043e \u0434\u043e\u043a\u0430\u0437\u0430\u0442\u0435\u043b\u044c\u0441\u0442\u0432\u043e\u043c \u0442\u043e\u0433\u043e, \u0447\u0442\u043e \u044d\u043f\u0438\u0434\u0435\u043c\u0438\u044f \u043a\u043e\u043d\u0447\u0438\u043b\u0430\u0441\u044c \u0438\u0437-\u0437\u0430 \u043d\u0435\u0451, \u043e\u043d\u0430 \u043d\u0435 \u0441\u0442\u0430\u043b\u0430.\"\n        }\n      ],\n      \"reason\": \"\u0420\u0430\u0441\u0441\u043a\u0430\u0437 \u043f\u043e\u043d\u044f\u0442\u043d\u043e \u0440\u0430\u0437\u043b\u0438\u0447\u0430\u0435\u0442 \u0434\u0430\u0442\u044b \u043d\u0430\u0447\u0430\u043b\u0430 \u0441\u043c\u0435\u0440\u0442\u0435\u043b\u044c\u043d\u043e\u0439 \u0431\u043e\u043b\u0435\u0437\u043d\u0438 \u0438 \u0434\u0430\u0442\u044b \u0441\u043c\u0435\u0440\u0442\u0438 \u0438 \u043d\u0435 \u043f\u0440\u0438\u043f\u0438\u0441\u044b\u0432\u0430\u0435\u0442 \u0441\u043d\u044f\u0442\u0438\u044e \u0440\u0443\u0447\u043a\u0438 \u043d\u0435\u0434\u043e\u043a\u0430\u0437\u0430\u043d\u043d\u044b\u0439 \u0440\u0430\u0437\u043c\u0435\u0440 \u044d\u0444\u0444\u0435\u043a\u0442\u0430.\"\n    },\n    {\n      \"anchors\": [\n        {\n          \"utterance_index\": 41,\n          \"quote\": \"\u0437\u0430\u043f\u0438\u0441\u0435\u0439 \u043d\u0435 \u0432\u0451\u043b, \u0430 \u043f\u0430\u043c\u044f\u0442\u044c \u043e\u0441\u0432\u0435\u0436\u0430\u043b, \u0441\u043d\u043e\u0432\u0430 \u043f\u043e\u0433\u043e\u0432\u043e\u0440\u0438\u0432 \u0441 \u0442\u043e\u0439 \u0436\u0435 \u043c\u0430\u0442\u0435\u0440\u044c\u044e\"\n        },\n        {\n          \"utterance_index\": 42,\n          \"quote\": \"\u043f\u0440\u0438\u0440\u043e\u0434\u0430 \u0431\u043e\u043b\u0435\u0437\u043d\u0438 \u0440\u0435\u0431\u0451\u043d\u043a\u0430 \u0432\u044b\u0437\u044b\u0432\u0430\u0435\u0442 \u0441\u043e\u043c\u043d\u0435\u043d\u0438\u0435\"\n        }\n      ],\n      \"reason\": \"\u041e\u0433\u0440\u0430\u043d\u0438\u0447\u0435\u043d\u0438\u044f \u043f\u043e\u0437\u0434\u043d\u0435\u0433\u043e \u043c\u0435\u0434\u0438\u0446\u0438\u043d\u0441\u043a\u043e\u0433\u043e \u0441\u0432\u0438\u0434\u0435\u0442\u0435\u043b\u044c\u0441\u0442\u0432\u0430 \u0438 \u043d\u0435\u043e\u043f\u0440\u0435\u0434\u0435\u043b\u0451\u043d\u043d\u043e\u0441\u0442\u044c \u0434\u0438\u0430\u0433\u043d\u043e\u0437\u0430 \u0432\u0441\u0442\u0440\u043e\u0435\u043d\u044b \u0432 \u0434\u0435\u0442\u0435\u043a\u0442\u0438\u0432\u043d\u044b\u0439 \u0440\u0430\u0441\u0441\u043a\u0430\u0437, \u0430 \u043d\u0435 \u0441\u043a\u0440\u044b\u0442\u044b.\"\n    }\n  ],\n  \"duration_note\": \"\u0412 \u043c\u0430\u0442\u0435\u0440\u0438\u0430\u043b\u0430\u0445 \u043d\u0435\u0442 \u0446\u0435\u043b\u0435\u0432\u043e\u0439 \u0434\u043b\u0438\u0442\u0435\u043b\u044c\u043d\u043e\u0441\u0442\u0438 \u0438\u043b\u0438 \u0438\u0437\u043c\u0435\u0440\u0435\u043d\u043d\u043e\u0433\u043e \u0432\u0440\u0435\u043c\u0435\u043d\u0438 \u0437\u0432\u0443\u0447\u0430\u043d\u0438\u044f. \u041f\u043e \u043e\u0434\u043d\u043e\u043c\u0443 \u0442\u0435\u043a\u0441\u0442\u0443 \u043d\u0435\u043b\u044c\u0437\u044f \u0434\u043e\u0441\u0442\u043e\u0432\u0435\u0440\u043d\u043e \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c \u0445\u0440\u043e\u043d\u043e\u043c\u0435\u0442\u0440\u0430\u0436 \u0433\u043e\u0442\u043e\u0432\u043e\u0433\u043e \u0432\u044b\u043f\u0443\u0441\u043a\u0430.\",\n  \"revision_scope\": {\n    \"scale\": \"local\",\n    \"reason\": \"\u0414\u0432\u0435 \u0441\u043c\u044b\u0441\u043b\u043e\u0432\u044b\u0435 \u043f\u043e\u043f\u0440\u0430\u0432\u043a\u0438 \u043c\u043e\u0436\u043d\u043e \u0432\u043d\u0435\u0441\u0442\u0438 \u0442\u043e\u0447\u0435\u0447\u043d\u043e: \u0443\u0441\u0442\u0440\u0430\u043d\u0438\u0442\u044c \u043d\u0435\u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0451\u043d\u043d\u0443\u044e \u043f\u0440\u0438\u0432\u044f\u0437\u043a\u0443 \u043f\u0438\u0432\u043e\u0432\u0430\u0440\u043d\u0438 \u043a \u0432\u0441\u0442\u0440\u0435\u0447\u0435 \u0438 \u0441\u043e\u0433\u043b\u0430\u0441\u043e\u0432\u0430\u0442\u044c \u0432\u044b\u0432\u043e\u0434 \u043e \u0444\u0438\u0437\u0438\u0447\u0435\u0441\u043a\u043e\u043c \u043f\u0443\u0442\u0438 \u0441 \u043d\u0435\u043e\u043f\u0440\u0435\u0434\u0435\u043b\u0451\u043d\u043d\u043e\u0441\u0442\u044c\u044e \u0435\u0433\u043e \u0442\u043e\u0447\u043d\u043e\u0433\u043e \u0437\u0430\u0440\u0430\u0436\u0430\u044e\u0449\u0435\u0433\u043e \u0437\u0432\u0435\u043d\u0430. \u041e\u0441\u043d\u043e\u0432\u043d\u0430\u044f \u0434\u0435\u0442\u0435\u043a\u0442\u0438\u0432\u043d\u0430\u044f \u043f\u043e\u0441\u043b\u0435\u0434\u043e\u0432\u0430\u0442\u0435\u043b\u044c\u043d\u043e\u0441\u0442\u044c \u0438 \u043f\u043e\u0434\u0434\u0435\u0440\u0436\u0430\u043d\u043d\u044b\u0435 \u0434\u043e\u043a\u0430\u0437\u0430\u0442\u0435\u043b\u044c\u0441\u0442\u0432\u0430\u043c\u0438 \u043a\u043e\u043d\u0442\u0440\u0430\u0441\u0442\u044b \u043c\u043e\u0433\u0443\u0442 \u043e\u0441\u0442\u0430\u0442\u044c\u0441\u044f.\",\n    \"anchors\": [\n      {\n        \"utterance_index\": 13,\n        \"quote\": \"\u0410 \u043f\u043e\u0442\u043e\u043c \u043e\u043d \u0437\u0430\u043c\u0435\u0447\u0430\u0435\u0442 \u0438\u0441\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u0435 \u0441 \u0434\u0440\u0443\u0433\u043e\u0439 \u0441\u0442\u043e\u0440\u043e\u043d\u044b\"\n      },\n      {\n        \"utterance_index\": 17,\n        \"quote\": \"\u0421\u043d\u043e\u0443 \u0438\u0437\u043b\u0430\u0433\u0430\u0435\u0442 \u0441\u043e\u0431\u0440\u0430\u043d\u043d\u044b\u0435 \u043e\u0431\u0441\u0442\u043e\u044f\u0442\u0435\u043b\u044c\u0441\u0442\u0432\u0430 \u043f\u043e\u043f\u0435\u0447\u0438\u0442\u0435\u043b\u044f\u043c\"\n      },\n      {\n        \"utterance_index\": 40,\n        \"quote\": \"\u041e\u0441\u0442\u0430\u0451\u0442\u0441\u044f \u043f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u0435\u0451 \u043f\u0435\u0440\u0432\u043e\u0435 \u0437\u0432\u0435\u043d\u043e\"\n      },\n      {\n        \"utterance_index\": 42,\n        \"quote\": \"\u0421\u043e\u043c\u043d\u0435\u043d\u0438\u0435 \u043a\u0430\u0441\u0430\u0435\u0442\u0441\u044f \u0442\u043e\u043b\u044c\u043a\u043e \u043f\u0435\u0440\u0432\u043e\u0433\u043e \u0437\u0432\u0435\u043d\u0430.\"\n      },\n      {\n        \"utterance_index\": 45,\n        \"quote\": \"\u0442\u043e\u0442 \u0441\u0430\u043c\u044b\u0439 \u043a\u0438\u0440\u043f\u0438\u0447, \u0447\u0435\u0440\u0435\u0437 \u043a\u043e\u0442\u043e\u0440\u044b\u0439 \u0441\u043e\u0447\u0438\u043b\u0430\u0441\u044c \u0432\u043e\u0434\u0430\"\n      },\n      {\n        \"utterance_index\": 30,\n        \"quote\": \"25 \u043d\u043e\u044f\u0431\u0440\u044f 1854 \u0433\u043e\u0434\u0430 \u043d\u0430\u0447\u0438\u043d\u0430\u0435\u0442 \u0440\u0430\u0431\u043e\u0442\u0443 \u043a\u043e\u043c\u0438\u0441\u0441\u0438\u044f \u043f\u0440\u0438\u0445\u043e\u0434\u0430 \u0421\u0435\u043d\u0442-\u0414\u0436\u0435\u0439\u043c\u0441, \u0438 \u0421\u043d\u043e\u0443 \u0432\u0445\u043e\u0434\u0438\u0442 \u0432 \u043d\u0435\u0451.\"\n      }\n    ],\n    \"dependent_passages\": [\n      {\n        \"reason\": \"\u0415\u0441\u043b\u0438 \u043f\u0440\u0438\u043c\u0435\u0440 \u043f\u0438\u0432\u043e\u0432\u0430\u0440\u043d\u0438 \u043f\u0435\u0440\u0435\u043c\u0435\u0441\u0442\u0438\u0442\u044c \u0438\u043b\u0438 \u0443\u0431\u0440\u0430\u0442\u044c \u0438\u0437 \u043f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u043a\u0438 \u043a \u0437\u0430\u0441\u0435\u0434\u0430\u043d\u0438\u044e, \u0435\u0433\u043e \u0432\u044b\u0432\u043e\u0434 \u0438 \u043f\u0435\u0440\u0435\u0445\u043e\u0434 \u043a \u043e\u0431\u0440\u0430\u0449\u0435\u043d\u0438\u044e \u0421\u043d\u043e\u0443 \u043d\u0443\u0436\u043d\u043e \u0441\u043e\u0433\u043b\u0430\u0441\u043e\u0432\u0430\u0442\u044c \u0441 \u043d\u043e\u0432\u044b\u043c \u0440\u0430\u0441\u043f\u043e\u043b\u043e\u0436\u0435\u043d\u0438\u0435\u043c.\",\n        \"anchors\": [\n          {\n            \"utterance_index\": 14,\n            \"quote\": \"\u0421\u043d\u043e\u0443 \u0438\u0434\u0451\u0442 \u043a \u0432\u043b\u0430\u0434\u0435\u043b\u044c\u0446\u0443, \u043c\u0438\u0441\u0442\u0435\u0440\u0443 \u0425\u0430\u0433\u0433\u0438\u043d\u0441\u0443.\"\n          },\n          {\n            \"utterance_index\": 15,\n            \"quote\": \"\u041f\u0438\u0432\u043e\u0432\u0430\u0440\u043d\u044f \u043d\u0438\u0447\u0435\u0433\u043e \u043d\u0435 \u0434\u043e\u043a\u0430\u0437\u044b\u0432\u0430\u0435\u0442 \u0441\u0430\u043c\u0430 \u043f\u043e \u0441\u0435\u0431\u0435, \u043d\u043e \u043b\u043e\u0436\u0438\u0442\u0441\u044f \u0432 \u043e\u0431\u0449\u0443\u044e \u043a\u0430\u0440\u0442\u0438\u043d\u0443.\"\n          },\n          {\n            \"utterance_index\": 16,\n            \"quote\": \"\u0415\u043c\u0443 \u043d\u0443\u0436\u043d\u043e \u0443\u0431\u0435\u0434\u0438\u0442\u044c \u0442\u0435\u0445, \u043a\u0442\u043e \u0435\u044e \u0440\u0430\u0441\u043f\u043e\u0440\u044f\u0436\u0430\u0435\u0442\u0441\u044f.\"\n          }\n        ]\n      }\n    ]\n  },\n  \"recommendation\": \"revise\"\n}"
+        }
+      ],
+      "phase": "final_answer",
+      "role": "assistant"
+    }
+  ],
+  "parallel_tool_calls": false,
+  "presence_penalty": 0.0,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "prompt_cache_retention": "24h",
+  "reasoning": {
+    "context": "all_turns",
+    "effort": "medium",
+    "mode": "standard",
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": false,
+  "temperature": 1.0,
+  "text": {
+    "format": {
+      "type": "json_schema",
+      "description": null,
+      "name": "fact_review",
+      "schema": {
+        "$defs": {
+          "DependentPassage": {
+            "additionalProperties": false,
+            "properties": {
+              "reason": {
+                "description": "Why this passage must change with the addressed repair.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              }
+            },
+            "required": [
+              "reason",
+              "anchors"
+            ],
+            "title": "DependentPassage",
+            "type": "object"
+          },
+          "EditorialStrength": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "reason": {
+                "description": "What works for the listener and should survive revision.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "reason"
+            ],
+            "title": "EditorialStrength",
+            "type": "object"
+          },
+          "FactFinding": {
+            "additionalProperties": false,
+            "properties": {
+              "dimension": {
+                "enum": [
+                  "promise",
+                  "mechanism",
+                  "structure",
+                  "transition",
+                  "repetition",
+                  "oral_style",
+                  "speaker_contribution",
+                  "factuality",
+                  "attribution",
+                  "duration",
+                  "ending"
+                ],
+                "title": "Dimension",
+                "type": "string"
+              },
+              "priority": {
+                "enum": [
+                  "blocking",
+                  "important",
+                  "optional"
+                ],
+                "title": "Priority",
+                "type": "string"
+              },
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "observation": {
+                "description": "Exact difference between what the spoken claim implies and what the cited evidence establishes, and why it matters here.",
+                "minLength": 1,
+                "title": "Observation",
+                "type": "string"
+              },
+              "requested_change": {
+                "description": "What must become true in the repaired account. Leave the writer free to cut a dispensable claim. When the claim needs to stay, specify the smallest accurate meaning.",
+                "minLength": 1,
+                "title": "Requested Change",
+                "type": "string"
+              },
+              "preserve": {
+                "description": "Useful properties of the passage to retain; may be empty.",
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Preserve",
+                "type": "array"
+              },
+              "support_labels": {
+                "description": "Exact supplied support labels needed for this finding and repair; empty if unsupported.",
+                "items": {
+                  "minLength": 1,
+                  "type": "string",
+                  "enum": [
+                    "M1",
+                    "M2",
+                    "M3",
+                    "M4",
+                    "M5",
+                    "M6",
+                    "M7",
+                    "M8",
+                    "M9",
+                    "M10",
+                    "M11",
+                    "M12",
+                    "M13",
+                    "M14",
+                    "M15",
+                    "M16",
+                    "M17"
+                  ]
+                },
+                "title": "Support Labels",
+                "type": "array"
+              }
+            },
+            "required": [
+              "dimension",
+              "priority",
+              "anchors",
+              "observation",
+              "requested_change",
+              "preserve",
+              "support_labels"
+            ],
+            "title": "FactFinding",
+            "type": "object"
+          },
+          "PinpointAssessment": {
+            "additionalProperties": false,
+            "properties": {
+              "scale": {
+                "description": "Local includes multiple independent pinpoint repairs at any distance; whole_episode explicitly authorizes recomposing the complete telling.",
+                "enum": [
+                  "none",
+                  "local",
+                  "whole_episode"
+                ],
+                "title": "Scale",
+                "type": "string"
+              },
+              "reason": {
+                "description": "Concrete editorial reason for this scale and its intended effect on the listening experience; do not infer quality from counts.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "anchors": {
+                "description": "Exact passages supporting this choice. Required repair needs at least one; none may use an empty list.",
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "title": "Anchors",
+                "type": "array"
+              },
+              "dependent_passages": {
+                "description": "Explicitly addressed dependent passages; no automatic neighboring-text permission. Empty when none are needed.",
+                "items": {
+                  "$ref": "#/$defs/DependentPassage"
+                },
+                "title": "Dependent Passages",
+                "type": "array"
+              }
+            },
+            "required": [
+              "scale",
+              "reason",
+              "anchors",
+              "dependent_passages"
+            ],
+            "title": "PinpointAssessment",
+            "type": "object"
+          },
+          "ResearchNeed": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "question": {
+                "minLength": 1,
+                "title": "Question",
+                "type": "string"
+              },
+              "why_needed": {
+                "minLength": 1,
+                "title": "Why Needed",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "question",
+              "why_needed"
+            ],
+            "title": "ResearchNeed",
+            "type": "object"
+          },
+          "SequenceAssessment": {
+            "additionalProperties": false,
+            "properties": {
+              "scale": {
+                "const": "sequence",
+                "title": "Scale",
+                "type": "string"
+              },
+              "reason": {
+                "description": "Concrete editorial reason for this scale and its intended effect on the listening experience; do not infer quality from counts.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "anchors": {
+                "description": "Exact passages supporting this choice. Required repair needs at least one; none may use an empty list.",
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "title": "Anchors",
+                "type": "array"
+              },
+              "dependent_passages": {
+                "description": "Explicitly addressed dependent passages; no automatic neighboring-text permission. Empty when none are needed.",
+                "items": {
+                  "$ref": "#/$defs/DependentPassage"
+                },
+                "title": "Dependent Passages",
+                "type": "array"
+              },
+              "sequence_ranges": {
+                "description": "Explicit editable sequences; do not infer their boundaries from scattered findings. Text outside them remains protected except separately addressed local repairs.",
+                "items": {
+                  "$ref": "#/$defs/SequenceRange"
+                },
+                "minItems": 1,
+                "title": "Sequence Ranges",
+                "type": "array"
+              }
+            },
+            "required": [
+              "scale",
+              "reason",
+              "anchors",
+              "dependent_passages",
+              "sequence_ranges"
+            ],
+            "title": "SequenceAssessment",
+            "type": "object"
+          },
+          "SequenceRange": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "description": "First and last editable utterances, in that order. Quotes identify the boundaries; the complete inclusive range is authorized.",
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "reason": {
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "reason"
+            ],
+            "title": "SequenceRange",
+            "type": "object"
+          },
+          "UtteranceAnchor": {
+            "additionalProperties": false,
+            "properties": {
+              "utterance_index": {
+                "description": "Zero-based position in the exact supplied WriteOutput.utterances list.",
+                "minimum": 0,
+                "title": "Utterance Index",
+                "type": "integer"
+              },
+              "quote": {
+                "description": "Exact nonempty substring of that utterance's spoken text.",
+                "minLength": 1,
+                "title": "Quote",
+                "type": "string"
+              }
+            },
+            "required": [
+              "utterance_index",
+              "quote"
+            ],
+            "title": "UtteranceAnchor",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "reading_mode": {
+            "description": "script_only only if plan, dossier, author notes and prior reviews were not visible.",
+            "enum": [
+              "script_only",
+              "informed"
+            ],
+            "title": "Reading Mode",
+            "type": "string"
+          },
+          "listener_answer": {
+            "description": "State the material assertions as a listener would hear them. Keep the scope of the spoken wording. An unstated source qualification may affect your assessment.",
+            "minLength": 1,
+            "title": "Listener Answer",
+            "type": "string"
+          },
+          "important_limits": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Important Limits",
+            "type": "array",
+            "description": "Private evidence comparison. For consequential numbers, causal links or attributed details in the speech, identify any difference between what was counted, observed or reported and the extent of the spoken claim. A record, sample or witness may cover less than the sentence implies. Findings are for differences that change meaning; these checks are not lines for the narrator."
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/$defs/FactFinding"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "research_requests": {
+            "items": {
+              "$ref": "#/$defs/ResearchNeed"
+            },
+            "title": "Research Requests",
+            "type": "array"
+          },
+          "strengths": {
+            "items": {
+              "$ref": "#/$defs/EditorialStrength"
+            },
+            "title": "Strengths",
+            "type": "array",
+            "description": "Supported wording that matters to a correction. May be empty."
+          },
+          "duration_note": {
+            "description": "Evidence and uncertainty about duration; never invented timing.",
+            "minLength": 1,
+            "title": "Duration Note",
+            "type": "string"
+          },
+          "revision_scope": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PinpointAssessment"
+              },
+              {
+                "$ref": "#/$defs/SequenceAssessment"
+              }
+            ],
+            "title": "Revision Scope"
+          },
+          "recommendation": {
+            "enum": [
+              "keep",
+              "revise",
+              "needs_material"
+            ],
+            "title": "Recommendation",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reading_mode",
+          "listener_answer",
+          "important_limits",
+          "findings",
+          "research_requests",
+          "strengths",
+          "duration_note",
+          "revision_scope",
+          "recommendation"
+        ],
+        "title": "FactAssessmentV2",
+        "type": "object"
+      },
+      "strict": true
+    },
+    "verbosity": "high"
+  },
+  "tool_choice": "none",
+  "tool_usage": {
+    "image_gen": {
+      "input_tokens": 0,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 0
+      },
+      "output_tokens": 0,
+      "output_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 0
+      },
+      "total_tokens": 0
+    },
+    "web_search": {
+      "num_requests": 0
+    }
+  },
+  "tools": [],
+  "top_logprobs": 0,
+  "top_p": 0.98,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 18274,
+    "input_tokens_details": {
+      "cache_write_tokens": 18271,
+      "cached_tokens": 0
+    },
+    "output_tokens": 3778,
+    "output_tokens_details": {
+      "reasoning_tokens": 1087
+    },
+    "total_tokens": 22052
+  },
+  "user": null,
+  "metadata": {
+    "podgen_run_id": "1b681f7c-e331-4e2d-bcbf-937815dc03c5",
+    "podgen_invocation_id": "5b28c1bb-97d7-598c-98d1-319df9d3f940",
+    "podgen_stage": "fact-review",
+    "compiler_version": "whole-episode-baseline-a/1"
+  }
+}

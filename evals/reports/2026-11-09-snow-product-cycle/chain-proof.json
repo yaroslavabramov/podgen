@@ -1,0 +1,119 @@
+{
+  "run_id": "1b681f7c-e331-4e2d-bcbf-937815dc03c5",
+  "code_revision": "91150eb",
+  "entrypoint": "podgen.writing_cli",
+  "behavior_profile": "narrative-rebuild/2",
+  "fresh_plan": true,
+  "materials_hash": "9a261b3f574777106ea458e3d3cf8514cd51e046b19213e6815990ca16c42f0f",
+  "stages": [
+    {
+      "stage": "plan",
+      "invocation_id": "bc5d7517-120b-513e-833d-3a927d7dc60a",
+      "response_id": "resp_0845b0d5b86e7351016af19053461087d2a063084cb5f4a3e1",
+      "model": "gpt-6.1-sol",
+      "decision": null,
+      "output_record_id": "afc5a1b8-9740-5a68-9698-540983a2f18b"
+    },
+    {
+      "stage": "plan-review",
+      "invocation_id": "2114748d-5ada-53ef-9e52-75e89eed3585",
+      "response_id": "resp_08e4c8e11179c9fe016af190cf646087d2a2401d6720b4b3fe",
+      "model": "gpt-6.1-terra",
+      "decision": "accept",
+      "output_record_id": "cfa5cacf-8bca-5586-afdc-b78f39e99951"
+    },
+    {
+      "stage": "draft",
+      "invocation_id": "1509c23f-9bbf-5f31-b1bf-55aec342de90",
+      "response_id": "resp_msg_011Cgs7ST7oUCskKcKyRRiYr",
+      "model": "claude-opus-5-5",
+      "decision": null,
+      "output_record_id": "004fc785-3420-562a-adc3-65ace4650c0f"
+    },
+    {
+      "stage": "reader-review",
+      "invocation_id": "bb82ac65-2c0b-5e67-a9cb-91d9d5cdb91f",
+      "response_id": "resp_032e2a7b7e2f9d22016af191780ecc87d2b242905702b639f8",
+      "model": "gpt-6.1-terra",
+      "decision": "revise",
+      "output_record_id": "46da9ff6-e321-56d9-9a84-b96976403776"
+    },
+    {
+      "stage": "fact-review",
+      "invocation_id": "5b28c1bb-97d7-598c-98d1-319df9d3f940",
+      "response_id": "resp_0dcfb18bb7aeb9f3016af191b60ecc87d28d3e5ba01a54952b",
+      "model": "gpt-6.1-terra",
+      "decision": "revise",
+      "output_record_id": "31290a6b-3436-50b8-9aea-c87e590aea7f"
+    },
+    {
+      "stage": "revise-1",
+      "invocation_id": "ad294acb-e8c2-5333-af7d-8356086c7173",
+      "response_id": "resp_msg_011Cgs7pvuGDzym58MqUW654",
+      "model": "claude-opus-5-5",
+      "decision": null,
+      "output_record_id": "8654e3d5-3a87-548f-83e0-710ba3abbf94"
+    },
+    {
+      "stage": "reader-review-1",
+      "invocation_id": "f6dc01f2-cf0b-5215-a958-63f0c64d317c",
+      "response_id": "resp_06c848b0d4477a41016af192932e8c87d28861654a1fbad510",
+      "model": "gpt-6.1-terra",
+      "decision": "revise",
+      "output_record_id": "e6519c7f-da21-5772-a24c-085a382db3e2"
+    },
+    {
+      "stage": "fact-review-1",
+      "invocation_id": "c2403170-48e6-50cf-9dde-b9f0fc2e83d2",
+      "response_id": "resp_01a6c63d1ebb491e016af192be4f5887d2a23bbe3a3b36ac8a",
+      "model": "gpt-6.1-terra",
+      "decision": "revise",
+      "output_record_id": "3c303d64-1209-5319-8ab5-a6f43c8abaf5"
+    },
+    {
+      "stage": "revise-2",
+      "invocation_id": "e20fbd91-e40e-5980-9220-7b7986ce9ea6",
+      "response_id": "resp_msg_011Cgs824jMvtJowtApsN5qQ",
+      "model": "claude-opus-5-5",
+      "decision": null,
+      "output_record_id": "c34151d9-f884-5a31-8190-7704ef92c376"
+    },
+    {
+      "stage": "reader-review-2",
+      "invocation_id": "4fda53ee-b8ed-5f04-b3b0-27e3d2d4ec8b",
+      "response_id": "resp_06275857b3bbe2d7016af19320cacc87d2b12af60778809ca5",
+      "model": "gpt-6.1-terra",
+      "decision": "revise",
+      "output_record_id": "56741e03-a651-5b2b-8aaa-71d24395932c"
+    },
+    {
+      "stage": "fact-review-2",
+      "invocation_id": "c3d852bf-87fa-5abb-a273-95e4a132865f",
+      "response_id": "resp_0eb72d150fcea000016af1934976e087d2801134e83942b367",
+      "model": "gpt-6.1-terra",
+      "decision": "revise",
+      "output_record_id": "46f60de7-f58d-509c-a419-d3173632a2c9"
+    }
+  ],
+  "status": "needs_attention",
+  "planning_clearance": {
+    "contract": "writing-planning-clearance-v1",
+    "run_id": "1b681f7c-e331-4e2d-bcbf-937815dc03c5",
+    "candidate_plan_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "afc5a1b8-9740-5a68-9698-540983a2f18b"
+    },
+    "candidate_plan_hash": "e0050917bbf8f5786ea29bbd091ed1af20151488d42ba6d59e91a661ede3bb54",
+    "plan_review_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "cfa5cacf-8bca-5586-afdc-b78f39e99951"
+    },
+    "executed_stages": [
+      "plan",
+      "plan-review"
+    ],
+    "decision": "accept",
+    "semantic_acceptance": false,
+    "production_ready": false
+  }
+}

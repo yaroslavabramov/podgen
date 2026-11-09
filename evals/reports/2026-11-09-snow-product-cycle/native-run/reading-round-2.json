@@ -1,0 +1,25 @@
+{
+  "contract": "independent-reading-round/1",
+  "review_workflow": "independent-readings/1",
+  "run_id": "1b681f7c-e331-4e2d-bcbf-937815dc03c5",
+  "index": 2,
+  "script_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "c34151d9-f884-5a31-8190-7704ef92c376"
+  },
+  "script_hash": "e76006627b8153b086e5d003e34afbb553d21cafd65db314c496976f46c09d32",
+  "reading_refs": {
+    "reader": {
+      "record_kind": "tool_execution",
+      "record_id": "56741e03-a651-5b2b-8aaa-71d24395932c"
+    },
+    "fact": {
+      "record_kind": "tool_execution",
+      "record_id": "46f60de7-f58d-509c-a419-d3173632a2c9"
+    }
+  },
+  "decision": {
+    "recommendation": "revise",
+    "reason": "required_changes_from_independent_readings"
+  }
+}

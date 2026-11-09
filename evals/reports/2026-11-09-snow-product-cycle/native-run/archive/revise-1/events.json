@@ -1,0 +1,94 @@
+[
+  {
+    "record_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "306c2a08-48d6-40af-b88f-afd121aa28c2"
+    },
+    "contract": "model-invocation-event-v1",
+    "invocation_id": "adf46396-d6c3-5289-926e-1d3e71efdd05",
+    "event_kind": "role_input_measurement",
+    "request_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "1248d2a0-acef-59a5-b48e-9d039866a317"
+    },
+    "data": {
+      "visible_bytes": {
+        "instructions": 3455,
+        "input": 118136,
+        "schema": 3875,
+        "total": 125466
+      },
+      "limits": {
+        "visible_bytes": 131072,
+        "input_tokens": 32768
+      }
+    }
+  },
+  {
+    "record_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "e5424960-ef04-41cc-8220-5a8b9f2b5e01"
+    },
+    "contract": "model-invocation-event-v1",
+    "invocation_id": "adf46396-d6c3-5289-926e-1d3e71efdd05",
+    "event_kind": "count_intent",
+    "request_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "1248d2a0-acef-59a5-b48e-9d039866a317"
+    },
+    "data": {
+      "request_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/166fe5a0d12909e31d92a4f15657efd19b9dc17734ea90ae40f041cdb678b229-bacb769b46f6d169",
+        "sha256": "166fe5a0d12909e31d92a4f15657efd19b9dc17734ea90ae40f041cdb678b229",
+        "byte_length": 125736,
+        "media_type": "application/json"
+      }
+    }
+  },
+  {
+    "record_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "812fd7a1-3df4-4723-b218-f8c994fe100f"
+    },
+    "contract": "model-invocation-event-v1",
+    "invocation_id": "adf46396-d6c3-5289-926e-1d3e71efdd05",
+    "event_kind": "count_response",
+    "request_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "1248d2a0-acef-59a5-b48e-9d039866a317"
+    },
+    "data": {},
+    "response_blob": {
+      "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/ff8852ba13eb7bee87d90803e2b270fb9d2be3b5b463d927d174105e2d54c839-bacb769b46f6d169",
+      "sha256": "ff8852ba13eb7bee87d90803e2b270fb9d2be3b5b463d927d174105e2d54c839",
+      "byte_length": 22,
+      "media_type": "application/json"
+    },
+    "provider_http_status": 200,
+    "provider_request_id": "req_011Cgs7gtShbmqzgpVqVafFh",
+    "secret_redacted": false,
+    "wire_request_blob": {
+      "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/2cffbac19b2f087a6f4cfde7dbfa0b0f63dc526c24f25308ccd69a8787e22544-bacb769b46f6d169",
+      "sha256": "2cffbac19b2f087a6f4cfde7dbfa0b0f63dc526c24f25308ccd69a8787e22544",
+      "byte_length": 125831,
+      "media_type": "application/json"
+    }
+  },
+  {
+    "record_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "4f8c2f0e-4071-4b4c-921c-5ac6ebb85e69"
+    },
+    "contract": "model-invocation-event-v1",
+    "invocation_id": "adf46396-d6c3-5289-926e-1d3e71efdd05",
+    "event_kind": "failure",
+    "request_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "1248d2a0-acef-59a5-b48e-9d039866a317"
+    },
+    "data": {
+      "code": "role_input_token_budget_exceeded",
+      "status": "validation_failed"
+    }
+  }
+]
