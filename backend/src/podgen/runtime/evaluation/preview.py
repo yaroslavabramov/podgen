@@ -1,7 +1,7 @@
 """Compile ordinary and dedicated repair wires without a provider or token endpoint."""
 
 from podgen.domain.errors import ContractError
-from podgen.writing import author_plan, ending_guidance, source_passages
+from podgen.writing import author_plan, ending_guidance, prompt_cache, source_passages
 from podgen.writing.behavior import resolve_behavior
 from podgen.writing.craft_reference import AUTHOR_STAGES, pinned_reference
 from podgen.writing.model_references import preview_references
@@ -57,6 +57,7 @@ def preview_request(
         schema_version_from_manifest(snapshot.manifest) if snapshot else behavior.plan_review_schema
     )
     handoff = author_plan.from_manifest(snapshot.manifest) if snapshot else behavior.author_plan_handoff
+    cache_layout = prompt_cache.from_manifest(snapshot.manifest) if snapshot else behavior.prompt_cache_layout
     ending = (
         ending_guidance.from_manifest(snapshot.manifest) if snapshot else behavior.planning_ending_guidance
     )
@@ -141,6 +142,7 @@ def preview_request(
                 script=inputs["draft"],
                 readings=readings,
                 composition=inputs.get("composition"),
+                prompt_cache_layout=cache_layout,
             )
         return compile_reading_request(
             run_id,
@@ -151,6 +153,7 @@ def preview_request(
             revision.schema if revision else schema(),
             projection_version=projection,
             reference_catalog=references,
+            prompt_cache_layout=cache_layout,
             plan_selection_contract=selection,
             author_plan_handoff=handoff,
             author_source_excerpts=excerpts,
@@ -181,6 +184,7 @@ def preview_request(
             schema(),
             projection_version=projection,
             reference_catalog=references,
+            prompt_cache_layout=cache_layout,
             plan_selection_contract=selection,
             author_plan_handoff=handoff,
             author_source_excerpts=excerpts,
@@ -242,6 +246,8 @@ def preview_request(
         payload = references.translate(payload)
     schema = model.model_json_schema()
     validate_model_content(dict(instructions=instructions, input=payload, schema=schema), materials.documents)
-    body = response_request(run_id, role_stage, profile, payload, instructions, schema)
+    body = response_request(
+        run_id, role_stage, profile, payload, instructions, schema, prompt_cache_layout=cache_layout
+    )
     body["text"]["format"]["name"] = name
     return body

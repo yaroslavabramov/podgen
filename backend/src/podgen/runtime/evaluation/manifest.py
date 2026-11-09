@@ -8,7 +8,7 @@ from uuid import uuid5
 
 from podgen.domain.contracts.common import CodeProducer
 from podgen.persistence.repository import timestamp
-from podgen.writing import author_plan, ending_guidance, source_passages
+from podgen.writing import author_plan, ending_guidance, prompt_cache, source_passages
 from podgen.writing.author_reply import contract_pin, offered
 from podgen.writing.behavior import resolve_behavior
 from podgen.writing.model_references import CATALOG_KEY, bind_schema, preview_references
@@ -169,11 +169,15 @@ def create_manifest(repo, generation, command, journal, materials):
             manifest[REVISION_CONTEXT_KEY] = behavior.revision_context
         manifest["fact_review_schema_version"] = FACT_VERSION
         manifest["script_revision_contract"] = REVISION_VERSION
-        manifest["revision_response_schemas"] = revision_schemas()
+        manifest["revision_response_schemas"] = revision_schemas(
+            prompt_cache_layout=behavior.prompt_cache_layout if editorial else None
+        )
     if command.input_contract == "editorial-role-packets/1":
         from podgen.writing.plan_selection import KEY as SELECTION_KEY
 
         manifest["role_projection_version"] = behavior.projection
+        if behavior.prompt_cache_layout:
+            manifest[prompt_cache.KEY] = behavior.prompt_cache_layout
         if behavior.author_source_excerpts:
             manifest[source_passages.KEY] = behavior.author_source_excerpts
         if behavior.author_plan_handoff:

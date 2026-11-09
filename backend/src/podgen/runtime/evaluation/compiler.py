@@ -19,6 +19,7 @@ COUNT_FIELDS = {
     "tool_choice",
     "parallel_tool_calls",
     "truncation",
+    "prompt_cache_options",
 }
 
 
@@ -137,7 +138,7 @@ def compile_request(
     return response_request(run_id, stage, profile, payload, instructions, schema)
 
 
-def response_request(run_id, stage, profile, payload, instructions, schema):
+def response_request(run_id, stage, profile, payload, instructions, schema, *, prompt_cache_layout=None):
     validate_profile(profile, stage)
     parameters = deepcopy(profile.generation_parameters)
     text = parameters.pop("text", {})
@@ -151,7 +152,7 @@ def response_request(run_id, stage, profile, payload, instructions, schema):
         schema=deepcopy(schema),
         strict=True,
     )
-    return dict(
+    body = dict(
         model=profile.model_revision_or_alias,
         instructions=instructions,
         input=[
@@ -180,6 +181,9 @@ def response_request(run_id, stage, profile, payload, instructions, schema):
         ),
         **parameters,
     )
+    from .cache_layout import apply
+
+    return apply(body, payload, stage, profile, prompt_cache_layout)
 
 
 def materials_hash(materials):

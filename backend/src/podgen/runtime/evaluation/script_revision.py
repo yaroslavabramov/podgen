@@ -4,6 +4,7 @@ from copy import deepcopy
 
 from podgen.domain.canonical import digest
 from podgen.domain.errors import Conflict, ContractError
+from podgen.writing import prompt_cache
 from podgen.writing.revision.apply import materialize
 from podgen.writing.revision.contracts import VERSION, SequenceRevision, StructuralRevision, TargetedRevision
 from podgen.writing.revision.scopes import select_mode
@@ -30,16 +31,31 @@ def enabled(manifest):
     return True
 
 
-def schemas():
-    return {
+def schemas(*, prompt_cache_layout=None):
+    prompt_cache.validate(prompt_cache_layout)
+    result = {
         "targeted": TargetedRevision.model_json_schema(),
         "sequence": SequenceRevision.model_json_schema(),
         "structural": StructuralRevision.model_json_schema(),
     }
+    if prompt_cache_layout is not None:
+        for mode in ("targeted", "sequence"):
+            definitions = result[mode]["$defs"]
+            for model, pattern in (
+                ("ReplaceText", r"^T[1-9][0-9]*$"),
+                ("DeleteText", r"^T[1-9][0-9]*$"),
+                ("InsertUtterances", r"^B[0-9]+$"),
+            ):
+                definitions[model]["properties"]["target_id"]["pattern"] = pattern
+            if mode == "sequence":
+                definitions["SequenceEdit"]["properties"]["range_id"]["pattern"] = r"^R[1-9][0-9]*$"
+    return result
 
 
 def validate_manifest(manifest):
-    if enabled(manifest) and manifest.get("revision_response_schemas") != schemas():
+    if enabled(manifest) and manifest.get("revision_response_schemas") != schemas(
+        prompt_cache_layout=prompt_cache.from_manifest(manifest)
+    ):
         raise Conflict("revision_output_contract_changed")
 
 
@@ -60,6 +76,8 @@ def operation(script, readings, version):
 
 def bound_schema(manifest, selection):
     result = deepcopy(manifest["revision_response_schemas"][selection["mode"]])
+    if prompt_cache.from_manifest(manifest) is not None:
+        return result
     if selection["mode"] != "structural":
         if not selection["targets"]:
             result["properties"]["edits"]["maxItems"] = 0

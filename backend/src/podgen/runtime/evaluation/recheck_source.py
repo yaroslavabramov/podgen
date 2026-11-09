@@ -1,12 +1,12 @@
 """Recover the precise assignment the writer saw from a completed native revision."""
 
-import json
-
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import Conflict
 from podgen.writing.projections import indexed_draft
 from podgen.writing.revision.verification import comparison
+
+from .request_payload import request_payload
 
 
 def load(journal, run_id, stage, *, script_ref=None, script=None):
@@ -19,7 +19,7 @@ def load(journal, run_id, stage, *, script_ref=None, script=None):
     current = record["output"]
     before = journal.read(RuntimeRef.model_validate(record["script_ref"]))["output"]
     request = journal.request(invocation)
-    writer_input = json.loads(request["input"][0]["content"][0]["text"])
+    writer_input = request_payload(request)
     if (
         (script_ref is not None and ref.model_dump(mode="json") != script_ref)
         or (script is not None and current != script)
@@ -37,7 +37,7 @@ def verify_saved(journal, run_id, stage, script_ref, script, invocation, context
     from podgen.writing.revision.verification import VERSION, RevisionReading
 
     _, expected = load(journal, run_id, stage, script_ref=script_ref, script=script)
-    sent = json.loads(journal.request(invocation)["input"][0]["content"][0]["text"])
+    sent = request_payload(journal.request(invocation))
     if sent.get("revision_check") != expected or context.get("revision_verification") != dict(
         contract=VERSION, comparison_hash=digest(expected)
     ):

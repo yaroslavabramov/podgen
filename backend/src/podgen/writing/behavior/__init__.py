@@ -41,6 +41,12 @@ class BehaviorProfile:
     projection: str = V9
 
     @property
+    def prompt_cache_layout(self):
+        from podgen.writing.prompt_cache import VERSION
+
+        return VERSION if self.name == PRODUCTION else None
+
+    @property
     def planning_ending_guidance(self):
         from podgen.writing.ending_guidance import VERSION
 

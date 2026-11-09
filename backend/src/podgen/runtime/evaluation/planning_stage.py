@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.domain.errors import ContractError
+from podgen.writing import prompt_cache
 from podgen.writing.model_references import CATALOG_KEY, run_references
 from podgen.writing.plan_views import candidate_view
 from podgen.writing.planning_choice import from_manifest as planning_from_manifest
@@ -104,6 +105,7 @@ def execute_planning_stage(
                 manifest["response_schemas"][stage],
                 projection_version=manifest_version(manifest),
                 reference_catalog=references,
+                prompt_cache_layout=prompt_cache.from_manifest(manifest),
                 planning_duration_contract=duration_from_manifest(manifest),
                 candidate=candidate,
                 plan_review=review,

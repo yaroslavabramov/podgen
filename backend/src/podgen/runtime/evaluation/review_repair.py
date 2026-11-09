@@ -15,6 +15,7 @@ from .compiler import indexed_script
 from .contracts import RunFailure
 from .reading_workflow import base_stage, is_reading
 from .rejected_output import rejected_output
+from .request_payload import request_payload
 from .validation import load_unique_json
 from .workflow import output_model
 
@@ -62,7 +63,7 @@ def _plan(journal, original, draft):
         raise RunFailure("review_anchor_repair_not_eligible")
     if original["input_tokens"] is None:
         raise RunFailure("review_anchor_repair_usage_unknown")
-    payload = json.loads(request["input"][0]["content"][0]["text"])
+    payload = request_payload(request)
     if payload.get("draft", payload.get("script")) != indexed_script(draft):
         raise RunFailure("review_repair_draft_binding_mismatch")
     return plan, request
@@ -186,7 +187,7 @@ def apply_anchor_repair(journal, invocation, raw, *, draft):
     choices = AnchorChoices.model_validate_json(raw)
     if request_record["context"].get("role_input_contract") == "editorial-role-packets/1":
         repair_request = journal.request(invocation)
-        offered = load_unique_json(repair_request["input"][0]["content"][0]["text"])
+        offered = request_payload(repair_request)
         allowed = {row["anchor_id"]: set(row["selector_ids"]) for row in offered["invalid_anchors"]}
         for choice in choices.choices:
             if choice.selector_id is not None and choice.selector_id not in allowed.get(

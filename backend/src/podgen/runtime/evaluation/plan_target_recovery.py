@@ -18,6 +18,7 @@ from podgen.writing.prompts import load_plan_target_repair_instructions
 
 from .contracts import RunFailure
 from .rejected_output import rejected_output
+from .request_payload import request_payload
 from .validation import load_unique_json
 
 REVIEW_STAGES = ("plan-review", "plan-review-revised")
@@ -37,7 +38,7 @@ def repair_plan(journal, original):
     review, request, response_ref = rejected_output(
         journal, original, PlanReviewOutput, code="plan_target_repair_not_eligible"
     )
-    payload = load_unique_json(request["input"][0]["content"][0]["text"])
+    payload = request_payload(request)
     candidate = planning_snapshot(payload["candidate_plan"])
     context = journal.read(RuntimeRef(record_kind="tool_execution", record_id=original["request_record_id"]))[
         "context"

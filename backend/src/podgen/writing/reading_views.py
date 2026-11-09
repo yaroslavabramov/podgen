@@ -23,6 +23,7 @@ from .projections import (
     knowledge_view,
     validate_model_content,
 )
+from .prompt_cache import validate as validate_cache_layout
 from .revision.context import VERSION as EDIT_ASSIGNMENT
 from .scene_plan import claim_scopes
 from .source_passages import validate_strategy as validate_excerpt_strategy
@@ -55,7 +56,9 @@ def reading_payload(
     revision_context_contract=None,
     author_plan_handoff=None,
     author_source_excerpts=None,
+    prompt_cache_layout=None,
 ):
+    validate_cache_layout(prompt_cache_layout, projection_version)
     validate_excerpt_strategy(author_source_excerpts, projection_version)
     packet = materials.packet
     payload = dict(
@@ -120,8 +123,22 @@ def reading_payload(
             )
             if "revision_scope" in readings["reader"]:
                 payload["editorial_frame"]["authority"] = "revisable_authorial_decisions"
+            if prompt_cache_layout is not None:
+                payload["accepted_plan"] = deepcopy(payload["editorial_frame"])
+                if composition is None:
+                    payload["editorial_frame"] = {
+                        key: deepcopy(payload["accepted_plan"][key])
+                        for key in (
+                            "authority",
+                            "main_question",
+                            "listener_promise",
+                            "route_summary",
+                            "unresolved_questions",
+                        )
+                        if key in payload["accepted_plan"]
+                    }
         if composition is not None:
-            if author_plan_handoff and plan:
+            if author_plan_handoff and plan and prompt_cache_layout is None:
                 payload["accepted_plan"] = payload["editorial_frame"]
             questions = deepcopy(payload.get("editorial_frame", {}).get("unresolved_questions", []))
             payload["editorial_frame"] = dict(

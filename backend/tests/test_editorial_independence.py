@@ -9,6 +9,7 @@ import pytest
 from podgen import writing_cli
 from podgen.research_writing_cli import main as research_main
 from podgen.runtime.evaluation.journal import EvaluationJournal
+from podgen.runtime.evaluation.request_payload import request_payload
 from podgen.writing.plan_selection import KEY as PLAN_SELECTION_KEY
 from podgen.writing.plan_selection import VERSION as PLAN_SELECTION_VERSION
 
@@ -62,7 +63,7 @@ def prepare(dataset, case, directory, monkeypatch, *, contaminated=False):
 
 
 def payload(body):
-    return json.loads(body["input"][0]["content"][0]["text"])
+    return request_payload(body)
 
 
 def expected_current_story(proposal, *, plan_selection_contract=None, material_catalog=None):
