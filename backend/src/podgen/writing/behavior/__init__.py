@@ -89,6 +89,16 @@ class BehaviorProfile:
             "plan": "gpt-6.1-sol",
             "plan-revise": "gpt-6.1-sol",
         }.get(kind, "gpt-6.1-terra")
+        if self.name == PRODUCTION:
+            from podgen.runtime.evaluation.compiler import validate_profile
+
+            provider = "anthropic" if model == "claude-opus-5-5" else "openai"
+            if profile.provider != provider:
+                raise ContractError("behavior_model_profile_mismatch", stage)
+            validation_stage = {"anchor-repair": "review", "plan-target-repair": "plan-review"}.get(
+                stage, stage
+            )
+            validate_profile(profile, validation_stage)
         if (
             profile.model_revision_or_alias != model
             or profile.output_limit != 24576

@@ -8,7 +8,6 @@ from uuid import uuid4
 
 import pytest
 from jsonschema import Draft202012Validator
-
 from podgen.domain.canonical import digest
 from podgen.runtime.evaluation import script_revision
 from podgen.runtime.evaluation.preview import preview_request
@@ -16,6 +15,7 @@ from podgen.writing.behavior import resolve_behavior
 from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.reader_schema import feedback_model
 from podgen.writing.roles import WriteOutput
+
 from tests.revision_cases import composition, scope
 from tests.test_editorial_independence import payload
 from tests.test_v5_role_wire import fixture
@@ -81,6 +81,9 @@ def test_complete_scene_can_be_cut_reordered_and_replayed_through_the_author_wir
         WriteOutput.model_validate(script)
     )
     profile.model_revision_or_alias = "claude-opus-5-5"
+    profile.provider = "anthropic"
+    profile.api_family = "messages"
+    profile.adapter_version = "anthropic-messages-v1"
     request = preview_request(
         uuid4(),
         "revise-1",
