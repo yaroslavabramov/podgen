@@ -39,8 +39,8 @@
   },
   "readings": {
     "reader-review-1": {
-      "version": "reader-review/sha256:4cf0808d747a0774be4cd50c0d1b159e6ea232a5c35027dc8c2c5f84277d9963",
-      "sha256": "4cf0808d747a0774be4cd50c0d1b159e6ea232a5c35027dc8c2c5f84277d9963"
+      "version": "reader-review/sha256:afe78071b8753bc220d2affd899d658ce831560d7327b290b211a370655e6d51",
+      "sha256": "afe78071b8753bc220d2affd899d658ce831560d7327b290b211a370655e6d51"
     },
     "dual-revise": {
       "version": "dual-revise/sha256:b189e9adf77451c0fb84b4d1164d49173b92e91c4730cbeae45a43950963a902",
