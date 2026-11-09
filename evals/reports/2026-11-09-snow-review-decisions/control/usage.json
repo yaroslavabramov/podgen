@@ -1,0 +1,24 @@
+{
+  "pricing": "../../2026-11-08-author-openings/pricing.json",
+  "responses": {
+    "resp_08e0353f86c64d6c016af1bd8b1e3087d29d6eab5fd90c8ba3": {
+      "stage": "fact-review",
+      "model": "gpt-6.1-terra",
+      "input": 18330,
+      "cached": 0,
+      "cache_write": 18327,
+      "output": 4291,
+      "usd": "0.04436675"
+    },
+    "resp_09a641baccda61cd016af1bd453df087d29b7d1909d3fd9765": {
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "input": 6896,
+      "cached": 0,
+      "cache_write": 6893,
+      "output": 4875,
+      "usd": "0.03299425"
+    }
+  },
+  "estimated_usd": "0.07736100"
+}

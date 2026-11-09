@@ -1,0 +1,48 @@
+{
+  "previous_run": "6c8cbfb8-39d0-4b03-b906-308efecefb07",
+  "run": "9fb9770b-c1cd-4397-803f-5e8b32b720de",
+  "script_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "866177c5-9d0f-57d7-9fa0-74c1dccaa129"
+  },
+  "script_hash": "47b9b116da7372d11d1838f337719b41b0d2f1119b32e2410c0a423a99c01c9a",
+  "materials_hash": "9a261b3f574777106ea458e3d3cf8514cd51e046b19213e6815990ca16c42f0f",
+  "roles": {
+    "reader-review": {
+      "payload_sha256": "bf11c074bea03052bac3b89857502a7957480d8921502b9d8789e5ba46b8dce1",
+      "schema_sha256": "0b929824920faf394a932b6615d99b4e18b3d02feea83ded7eaea22592a9e4e8",
+      "model": "gpt-6.1-terra",
+      "utterances": 38,
+      "fields": [
+        "script",
+        "audience",
+        "format",
+        "genre",
+        "output_language",
+        "duration_context"
+      ],
+      "different": [
+        "instructions",
+        "metadata"
+      ]
+    },
+    "fact-review": {
+      "payload_sha256": "7f534a2e4076b08b39d63f40344c488dc24c6f5403e752cc1ec9d30de3c91b61",
+      "schema_sha256": "21f6a84aca977c42685274d7175793f087def6da7193e029bcaefc679440579f",
+      "model": "gpt-6.1-terra",
+      "utterances": 38,
+      "fields": [
+        "script",
+        "output_language",
+        "factual_remit",
+        "support",
+        "evidence",
+        "necessary_limits"
+      ],
+      "different": [
+        "instructions",
+        "metadata"
+      ]
+    }
+  }
+}
