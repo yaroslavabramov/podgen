@@ -1,6 +1,7 @@
 """Compile ordinary and dedicated repair wires without a provider or token endpoint."""
 
 from podgen.domain.errors import ContractError
+from podgen.writing import author_plan
 from podgen.writing.behavior import resolve_behavior
 from podgen.writing.craft_reference import AUTHOR_STAGES, pinned_reference
 from podgen.writing.model_references import preview_references
@@ -55,6 +56,7 @@ def preview_request(
     plan_review_version = (
         schema_version_from_manifest(snapshot.manifest) if snapshot else behavior.plan_review_schema
     )
+    handoff = author_plan.from_manifest(snapshot.manifest) if snapshot else behavior.author_plan_handoff
     planning_contract = planning_from_manifest(snapshot.manifest) if snapshot else behavior.planning_contract
     planning_duration = duration_from_manifest(snapshot.manifest) if snapshot else behavior.planning_duration
     selection = selection_from_manifest(snapshot.manifest) if snapshot else behavior.selection
@@ -143,6 +145,7 @@ def preview_request(
             projection_version=projection,
             reference_catalog=references,
             plan_selection_contract=selection,
+            author_plan_handoff=handoff,
             craft_reference=reference,
             revision_context_contract=revision_context,
             revision_comparison=recheck,
@@ -171,6 +174,7 @@ def preview_request(
             projection_version=projection,
             reference_catalog=references,
             plan_selection_contract=selection,
+            author_plan_handoff=handoff,
             planning_duration_contract=planning_duration,
             craft_reference=reference,
             **inputs,

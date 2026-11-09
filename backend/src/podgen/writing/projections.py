@@ -6,6 +6,7 @@ from pathlib import PurePosixPath
 
 from podgen.domain.errors import ContractError
 
+from . import author_plan
 from .card_catalog import card_id
 from .craft_reference import attach_reference
 from .creative_material import creative_card_view, creative_dossier_view
@@ -125,16 +126,27 @@ def creative_knowledge_view(packet, *, labels, selected=None, projection_version
 
 
 def attach_author_support(
-    payload, packet, plan, *, draft, selected, projection_version, plan_selection_contract
+    payload,
+    packet,
+    plan,
+    *,
+    draft,
+    selected,
+    projection_version,
+    plan_selection_contract,
+    author_plan_handoff=None,
 ):
     if not creative_materials(projection_version):
         payload["support"] = knowledge_view(packet, labels=False, selected=selected)
         return
     linked = is_scene_plan(plan) or (plan is not None and plan_selection_contract == SCENE_SELECTION_VERSION)
     cards = creative_knowledge_view(
-        packet, labels=linked, selected=selected, projection_version=projection_version
+        packet,
+        labels=bool(author_plan_handoff or linked),
+        selected=selected,
+        projection_version=projection_version,
     )
-    if linked:
+    if linked and not author_plan_handoff:
         frame = payload.get("story" if draft else "editorial_frame")
         link_scene_sources(frame, plan, packet, cards, draft=draft)
     payload["support"] = cards
@@ -185,6 +197,7 @@ def role_payload(
     feedback=None,
     plan_selection_contract=None,
     planning_duration_contract=None,
+    author_plan_handoff=None,
 ):
     validate_version(projection_version)
     validate_planning_duration(planning_duration_contract, projection_version)
@@ -243,8 +256,14 @@ def role_payload(
             else None
         )
         if stage == "draft":
-            payload["story"] = narrative_decisions(
-                plan, projection_version=projection_version, plan_selection_contract=plan_selection_contract
+            payload["story"] = (
+                author_plan.story(plan)
+                if author_plan_handoff
+                else narrative_decisions(
+                    plan,
+                    projection_version=projection_version,
+                    plan_selection_contract=plan_selection_contract,
+                )
             )
         elif stage == "review":
             if projection_version == V1:
@@ -262,6 +281,8 @@ def role_payload(
             if projection_version == V1:
                 payload["story_intent"] = story_intent(plan)
                 payload["draft"] = indexed_draft(draft)
+            elif author_plan_handoff:
+                payload["editorial_frame"] = author_plan.story(plan)
             else:
                 payload["editorial_frame"] = editorial_frame(
                     plan,
@@ -282,6 +303,7 @@ def role_payload(
                 plan,
                 draft=stage == "draft",
                 selected=selected_labels(plan, packet),
+                author_plan_handoff=author_plan_handoff,
                 projection_version=projection_version,
                 plan_selection_contract=plan_selection_contract,
             )

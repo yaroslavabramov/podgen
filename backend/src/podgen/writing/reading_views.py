@@ -4,6 +4,7 @@ from copy import deepcopy
 
 from podgen.domain.errors import ContractError
 
+from . import author_plan
 from .craft_reference import attach_reference
 from .duration_views import duration_context
 from .projection_versions import (
@@ -51,6 +52,7 @@ def reading_payload(
     composition=None,
     plan_selection_contract=None,
     revision_context_contract=None,
+    author_plan_handoff=None,
 ):
     packet = materials.packet
     payload = dict(
@@ -77,7 +79,9 @@ def reading_payload(
             required_topics=list(assignment.required_topics),
             knowledge_cutoff=assignment.knowledge_cutoff,
         )
-        selected_plan = approved_plan or (materials.fixed.plan.model_dump(mode="json") if materials.fixed else None)
+        selected_plan = approved_plan or (
+            materials.fixed.plan.model_dump(mode="json") if materials.fixed else None
+        )
         scoped_claims = claim_scopes(selected_plan)
         if scoped_claims:
             payload["factual_remit"]["claims_to_check"] = scoped_claims
@@ -102,12 +106,20 @@ def reading_payload(
         selected.update(needed_labels)
         payload["assignment"] = assignment_view(packet)
         if plan:
-            payload["editorial_frame"] = editorial_frame(
-                plan, projection_version=projection_version, plan_selection_contract=plan_selection_contract
+            payload["editorial_frame"] = (
+                author_plan.story(plan)
+                if author_plan_handoff
+                else editorial_frame(
+                    plan,
+                    projection_version=projection_version,
+                    plan_selection_contract=plan_selection_contract,
+                )
             )
             if "revision_scope" in readings["reader"]:
                 payload["editorial_frame"]["authority"] = "revisable_authorial_decisions"
         if composition is not None:
+            if author_plan_handoff and plan:
+                payload["accepted_plan"] = payload["editorial_frame"]
             questions = deepcopy(payload.get("editorial_frame", {}).get("unresolved_questions", []))
             payload["editorial_frame"] = dict(
                 authority="revisable_authorial_decisions",
@@ -141,6 +153,7 @@ def reading_payload(
                 packet,
                 plan,
                 draft=False,
+                author_plan_handoff=author_plan_handoff,
                 selected=selected,
                 projection_version=projection_version,
                 plan_selection_contract=plan_selection_contract,
