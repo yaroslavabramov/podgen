@@ -1,14 +1,12 @@
 # Авторская генерация: компактные ролевые входы
 
-Новый рабочий путь — `editorial-role-packets/1` и `review_mode=independent-readings/1` по умолчанию в CLI и Python. Каждый полный текст получает два отдельных чтения Terra: слушательское без плана/брифа/источников и фактологическое по материалам и factual remit. Второе не видит первого заключения. Sol получает actionable замечания обеих ролей с происхождением и выборочные опоры для правки. Полные исходники и отзывы остаются в архиве. Проекция `/4` не задаёт актам обязательных списков оговорок: автор получает ход понимания, обоснованный ответ, опоры с условиями и временной диапазон. Расчётные assumptions, optional_material и общие списки ограничений не становятся заданиями на озвучку; точные findings/preserve и фактические опоры правки сохраняются.
+Sol составляет план, Terra редактирует его, Opus пишет сценарий по принятому плану. Автор получает порядок сцен, финал, источники и решения о возможных сокращениях. Terra отдельно читает текст как слушатель и проверяет факты по досье. Opus исполняет обязательные правки, затем обе роли читают новую версию.
 
-Общий итог: необходимые материалы → обязательная правка → keep. Третьего модельного арбитра нет. После каждой переписи оба чтения повторяются для точной новой версии. `--max-script-revisions 0|1|2` ограничивает число переписей (default 2). Исчерпание лимита и `needs_material` сохраняют отказ и последний кандидат; одобренный `final` не создаётся.
-
-Это независимые модельные проверки evaluation-кандидатов, без production acceptance, аудио и подтверждения человеческого прослушивания. Прежний одиночный review сохранён как исторический `informed-v1`.
+`--max-script-revisions 0|1|2` задаёт предел переписей, по умолчанию две. Одобрение обеих ролей создаёт финал. При запросе материала или исчерпании правок сохраняются последний сценарий и причины. [Передача материала между ролями](../docs/podcast-production/writing-behavior-profiles.md)
 
 ## Подготовка и admission без модели
 
-Установите зависимости через `uv sync --directory backend --locked`. Используйте подготовленную изолированную БД с миграциями до `0015_independent_readings`; не мигрируйте базу активных запусков. Задайте `PODGEN_DATABASE_URL`, `PROJECT_UUID`, `ACTOR_UUID` и абсолютный `OBJECTS` на существующее хранилище проекта.
+Установите зависимости через `uv sync --directory backend --locked`. Используйте подготовленную изолированную БД с миграциями до текущей ревизии; не мигрируйте базу активных запусков. Задайте `PODGEN_DATABASE_URL`, `PROJECT_UUID`, `ACTOR_UUID` и абсолютный `OBJECTS` на существующее хранилище проекта.
 
 Общий префикс для следующих команд:
 
@@ -42,19 +40,19 @@ pgwrite fixed-editorial-import \
 
 ## Профили и offline preview
 
-`profile-create` только сохраняет candidate configuration, без вызова модели и qualification. Существующие подходящие writer/reviewer profiles можно использовать повторно: writer — Sol, reviewer — Terra для обоих независимых чтений. Указывайте точные профили выбранных моделей. Ниже пример закреплённого writer/planner snapshot; для reviewer задайте точные REVIEWER_MODEL и REVIEWER_CONTEXT_LIMIT выбранного профиля:
+Один раз зарегистрируйте три модели. Ссылку на Terra используйте для редактора плана и обоих чтений сценария. Команды регистрации сохраняют настройки локально.
 
 ```sh
-pgwrite profile-create --model gpt-5.4-2026-03-05 --context-limit 1050000 \
-  --output-limit 32768 --reasoning-effort medium --verbosity high \
+pgwrite profile-create --provider anthropic --model claude-opus-5-5 --context-limit 200000 \
+  --output-limit 24576 --reasoning-effort medium --verbosity high --roles writer \
   --out /tmp/writer-profile-ref.json
 
-pgwrite profile-create --model gpt-5.4-2026-03-05 --context-limit 1050000 \
-  --output-limit 32768 --reasoning-effort medium --roles planner plan_reviewer \
+pgwrite profile-create --model gpt-6.1-sol --context-limit 200000 \
+  --output-limit 24576 --reasoning-effort medium --verbosity high --roles planner \
   --out /tmp/planning-profile-ref.json
 
-pgwrite profile-create --model "$REVIEWER_MODEL" --context-limit "$REVIEWER_CONTEXT_LIMIT" \
-  --output-limit 32768 --reasoning-effort medium --roles editorial_reviewer \
+pgwrite profile-create --model gpt-6.1-terra --context-limit 200000 \
+  --output-limit 24576 --reasoning-effort medium --verbosity high --roles editorial_reviewer plan_reviewer \
   --out /tmp/reviewer-profile-ref.json
 ```
 
@@ -82,7 +80,7 @@ pgwrite preview --run-id "$PREVIEW_UUID" --case gps-clock --stage plan \
 pgwrite script-import --file /ABS/snow-script.json --out /tmp/snow-script-ref.json
 
 pgwrite run --run-id "$SAVED_SCRIPT_RUN_UUID" --case snow-pump \
-  --author-ref @/tmp/snow-shared-ref.json --initial-script-ref @/tmp/snow-script-ref.json \
+  --plan-mode fixed-plan --author-ref @/tmp/snow-shared-ref.json --initial-script-ref @/tmp/snow-script-ref.json \
   --writer-profile @/tmp/writer-profile-ref.json --reviewer-profile @/tmp/reviewer-profile-ref.json \
   --max-script-revisions 2 --review-anchor-policy bounded-selection-v1 \
   --export-dir /tmp/snow-independent-readings
@@ -104,13 +102,13 @@ Wire и preview правки описаны в [schemas/independent-readings.md]
 
 ## Новый сетевой run
 
-Только `run`/продолжение нового компактного run выполняют сетевые вызовы. `OPENAI_API_KEY` передаётся окружением; ключ не входит в profile, prompt или архив headers. Каждый независимый run получает новый UUID.
+Для генерации задайте в окружении `OPENAI_API_KEY` и `ANTHROPIC_API_KEY`. Каждый независимый run получает новый UUID.
 
 Фиксированный редакторский план:
 
 ```sh
 pgwrite run --run-id "$NEW_RUN_UUID" --case gps-clock \
-  --author-ref @/tmp/gps-shared-ref.json --fixed-plan-input-ref @/tmp/gps-fixed-ref.json \
+  --plan-mode fixed-plan --author-ref @/tmp/gps-shared-ref.json --fixed-plan-input-ref @/tmp/gps-fixed-ref.json \
   --writer-profile @/tmp/writer-profile-ref.json --reviewer-profile @/tmp/reviewer-profile-ref.json \
   --export-dir /tmp/gps-compact-run
 ```
@@ -121,8 +119,8 @@ pgwrite run --run-id "$NEW_RUN_UUID" --case gps-clock \
 pgwrite run --run-id "$NEW_OWN_RUN_UUID" --case gps-clock \
   --author-ref @/tmp/gps-shared-ref.json \
   --writer-profile @/tmp/writer-profile-ref.json --reviewer-profile @/tmp/reviewer-profile-ref.json \
-  --plan-mode own-plan --planner-profile @/tmp/planning-profile-ref.json \
-  --plan-reviewer-profile @/tmp/planning-profile-ref.json --max-plan-revisions 1 \
+  --planner-profile @/tmp/planning-profile-ref.json \
+  --plan-reviewer-profile @/tmp/reviewer-profile-ref.json \
   --export-dir /tmp/gps-compact-own-run
 ```
 
@@ -130,9 +128,9 @@ pgwrite run --run-id "$NEW_OWN_RUN_UUID" --case gps-clock \
 
 Границы новых запусков:
 
-- Не более 128 КиБ суммарного JSON представления видимых `instructions/input/schema`, проверка до создания клиента и count.
-- Не более 32 768 входных токенов на вызов, проверка после provider count и до submit.
-- Defaults на весь run: 196 608 входных и 131 072 выходных токена, 7200 секунд. Можно указать меньшие `--max-total-input-tokens`/`--max-total-output-tokens`/`--max-elapsed-seconds`.
+- Не более 256 КиБ суммарного JSON представления видимых `instructions/input/schema`, проверка до создания клиента и count.
+- Не более 65 536 входных токенов на вызов, проверка после provider count и до submit.
+- На весь выпуск допускается до 1 048 576 входных и 393 216 выходных токенов за четыре часа. Можно указать меньшие `--max-total-input-tokens`/`--max-total-output-tokens`/`--max-elapsed-seconds`.
 - Перед submit полностью резервируется `profile.output_limit`; также проверяется `input + reserved output ≤ context_limit`. Длительность/полнота сценария не сокращаются автоматически.
 
 На локальной проекции реальных сложных архивных планов максимальный видимый запрос: GPS 73 792 байта, Snow 106 662; автор по собственному плану — 43 846/55 584. Таблица всех ролей и оговорка об адресном сопоставлении диагностических старых опор — в schemas README. Это размеры локального preview, не расход нового сетевого запуска.
@@ -154,7 +152,7 @@ pgwrite resume --run-id "$COMPACT_RUN_UUID" --export-dir /tmp/run-resumed
 
 ## Ограниченные адресные repairs и отказ по балансу
 
-Новый run по умолчанию использует strict anchors. `--review-anchor-policy bounded-selection-v1` заранее разрешает максимум один отдельный selector-call на каждую роль и версию текста после сохранённой ошибки якорей. Режим доступа и суждения сохраняются. Для остановленного компактного run доступны явные действия:
+Обычный запуск использует `bounded-selection-v1`. Эта настройка разрешает максимум один отдельный selector-call на каждую роль и версию текста после сохранённой ошибки якорей. Режим доступа и суждения сохраняются. Для остановленного компактного run доступны явные действия:
 
 ```sh
 pgwrite resume --run-id "$COMPACT_RUN_UUID" --repair-review-anchors --export-dir /tmp/anchor-repair
@@ -172,7 +170,7 @@ Credit retry допускается только для архивного submi
 
 ## Исторический компактный цикл `informed-v1`
 
-Явный `--review-mode informed-v1` сохраняет прежний `draft → review → revise`: один informed review с плановым ориентиром, без независимого холодного чтения и повторного чтения переписанного финала. Manifest без review_mode возобновляется именно так; сохранённые prompts, schemas, requests и fingerprints не заменяются текущими.
+В исследовательской команде `podgen.research_writing_cli` параметр `--review-mode informed-v1` сохраняет прежний `draft → review → revise`: один informed review с плановым ориентиром, без независимого холодного чтения и повторного чтения переписанного финала. Manifest без review_mode возобновляется именно так; сохранённые prompts, schemas, requests и fingerprints не заменяются текущими.
 
 При обычной правке экспортируются полные `draft.*`, `review.json`, `revise.*`. При `keep` — также `final.json`/`final.txt`; совместимый `revise.*` явно имеет `origin=unchanged_draft`, `model_call=false`, ссылки на draft и review, без фиктивного invocation. В `archive/revise/` запроса нет. Завершённый replay не создаёт клиента и не проверяет новый бюджет.
 
@@ -205,10 +203,6 @@ uv run --directory backend ruff check src tests
 
 Продолжите через `resume --run-id <тот же UUID> --export-dir <каталог>`. Автор получит ранее одобренный план, затем начнутся обычные чтения. Время ожидания оператора после одобрения исключается из лимита выполнения. Повтор `resume --stop-after-plan` до продолжения возвращает тот же результат. Этот флаг можно передать и в `continue-planning`, чтобы остановиться после одобрения дополнительной редакции.
 
-### Воспроизводимый запуск с автором Opus
+### Воспроизведение архивов
 
-`run --behavior-profile narrative-rebuild/1` воспроизводит комплект архивного выпуска о Сноу. `editorial-candidate/1` выбирает план с привязкой материалов к конкретным сценам и редакторскую сверку переписанного текста. В обоих случаях план пишет Sol, сценарий пишет и правит Opus, рецензии даёт Terra. Без явного выбора используется `existing/1`.
-
-Для автора зарегистрируйте `profile-create --provider anthropic --model claude-opus-5-5 --context-limit 200000 --output-limit 24576 --reasoning-effort medium --verbosity high --roles writer --out writer.json`. Задайте `ANTHROPIC_API_KEY` для Messages и `OPENAI_API_KEY` для ролей OpenAI. Подсчёт входа и генерация идут через выбранного провайдера. В журнале сохраняются отправленный запрос, ответ и сведения об использовании токенов. Точный тариф применяется к квитанции каждого обращения.
-
-Для повторной редакторской сессии экспортируйте одобренный план командой `accepted-plan-export --run-id RUN_ID --out plan-ref.json`. Передайте его в `run --plan-mode fixed-plan --fixed-plan-input-ref @plan-ref.json` вместе с `--initial-script-ref` из последнего `review-outcome.json`, тем же комплектом и номером `--editorial-pass`.
+Для сохранённого выпуска используйте `inspect` и `resume` с исходным ID. Для исследования конкретной исторической конфигурации доступна отдельная команда `python -m podgen.research_writing_cli` с аргументами `--behavior-profile` и `--editorial-pass`. Состав действующей редакции описан в [документации рабочего процесса](../docs/podcast-production/writing-behavior-profiles.md).
