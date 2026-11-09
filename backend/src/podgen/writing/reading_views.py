@@ -100,6 +100,10 @@ def reading_payload(
             payload["factual_remit"]["excluded_topics"] = list(assignment.excluded_topics)
         if fact_context_contract is not None:
             primary_evidence, context_excerpts = fact_context.evidence_views(packet)
+            if fact_context_contract == fact_context.SIGNATURE_VERSION:
+                from .source_signatures import signature_evidence
+
+                primary_evidence.extend(signature_evidence(materials))
             context = knowledge_view(packet, labels=True)
             for card in context:
                 card.pop("limitations")

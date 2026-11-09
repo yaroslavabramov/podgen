@@ -42,9 +42,9 @@ class BehaviorProfile:
 
     @property
     def fact_context(self):
-        from podgen.writing.fact_context import VERSION
+        from podgen.writing.fact_context import SIGNATURE_VERSION
 
-        return VERSION if self.name == PRODUCTION else None
+        return SIGNATURE_VERSION if self.name == PRODUCTION else None
 
     @property
     def fact_schema(self):

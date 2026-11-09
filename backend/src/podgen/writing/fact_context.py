@@ -8,11 +8,12 @@ from .source_bibliography import bibliography as bibliography
 
 KEY = "fact_review_context"
 VERSION = "contextual-evidence/1"
+SIGNATURE_VERSION = "contextual-evidence/2"
 SCHEMA_VERSION = "fact-revision/3"
 
 
 def validate(value, projection):
-    if value is not None and (value != VERSION or projection != V9):
+    if value is not None and (value not in (VERSION, SIGNATURE_VERSION) or projection != V9):
         raise ContractError("unsupported_fact_review_context")
     return value
 

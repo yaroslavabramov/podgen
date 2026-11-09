@@ -22,7 +22,7 @@ from tests.source_excerpt_cases import Captured, CaptureGateway, data_and_profil
 def test_actual_fact_rounds_match_preview_and_cache_all_evidence_before_script(monkeypatch):
     materials, _, _, _, script, _, _, _, profile = data_and_profile()
     store, journal, command, manifest = release(monkeypatch, materials, profile)
-    assert manifest[fact_context.KEY] == fact_context.VERSION
+    assert manifest[fact_context.KEY] == fact_context.SIGNATURE_VERSION
     assert manifest["fact_review_schema_version"] == fact_context.SCHEMA_VERSION
     refs = run_references(materials, manifest)
     before = deepcopy(materials.packet.model_dump(mode="json"))
