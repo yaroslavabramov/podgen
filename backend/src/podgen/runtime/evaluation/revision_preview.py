@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from podgen.domain.errors import Conflict, ContractError
 from podgen.writing import prompt_cache
 from podgen.writing.projection_versions import V9
+from podgen.writing.revision.context import from_manifest as revision_context_from_manifest
 from podgen.writing.revision.contracts import VERSION
 
 from . import script_revision
@@ -16,7 +17,16 @@ class RevisionPreview:
     inputs: dict
 
 
-def prepare(stage, snapshot, *, script, readings, composition=None, prompt_cache_layout=None):
+def prepare(
+    stage,
+    snapshot,
+    *,
+    script,
+    readings,
+    composition=None,
+    prompt_cache_layout=None,
+    revision_context_contract=None,
+):
     if snapshot is not None:
         if not script_revision.enabled(snapshot.manifest):
             if composition is not None:
@@ -44,7 +54,10 @@ def prepare(stage, snapshot, *, script, readings, composition=None, prompt_cache
                 role_projection_version=V9,
                 **{prompt_cache.KEY: prompt_cache_layout},
             )
-    selection = script_revision.operation(script, readings, int(stage.rsplit("-", 1)[1]) - 1)
+    context = revision_context_from_manifest(manifest) if snapshot else revision_context_contract
+    selection = script_revision.operation(
+        script, readings, int(stage.rsplit("-", 1)[1]) - 1, revision_context_contract=context
+    )
     return RevisionPreview(
         script_revision.bound_schema(manifest, selection),
         dict(revision_operation=script_revision.model_operation(selection), composition=composition),

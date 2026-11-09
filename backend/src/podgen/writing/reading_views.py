@@ -15,7 +15,6 @@ from .projection_versions import (
     script_handoff,
 )
 from .projections import (
-    actionable_feedback,
     assignment_view,
     attach_author_support,
     evidence_view,
@@ -24,6 +23,9 @@ from .projections import (
     validate_model_content,
 )
 from .prompt_cache import validate as validate_cache_layout
+from .revision import assignment as edit_assignment
+from .revision import feedback as legacy_feedback
+from .revision.context import REQUIRED_VERSION
 from .revision.context import VERSION as EDIT_ASSIGNMENT
 from .scene_plan import claim_scopes
 from .source_passages import validate_strategy as validate_excerpt_strategy
@@ -156,17 +158,11 @@ def reading_payload(
                 )
         if revision_operation is not None:
             payload["revision_operation"] = deepcopy(revision_operation)
-        payload["revision_guidance"] = [
-            dict(
-                origin=origin, **actionable_feedback(readings[origin], projection_version=projection_version)
+        compact = revision_context_contract == REQUIRED_VERSION
+        if not compact:
+            payload["revision_guidance"] = legacy_feedback.guidance(
+                readings, projection_version=projection_version, addressed=revision_operation is not None
             )
-            for origin in ("reader", "fact")
-        ]
-        if revision_operation is not None:
-            for guidance in payload["revision_guidance"]:
-                if guidance["origin"] == "fact":
-                    for field in ("listener_understanding", "duration_note", "important_limits"):
-                        guidance.pop(field, None)
         if creative_materials(projection_version):
             attach_author_support(
                 payload,
@@ -183,30 +179,19 @@ def reading_payload(
             payload["support"] = knowledge_view(
                 packet, labels=packet.contract != "editorial-input/2", selected=selected
             )
-        if packet.contract == "editorial-input/2":
-            passages = evidence_view(packet)
-            for guidance in payload["revision_guidance"]:
-                if guidance["origin"] != "fact":
-                    continue
-                for finding in guidance["findings"]:
-                    references = set(finding.pop("support_labels"))
-                    finding["evidence"] = [
-                        dict(source=passage["source"], text=passage["text"])
-                        for passage in passages
-                        if references.intersection(passage["supports"])
-                    ]
-        elif needed_labels:
-            payload["repair_evidence"] = [
-                row for row in evidence_view(packet) if needed_labels.intersection(row["supports"])
-            ]
+        if compact:
+            payload["revision_tasks"] = edit_assignment.tasks(readings, payload["support"])
+        else:
+            legacy_feedback.attach_evidence(payload, packet, needed_labels)
         if historical(projection_version):
             payload["necessary_limits"] = list(packet.dossier.throughline_constraints)
-        payload["decision"] = deepcopy(decision)
+        if not compact:
+            payload["decision"] = deepcopy(decision)
     if stage == "revise" and revision_context_contract == EDIT_ASSIGNMENT:
         # The editor's actionable and positive observations already address the supplied script.
         for review in payload["revision_guidance"]:
             review.pop("listener_understanding", None)
-    else:
+    elif not (stage == "revise" and revision_context_contract == REQUIRED_VERSION):
         attach_reference(payload, stage, craft_reference)
     validate_model_content(payload, materials.documents)
     return payload

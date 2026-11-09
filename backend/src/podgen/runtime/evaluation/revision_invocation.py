@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import Conflict
+from podgen.writing.revision.context import from_manifest as revision_context_from_manifest
 from podgen.writing.story_views import editorial_frame
 
 from . import script_revision
@@ -98,7 +99,12 @@ def prepare(journal, stage, manifest, *, script, script_ref, readings, reading_r
             or record["script_hash"] != digest(script)
         ):
             raise Conflict("revision_readings_binding_mismatch")
-    selection = script_revision.operation(script, readings, int(stage.rsplit("-", 1)[1]) - 1)
+    selection = script_revision.operation(
+        script,
+        readings,
+        int(stage.rsplit("-", 1)[1]) - 1,
+        revision_context_contract=revision_context_from_manifest(manifest),
+    )
     return RevisionInvocation(
         selection,
         script_revision.bound_schema(manifest, selection),

@@ -255,6 +255,7 @@ def test_old_production_snapshot_keeps_single_part_requests_initial_frame_and_bo
     fact["revision_scope"] = scope("local", anchors=[first])
     _, _, command, saved = release(monkeypatch, materials, profile)
     saved.pop(prompt_cache.KEY)
+    saved.pop("revision_context_contract", None)
     saved["revision_response_schemas"] = script_revision.schemas()
     saved["writer_response_contract"] = contract_pin(saved, materials.speaker_labels)
     script_revision.validate_manifest(saved)

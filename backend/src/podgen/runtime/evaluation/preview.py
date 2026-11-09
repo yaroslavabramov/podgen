@@ -143,6 +143,7 @@ def preview_request(
                 readings=readings,
                 composition=inputs.get("composition"),
                 prompt_cache_layout=cache_layout,
+                revision_context_contract=revision_context,
             )
         return compile_reading_request(
             run_id,

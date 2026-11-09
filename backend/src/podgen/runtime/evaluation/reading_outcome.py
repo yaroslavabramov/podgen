@@ -86,6 +86,8 @@ def read_outcome(journal, run_id):
             from .script_revision import enabled, verify_record
 
             if enabled(manifest):
+                from podgen.writing.revision.context import from_manifest as revision_context_from_manifest
+
                 from .revision_invocation import source_state
 
                 verify_record(
@@ -95,6 +97,7 @@ def read_outcome(journal, run_id):
                     readings=readings,
                     speakers={row["speaker"] for row in script["utterances"]},
                     version=index,
+                    revision_context_contract=revision_context_from_manifest(manifest),
                     unresolved_questions=journal.read(
                         RuntimeRef(record_kind="tool_execution", record_id=rewrite["request_record_id"])
                     )["context"]["unresolved_questions"],

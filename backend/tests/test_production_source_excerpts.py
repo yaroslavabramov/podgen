@@ -204,6 +204,10 @@ def test_actual_initial_and_later_rewrites_match_preview_and_keep_the_same_fact_
         previous = payload(legacy)
         for card in previous["support"]:
             card.pop("source_excerpts", None)
+        for document in (view, previous):
+            for task in document.get("revision_tasks", []):
+                task.pop("evidence_refs", None)
+                task.pop("support_refs", None)
         assert view == previous
         assert live["text"] == legacy["text"] and live["instructions"] == legacy["instructions"]
         check_visible(live, CONTRACT, max_visible_bytes=manifest["role_input_budget"]["visible_bytes"])

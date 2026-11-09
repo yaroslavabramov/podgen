@@ -1,14 +1,19 @@
 """Short IDs identify exact quoted ranges of one server-bound full script."""
 
 from ..roles import WriteOutput
+from .assignment import required
 from .buffers import deletion_buffer, visible_range
 from .contexts import source_contexts
 
 
-def _anchors(readings):
+def _anchors(readings, *, required_only=False):
     for origin in ("reader", "fact"):
         review = readings[origin]
+        if required_only and not any(required(finding) for finding in review["findings"]):
+            continue
         for index, finding in enumerate(review["findings"]):
+            if required_only and not required(finding):
+                continue
             yield finding["anchors"], f"{origin}.findings.{index}"
         scope = review["revision_scope"]
         if scope["scale"] != "none":
@@ -16,10 +21,10 @@ def _anchors(readings):
                 yield dependency["anchors"], f"{origin}.dependent_passages.{index}"
 
 
-def target_catalog(script, readings, *, require_targets=True):
+def target_catalog(script, readings, *, require_targets=True, required_only=False):
     ranges = {}
     WriteOutput.model_validate(script)
-    for anchors, basis in _anchors(readings):
+    for anchors, basis in _anchors(readings, required_only=required_only):
         for anchor in anchors:
             index, quote = anchor["utterance_index"], anchor["quote"]
             if not 0 <= index < len(script["utterances"]) or not quote:

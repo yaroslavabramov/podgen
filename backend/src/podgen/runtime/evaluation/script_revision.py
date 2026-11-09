@@ -6,6 +6,8 @@ from podgen.domain.canonical import digest
 from podgen.domain.errors import Conflict, ContractError
 from podgen.writing import prompt_cache
 from podgen.writing.revision.apply import materialize
+from podgen.writing.revision.assignment import required_readings
+from podgen.writing.revision.context import REQUIRED_VERSION
 from podgen.writing.revision.contracts import VERSION, SequenceRevision, StructuralRevision, TargetedRevision
 from podgen.writing.revision.scopes import select_mode
 from podgen.writing.revision.sequences import sequence_catalog
@@ -59,13 +61,18 @@ def validate_manifest(manifest):
         raise Conflict("revision_output_contract_changed")
 
 
-def operation(script, readings, version):
+def operation(script, readings, version, *, revision_context_contract=None):
     try:
+        required_only = revision_context_contract == REQUIRED_VERSION
+        if required_only:
+            readings = required_readings(readings)
         mode = select_mode(readings)
         return dict(
             mode=mode,
             script_version=version,
-            targets=target_catalog(script, readings, require_targets=mode == "targeted")
+            targets=target_catalog(
+                script, readings, require_targets=mode == "targeted", required_only=required_only
+            )
             if mode != "structural"
             else [],
             sequences=sequence_catalog(script, readings) if mode == "sequence" else [],
@@ -142,9 +149,19 @@ def apply(selection, wire, *, script, composition, speakers, expected_hash, unre
     return output, state, record
 
 
-def verify_record(record, *, script, composition, readings, speakers, version, unresolved_questions=None):
+def verify_record(
+    record,
+    *,
+    script,
+    composition,
+    readings,
+    speakers,
+    version,
+    unresolved_questions=None,
+    revision_context_contract=None,
+):
     revision = record["revision"]
-    selection = operation(script, readings, version)
+    selection = operation(script, readings, version, revision_context_contract=revision_context_contract)
     output, state, replay = apply(
         selection,
         revision["wire_output"],
