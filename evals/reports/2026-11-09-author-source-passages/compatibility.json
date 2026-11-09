@@ -125,5 +125,12 @@
     }
   },
   "old_terminal_outcome_identical": true,
-  "unchanged_active_plan_and_fact_requests": true
+  "unchanged_active_plan_and_fact_requests": true,
+  "budget_probe": {
+    "synthetic_repeated_excerpts": 700,
+    "untruncated_author_excerpts": 700,
+    "visible_bytes": 525448,
+    "production_limit": 262144,
+    "error": "role_visible_byte_budget_exceeded"
+  }
 }

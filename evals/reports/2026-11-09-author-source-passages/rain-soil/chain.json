@@ -1,0 +1,86 @@
+{
+  "run_id": "26e0743d-609f-47f7-80d1-f9f42f4ed383",
+  "status": "needs_attention",
+  "failure": "independent_review_revision_limit_exhausted",
+  "review_outcome": "revision_limit_exhausted",
+  "configuration": "production/1",
+  "author_source_excerpts": "selected-card-excerpts/1",
+  "revision_limit": 2,
+  "stages": {
+    "plan": "ready",
+    "plan-review": "accept",
+    "draft": null,
+    "reader-review": "revise",
+    "fact-review": "revise",
+    "revise-1": null,
+    "reader-review-1": "revise",
+    "fact-review-1": "revise",
+    "revise-2": null,
+    "reader-review-2": "revise",
+    "fact-review-2": "keep"
+  },
+  "provider_calls": 11,
+  "word_counts": {
+    "draft": 532,
+    "revise-1": 529,
+    "revise-2": 554
+  },
+  "support": {
+    "draft": {
+      "selected": 7,
+      "with_excerpts": 7,
+      "excerpts": 14,
+      "per_card": {
+        "M1": 2,
+        "M2": 2,
+        "M3": 2,
+        "M4": 3,
+        "M5": 2,
+        "M6": 1,
+        "M7": 2
+      }
+    },
+    "revise-1": {
+      "selected": 7,
+      "with_excerpts": 7,
+      "excerpts": 14,
+      "per_card": {
+        "M1": 2,
+        "M2": 2,
+        "M3": 2,
+        "M4": 3,
+        "M5": 2,
+        "M6": 1,
+        "M7": 2
+      }
+    },
+    "revise-2": {
+      "selected": 7,
+      "with_excerpts": 7,
+      "excerpts": 14,
+      "per_card": {
+        "M1": 2,
+        "M2": 2,
+        "M3": 2,
+        "M4": 3,
+        "M5": 2,
+        "M6": 1,
+        "M7": 2
+      }
+    }
+  },
+  "author_request_sizes": {
+    "draft": {
+      "visible_bytes": 56993,
+      "input_tokens": 15947
+    },
+    "revise-1": {
+      "visible_bytes": 90925,
+      "input_tokens": 26007
+    },
+    "revise-2": {
+      "visible_bytes": 85651,
+      "input_tokens": 24653
+    }
+  }
+}
