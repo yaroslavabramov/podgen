@@ -348,7 +348,9 @@ def test_ordinary_cli_run_and_historical_resume_build_the_expected_commands(monk
     assert production_command(misleading, frozen_manifest={}) is misleading
     assert admitted.behavior_profile == PRODUCTION and admitted.review_anchor_policy == "bounded-selection-v1"
     assert command_payload(
-        production_command(fresh, frozen_manifest=dict(behavior_profile=PRODUCTION))
+        production_command(
+            fresh, frozen_manifest=dict(behavior_profile=PRODUCTION, command=command_payload(admitted))
+        )
     ) == command_payload(admitted)
     assert production_command(fresh, frozen_manifest={}) == fresh
     assert fresh.review_anchor_policy == "strict"

@@ -16,7 +16,11 @@ def production_command(command, *, frozen_manifest=None):
         return command
     updates = dict(behavior_profile=PRODUCTION)
     if "review_anchor_policy" not in command.model_fields_set:
-        updates["review_anchor_policy"] = "bounded-selection-v1"
+        updates["review_anchor_policy"] = (
+            frozen_manifest["command"].get("review_anchor_policy", "strict")
+            if frozen_manifest is not None
+            else "bounded-selection-v1"
+        )
     if "limits" not in command.model_fields_set:
         updates["limits"] = RunLimits(**PRODUCTION_RUN_LIMITS)
     resolved = command.model_copy(update=updates)
