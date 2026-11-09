@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.runtime.evaluation.contracts import RunFailure, RunLimits, WritingRunCommand, command_payload
 from podgen.runtime.evaluation.input_budget_recovery import effective_limits
@@ -76,7 +77,13 @@ def test_released_production_is_one_catalog_and_old_missing_command_fields_keep_
     assert production.reader_schema == "listener-experience/5" and production.verification is None
     base = resolve_behavior("narrative-rebuild/1")
     for fmt in ("solo", "dialogue"):
-        assert production.instructions("draft", fmt) == base.instructions("draft", fmt)
+        draft = production.instructions("draft", fmt)
+        original = base.instructions("draft", fmt)
+        assert draft != original
+        assert (
+            draft.body.partition("# Write the episode")[0]
+            == original.body.partition("# Write the episode")[0]
+        )
         assert production.instructions("plan", fmt) == base.instructions("plan", fmt)
         assert production.instructions("plan-revise", fmt) == base.instructions("plan-revise", fmt)
         for role in ("anchor-repair", "plan-target-repair"):
@@ -362,7 +369,6 @@ def test_production_reader_format_is_the_full_verified_late_reader_archive_forma
     from pathlib import Path
 
     from podgen.runtime.evaluation.preview import preview_request
-
     from tests.test_v5_role_wire import fixture
 
     archive = (

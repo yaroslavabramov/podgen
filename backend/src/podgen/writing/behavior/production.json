@@ -4,23 +4,31 @@
       "plan-review": {
         "version": "whole-episode-a/sha256:37ad6a903542c300cf52dcae1e49ffb0543a486fdaee77502a14e9c36b151c17",
         "sha256": "873be967454756359a038d41abff67d28d75d985ce3f67d5e66028e07caa3e14"
+      },
+      "draft": {
+        "version": "whole-episode-a/sha256:f0fe7b18e54cdb7e7cf330e834e4d19a111da7689e465a3c2ad5b06b50ac8437",
+        "sha256": "0000b5105f3dc42c1d4f618fd179a639ee99cb7a012f928f8b42f73ab921705e"
       }
     },
     "dialogue": {
       "plan-review": {
         "version": "whole-episode-a/sha256:6af761bde12fca6da8a184d735b122cfa05928699f5924dd71fc2d8804713ccf",
         "sha256": "910ce5e9927c8f6f7623745650db4f2781ca56482f92af6dd514adc8db581f57"
+      },
+      "draft": {
+        "version": "whole-episode-a/sha256:f99db5145c9a6afff3c334ac56878f6727460c2dd9beac93673882dbf64ababa",
+        "sha256": "aad4b64250724e30380f0577e196b9356eca9c3a4db8f61baaa316e579a77e47"
       }
     }
   },
   "readings": {
     "reader-review-1": {
-      "version": "reader-review/sha256:6f16a00bdf081b408417ff831d93ed15d271d244b729e33a4df29831040db95f",
-      "sha256": "6f16a00bdf081b408417ff831d93ed15d271d244b729e33a4df29831040db95f"
+      "version": "reader-review/sha256:a195c81382f0f6c3093983fe0e5f8c55ca6c1359d734a7fa7cc0866e5ab9af81",
+      "sha256": "a195c81382f0f6c3093983fe0e5f8c55ca6c1359d734a7fa7cc0866e5ab9af81"
     },
     "dual-revise": {
-      "version": "dual-revise/sha256:da114c48881b03405f25b7c2abba095d4de55dba59a2f1a695b5e69b5b8d2517",
-      "sha256": "da114c48881b03405f25b7c2abba095d4de55dba59a2f1a695b5e69b5b8d2517"
+      "version": "dual-revise/sha256:2ca176ad3a7dd2f045f41160cb3345e42e245dc89401d5888795be2f0dc87082",
+      "sha256": "2ca176ad3a7dd2f045f41160cb3345e42e245dc89401d5888795be2f0dc87082"
     },
     "fact-review": {
       "version": "fact-review/sha256:687e462143a8b91507e74681a97225a52bc2559e53269b15a1d23bb3afa36d39",
