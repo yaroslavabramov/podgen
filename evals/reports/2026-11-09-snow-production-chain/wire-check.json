@@ -1,0 +1,148 @@
+{
+  "profile": "production/1",
+  "reader_contract": "listener-experience/5",
+  "default_anchor_policy": "bounded-selection-v1",
+  "material_packet": "213c16a7df20f55d4d4b27889b4318021e6af3028ffc5eae5930ab476309240d",
+  "notes": "The plan input exactly matches the November 9 real dossier. Two source cards were corrected since the November 8 reference. Candidate plans, scripts, reviews and their bound edit scopes can differ between recordings. Stage settings are compared separately.",
+  "stages": {
+    "plan": {
+      "reference": "01-plan",
+      "model": "gpt-6.1-sol",
+      "same_instructions": true,
+      "same_response_format": true,
+      "same_generation_settings": true,
+      "payload_same_fields": [
+        "assignment",
+        "material_catalog",
+        "output_language"
+      ],
+      "payload_changed_fields": [
+        "dossier"
+      ],
+      "schema_sha256": "c973b3b7c1152a683815d1ec688059f2c3a12ee3965e62826f8788b9ca2f072e",
+      "instructions_sha256": "c6a83cd3f61135b0d5159eaa6ee2d7fc0e63be62d5ee49044962c525000c92e3"
+    },
+    "plan-review": {
+      "reference": "02-plan-review",
+      "model": "gpt-6.1-terra",
+      "same_instructions": false,
+      "same_response_format": false,
+      "same_generation_settings": true,
+      "payload_same_fields": [
+        "assignment",
+        "material_catalog",
+        "output_language",
+        "review_target_root"
+      ],
+      "payload_changed_fields": [
+        "allowed_review_targets",
+        "candidate_plan",
+        "dossier"
+      ],
+      "schema_sha256": "5415c8144e34e591a8004f14842f779873fb4e9498fd7152743fc3e177c9a2e9",
+      "instructions_sha256": "873be967454756359a038d41abff67d28d75d985ce3f67d5e66028e07caa3e14"
+    },
+    "plan-revise": {
+      "reference": "03-plan-revise",
+      "model": "gpt-6.1-sol",
+      "same_instructions": true,
+      "same_response_format": true,
+      "same_generation_settings": true,
+      "payload_same_fields": [
+        "assignment",
+        "material_catalog",
+        "output_language"
+      ],
+      "payload_changed_fields": [
+        "candidate_plan",
+        "dossier",
+        "revision_guidance"
+      ],
+      "schema_sha256": "e5754f577b22ad08a77db0fd5360b604965ef30c9bdc6ff14ccfd684e5bbf9d3",
+      "instructions_sha256": "963a3b8832f6470baf0553b4899dce6113c868f4b415e1bdcdfd186ce2ea4ea0"
+    },
+    "draft": {
+      "reference": "05-draft",
+      "model": "claude-opus-5-5",
+      "same_instructions": true,
+      "same_response_format": true,
+      "same_generation_settings": true,
+      "payload_same_fields": [
+        "assignment",
+        "craft_reference",
+        "duration_context",
+        "output_language"
+      ],
+      "payload_changed_fields": [
+        "story",
+        "support"
+      ],
+      "schema_sha256": "6b72006f3ae16ad556231ec9307f898b75e0e903b2b9988ccc9d0421597bcb97",
+      "instructions_sha256": "443d58c4806d4a135f01e93619df94184c1e9a1eca67a49da494c8f883fbbc8b"
+    },
+    "reader-review": {
+      "reference": "20-reader-review",
+      "model": "gpt-6.1-terra",
+      "same_instructions": false,
+      "same_response_format": true,
+      "same_generation_settings": true,
+      "payload_same_fields": [
+        "audience",
+        "format",
+        "genre",
+        "output_language"
+      ],
+      "payload_changed_fields": [
+        "duration_context",
+        "script"
+      ],
+      "schema_sha256": "0b929824920faf394a932b6615d99b4e18b3d02feea83ded7eaea22592a9e4e8",
+      "instructions_sha256": "ab67d1e24f4869e19ee4272b726d533f24764d8ae3d36fc6041bc294e3fd4618"
+    },
+    "fact-review": {
+      "reference": "07-fact-review",
+      "model": "gpt-6.1-terra",
+      "same_instructions": true,
+      "same_response_format": true,
+      "same_generation_settings": true,
+      "payload_same_fields": [
+        "factual_remit",
+        "necessary_limits",
+        "output_language"
+      ],
+      "payload_changed_fields": [
+        "evidence",
+        "script",
+        "support"
+      ],
+      "schema_sha256": "21f6a84aca977c42685274d7175793f087def6da7193e029bcaefc679440579f",
+      "instructions_sha256": "3fe65017933190a483dd763177f83d2a57e1665159969663f586e096d2c07507"
+    },
+    "revise-1": {
+      "reference": "22-revise-1",
+      "model": "claude-opus-5-5",
+      "same_instructions": false,
+      "same_response_format": false,
+      "same_generation_settings": true,
+      "payload_same_fields": [
+        "assignment",
+        "audience",
+        "craft_reference",
+        "decision",
+        "format",
+        "genre",
+        "output_language"
+      ],
+      "payload_changed_fields": [
+        "duration_context",
+        "editorial_frame",
+        "revision_guidance",
+        "revision_operation",
+        "script",
+        "support"
+      ],
+      "schema_sha256": "7f3fba335f995ff4412119aa1f7d78110273675a1f7e090b8117701a6bd2d45b",
+      "instructions_sha256": "da114c48881b03405f25b7c2abba095d4de55dba59a2f1a695b5e69b5b8d2517"
+    }
+  }
+}

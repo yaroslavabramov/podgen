@@ -1,0 +1,105 @@
+{
+  "pricing": "../2026-11-08-author-openings/pricing.json",
+  "responses": {
+    "resp_0563cc85d59bc51f016af1a68be61c87d2be4758db74564f1f": {
+      "stage": "reader-review-1",
+      "model": "gpt-6.1-terra",
+      "input": 6924,
+      "cached": 0,
+      "cache_write": 6921,
+      "output": 4050,
+      "usd": "0.02890425"
+    },
+    "resp_msg_011CgsE1NHxg3imiNCBk53A7": {
+      "stage": "draft",
+      "model": "claude-opus-5-5",
+      "input": 20710,
+      "cached": 0,
+      "cache_write": 0,
+      "output": 7768,
+      "usd": "0.2382"
+    },
+    "resp_msg_011CgsEZFCDfNPtNBNanvzfL": {
+      "stage": "revise-2",
+      "model": "claude-opus-5-5",
+      "input": 39376,
+      "cached": 0,
+      "cache_write": 0,
+      "output": 2396,
+      "usd": "0.205424"
+    },
+    "resp_016910c41fc30795016af1a60cfd4887d2a8235b56a3fddc78": {
+      "stage": "fact-review",
+      "model": "gpt-6.1-terra",
+      "input": 18235,
+      "cached": 0,
+      "cache_write": 18232,
+      "output": 4914,
+      "usd": "0.047363"
+    },
+    "resp_09f7e3d53fc89791016af1a6ca828087d28d34cdb958bb55c6": {
+      "stage": "fact-review-1",
+      "model": "gpt-6.1-terra",
+      "input": 18261,
+      "cached": 0,
+      "cache_write": 18258,
+      "output": 3000,
+      "usd": "0.0378255"
+    },
+    "resp_03daf9b8e71bdaca016af1a4bec78887d2a4f84b07bd66b4b8": {
+      "stage": "plan",
+      "model": "gpt-6.1-sol",
+      "input": 7466,
+      "cached": 0,
+      "cache_write": 7463,
+      "output": 6193,
+      "usd": "0.0805935"
+    },
+    "resp_0cf4e29fd893fab1016af1a72c1a7887d2b0b9bce47d7df38a": {
+      "stage": "reader-review-2",
+      "model": "gpt-6.1-terra",
+      "input": 6995,
+      "cached": 0,
+      "cache_write": 6992,
+      "output": 3995,
+      "usd": "0.028718"
+    },
+    "resp_08c45c61280617d8016af1a76d9e7487d2a575c879c370f4ee": {
+      "stage": "fact-review-2",
+      "model": "gpt-6.1-terra",
+      "input": 18332,
+      "cached": 0,
+      "cache_write": 18329,
+      "output": 3992,
+      "usd": "0.04287425"
+    },
+    "resp_msg_011CgsEKmeQPqCaG2YCsJRcY": {
+      "stage": "revise-1",
+      "model": "claude-opus-5-5",
+      "input": 45910,
+      "cached": 0,
+      "cache_write": 0,
+      "output": 4965,
+      "usd": "0.28294"
+    },
+    "resp_0b0072dc72b70e34016af1a5adf9b887d29e90aba4127e4be7": {
+      "stage": "reader-review",
+      "model": "gpt-6.1-terra",
+      "input": 6897,
+      "cached": 0,
+      "cache_write": 6894,
+      "output": 4371,
+      "usd": "0.0304755"
+    },
+    "resp_0acd01fb4e334b42016af1a53912cc87d2b28c8b1217257132": {
+      "stage": "plan-review",
+      "model": "gpt-6.1-terra",
+      "input": 14389,
+      "cached": 0,
+      "cache_write": 14386,
+      "output": 1505,
+      "usd": "0.0255105"
+    }
+  },
+  "estimated_usd": "1.04882850"
+}
