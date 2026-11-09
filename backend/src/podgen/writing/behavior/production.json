@@ -23,8 +23,8 @@
       "sha256": "da114c48881b03405f25b7c2abba095d4de55dba59a2f1a695b5e69b5b8d2517"
     },
     "fact-review": {
-      "version": "fact-review/sha256:b9a9a5bf888aedbe37aead292712a8a59c5e7a97bc5ad9bdcdf932c6c92ab49f",
-      "sha256": "b9a9a5bf888aedbe37aead292712a8a59c5e7a97bc5ad9bdcdf932c6c92ab49f"
+      "version": "fact-review/sha256:687e462143a8b91507e74681a97225a52bc2559e53269b15a1d23bb3afa36d39",
+      "sha256": "687e462143a8b91507e74681a97225a52bc2559e53269b15a1d23bb3afa36d39"
     }
   }
 }
