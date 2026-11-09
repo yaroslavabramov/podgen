@@ -1,0 +1,78 @@
+{
+  "run_id": "259bafd9-0001-4d89-8681-c6aaf052a9ca",
+  "kind": "same-plan-editor-evaluation",
+  "source_run": "39a1ac6e-9538-40b8-a137-57040c7aeacd",
+  "behavior_profile": "narrative-rebuild/2",
+  "decision": "accept",
+  "source_plan_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "ff8457ae-16ed-5cb6-afc5-ef56efe63705"
+  },
+  "source_plan_hash": "95baae3327ee05b0ca44cd4198fefc97c3253d473ff90b55044e1c9d9186e153",
+  "last_plan_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "3c4250bb-8dc5-5606-abde-781f898ccc42"
+  },
+  "last_plan_hash": "757480c66e66a86448a4f24d829cd287502dded93e71a0474b1d5617aa116e96",
+  "last_review_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "20999500-3d72-53ee-98ec-b601c9b256d5"
+  },
+  "calls": [
+    {
+      "stage": "plan-review",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0c647468aee845d0016af183b5de0887d28245b21f5cf4b461",
+      "usage": {
+        "input_tokens": 15007,
+        "input_tokens_details": {
+          "cache_write_tokens": 15004,
+          "cached_tokens": 0
+        },
+        "output_tokens": 2622,
+        "output_tokens_details": {
+          "reasoning_tokens": 1250
+        },
+        "total_tokens": 17629
+      },
+      "estimated_usd": "0.031868"
+    },
+    {
+      "stage": "plan-revise",
+      "model": "gpt-6.1-sol",
+      "response_id": "resp_082671eaaf5a733b016af183e122b487d28058ccf26362462e",
+      "usage": {
+        "input_tokens": 14420,
+        "input_tokens_details": {
+          "cache_write_tokens": 14417,
+          "cached_tokens": 0
+        },
+        "output_tokens": 7018,
+        "output_tokens_details": {
+          "reasoning_tokens": 265
+        },
+        "total_tokens": 21438
+      },
+      "estimated_usd": "0.1062285"
+    },
+    {
+      "stage": "plan-review-revised",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0c444e792979273b016af1841fbe6487d2aabeb8a474d76c37",
+      "usage": {
+        "input_tokens": 15456,
+        "input_tokens_details": {
+          "cache_write_tokens": 15453,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1850,
+        "output_tokens_details": {
+          "reasoning_tokens": 754
+        },
+        "total_tokens": 17306
+      },
+      "estimated_usd": "0.02856925"
+    }
+  ],
+  "estimated_usd": "0.16666575"
+}
