@@ -75,7 +75,7 @@ def test_released_production_is_one_catalog_and_old_missing_command_fields_keep_
     assert production.author_plan_handoff == "approved-story/1"
     assert production.planning_contract is None
     assert production.planning_ending_guidance == "story-resolution/1"
-    assert production.reader_schema == "listener-experience/5" and production.verification is None
+    assert production.reader_schema == "listener-experience/7" and production.verification is None
     base = resolve_behavior("narrative-rebuild/1")
     for fmt in ("solo", "dialogue"):
         draft = production.instructions("draft", fmt)
@@ -364,10 +364,12 @@ def test_ordinary_cli_run_and_historical_resume_build_the_expected_commands(monk
     assert fresh.review_anchor_policy == "strict"
 
 
-def test_production_reader_format_is_the_full_verified_late_reader_archive_format():
+def test_production_reader_changes_only_descriptions_from_the_verified_archive_format():
     from pathlib import Path
 
     from podgen.runtime.evaluation.preview import preview_request
+    from podgen.runtime.evaluation.role_schema import response_schema
+    from tests.schema_cases import without_descriptions
     from tests.test_v5_role_wire import fixture
 
     archive = (
@@ -388,5 +390,12 @@ def test_production_reader_format_is_the_full_verified_late_reader_archive_forma
         reasoning=dict(effort="medium"), text=dict(verbosity="high"), store=False, background=False
     )
     current = preview_request(uuid4(), "reader-review", profile, materials, draft=script)
-    assert resolve_behavior().reader_schema == "listener-experience/5"
-    assert current["text"]["format"] == saved["text"]["format"]
+    assert resolve_behavior().reader_schema == "listener-experience/7"
+    historical = response_schema(
+        "reader-review", "editorial-role-packets/1", reader_schema_version="listener-experience/5"
+    )
+    assert historical == saved["text"]["format"]["schema"]
+    assert current["text"]["format"] != saved["text"]["format"]
+    assert json.dumps(without_descriptions(current["text"]["format"])) == json.dumps(
+        without_descriptions(saved["text"]["format"])
+    )

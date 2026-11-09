@@ -17,6 +17,7 @@ from podgen.writing.reader_schema import feedback_model
 from podgen.writing.roles import WriteOutput
 
 from tests.revision_cases import composition, scope
+from tests.schema_cases import without_descriptions
 from tests.test_editorial_independence import payload
 from tests.test_v5_role_wire import fixture
 
@@ -75,7 +76,9 @@ def test_complete_scene_can_be_cut_reordered_and_replayed_through_the_author_wir
         "evals/reports/2026-11-08-snow-narrative-rebuild/calls/20-reader-review/podgen-request.json"
     )
     historical_schema = json.loads(archive.read_text())["text"]["format"]["schema"]
-    assert json.dumps(reader_schema) == json.dumps(historical_schema)
+    assert json.dumps(without_descriptions(reader_schema)) == json.dumps(
+        without_descriptions(historical_schema)
+    )
     Draft202012Validator(reader_schema).validate(reader)
     feedback_model(behavior.reader_schema).model_validate(reader).validate_against(
         WriteOutput.model_validate(script)
