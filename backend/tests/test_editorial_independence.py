@@ -6,11 +6,12 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from podgen import writing_cli
+from podgen.research_writing_cli import main as research_main
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.writing.plan_selection import KEY as PLAN_SELECTION_KEY
 from podgen.writing.plan_selection import VERSION as PLAN_SELECTION_VERSION
+
 from tests.editorial_boundary import editorial_leaks, inject_reviewed_leaks
 from tests.independent_planner_provider import IndependentPlannerProvider, WireCaptured
 from tests.test_own_plan import own_dataset as own_dataset
@@ -19,10 +20,11 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def invoke(prefix, command, **options):
+    """Replay explicit historical/synthetic cases through the isolated research entrypoint."""
     args = [*prefix, command]
     for key, value in options.items():
         args.extend(["--" + key.replace("_", "-"), str(value)])
-    return writing_cli.main(args)
+    return research_main(args)
 
 
 def prepare(dataset, case, directory, monkeypatch, *, contaminated=False):
@@ -41,6 +43,7 @@ def prepare(dataset, case, directory, monkeypatch, *, contaminated=False):
         invoke(prefix, "editorial-import", input=directory / "shared.json", source_map=mapping, out=ref) == 0
     )
     common = dict(
+        behavior_profile="existing/1",
         review_mode="informed-v1",
         run_id=uuid4(),
         case=case,

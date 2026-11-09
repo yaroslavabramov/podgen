@@ -5,7 +5,6 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import ContractError
@@ -164,7 +163,7 @@ def test_default_and_named_profile_use_immutable_resources(monkeypatch):
 
     monkeypatch.setattr(prompts, "load_instruction_set", changed)
     monkeypatch.setattr(prompts, "load_reading_instructions", changed)
-    assert resolve_behavior().name == DEFAULT == "existing/1"
+    assert resolve_behavior().name == DEFAULT == "production/1"
     assert resolve_behavior().instructions("draft", "solo").body
     assert resolve_behavior("narrative-rebuild/1", 1).instructions(
         "reader-review", "solo"

@@ -5,11 +5,9 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import ContractError
 from podgen.persistence.editorial_inputs import EditorialMaterials
-from podgen.runtime.evaluation.preview import preview_request
 from podgen.runtime.evaluation.preview_snapshot import PreviewSnapshot
 from podgen.runtime.evaluation.role_request import compile_role_request
 from podgen.runtime.evaluation.role_schema import response_schema
@@ -18,6 +16,8 @@ from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.model_references import CATALOG_KEY, preview_references
 from podgen.writing.planning_duration import KEY, VERSION, from_manifest
 from podgen.writing.projection_versions import V8, V9
+
+from tests.historical_preview import replay_preview as preview_request
 from tests.test_editorial_independence import payload
 from tests.test_v5_role_wire import fixture
 

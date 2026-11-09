@@ -11,6 +11,7 @@ from podgen.runtime.evaluation.export import export_run
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.planning import clearance_ref
 from podgen.runtime.evaluation.profiles import create_profile
+
 from tests.test_editorial_inputs import editorial as editorial
 
 
@@ -29,6 +30,7 @@ def test_fixed_plan_export_preserves_imported_bytes_and_verified_journal_origin(
         project, imported, BlobRef.model_validate(original_fixed["original_input_blob"])
     )
     command = WritingRunCommand(
+        behavior_profile="existing/1",
         run_id=uuid4(),
         project_id=project,
         actor_id=repo.actor_id,

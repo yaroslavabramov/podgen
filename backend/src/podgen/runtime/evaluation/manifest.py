@@ -8,6 +8,7 @@ from uuid import uuid5
 
 from podgen.domain.contracts.common import CodeProducer
 from podgen.persistence.repository import timestamp
+from podgen.writing import author_plan
 from podgen.writing.author_reply import contract_pin, offered
 from podgen.writing.behavior import resolve_behavior
 from podgen.writing.model_references import CATALOG_KEY, bind_schema, preview_references
@@ -25,6 +26,7 @@ from .reading_workflow import VERSION, base_stage, independent
 from .role_schema import response_schema
 from .script_revision import schemas as revision_schemas
 from .script_revision import supports as supports_revision
+from .wire_budget import input_budget_for_profile
 from .workflow import profile_for, prompt_stage, stages_for
 
 
@@ -167,17 +169,16 @@ def create_manifest(repo, generation, command, journal, materials):
         manifest["revision_response_schemas"] = revision_schemas()
     if command.input_contract == "editorial-role-packets/1":
         from podgen.writing.plan_selection import KEY as SELECTION_KEY
-        from podgen.writing.projections import SINGLE_INPUT_TOKEN_LIMIT, VISIBLE_BYTES_LIMIT
 
         manifest["role_projection_version"] = behavior.projection
+        if behavior.author_plan_handoff:
+            manifest[author_plan.KEY] = behavior.author_plan_handoff
         selection = behavior.selection
         if selection is not None:
             manifest[SELECTION_KEY] = selection
         if offered("draft", behavior.projection):
             manifest["writer_response_contract"] = contract_pin(manifest, materials.speaker_labels)
-        manifest["role_input_budget"] = dict(
-            visible_bytes=VISIBLE_BYTES_LIMIT, input_tokens=SINGLE_INPUT_TOKEN_LIMIT
-        )
+        manifest["role_input_budget"] = input_budget_for_profile(behavior.name)
     if command.plan_mode == "own-plan":
         manifest["plan_review_target_catalog"] = "planning-output-pointers-v1"
         manifest["plan_target_repair_instructions"] = asdict(

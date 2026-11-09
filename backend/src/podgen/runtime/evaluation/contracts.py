@@ -3,7 +3,7 @@ from typing import Literal
 from pydantic import Field, field_validator, model_validator
 
 from podgen.domain.contracts.common import UUID, ArtifactRef, Contract, PositiveInt, RuntimeRef
-from podgen.writing.behavior import CANDIDATES, NARRATIVES, ProfileName
+from podgen.writing.behavior import CANDIDATES, NARRATIVES, PRODUCTION, ProfileName
 
 Stage = Literal[
     "draft",
@@ -62,13 +62,24 @@ class WritingRunCommand(Contract):
 
     @model_validator(mode="before")
     @classmethod
-    def legacy_review_mode(cls, value):
+    def restore_or_infer_workflow(cls, value):
         if (
             isinstance(value, dict)
             and value.get("input_contract") == "legacy-author-materials/1"
             and "review_mode" not in value
         ):
             value = {**value, "review_mode": "informed-v1"}
+        # An omitted mode in archived fixed-plan commands has no planning profiles.
+        # A new programmatic request supplying both planners can select own-plan unambiguously.
+        if (
+            isinstance(value, dict)
+            and "plan_mode" not in value
+            and value.get("planner_profile_ref") is not None
+            and value.get("plan_reviewer_profile_ref") is not None
+            and value.get("fixed_plan_input_ref") is None
+            and value.get("initial_script_ref") is None
+        ):
+            value = {**value, "plan_mode": "own-plan"}
         return value
 
     @field_validator("author_ref", mode="before")
@@ -107,13 +118,15 @@ class WritingRunCommand(Contract):
             raise ValueError("independent_readings_require_editorial_inputs")
         if self.initial_script_ref is not None and self.plan_mode == "own-plan":
             raise ValueError("initial_script_does_not_require_new_plan")
+        if self.behavior_profile == PRODUCTION and self.editorial_pass != 1:
+            raise ValueError("production_uses_one_editorial_configuration")
         if self.editorial_pass > 1 and (
             self.behavior_profile not in (*NARRATIVES, *CANDIDATES)
             or self.initial_script_ref is None
             or self.plan_mode != "fixed-plan"
         ):
             raise ValueError("editorial_rereading_requires_imported_script_and_named_profile")
-        if self.behavior_profile in (*NARRATIVES, *CANDIDATES) and (
+        if self.behavior_profile in (PRODUCTION, *NARRATIVES, *CANDIDATES) and (
             self.review_mode != "independent-readings/1" or self.input_contract != "editorial-role-packets/1"
         ):
             raise ValueError("editorial_behavior_requires_independent_readings")

@@ -7,10 +7,8 @@ from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
 
 import pytest
-
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.persistence.editorial_inputs import EditorialMaterials
-from podgen.runtime.evaluation.preview import preview_request
 from podgen.writing.duration_views import duration_context
 from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.model_references import ModelReferences
@@ -18,6 +16,8 @@ from podgen.writing.plan_views import candidate_view
 from podgen.writing.planning_roles import PlanningOutput
 from podgen.writing.projection_versions import CURRENT
 from podgen.writing.projections import actionable_feedback
+
+from tests.historical_preview import replay_preview as preview_request
 from tests.test_editorial_independence import payload
 from tests.test_v5_role_wire import fixture
 

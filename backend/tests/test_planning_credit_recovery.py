@@ -3,11 +3,12 @@
 import json
 
 import pytest
-
 from podgen import writing_cli
+from podgen.research_writing_cli import main as research_main
 from podgen.runtime.evaluation.contracts import RunFailure
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.service import WritingEvaluation
+
 from tests.credit_provider import CreditProvider
 from tests.own_plan_provider import OwnPlanProvider
 from tests.test_own_plan import command_for
@@ -54,9 +55,9 @@ def test_cli_planning_retry_keeps_paid_plan_and_exact_frozen_inputs(
         "--export-dir",
         str(tmp_path / "export"),
     ]
-    assert writing_cli.main(args) == 0
+    assert research_main(args) == 0
     calls = len(provider.requests)
-    assert writing_cli.main(args) == 0
+    assert research_main(args) == 0
     assert len(provider.requests) == calls
     assert sum(r["metadata"]["podgen_stage"] == "plan" for r in provider.requests) == 1
     assert journal.output(plan) == plan_record

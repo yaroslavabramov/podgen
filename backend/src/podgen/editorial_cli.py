@@ -12,11 +12,11 @@ from podgen.persistence.editorial_inputs import (
 )
 from podgen.runtime.evaluation.profiles import load_profile
 from podgen.runtime.evaluation.validation import load_unique_json
-from podgen.runtime.evaluation.wire_budget import check_visible, visible_sizes
+from podgen.runtime.evaluation.wire_budget import check_visible, input_budget_for_profile, visible_sizes
 from podgen.writing.projections import CONTRACT
 
 
-def add_commands(sub):
+def add_commands(sub, *, research=False):
     source = sub.add_parser("editorial-source-import")
     source.add_argument("--file", type=Path, required=True)
     source.add_argument("--source-path", required=True)
@@ -36,8 +36,10 @@ def add_commands(sub):
     preview.add_argument("--case", required=True)
     from podgen.writing.behavior import NAMES
 
-    preview.add_argument("--behavior-profile", choices=NAMES)
-    preview.add_argument("--editorial-pass", type=int, choices=(1, 2, 3))
+    if research:
+        preview.set_defaults(_research=True)
+        preview.add_argument("--behavior-profile", choices=NAMES)
+        preview.add_argument("--editorial-pass", type=int, choices=(1, 2, 3))
     preview.add_argument(
         "--stage",
         choices=[
@@ -159,14 +161,17 @@ def execute(args, repo, wire_ref):
         snapshot = load_preview_snapshot(
             EvaluationJournal(repo, args.project), generation, args.run_id, args.stage, materials
         )
+        selected_behavior = getattr(args, "behavior_profile", None)
+        if snapshot is None and getattr(args, "_research", False):
+            selected_behavior = selected_behavior or "existing/1"
         body = preview_request(
             args.run_id,
             args.stage,
             profile,
             materials,
             snapshot=snapshot,
-            behavior_profile=args.behavior_profile,
-            editorial_pass=args.editorial_pass,
+            behavior_profile=selected_behavior,
+            editorial_pass=getattr(args, "editorial_pass", None),
             **values,
         )
         result = dict(
@@ -179,7 +184,8 @@ def execute(args, repo, wire_ref):
             run_references(materials, snapshot.manifest)
             if snapshot
             else preview_references(
-                materials, resolve_behavior(args.behavior_profile, args.editorial_pass or 1).projection
+                materials,
+                resolve_behavior(selected_behavior, getattr(args, "editorial_pass", None) or 1).projection,
             )
         )
         if references is not None:
@@ -187,5 +193,10 @@ def execute(args, repo, wire_ref):
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
     if args.command == "preview":
-        check_visible(result["request"], CONTRACT)
+        budget = (
+            snapshot.manifest.get("role_input_budget", input_budget_for_profile("existing/1"))
+            if snapshot
+            else input_budget_for_profile(selected_behavior or "production/1")
+        )
+        check_visible(result["request"], CONTRACT, max_visible_bytes=budget["visible_bytes"])
     return {key: value for key, value in result.items() if key != "request"}

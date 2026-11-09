@@ -12,16 +12,18 @@ from podgen.writing.projection_versions import V9
 from podgen.writing.prompts import RoleInstructions
 
 ProfileName = Literal[
+    "production/1",
     "existing/1",
     "narrative-rebuild/1",
     "narrative-rebuild/2",
     "editorial-candidate/1",
     "editorial-candidate/2",
 ]
-DEFAULT: ProfileName = "existing/1"
+PRODUCTION: ProfileName = "production/1"
+DEFAULT: ProfileName = PRODUCTION
 CANDIDATES = ("editorial-candidate/1", "editorial-candidate/2")
 NARRATIVES = ("narrative-rebuild/1", "narrative-rebuild/2")
-NAMES = ("existing/1", *NARRATIVES, *CANDIDATES)
+NAMES = (PRODUCTION, "existing/1", *NARRATIVES, *CANDIDATES)
 ROOT = files(__name__)
 
 
@@ -39,10 +41,14 @@ class BehaviorProfile:
     projection: str = V9
 
     @property
+    def author_plan_handoff(self):
+        return "approved-story/1" if self.name == PRODUCTION else None
+
+    @property
     def plan_review_schema(self):
         from podgen.writing.plan_review_descriptions import PRESERVE_VERSION
 
-        return PRESERVE_VERSION if self.name == "narrative-rebuild/2" else None
+        return PRESERVE_VERSION if self.name in ("narrative-rebuild/2", PRODUCTION) else None
 
     @property
     def verification(self):
@@ -109,17 +115,24 @@ def _body(identity):
 @lru_cache
 def resolve_behavior(name=None, editorial_pass=1):
     name = DEFAULT if name is None else name
-    if name not in NAMES or editorial_pass not in (1, 2, 3) or name == "existing/1" and editorial_pass != 1:
+    if (
+        name not in NAMES
+        or editorial_pass not in (1, 2, 3)
+        or name in ("existing/1", PRODUCTION)
+        and editorial_pass != 1
+    ):
         raise ContractError("unknown_writing_behavior")
     modern = name == "existing/1"
     catalog = ("existing-1" if modern else "narrative-rebuild-1") + ".json"
     resources = json.loads(ROOT.joinpath(catalog).read_text(encoding="utf-8"))
     overlays = CANDIDATES[: CANDIDATES.index(name) + 1] if name in CANDIDATES else ()
-    if name == "narrative-rebuild/2":
+    if name in ("narrative-rebuild/2", PRODUCTION):
         overlays = (name,)
     for release in overlays:
         # Each overlay inherits the preceding release and replaces only its owned roles.
-        overlay = ROOT.joinpath(release.replace("/", "-") + ".json")
+        overlay = ROOT.joinpath(
+            "production.json" if release == PRODUCTION else release.replace("/", "-") + ".json"
+        )
         if not overlay.is_file():
             raise ContractError("writing_behavior_not_released", name)
         change = json.loads(overlay.read_text(encoding="utf-8"))

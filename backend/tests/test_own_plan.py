@@ -4,7 +4,6 @@ import json
 from uuid import uuid4
 
 import pytest
-
 from podgen import writing_cli
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import AccessDenied, ContractError
@@ -12,11 +11,13 @@ from podgen.persistence.database import query
 from podgen.persistence.editorial_staging import EditorialStaging
 from podgen.persistence.objects import FileObjectStore
 from podgen.persistence.repository import Repository
+from podgen.research_writing_cli import main as research_main
 from podgen.runtime.evaluation.contracts import RunFailure, RunLimits, WritingRunCommand
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.profiles import create_profile
 from podgen.runtime.evaluation.service import WritingEvaluation
 from podgen.writing.materials import load_own_plan_materials
+
 from tests.own_plan_provider import OwnPlanProvider
 from tests.test_writing_cli import ROOT
 
@@ -47,6 +48,7 @@ def own_dataset(database, tmp_path_factory):
 
 def command_for(data, case="gps-clock", **changes):
     repo, project, report, writer, planner = data
+    changes.setdefault("behavior_profile", "existing/1")
     return WritingRunCommand(
         input_contract="legacy-author-materials/1",
         run_id=uuid4(),
@@ -119,8 +121,8 @@ def test_ordinary_cli_new_plan_revision_review_exact_delivery_and_export(
         "--export-dir",
         str(tmp_path / "export"),
     ]
-    assert writing_cli.main(args) == 0
-    assert writing_cli.main(args) == 0
+    assert research_main(args) == 0
+    assert research_main(args) == 0
     assert [r["metadata"]["podgen_stage"] for r in provider.requests] == [
         "plan",
         "plan-review",

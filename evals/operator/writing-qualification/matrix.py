@@ -63,7 +63,7 @@ class Matrix:
         self.prefix = [
             sys.executable,
             "-m",
-            "podgen.writing_cli",
+            "podgen.research_writing_cli",
             "--project",
             state["project"],
             "--actor",

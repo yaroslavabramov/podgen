@@ -4,16 +4,16 @@ from copy import deepcopy
 from uuid import uuid4
 
 import pytest
-from pydantic import ValidationError
-
 from podgen.runtime.evaluation.planning_export import render_plan
-from podgen.runtime.evaluation.preview import preview_request
 from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.writing.editorial_contract import FixedEditorialInput
 from podgen.writing.model_references import ModelReferences, bind_schema
 from podgen.writing.planning_choice import SCENE_VERSION, VERSION
 from podgen.writing.planning_versions import planning_model, planning_snapshot
 from podgen.writing.projection_versions import V9
+from pydantic import ValidationError
+
+from tests.historical_preview import replay_preview as preview_request
 from tests.planning_choice_cases import selection
 from tests.test_editorial_independence import payload
 from tests.test_v5_role_wire import fixture

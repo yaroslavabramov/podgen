@@ -4,13 +4,14 @@ import json
 from datetime import datetime, timedelta
 
 import pytest
-
 from podgen import writing_cli
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import RuntimeRef
+from podgen.research_writing_cli import main as research_main
 from podgen.runtime.evaluation import service
 from podgen.runtime.evaluation.contracts import RunFailure
 from podgen.runtime.evaluation.journal import EvaluationJournal
+
 from tests.planning_continuation_cases import failed_source
 from tests.test_editorial_independence import prepare
 from tests.test_independent_readings import ReadingProvider
@@ -29,7 +30,7 @@ def test_cli_plan_boundary_and_late_resume_share_the_clearance_and_never_repeat_
         args = [*prefix, action, *flags]
         for key, value in options.items():
             args.extend(("--" + key.replace("_", "-"), str(value)))
-        return writing_cli.main(args)
+        return research_main(args)
 
     repo, project = own_dataset[:2]
     journal = EvaluationJournal(repo, project)

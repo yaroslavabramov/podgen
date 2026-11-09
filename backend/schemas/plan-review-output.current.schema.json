@@ -41,7 +41,7 @@
           },
           "title": "Preserve",
           "type": "array",
-          "description": "Useful story properties, supported meaning or necessary factual conditions to retain through the repair; may be empty."
+          "description": "Preserve a useful story choice or the supported meaning of a claim. A factual boundary limits what the revision can imply; it calls for an explicit explanation only when the listener needs it to understand the retained claim. May be empty."
         },
         "material_refs": {
           "items": {

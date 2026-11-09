@@ -4,12 +4,12 @@ import json
 from copy import deepcopy
 
 import pytest
-
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.runtime.evaluation.contracts import RunFailure, WritingRunCommand
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.service import WritingEvaluation
 from podgen.runtime.models.contracts import WireReply
+
 from tests.own_plan_provider import proposal, question
 from tests.planning_choice_cases import answer_requested_selection
 from tests.test_editorial_independence import payload, prepare
@@ -108,6 +108,7 @@ def failed_source(dataset, tmp_path, monkeypatch):
     from uuid import uuid4
 
     command = WritingRunCommand(
+        behavior_profile="existing/1",
         run_id=uuid4(),
         project_id=project,
         actor_id=repo.actor_id,

@@ -8,6 +8,7 @@ from uuid import uuid4
 from podgen.runtime.evaluation.preview import preview_request
 from podgen.writing import prompts
 from podgen.writing.behavior import DEFAULT, NAMES, BehaviorProfile, resolve_behavior
+
 from tests.test_v5_role_wire import fixture
 
 
@@ -17,7 +18,7 @@ def test_candidate_2_is_only_three_owned_instruction_changes_with_exact_format_a
         name: (root / name).read_bytes().decode() for name in ("plan.md", "plan-review.md", "plan-revise.md")
     }
     assert "editorial-candidate/2" in NAMES
-    assert resolve_behavior().name == DEFAULT == "existing/1"
+    assert resolve_behavior().name == DEFAULT == "production/1"
     changed = {"plan", "plan-review", "plan-revise"}
     marker = "Read the supplied `candidate_plan`"
     for editorial_pass in (1, 2, 3):

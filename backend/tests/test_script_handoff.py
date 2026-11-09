@@ -7,10 +7,8 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.persistence.editorial_inputs import EditorialMaterials
-from podgen.runtime.evaluation.preview import preview_request
 from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.writing.duration_views import duration_context
 from podgen.writing.editorial_contract import EditorialInput
@@ -18,6 +16,8 @@ from podgen.writing.model_references import ModelReferences
 from podgen.writing.projection_versions import V6, V7, V8
 from podgen.writing.projections import actionable_feedback, role_payload
 from podgen.writing.reading_views import reading_payload
+
+from tests.historical_preview import replay_preview as preview_request
 from tests.test_editorial_independence import payload
 from tests.test_role_semantics import ARCHIVE, archived_materials
 from tests.test_v5_role_wire import fixture

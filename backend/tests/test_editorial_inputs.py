@@ -8,7 +8,6 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from podgen.domain.canonical import digest
 from podgen.domain.errors import AccessDenied, ContractError
 from podgen.persistence.editorial_documents import import_document
@@ -18,6 +17,7 @@ from podgen.persistence.editorial_inputs import (
     import_shared,
     load_editorial_materials,
 )
+from podgen.research_writing_cli import main as research_main
 from podgen.runtime.evaluation.contracts import WritingRunCommand
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.profiles import create_profile
@@ -25,6 +25,7 @@ from podgen.runtime.evaluation.service import WritingEvaluation
 from podgen.runtime.models.contracts import WireReply
 from podgen.writing.projection_versions import V6
 from podgen.writing.projections import role_payload
+
 from tests.author_responses import author_response, read_work
 from tests.planning_choice_cases import answer_requested_selection
 from tests.test_writing_evaluation import setup_writer as setup_writer
@@ -234,6 +235,7 @@ def test_default_real_runtime_and_resume_are_projected(repo, editorial):
     project, data, _, shared, fixed, _ = editorial
     profile = create_profile(repo, project, model="local-double", context_limit=1050000, output_limit=32768)
     command = WritingRunCommand(
+        behavior_profile="existing/1",
         review_mode="informed-v1",
         run_id=uuid4(),
         project_id=project,
@@ -260,6 +262,7 @@ def test_token_guard_counts_but_does_not_submit(repo, editorial):
     project, data, _, shared, fixed, _ = editorial
     profile = create_profile(repo, project, model="local-double", context_limit=1050000, output_limit=32768)
     command = WritingRunCommand(
+        behavior_profile="existing/1",
         review_mode="informed-v1",
         run_id=uuid4(),
         project_id=project,
@@ -293,6 +296,7 @@ def test_byte_guard_before_provider_construction(repo, editorial):
     )
     writer = create_profile(repo, project, model="local-double", context_limit=1050000, output_limit=32768)
     command = WritingRunCommand(
+        behavior_profile="existing/1",
         review_mode="informed-v1",
         run_id=uuid4(),
         project_id=project,
@@ -383,6 +387,7 @@ def test_own_plan_uses_only_shared_packet_and_structured_creative_decisions(repo
         roles=["planner", "plan_reviewer"],
     )
     command = WritingRunCommand(
+        behavior_profile="existing/1",
         review_mode="informed-v1",
         run_id=uuid4(),
         project_id=project,
@@ -479,6 +484,7 @@ def test_compact_anchor_repair_rejects_unoffered_real_selector(repo, editorial, 
 
     profile = create_profile(repo, project, model="local-double", context_limit=1050000, output_limit=32768)
     command = WritingRunCommand(
+        behavior_profile="existing/1",
         review_mode="informed-v1",
         run_id=uuid4(),
         project_id=project,
@@ -506,6 +512,7 @@ def test_keep_finalization_is_free_exact_and_exported(repo, editorial, tmp_path)
     project, data, _, shared, fixed, _ = editorial
     profile = create_profile(repo, project, model="local-double", context_limit=1050000, output_limit=32768)
     command = WritingRunCommand(
+        behavior_profile="existing/1",
         review_mode="informed-v1",
         run_id=uuid4(),
         project_id=project,
@@ -584,6 +591,7 @@ def test_forged_shared_envelope_cannot_open_fixed_source(repo, editorial, monkey
 
 def test_pending_raw_resume_is_disabled_but_archive_preserved(repo, setup_writer):
     from podgen.runtime.evaluation.contracts import RunFailure
+
     from tests.test_writing_evaluation import FakeProvider
 
     command, loader, _ = setup_writer
@@ -604,9 +612,10 @@ def test_pending_raw_resume_is_disabled_but_archive_preserved(repo, setup_writer
 @pytest.mark.parametrize("case", ["gps-clock", "snow-pump"])
 def test_real_editorial_packets_bind_every_exact_source_and_fit(repo, scope, case):
     from podgen.persistence.editorial_staging import EditorialStaging
-    from podgen.runtime.evaluation.preview import preview_request
     from podgen.runtime.evaluation.profiles import load_profile
     from podgen.runtime.evaluation.wire_budget import check_visible, visible_sizes
+
+    from tests.historical_preview import replay_preview as preview_request
     from tests.test_writing_cli import ROOT as CORPUS
 
     project, _ = scope
@@ -695,7 +704,7 @@ def test_informed_cli_preview_and_keep_run_need_no_real_provider(repo, editorial
     profile_json = json.dumps(profile.ref.model_dump(mode="json"))
     preview = tmp_path / "preview.json"
     assert (
-        writing_cli.main(
+        research_main(
             prefix
             + [
                 "preview",
@@ -723,7 +732,7 @@ def test_informed_cli_preview_and_keep_run_need_no_real_provider(repo, editorial
     run_id = uuid4()
     export = tmp_path / "cli-export"
     assert (
-        writing_cli.main(
+        research_main(
             prefix
             + [
                 "run",

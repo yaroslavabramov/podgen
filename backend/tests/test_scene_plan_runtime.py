@@ -4,10 +4,12 @@ import json
 from copy import deepcopy
 
 from podgen import writing_cli
+from podgen.research_writing_cli import main as research_main
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.profiles import create_profile
 from podgen.runtime.models.contracts import WireReply
 from podgen.writing.planning_choice import KEY, SCENE_VERSION
+
 from tests.test_editorial_independence import invoke, payload, prepare
 from tests.test_independent_readings import ReadingProvider
 from tests.test_own_plan import own_dataset as own_dataset
@@ -68,7 +70,7 @@ def test_candidate_clearance_writing_and_replayed_fact_wire(own_dataset, tmp_pat
     args = [*prefix, "run", "--stop-after-plan"]
     for k, v in options.items():
         args.extend(["--" + k.replace("_", "-"), str(v)])
-    assert writing_cli.main(args) == 0
+    assert research_main(args) == 0
 
     def stages():
         return [body["metadata"]["podgen_stage"] for body in provider.requests]

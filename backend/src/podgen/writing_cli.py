@@ -27,7 +27,7 @@ def wire_ref(value, model):
     return model.model_validate(data)
 
 
-def parser():
+def parser(*, research=False):
     root = argparse.ArgumentParser(
         description="Frozen episode writing with independent listener and factual readings"
     )
@@ -73,8 +73,9 @@ def parser():
     run.add_argument("--case", required=True)
     from podgen.writing.behavior import NAMES
 
-    run.add_argument("--behavior-profile", choices=NAMES)
-    run.add_argument("--editorial-pass", type=int, choices=(1, 2, 3), default=1)
+    if research:
+        run.add_argument("--behavior-profile", choices=NAMES, default="existing/1")
+        run.add_argument("--editorial-pass", type=int, choices=(1, 2, 3), default=1)
     run.add_argument("--fixed-plan-input-ref")
 
     run.add_argument(
@@ -84,20 +85,45 @@ def parser():
     )
     run.add_argument("--writer-profile", required=True)
     run.add_argument("--reviewer-profile", required=True)
-    run.add_argument("--plan-mode", choices=["fixed-plan", "own-plan"], default="fixed-plan")
+    run.add_argument(
+        "--plan-mode", choices=["fixed-plan", "own-plan"], default="fixed-plan" if research else "own-plan"
+    )
     run.add_argument("--planner-profile")
     run.add_argument("--plan-reviewer-profile")
     run.add_argument("--max-plan-revisions", type=int, choices=[0, 1], default=1)
-    run.add_argument(
-        "--review-mode", choices=["informed-v1", "independent-readings/1"], default="independent-readings/1"
-    )
+    if research:
+        run.add_argument(
+            "--review-mode",
+            choices=["informed-v1", "independent-readings/1"],
+            default="independent-readings/1",
+        )
+    else:
+        run.set_defaults(review_mode="independent-readings/1")
     run.add_argument("--max-script-revisions", type=int, choices=[0, 1, 2], default=2)
     run.add_argument("--initial-script-ref", help="Saved complete script RuntimeRef JSON or @file")
     run.add_argument("--repeat-index", type=int, default=0)
-    run.add_argument("--max-total-input-tokens", type=int, default=196608)
-    run.add_argument("--max-total-output-tokens", type=int, default=131072)
-    run.add_argument("--max-elapsed-seconds", type=int, default=7200)
-    run.add_argument("--review-anchor-policy", choices=["strict", "bounded-selection-v1"], default="strict")
+    from podgen.runtime.evaluation.wire_budget import PRODUCTION_RUN_LIMITS
+
+    run.add_argument(
+        "--max-total-input-tokens",
+        type=int,
+        default=196608 if research else PRODUCTION_RUN_LIMITS["max_total_input_tokens"],
+    )
+    run.add_argument(
+        "--max-total-output-tokens",
+        type=int,
+        default=131072 if research else PRODUCTION_RUN_LIMITS["max_total_output_tokens"],
+    )
+    run.add_argument(
+        "--max-elapsed-seconds",
+        type=int,
+        default=7200 if research else PRODUCTION_RUN_LIMITS["max_elapsed_seconds"],
+    )
+    run.add_argument(
+        "--review-anchor-policy",
+        choices=["strict", "bounded-selection-v1"],
+        default="strict" if research else "bounded-selection-v1",
+    )
     run.add_argument("--export-dir", type=Path, required=True)
     for command in ["resume", "inspect"]:
         command_parser = sub.add_parser(command)
@@ -122,7 +148,7 @@ def parser():
     from podgen.editorial_cli import add_commands
     from podgen.runtime.evaluation.planning_continuation.cli import add_command
 
-    add_commands(sub)
+    add_commands(sub, research=research)
     continuation = add_command(sub)
     for action in (run, sub.choices["resume"], continuation):
         action.add_argument(
@@ -133,8 +159,8 @@ def parser():
     return root
 
 
-def main(argv=None):
-    args = parser().parse_args(argv)
+def main(argv=None, *, research=False):
+    args = parser(research=research).parse_args(argv)
     if args.env_file:
         from dotenv import load_dotenv
 
@@ -231,8 +257,8 @@ def main(argv=None):
                 project_id=args.project,
                 actor_id=args.actor,
                 case_id=args.case,
-                behavior_profile=args.behavior_profile,
-                editorial_pass=args.editorial_pass,
+                behavior_profile=getattr(args, "behavior_profile", "production/1"),
+                editorial_pass=getattr(args, "editorial_pass", 1),
                 fixed_plan_input_ref=wire_ref(args.fixed_plan_input_ref, RuntimeRef)
                 if args.fixed_plan_input_ref
                 else None,

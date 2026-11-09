@@ -7,9 +7,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from podgen.domain.errors import ContractError
-from podgen.runtime.evaluation.preview import preview_request
 from podgen.runtime.evaluation.preview_snapshot import PreviewSnapshot
 from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.writing.author_reply import contract_pin
@@ -18,6 +16,8 @@ from podgen.writing.plan_selection import KEY, OPTIONS_VERSION, VERSION, from_ma
 from podgen.writing.projection_versions import V8, V9
 from podgen.writing.reading_views import reading_payload
 from podgen.writing.story_views import narrative_decisions
+
+from tests.historical_preview import replay_preview as preview_request
 from tests.revision_cases import composition, scope
 from tests.test_editorial_independence import payload
 from tests.test_v5_role_wire import fixture

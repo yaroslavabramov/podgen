@@ -6,23 +6,23 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from podgen import writing_cli
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.contracts.writing import ActPlan, Ending
 from podgen.persistence.editorial_inputs import EditorialMaterials, generation_repo
 from podgen.runtime.evaluation.journal import EvaluationJournal
-from podgen.runtime.evaluation.preview import preview_request
 from podgen.runtime.evaluation.profiles import load_profile
 from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.runtime.models.contracts import WireReply
+from podgen.writing.behavior import resolve_behavior
 from podgen.writing.editorial_contract import EditorialInput, FixedEditorialInput
 from podgen.writing.plan_views import candidate_view
-from podgen.writing.planning_choice import VERSION as PLANNING_VERSION
 from podgen.writing.planning_roles import PlanningOutput, PlanReviewOutput
 from podgen.writing.planning_v9 import PlanningOutputV9
 from podgen.writing.projection_versions import V3, V8
 from podgen.writing.projections import creative_knowledge_view
+
+from tests.historical_preview import replay_preview as preview_request
 from tests.historical_revisions import historical_revision_manifest
 from tests.test_editorial_independence import invoke, payload, prepare
 from tests.test_independent_readings import Paused, ReadingProvider, setup_review
@@ -72,7 +72,14 @@ def test_new_and_legacy_plan_shapes_roundtrip_without_manufacturing_or_losing_fi
 
 def test_published_current_schemas_and_real_model_contract_have_no_obligation_lists():
     for stage, name in (("plan", "planning-output"), ("plan-review", "plan-review-output")):
-        schema = response_schema(stage, "editorial-role-packets/1", planning_output_contract=PLANNING_VERSION)
+        behavior = resolve_behavior()
+        schema = response_schema(
+            stage,
+            "editorial-role-packets/1",
+            projection_version=behavior.projection,
+            planning_output_contract=behavior.planning_contract,
+            plan_review_schema_version=behavior.plan_review_schema,
+        )
         assert schema == json.loads((ROOT / f"backend/schemas/{name}.current.schema.json").read_text())
         for definition in [schema, *schema.get("$defs", {}).values()]:
             if definition.get("type") == "object":

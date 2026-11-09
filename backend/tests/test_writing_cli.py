@@ -6,11 +6,12 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from podgen import writing_cli
 from podgen.persistence.editorial_staging import EditorialStaging
+from podgen.research_writing_cli import main as research_main
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.profiles import create_profile
+
 from tests.test_writing_evaluation import FakeProvider
 
 ROOT = Path(
@@ -83,7 +84,7 @@ def test_real_frozen_cli_entry_all_stages_and_evaluator_export(
             str(out),
         ]
         # Fake provider honors the format declared in the actual material payload.
-        assert writing_cli.main(args) == 0
+        assert research_main(args) == 0
         assert (
             (out / "draft.txt").is_file()
             and (out / "revise.txt").is_file()
@@ -104,7 +105,7 @@ def test_real_frozen_cli_entry_all_stages_and_evaluator_export(
             assert all("evaluator-only" not in doc["path"] for doc in docs)
             assert len(request["input"][0]["content"][0]["text"].encode()) > 500000
             assert request["model"] == "gpt-5.4-2026-03-05"
-        assert writing_cli.main(args) == 0
+        assert research_main(args) == 0
     assert len(provider.requests) == (6 if anchor_policy == "strict" else 8)
     assert all(
         json.loads(req["input"][0]["content"][0]["text"])["output_language"] == "ru"

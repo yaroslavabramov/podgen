@@ -7,12 +7,13 @@ from uuid import uuid4
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.persistence.editorial_inputs import EditorialMaterials
 from podgen.runtime.evaluation import script_revision
-from podgen.runtime.evaluation.preview import preview_request
 from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.reader_schema import V2
 from podgen.writing.reader_schema import VERSION as READER_VERSION
 from podgen.writing.revision.contracts import FACT_VERSION
+
+from tests.historical_preview import replay_preview as preview_request
 from tests.revision_cases import actual_case
 from tests.test_editorial_independence import payload
 from tests.test_model_wire_schema import assert_reference_nodes
@@ -93,7 +94,6 @@ def test_every_new_provider_schema_has_valid_reference_nodes_and_explicit_requir
 
 def test_compact_revision_pin_requires_its_addressed_review_workflow():
     import pytest
-
     from podgen.domain.errors import ContractError
     from podgen.writing.projection_versions import V8, V9
     from podgen.writing.revision.context import KEY, VERSION, from_manifest
@@ -121,6 +121,7 @@ def test_compact_rewrite_wire_changes_only_the_tutorial_and_listener_recap():
     from podgen.writing.craft_reference import load_reference
     from podgen.writing.plan_selection import VERSION as SCENE_LINKS
     from podgen.writing.revision.context import KEY, VERSION
+
     from tests.revision_cases import scope
     from tests.test_plan_selection import snapshot
 

@@ -6,16 +6,17 @@ from threading import Event, Thread
 from uuid import uuid4
 
 import pytest
-
 from podgen import writing_cli
 from podgen.domain.canonical import digest
 from podgen.domain.errors import Conflict, ContractError
+from podgen.research_writing_cli import main as research_main
 from podgen.runtime.evaluation.contracts import RunFailure, command_payload
 from podgen.runtime.evaluation.export import export_run
 from podgen.runtime.evaluation.planning import verify_clearance
 from podgen.runtime.evaluation.planning_continuation.cli import prepare
 from podgen.runtime.evaluation.planning_continuation.source import build_command, continuation_id
 from podgen.runtime.evaluation.service import WritingEvaluation
+
 from tests.planning_continuation_cases import ContinuationProvider, failed_source
 from tests.test_editorial_independence import payload
 from tests.test_independent_readings import Paused
@@ -177,16 +178,16 @@ def test_ordinary_cli_prepares_runs_and_resumes_the_same_descendant(own_dataset,
         "--export-dir",
         str(tmp_path / "cli-child"),
     ]
-    assert writing_cli.main([*prefix, *options, "--preview-only"]) == 0
+    assert research_main([*prefix, *options, "--preview-only"]) == 0
     assert not provider.requests and not provider.counts
-    assert writing_cli.main([*prefix, *options, "--stop-after-plan"]) == 0
+    assert research_main([*prefix, *options, "--stop-after-plan"]) == 0
     assert [r["metadata"]["podgen_stage"] for r in provider.requests] == [
         "plan-revise",
         "plan-review-revised",
     ]
     assert json.loads((tmp_path / "cli-child/run.json").read_bytes())["status"] == "plan_ready"
     assert (
-        writing_cli.main(
+        research_main(
             [
                 *prefix,
                 "resume",

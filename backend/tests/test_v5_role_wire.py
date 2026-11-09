@@ -7,7 +7,6 @@ from podgen.domain.contracts.common import RuntimeRef
 from podgen.persistence.editorial_inputs import EditorialMaterials
 from podgen.runtime.evaluation.material_names import AliasedNames, display_materials
 from podgen.runtime.evaluation.plan_target_recovery import request_candidate
-from podgen.runtime.evaluation.preview import preview_request
 from podgen.runtime.evaluation.role_request import compile_role_request
 from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.writing.card_authoring import upgrade_shared
@@ -15,6 +14,8 @@ from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.model_references import CATALOG_KEY, ModelReferences
 from podgen.writing.plan_views import candidate_view
 from podgen.writing.projection_versions import V4, V5
+
+from tests.historical_preview import replay_preview as preview_request
 from tests.own_plan_provider import proposal
 from tests.test_card_ids import legacy
 from tests.test_editorial_independence import payload

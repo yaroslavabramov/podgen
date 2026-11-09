@@ -3,7 +3,7 @@
 from copy import deepcopy
 from uuid import uuid4
 
-from podgen.runtime.evaluation.preview import preview_request
+from tests.historical_preview import replay_preview as preview_request
 from tests.test_craft_reference import reference_resource
 from tests.test_v5_role_wire import fixture
 

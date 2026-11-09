@@ -5,6 +5,24 @@ import json
 from podgen.domain.errors import ContractError
 from podgen.writing.projections import CONTRACT, SINGLE_INPUT_TOKEN_LIMIT, VISIBLE_BYTES_LIMIT
 
+LEGACY_INPUT_BUDGET = dict(visible_bytes=VISIBLE_BYTES_LIMIT, input_tokens=SINGLE_INPUT_TOKEN_LIMIT)
+PRODUCTION_INPUT_BUDGET = dict(visible_bytes=256 * 1024, input_tokens=65536)
+# Thirteen ordinary calls (one plan repair and two script edits) fit even at their per-call caps.
+PRODUCTION_RUN_LIMITS = dict(
+    max_total_input_tokens=1048576, max_total_output_tokens=393216, max_elapsed_seconds=14400
+)
+
+
+def input_budget_for_profile(name):
+    return (PRODUCTION_INPUT_BUDGET if name == "production/1" else LEGACY_INPUT_BUDGET).copy()
+
+
+def validate_manifest_budget(manifest):
+    budget = manifest.get("role_input_budget")
+    if budget != input_budget_for_profile(manifest.get("behavior_profile")):
+        raise ContractError("role_input_contract_changed")
+    return budget.copy()
+
 
 def visible_sizes(body):
     values = dict(

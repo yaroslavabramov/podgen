@@ -384,67 +384,10 @@
       ],
       "title": "PlanningTransitions",
       "type": "object"
-    },
-    "StorySelection": {
-      "additionalProperties": false,
-      "properties": {
-        "first": {
-          "description": "Brief first concept: the story's movement and where it leads.",
-          "minLength": 1,
-          "title": "First",
-          "type": "string"
-        },
-        "second": {
-          "description": "Brief genuinely different telling, not a paraphrase or stylistic variant.",
-          "minLength": 1,
-          "title": "Second",
-          "type": "string"
-        },
-        "difference": {
-          "description": "The substantive editorial difference between these tellings.",
-          "minLength": 1,
-          "title": "Difference",
-          "type": "string"
-        },
-        "selected": {
-          "enum": [
-            "first",
-            "second"
-          ],
-          "title": "Selected",
-          "type": "string"
-        },
-        "why_selected": {
-          "description": "Brief editorial result: what the selected telling offers this audience within the brief. Not a reasoning transcript.",
-          "minLength": 1,
-          "title": "Why Selected",
-          "type": "string"
-        }
-      },
-      "required": [
-        "first",
-        "second",
-        "difference",
-        "selected",
-        "why_selected"
-      ],
-      "title": "StorySelection",
-      "type": "object"
     }
   },
   "additionalProperties": false,
   "properties": {
-    "story_selection": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/StorySelection"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "description": "Compare two distinct tellings before developing the selected one in plan. Null is allowed only when no plan is supported."
-    },
     "status": {
       "enum": [
         "ready",
@@ -473,11 +416,10 @@
     }
   },
   "required": [
-    "story_selection",
     "status",
     "plan",
     "research_requests"
   ],
-  "title": "PlanningChoiceOutput",
+  "title": "PlanningOutputV9",
   "type": "object"
 }

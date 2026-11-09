@@ -5,7 +5,6 @@ from dataclasses import replace
 from uuid import uuid4
 
 import pytest
-
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import AccessDenied, Conflict
 from podgen.persistence.database import one, query
@@ -148,6 +147,7 @@ def setup_writer(repo, scope):
         repo, project, model="synthetic-pinned-snapshot", context_limit=1050000, output_limit=65536
     )
     command = WritingRunCommand(
+        behavior_profile="existing/1",
         input_contract="legacy-author-materials/1",
         run_id=uuid4(),
         project_id=project,
@@ -362,6 +362,7 @@ def test_source_revoked_during_count_is_not_resubmitted_from_evaluator_request(
     repo, scope, producer, setup_writer
 ):
     from podgen.persistence.dependencies import DependencyLedger
+
     from tests.factories import Factory
 
     command, loader, text = setup_writer

@@ -6,17 +6,17 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.domain.errors import ContractError
 from podgen.persistence.editorial_inputs import generation_repo, load_editorial_materials
 from podgen.runtime.evaluation.contracts import WritingRunCommand, command_payload
 from podgen.runtime.evaluation.planning_continuation.cli import prepare
 from podgen.runtime.evaluation.planning_continuation.source import build_command, last_pair
-from podgen.runtime.evaluation.preview import preview_request
 from podgen.runtime.evaluation.preview_snapshot import load_preview_snapshot
 from podgen.runtime.evaluation.profiles import load_profile
 from podgen.runtime.evaluation.service import WritingEvaluation
+
+from tests.historical_preview import replay_preview as preview_request
 from tests.planning_continuation_cases import ContinuationProvider, failed_source
 from tests.test_own_plan import own_dataset as own_dataset
 
@@ -73,6 +73,7 @@ def test_pinned_preview_binds_both_seed_outputs_and_waits_for_the_new_candidate(
 def test_a_historical_manifest_without_command_input_contract_cannot_be_misread_as_modern():
     profile = ArtifactRef(artifact_id=uuid4(), revision_id=uuid4(), kind="ModelProfile")
     command = WritingRunCommand(
+        behavior_profile="existing/1",
         run_id=uuid4(),
         project_id=uuid4(),
         actor_id=uuid4(),

@@ -6,13 +6,13 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from podgen.domain.errors import ContractError
-from podgen.runtime.evaluation.preview import preview_request
 from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.writing.projection_versions import V1, V2, V3, V4, V5, V6, V7
 from podgen.writing.reader_schema import FIELDS, FINDING_FIELDS, VERSION
 from podgen.writing.reader_schema import V1 as READER_V1
+
+from tests.historical_preview import replay_preview as preview_request
 from tests.test_planning_schema_versions import without_descriptions
 from tests.test_script_handoff import wire_hash
 from tests.test_v5_role_wire import fixture

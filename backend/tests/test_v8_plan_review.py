@@ -6,10 +6,8 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.persistence.editorial_inputs import EditorialMaterials
-from podgen.runtime.evaluation.preview import preview_request
 from podgen.runtime.evaluation.preview_snapshot import PreviewSnapshot
 from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.writing.editorial_contract import EditorialInput
@@ -18,6 +16,8 @@ from podgen.writing.plan_review_descriptions import FIELDS
 from podgen.writing.projection_versions import V7, V8
 from podgen.writing.projections import role_payload
 from podgen.writing.reading_views import reading_payload
+
+from tests.historical_preview import replay_preview as preview_request
 from tests.own_plan_provider import proposal
 from tests.test_card_ids import legacy
 from tests.test_planning_schema_versions import without_descriptions

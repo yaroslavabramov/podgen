@@ -80,6 +80,11 @@ class WritingEvaluation:
         journal = EvaluationJournal(self.repo, command.project_id)
         with journal.lock(command.run_id):
             existing = journal.run(command.run_id)
+            from .run_configuration import production_command
+
+            command = production_command(
+                command, frozen_manifest=journal.manifest(command.run_id) if existing else None
+            )
             checkpoint = PlanningCheckpoint(command.run_id)
             if existing:
                 historical = journal.manifest(command.run_id)["command"]
@@ -180,15 +185,16 @@ class WritingEvaluation:
                 materials = self._materials(command)
                 manifest = create_manifest(self.repo, self.generation, command, journal, materials)
             if command.input_contract == "editorial-role-packets/1":
-                from podgen.writing.projections import SINGLE_INPUT_TOKEN_LIMIT, VISIBLE_BYTES_LIMIT
+                from .wire_budget import validate_manifest_budget
 
-                if manifest.get("input_contract") != command.input_contract or manifest.get(
-                    "role_input_budget"
-                ) != dict(visible_bytes=VISIBLE_BYTES_LIMIT, input_tokens=SINGLE_INPUT_TOKEN_LIMIT):
+                if manifest.get("input_contract") != command.input_contract:
                     raise ContractError("role_input_contract_changed")
+                validate_manifest_budget(manifest)
+            from podgen.writing import author_plan
             from podgen.writing.plan_selection import from_manifest as selection_from_manifest
             from podgen.writing.revision.context import from_manifest as revision_context_from_manifest
 
+            author_plan.from_manifest(manifest)
             selection_from_manifest(manifest)
             revision_context_from_manifest(manifest)
             from podgen.writing.planning_duration import from_manifest as duration_from_manifest

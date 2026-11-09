@@ -7,11 +7,8 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from pydantic import ValidationError
-
 from podgen.domain.errors import ContractError
 from podgen.runtime.evaluation.planning_export import render_plan
-from podgen.runtime.evaluation.preview import preview_request
 from podgen.runtime.evaluation.preview_snapshot import PreviewSnapshot
 from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.writing.author_reply import contract_pin
@@ -20,6 +17,9 @@ from podgen.writing.model_references import CATALOG_KEY, preview_references
 from podgen.writing.planning_choice import KEY, VERSION, PlanningChoiceOutput, from_manifest
 from podgen.writing.planning_versions import planning_model, planning_snapshot
 from podgen.writing.projection_versions import V8, V9
+from pydantic import ValidationError
+
+from tests.historical_preview import replay_preview as preview_request
 from tests.planning_choice_cases import selection
 from tests.test_editorial_independence import payload
 from tests.test_planning_v9 import selected

@@ -10,17 +10,17 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.persistence.editorial_inputs import EditorialMaterials, generation_repo, load_editorial_materials
-from podgen.runtime.evaluation.preview import preview_request
 from podgen.runtime.evaluation.wire_budget import check_visible
 from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.projection_versions import V5, V6, V7, V8, V9
 from podgen.writing.projections import CONTRACT, creative_knowledge_view, role_payload
 from podgen.writing.reading_views import reading_payload
 from podgen.writing.source_passages import card_source_passages
+
+from tests.historical_preview import replay_preview as preview_request
 from tests.own_plan_provider import proposal
 from tests.test_current_snow_input import source_file
 from tests.test_editorial_independence import payload

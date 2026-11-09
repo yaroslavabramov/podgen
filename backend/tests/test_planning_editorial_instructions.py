@@ -3,8 +3,6 @@
 from uuid import uuid4
 
 import pytest
-
-from podgen.runtime.evaluation.preview import preview_request
 from podgen.runtime.evaluation.preview_snapshot import PreviewSnapshot
 from podgen.writing.author_reply import contract_pin
 from podgen.writing.model_references import CATALOG_KEY, preview_references
@@ -13,6 +11,8 @@ from podgen.writing.planning_duration import KEY as DURATION_KEY
 from podgen.writing.planning_duration import VERSION as DURATION_VERSION
 from podgen.writing.projection_versions import V9
 from podgen.writing.prompts import load_instruction_set
+
+from tests.historical_preview import replay_preview as preview_request
 from tests.test_v5_role_wire import fixture
 
 

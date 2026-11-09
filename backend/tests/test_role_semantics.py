@@ -6,7 +6,6 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from podgen import writing_cli
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.persistence.editorial_inputs import EditorialMaterials
@@ -15,6 +14,7 @@ from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.projection_versions import CURRENT, V1, V2, V3, V8, V9
 from podgen.writing.projections import role_payload
+
 from tests.historical_revisions import historical_revision_manifest
 from tests.independent_planner_provider import IndependentPlannerProvider
 from tests.test_editorial_independence import invoke, payload
@@ -167,6 +167,7 @@ def test_older_manifest_resume_keeps_pinned_schema_and_request(
     project, data, _, shared, fixed, _ = editorial
     profile = create_profile(repo, project, model="local-double", context_limit=1050000, output_limit=32768)
     command = WritingRunCommand(
+        behavior_profile="existing/1",
         review_mode="informed-v1",
         run_id=uuid4(),
         project_id=project,

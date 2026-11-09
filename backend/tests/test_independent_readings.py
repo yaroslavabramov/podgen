@@ -6,15 +6,16 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from podgen import writing_cli
 from podgen.domain.contracts.common import RuntimeRef
+from podgen.research_writing_cli import main as research_main
 from podgen.runtime.evaluation.contracts import WritingRunCommand
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.reading_outcome import read_outcome
 from podgen.runtime.evaluation.reading_workflow import VERSION
 from podgen.runtime.models.contracts import WireReply
 from podgen.writing.prompts import load_reading_instructions
+
 from tests.author_responses import author_response
 from tests.independent_planner_provider import IndependentPlannerProvider
 from tests.test_editorial_independence import invoke, payload, prepare
@@ -447,7 +448,7 @@ def test_strict_failed_anchor_can_resume_with_explicit_address_recovery(own_data
     assert invoke(prefix, "run", **options) == 2
     assert len(provider.requests) == 1
     assert (
-        writing_cli.main(
+        research_main(
             [
                 *prefix,
                 "resume",

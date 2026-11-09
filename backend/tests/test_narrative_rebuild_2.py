@@ -8,7 +8,6 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from podgen.domain.errors import ContractError
 from podgen.runtime.evaluation.contracts import WritingRunCommand, command_payload
 from podgen.runtime.evaluation.preview import preview_request
@@ -24,6 +23,7 @@ from podgen.writing.plan_review_descriptions import (
     schema_version_from_manifest,
 )
 from podgen.writing.projection_versions import V8, V9
+
 from tests.test_v5_role_wire import fixture
 
 
@@ -31,7 +31,7 @@ def test_narrative_rebuild_2_changes_only_the_plan_editor_and_preserves_frozen_r
     monkeypatch,
 ):
     assert "narrative-rebuild/2" in NAMES
-    assert resolve_behavior().name == DEFAULT == "existing/1"
+    assert resolve_behavior().name == DEFAULT == "production/1"
     for passno in (1, 2, 3):
         old, new = (resolve_behavior(name, passno) for name in ("narrative-rebuild/1", "narrative-rebuild/2"))
         for field in fields(BehaviorProfile):
