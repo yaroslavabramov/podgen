@@ -5,11 +5,12 @@ from podgen.domain.errors import ContractError
 from .projection_versions import V9, manifest_version
 
 KEY = "planning_ending_guidance"
-VERSION = "story-resolution/1"
+LEGACY_VERSION = "story-resolution/1"
+VERSION = "story-resolution/2"
 
 
 def validate(version, projection):
-    if version is not None and (version != VERSION or projection != V9):
+    if version is not None and (version not in (LEGACY_VERSION, VERSION) or projection != V9):
         raise ContractError("unsupported_planning_ending_guidance")
     return version
 
@@ -23,6 +24,11 @@ def from_manifest(manifest):
 
 def describe(schema, stage, version):
     if version is None:
+        return
+    if version == VERSION:
+        from .closing_speech import describe as describe_closing_speech
+
+        describe_closing_speech(schema, stage)
         return
     if stage in ("plan", "plan-revise"):
         ending = schema["$defs"]["PlanningFinalMoment"]["properties"]

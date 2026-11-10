@@ -56,29 +56,31 @@ def test_ending_tasks_change_only_planning_descriptions_and_leave_other_roles_ex
         assert without_descriptions(current) == without_descriptions(old)
         if name in ("plan", "plan-revise"):
             ending = current["$defs"]["PlanningFinalMoment"]["properties"]
-            assert "supported reflection" in ending["last_moment"]["description"]
-            assert "resolution itself can be the ending" in ending["why_end_here"]["description"]
+            assert "concluding speech about the whole selected story" in ending["last_moment"]["description"]
+            assert (
+                "within the final scene or in a separate closing passage"
+                in ending["why_end_here"]["description"]
+            )
             assert (
                 "not a recap"
                 in old["$defs"]["PlanningFinalMoment"]["properties"]["last_moment"]["description"]
             )
         elif name.startswith("plan-review"):
-            assert (
-                "supported reflection or conclusion"
-                in current["properties"]["listener_answer"]["description"]
-            )
+            assert "concluding speech" in current["properties"]["listener_answer"]["description"]
             assert current != old
         else:
             assert current == old
 
 
-@pytest.mark.parametrize("pin", [None, ending_guidance.VERSION])
+@pytest.mark.parametrize("pin", [None, ending_guidance.LEGACY_VERSION, ending_guidance.VERSION])
 def test_actual_planner_release_preview_and_live_use_the_same_pinned_descriptions(monkeypatch, pin):
     materials, _, _, _, _, _, _, _, profile = data_and_profile()
     store, journal, command, manifest = release(monkeypatch, materials, profile)
     assert manifest[ending_guidance.KEY] == ending_guidance.VERSION
     if pin is None:
         manifest.pop(ending_guidance.KEY)
+    else:
+        manifest[ending_guidance.KEY] = pin
     refs = run_references(materials, manifest)
     for name in ("plan", "plan-revise", "plan-review", "plan-review-revised"):
         expected = bind_schema(
@@ -91,7 +93,7 @@ def test_actual_planner_release_preview_and_live_use_the_same_pinned_description
             ),
             refs,
         )
-        if pin is None:
+        if pin != ending_guidance.VERSION:
             manifest["response_schemas"][name] = expected
         assert manifest["response_schemas"][name] == expected
     frozen = deepcopy(manifest)
@@ -113,7 +115,7 @@ def test_actual_planner_release_preview_and_live_use_the_same_pinned_description
     snapshot = PreviewSnapshot(manifest, live["instructions"])
     assert preview_request(command.run_id, "plan", profile("plan"), materials, snapshot=snapshot) == live
     assert live["text"]["format"]["schema"] == manifest["response_schemas"]["plan"]
-    if pin:
+    if pin == ending_guidance.VERSION:
         assert (
             preview_request(
                 command.run_id, "plan", profile("plan"), materials, behavior_profile="production/1"
