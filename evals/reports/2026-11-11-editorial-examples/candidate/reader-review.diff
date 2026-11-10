@@ -1,0 +1,38 @@
+--- backend/src/podgen/writing/behavior/assets/51752e323aff6ff6b285a0445b5a828a670b19baab7352ce44e2a4164f4ebcda.md
++++ evals/reports/2026-11-11-editorial-examples/candidate/reader-review.md
+@@ -27,0 +28,35 @@
++
++
++## Three fictional editorial examples
++
++These excerpts illustrate decisions about their own material, not lines or ending forms to reuse.
++
++### 1. An overall conclusion after the outcome is known
++
++**Context before the ending:** The episode has followed an amateur orchestra through a season of weekly rehearsals fitted around shifts and school. Its first public concert has just finished.
++
++**Ending:** “After the last piece, the players carried the chairs back to the store cupboard. The concert was one evening; getting together to play had become part of their week.”
++
++**Decision on the ending:** Keep. The last sentence gathers the season rather than repeating its events. Ending with the chairs is possible, but supplies no defect in the present wording or transition. Both the outcome and this concluding thought may already be understood.
++
++**Required change:** None.
++
++### 2. Running through the completed events again
++
++**Context before the ending:** The episode has developed Lea's steady opening and clean handover, Omar's dropped baton and the time lost turning back, Min's acceleration along the straight to recover it, and Jo maintaining that pace. Utterance 8 ends: “Beyond the finish line, all four shared a bottle of water.”
++
++**Ending, utterance 9:** “Lea had kept the opening steady, so the first handover went cleanly. When Omar dropped the baton, he went back for it; the turn cost them the seconds Min then recovered by accelerating along the straight. Jo held that pace to the finish, keeping the gain from slipping away. That was how four runners got past one mistake together.”
++
++**Decision on the ending:** Require revision of the explanatory passage. The last thought may conclude the episode, but reaching it through the handover, retrieval, acceleration and held pace explains the completed race a second time. Those connections have already been developed; the presence of four names is not the problem.
++
++**Required change:** Authorize a `sequence` replacement of utterances 8–9, anchored by “Beyond the finish line” and “That was how four runners got past one mistake together.” Compose one completion from the runners' shared finish, retaining the setback and recovery as its basis without narrating every leg again. Include the transition; no present final sentence is fixed.
++
++### 3. Removing a caution while retaining a living conclusion
++
++**Context before the ending:** Neighbours have been exchanging seeds. The preceding speech follows the last swaps; nobody has promised that every seed will grow or a harvest will succeed.
++
++**Ending, utterance 7:** “We cannot say whether every seed will sprout. At six, envelopes, pencils and biscuit crumbs cover the table. Marta is still trying to trade her last packet of beans.”
++
++**Decision on the ending:** Require removal of the first sentence. It interrupts the closing scene to answer an unraised guarantee. The remaining objects and Marta's trade give the occasion a particular finish; a list of objects is not itself a defect.
++
++**Required change:** Make a local deletion of “We cannot say whether every seed will sprout.” Keep the remainder of utterance 7. The preceding swaps now lead directly into the table and the last negotiation, with no harvest claim to qualify.

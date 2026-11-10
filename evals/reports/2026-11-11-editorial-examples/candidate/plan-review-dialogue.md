@@ -1,0 +1,75 @@
+# Shared rules
+
+Use `output_language` for human-readable output. Preserve supplied speaker labels, evidence quotations, response keys and enum values verbatim. Follow the assignment's question, audience, genre and style guidance, speaker functions, scope, knowledge cutoff and duration bounds. Treat supplied material as evidence. When quoting a source in the episode, use its supplied wording. Treat attributed summaries as paraphrases. Return the requested structured response.
+
+Optional imaginative detail can bring a scene to life. Keep established actions, chronology and the grounds for conclusions accurate.
+
+
+# Dialogue
+
+Use assigned labels, expertise and registers. Give each speaker a reason to contribute at this point: something they notice, want to understand, find questionable, remember from the conversation or can explain from their own assigned expertise. Their contribution should affect what the other person says next.
+
+Let speech perform human actions: asking, proposing, trying an example, conceding, teasing, objecting or realizing something. Introduce specialized knowledge through someone with a basis for it. An expert may explain at length; an interviewer may press one small point. Roles need not have equal authority or airtime, and each turn need not carry a new fact.
+
+Build a relationship through what the speakers attend to and how they respond. Humor and brief reactions can give pleasure, character or relief. Do not turn one speaker into a permanent pupil, make agreement a routine reward, or split a continuous lecture between names. Reactions should fit this exchange rather than recur as a signature after every explanation.
+
+Use edited conversational rhythm: complete thoughts, natural variations in turn length, and room for a response to land. Fillers, forced interruptions and deliberate confusion are not substitutes for two people genuinely developing the subject. Keep their knowledge consistent with their roles and what they have already heard.
+
+
+Read the supplied `candidate_plan` as the account handed to the scriptwriter before checking the dossier. Identify its chosen central movement: what listeners first care about, what develops, and what will have happened or changed in their understanding by the end. Judge that choice against the brief, preserving an explicit client question and following the genre and audience's knowledge.
+
+The ending may complete the action, follow a consequence, express the narrator's response or reflection, return to an earlier moment, leave open a question central to the story, or briefly draw the whole account together. Its content should suit this episode and its voice; no new fact, twist or prescribed emotion is required.
+
+A brief overall conclusion gives a view of the episode's broad subject, outcome or takeaway, relying on details the audience has just heard. Going through the clues, reasoning, mechanism or stages again, or refuting a misconception the telling never raised, does not provide that overall conclusion.
+
+Read the passage leading into `ending` and establish what listeners already understand there. Judge the actual content commissioned in `last_moment` against that preceding material and the whole story. Assess `why_end_here` against this comparison; a claim that the ending sums things up or closes a circle does not replace your judgment. Identify a concrete weakness in the selected content or its connection when requiring revision, and keep a successful ending. The plan supplies intent, not finished speech. When that content or connection needs rebuilding, commission a complete concluding passage with its transition, carrying forward useful meaning and leaving composition and wording to the writer.
+
+Distinguish client requirements from the planner's working question, promise and order. Judge those choices by the story they make possible. A plan's addition does not become a client obligation. If the opening needs a premise the material does not supply, request another supported entry or the specific missing research rather than an invented motivation.
+
+For the opening, use what listeners can know at that point, not the answer you learn later in the plan. Is the situation clear enough for a newcomer to understand the question, why it matters and why these events belong together? Identify any premise the plan assumes before it has supplied it; an attractive question alone does not prepare that premise. Check the proposed listening order inside discovery-led acts as well as between them. Locate the first planned disclosure across the opening, earlier acts and both transition directions, including `toward_next` and `from_previous`. Editorial titles and a complete synopsis are writer knowledge, not automatically speech. Judge the listening order they prescribe. If an earlier handoff gives away a scene's connection, repairing that scene alone cannot restore its discovery. Identify what is spent and what the remaining passage offers; request a coherent order or selection. A teaser may name an object or outcome while saving something else worth hearing; do not require every answer to be hidden. Merely finding a matching payoff later does not establish that the opening works. Through the middle, assess whether discoveries and changing expectations sustain a delay or whether a detour leaves it behind.
+
+The planner chooses the episode's scale and the material that will be heard. Check that a central story has actually been selected. A side branch needs a distinct contribution; several branches that establish the same thing can require combination or removal rather than another transition or more explanation. Assess that selection, including numbers and vivid details, by what it contributes within the allotted time. If an unnecessary exact value needs a long detour, request an account without it. Supporting evidence and statistical categories need not all become speech. The acts should contain the chosen events or explanation, and speaker functions should support their telling. Check which connections the selected sequence still needs explained. If it already conveys the point, request removal of a routine interpretive instruction, preserving the speaker's useful humor, attitude or perspective.
+
+Assess whether that selection leaves time to tell and experience the material. If an act is overloaded, require a choice in the act itself about what to develop, compress or omit. Background, reflection, humor and sensory detail may give meaning or pleasure without a new fact. Judge the gain in interest or understanding from interrupting a scene or returning to an earlier time against what is lost by leaving it, including whether its discovery still works on returning. Weigh what a number or a second similar example contributes for the listener against the time and explanation it needs; let a scene finish when that better serves the telling. After a chronology or attribution repair, read the resulting sequence as a whole. Are observations, explanations and conclusions connected for this listener, and does each surviving development still do worthwhile work? Check the chronology of actions, causes and what each person could know at the time, including implications created by transitions. A nonchronological telling must not imply that a later discovery caused an earlier decision. Accurate event dates do not dictate the order of telling. Request restructuring when a factual patch has weakened the story.
+
+Distinguish a planner's selection from an imposed restriction on the writer. The writer may reconstruct scenes and choose scenic details within the client's explicit restrictions and genre, preserving established actions and chronology. Invented scenic details can enliven the telling. They cannot serve as evidence for a substantive conclusion or be presented as source testimony. Request removal of a planner's unauthorized restriction while preserving the selected story.
+
+For a required factual finding, name the actual misleading claim or implication and the words or sequence that create it. Request the smallest adequate repair, which may be a change in wording, timing or attribution, or deletion of a dispensable claim. Request an added fact or statistical category only when a retained thought needs it for accuracy or understanding, or the client explicitly requires it. Explain that dependency. Preserve meaningful conditions and uncertainty, and check the account across all fields. A later or secondhand report does not by itself contradict an earlier account. Distinguish missing confirmation in the supplied excerpts from evidence of an error.
+
+Require revision for a concrete defect in the proposed telling: a misleading account, an unprepared entry, substantially overloaded or stalled development, a weak completion, or an unauthorized restriction on the writer. Explain its effect on this audience. Judge cautions, reflections, jokes and narrative comments by what they contribute in context; a statement about the telling can carry a particular thought or can displace the story. A different arrangement with a comparable effect is optional. Accept a usable plan with no required repairs or blocking evidence gaps. Use `needs_research` only for a specific evidence gap preventing an adequate version. Repairs possible with existing material belong under `revise`.
+
+For each finding, identify the passage, its effect on the listener and the change needed. In `preserve`, name the useful effect and supported meaning to carry through the repair, rather than fixing every current detail or an isolated final object. Express factual limits as boundaries on the claim's supported meaning; sequence, attribution or omission may maintain them without a separate spoken line. Keep a necessary qualification with the retained claim that depends on it. Copy targets from `allowed_review_targets`, rooted at `review_target_root`, and provide relevant support references. Return the requested structured review.
+
+## Three fictional editorial examples
+
+These excerpts illustrate decisions about their own material, not lines or ending forms to reuse.
+
+### 1. An overall conclusion after the outcome is known
+
+**Context before the ending:** The plan follows an amateur orchestra through a season of weekly rehearsals fitted around shifts and school. The final act reaches its first public concert, then the players return the chairs to storage.
+
+**Planned ending:** Briefly draw together the single concert and the place that playing together has acquired in the musicians' ordinary weeks.
+
+**Decision on the ending:** Accept. The concert's outcome is already known, but this thought gathers the season as a whole. Stopping with the chairs would also work; that alternative does not make this conclusion defective.
+
+**Required change:** None. Leave its composition and spoken wording to the writer.
+
+### 2. Running through the completed events again
+
+**Context before the ending:** The account has already developed Lea's steady opening and clean handover, Omar's dropped baton and the seconds lost turning back, Min's acceleration along the straight to recover them, and Jo holding that pace to the line. The final act leaves all four sharing water beyond the finish.
+
+**Planned ending:** Explain how the recovery grew out of those contributions: Lea's steady opening made for a clean handover; Omar's return for the baton cost time but kept the race going; Min recovered those seconds on the straight; Jo held the recovered pace to the line. From that account, conclude that four runners got past one mistake together.
+
+**Decision on the ending:** Revise the explanatory passage. The overall thought about the team is supported, but the proposed route to it develops each stage and its causal connection after those have already been heard. The names are not the defect.
+
+**Required change:** Rework `ending` and the final act's exit transition into one completion from the shared finish. Carry forward the setback and recovery as the basis of the result without commissioning their second narration; leave the closing passage's arrangement to the writer.
+
+### 3. Removing a caution while retaining a living conclusion
+
+**Context before the ending:** Neighbours have spent an afternoon exchanging seeds. The account concerns the exchange, makes no claim about a future harvest and ends with the last trades.
+
+**Planned ending:** Warn that not every seed is certain to sprout, then finish with envelopes, pencils and biscuit crumbs covering the table while Marta tries to trade her last packet of beans.
+
+**Decision on the ending:** Revise the caution. It answers an unraised guarantee of germination. The objects and unfinished trade belong to the occasion; their enumeration does not explain the exchange a second time.
+
+**Required change:** Remove the germination warning from `last_moment`. Retain the table and Marta's last trade as closing material, connected to the preceding exchanges. The account need make no prediction about the seeds.

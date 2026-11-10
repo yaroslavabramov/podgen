@@ -1,0 +1,39 @@
+{
+  "production_manifest_sha256": "83d5c5bec34e8a21a8183e774f3df63c42122ca3ea7a534e93fc34f337c80ced",
+  "change": "Append three role-specific editorial examples; preserve all preceding instructions exactly.",
+  "candidate_count": 1,
+  "roles": [
+    {
+      "role": "plan-review-solo",
+      "baseline_asset": "backend/src/podgen/writing/behavior/assets/96daa0797fb55058db3c843ff4b98a9032e03c325c22b2add6dc4e15ff4a6ef1.md",
+      "baseline_sha256": "96daa0797fb55058db3c843ff4b98a9032e03c325c22b2add6dc4e15ff4a6ef1",
+      "candidate_file": "plan-review-solo.md",
+      "candidate_sha256": "c74dff65dfec75c7b2e44484b85dab770d921c03b0bc7d7fc41939ebcb6f1463",
+      "appended_sha256": "e67fb07fdd2d345ff4b21fe6105aad00f68d4f313db21a0f9e73bdcfa253857d",
+      "appended_words": 471,
+      "baseline_is_exact_prefix": true
+    },
+    {
+      "role": "plan-review-dialogue",
+      "baseline_asset": "backend/src/podgen/writing/behavior/assets/9598b84eca52020aba01de63019cad6fb86115ef6621ae8b1c90ab9c2df801bf.md",
+      "baseline_sha256": "9598b84eca52020aba01de63019cad6fb86115ef6621ae8b1c90ab9c2df801bf",
+      "candidate_file": "plan-review-dialogue.md",
+      "candidate_sha256": "3fdb8cfc30a2a639e279d6f00589b3227d14024caed7c21faa27b8c32a093064",
+      "appended_sha256": "e67fb07fdd2d345ff4b21fe6105aad00f68d4f313db21a0f9e73bdcfa253857d",
+      "appended_words": 471,
+      "baseline_is_exact_prefix": true
+    },
+    {
+      "role": "reader-review",
+      "baseline_asset": "backend/src/podgen/writing/behavior/assets/51752e323aff6ff6b285a0445b5a828a670b19baab7352ce44e2a4164f4ebcda.md",
+      "baseline_sha256": "51752e323aff6ff6b285a0445b5a828a670b19baab7352ce44e2a4164f4ebcda",
+      "candidate_file": "reader-review.md",
+      "candidate_sha256": "07da4eac0ce48474383f559e92a5f40e2323a85ee4dc2e2f673433806f227e16",
+      "appended_sha256": "4ac2c6d87fd237ce705d937f6ac417b87c8264f89cee26f0ad28f7ba4c23c041",
+      "appended_words": 513,
+      "baseline_is_exact_prefix": true
+    }
+  ],
+  "api_calls": 0,
+  "production_changed": false
+}

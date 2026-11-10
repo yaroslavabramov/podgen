@@ -1,0 +1,37 @@
+--- backend/src/podgen/writing/behavior/assets/9598b84eca52020aba01de63019cad6fb86115ef6621ae8b1c90ab9c2df801bf.md
++++ evals/reports/2026-11-11-editorial-examples/candidate/plan-review-dialogue.md
+@@ -41,0 +42,34 @@
++
++## Three fictional editorial examples
++
++These excerpts illustrate decisions about their own material, not lines or ending forms to reuse.
++
++### 1. An overall conclusion after the outcome is known
++
++**Context before the ending:** The plan follows an amateur orchestra through a season of weekly rehearsals fitted around shifts and school. The final act reaches its first public concert, then the players return the chairs to storage.
++
++**Planned ending:** Briefly draw together the single concert and the place that playing together has acquired in the musicians' ordinary weeks.
++
++**Decision on the ending:** Accept. The concert's outcome is already known, but this thought gathers the season as a whole. Stopping with the chairs would also work; that alternative does not make this conclusion defective.
++
++**Required change:** None. Leave its composition and spoken wording to the writer.
++
++### 2. Running through the completed events again
++
++**Context before the ending:** The account has already developed Lea's steady opening and clean handover, Omar's dropped baton and the seconds lost turning back, Min's acceleration along the straight to recover them, and Jo holding that pace to the line. The final act leaves all four sharing water beyond the finish.
++
++**Planned ending:** Explain how the recovery grew out of those contributions: Lea's steady opening made for a clean handover; Omar's return for the baton cost time but kept the race going; Min recovered those seconds on the straight; Jo held the recovered pace to the line. From that account, conclude that four runners got past one mistake together.
++
++**Decision on the ending:** Revise the explanatory passage. The overall thought about the team is supported, but the proposed route to it develops each stage and its causal connection after those have already been heard. The names are not the defect.
++
++**Required change:** Rework `ending` and the final act's exit transition into one completion from the shared finish. Carry forward the setback and recovery as the basis of the result without commissioning their second narration; leave the closing passage's arrangement to the writer.
++
++### 3. Removing a caution while retaining a living conclusion
++
++**Context before the ending:** Neighbours have spent an afternoon exchanging seeds. The account concerns the exchange, makes no claim about a future harvest and ends with the last trades.
++
++**Planned ending:** Warn that not every seed is certain to sprout, then finish with envelopes, pencils and biscuit crumbs covering the table while Marta tries to trade her last packet of beans.
++
++**Decision on the ending:** Revise the caution. It answers an unraised guarantee of germination. The objects and unfinished trade belong to the occasion; their enumeration does not explain the exchange a second time.
++
++**Required change:** Remove the germination warning from `last_moment`. Retain the table and Marta's last trade as closing material, connected to the preceding exchanges. The account need make no prediction about the seeds.
