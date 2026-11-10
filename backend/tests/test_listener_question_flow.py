@@ -142,8 +142,12 @@ def test_accepted_listener_question_reaches_author_and_review_without_replacing_
         assert view["assignment"]["audience"] == assignment["audience"]
     central = provider.accepted["plan"]["main_question"]
     assert views["draft"]["story"]["main_question"] == central
+    opening = initial["plan"]["opening"]
+    refs = {key: f"M{index}" for index, key in enumerate(views["plan"]["material_catalog"], 1)}
     assert views["draft"]["story"]["opening"] == {
-        k: v for k, v in initial["plan"]["opening"].items() if k != "material_refs"
+        "approach": opening["approach"],
+        "question_to_open": opening["question_to_open"],
+        "support_refs": [refs[key] for key in opening["material_refs"]],
     }
     assert views["review"]["editorial_frame"]["main_question"] == central
     assert views["review"]["draft"]["utterances"][0]["text"] == draft["utterances"][0]["text"]

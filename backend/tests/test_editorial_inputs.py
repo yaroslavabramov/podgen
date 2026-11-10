@@ -851,4 +851,6 @@ def test_keep_cannot_be_previewed_as_a_paid_revision(repo, editorial, monkeypatc
         lambda *args, **kwargs: pytest.fail("impossible revision reached compiler"),
     )
     with pytest.raises(ContractError, match="preview_revision_not_required"):
-        preview.preview_request(uuid4(), "revise", parsed, materials, draft=draft, feedback=feedback)
+        preview.preview_request(
+            uuid4(), "revise", parsed, materials, behavior_profile="existing/1", draft=draft, feedback=feedback
+        )
