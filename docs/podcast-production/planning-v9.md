@@ -8,7 +8,7 @@ The V9 planner and plan-revise wire uses `PlanningOutputV9`:
 
 - `plan.working_answer`: supported episode-wide meaning, including uncertainty that changes it. This need not be spoken as a final explanation.
 - `plan.ending.last_moment`: the last action, observation, discovery or thought the listener encounters; not prescribed spoken lines.
-- `plan.ending.why_end_here`: why stopping there completes this particular promise without another recap.
+- `plan.ending.why_end_here`: why this conclusion completes the chosen telling. A summary of the story may be the intended ending.
 - `plan.ending.promises_to_close`: selected promises; an empty list is valid.
 
 The remaining plan fields, supplied references, local act IDs, speaker binding, research state and duration checks retain their contracts. New text fields use lossless `FullText`; no word-count gate or silent shortening is added. The plan editor separately checks the prepared opening, promise and resolution, novice premises, duplicate branches, action/knowledge chronology and the selected last moment. It addresses the exact saved candidate through the existing pointer catalog and bounded pointer repair.
