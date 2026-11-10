@@ -1,0 +1,25 @@
+{
+  "model": "gpt-6.1-terra",
+  "id": "resp_0002d4081e1e6ad2016af378f8c36887d2abe2b6e5653803e4",
+  "status": "completed",
+  "estimate_usd": "0.01033625",
+  "usage": {
+    "input_tokens": 3337,
+    "input_tokens_details": {
+      "cache_write_tokens": 2797,
+      "cache_write_tokens_details": {
+        "ttl_12h_tokens": 0,
+        "ttl_30m_tokens": 2797
+      },
+      "cached_tokens": 0
+    },
+    "output_tokens": 1260,
+    "output_tokens_details": {
+      "reasoning_tokens": 508
+    },
+    "total_tokens": 4597
+  },
+  "request_sha256": "ebae874fdda40c74e6086c21feb1f6f649f5875ad3c8365233469eeb12fcdd87",
+  "raw_response_sha256": "94230aa28fb79db3c248608d66a3a80aafdbd6ac666ee3c5469d78f258f68e15",
+  "provider_request_id": "req_ff26fe9582d34230a2b1a847714a92e7"
+}
