@@ -184,7 +184,24 @@ def charged_rows(journal, root, *, history=None):
         )
         if "source_turn_index" in record["data"]
     }
-    return [row for row in all_rows if row["turn_index"] in submitted]
+    charged = []
+    for row in all_rows:
+        if row["turn_index"] not in submitted:
+            continue
+        if row["status"] == "failed" and row["provider_response_id"] is None:
+            from .contracts import RunFailure
+            from .credit_recovery import refusal_evidence
+            from .source_tool_recovery import TurnEvidence
+
+            view = TurnEvidence(journal, root, row)
+            try:
+                refusal_evidence(view, view.turn)
+            except RunFailure:
+                pass
+            else:
+                continue
+        charged.append(row)
+    return charged
 
 
 def usage(journal, root, output_limit, *, history=None):

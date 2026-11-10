@@ -39,7 +39,11 @@ class ModelGateway:
         from podgen.runtime.evaluation.source_tool_contract import applies, from_manifest
 
         contract = from_manifest(self.journal.manifest(invocation["run_id"]))
-        if invocation["operation_kind"] == "role" and applies(invocation["stage"], contract):
+        if (
+            contract is not None
+            and invocation["operation_kind"] == "role"
+            and applies(invocation["stage"], contract)
+        ):
             from podgen.domain.errors import ContractError
 
             from .tool_gateway import invoke_tools
@@ -52,7 +56,9 @@ class ModelGateway:
                 self._fail(invocation, error.code, status="validation_failed")
         return self.invoke_once(invocation, profile, limits=limits, totals=totals, guard=guard)
 
-    def invoke_once(self, invocation, profile, *, limits, totals, guard, full_response=False):
+    def invoke_once(
+        self, invocation, profile, *, limits, totals, guard, full_response=False, input_limits=None
+    ):
         j = self.journal
         if invocation["status"] == "completed":
             return json.dumps(j.output(invocation)["output"], ensure_ascii=False)
@@ -78,7 +84,9 @@ class ModelGateway:
                 self._fail(invocation, "role_projection_version_mismatch", status="validation_failed")
         from podgen.runtime.evaluation.input_budget_recovery import effective_limits
 
-        local_limits = effective_limits(j, invocation, manifest=manifest)
+        local_limits = (
+            input_limits if input_limits is not None else effective_limits(j, invocation, manifest=manifest)
+        )
         if contract == "editorial-role-packets/1" and invocation["status"] == "prepared":
             j.event(
                 invocation,

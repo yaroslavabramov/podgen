@@ -123,14 +123,24 @@ def invoke_tools(gateway, root, profile, contract, *, limits, totals, guard):
         gateway._fail(root, "invocation_requires_new_attempt_or_reconciliation", status=root["status"])
     if gateway.source_corpus is None:
         raise ContractError("source_tool_corpus_missing")
+    from podgen.runtime.evaluation.source_tool_recovery import continuation, turn_input_policy
+
+    start_turn, prefix_receipts = continuation(journal, root)
+    input_policy = turn_input_policy(journal, root)
     original = journal.request(root)
-    if original.get("tools") != contract["definitions"] or original.get("tool_choice") != "auto":
+    allowed_choices = {"auto"}
+    if (
+        start_turn == contract["max_model_turns"] - 1
+        and contract.get("final_turn") == "structured_without_tools"
+    ):
+        allowed_choices.add("none")
+    if original.get("tools") != contract["definitions"] or original.get("tool_choice") not in allowed_choices:
         raise Conflict("source_tool_request_contract_changed")
     conversation = deepcopy(original["input"])
     history = model_turns.EventHistory(journal, root)
-    call_ids = set()
-    call_index = 0
-    for index in range(contract["max_model_turns"]):
+    call_ids = {record["data"]["call_id"] for record in prefix_receipts}
+    call_index = len(prefix_receipts)
+    for index in range(start_turn, contract["max_model_turns"]):
         guard()
         body = deepcopy(original)
         body["input"] = deepcopy(conversation)
@@ -162,12 +172,13 @@ def invoke_tools(gateway, root, profile, contract, *, limits, totals, guard):
                 totals=dict(input=totals["input"] + prior_input, output=totals["output"] + prior_output),
                 guard=guard,
                 full_response=True,
+                input_limits=input_policy.get(index, input_policy[None]),
             )
-        except RunFailure:
+        except RunFailure as error:
             _account(journal, root, profile, history)
             current = model_turns.rows(journal, root)[-1]
             journal.transition(root, current["status"])
-            raise
+            raise RunFailure(error.code, run_id=root["run_id"], invocation_id=root["invocation_id"]) from None
         usage = _account(journal, root, profile, history)
         calls = _calls(response)
         if final_turn and calls:

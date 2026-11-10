@@ -8,6 +8,7 @@ from podgen.writing.projections import SINGLE_INPUT_TOKEN_LIMIT, VISIBLE_BYTES_L
 
 from .contracts import RunFailure
 from .input_budget_evidence import request_record, unsent_evidence
+from .source_tool_recovery import evidence_target, resume_authorization, retry_request, turn_input_limits
 from .workflow import stages_for
 
 KIND = "input_budget_retry"
@@ -24,14 +25,22 @@ def authorize_input_retry(journal, command, target_id, max_bytes, max_tokens, *,
     else:
         raise RunFailure("input_budget_retry_not_eligible", run_id=command.run_id)
     evidence, measured = unsent_evidence(journal, target)
-    prior = effective_limits(journal, target)
+    physical = evidence_target(journal, target)
+    rejected = physical[1] if physical else target
+    prior = (
+        turn_input_limits(journal, target, rejected["turn_index"])
+        if physical
+        else effective_limits(journal, target)
+    )
     limits = dict(
         visible_bytes=prior["visible_bytes"] if max_bytes is None else max_bytes,
         input_tokens=prior["input_tokens"] if max_tokens is None else max_tokens,
     )
     if any(type(v) is not int or v < prior[k] for k, v in limits.items()) or limits == prior:
         raise RunFailure("input_budget_allowance_invalid", run_id=command.run_id)
-    if limits["visible_bytes"] < measured["total"] or limits["input_tokens"] < (target["input_tokens"] or 0):
+    if limits["visible_bytes"] < measured["total"] or limits["input_tokens"] < (
+        rejected["input_tokens"] or 0
+    ):
         raise RunFailure("input_budget_allowance_too_small", run_id=command.run_id, invocation_id=target_id)
     child = next(
         (r for r in rows if r["attempt_kind"] == KIND and r["parent_invocation_id"] == target_id), None
@@ -43,7 +52,7 @@ def authorize_input_retry(journal, command, target_id, max_bytes, max_tokens, *,
     if not allow_create or rows[-1]["invocation_id"] != target_id:
         raise RunFailure("input_budget_retry_not_current", run_id=command.run_id, invocation_id=target_id)
     guard()
-    body = deepcopy(journal.request(target))
+    body = deepcopy(retry_request(journal, target))
     new_id = uuid5(target_id, "input-budget-retry:1")
     index = target["attempt_index"] + 1
     body["metadata"].update(
@@ -68,6 +77,7 @@ def authorize_input_retry(journal, command, target_id, max_bytes, max_tokens, *,
             measured_bytes=measured,
             limits=limits,
             maximum_new_attempts=1,
+            **resume_authorization(journal, target),
         ),
     )
 
@@ -88,6 +98,8 @@ def effective_limits(journal, row, *, manifest=None):
         if row["attempt_kind"] == KIND:
             auth = request_record(journal, row)["authorization"]
             evidence, measured = unsent_evidence(journal, parent)
+            physical = evidence_target(journal, parent)
+            rejected = physical[1] if physical else parent
             limits = auth.get("limits", {})
             if (
                 auth.get("kind") != AUTHORIZATION
@@ -99,11 +111,11 @@ def effective_limits(journal, row, *, manifest=None):
                 or set(limits) != set(DEFAULTS)
                 or any(type(v) is not int or v < base[k] for k, v in limits.items())
                 or limits["visible_bytes"] < measured["total"]
-                or limits["input_tokens"] < (parent["input_tokens"] or 0)
+                or limits["input_tokens"] < (rejected["input_tokens"] or 0)
                 or context != request_record(journal, parent)["context"]
             ):
                 raise Conflict("input_budget_authorization_mismatch")
-            original = journal.request(parent)
+            original = retry_request(journal, parent)
             if {k: v for k, v in body.items() if k != "metadata"} != {
                 k: v for k, v in original.items() if k != "metadata"
             }:
@@ -112,4 +124,5 @@ def effective_limits(journal, row, *, manifest=None):
         if row["attempt_kind"] != "credit_retry":
             break
         row = parent
+        body, context = journal.request(row), request_record(journal, row)["context"]
     return base.copy()

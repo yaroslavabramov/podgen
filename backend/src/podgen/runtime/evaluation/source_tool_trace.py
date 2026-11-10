@@ -27,9 +27,12 @@ def original_invocation(journal, invocation):
 
 def successful_read_passages(journal, invocation):
     root = original_invocation(journal, invocation)
+    from .source_tool_recovery import lineage
+
     return [
         record["data"]["result"]["passage"]
-        for record in events(journal, root, kinds={"source_tool_result"})
+        for ancestor in lineage(journal, root)
+        for record in events(journal, ancestor, kinds={"source_tool_result"})
         if record["event_kind"] == "source_tool_result"
         and record["data"]["name"] == "read_source"
         and "passage" in record["data"]["result"]

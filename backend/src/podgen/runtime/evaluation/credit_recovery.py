@@ -10,6 +10,17 @@ from .validation import load_unique_json
 
 
 def refusal_evidence(journal, invocation):
+    from .source_tool_recovery import evidence_target
+
+    target = evidence_target(journal, invocation)
+    if target is not None:
+        try:
+            return refusal_evidence(*target)
+        except RunFailure as error:
+            raise RunFailure(
+                error.code, run_id=invocation["run_id"], invocation_id=invocation["invocation_id"]
+            ) from None
+
     def reject(code="credit_refusal_retry_not_eligible"):
         raise RunFailure(
             code,
@@ -105,7 +116,9 @@ def authorize_credit_retry(journal, run_id, target_id, *, guard, allow_create=Tr
     if not allow_create or rows[-1]["invocation_id"] != target_id:
         raise RunFailure("credit_refusal_retry_not_current", run_id=run_id, invocation_id=target_id)
     guard()
-    body = deepcopy(journal.request(target))
+    from .source_tool_recovery import resume_authorization, retry_request
+
+    body = deepcopy(retry_request(journal, target))
     new_id = uuid5(target_id, "credit-refusal-retry:1")
     index = target["attempt_index"] + 1
     body["metadata"].update(
@@ -129,6 +142,7 @@ def authorize_credit_retry(journal, run_id, target_id, *, guard, allow_create=Tr
             target_invocation_id=str(target_id),
             refusal_event_ref=receipt.model_dump(mode="json"),
             maximum_new_attempts=1,
+            **resume_authorization(journal, target),
         ),
     )
 

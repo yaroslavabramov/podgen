@@ -13,6 +13,15 @@ def request_record(journal, row):
 
 
 def unsent_evidence(journal, row):
+    from .source_tool_recovery import evidence_target
+
+    target = evidence_target(journal, row)
+    if target is not None:
+        try:
+            return unsent_evidence(*target)
+        except RunFailure as error:
+            raise RunFailure(error.code, run_id=row["run_id"], invocation_id=row["invocation_id"]) from None
+
     def reject():
         raise RunFailure(
             "input_budget_retry_not_eligible", run_id=row["run_id"], invocation_id=row["invocation_id"]
